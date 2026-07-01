@@ -733,6 +733,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "키",
         "auth_agent" => "에이전트",
         "auth_interactive" => "대화형",
+        "auth_password_prompt" => "비밀번호 (매번)",
+        "auth_password_prompt_title" => "비밀번호 입력",
+        "auth_password_prompt_note" => "연결할 때마다 비밀번호를 묻습니다. 저장되지 않습니다.",
 
         "snippet_btn" => "스니펫",
         "commands" => "명령",

@@ -19,6 +19,35 @@ fn connection_session_logging_override_round_trips() {
     }
 }
 
+#[test]
+fn connection_auth_method_round_trips() {
+    use oryxis_core::models::connection::AuthMethod;
+    let vault = unlocked_vault();
+    // Every variant must survive the save/list cycle. This guards the
+    // string mapping in `store/connections.rs` (serialize + the
+    // `_ => Auto` deserialize fallthrough), which the compiler can't
+    // check: a missed variant silently reloads as Auto.
+    for method in [
+        AuthMethod::Auto,
+        AuthMethod::Password,
+        AuthMethod::Key,
+        AuthMethod::Agent,
+        AuthMethod::Interactive,
+        AuthMethod::PasswordPrompt,
+    ] {
+        let mut conn = Connection::new("h", "example.com");
+        conn.auth_method = method.clone();
+        vault.save_connection(&conn, None).unwrap();
+        let loaded = vault
+            .list_connections()
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == conn.id)
+            .expect("connection listed");
+        assert_eq!(loaded.auth_method, method);
+    }
+}
+
 // ── Crypto ──
 
 

@@ -15,6 +15,7 @@ impl Oryxis {
                 AuthMethod::Key => t("auth_key"),
                 AuthMethod::Agent => t("auth_agent"),
                 AuthMethod::Interactive => t("auth_interactive"),
+                AuthMethod::PasswordPrompt => t("auth_password_prompt"),
             };
             // Address shown only when the (off-by-default) setting is on,
             // so addresses stay out of screenshots / screen shares by

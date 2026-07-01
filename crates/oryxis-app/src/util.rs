@@ -570,6 +570,7 @@ pub(crate) fn auth_method_label(m: &oryxis_core::models::connection::AuthMethod)
         AuthMethod::Key => t("auth_key"),
         AuthMethod::Agent => t("auth_agent"),
         AuthMethod::Interactive => t("auth_interactive"),
+        AuthMethod::PasswordPrompt => t("auth_password_prompt"),
     }
     .to_string()
 }
@@ -588,6 +589,8 @@ pub(crate) fn auth_method_from_label(v: &str) -> oryxis_core::models::connection
         AuthMethod::Agent
     } else if v == t("auth_interactive") || v == "Interactive" {
         AuthMethod::Interactive
+    } else if v == t("auth_password_prompt") || v == "PasswordPrompt" {
+        AuthMethod::PasswordPrompt
     } else {
         AuthMethod::Auto
     }
@@ -603,6 +606,7 @@ pub(crate) fn auth_method_to_setting(m: &oryxis_core::models::connection::AuthMe
         AuthMethod::Key => "Key",
         AuthMethod::Agent => "Agent",
         AuthMethod::Interactive => "Interactive",
+        AuthMethod::PasswordPrompt => "PasswordPrompt",
     }
     .to_string()
 }
@@ -616,6 +620,7 @@ pub(crate) fn auth_method_from_setting(v: &str) -> oryxis_core::models::connecti
         "Key" => AuthMethod::Key,
         "Agent" => AuthMethod::Agent,
         "Interactive" => AuthMethod::Interactive,
+        "PasswordPrompt" => AuthMethod::PasswordPrompt,
         _ => AuthMethod::Auto,
     }
 }
@@ -785,6 +790,7 @@ mod tests {
             AuthMethod::Key,
             AuthMethod::Agent,
             AuthMethod::Interactive,
+            AuthMethod::PasswordPrompt,
         ] {
             let s = auth_method_to_setting(&m);
             assert_eq!(auth_method_from_setting(&s), m);

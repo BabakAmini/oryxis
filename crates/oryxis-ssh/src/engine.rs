@@ -1127,6 +1127,12 @@ pub struct SshEngine {
     /// the stored password, so headless callers (boot port forwards) still
     /// work without a modal.
     kbi_ask_tx: Option<KbiAskSender>,
+    /// Localized labels for the `AuthMethod::PasswordPrompt` modal
+    /// (title + field label). The engine has no i18n, so the app injects
+    /// the translated strings; `None` falls back to plain English for
+    /// headless callers.
+    pw_prompt_title: Option<String>,
+    pw_prompt_label: Option<String>,
     /// Optional client-side keepalive: when set, russh sends a no-op
     /// SSH_MSG_GLOBAL_REQUEST every N seconds so NAT / firewall idle
     /// timeouts don't kill the session.
@@ -1187,6 +1193,8 @@ impl SshEngine {
             host_key_check: None,
             host_key_ask_tx: None,
             kbi_ask_tx: None,
+            pw_prompt_title: None,
+            pw_prompt_label: None,
             keepalive_interval: None,
             connect_timeout: std::time::Duration::from_secs(15),
             auth_timeout: std::time::Duration::from_secs(30),
@@ -1344,6 +1352,16 @@ impl SshEngine {
     /// auth falls back to answering every prompt with the stored password.
     pub fn with_kbi_ask(mut self, tx: KbiAskSender) -> Self {
         self.kbi_ask_tx = Some(tx);
+        self
+    }
+
+    /// Provide localized labels for the `AuthMethod::PasswordPrompt` modal
+    /// (`title` = dialog heading, `label` = the password field caption).
+    /// The engine renders these into the synthetic prompt it sends over
+    /// `kbi_ask_tx`; without this call it falls back to plain English.
+    pub fn with_password_prompt_labels(mut self, title: String, label: String) -> Self {
+        self.pw_prompt_title = Some(title);
+        self.pw_prompt_label = Some(label);
         self
     }
 
@@ -1507,7 +1525,14 @@ impl SshEngine {
         password: Option<&str>,
         private_key_pem: Option<&str>,
     ) -> Result<(), SshError> {
-        if connection.auth_method == AuthMethod::Interactive {
+        // Interactive and PasswordPrompt both park on human input, which
+        // routinely exceeds any network bound. Their network round-trips
+        // are capped individually inside the auth path instead, so the
+        // blanket `auth_timeout` is skipped here for both.
+        if matches!(
+            connection.auth_method,
+            AuthMethod::Interactive | AuthMethod::PasswordPrompt
+        ) {
             return self
                 .authenticate_handle(handle, connection, password, private_key_pem)
                 .await;
@@ -2133,10 +2158,74 @@ impl SshEngine {
                     Err(SshError::Key("Keyboard-interactive auth rejected".into()))
                 }
             }
+            AuthMethod::PasswordPrompt => {
+                // Ask the UI for the password (never stored). The human wait
+                // is unbounded; only the network exchange below is capped so
+                // a server wedging after the user types can't hang forever.
+                let pw = self
+                    .prompt_password_once(password)
+                    .await
+                    .ok_or_else(|| SshError::Key("Password entry cancelled".into()))?;
+                tracing::info!("Trying prompted password auth for {}", username);
+                let res = tokio::time::timeout(
+                    self.auth_timeout,
+                    handle.authenticate_password(username, &pw),
+                )
+                .await
+                .map_err(|_| {
+                    SshError::ConnectionFailed(format!(
+                        "auth timed out after {}s",
+                        self.auth_timeout.as_secs()
+                    ))
+                })??;
+                if !res.success() {
+                    return Err(SshError::Key("Password rejected by server".into()));
+                }
+                Ok(true)
+            }
         }
     }
 
-    /// Try publickey auth with rsa-sha2-256 for RSA keys.
+    /// Ask the UI for a password once, for `AuthMethod::PasswordPrompt`.
+    ///
+    /// Sends a single-field, non-echoed prompt through `kbi_ask_tx` (the
+    /// same bridge keyboard-interactive uses) and returns the typed value.
+    /// Returns `None` when the user cancels or the UI bridge is gone.
+    /// Headless callers (no `kbi_ask_tx`) fall back to `fallback_pw`, so
+    /// MCP / boot port-forwards still authenticate without a modal.
+    async fn prompt_password_once(&self, fallback_pw: Option<&str>) -> Option<String> {
+        let Some(tx) = self.kbi_ask_tx.as_ref() else {
+            return fallback_pw.map(|s| s.to_string());
+        };
+        let query = KbiQuery {
+            name: self
+                .pw_prompt_title
+                .clone()
+                .unwrap_or_else(|| "Enter Password".to_string()),
+            instructions: String::new(),
+            prompts: vec![KbiPromptField {
+                prompt: self
+                    .pw_prompt_label
+                    .clone()
+                    .unwrap_or_else(|| "Password".to_string()),
+                echo: false,
+            }],
+        };
+        let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+        if tx.send((query, resp_tx)).await.is_err() {
+            // UI bridge dropped: treat as cancellation.
+            return None;
+        }
+        match resp_rx.await {
+            Ok(Some(mut answers)) => answers.drain(..).next(),
+            // User cancelled, or the responder was dropped.
+            Ok(None) | Err(_) => None,
+        }
+    }
+
+    /// Try publickey auth, signing RSA keys with the hash the server actually
+    /// accepts (`server_rsa_hash`) so legacy `ssh-rsa` / SHA-1 servers still
+    /// authenticate instead of the client insisting on rsa-sha2-256.
     async fn try_publickey_auth(
         &self,
         handle: &mut client::Handle<ClientHandler>,
@@ -2146,7 +2235,7 @@ impl SshEngine {
         let private_key = russh::keys::decode_secret_key(pem, None)
             .map_err(|e| SshError::Key(format!("Failed to decode key: {}", e)))?;
         let hash = if private_key.algorithm().is_rsa() {
-            Some(HashAlg::Sha256)
+            server_rsa_hash(handle).await
         } else {
             None
         };
@@ -2271,13 +2360,12 @@ impl SshEngine {
                     .await
                     .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
 
+                // Server-advertised RSA hash is per-connection, resolved once
+                // (not per key) so a multi-key agent doesn't burn MaxAuthTries.
+                let rsa_hash = server_rsa_hash(handle).await;
                 for identity in identities {
                     let pubkey = identity.public_key().into_owned();
-                    let hash = if pubkey.algorithm().is_rsa() {
-                        Some(HashAlg::Sha256)
-                    } else {
-                        None
-                    };
+                    let hash = if pubkey.algorithm().is_rsa() { rsa_hash } else { None };
                     if let Ok(res) = handle
                         .authenticate_publickey_with(username, pubkey, hash, &mut agent)
                         .await
@@ -2306,13 +2394,12 @@ impl SshEngine {
                     .await
                     .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
 
+                // Server-advertised RSA hash is per-connection, resolved once
+                // (not per key) so a multi-key agent doesn't burn MaxAuthTries.
+                let rsa_hash = server_rsa_hash(handle).await;
                 for identity in identities {
                     let pubkey = identity.public_key().into_owned();
-                    let hash = if pubkey.algorithm().is_rsa() {
-                        Some(HashAlg::Sha256)
-                    } else {
-                        None
-                    };
+                    let hash = if pubkey.algorithm().is_rsa() { rsa_hash } else { None };
                     if let Ok(res) = handle
                         .authenticate_publickey_with(username, pubkey, hash, &mut agent)
                         .await
@@ -2614,6 +2701,36 @@ impl SshEngine {
     }
 }
 
+/// Resolve the RSA signature hash to sign a publickey auth with, from the
+/// server's advertised `server-sig-algs` (RFC 8308 ext-info, as returned by
+/// `Handle::best_supported_rsa_hash`).
+///
+/// The three cases map to a single concrete choice:
+/// - `Some(Some(h))` the server named a concrete rsa-sha2 hash (256/512) it
+///   accepts. Use it (this also upgrades modern servers to SHA-512 when they
+///   offer it, rather than always signing SHA-256).
+/// - `Some(None)` the server speaks ext-info but lists only legacy `ssh-rsa`.
+///   Sign with SHA-1 (`None`).
+/// - `None` the server sent no `server-sig-algs` at all, i.e. it predates
+///   OpenSSH 7.4. Such servers only understand `ssh-rsa` / SHA-1, so sign
+///   with that (`None`) instead of insisting on rsa-sha2-256, which they
+///   reject with `unsupported public key algorithm: rsa-sha2-256`.
+///
+/// This collapses to `best_supported.flatten()`, but the explicit mapping is
+/// the contract we unit-test in `legacy_cipher_tests`.
+pub(crate) fn pick_rsa_hash(best_supported: Option<Option<HashAlg>>) -> Option<HashAlg> {
+    match best_supported {
+        Some(Some(h)) => Some(h),
+        Some(None) | None => None,
+    }
+}
+
+/// Ask the connected server which RSA hash it accepts and reduce it to the
+/// hash to sign with. Non-fatal on error (the handle is likely dead anyway):
+/// fall back to legacy `ssh-rsa` / SHA-1, the widest-compatible choice.
+async fn server_rsa_hash(handle: &client::Handle<ClientHandler>) -> Option<HashAlg> {
+    pick_rsa_hash(handle.best_supported_rsa_hash().await.unwrap_or(None))
+}
 
 fn parse_addr(addr: &str) -> Result<(String, u32), SshError> {
     let parts: Vec<&str> = addr.rsplitn(2, ':').collect();

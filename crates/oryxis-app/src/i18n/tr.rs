@@ -733,6 +733,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "Anahtar",
         "auth_agent" => "Agent",
         "auth_interactive" => "Etkileşimli",
+        "auth_password_prompt" => "Parola (sor)",
+        "auth_password_prompt_title" => "Parolayı girin",
+        "auth_password_prompt_note" => "Her bağlantıda parola sorulur. Asla kaydedilmez.",
 
         "snippet_btn" => "SNIPPET",
         "commands" => "Komutlar",

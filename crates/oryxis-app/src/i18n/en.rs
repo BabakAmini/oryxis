@@ -739,6 +739,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "auth_key" => "Key",
         "auth_agent" => "Agent",
         "auth_interactive" => "Interactive",
+        "auth_password_prompt" => "Password (ask)",
+        "auth_password_prompt_title" => "Enter Password",
+        "auth_password_prompt_note" => "You'll be asked for the password on every connect. It is never saved.",
 
         "snippet_btn" => "SNIPPET",
         "commands" => "Commands",

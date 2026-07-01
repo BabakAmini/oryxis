@@ -733,6 +733,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "Ключ",
         "auth_agent" => "Агент",
         "auth_interactive" => "Інтерактивна",
+        "auth_password_prompt" => "Пароль (запитувати)",
+        "auth_password_prompt_title" => "Введіть пароль",
+        "auth_password_prompt_note" => "Пароль запитуватиметься під час кожного підключення. Він ніколи не зберігається.",
 
         "snippet_btn" => "СНІПЕТ",
         "commands" => "Команди",

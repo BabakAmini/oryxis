@@ -36,6 +36,7 @@ impl VaultStore {
             AuthMethod::Key => "key",
             AuthMethod::Agent => "agent",
             AuthMethod::Interactive => "interactive",
+            AuthMethod::PasswordPrompt => "password_prompt",
         };
 
         self.db.execute(
@@ -135,6 +136,7 @@ impl VaultStore {
                     "key" => AuthMethod::Key,
                     "agent" => AuthMethod::Agent,
                     "interactive" => AuthMethod::Interactive,
+                    "password_prompt" => AuthMethod::PasswordPrompt,
                     _ => AuthMethod::Auto,
                 };
 

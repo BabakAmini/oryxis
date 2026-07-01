@@ -133,13 +133,28 @@ pub(crate) fn panel_option_pick<'a>(
     selected: String,
     on_change: impl Fn(String) -> Message + 'a,
 ) -> Element<'a, Message> {
+    panel_option_pick_w(icon_widget, label, options, selected, 120.0, on_change)
+}
+
+/// Same as `panel_option_pick` but with an explicit picker width. The
+/// dropdown menu inherits the control width, so options longer than the
+/// default 120px (e.g. the "ask every time" auth mode) need a wider
+/// picker to render without truncation.
+pub(crate) fn panel_option_pick_w<'a>(
+    icon_widget: iced::widget::Text<'a>,
+    label: &'a str,
+    options: Vec<String>,
+    selected: String,
+    width: f32,
+    on_change: impl Fn(String) -> Message + 'a,
+) -> Element<'a, Message> {
     container(
         dir_row(vec![
             icon_widget.size(13).color(OryxisColors::t().text_muted).into(),
             Space::new().width(10).into(),
             text(label).size(13).color(OryxisColors::t().text_secondary).into(),
             Space::new().width(Length::Fill).into(),
-            pick_list(Some(selected), options, |s: &String| s.clone()).on_select(on_change).width(120).padding(10).style(rounded_pick_list_style).into(),
+            pick_list(Some(selected), options, |s: &String| s.clone()).on_select(on_change).width(width).padding(10).style(rounded_pick_list_style).into(),
         ])
         .align_y(iced::Alignment::Center),
     )

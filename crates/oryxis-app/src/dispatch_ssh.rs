@@ -394,6 +394,10 @@ impl Oryxis {
                                         .with_host_key_check(host_key_check)
                                         .with_host_key_ask(hk_ask_tx)
                                         .with_kbi_ask(kbi_ask_tx)
+                                        .with_password_prompt_labels(
+                                            crate::i18n::t("auth_password_prompt_title").to_string(),
+                                            crate::i18n::t("password").to_string(),
+                                        )
                                         .with_keepalive(keepalive)
                                         .with_agent_forwarding(agent_forwarding)
                                         .with_env_vars(env_vars)
@@ -1558,6 +1562,10 @@ impl Oryxis {
                 .with_host_key_check(host_key_check)
                 .with_host_key_ask(hk_ask_tx)
                 .with_kbi_ask(kbi_ask_tx)
+                .with_password_prompt_labels(
+                    crate::i18n::t("auth_password_prompt_title").to_string(),
+                    crate::i18n::t("password").to_string(),
+                )
                 .with_keepalive(keepalive)
                 .with_agent_forwarding(agent_forwarding)
                 .with_env_vars(env_vars)

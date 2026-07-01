@@ -733,6 +733,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "Kunci",
         "auth_agent" => "Agent",
         "auth_interactive" => "Interaktif",
+        "auth_password_prompt" => "Kata sandi (tanya)",
+        "auth_password_prompt_title" => "Masukkan kata sandi",
+        "auth_password_prompt_note" => "Kata sandi akan diminta setiap kali menyambung. Tidak pernah disimpan.",
 
         "snippet_btn" => "SNIPPET",
         "commands" => "Perintah",

@@ -106,3 +106,27 @@ async fn auto_fails_with_cipher_category_then_expanded_connects() {
         .await
         .expect("expanded client should complete the handshake");
 }
+
+/// `pick_rsa_hash` maps the server's advertised RSA support
+/// (`Handle::best_supported_rsa_hash`) onto the hash we sign with. This is
+/// the fix for issue #50: a legacy server that only speaks `ssh-rsa` (SHA-1),
+/// or predates the `server-sig-algs` extension entirely, must resolve to
+/// SHA-1 (`None`) so it doesn't reject our key with
+/// `unsupported public key algorithm: rsa-sha2-256`.
+#[test]
+fn pick_rsa_hash_honors_server_advertisement() {
+    use crate::engine::pick_rsa_hash;
+    use russh::keys::HashAlg;
+
+    // Server named a concrete rsa-sha2 hash: honor it exactly (this is also
+    // what upgrades a modern server from SHA-256 to SHA-512).
+    assert_eq!(pick_rsa_hash(Some(Some(HashAlg::Sha512))), Some(HashAlg::Sha512));
+    assert_eq!(pick_rsa_hash(Some(Some(HashAlg::Sha256))), Some(HashAlg::Sha256));
+
+    // Server speaks ext-info but lists only legacy ssh-rsa -> SHA-1.
+    assert_eq!(pick_rsa_hash(Some(None)), None);
+
+    // No server-sig-algs at all (pre-OpenSSH 7.4) -> SHA-1, the only
+    // algorithm such servers understand.
+    assert_eq!(pick_rsa_hash(None), None);
+}

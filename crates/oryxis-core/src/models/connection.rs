@@ -222,6 +222,11 @@ pub enum AuthMethod {
     Key,
     Agent,
     Interactive,
+    /// Password auth where the password is never stored: the app prompts
+    /// for it at every connect and feeds the typed value straight to the
+    /// server. Falls back to any caller-provided password when no UI
+    /// prompt channel is wired (headless / MCP).
+    PasswordPrompt,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -471,5 +476,6 @@ mod tests {
         assert_eq!(serde_json::to_string(&AuthMethod::Key).unwrap(), "\"Key\"");
         assert_eq!(serde_json::to_string(&AuthMethod::Agent).unwrap(), "\"Agent\"");
         assert_eq!(serde_json::to_string(&AuthMethod::Interactive).unwrap(), "\"Interactive\"");
+        assert_eq!(serde_json::to_string(&AuthMethod::PasswordPrompt).unwrap(), "\"PasswordPrompt\"");
     }
 }

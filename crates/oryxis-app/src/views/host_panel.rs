@@ -15,7 +15,7 @@ use crate::theme::OryxisColors;
 use crate::app::PANEL_WIDTH;
 use crate::widgets::{
     dir_align_x, dir_row, panel_divider, panel_field, panel_option_pick,
-    panel_section, password_input_with_eye,
+    panel_option_pick_w, panel_section, password_input_with_eye,
 };
 
 impl Oryxis {
@@ -323,6 +323,19 @@ impl Oryxis {
         cred_items = cred_items.push(Space::new().height(8));
         if let Some(banner) = ssh_identity_banner {
             cred_items = cred_items.push(banner);
+        } else if self.editor_form.auth_method == AuthMethod::PasswordPrompt {
+            // "Ask every time": no password is stored, so there is no field
+            // to fill. A one-line note explains the prompt-on-connect flow.
+            cred_items = cred_items.push(
+                dir_row(vec![
+                    iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("auth_password_prompt_note"))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                ]).align_y(iced::Alignment::Center)
+            );
         } else {
             let pw_placeholder: &'static str = if self.editor_form.has_existing_password
                 && !self.editor_form.password_touched
@@ -452,6 +465,7 @@ impl Oryxis {
             AuthMethod::Key => t("auth_key"),
             AuthMethod::Agent => t("auth_agent"),
             AuthMethod::Interactive => t("auth_interactive"),
+            AuthMethod::PasswordPrompt => t("auth_password_prompt"),
         };
 
         // Single "Host Chaining" entry point (SSH > Network). Clicking
@@ -489,7 +503,7 @@ impl Oryxis {
         ).into();
 
         // Auth method (SSH > Authentication).
-        let row_auth_method: Element<'_, Message> = panel_option_pick(
+        let row_auth_method: Element<'_, Message> = panel_option_pick_w(
             iced_fonts::lucide::shield(),
             t("auth_method"),
             vec![
@@ -498,8 +512,12 @@ impl Oryxis {
                 t("auth_key").to_string(),
                 t("auth_agent").to_string(),
                 t("auth_interactive").to_string(),
+                t("auth_password_prompt").to_string(),
             ],
             auth_value.to_string(),
+            // Wider than the default 120px so the longest option
+            // ("Password (ask...)" and its translations) is not truncated.
+            200.0,
             Message::EditorAuthMethodChanged,
         );
 

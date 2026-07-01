@@ -733,6 +733,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "Khóa",
         "auth_agent" => "Agent",
         "auth_interactive" => "Tương tác",
+        "auth_password_prompt" => "Mật khẩu (hỏi)",
+        "auth_password_prompt_title" => "Nhập mật khẩu",
+        "auth_password_prompt_note" => "Bạn sẽ được hỏi mật khẩu mỗi lần kết nối. Mật khẩu không bao giờ được lưu.",
 
         "snippet_btn" => "ĐOẠN LỆNH",
         "commands" => "Lệnh",

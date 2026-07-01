@@ -343,6 +343,8 @@ impl Oryxis {
                     AuthMethod::Agent
                 } else if v == t("auth_interactive") || v == "Interactive" {
                     AuthMethod::Interactive
+                } else if v == t("auth_password_prompt") || v == "PasswordPrompt" {
+                    AuthMethod::PasswordPrompt
                 } else {
                     AuthMethod::Auto
                 };

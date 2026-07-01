@@ -739,6 +739,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auth_key" => "Klucz",
         "auth_agent" => "Agent",
         "auth_interactive" => "Interaktywne",
+        "auth_password_prompt" => "Hasło (pytaj)",
+        "auth_password_prompt_title" => "Wprowadź hasło",
+        "auth_password_prompt_note" => "Hasło będzie wymagane przy każdym połączeniu. Nigdy nie jest zapisywane.",
 
         "snippet_btn" => "FRAGMENT",
         "commands" => "Polecenia",
