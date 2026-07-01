@@ -47,6 +47,11 @@ impl Oryxis {
         // tabs after every message: new tabs appended, closed ones dropped,
         // drag-reordered order preserved.
         self.reconcile_tab_order();
+        // Track most-recently-used tab order for Ctrl+Tab. Must run after
+        // `reconcile_tab_order`: the cycle's fallback walk order reads
+        // `ordered_tab_refs`, which is derived from the freshly-synced
+        // `tab_order`.
+        self.reconcile_tab_mru();
         task
     }
 

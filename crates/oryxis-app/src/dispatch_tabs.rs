@@ -254,6 +254,12 @@ impl Oryxis {
                         ));
                     }
                 } else {
+                    // Commit any in-progress Ctrl+Tab run: losing focus with
+                    // Ctrl held may swallow the release event, and the OS may
+                    // not deliver a modifier change on blur, so end the run
+                    // here rather than leave it stranded (which would freeze
+                    // MRU tracking until the next real Ctrl-release).
+                    self.commit_tab_cycle();
                     // Anchor the keepalive toggle to the size the window
                     // had when it lost focus. All plugin tabs share the
                     // window, so the first one's size is representative.
@@ -920,14 +926,11 @@ impl Oryxis {
                     if tab.pane_grid.panes.len() != 1 {
                         return None;
                     }
-                    // Only reuse a pane whose session is already torn down. A
-                    // live pane's stream task still owns the old session and
-                    // keeps emitting `PtyOutput` for this same pane id; reusing
-                    // the id would stack two sessions onto one terminal. A
-                    // "restart this live host" goes through the legacy rebuild.
-                    if tab.active().ssh_session.is_some() {
-                        return None;
-                    }
+                    // A live pane qualifies too (a "restart this host" from the
+                    // context menu on a still-connected tab). We close its old
+                    // session and re-key the pane below so the dying stream's
+                    // trailing messages don't stack a second session onto this
+                    // terminal; see the `new_pane_id` swap in the reuse branch.
                     let base_label =
                         tab.label.trim_end_matches(" (disconnected)").to_string();
                     let pane_id = tab.active().id;
@@ -940,14 +943,35 @@ impl Oryxis {
                     plain_ssh.then_some((conn_idx, pane_id, base_label))
                 });
                 if let Some((conn_idx, pane_id, base_label)) = reuse {
-                    // Drop the dead session and restore the live label (strip the
-                    // "(disconnected)" suffix). Keeping the tab in place means we
-                    // never set `self.connecting`, so the terminal (with its
-                    // scrollback) stays on screen through the reconnect instead
-                    // of being replaced by the full-screen progress view.
+                    // Persist whatever this pane recorded before we tear its
+                    // session down, so the log tail isn't truncated.
+                    self.flush_session_logs_final();
+                    // Restore the live label (strip the "(disconnected)" suffix).
+                    // Keeping the tab in place means we never set
+                    // `self.connecting`, so the terminal (with its scrollback)
+                    // stays on screen through the reconnect instead of being
+                    // replaced by the full-screen progress view.
                     self.tabs[idx].label = base_label.clone();
-                    if let Some(pane) = self.tabs[idx].pane_by_id_mut(pane_id) {
-                        pane.ssh_session = None;
+                    // Re-key the pane before wiring the new session in. A live
+                    // pane's old stream task keeps emitting `PtyOutput` /
+                    // `SshDisconnected` for the id it was spawned with; routing
+                    // is by `Pane::id`, so a fresh id sends those trailing
+                    // messages to an id no pane holds (they get dropped) instead
+                    // of stacking a second session onto this terminal or
+                    // relabeling it "(disconnected)" mid-reconnect. `focused` is
+                    // a pane_grid handle, not the Uuid, so it survives the swap.
+                    let new_pane_id = uuid::Uuid::new_v4();
+                    let ended_log = self.tabs[idx].pane_by_id_mut(pane_id).and_then(|pane| {
+                        // Explicitly close a still-live session. Dropping the
+                        // pane's Arc alone never tears it down: the stream task
+                        // holds its own Arc, so without close() the engine
+                        // tasks, the SSH connection, and any per-connection
+                        // port-forward listeners leak (the "connection not
+                        // properly closed" the user saw).
+                        if let Some(session) = pane.ssh_session.take() {
+                            session.close();
+                        }
+                        pane.id = new_pane_id;
                         if let Ok(mut state) = pane.terminal.lock() {
                             // Dim marker so the reconnect reads as a continuation
                             // of the same pane, not a wipe. The scrollback above
@@ -959,6 +983,15 @@ impl Oryxis {
                                 .as_bytes(),
                             );
                         }
+                        // Hand back the old log id so it can be ended below: the
+                        // orphaned old-id stream won't reach the
+                        // `SshDisconnected` path that normally does it.
+                        pane.session_log_id.take()
+                    });
+                    if let Some(log_id) = ended_log
+                        && let Some(vault) = &self.vault
+                    {
+                        let _ = vault.end_session_log(&log_id);
                     }
                     // Toast "Reconnecting..." so the user sees feedback the
                     // moment the attempt starts (a silent auto-reconnect can fire
@@ -968,7 +1001,7 @@ impl Oryxis {
                     self.toast =
                         Some(crate::i18n::t("disconnected_reconnecting").to_string());
                     return Ok(Task::batch(vec![
-                        self.spawn_ssh_for_pane(conn_idx, idx, pane_id),
+                        self.spawn_ssh_for_pane(conn_idx, idx, new_pane_id),
                         Task::perform(
                             async {
                                 tokio::time::sleep(std::time::Duration::from_millis(2500))

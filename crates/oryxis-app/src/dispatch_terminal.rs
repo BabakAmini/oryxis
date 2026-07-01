@@ -564,20 +564,24 @@ impl Oryxis {
                         iced::widget::operation::focus_next()
                     });
                 }
-                // Ctrl+Tab / Ctrl+Shift+Tab: move the strip focus one slot
-                // forward / backward through [Home, pinned, tabs], wrapping
-                // around (Home is part of the cycle). Positional, not MRU, so
-                // it's fully deterministic. Handled here rather than via the
-                // configurable hotkey table so it works from any surface (the
-                // Home/vault views included). Consumed unconditionally so the
-                // combo never leaks a literal \t into the PTY.
+                // Ctrl+Tab / Ctrl+Shift+Tab: switch tabs by last use, like the
+                // OS Alt+Tab. A single repeated press toggles the two most
+                // recent tabs; holding Ctrl and pressing Tab several times
+                // walks further back through the recency stack, committing the
+                // choice when Ctrl is released. Covers open tabs only (Home
+                // stays on Ctrl+1 / Alt+arrow). Handled here rather than via the
+                // configurable hotkey table so it works from any surface.
+                // Consumed unconditionally so the combo never leaks a literal
+                // \t into the PTY. See `tab_cycle.rs` for the MRU mechanics;
+                // the run is committed by `reconcile_tab_mru` (Ctrl-release) and
+                // `WindowFocusChanged` (focus lost mid-hold).
                 if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event
                     && matches!(key, keyboard::Key::Named(keyboard::key::Named::Tab))
                     && modifiers.control()
                     && !self.show_host_panel
                     && !self.any_modal_blocks_input()
                 {
-                    return Ok(self.cycle_strip_focus(!modifiers.shift()));
+                    return Ok(self.cycle_mru_step(!modifiers.shift()));
                 }
                 // Dashboard keyboard navigation: from the search field,
                 // Tab / arrows move a selection across the visible host

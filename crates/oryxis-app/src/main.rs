@@ -70,6 +70,7 @@ mod ssh_config;
 mod state;
 mod subscription;
 mod sync_runtime;
+mod tab_cycle;
 mod theme;
 mod theme_import;
 mod tray;

@@ -400,6 +400,16 @@ pub struct Oryxis {
     /// vecs (`tabs`, `sftp_tabs`) are id-addressed storage; this list drives
     /// display order and drag-reorder across the terminal/SFTP boundary.
     pub(crate) tab_order: Vec<crate::state::TabRef>,
+    /// Most-recently-used order of open tabs (front = most recent), driving
+    /// Ctrl+Tab "switch by last use". Terminal + SFTP tabs only; Home is not a
+    /// member (it stays on Ctrl+1 / Alt+arrow). Maintained by
+    /// `reconcile_tab_mru` after every message. See `tab_cycle.rs`.
+    pub(crate) tab_mru: Vec<crate::state::TabRef>,
+    /// In-progress Ctrl+Tab run: `Some` from the first Ctrl+Tab press until
+    /// Ctrl is released. Holds the MRU snapshot the run walks so previews
+    /// don't disturb the live order until the choice is committed. See
+    /// `tab_cycle.rs`.
+    pub(crate) tab_cycle: Option<crate::tab_cycle::TabCycle>,
     /// Set for the duration of an SFTP async-continuation dispatch to the id
     /// of the owning tab (whose state is temporarily swapped into `self.sftp`).
     /// Lets handlers stamp re-emitted continuation messages with the right

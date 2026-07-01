@@ -238,6 +238,8 @@ impl Oryxis {
                 sftp_tabs: Vec::new(),
                 active_sftp: None,
                 tab_order: Vec::new(),
+                tab_mru: Vec::new(),
+                tab_cycle: None,
                 routing_sftp: None,
                 hovered_sftp_tab: None,
                 pending_sftp_close: None,
