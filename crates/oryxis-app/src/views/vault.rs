@@ -1,12 +1,13 @@
 //! Vault setup / unlock / error screens.
 
+use iced::border::Radius;
 use iced::widget::{button, column, container, svg, text, Space};
-use iced::{Background, Element, Length, Padding};
+use iced::{Background, Border, Color, Element, Length, Padding};
 
 use crate::app::{Message, Oryxis};
-use crate::theme::OryxisColors;
+use crate::theme::{mix, OryxisColors};
 use crate::views::chrome::window_chrome_bar;
-use crate::widgets::{password_input_with_eye, styled_button};
+use crate::widgets::{accent_gradient, password_input_with_eye, styled_button};
 
 /// Wrap a vault screen body with the top window chrome so the user can still
 /// drag / minimize / maximize / close before unlocking the vault. Also adds
@@ -93,18 +94,50 @@ impl Oryxis {
             .into()
         };
 
-        let body: Element<'_, Message> = container(
-            column![logo, Space::new().height(16), title, Space::new().height(8), subtitle, Space::new().height(24), input, Space::new().height(12), btn, Space::new().height(8), error, Space::new().height(16), destroy_section]
-                .align_x(iced::Alignment::Center),
-        )
-        .center(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_primary)),
-            ..Default::default()
-        })
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into();
+        // The unlock form sits on a gradient card centered on an
+        // accent-washed page, sharing the onboarding carousel's design
+        // language (see `views/onboarding.rs`): same card chrome (radius 18,
+        // 1px border, soft drop shadow) and the same two-layer diagonal
+        // accent gradient (`widgets::accent_gradient`).
+        let card_inner = column![logo, Space::new().height(16), title, Space::new().height(8), subtitle, Space::new().height(24), input, Space::new().height(12), btn, Space::new().height(8), error, Space::new().height(16), destroy_section]
+            .width(Length::Fill)
+            .align_x(iced::Alignment::Center);
+
+        let card = container(card_inner)
+            .padding(Padding { top: 48.0, right: 48.0, bottom: 40.0, left: 48.0 })
+            .width(Length::Fixed(460.0))
+            .style(|_| {
+                let base = OryxisColors::t().bg_primary;
+                let accent = OryxisColors::t().accent;
+                container::Style {
+                    background: Some(accent_gradient(mix(base, accent, 0.12), base)),
+                    border: Border {
+                        radius: Radius::from(18.0),
+                        color: OryxisColors::t().border,
+                        width: 1.0,
+                    },
+                    shadow: iced::Shadow {
+                        color: Color { a: 0.32, ..Color::BLACK },
+                        offset: iced::Vector::new(0.0, 12.0),
+                        blur_radius: 40.0,
+                    },
+                    ..Default::default()
+                }
+            });
+
+        let body: Element<'_, Message> = container(card)
+            .center(Length::Fill)
+            .style(|_| {
+                let base = OryxisColors::t().bg_sidebar;
+                let accent = OryxisColors::t().accent;
+                container::Style {
+                    background: Some(accent_gradient(mix(base, accent, 0.22), base)),
+                    ..Default::default()
+                }
+            })
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
         with_chrome(body, self.window_maximized)
     }
 

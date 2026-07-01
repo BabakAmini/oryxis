@@ -14,7 +14,8 @@ use crate::app::{Message, Oryxis};
 use crate::dispatch_onboarding::ONBOARDING_LAST_SLIDE;
 use crate::i18n::t;
 use crate::theme::OryxisColors;
-use crate::widgets::{dir_row, password_input_with_eye, styled_button};
+use crate::theme::mix;
+use crate::widgets::{accent_gradient, dir_row, password_input_with_eye, styled_button};
 
 impl Oryxis {
     /// Build the full-screen first-run onboarding page (the caller wraps
@@ -53,8 +54,8 @@ impl Oryxis {
                 container::Style {
                     // A subtle accent wash diagonally from the top-left
                     // corner, settling into the surface toward the bottom.
-                    background: Some(onboarding_accent_gradient(
-                        blend(base, accent, 0.12),
+                    background: Some(accent_gradient(
+                        mix(base, accent, 0.12),
                         base,
                     )),
                     border: Border {
@@ -83,8 +84,8 @@ impl Oryxis {
                 let base = OryxisColors::t().bg_sidebar;
                 let accent = OryxisColors::t().accent;
                 container::Style {
-                    background: Some(onboarding_accent_gradient(
-                        blend(base, accent, 0.22),
+                    background: Some(accent_gradient(
+                        mix(base, accent, 0.22),
                         base,
                     )),
                     ..Default::default()
@@ -271,31 +272,6 @@ fn onboarding_bullet(label: &str) -> Element<'_, Message> {
     ])
     .align_y(iced::Alignment::Start)
     .into()
-}
-
-/// Opaque diagonal accent wash: `glow` at the top-left corner fading to
-/// `base` toward the bottom-right (angle ~135 deg, the same family as the
-/// active-tab gradient in the bar). Both stops are opaque so the surface
-/// reads cleanly whether or not anything sits behind the container.
-fn onboarding_accent_gradient(glow: Color, base: Color) -> Background {
-    Background::Gradient(iced::Gradient::Linear(
-        iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI * 0.75))
-            .add_stop(0.0, glow)
-            .add_stop(0.55, blend(base, glow, 0.25))
-            .add_stop(1.0, base),
-    ))
-}
-
-/// Linear interpolate two colors, forcing an opaque result. Used to build
-/// the accent-tinted "glow" end of the onboarding gradient from the theme's
-/// base surface and accent so it tracks custom themes.
-fn blend(a: Color, b: Color, t: f32) -> Color {
-    Color {
-        r: a.r + (b.r - a.r) * t,
-        g: a.g + (b.g - a.g) * t,
-        b: a.b + (b.b - a.b) * t,
-        a: 1.0,
-    }
 }
 
 /// A circular, tinted badge framing a slide's glyph: a soft accent disc so

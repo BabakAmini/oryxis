@@ -1,6 +1,22 @@
 //! UI helper widgets: cards. Split out of widgets/mod.rs.
 
 use super::*;
+
+/// Opaque diagonal accent wash: `glow` at the top-left corner fading to
+/// `base` toward the bottom-right (angle ~135 deg, the same family as the
+/// active-tab gradient in the bar). Both stops are opaque so the surface
+/// reads cleanly whether or not anything sits behind the container. Shared
+/// by the onboarding carousel and the vault lock screen so the two read as
+/// one design language. Build `glow` from the theme surface + accent via
+/// `crate::theme::mix` so it tracks custom themes.
+pub(crate) fn accent_gradient(glow: Color, base: Color) -> Background {
+    Background::Gradient(iced::Gradient::Linear(
+        iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI * 0.75))
+            .add_stop(0.0, glow)
+            .add_stop(0.55, crate::theme::mix(base, glow, 0.25))
+            .add_stop(1.0, base),
+    ))
+}
 /// Soft left-to-right accent wash on a card: the card's own colour
 /// (host brand / group / key / snippet colour) at low alpha on the left
 /// edge fading to transparent across the card. The colour is first toned
