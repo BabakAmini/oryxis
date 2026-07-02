@@ -719,6 +719,10 @@ impl Oryxis {
                         pane.ssh_session = Some(session.clone());
                         if let Ok(mut state) = pane.terminal.lock() {
                             state.set_remote_resize_sender(session.resize_sender());
+                            // Query replies (cursor position, DECRQM, ...) must
+                            // reach the remote: programs block waiting for them
+                            // (issue #48, docker compose's raw-mode prompt).
+                            state.set_remote_reply_sender(session.write_sender());
                             session.resize(state.cols(), state.rows());
                         }
                     }

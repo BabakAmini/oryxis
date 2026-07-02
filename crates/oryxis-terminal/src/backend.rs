@@ -320,6 +320,34 @@ mod tests {
         assert!(backend.sync_timeout().is_none(), "closed update leaves no deadline");
     }
 
+    /// In-band terminal queries must be answered through the PtyWrite
+    /// back-channel once a sender is wired (issue #48: docker compose's
+    /// raw-mode prompt blocks forever on an unanswered query, freezing
+    /// the session for the user). DSR `\x1b[6n` asks for the cursor
+    /// position; the reply is `\x1b[{row};{col}R`, 1-based.
+    #[test]
+    fn dsr_query_reply_reaches_back_channel() {
+        let mut backend = TerminalBackend::new(40, 5);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        backend.event_proxy.set_pty_write_tx(tx);
+        backend.process(b"ab\x1b[6n");
+        let reply = rx.try_recv().expect("DSR query must produce a reply");
+        assert_eq!(reply, b"\x1b[1;3R", "cursor sits on row 1, column 3 after `ab`");
+    }
+
+    /// DECRQM private-mode queries get a report too; buildkit / docker
+    /// compose probe `?2026` (synchronized output) this way before its
+    /// prompt. `\x1b[?2026;2$y` = mode recognized, currently reset.
+    #[test]
+    fn decrqm_query_reply_reaches_back_channel() {
+        let mut backend = TerminalBackend::new(40, 5);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        backend.event_proxy.set_pty_write_tx(tx);
+        backend.process(b"\x1b[?2026$p");
+        let reply = rx.try_recv().expect("DECRQM query must produce a reply");
+        assert_eq!(reply, b"\x1b[?2026;2$y");
+    }
+
     /// `flush_sync` with no update pending is a no-op (must not corrupt the
     /// grid or panic), since the timer can fire after a normal close.
     #[test]

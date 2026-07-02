@@ -623,6 +623,15 @@ impl SshSession {
         self.resize_tx.clone()
     }
 
+    /// Hand out a clone of the input sender so the terminal emulator can
+    /// answer in-band queries (cursor position report, device attributes,
+    /// DECRQM, ...) directly on the channel. Remote programs block waiting
+    /// for these replies; without the back-channel they hang with the tty
+    /// in raw mode, which looks like a full terminal freeze.
+    pub fn write_sender(&self) -> mpsc::UnboundedSender<Vec<u8>> {
+        self.writer_tx.clone()
+    }
+
     /// Open a fresh SFTP subsystem channel on this session, the SSH
     /// connection multiplexes, so the original PTY channel keeps running.
     /// Wrapped in the engine-configured timeout to keep `open_sftp` from

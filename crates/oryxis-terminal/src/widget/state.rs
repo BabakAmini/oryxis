@@ -62,6 +62,21 @@ impl TerminalState {
         self.remote_resize_tx = Some(tx);
     }
 
+    /// Wire the emulator's query-reply back-channel to a remote session's
+    /// input, called from the app alongside `set_remote_resize_sender`.
+    /// The emulator answers in-band queries (DSR `\x1b[6n` cursor position,
+    /// DA `\x1b[c`, DECRQM `\x1b[?..$p`, ...) by emitting `Event::PtyWrite`;
+    /// local PTYs wire the same slot in `PtyHandle::spawn_command`. Remote
+    /// programs (docker compose's raw-mode `[y/N]` prompt) block on these
+    /// replies, so dropping them freezes the session for the user: raw mode
+    /// means no echo and no Ctrl+C, and the blocked program prints nothing.
+    pub fn set_remote_reply_sender(
+        &mut self,
+        tx: mpsc::UnboundedSender<Vec<u8>>,
+    ) {
+        self.backend.event_proxy.set_pty_write_tx(tx);
+    }
+
     pub fn process(&mut self, bytes: &[u8]) {
         self.backend.process(bytes);
     }
