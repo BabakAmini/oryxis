@@ -34,6 +34,19 @@ macro_rules! try_handler {
 
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Any user input event resets the vault auto-lock idle clock.
+        // These are the raw-event messages `subscription.rs` maps from
+        // iced's global listener, so presence is detected app-wide
+        // without touching individual handlers.
+        if matches!(
+            message,
+            Message::KeyboardEvent(_)
+                | Message::MouseMoved(_)
+                | Message::SftpMouseLeftPressed
+                | Message::TerminalImeCommit(_)
+        ) {
+            self.last_user_activity = std::time::Instant::now();
+        }
         // SFTP async-continuation messages target a specific tab that may no
         // longer be focused. Swap the owning tab's state into `self.sftp` for
         // the duration so the (unchanged) handlers route to the right tab,

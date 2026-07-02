@@ -80,6 +80,10 @@ struct ExportConnection {
     /// with auth. Defaults to None on import of older files.
     #[serde(default)]
     proxy_password: Option<String>,
+    /// TOTP secret from the encrypted `totp_secret` column. Defaults
+    /// to None on import of older files.
+    #[serde(default)]
+    totp_secret: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -555,10 +559,12 @@ pub fn export_vault(
         for conn in &filtered_connections {
             let pw = store.get_connection_password(&conn.id).unwrap_or(None);
             let proxy_pw = store.get_proxy_password(&conn.id).unwrap_or(None);
+            let totp = store.get_connection_totp_secret(&conn.id).unwrap_or(None);
             connections.push(ExportConnection {
                 connection: (*conn).clone(),
                 password: pw,
                 proxy_password: proxy_pw,
+                totp_secret: totp,
             });
         }
     }
@@ -973,12 +979,17 @@ pub fn import_vault(
             true
         };
         if added_or_updated {
-            // Persist the proxy password (or clear it) only when we
-            // actually wrote the connection, skipped (older) entries
-            // keep their existing column intact.
+            // Persist the proxy password and TOTP secret (or clear
+            // them) only when we actually wrote the connection,
+            // skipped (older) entries keep their existing columns
+            // intact.
             store.set_proxy_password(
                 &export_conn.connection.id,
                 export_conn.proxy_password.as_deref(),
+            )?;
+            store.set_connection_totp_secret(
+                &export_conn.connection.id,
+                export_conn.totp_secret.as_deref(),
             )?;
         }
     }

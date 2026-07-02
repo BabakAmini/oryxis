@@ -253,6 +253,11 @@ impl VaultStore {
         // `privacy_mode` setting, 0 = never hide, 1 = always hide.
         // Existing rows stay NULL, so behavior is unchanged on upgrade.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN privacy_mode INTEGER;");
+        // TOTP secret for keyboard-interactive 2FA autofill. Encrypted in
+        // its own BLOB column like `proxy_password`; stores the user's raw
+        // input (bare Base32 or a full otpauth:// URI), parsed at code
+        // generation time.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN totp_secret BLOB;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");

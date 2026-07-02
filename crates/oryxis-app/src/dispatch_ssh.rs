@@ -116,6 +116,14 @@ impl Oryxis {
                         (pw, pk)
                     };
 
+                    // Per-connection TOTP secret for keyboard-interactive
+                    // autofill. Independent of the identity indirection
+                    // above, 2FA enrollment is per-host.
+                    let totp_secret = self
+                        .vault
+                        .as_ref()
+                        .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
+
                     // Build resolver for jump hosts
                     let resolver = if !conn.jump_chain.is_empty() {
                         let mut passwords = std::collections::HashMap::new();
@@ -394,6 +402,7 @@ impl Oryxis {
                                         .with_host_key_check(host_key_check)
                                         .with_host_key_ask(hk_ask_tx)
                                         .with_kbi_ask(kbi_ask_tx)
+                                        .with_totp_secret(totp_secret.as_deref())
                                         .with_password_prompt_labels(
                                             crate::i18n::t("auth_password_prompt_title").to_string(),
                                             crate::i18n::t("password").to_string(),
@@ -1490,6 +1499,10 @@ impl Oryxis {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
         }
         let (password, private_key) = self.resolve_forward_credentials(&conn);
+        let totp_secret = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
         let resolver = self.build_jump_resolver(&conn);
         let host_key_check = self.build_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
@@ -1566,6 +1579,7 @@ impl Oryxis {
                 .with_host_key_check(host_key_check)
                 .with_host_key_ask(hk_ask_tx)
                 .with_kbi_ask(kbi_ask_tx)
+                .with_totp_secret(totp_secret.as_deref())
                 .with_password_prompt_labels(
                     crate::i18n::t("auth_password_prompt_title").to_string(),
                     crate::i18n::t("password").to_string(),

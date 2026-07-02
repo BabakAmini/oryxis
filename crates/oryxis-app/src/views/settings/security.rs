@@ -638,6 +638,51 @@ impl Oryxis {
                 .push(text(msg).size(12).color(color));
         }
 
+        // Auto-lock + clipboard hygiene. Both are numeric fields with
+        // 0 = off; the idle lock only applies once a master password
+        // exists (without one, locking has nothing to protect), so the
+        // field is replaced by the same muted note as the Lock button.
+        let auto_lock_field: Element<'_, Message> = if self.vault_ui.has_user_password {
+            text_input("0", &self.setting_auto_lock_minutes)
+                .on_input(Message::SettingAutoLockChanged)
+                .padding(10)
+                .width(240)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into()
+        } else {
+            text(crate::i18n::t("lock_vault_requires_password"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into()
+        };
+        let auto_lock_section = panel_section(column![
+            text(crate::i18n::t("auto_lock_minutes"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_auto_lock_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            auto_lock_field,
+        ]);
+
+        let clipboard_clear_section = panel_section(column![
+            text(crate::i18n::t("clipboard_clear_seconds"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_clipboard_clear_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            text_input("30", &self.setting_clipboard_clear_seconds)
+                .on_input(Message::SettingClipboardClearChanged)
+                .padding(10)
+                .width(240)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x()),
+        ]);
+
         // Privacy & logging: session recordings, connection
         // history and the retention window. Moved here from the
         // Terminal section, recordings are scrubbed for secrets
@@ -722,6 +767,10 @@ impl Oryxis {
                     password_section,
                     Space::new().height(24),
                     lock_row,
+                    Space::new().height(24),
+                    auto_lock_section,
+                    Space::new().height(12),
+                    clipboard_clear_section,
                     Space::new().height(24),
                     privacy_mode_section,
                     Space::new().height(12),

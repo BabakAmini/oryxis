@@ -361,6 +361,35 @@ impl Oryxis {
             );
         }
 
+        // TOTP secret (2FA autofill). Shown for every auth method: a
+        // keyboard-interactive second factor can follow any first factor
+        // (password, key, agent). Same masked-placeholder tri-state as
+        // the password field above.
+        {
+            let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
+                && !self.editor_form.totp_touched
+            {
+                "••••••••"
+            } else {
+                t("totp_secret")
+            };
+            cred_items = cred_items.push(
+                dir_row(vec![
+                    iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    password_input_with_eye(
+                        totp_placeholder,
+                        &self.editor_form.totp_secret,
+                        Message::EditorTotpChanged,
+                        Some(Message::EditorSave),
+                        self.editor_form.totp_visible,
+                        Message::EditorToggleTotpVisibility,
+                        10.0,
+                    ),
+                ]).align_y(iced::Alignment::Center)
+            );
+        }
+
         // Cloud-managed transport picker (Connection), only when the
         // connection being edited carries a `cloud_ref` (i.e. it was
         // imported from a cloud provider). Lets the user flip between

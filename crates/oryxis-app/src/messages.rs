@@ -489,6 +489,10 @@ pub enum Message {
     EditorProxyPasswordChanged(String),
     EditorProxyCommandChanged(String),
     EditorTogglePasswordVisibility,
+    /// TOTP secret (2FA) field: value edit + eye toggle. Tri-state save
+    /// mirrors the password field (untouched preserves the stored secret).
+    EditorTotpChanged(String),
+    EditorToggleTotpVisibility,
     EditorSave,
     EditorCancel,
     /// Ask for confirmation before removing a host. Confirming dispatches
@@ -894,6 +898,23 @@ pub enum Message {
     SettingSftpOpTimeoutChanged(String),
     SettingToggleAutoReconnect,
     SettingMaxReconnectChanged(String),
+    /// Vault auto-lock idle threshold, minutes as typed ("0" = off).
+    SettingAutoLockChanged(String),
+    /// Clipboard-clear delay for copied credentials, seconds ("0" = off).
+    SettingClipboardClearChanged(String),
+    /// Periodic idle check while the vault is unlocked and auto-lock is
+    /// enabled; locks when the idle threshold is crossed.
+    AutoLockTick,
+    /// Idle-triggered soft lock: zeroize the vault key and show the lock
+    /// screen but keep live SSH sessions and tabs (unlike the manual
+    /// `LockVault`, which tears sessions down).
+    AutoLockVault,
+    /// Copy the stored password of the host at this index (identity
+    /// password wins over the connection's own, mirroring connect).
+    CopyHostPassword(usize),
+    /// A credential-copy clear timer fired; the payload is the
+    /// generation it was armed for (stale generations are ignored).
+    ClipboardClearDue(u64),
     SettingToggleOsDetection,
     /// Toggle the global "record terminal sessions" setting.
     SettingToggleSessionLogging,

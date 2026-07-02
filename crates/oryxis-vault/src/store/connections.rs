@@ -39,12 +39,26 @@ impl VaultStore {
             AuthMethod::PasswordPrompt => "password_prompt",
         };
 
+        // The proxy password and TOTP secret live in their own encrypted
+        // columns, written only by their dedicated setters. INSERT OR
+        // REPLACE resets every column missing from its list to NULL, so
+        // both must be carried through each save (regression:
+        // `proxy_password_survives_unrelated_resave`).
+        let (existing_proxy_pw, existing_totp): (Option<Vec<u8>>, Option<Vec<u8>>) = self
+            .db
+            .query_row(
+                "SELECT proxy_password, totp_secret FROM connections WHERE id = ?1",
+                params![conn.id.to_string()],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .unwrap_or((None, None));
+
         self.db.execute(
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -95,6 +109,8 @@ impl VaultStore {
                 conn.macs.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
                 conn.host_key_algorithms.as_ref().map(|v| serde_json::to_string(v).unwrap_or_default()),
                 conn.privacy_mode.map(|b| b as i32),
+                existing_proxy_pw,
+                existing_totp,
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -328,6 +344,48 @@ impl VaultStore {
             params![encrypted, id.to_string()],
         )?;
         Ok(())
+    }
+
+    /// Set the TOTP secret for a connection (the user's raw input, a bare
+    /// Base32 secret or a full otpauth:// URI). `None` or an empty string
+    /// clears it; otherwise the value is encrypted with the vault key.
+    /// Stored in its own BLOB column, mirroring `set_proxy_password`, so
+    /// no plaintext column ever carries it.
+    pub fn set_connection_totp_secret(
+        &self,
+        id: &Uuid,
+        secret: Option<&str>,
+    ) -> Result<(), VaultError> {
+        let encrypted: Option<Vec<u8>> = match secret {
+            Some(s) if !s.is_empty() => Some(self.encrypt_field(s)?),
+            _ => None,
+        };
+        self.db.execute(
+            "UPDATE connections SET totp_secret = ?1 WHERE id = ?2",
+            params![encrypted, id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Get the decrypted TOTP secret for a connection.
+    pub fn get_connection_totp_secret(
+        &self,
+        id: &Uuid,
+    ) -> Result<Option<String>, VaultError> {
+        self.require_unlocked()?;
+        let data: Option<Vec<u8>> = self
+            .db
+            .query_row(
+                "SELECT totp_secret FROM connections WHERE id = ?1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
+            .map_err(|_| VaultError::NotFound(format!("Connection {}", id)))?;
+
+        match data {
+            Some(encrypted) => Ok(Some(self.decrypt_field(&encrypted)?)),
+            None => Ok(None),
+        }
     }
 
     /// Get the decrypted proxy password for a connection.

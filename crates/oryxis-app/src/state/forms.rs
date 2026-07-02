@@ -110,6 +110,13 @@ pub(crate) struct ConnectionForm {
     /// and lets save distinguish "preserve" from "explicitly cleared".
     pub has_existing_proxy_password: bool,
     pub proxy_password_touched: bool,
+    /// TOTP secret input (bare Base32 or an otpauth:// URI) feeding the
+    /// keyboard-interactive 2FA autofill. Same tri-state discipline as
+    /// the passwords above.
+    pub totp_secret: String,
+    pub has_existing_totp: bool,
+    pub totp_touched: bool,
+    pub totp_visible: bool,
     /// Per-host terminal palette override. `None` means "inherit the
     /// global pick"; `Some(name)` pins this host to the named palette.
     /// Mirrors `Connection.terminal_theme` while the editor is open.
@@ -700,6 +707,10 @@ impl Default for ConnectionForm {
             proxy_command: String::new(),
             has_existing_proxy_password: false,
             proxy_password_touched: false,
+            totp_secret: String::new(),
+            has_existing_totp: false,
+            totp_touched: false,
+            totp_visible: false,
             terminal_theme: None,
             keepalive_interval: String::new(),
             auto_title: None,

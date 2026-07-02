@@ -212,6 +212,10 @@ impl Oryxis {
                         .and_then(|v| v.get_proxy_password(&conn.id).ok())
                         .flatten()
                         .is_some();
+                    let has_totp = self.vault.as_ref()
+                        .and_then(|v| v.get_connection_totp_secret(&conn.id).ok())
+                        .flatten()
+                        .is_some();
                     self.editor_form = ConnectionForm {
                         label: conn.label.clone(),
                         hostname: conn.hostname.clone(),
@@ -275,6 +279,12 @@ impl Oryxis {
                         }).unwrap_or_default(),
                         has_existing_proxy_password: has_proxy_pw,
                         proxy_password_touched: false,
+                        // Never pre-fill the TOTP secret either; the
+                        // masked placeholder signals one is stored.
+                        totp_secret: String::new(),
+                        has_existing_totp: has_totp,
+                        totp_touched: false,
+                        totp_visible: false,
                         terminal_theme: conn.terminal_theme.clone(),
                         keepalive_interval: conn
                             .keepalive_interval
@@ -328,6 +338,14 @@ impl Oryxis {
             }
             Message::EditorTogglePasswordVisibility => {
                 self.editor_form.password_visible = !self.editor_form.password_visible;
+            }
+            Message::EditorTotpChanged(v) => {
+                self.editor_form.totp_touched = true;
+                self.editor_form.username_focused = false;
+                self.editor_form.totp_secret = v;
+            }
+            Message::EditorToggleTotpVisibility => {
+                self.editor_form.totp_visible = !self.editor_form.totp_visible;
             }
             Message::EditorAuthMethodChanged(v) => {
                 use crate::i18n::t;
@@ -760,6 +778,19 @@ impl Oryxis {
                     Some(self.editor_form.password.as_str())
                 };
 
+                // Validate a newly typed TOTP secret before anything is
+                // written, so a typo'd secret can't be stored and then
+                // silently fail at connect time. Cleared/untouched skip.
+                if self.editor_form.totp_touched
+                    && !self.editor_form.totp_secret.trim().is_empty()
+                    && let Err(e) =
+                        oryxis_core::totp::Totp::parse(&self.editor_form.totp_secret)
+                {
+                    self.host_panel_error =
+                        Some(format!("{}: {e}", crate::i18n::t("totp_invalid")));
+                    return Ok(Task::none());
+                }
+
                 if let Some(vault) = &self.vault {
                     match vault.save_connection(&conn, password) {
                         Ok(()) => {
@@ -780,6 +811,13 @@ impl Oryxis {
                             // dangling encrypted credential would be surprising.
                             if conn.proxy.is_none() {
                                 let _ = vault.set_proxy_password(&conn.id, None);
+                            }
+                            // TOTP secret, same touched tri-state as the
+                            // proxy password (empty input clears).
+                            if self.editor_form.totp_touched {
+                                let s = self.editor_form.totp_secret.trim();
+                                let s = (!s.is_empty()).then_some(s);
+                                let _ = vault.set_connection_totp_secret(&conn.id, s);
                             }
                             self.show_host_panel = false;
                             self.host_panel_error = None;

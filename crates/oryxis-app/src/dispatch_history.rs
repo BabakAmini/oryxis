@@ -169,6 +169,90 @@ impl Oryxis {
                     tracing::warn!("open_in_browser({url}) failed: {e}");
                 }
             }
+            Message::CopyHostPassword(idx) => {
+                // Resolve the effective stored password: the linked
+                // identity's wins over the connection's own, mirroring
+                // what a connect would send.
+                self.card_context_menu = None;
+                self.overlay = None;
+                let Some(conn) = self.connections.get(idx) else {
+                    return Ok(Task::none());
+                };
+                let pw = self.vault.as_ref().and_then(|v| match conn.identity_id {
+                    Some(iid) => v.get_identity_password(&iid).ok().flatten(),
+                    None => v.get_connection_password(&conn.id).ok().flatten(),
+                });
+                let Some(pw) = pw else {
+                    self.toast = Some(crate::i18n::t("no_password_stored").to_string());
+                    return Ok(Task::perform(
+                        async {
+                            tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
+                        },
+                        |_| Message::ToastClear,
+                    ));
+                };
+                let mut ok = false;
+                if let Ok(mut clip) = arboard::Clipboard::new() {
+                    match clip.set_text(pw.clone()) {
+                        Ok(()) => ok = true,
+                        Err(e) => tracing::warn!("clipboard set_text failed: {e}"),
+                    }
+                }
+                if !ok {
+                    return Ok(Task::none());
+                }
+                // Arm the credential-clear timer. The generation counter
+                // makes a superseded timer a no-op instead of clearing a
+                // newer copy.
+                let secs = self
+                    .setting_clipboard_clear_seconds
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|s| *s > 0);
+                let toast = if let Some(secs) = secs {
+                    crate::i18n::t("copied_clears_in").replace("{secs}", &secs.to_string())
+                } else {
+                    crate::i18n::t("copied_to_clipboard").to_string()
+                };
+                self.toast = Some(toast);
+                let toast_task = Task::perform(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
+                    },
+                    |_| Message::ToastClear,
+                );
+                let Some(secs) = secs else {
+                    return Ok(toast_task);
+                };
+                self.clipboard_clear_gen = self.clipboard_clear_gen.wrapping_add(1);
+                self.pending_clipboard_clear = Some(pw);
+                let generation = self.clipboard_clear_gen;
+                return Ok(Task::batch(vec![
+                    toast_task,
+                    Task::perform(
+                        async move {
+                            tokio::time::sleep(std::time::Duration::from_secs(secs)).await;
+                        },
+                        move |_| Message::ClipboardClearDue(generation),
+                    ),
+                ]));
+            }
+            Message::ClipboardClearDue(generation) => {
+                if generation != self.clipboard_clear_gen {
+                    return Ok(Task::none()); // superseded by a newer copy
+                }
+                let Some(expected) = self.pending_clipboard_clear.take() else {
+                    return Ok(Task::none());
+                };
+                // Only clear when the clipboard still holds the credential;
+                // whatever the user copied since is theirs to keep.
+                if let Ok(mut clip) = arboard::Clipboard::new()
+                    && clip.get_text().is_ok_and(|current| current == expected)
+                {
+                    let _ = clip.clear();
+                    tracing::debug!("cleared credential from clipboard");
+                }
+            }
             Message::CopyToClipboard(content) => {
                 let mut ok = false;
                 if let Ok(mut clip) = arboard::Clipboard::new() {

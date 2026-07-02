@@ -807,6 +807,11 @@ impl Oryxis {
         let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         self.host_key_response_tx = Some(hk_resp_tx);
 
+        let totp_secret = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
+
         let remote = path;
         // Captured for the map (conn moves into the producer); the retry
         // re-runs this backup transfer.
@@ -817,6 +822,7 @@ impl Oryxis {
                 let engine = SshEngine::new()
                     .with_host_key_check(host_key_check)
                     .with_host_key_ask(hk_ask_tx)
+                    .with_totp_secret(totp_secret.as_deref())
                     .with_keepalive(keepalive)
                     .with_algorithm_overrides(
                         conn.ciphers.clone(),

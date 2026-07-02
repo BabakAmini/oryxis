@@ -294,6 +294,13 @@ pub struct SyncConnection {
     /// Inline-proxy password was explicitly removed.
     #[serde(default, skip_serializing_if = "is_false")]
     pub proxy_password_cleared: bool,
+    /// TOTP secret (separate encrypted column on disk), gated by
+    /// `sync_passwords` like every other credential.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp_secret: Option<String>,
+    /// TOTP secret was explicitly removed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub totp_secret_cleared: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -374,6 +381,8 @@ mod tests {
             password_cleared: true,
             proxy_password: None,
             proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
         };
         let v = serde_json::to_value(&cleared).unwrap();
         assert_eq!(v["password_cleared"], serde_json::json!(true));
@@ -393,6 +402,8 @@ mod tests {
             password_cleared: false,
             proxy_password: None,
             proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
         };
         let back: SyncConnection =
             serde_json::from_value(serde_json::to_value(&set).unwrap()).unwrap();
@@ -553,11 +564,14 @@ mod tests {
             password_cleared: false,
             proxy_password: Some("proxy-pw".into()),
             proxy_password_cleared: false,
+            totp_secret: Some("JBSWY3DPEHPK3PXP".into()),
+            totp_secret_cleared: false,
         };
         let bytes = serde_json::to_vec(&wrapper).unwrap();
         let back: SyncConnection = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(back.password.as_deref(), Some("conn-pw"));
         assert_eq!(back.proxy_password.as_deref(), Some("proxy-pw"));
+        assert_eq!(back.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
     }
 
     /// When no password is set we must NOT emit empty fields, keeps
@@ -572,6 +586,8 @@ mod tests {
             password_cleared: false,
             proxy_password: None,
             proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
         };
         let json = serde_json::to_string(&wrapper).unwrap();
         assert!(

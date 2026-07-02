@@ -285,12 +285,21 @@ pub(crate) fn collect_records(
                     } else {
                         (None, false)
                     };
+                    let (totp_secret, totp_secret_cleared) = if sync_passwords {
+                        let s = v.get_connection_totp_secret(&c.id).ok().flatten();
+                        let cleared = s.is_none();
+                        (s, cleared)
+                    } else {
+                        (None, false)
+                    };
                     let wrapper = protocol::SyncConnection {
                         connection: c.clone(),
                         password,
                         password_cleared,
                         proxy_password,
                         proxy_password_cleared,
+                        totp_secret,
+                        totp_secret_cleared,
                     };
                     encode!(wrapper, "Connection")
                 })
@@ -546,6 +555,9 @@ pub(crate) fn apply_records(
                         {
                             log_save!(v.set_proxy_password(&id, Some(arg)));
                         }
+                        if let Some(arg) = secret_arg(&sc.totp_secret, sc.totp_secret_cleared) {
+                            log_save!(v.set_connection_totp_secret(&id, Some(arg)));
+                        }
                     }
                     Err(e) => tracing::warn!(
                         "sync: bad Connection payload for {}: {e}",
@@ -694,6 +706,8 @@ mod lww_tests {
             password_cleared: false,
             proxy_password: None,
             proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
         };
         let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
         let payload = cipher.encrypt(&serde_json::to_vec(&wrapper).unwrap()).unwrap();

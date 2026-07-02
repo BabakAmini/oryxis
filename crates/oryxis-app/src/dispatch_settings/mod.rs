@@ -1297,6 +1297,74 @@ impl Oryxis {
                     &self.setting_max_reconnect_attempts,
                 );
             }
+            Message::SettingAutoLockChanged(val) => {
+                self.setting_auto_lock_minutes = sanitize_uint(&val, 1440);
+                self.persist_setting("auto_lock_minutes", &self.setting_auto_lock_minutes);
+            }
+            Message::SettingClipboardClearChanged(val) => {
+                self.setting_clipboard_clear_seconds = sanitize_uint(&val, 3600);
+                self.persist_setting(
+                    "clipboard_clear_seconds",
+                    &self.setting_clipboard_clear_seconds,
+                );
+            }
+            Message::AutoLockTick => {
+                // Idle check. Guarded on Unlocked so a tick racing the
+                // lock is a no-op, and on a parseable non-zero threshold
+                // (the subscription only mounts then, but the setting can
+                // change between mount and fire).
+                let minutes = self
+                    .setting_auto_lock_minutes
+                    .parse::<u64>()
+                    .ok()
+                    .filter(|m| *m > 0);
+                if let Some(minutes) = minutes
+                    && self.vault_ui.state == crate::state::VaultState::Unlocked
+                    // Without a master password, locking reopens
+                    // immediately; auto-locking would just churn.
+                    && self.vault_ui.has_user_password
+                    && self.last_user_activity.elapsed().as_secs() >= minutes * 60
+                {
+                    tracing::info!("vault auto-lock after {minutes} min idle");
+                    return Ok(Task::done(Message::AutoLockVault));
+                }
+            }
+            Message::AutoLockVault => {
+                // Soft lock: the user walked away, not "I'm done". Zeroize
+                // the master key and drop to the lock screen, but keep
+                // live SSH sessions and tabs so long-running remote work
+                // survives the idle period (established channels never
+                // need the key again; credentials are only read at
+                // connect time). The manual LockVault stays a full
+                // teardown. While locked, the session-log flush and
+                // auto-reconnect tickers unmount (subscription.rs), so
+                // nothing hits the sealed vault; pane buffers accumulate
+                // and drain after unlock.
+                if let Some(vault) = &mut self.vault
+                    && self.vault_ui.has_user_password
+                {
+                    vault.lock();
+                    self.vault_ui.state = VaultState::Locked;
+                    self.master_password = None;
+                    // Sweep UI that may hold typed or revealed secrets;
+                    // everything else (tabs, terminals) stays.
+                    self.revealed_secrets.clear();
+                    self.show_host_panel = false;
+                    self.host_panel_error = None;
+                    self.editor_form = crate::state::ConnectionForm::default();
+                    self.overlay = None;
+                    self.card_context_menu = None;
+                    // A pending keyboard-interactive prompt belongs to an
+                    // in-flight connect; cancel it cleanly (the engine
+                    // treats `None` as auth abort).
+                    if self.pending_kbi_prompt.take().is_some() {
+                        self.kbi_inputs.clear();
+                        if let Some(ref tx) = self.kbi_response_tx {
+                            let _ = tx.try_send(None);
+                        }
+                    }
+                }
+            }
             Message::ConnectAnimTick => {
                 self.connect_anim_tick = self.connect_anim_tick.wrapping_add(1);
             }

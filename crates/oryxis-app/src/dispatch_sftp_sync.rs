@@ -115,6 +115,10 @@ impl Oryxis {
 
         // Credentials + connect parameters, resolved while we hold `&self`.
         let (password, private_key) = self.resolve_credentials(&conn);
+        let totp_secret = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
         let resolver = self.make_jump_resolver(&conn);
         let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
@@ -150,6 +154,7 @@ impl Oryxis {
                     let engine = SshEngine::new()
                         .with_host_key_check(host_key_check)
                         .with_strict_host_key(true)
+                        .with_totp_secret(totp_secret.as_deref())
                         .with_keepalive(keepalive)
                         .with_algorithm_overrides(
                             conn.ciphers.clone(),

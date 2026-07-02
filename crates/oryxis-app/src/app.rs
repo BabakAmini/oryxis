@@ -1010,6 +1010,23 @@ pub struct Oryxis {
     pub(crate) setting_sftp_op_timeout: String,
     pub(crate) setting_auto_reconnect: bool,
     pub(crate) setting_max_reconnect_attempts: String,
+    /// Vault auto-lock idle threshold, in minutes ("0" = off). When the
+    /// user hasn't produced any input event for this long, a SOFT lock
+    /// fires (`AutoLockVault`): key zeroized + lock screen, but live
+    /// sessions and tabs survive, unlike the manual Lock teardown.
+    pub(crate) setting_auto_lock_minutes: String,
+    /// Seconds until a credential copied to the clipboard is cleared
+    /// again ("0" = off). Only credential copies arm the timer; ordinary
+    /// terminal-selection copies are never touched.
+    pub(crate) setting_clipboard_clear_seconds: String,
+    /// Instant of the last user input event (keyboard / mouse / IME),
+    /// the idle anchor for `setting_auto_lock_minutes`. Not persisted.
+    pub(crate) last_user_activity: std::time::Instant,
+    /// Pending clipboard-clear: the credential value that was copied and
+    /// the generation counter guarding against a stale timer clearing a
+    /// newer copy. Cleared once the timer fires or is superseded.
+    pub(crate) pending_clipboard_clear: Option<String>,
+    pub(crate) clipboard_clear_gen: u64,
     pub(crate) setting_os_detection: bool,
     /// Global default for recording terminal sessions to the vault. A
     /// per-host `Connection.session_logging` override wins over this.

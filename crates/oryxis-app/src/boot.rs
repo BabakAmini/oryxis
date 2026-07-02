@@ -438,6 +438,11 @@ impl Oryxis {
                 setting_sftp_op_timeout: "30".into(),
                 setting_auto_reconnect: true,
                 setting_max_reconnect_attempts: "5".into(),
+                setting_auto_lock_minutes: "0".into(),
+                setting_clipboard_clear_seconds: "30".into(),
+                last_user_activity: std::time::Instant::now(),
+                pending_clipboard_clear: None,
+                clipboard_clear_gen: 0,
                 setting_os_detection: true,
                 setting_session_logging: false,
                 setting_connection_history: false,
@@ -1091,6 +1096,12 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("max_reconnect_attempts") {
                 self.setting_max_reconnect_attempts = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("auto_lock_minutes") {
+                self.setting_auto_lock_minutes = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("clipboard_clear_seconds") {
+                self.setting_clipboard_clear_seconds = v;
             }
             if let Ok(Some(v)) = vault.get_setting("os_detection") {
                 self.setting_os_detection = v == "true";

@@ -219,6 +219,89 @@ fn proxy_password_clears_on_none_or_empty() {
 }
 
 
+/// Re-saving a connection (any edit that doesn't touch the proxy
+/// password) must not wipe the stored proxy password. `INSERT OR
+/// REPLACE` resets columns missing from its list to NULL, so
+/// `save_connection` has to carry the encrypted column and
+/// SELECT-preserve it exactly like the main password.
+#[test]
+fn proxy_password_survives_unrelated_resave() {
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+    vault.set_proxy_password(&conn.id, Some("keepme")).unwrap();
+
+    conn.label = "renamed".into();
+    vault.save_connection(&conn, None).unwrap();
+
+    assert_eq!(
+        vault.get_proxy_password(&conn.id).unwrap().as_deref(),
+        Some("keepme"),
+        "editing an unrelated field wiped the proxy password"
+    );
+}
+
+
+/// TOTP secret round-trip: set / get / clear via empty and None, and
+/// the encrypted column must never hold the plaintext bytes.
+#[test]
+fn totp_secret_roundtrip_and_never_plaintext() {
+    let vault = unlocked_vault();
+    let conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+
+    let secret = "JBSWY3DPEHPK3PXP";
+    vault.set_connection_totp_secret(&conn.id, Some(secret)).unwrap();
+    assert_eq!(
+        vault.get_connection_totp_secret(&conn.id).unwrap().as_deref(),
+        Some(secret)
+    );
+
+    // The stored blob is ciphertext, not the raw secret.
+    let raw: Option<Vec<u8>> = vault
+        .db
+        .query_row(
+            "SELECT totp_secret FROM connections WHERE id = ?1",
+            params![conn.id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let raw = raw.expect("column must be populated");
+    assert!(
+        !raw.windows(secret.len()).any(|w| w == secret.as_bytes()),
+        "TOTP secret stored in plaintext"
+    );
+
+    vault.set_connection_totp_secret(&conn.id, Some("")).unwrap();
+    assert_eq!(vault.get_connection_totp_secret(&conn.id).unwrap(), None);
+    vault.set_connection_totp_secret(&conn.id, Some(secret)).unwrap();
+    vault.set_connection_totp_secret(&conn.id, None).unwrap();
+    assert_eq!(vault.get_connection_totp_secret(&conn.id).unwrap(), None);
+}
+
+
+/// Like the proxy password, the TOTP secret must survive a re-save of
+/// the connection that doesn't touch it.
+#[test]
+fn totp_secret_survives_unrelated_resave() {
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+    vault
+        .set_connection_totp_secret(&conn.id, Some("JBSWY3DPEHPK3PXP"))
+        .unwrap();
+
+    conn.label = "renamed".into();
+    vault.save_connection(&conn, None).unwrap();
+
+    assert_eq!(
+        vault.get_connection_totp_secret(&conn.id).unwrap().as_deref(),
+        Some("JBSWY3DPEHPK3PXP"),
+        "editing an unrelated field wiped the TOTP secret"
+    );
+}
+
+
 /// Critical: the plaintext `proxy` JSON column must never carry the
 /// password. Confirms the credential lives only in the encrypted
 /// `proxy_password` column.

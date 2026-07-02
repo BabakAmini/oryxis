@@ -53,7 +53,7 @@ impl Oryxis {
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
             OverlayContent::SftpTabActions(_) => 5.0,
-            OverlayContent::HostActions(_) => 7.0,
+            OverlayContent::HostActions(_) => 8.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
             OverlayContent::SplitMenu => 3.0,
@@ -95,6 +95,7 @@ impl Oryxis {
                     context_menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary),
+                    context_menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("copy_password"), Message::CopyHostPassword(idx), OryxisColors::t().text_secondary),
                 ];
                 if let Some(pid) = cloud_profile_id {
                     items = items.push(context_menu_item(

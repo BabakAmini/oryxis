@@ -177,12 +177,20 @@ pub async fn handle_ssh_execute(
     // Build engine and connect. Honor any per-host legacy-algorithm
     // overrides the user pinned in the app (MCP is headless, so there is
     // no interactive fallback dialog, only the pinned settings apply).
-    let engine = SshEngine::new().with_algorithm_overrides(
-        auth_conn.ciphers.clone(),
-        auth_conn.kex.clone(),
-        auth_conn.macs.clone(),
-        auth_conn.host_key_algorithms.clone(),
-    );
+    // The stored TOTP secret rides along for the same reason: an
+    // OTP-gated host is unreachable headlessly without the autofill.
+    let totp_secret = vault
+        .get_connection_totp_secret(&conn.id)
+        .ok()
+        .flatten();
+    let engine = SshEngine::new()
+        .with_totp_secret(totp_secret.as_deref())
+        .with_algorithm_overrides(
+            auth_conn.ciphers.clone(),
+            auth_conn.kex.clone(),
+            auth_conn.macs.clone(),
+            auth_conn.host_key_algorithms.clone(),
+        );
 
     let mut handle = engine
         .establish_transport(&auth_conn, None)

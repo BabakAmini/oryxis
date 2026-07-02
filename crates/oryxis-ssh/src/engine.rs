@@ -143,6 +143,57 @@ pub struct KbiQuery {
 pub type KbiAskSender =
     tokio::sync::mpsc::Sender<(KbiQuery, tokio::sync::oneshot::Sender<Option<Vec<String>>>)>;
 
+/// True when a keyboard-interactive prompt is asking for a one-time
+/// code. Matched against the lowercased prompt; the list covers the
+/// stock PAM modules (google-authenticator "Verification code:",
+/// pam_oath "One-time password ...", Duo "Passcode or option ...") and
+/// the generic phrasings commercial MFA gateways use.
+fn prompt_wants_otp(prompt: &str) -> bool {
+    let p = prompt.to_lowercase();
+    [
+        "verification code",
+        "one-time",
+        "one time",
+        "otp",
+        "authenticator",
+        "passcode",
+        "security code",
+        "2fa",
+        "mfa",
+        "second factor",
+    ]
+    .iter()
+    .any(|k| p.contains(k))
+}
+
+/// Build automatic answers for one keyboard-interactive round, or `None`
+/// when the round must go to the user. Succeeds only when a TOTP
+/// generator is configured, at least one prompt is an OTP ask, and every
+/// prompt in the round is answerable (OTP prompts get a generated code,
+/// password prompts get the stored password). Any unrecognized prompt
+/// surfaces the whole round, guessing at unknown prompts would burn
+/// server-side auth attempts.
+fn autofill_kbi_round<'a>(
+    totp: Option<&oryxis_core::totp::Totp>,
+    prompts: impl IntoIterator<Item = &'a str>,
+    fallback_pw: Option<&str>,
+) -> Option<Vec<String>> {
+    let totp = totp?;
+    let mut answers = Vec::new();
+    let mut any_otp = false;
+    for prompt in prompts {
+        if prompt_wants_otp(prompt) {
+            any_otp = true;
+            answers.push(totp.code_now());
+        } else if prompt.to_lowercase().contains("password") {
+            answers.push(fallback_pw?.to_string());
+        } else {
+            return None;
+        }
+    }
+    (any_otp && !answers.is_empty()).then_some(answers)
+}
+
 pub(crate) struct ClientHandler {
     hostname: String,
     port: u16,
@@ -1142,6 +1193,11 @@ pub struct SshEngine {
     /// headless callers.
     pw_prompt_title: Option<String>,
     pw_prompt_label: Option<String>,
+    /// Parsed per-connection TOTP generator. When set, keyboard-interactive
+    /// rounds whose prompts look like an OTP ask ("Verification code:",
+    /// "One-time password ...") are answered automatically instead of
+    /// surfacing a modal. See `autofill_kbi_round`.
+    totp: Option<oryxis_core::totp::Totp>,
     /// Optional client-side keepalive: when set, russh sends a no-op
     /// SSH_MSG_GLOBAL_REQUEST every N seconds so NAT / firewall idle
     /// timeouts don't kill the session.
@@ -1204,6 +1260,7 @@ impl SshEngine {
             kbi_ask_tx: None,
             pw_prompt_title: None,
             pw_prompt_label: None,
+            totp: None,
             keepalive_interval: None,
             connect_timeout: std::time::Duration::from_secs(15),
             auth_timeout: std::time::Duration::from_secs(30),
@@ -1371,6 +1428,22 @@ impl SshEngine {
     pub fn with_password_prompt_labels(mut self, title: String, label: String) -> Self {
         self.pw_prompt_title = Some(title);
         self.pw_prompt_label = Some(label);
+        self
+    }
+
+    /// Provide the connection's stored TOTP secret (raw vault value, a
+    /// bare Base32 secret or an otpauth:// URI) for keyboard-interactive
+    /// autofill. An unparseable value logs a warning and disables the
+    /// autofill rather than failing the connect, the manual modal still
+    /// works.
+    pub fn with_totp_secret(mut self, secret: Option<&str>) -> Self {
+        self.totp = secret.and_then(|s| match oryxis_core::totp::Totp::parse(s) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                tracing::warn!("stored TOTP secret unusable, autofill disabled: {e}");
+                None
+            }
+        });
         self
     }
 
@@ -2300,6 +2373,12 @@ impl SshEngine {
         .await
         .map_err(|_| net_err())??;
 
+        // Guard for the TOTP autofill: only the FIRST OTP-looking round of
+        // an attempt is answered automatically. A second one means the
+        // server rejected the code (bad secret, clock drift), so the manual
+        // modal takes over instead of feeding the same wrong code forever.
+        let mut totp_used = false;
+
         for _ in 0..MAX_ROUNDS {
             let (name, instructions, prompts) = match resp {
                 client::KeyboardInteractiveAuthResponse::Success => return Ok(true),
@@ -2311,10 +2390,22 @@ impl SshEngine {
                 } => (name, instructions, prompts),
             };
 
+            let autofill = if totp_used {
+                None
+            } else {
+                autofill_kbi_round(
+                    self.totp.as_ref(),
+                    prompts.iter().map(|p| p.prompt.as_str()),
+                    fallback_pw,
+                )
+            };
+
             let answers: Vec<String> = if prompts.is_empty() {
                 Vec::new()
-            } else if use_callback && self.kbi_ask_tx.is_some() {
-                let tx = self.kbi_ask_tx.as_ref().unwrap();
+            } else if let Some(answers) = autofill {
+                totp_used = true;
+                answers
+            } else if use_callback && let Some(tx) = self.kbi_ask_tx.as_ref() {
                 let query = KbiQuery {
                     name,
                     instructions,
@@ -2845,6 +2936,60 @@ mod tests {
     #[test]
     fn identity_agent_absent_returns_none() {
         assert_eq!(parse_identity_agent("ForwardAgent yes\n"), None);
+    }
+
+    // ── TOTP keyboard-interactive autofill ──
+
+    fn test_totp() -> oryxis_core::totp::Totp {
+        oryxis_core::totp::Totp::parse("JBSWY3DPEHPK3PXP").unwrap()
+    }
+
+    #[test]
+    fn autofill_answers_otp_prompt() {
+        let totp = test_totp();
+        let answers =
+            autofill_kbi_round(Some(&totp), ["Verification code: "], None).unwrap();
+        assert_eq!(answers.len(), 1);
+        assert_eq!(answers[0].len(), 6);
+        assert!(answers[0].chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn autofill_mixed_round_uses_stored_password() {
+        let totp = test_totp();
+        let answers = autofill_kbi_round(
+            Some(&totp),
+            ["Password: ", "One-time password (OATH) for `alice':"],
+            Some("hunter2"),
+        )
+        .unwrap();
+        assert_eq!(answers[0], "hunter2");
+        assert_eq!(answers[1].len(), 6);
+    }
+
+    #[test]
+    fn autofill_surfaces_round_without_answers() {
+        let totp = test_totp();
+        // Password prompt but no stored password: the user must type it.
+        assert!(autofill_kbi_round(
+            Some(&totp),
+            ["Password: ", "Verification code: "],
+            None
+        )
+        .is_none());
+        // Unrecognized prompt: never guess.
+        assert!(autofill_kbi_round(
+            Some(&totp),
+            ["Enter the name of your first pet: "],
+            Some("hunter2")
+        )
+        .is_none());
+        // Password-only round: TOTP autofill is not a password autofill.
+        assert!(
+            autofill_kbi_round(Some(&totp), ["Password: "], Some("hunter2")).is_none()
+        );
+        // No TOTP configured at all.
+        assert!(autofill_kbi_round(None, ["Verification code: "], Some("pw")).is_none());
     }
 
     #[test]

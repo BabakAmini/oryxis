@@ -83,14 +83,22 @@ impl Oryxis {
                 _ => None,
             }
         });
-        // 30-second poll for silent auto-reconnect of disconnected SSH tabs.
-        let auto_reconnect = iced::time::every(std::time::Duration::from_secs(30))
-            .map(|_| Message::AutoReconnectTick);
+        let mut subs = vec![events];
+
+        // 30-second poll for silent auto-reconnect of disconnected SSH
+        // tabs. Unmounted while the vault is locked (soft auto-lock keeps
+        // sessions alive): a reconnect needs credentials from the sealed
+        // vault and would only burn retry attempts.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(30))
+                    .map(|_| Message::AutoReconnectTick),
+            );
+        }
 
         // 100 ms tick that drives the pulsing "loading" ring on the active
         // connection step. Only runs while a connection is in progress and
         // hasn't failed, no perpetual re-renders on idle.
-        let mut subs = vec![events, auto_reconnect];
         let is_connecting = self
             .connecting
             .as_ref()
@@ -161,11 +169,14 @@ impl Oryxis {
         // Session-log flush ticker. Only mounts while at least one pane
         // is recording; drains the per-pane output buffers into the vault
         // every 2 s so an idle-but-trickling session still persists
-        // promptly without a write per SSH chunk.
-        if self
-            .tabs
-            .iter()
-            .any(|t| t.pane_grid.panes.values().any(|p| p.session_log_id.is_some()))
+        // promptly without a write per SSH chunk. Also unmounted while
+        // the vault is locked (the log key is zeroized, a drain would
+        // discard data): buffers accumulate and flush after unlock.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && self
+                .tabs
+                .iter()
+                .any(|t| t.pane_grid.panes.values().any(|p| p.session_log_id.is_some()))
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
@@ -217,6 +228,25 @@ impl Oryxis {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(300))
                     .map(|_| Message::SftpSyncTick),
+            );
+        }
+
+        // Vault auto-lock idle check. Only mounts while unlocked with a
+        // non-zero threshold configured, so the common case (feature off)
+        // costs nothing. The 30 s cadence bounds the overshoot past the
+        // configured idle threshold; the handler does the actual
+        // elapsed-time comparison against `last_user_activity`.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && self
+                .setting_auto_lock_minutes
+                .parse::<u64>()
+                .ok()
+                .filter(|m| *m > 0)
+                .is_some()
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(30))
+                    .map(|_| Message::AutoLockTick),
             );
         }
 

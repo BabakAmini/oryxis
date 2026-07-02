@@ -272,6 +272,14 @@ impl Oryxis {
                 let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
                 self.host_key_response_tx = Some(hk_resp_tx);
 
+                // TOTP autofill for keyboard-interactive 2FA, same as the
+                // terminal path (headless here: no modal, so the autofill is
+                // the only way an OTP-gated host can mount at all).
+                let totp_secret = self
+                    .vault
+                    .as_ref()
+                    .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
+
                 // Captured for the map closure (conn is moved into the
                 // producer). The retry re-runs this same SFTP mount.
                 let sftp_conn_id = conn.id;
@@ -281,6 +289,7 @@ impl Oryxis {
                         let engine = SshEngine::new()
                             .with_host_key_check(host_key_check)
                             .with_host_key_ask(hk_ask_tx)
+                            .with_totp_secret(totp_secret.as_deref())
                             .with_keepalive(keepalive)
                             .with_algorithm_overrides(
                                 conn.ciphers.clone(),
