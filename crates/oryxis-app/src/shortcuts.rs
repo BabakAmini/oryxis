@@ -140,6 +140,8 @@ impl Oryxis {
             Modal::SessionGroupPanel => self.show_session_group_panel,
             Modal::FolderRename => self.folder_rename.is_some(),
             Modal::FolderDelete => self.folder_delete.is_some(),
+            Modal::TabRename => self.tab_rename.is_some(),
+            Modal::CarefulPaste => self.pending_paste.is_some(),
             Modal::KbiPrompt => self.pending_kbi_prompt.is_some(),
             Modal::ThemeEditor => self.theme_editor.is_some(),
             Modal::ThemeImport => self.show_theme_import,
@@ -176,6 +178,8 @@ impl Oryxis {
             }
             Modal::FolderRename => self.folder_rename = None,
             Modal::FolderDelete => self.folder_delete = None,
+            Modal::TabRename => self.tab_rename = None,
+            Modal::CarefulPaste => self.pending_paste = None,
             Modal::KbiPrompt => self.pending_kbi_prompt = None,
             Modal::ThemeEditor => {
                 self.theme_editor = None;

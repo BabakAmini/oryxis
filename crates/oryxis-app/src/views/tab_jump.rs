@@ -23,7 +23,13 @@ impl Oryxis {
         let mut tabs_col = column![].spacing(2);
         let mut had_match = false;
         for (idx, tab) in self.tabs.iter().enumerate() {
-            let label = tab.label.trim_end_matches(" (disconnected)").to_string();
+            // Show (and search) what the strip shows, custom rename
+            // included; the badge lookup keys on the automatic label so a
+            // rename doesn't lose the OS / brand icon.
+            let label = tab
+                .display_label(self.tab_auto_title(tab))
+                .trim_end_matches(" (disconnected)")
+                .to_string();
             if !needle.is_empty() && !label.to_lowercase().contains(&needle) {
                 continue;
             }
@@ -33,7 +39,8 @@ impl Oryxis {
             // the same visual cue from the strip up here, including the
             // local-shell and cloud-brand fallbacks (so ECS / K8s tabs get
             // their brand icon instead of the generic fallback).
-            let detected_os = self.tab_detected_os(&label);
+            let lookup = tab.label.trim_end_matches(" (disconnected)").to_string();
+            let detected_os = self.tab_detected_os(&lookup);
             let fallback = if tab.label.ends_with(" (disconnected)") {
                 OryxisColors::t().text_muted
             } else {

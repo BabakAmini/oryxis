@@ -27,6 +27,22 @@ impl Oryxis {
                     .padding(indent),
                 );
         }
+        // Careful paste: the multi-line paste guard (line-count preview
+        // before anything reaches the session). Default on; the toggle is
+        // the power-user opt-out.
+        toggles_col = toggles_col
+            .push(Space::new().height(10))
+            .push(toggle_row(
+                crate::i18n::t("careful_paste_label"),
+                self.setting_careful_paste,
+                Message::ToggleCarefulPaste,
+            ))
+            .push(Space::new().height(4))
+            .push(
+                text(crate::i18n::t("careful_paste_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            );
         // Selection / clipboard behaviour.
         let toggles_section = panel_section(toggles_col);
 

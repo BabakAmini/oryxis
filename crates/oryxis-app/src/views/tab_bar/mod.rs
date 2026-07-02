@@ -60,7 +60,117 @@ pub(crate) const CHROME_BUTTON_WIDTH: f32 = 46.0;
 pub(crate) const CHROME_TOTAL_WIDTH: f32 = CHROME_BUTTON_WIDTH * 3.0;
 
 impl Oryxis {
+    /// The default top bar: burger + tab strip + `+`/`⋯` + side-panel
+    /// toggle + window chrome, all in one row.
     pub(crate) fn view_tab_bar(&self) -> Element<'_, Message> {
+        self.tab_strip_bar(false)
+    }
+
+    /// Bottom-docked variant of the strip (Settings -> Interface -> Tab
+    /// bar position): just the tabs, the `+` and the `⋯` jump button.
+    /// The window chrome stays in `view_top_chrome_bar`.
+    pub(crate) fn view_bottom_tab_strip(&self) -> Element<'_, Message> {
+        self.tab_strip_bar(true)
+    }
+
+    /// Slim top bar for the bottom-docked layout: burger, an empty
+    /// window-drag area, the side-panel toggle and the chrome buttons.
+    /// Keeps the titlebar affordances (drag, double-click maximize,
+    /// minimize / maximize / close) at the top of the window where every
+    /// OS puts them, while the tabs live at the bottom.
+    pub(crate) fn view_top_chrome_bar(&self) -> Element<'_, Message> {
+        let drag_area: Element<'_, Message> = MouseArea::new(
+            container(Space::new())
+                .width(Length::Fill)
+                .height(Length::Fixed(BAR_HEIGHT)),
+        )
+        .on_press(Message::WindowDrag)
+        .on_double_click(Message::WindowMaximizeToggle)
+        .into();
+
+        let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
+        if self.active_tab.is_some() {
+            cluster_items.push(sidebar_btn());
+            cluster_items.push(Space::new().width(2).into());
+        }
+        cluster_items.push(self.window_chrome_row().into());
+        let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
+            .align_y(iced::Alignment::Center)
+            .into();
+
+        let leading: Vec<Element<'_, Message>> = vec![
+            burger_menu_btn(self.show_burger_menu),
+            Space::new().width(1).height(TAB_HEIGHT).into(),
+            drag_area,
+            right_cluster,
+        ];
+        let bar_bg = self.tab_bar_background();
+        container(
+            crate::widgets::dir_row(leading).align_y(iced::Alignment::Center),
+        )
+        .width(Length::Fill)
+        .height(Length::Fixed(BAR_HEIGHT))
+        .style(move |_| container::Style {
+            background: Some(bar_bg),
+            ..Default::default()
+        })
+        .into()
+    }
+
+    /// Window controls (minimize / maximize-restore / close) in their own
+    /// dir_row so the close button ends up on the leading edge under RTL,
+    /// matching how macOS and GNOME flip traffic-light buttons when the
+    /// locale flips. Shared by the combined top bar and the slim chrome
+    /// bar of the bottom-docked layout.
+    fn window_chrome_row(&self) -> iced::widget::Row<'_, Message> {
+        let max_icon = if self.window_maximized {
+            iced_fonts::codicon::chrome_restore()
+        } else {
+            iced_fonts::codicon::chrome_maximize()
+        };
+        crate::widgets::dir_row(vec![
+            window_btn(
+                iced_fonts::codicon::chrome_minimize(),
+                Message::WindowMinimize,
+                OryxisColors::t().text_secondary,
+            ),
+            window_btn(
+                max_icon,
+                Message::WindowMaximizeToggle,
+                OryxisColors::t().text_secondary,
+            ),
+            window_btn(
+                iced_fonts::codicon::chrome_close(),
+                Message::WindowClose,
+                OryxisColors::t().error,
+            ),
+        ])
+        .align_y(iced::Alignment::Center)
+    }
+
+    /// Shared bar background: the accent wash (tinted leading edge fading
+    /// to the bar surface) when enabled, else the flat sidebar surface.
+    /// Used by the combined top bar, the slim chrome bar and the
+    /// bottom-docked strip so the chrome reads as one material.
+    fn tab_bar_background(&self) -> Background {
+        let bar_base = OryxisColors::t().bg_sidebar;
+        if self.setting_tab_accent_wash {
+            let washed = crate::theme::mix(bar_base, self.top_accent_tint(), 0.16);
+            Background::Gradient(iced::Gradient::Linear(
+                iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
+                    .add_stop(0.0, washed)
+                    .add_stop(0.9, bar_base),
+            ))
+        } else {
+            Background::Color(bar_base)
+        }
+    }
+
+    /// Build the tab strip bar. `bottom == false` is the classic combined
+    /// top bar (burger + tabs + right cluster with chrome); `bottom ==
+    /// true` renders only the strip pieces (tabs, `+`, `⋯`), the chrome
+    /// half living in `view_top_chrome_bar` instead.
+    fn tab_strip_bar(&self, bottom: bool) -> Element<'_, Message> {
         let n_tabs = self.tabs.len();
         let active_idx = self.active_tab;
 
@@ -90,10 +200,16 @@ impl Oryxis {
         let burger_width = SIDEBAR_TOGGLE_WIDTH;
         // Logo removed from the top strip; no width reserved for it.
         let logo_width = 0.0;
+        // Bottom-docked strip: the burger + chrome live in the slim top
+        // bar, so the tabs get (almost) the full window width; only the
+        // `+` / `⋯` companions still share the row.
+        let reserved = if bottom {
+            PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
+        } else {
+            burger_width + logo_width + RIGHT_CLUSTER_WIDTH
+        };
         let approx_strip_width = (self.window_size.width
-            - burger_width
-            - logo_width
-            - RIGHT_CLUSTER_WIDTH
+            - reserved
             - area_tabs_total
             - 12.0)
             .max(120.0);
@@ -261,7 +377,7 @@ impl Oryxis {
                 } else if is_active {
                     TAB_NATURAL_WIDTH
                 } else {
-                    tab_content_width(&tab.label, close_on_right, false)
+                    tab_content_width(tab.display_label(), close_on_right, false)
                 };
                 // The dragged tab floats as a ghost (below); leave a same-width
                 // gap here that the other tabs slide around, like terminal tabs.
@@ -276,7 +392,7 @@ impl Oryxis {
                 } else if compact_pins && tab.pinned {
                     tab_items.push(sftp_pinned_chip(idx, is_active, host_accent, solid_fill));
                 } else {
-                    tab_items.push(sftp_session_tab(idx, &tab.label, is_active, width, host_accent, tab.pinned, solid_fill));
+                    tab_items.push(sftp_session_tab(idx, tab.display_label(), is_active, width, host_accent, tab.pinned, solid_fill));
                 }
                 continue;
             }
@@ -291,9 +407,13 @@ impl Oryxis {
                 .map(|d| d.from_id == tab._id)
                 .unwrap_or(false);
             // A split tab shows the focused pane's label + icon; a single
-            // pane shows the tab's own label.
+            // pane shows the tab's own label. Lookups (accent, OS badge)
+            // key on the automatic label so a custom rename stays
+            // display-only.
             let display_label = tab.display_label(self.tab_auto_title(tab));
-            let base_label = display_label.trim_end_matches(" (disconnected)");
+            let base_label = tab
+                .auto_label(self.tab_auto_title(tab))
+                .trim_end_matches(" (disconnected)");
             let detected_os = self.tab_detected_os(base_label);
             // During a drag every tab is uniform (drag width); otherwise
             // each tab uses its own allocated width (active = NATURAL,
@@ -515,98 +635,68 @@ impl Oryxis {
         })
         .into();
 
-        // Right cluster, never pushed off. The `+` now lives with the
-        // tabs (or docked at the strip edge under overflow), so the
-        // cluster holds the `⋯` jump-to button (overflow only), the
-        // side-panel toggle and the window chrome.
+        // `⋯` jump-to button, shown only when the strip is compressed
+        // (scroll mode). In the combined bar it heads the right cluster;
+        // in the bottom-docked strip it trails the tabs directly.
         let dots_btn: Option<Element<'_, Message>> =
             if scroll_mode { Some(tab_jump_btn()) } else { None };
 
-        let max_icon = if self.window_maximized {
-            iced_fonts::codicon::chrome_restore()
-        } else {
-            iced_fonts::codicon::chrome_maximize()
-        };
-        // Window controls live in their own dir_row so the close button
-        // ends up on the leading edge under RTL, matches how macOS and
-        // GNOME flip traffic-light buttons when the locale flips.
-        let chrome_row = crate::widgets::dir_row(vec![
-            window_btn(
-                iced_fonts::codicon::chrome_minimize(),
-                Message::WindowMinimize,
-                OryxisColors::t().text_secondary,
-            ),
-            window_btn(
-                max_icon,
-                Message::WindowMaximizeToggle,
-                OryxisColors::t().text_secondary,
-            ),
-            window_btn(
-                iced_fonts::codicon::chrome_close(),
-                Message::WindowClose,
-                OryxisColors::t().error,
-            ),
-        ])
-        .align_y(iced::Alignment::Center);
-
-        // The right cluster sits on the trailing edge of the tab bar.
-        // Build it in reading order ([extras] then chrome) and let
-        // `dir_row` flip the order in RTL so chrome lands on the
-        // outer edge there too.
-        let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
-        if let Some(dots) = dots_btn {
-            cluster_items.push(dots);
-            cluster_items.push(Space::new().width(2).into());
-        }
-        // The side-panel toggle (Chat / Snippets / History) only makes
-        // sense inside a connection tab, so skip it on the navigation
-        // views where there's no terminal session to attach a panel to.
-        if self.active_tab.is_some() {
-            cluster_items.push(sidebar_btn());
-            cluster_items.push(Space::new().width(2).into());
-        }
-        cluster_items.push(chrome_row.into());
-        let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
-            .align_y(iced::Alignment::Center)
-            .into();
-
-        // Burger menu on the far leading edge: its dropdown lists every
-        // vault destination + global actions. Leading breathing space is
-        // the burger button's own left padding (not a margin), so the gap
-        // is part of its clickable / hover area.
+        // Row composition. Combined top bar: [burger] [tab_strip(Fill)]
+        // [docked +?] [right cluster: ⋯? / side-panel / chrome]. Bottom-
+        // docked strip: [tab_strip(Fill)] [docked +?] [⋯?], the burger and
+        // chrome live in the slim top bar. Burger / cluster are
+        // Length::Shrink so iced gives them their content width first;
+        // tab_strip is the remaining Fill area in between. `dir_row` flips
+        // the row under RTL so the leading-edge controls always sit next
+        // to the sidebar (which the outer layout also flips).
         let mut leading: Vec<Element<'_, Message>> = Vec::new();
-        leading.push(burger_menu_btn(self.show_burger_menu));
-        // 1 px breather between the burger and the first area tab (home).
-        leading.push(Space::new().width(1).height(TAB_HEIGHT).into());
+        if !bottom {
+            // Burger menu on the far leading edge: its dropdown lists every
+            // vault destination + global actions. Leading breathing space is
+            // the burger button's own left padding (not a margin), so the gap
+            // is part of its clickable / hover area.
+            leading.push(burger_menu_btn(self.show_burger_menu));
+            // 1 px breather between the burger and the first area tab (home).
+            leading.push(Space::new().width(1).height(TAB_HEIGHT).into());
+        }
         leading.push(tab_strip);
         if let Some(plus) = docked_plus {
             leading.push(plus);
         }
-        leading.push(right_cluster);
-
-        // Four-block row: [logo?] [burger] [sidebar_toggle] [tab_strip(Fill)] [right_cluster].
-        // Burger / sidebar_toggle / right_cluster are Length::Shrink so iced
-        // gives them their content width first; tab_strip is the remaining
-        // Fill area in between. `dir_row` flips the row under RTL so the
-        // leading-edge controls always sit next to the sidebar (which the
-        // outer layout also flips to the trailing edge).
-        // Whole-top-bar accent wash: a tinted leading edge fading back to
-        // the bar surface, same direction as the card accent wash + the
-        // bottom hairline. Gated on the same `setting_tab_accent_line`
-        // toggle, and breathes the active tab's colour via
-        // `top_accent_tint`. Both gradient stops are opaque, so the tab
-        // buttons on top render normally.
-        let bar_base = OryxisColors::t().bg_sidebar;
-        let bar_bg = if self.setting_tab_accent_wash {
-            let washed = crate::theme::mix(bar_base, self.top_accent_tint(), 0.16);
-            Background::Gradient(iced::Gradient::Linear(
-                iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
-                    .add_stop(0.0, washed)
-                    .add_stop(0.9, bar_base),
-            ))
+        if bottom {
+            if let Some(dots) = dots_btn {
+                leading.push(dots);
+            }
         } else {
-            Background::Color(bar_base)
-        };
+            // The right cluster sits on the trailing edge of the tab bar.
+            // Build it in reading order ([extras] then chrome) and let
+            // `dir_row` flip the order in RTL so chrome lands on the
+            // outer edge there too.
+            let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
+            if let Some(dots) = dots_btn {
+                cluster_items.push(dots);
+                cluster_items.push(Space::new().width(2).into());
+            }
+            // The side-panel toggle (Chat / Snippets / History) only makes
+            // sense inside a connection tab, so skip it on the navigation
+            // views where there's no terminal session to attach a panel to.
+            if self.active_tab.is_some() {
+                cluster_items.push(sidebar_btn());
+                cluster_items.push(Space::new().width(2).into());
+            }
+            cluster_items.push(self.window_chrome_row().into());
+            let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
+                .align_y(iced::Alignment::Center)
+                .into();
+            leading.push(right_cluster);
+        }
+
+        // Whole-bar accent wash: a tinted leading edge fading back to
+        // the bar surface, same direction as the card accent wash + the
+        // bottom hairline. Gated on `setting_tab_accent_wash`, and
+        // breathes the active tab's colour via `top_accent_tint`. Both
+        // gradient stops are opaque, so the tab buttons render normally.
+        let bar_bg = self.tab_bar_background();
         let bar: Element<'_, Message> = container(
             crate::widgets::dir_row(leading)
                 .align_y(iced::Alignment::Center),
@@ -631,7 +721,11 @@ impl Oryxis {
                     .display_label(self.tab_auto_title(tab))
                     .trim_end_matches(" (disconnected)")
                     .to_string();
-                let detected_os = self.tab_detected_os(&base_label);
+                let lookup_label = tab
+                    .auto_label(self.tab_auto_title(tab))
+                    .trim_end_matches(" (disconnected)")
+                    .to_string();
+                let detected_os = self.tab_detected_os(&lookup_label);
                 let compact = tab.pinned && compact_pins;
                 let session_group = tab
                     .session_group_id
@@ -665,7 +759,7 @@ impl Oryxis {
                     .unwrap_or_else(|| OryxisColors::t().accent);
                 let compact = sftp_tab.pinned && compact_pins;
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
-                Some((sftp_drag_ghost(sftp_tab.label.clone(), compact, ghost_w, accent), ghost_w))
+                Some((sftp_drag_ghost(sftp_tab.display_label().to_string(), compact, ghost_w, accent), ghost_w))
             } else {
                 None
             }
@@ -787,10 +881,15 @@ impl Oryxis {
         let burger_width = SIDEBAR_TOGGLE_WIDTH;
         // Logo removed from the top strip; no width reserved for it.
         let logo_width = 0.0;
+        // Same per-position reserve as `tab_strip_bar`: the bottom-docked
+        // strip has no burger / chrome sharing its row.
+        let reserved = if tab_bar_bottom() {
+            PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
+        } else {
+            burger_width + logo_width + RIGHT_CLUSTER_WIDTH
+        };
         let approx_strip_width = (self.window_size.width
-            - burger_width
-            - logo_width
-            - RIGHT_CLUSTER_WIDTH
+            - reserved
             - area_tabs_total
             - 12.0)
             .max(120.0);

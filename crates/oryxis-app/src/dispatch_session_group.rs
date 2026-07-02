@@ -406,6 +406,7 @@ impl Oryxis {
         let tab = TerminalTab {
             _id: uuid::Uuid::new_v4(),
             label: group.label.clone(),
+            custom_name: None,
             pane_grid: grid,
             focused,
             chat_history: Vec::new(),

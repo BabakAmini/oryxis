@@ -36,6 +36,10 @@ impl Oryxis {
                     self.tabs.len().hash(&mut h);
                     for t in &self.tabs {
                         t.label.hash(&mut h);
+                        // A transient rename must retitle the tray entries
+                        // too (volatile OSC titles stay out on purpose:
+                        // hashing them would churn the menu rebuild).
+                        t.custom_name.hash(&mut h);
                     }
                     self.connections.len().hash(&mut h);
                     for c in &self.connections {
@@ -70,7 +74,10 @@ impl Oryxis {
                             .iter()
                             .enumerate()
                             .take(20)
-                            .map(|(i, t)| (t.label.replace('&', "&&"), i.to_string()))
+                            .map(|(i, t)| {
+                                let shown = t.custom_name.as_deref().unwrap_or(&t.label);
+                                (shown.replace('&', "&&"), i.to_string())
+                            })
                             .collect();
                         // Recent hosts: top 10 by last_used desc.
                         // Hosts that were never connected drop to
@@ -98,7 +105,7 @@ impl Oryxis {
                             let primary_label = self
                                 .active_tab
                                 .and_then(|i| self.tabs.get(i))
-                                .map(|t| t.label.clone())
+                                .map(|t| t.custom_name.clone().unwrap_or_else(|| t.label.clone()))
                                 .unwrap_or_else(|| crate::i18n::t("tray_main_window").to_string());
                             hidden.push((
                                 primary_label.replace('&', "&&"),

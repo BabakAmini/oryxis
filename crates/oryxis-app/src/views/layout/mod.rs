@@ -24,6 +24,7 @@ mod main_layout;
 mod menus;
 mod toolbar;
 pub(crate) use chrome::*;
+pub(crate) use main_layout::TAB_RENAME_INPUT_ID;
 
 impl Oryxis {
     /// Wrap a card in the shared accent wash when the

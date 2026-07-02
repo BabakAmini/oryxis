@@ -1,6 +1,22 @@
 //! Tab bar: sizing. Split out of views/tab_bar/mod.rs.
 
 use super::*;
+
+/// Process-wide "tab strip docked at the bottom" gate, mirroring the
+/// `AUTO_TITLE` gate in `state/tabs.rs`: `active_tab_bg` is a free fn
+/// called from every tab/chip renderer, so threading the setting through
+/// each signature would touch the whole family for one gradient flip.
+/// Set from boot + the Settings dispatch; read at render time.
+static TAB_BAR_BOTTOM: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+pub(crate) fn set_tab_bar_bottom(on: bool) {
+    TAB_BAR_BOTTOM.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn tab_bar_bottom() -> bool {
+    TAB_BAR_BOTTOM.load(std::sync::atomic::Ordering::Relaxed)
+}
 /// Decide how much horizontal space each tab gets. Returns
 /// `(active_width, inactive_width)`. The active tab claims its natural
 /// width when it fits; inactives split whatever's left, clamped to the
@@ -109,9 +125,13 @@ pub(crate) fn active_tab_bg(accent: Color, solid_fill: bool) -> Background {
     }
     let top = Color { a: 0.28, ..accent };
     let bot = Color { a: 0.04, ..accent };
+    // With the strip docked at the bottom the light source flips: the
+    // saturated edge hugs the content above ("lit from below"), keeping
+    // the fade oriented toward the window edge either way.
+    let (start, end) = if tab_bar_bottom() { (bot, top) } else { (top, bot) };
     Background::Gradient(iced::Gradient::Linear(
         iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI))
-            .add_stop(0.0, top)
-            .add_stop(1.0, bot),
+            .add_stop(0.0, start)
+            .add_stop(1.0, end),
     ))
 }

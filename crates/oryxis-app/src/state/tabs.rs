@@ -131,6 +131,11 @@ impl Pane {
 pub(crate) struct TerminalTab {
     pub _id: Uuid,
     pub label: String,
+    /// User-set tab name from "Rename tab". Transient by design: it lives
+    /// for this tab's lifetime only, is never written to the host or the
+    /// pin spec, and wins over every automatic label source (session
+    /// group, OSC title, pane label) in `display_label`. `None` = auto.
+    pub custom_name: Option<String>,
     /// The pane tree (1+ panes). `pane_grid` owns the geometry.
     pub pane_grid: pane_grid::State<Pane>,
     /// Handle of the currently focused pane. Kept valid by the split /
@@ -210,6 +215,9 @@ pub(crate) enum TabRef {
 pub(crate) struct SftpTab {
     pub id: Uuid,
     pub label: String,
+    /// User-set tab name from "Rename tab". Transient, mirrors
+    /// `TerminalTab::custom_name`: display-only, never persisted.
+    pub custom_name: Option<String>,
     /// Pinned SFTP tabs render first in the strip.
     pub pinned: bool,
     /// Set on a dormant pinned SFTP tab recreated at boot: reopens (re-mounts
@@ -227,10 +235,18 @@ impl SftpTab {
         Self {
             id: Uuid::new_v4(),
             label,
+            custom_name: None,
             pinned: false,
             pending_reopen: None,
             state: SftpState::default(),
         }
+    }
+
+    /// Label to show in the tab strip: the user's transient rename when
+    /// set, else the mount label. Lookups (host colour, detected OS)
+    /// must keep using `label`, the custom name is display-only.
+    pub(crate) fn display_label(&self) -> &str {
+        self.custom_name.as_deref().unwrap_or(&self.label)
     }
 }
 
@@ -343,6 +359,7 @@ impl TerminalTab {
         Self {
             _id: Uuid::new_v4(),
             label,
+            custom_name: None,
             pane_grid,
             focused,
             chat_history: Vec::new(),
@@ -469,6 +486,20 @@ impl TerminalTab {
     /// override and the global default), kept as a parameter because a
     /// `TerminalTab` can't reach the connection list to resolve it itself.
     pub fn display_label(&self, auto_title: bool) -> &str {
+        // An explicit rename wins over every automatic source: the user
+        // asked for this exact name, so neither the group name nor a
+        // shell-set OSC title may overwrite it.
+        if let Some(name) = self.custom_name.as_deref() {
+            return name;
+        }
+        self.auto_label(auto_title)
+    }
+
+    /// The automatic label, ignoring any user rename. This is what
+    /// lookups (host accent, detected-OS badge) key on: a custom name is
+    /// display-only and must never leak into a `Connection`-by-label
+    /// match.
+    pub fn auto_label(&self, auto_title: bool) -> &str {
         // A session group keeps its own name; OSC titles never override it.
         if self.session_group_id.is_some() {
             return &self.label;
@@ -549,5 +580,42 @@ mod terminal_tab_tests {
         assert_eq!(tab.pane_by_id_mut(id1).map(|p| p.id), Some(id1));
         assert_eq!(tab.pane_by_id_mut(id2).map(|p| p.id), Some(id2));
         assert!(tab.pane_by_id_mut(Uuid::new_v4()).is_none());
+    }
+
+    #[test]
+    fn custom_name_wins_over_every_automatic_label_source() {
+        let mut tab = TerminalTab::new_single("host-a".into(), dummy_terminal());
+        assert_eq!(tab.display_label(true), "host-a");
+
+        // Custom name beats the plain label...
+        tab.custom_name = Some("prod db".into());
+        assert_eq!(tab.display_label(true), "prod db");
+        // ...an OSC title with auto-title on...
+        tab.active_mut().osc_title = Some("vim main.rs".into());
+        assert_eq!(tab.display_label(true), "prod db");
+        // ...and the session-group name.
+        tab.session_group_id = Some(Uuid::new_v4());
+        assert_eq!(tab.display_label(true), "prod db");
+
+        // `auto_label` keeps ignoring the rename, so lookups (host
+        // accent, OS badge) still key on the automatic label.
+        assert_eq!(tab.auto_label(true), "host-a");
+
+        // Clearing the name restores the automatic sources.
+        tab.custom_name = None;
+        tab.session_group_id = None;
+        assert_eq!(tab.display_label(true), "vim main.rs");
+        assert_eq!(tab.display_label(false), "host-a");
+    }
+
+    #[test]
+    fn sftp_custom_name_is_display_only() {
+        let mut tab = SftpTab::new("host-a".into());
+        assert_eq!(tab.display_label(), "host-a");
+        tab.custom_name = Some("files".into());
+        assert_eq!(tab.display_label(), "files");
+        assert_eq!(tab.label, "host-a");
+        tab.custom_name = None;
+        assert_eq!(tab.display_label(), "host-a");
     }
 }

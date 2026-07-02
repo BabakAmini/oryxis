@@ -2,6 +2,11 @@
 
 use super::*;
 use iced::widget::{column, row};
+
+/// Widget id of the tab-rename dialog's input, focused on open (see
+/// `Message::StartRenameTab` / `StartRenameSftpTab` in `dispatch_tabs.rs`).
+pub(crate) const TAB_RENAME_INPUT_ID: &str = "tab-rename-input";
+
 impl Oryxis {
     pub(crate) fn view_main(&self) -> Element<'_, Message> {
         // Single top-bar layout: the tab bar (Home icon + session tabs +
@@ -14,8 +19,16 @@ impl Oryxis {
         // The X-close affordance and the on-enter hint banner are drawn as
         // Stack overlays below.
         let immersive = self.window_fullscreen;
+        // Opt-in bottom docking (Settings -> Interface -> Tab bar
+        // position): the strip moves above the status bar and the top
+        // row shrinks to a slim chrome bar (burger + drag area + window
+        // buttons), so the titlebar affordances stay where every OS
+        // puts them.
+        let bottom_tabs = self.setting_tab_bar_position == "bottom";
         let tab_bar: Element<'_, Message> = if immersive {
             Space::new().height(0).into()
+        } else if bottom_tabs {
+            self.view_top_chrome_bar()
         } else {
             self.view_tab_bar()
         };
@@ -111,8 +124,24 @@ impl Oryxis {
             Some(panel) => dir_row(vec![inner, panel]).height(Length::Fill).into(),
             None => inner,
         };
-        let right_side: Element<'_, Message> =
-            column![tab_bar, h_separator, body].height(Length::Fill).into();
+        let right_side: Element<'_, Message> = if bottom_tabs && !immersive {
+            // Bottom docking: the accent hairline (the active host's
+            // "respiração") moves with the strip, sitting on its top
+            // edge; the slim chrome bar above keeps a neutral 1 px
+            // separator so it still reads as a titlebar.
+            let chrome_sep: Element<'_, Message> = container(Space::new().height(1.0))
+                .width(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().border)),
+                    ..Default::default()
+                })
+                .into();
+            column![tab_bar, chrome_sep, body, h_separator, self.view_bottom_tab_strip()]
+                .height(Length::Fill)
+                .into()
+        } else {
+            column![tab_bar, h_separator, body].height(Length::Fill).into()
+        };
         let layout = column![right_side, status_bar];
 
         let base: Element<'_, Message> = container(layout)
@@ -723,6 +752,200 @@ impl Oryxis {
             );
         }
 
+        // Careful-paste confirmation: a clipboard paste containing a line
+        // break is parked in `pending_paste` and previewed here (line
+        // count + first lines) before anything reaches the session, so a
+        // hidden trailing newline can't auto-run a command.
+        if let Some(ref pending) = self.pending_paste {
+            let c = OryxisColors::t();
+            // Count "\n", "\r\n" and bare-"\r" breaks alike; `str::lines`
+            // already folds the first two, normalize lone \r (old-Mac /
+            // bracketed-paste-hostile clipboards) before counting.
+            let normalized = pending.replace('\r', "\n");
+            let line_count = normalized.lines().count().max(1);
+            let ends_with_newline = pending.ends_with('\n') || pending.ends_with('\r');
+
+            // Preview: the first lines in the terminal's monospace, each
+            // clipped so a minified one-liner can't blow the dialog up.
+            const PREVIEW_LINES: usize = 8;
+            const PREVIEW_COLS: usize = 100;
+            let mut preview_col = column![].spacing(2);
+            for line in normalized.lines().take(PREVIEW_LINES) {
+                let clipped: String = if line.chars().count() > PREVIEW_COLS {
+                    let mut s: String = line.chars().take(PREVIEW_COLS).collect();
+                    s.push('…');
+                    s
+                } else {
+                    line.to_string()
+                };
+                // Preserve blank lines' height (empty text collapses).
+                let shown = if clipped.is_empty() { " ".to_string() } else { clipped };
+                preview_col = preview_col.push(
+                    text(shown)
+                        .size(12)
+                        .font(iced::Font::MONOSPACE)
+                        .color(c.text_secondary)
+                        .wrapping(iced::widget::text::Wrapping::None),
+                );
+            }
+            if line_count > PREVIEW_LINES {
+                preview_col = preview_col.push(
+                    text("…").size(12).font(iced::Font::MONOSPACE).color(c.text_muted),
+                );
+            }
+            let preview = container(preview_col)
+                .width(Length::Fill)
+                .padding(10)
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(c.bg_primary)),
+                    border: Border { radius: Radius::from(8.0), color: c.border, width: 1.0 },
+                    ..Default::default()
+                });
+
+            // The trailing-newline case is the whole reason this dialog
+            // exists; call it out explicitly when it applies.
+            let newline_note: Element<'_, Message> = if ends_with_newline {
+                column![
+                    Space::new().height(8),
+                    dir_row(vec![
+                        iced_fonts::lucide::triangle_alert()
+                            .size(13)
+                            .color(c.warning)
+                            .into(),
+                        Space::new().width(6).into(),
+                        container(
+                            text(crate::i18n::t("careful_paste_trailing"))
+                                .size(11)
+                                .color(c.warning),
+                        )
+                        .width(Length::Fill)
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                ]
+                .into()
+            } else {
+                Space::new().height(0).into()
+            };
+
+            let dialog = container(
+                column![
+                    dir_row(vec![
+                        iced_fonts::lucide::clipboard_list()
+                            .size(16)
+                            .color(c.accent)
+                            .into(),
+                        Space::new().width(8).into(),
+                        container(
+                            text(crate::i18n::t("careful_paste_title"))
+                                .size(16)
+                                .color(c.text_primary),
+                        )
+                        .width(Length::Fill)
+                        .align_x(dir_align_x())
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                    Space::new().height(6),
+                    text(crate::i18n::line_count(line_count))
+                        .size(12)
+                        .color(c.text_muted)
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
+                    Space::new().height(10),
+                    preview,
+                    newline_note,
+                    Space::new().height(14),
+                    dir_row(vec![
+                        styled_button(
+                            crate::i18n::t("careful_paste_confirm"),
+                            Message::ConfirmPendingPaste,
+                            c.accent,
+                        ),
+                        Space::new().width(8).into(),
+                        styled_button(
+                            crate::i18n::t("cancel"),
+                            Message::CancelPendingPaste,
+                            c.text_muted,
+                        ),
+                    ]),
+                ]
+                .width(Length::Fill)
+                .align_x(dir_align_x())
+                .padding(24),
+            )
+            .width(Length::Fixed(520.0))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(c.bg_surface)),
+                border: Border { radius: Radius::from(12.0), color: c.border, width: 1.0 },
+                ..Default::default()
+            });
+
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    dialog.into(),
+                    Some(Message::CancelPendingPaste),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
+        // Tab rename modal, shown after the user picks "Rename" from a
+        // tab's context menu. Same shape as the folder rename below; an
+        // empty name restores the automatic label.
+        if let Some((_tab_ref, ref input)) = self.tab_rename {
+            let dialog = container(
+                column![
+                    text(crate::i18n::t("rename_tab"))
+                        .size(16)
+                        .color(OryxisColors::t().text_primary)
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
+                    Space::new().height(12),
+                    text_input(crate::i18n::t("tab_name"), input.as_str())
+                        .id(iced::widget::Id::new(TAB_RENAME_INPUT_ID))
+                        .on_input(Message::TabRenameInput)
+                        .on_submit(Message::ConfirmTabRename)
+                        .padding(10)
+                        .width(Length::Fill)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+                    Space::new().height(6),
+                    text(crate::i18n::t("tab_name_hint"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted)
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
+                    Space::new().height(12),
+                    dir_row(vec![
+                        styled_button(crate::i18n::t("save"), Message::ConfirmTabRename, OryxisColors::t().accent),
+                        Space::new().width(8).into(),
+                        styled_button(crate::i18n::t("cancel"), Message::CancelTabRename, OryxisColors::t().text_muted),
+                    ]),
+                ]
+                .width(Length::Fill)
+                .align_x(dir_align_x())
+                .padding(24),
+            )
+            .width(Length::Fixed(360.0))
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
+                ..Default::default()
+            });
+
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    dialog.into(),
+                    Some(Message::CancelTabRename),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Folder rename modal, shown after the user picks "Rename" from
         // the folder context menu.
         if let Some((_gid, ref input)) = self.folder_rename {
@@ -1088,7 +1311,7 @@ impl Oryxis {
             // Width must match the value used in `render_overlay_menu` so
             // clamping lines up with the rendered box.
             let menu_width = self.overlay_menu_width(overlay);
-            let menu_height = 80.0_f32; // approximate menu height
+            let menu_height = self.overlay_menu_height(overlay);
             let raw_x = if crate::i18n::is_rtl_layout() {
                 overlay.x - menu_width
             } else {

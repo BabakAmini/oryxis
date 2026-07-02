@@ -41,6 +41,27 @@ impl Oryxis {
         }
     }
 
+    /// Rough on-screen height of an overlay popover, used by `view_main`
+    /// to clamp the anchor so the menu never clips past the bottom edge.
+    /// Item counts are safe upper bounds per variant (over-estimating
+    /// only nudges the menu a little higher); the old flat 80 px guess
+    /// was fine while every menu opened from the top bar, but the
+    /// bottom-docked tab strip anchors its (tall) context menu near the
+    /// window's bottom edge where the real height matters.
+    pub(crate) fn overlay_menu_height(&self, overlay: &OverlayState) -> f32 {
+        const ITEM_H: f32 = 30.0;
+        let items: f32 = match &overlay.content {
+            OverlayContent::TabActions(_) => 12.0,
+            OverlayContent::SftpTabActions(_) => 5.0,
+            OverlayContent::HostActions(_) => 7.0,
+            OverlayContent::SessionGroupActions(_) => 4.0,
+            OverlayContent::FolderActions(_) => 4.0,
+            OverlayContent::SplitMenu => 3.0,
+            _ => 2.5,
+        };
+        items * ITEM_H + 10.0
+    }
+
     pub(crate) fn render_overlay_menu(&self, overlay: &OverlayState) -> Element<'_, Message> {
         // Floating toolbar search: just the live search input at full
         // width, no popover chrome (it reads as the inline field having
@@ -226,6 +247,7 @@ impl Oryxis {
             OverlayContent::TabActions(idx) => {
                 let idx = *idx;
                 let mut items = column![
+                    context_menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameTab(idx), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
@@ -306,6 +328,7 @@ impl Oryxis {
                 };
                 let mut items = column![
                     context_menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::NewSftpTab, OryxisColors::t().text_secondary),
+                    context_menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameSftpTab(idx), OryxisColors::t().text_secondary),
                     context_menu_item(pin_icon, pin_label, Message::ToggleSftpTabPin(idx), OryxisColors::t().text_secondary),
                     context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseSftpTab(idx), OryxisColors::t().text_secondary),
                 ];

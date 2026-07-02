@@ -313,6 +313,7 @@ mod tests {
         let tab = TerminalTab {
             _id: Uuid::new_v4(),
             label: "t".into(),
+            custom_name: None,
             pane_grid: grid,
             focused,
             chat_history: Vec::new(),

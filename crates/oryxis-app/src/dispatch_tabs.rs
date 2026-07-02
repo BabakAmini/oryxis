@@ -1125,6 +1125,70 @@ impl Oryxis {
                 self.folder_rename = None;
                 self.close_modal(crate::state::Modal::FolderDelete);
             }
+            // -- Tab rename (transient custom name) --
+            Message::StartRenameTab(idx) => {
+                self.overlay = None;
+                if let Some(tab) = self.tabs.get(idx) {
+                    // Prefill with what the strip currently shows (custom
+                    // name, group name or OSC title), minus the state
+                    // suffix, so "rename" starts from the visible truth.
+                    let auto = self.tab_auto_title(tab);
+                    let current = tab
+                        .display_label(auto)
+                        .trim_end_matches(" (disconnected)")
+                        .to_string();
+                    self.tab_rename =
+                        Some((crate::state::TabRef::Terminal(tab._id), current));
+                    // Drop the keyboard straight into the input, mirroring
+                    // the SFTP inline rename.
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        crate::views::layout::TAB_RENAME_INPUT_ID,
+                    )));
+                }
+            }
+            Message::StartRenameSftpTab(idx) => {
+                self.overlay = None;
+                if let Some(tab) = self.sftp_tabs.get(idx) {
+                    let current = tab.display_label().to_string();
+                    self.tab_rename = Some((crate::state::TabRef::Sftp(tab.id), current));
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        crate::views::layout::TAB_RENAME_INPUT_ID,
+                    )));
+                }
+            }
+            Message::TabRenameInput(val) => {
+                if let Some((_, ref mut buf)) = self.tab_rename {
+                    *buf = val;
+                }
+            }
+            Message::ConfirmTabRename => {
+                if let Some((tab_ref, name)) = self.tab_rename.take() {
+                    let trimmed = name.trim();
+                    // Empty clears the custom name: the automatic label
+                    // (host / group / OSC title) takes over again.
+                    let new_name =
+                        (!trimmed.is_empty()).then(|| trimmed.to_string());
+                    match tab_ref {
+                        crate::state::TabRef::Terminal(id) => {
+                            if let Some(tab) =
+                                self.tabs.iter_mut().find(|t| t._id == id)
+                            {
+                                tab.custom_name = new_name;
+                            }
+                        }
+                        crate::state::TabRef::Sftp(id) => {
+                            if let Some(tab) =
+                                self.sftp_tabs.iter_mut().find(|t| t.id == id)
+                            {
+                                tab.custom_name = new_name;
+                            }
+                        }
+                    }
+                }
+            }
+            Message::CancelTabRename => {
+                self.tab_rename = None;
+            }
             Message::EditGroup(gid) => {
                 self.overlay = None;
                 if let Some(group) = self.groups.iter().find(|g| g.id == gid) {

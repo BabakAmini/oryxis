@@ -128,6 +128,17 @@ pub enum Message {
     /// Pin / unpin a tab (from its context menu). Pinned tabs render first
     /// and are restored on the next launch.
     ToggleTabPin(usize),
+    /// Open the rename dialog for a terminal tab (from its context menu).
+    /// The name is transient: it lives for the tab's lifetime only and is
+    /// never written back to the host or the pin spec.
+    StartRenameTab(usize),
+    /// Open the rename dialog for an SFTP tab (same transient semantics).
+    StartRenameSftpTab(usize),
+    TabRenameInput(String),
+    /// Commit the rename dialog. An empty (or whitespace-only) name clears
+    /// the custom name, restoring the automatic label.
+    ConfirmTabRename,
+    CancelTabRename,
 
     // SFTP browser. Most pane operations are side-addressed: the
     // `SftpPaneSide` says *which* pane (Left / Right), and the handler
@@ -747,6 +758,11 @@ pub enum Message {
     /// dispatcher reads the clipboard and routes the text to the SSH
     /// session (if active) or the local PTY, mirroring Ctrl+Shift+V.
     TerminalPasteFromClipboard,
+    /// Careful-paste confirmation: send the multi-line text held in
+    /// `pending_paste` to the active session.
+    ConfirmPendingPaste,
+    /// Careful-paste confirmation dismissed: drop the held text.
+    CancelPendingPaste,
     /// Raw input bytes synthesized by the terminal widget (mouse-tracking
     /// reports, wheel-to-arrow translation). Routed to the active SSH
     /// session, falling back to the local PTY.
@@ -775,6 +791,8 @@ pub enum Message {
     RendererInfoLoaded(String, String),
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
+    /// Flip the careful-paste guard (warn before multi-line paste).
+    ToggleCarefulPaste,
     ToggleBoldIsBright,
     /// Toggle showing the shell-set window title (OSC 0/2) in the tab strip.
     ToggleTerminalAutoTitle,
@@ -820,6 +838,10 @@ pub enum Message {
     SettingTabCloseButtonSideChanged(String),
     SettingPinnedTabStyleChanged(String),
     SettingTabFillStyleChanged(String),
+    /// Dock the tab strip at the top (default) or the bottom of the
+    /// window ("top" / "bottom"). The window chrome (burger, drag area,
+    /// minimize / maximize / close) stays in a slim top bar either way.
+    SettingTabBarPositionChanged(String),
     SettingToggleShowTabStatusDot,
     /// Show/hide the top-left burger menu (Settings / Updates / About /
     /// Exit). Mirrors Termius's `☰` strip at the start of the tab bar.

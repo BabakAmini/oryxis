@@ -266,6 +266,16 @@ pub fn host_count(n: usize) -> String {
     }
 }
 
+/// "1 line" / "N lines" with the count inlined, same one/other
+/// approximation as [`host_count`]. Used by the careful-paste dialog.
+pub fn line_count(n: usize) -> String {
+    if n == 1 {
+        t("line_count_one").to_string()
+    } else {
+        format!("{} {}", n, t("line_count_other"))
+    }
+}
+
 fn translate(key: &str, lang: Language) -> &'static str {
     match lang {
         Language::English => en::lookup(key),

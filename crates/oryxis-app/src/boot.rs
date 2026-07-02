@@ -204,6 +204,8 @@ impl Oryxis {
                 card_context_menu: None,
                 overlay: None,
                 folder_rename: None,
+                tab_rename: None,
+                pending_paste: None,
                 group_edit: crate::state::GroupEditForm::default(),
                 folder_delete: None,
                 pending_auto_connect,
@@ -365,6 +367,7 @@ impl Oryxis {
                 setting_renderer_backend: "auto".to_string(),
                 renderer_active: None,
                 setting_copy_on_select: true,
+                setting_careful_paste: true,
                 setting_right_click_copy: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
@@ -392,6 +395,7 @@ impl Oryxis {
                 setting_tab_accent_line: true,
                 setting_tab_accent_wash: true,
                 setting_tab_fill_style: "gradient".into(),
+                setting_tab_bar_position: "top".into(),
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who
                 // never persisted `layout_mode` also fall through to
@@ -801,6 +805,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("copy_on_select") {
                 self.setting_copy_on_select = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("careful_paste") {
+                self.setting_careful_paste = v == "true";
+            }
             // Auto-title (OSC 0/2) lives in a process-wide gate (read at tab
             // render time); default-on, only override when explicitly stored.
             if let Ok(Some(v)) = vault.get_setting("terminal_auto_title") {
@@ -874,6 +881,12 @@ impl Oryxis {
                 && (v == "gradient" || v == "solid")
             {
                 self.setting_tab_fill_style = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("tab_bar_position")
+                && (v == "top" || v == "bottom")
+            {
+                crate::views::tab_bar::set_tab_bar_bottom(v == "bottom");
+                self.setting_tab_bar_position = v;
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_enabled") {
                 self.sftp_enabled = v == "true";

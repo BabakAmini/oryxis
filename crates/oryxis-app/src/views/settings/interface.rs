@@ -282,6 +282,35 @@ impl Oryxis {
                 .into(),
             ]).align_y(iced::Alignment::Center),
             Space::new().height(8),
+            dir_row(vec![
+                text(crate::i18n::t("tab_bar_position"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+                Space::new().width(Length::Fill).into(),
+                pick_list(
+                    Some(self.setting_tab_bar_position.clone()),
+                    vec!["top".to_string(), "bottom".to_string()],
+                    |s: &String| {
+                        crate::i18n::t(if s == "bottom" {
+                            "tab_bar_position_bottom"
+                        } else {
+                            "tab_bar_position_top"
+                        })
+                        .to_string()
+                    },
+                )
+                .on_select(Message::SettingTabBarPositionChanged)
+                .width(180)
+                .padding(10)
+                .style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ]).align_y(iced::Alignment::Center),
+            Space::new().height(4),
+            text(crate::i18n::t("tab_bar_position_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
             toggle_row(
                 crate::i18n::t("show_tab_status_dot"),
                 self.setting_show_tab_status_dot,

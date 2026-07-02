@@ -739,6 +739,15 @@ impl Oryxis {
                     if self.setting_right_click_copy { "true" } else { "false" },
                 );
             }
+            Message::ToggleCarefulPaste => {
+                self.setting_careful_paste = !self.setting_careful_paste;
+                // Turning the guard off releases nothing: a parked paste
+                // (dialog open) still needs its explicit confirm/cancel.
+                self.persist_setting(
+                    "careful_paste",
+                    if self.setting_careful_paste { "true" } else { "false" },
+                );
+            }
             Message::ToggleTerminalAutoTitle => {
                 let on = !crate::state::auto_title_enabled();
                 crate::state::set_auto_title(on);
@@ -920,6 +929,19 @@ impl Oryxis {
                 };
                 self.setting_tab_fill_style = normalized.into();
                 self.persist_setting("tab_fill_style", normalized);
+            }
+            Message::SettingTabBarPositionChanged(val) => {
+                let normalized = match val.as_str() {
+                    "bottom" => "bottom",
+                    _ => "top",
+                };
+                // The active-tab gradient direction lives in a process-wide
+                // gate (read by `active_tab_bg` at render time, same shape
+                // as the auto-title gate) so the "lit from above" fade can
+                // flip without threading a flag through every tab renderer.
+                crate::views::tab_bar::set_tab_bar_bottom(normalized == "bottom");
+                self.setting_tab_bar_position = normalized.into();
+                self.persist_setting("tab_bar_position", normalized);
             }
             Message::SettingKeepaliveChanged(val) => {
                 // Accept only digits; cap at 86_400 (1 day) so users can't

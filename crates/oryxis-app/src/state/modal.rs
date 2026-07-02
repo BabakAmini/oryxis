@@ -30,6 +30,11 @@ pub(crate) enum Modal {
     SessionGroupPanel,
     FolderRename,
     FolderDelete,
+    /// Transient tab rename (terminal or SFTP tab, addressed by `TabRef`).
+    TabRename,
+    /// Careful-paste confirmation (multi-line clipboard paste parked in
+    /// `pending_paste`, waiting for the user to confirm or cancel).
+    CarefulPaste,
     /// Keyboard-interactive (2FA / OTP) prompt. Blocks input but owns its
     /// own dismissal, so it is intentionally absent from `ESC_ORDER`.
     KbiPrompt,
@@ -57,6 +62,8 @@ impl Modal {
         Modal::SessionGroupPanel,
         Modal::FolderRename,
         Modal::FolderDelete,
+        Modal::TabRename,
+        Modal::CarefulPaste,
         Modal::KbiPrompt,
         Modal::ThemeEditor,
         Modal::ThemeImport,
@@ -82,6 +89,8 @@ impl Modal {
         Modal::ChainEditor,
         Modal::FolderRename,
         Modal::FolderDelete,
+        Modal::TabRename,
+        Modal::CarefulPaste,
         Modal::SessionGroupPanel,
         Modal::ThemeEditor,
         Modal::UiThemeEditor,
@@ -105,6 +114,8 @@ impl Modal {
             | Modal::SessionGroupPanel
             | Modal::FolderRename
             | Modal::FolderDelete
+            | Modal::TabRename
+            | Modal::CarefulPaste
             | Modal::KbiPrompt
             | Modal::ThemeEditor
             | Modal::ThemeImport
@@ -138,6 +149,8 @@ mod tests {
                 | Modal::SessionGroupPanel
                 | Modal::FolderRename
                 | Modal::FolderDelete
+                | Modal::TabRename
+                | Modal::CarefulPaste
                 | Modal::KbiPrompt
                 | Modal::ThemeEditor
                 | Modal::ThemeImport
@@ -151,7 +164,7 @@ mod tests {
                 | Modal::SftpPicker => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 19, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 21, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

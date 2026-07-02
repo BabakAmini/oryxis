@@ -367,6 +367,14 @@ pub struct Oryxis {
     /// Folder rename inline editor, `Some((group_id, current_input))`
     /// while the modal is open.
     pub(crate) folder_rename: Option<(Uuid, String)>,
+    /// Tab rename dialog, `Some((tab_ref, current_input))` while open.
+    /// Addressed by `TabRef` (stable uuid) so a reorder mid-dialog can't
+    /// retarget the rename. The committed name is transient: it lives on
+    /// the tab struct only, never on the host or the pin spec.
+    pub(crate) tab_rename: Option<(crate::state::TabRef, String)>,
+    /// Multi-line clipboard text parked by the careful-paste guard,
+    /// waiting for the user to confirm or cancel the paste.
+    pub(crate) pending_paste: Option<String>,
     /// Manual host-group editor side panel (label + icon + color). Open
     /// when `group_edit_visible`; `group_edit_id` is the group being
     /// edited. `group_edit_icon` / `group_edit_color` are empty strings
@@ -775,6 +783,13 @@ pub struct Oryxis {
     /// what "Automatic" resolved to so a backend fallback is diagnosable.
     pub(crate) renderer_active: Option<(String, String)>,
     pub(crate) setting_copy_on_select: bool,
+    /// Careful paste (default on): a clipboard paste that contains a line
+    /// break is parked in `pending_paste` and confirmed via a dialog with
+    /// a line-count preview, so a hidden trailing newline can't auto-run
+    /// a command. Off sends every paste straight through (power users).
+    /// Persisted as `careful_paste`. Snippets are exempt, their content
+    /// is user-authored, not whatever the clipboard happened to carry.
+    pub(crate) setting_careful_paste: bool,
     /// Sub-option of `setting_copy_on_select`: when both are on, a selection
     /// copies on right-click instead of on release. Ignored when
     /// `setting_copy_on_select` is off.
@@ -890,6 +905,11 @@ pub struct Oryxis {
     /// vertical accent fade) or `"solid"` (a single flat accent tint).
     /// Read by every tab/chip renderer via `active_tab_bg`.
     pub(crate) setting_tab_fill_style: String,
+    /// Where the tab strip docks: `"top"` (default, tabs share the bar
+    /// with the window chrome) or `"bottom"` (the strip sits above the
+    /// status bar; a slim top bar keeps the burger, drag area and the
+    /// minimize / maximize / close buttons). Anything else reads as top.
+    pub(crate) setting_tab_bar_position: String,
     /// Toggles the SFTP feature entirely. Off hides the SFTP sidebar
     /// entry (both expanded and collapsed) so users who never transfer
     /// files don't have it taking up nav space. The SFTP settings panel

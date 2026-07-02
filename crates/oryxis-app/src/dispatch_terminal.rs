@@ -91,12 +91,29 @@ impl Oryxis {
         }
     }
 
-    /// Paste `text` into the active tab's session, wrapping it for
-    /// bracketed-paste when the focused app enabled it. Routes to the SSH
-    /// session when one is attached, otherwise the local PTY. Shared by the
-    /// clipboard (right-click / Ctrl+Shift+V) and PRIMARY (middle-click)
-    /// paste paths.
+    /// Paste `text` into the active tab's session. Careful-paste gate:
+    /// when the setting is on (default) and the text contains a line
+    /// break, the paste is parked in `pending_paste` and a confirmation
+    /// dialog (line count + preview) takes over, so a hidden trailing
+    /// newline can't auto-run a command. Single-line pastes, and every
+    /// paste when the guard is off, go straight to the session.
     pub(crate) fn paste_text_into_active(&mut self, text: &str) {
+        if self.active_tab.is_none() {
+            return;
+        }
+        if self.setting_careful_paste && (text.contains('\n') || text.contains('\r')) {
+            self.pending_paste = Some(text.to_string());
+            return;
+        }
+        self.write_paste_to_active(text);
+    }
+
+    /// Write `text` into the active tab's session, wrapping it for
+    /// bracketed-paste when the focused app enabled it (`\e[?2004h`).
+    /// Routes to the SSH session when one is attached, otherwise the
+    /// local PTY. Shared by the clipboard (right-click / Ctrl+Shift+V)
+    /// paste paths and the careful-paste confirmation.
+    pub(crate) fn write_paste_to_active(&mut self, text: &str) {
         if let Some(tab_idx) = self.active_tab
             && let Some(tab) = self.tabs.get(tab_idx)
         {
@@ -460,6 +477,16 @@ impl Oryxis {
                 {
                     self.paste_text_into_active(&text);
                 }
+            }
+            // Careful-paste confirmation: release the parked multi-line
+            // text into the session, or drop it.
+            Message::ConfirmPendingPaste => {
+                if let Some(text) = self.pending_paste.take() {
+                    self.write_paste_to_active(&text);
+                }
+            }
+            Message::CancelPendingPaste => {
+                self.pending_paste = None;
             }
             // Synthesized input from the terminal widget: mouse-tracking
             // reports (tmux `mouse on`, vim `mouse=a`, htop, ...) and the
