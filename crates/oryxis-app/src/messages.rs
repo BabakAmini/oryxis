@@ -819,6 +819,15 @@ pub enum Message {
     ToggleShowHostAddress,
     /// Flip the global Privacy Mode default (auto-hide sensitive data).
     TogglePrivacyMode,
+    /// Flip the Settings > Advanced debug logging (tracing events also
+    /// written to the exportable `~/.oryxis/oryxis-debug.log`).
+    SettingToggleDebugLogging,
+    /// Reveal the debug log file in the OS file manager (falls back to
+    /// the `~/.oryxis` folder while no log file exists yet).
+    RevealDebugLog,
+    /// Wipe the debug log file (truncated in place while logging is on,
+    /// deleted otherwise).
+    ClearDebugLog,
     /// Toggle the Logs view Privacy Mode reveal (show raw sensitive data
     /// in the timeline + session-log viewer until toggled back).
     TogglePrivacyReveal,

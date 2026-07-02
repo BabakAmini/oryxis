@@ -21,6 +21,7 @@ pub(crate) use crate::widgets::{
 
 // Per-section view methods, split into sibling files.
 mod about;
+mod advanced;
 mod ai;
 mod connection;
 mod interface;
@@ -525,6 +526,7 @@ impl Oryxis {
             if self.any_cloud_provider_installed() {
                 items.push((crate::i18n::t("settings_cloud_section"), SettingsSection::Cloud));
             }
+            items.push((crate::i18n::t("settings_advanced"), SettingsSection::Advanced));
             items.push((crate::i18n::t("about"), SettingsSection::About));
             let mut col = column![]
                 .spacing(4)
@@ -601,6 +603,7 @@ impl Oryxis {
 
             SettingsSection::Sync => self.view_settings_sync(),
 
+            SettingsSection::Advanced => self.view_settings_advanced(),
             SettingsSection::About => self.view_settings_about(),
             SettingsSection::Cloud => self.view_cloud_sync_settings(),
             SettingsSection::Plugins => self.view_plugins_panel(),

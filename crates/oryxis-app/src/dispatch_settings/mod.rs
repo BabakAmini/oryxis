@@ -28,6 +28,17 @@ pub(crate) fn resolve_scrollback_rows(rows: &str) -> usize {
     }
 }
 
+/// Dispatch `Message::ToastClear` after the standard 1.8s toast dwell,
+/// same cadence as the copy-to-clipboard confirmation.
+fn toast_clear_task() -> Task<Message> {
+    Task::perform(
+        async {
+            tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
+        },
+        |_| Message::ToastClear,
+    )
+}
+
 /// Map the active app theme to its companion terminal palette. Used
 /// as the bottom-of-the-stack fallback in
 /// `resolve_global_terminal_theme` when neither a global override nor a
@@ -294,14 +305,17 @@ impl Oryxis {
 
 impl Oryxis {
     /// Task that asks iced for the graphics backend the compositor
-    /// actually selected, but only when the Interface settings section
-    /// (which displays it) is showing and it hasn't loaded yet. By then
-    /// the compositor exists, so the oneshot resolves instead of being
-    /// dropped. Returns [`Task::none`] otherwise. Fired both when
-    /// switching into the section and when opening Settings on it.
+    /// actually selected, but only when a settings section that displays
+    /// it (Interface, plus Advanced for the environment report) is
+    /// showing and it hasn't loaded yet. By then the compositor exists,
+    /// so the oneshot resolves instead of being dropped. Returns
+    /// [`Task::none`] otherwise. Fired both when switching into the
+    /// section and when opening Settings on it.
     pub(crate) fn renderer_info_task(&self) -> Task<Message> {
-        if self.settings_section == crate::state::SettingsSection::Interface
-            && self.renderer_active.is_none()
+        if matches!(
+            self.settings_section,
+            crate::state::SettingsSection::Interface | crate::state::SettingsSection::Advanced
+        ) && self.renderer_active.is_none()
         {
             iced::system::graphics_information()
                 .map(|info| Message::RendererInfoLoaded(info.backend, info.adapter))
@@ -834,6 +848,66 @@ impl Oryxis {
                     "privacy_mode",
                     if self.setting_privacy_mode { "true" } else { "false" },
                 );
+            }
+            Message::SettingToggleDebugLogging => {
+                if self.setting_debug_logging {
+                    // Emitted before the sink closes so the file records
+                    // its own switch-off.
+                    tracing::info!("debug logging disabled from Settings");
+                    crate::logging::disable();
+                    self.setting_debug_logging = false;
+                } else {
+                    match crate::logging::enable() {
+                        Ok(path) => {
+                            self.setting_debug_logging = true;
+                            tracing::info!("debug logging enabled -> {}", path.display());
+                        }
+                        Err(e) => {
+                            // Leave the toggle off and surface the cause;
+                            // a silently dead sink would defeat the whole
+                            // point of the feature.
+                            tracing::warn!("failed to enable debug logging: {e}");
+                            self.toast =
+                                Some(format!("{}: {e}", crate::i18n::t("debug_logging")));
+                            return Ok(toast_clear_task());
+                        }
+                    }
+                }
+                self.persist_setting(
+                    "debug_logging",
+                    if self.setting_debug_logging { "true" } else { "false" },
+                );
+            }
+            Message::RevealDebugLog => {
+                if let Some(path) = crate::logging::log_path() {
+                    // Fall back to the data folder when nothing was
+                    // written yet so the button never silently no-ops.
+                    let result = if path.exists() {
+                        crate::util::reveal_in_file_manager(&path, false)
+                    } else if let Some(dir) = path.parent() {
+                        crate::util::reveal_in_file_manager(dir, true)
+                    } else {
+                        Ok(())
+                    };
+                    if let Err(e) = result {
+                        tracing::warn!("failed to reveal debug log: {e}");
+                    }
+                }
+            }
+            Message::ClearDebugLog => {
+                match crate::logging::clear() {
+                    Ok(true) => {
+                        self.toast = Some(crate::i18n::t("debug_log_cleared").to_string());
+                    }
+                    Ok(false) => {
+                        self.toast = Some(crate::i18n::t("debug_log_missing").to_string());
+                    }
+                    Err(e) => {
+                        tracing::warn!("failed to clear debug log: {e}");
+                        self.toast = Some(format!("{}: {e}", crate::i18n::t("debug_log_clear")));
+                    }
+                }
+                return Ok(toast_clear_task());
             }
             Message::SettingToggleCloseToTray => {
                 self.setting_close_to_tray = !self.setting_close_to_tray;

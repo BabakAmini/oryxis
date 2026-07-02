@@ -303,5 +303,9 @@ pub(crate) enum SettingsSection {
     /// to `Cloud` because every cloud account here needs a matching
     /// plugin to actually function.
     Plugins,
+    /// Troubleshooting surface: the debug-logging file toggle and the
+    /// environment report to paste into GitHub issues. Sits between the
+    /// feature sections and About; nothing here is everyday config.
+    Advanced,
     About,
 }

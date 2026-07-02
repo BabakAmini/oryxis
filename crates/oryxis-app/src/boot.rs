@@ -380,6 +380,7 @@ impl Oryxis {
                 setting_card_accent_glass: true,
                 setting_show_host_address: false,
                 setting_privacy_mode: false,
+                setting_debug_logging: false,
                 privacy_revealed: false,
                 setting_close_to_tray: false,
                 setting_minimize_to_tray: false,
@@ -851,6 +852,33 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_mode") {
                 self.setting_privacy_mode = v == "true";
+            }
+            // One-shot reset: Privacy Mode was never meant to be on by
+            // default, yet some vaults carry a persisted
+            // `privacy_mode = true`. Force it off once on upgrade; the
+            // sentinel keeps a user who deliberately re-enables it from
+            // being reset again on the next boot.
+            if let Ok(None) = vault.get_setting("privacy_default_off_applied") {
+                if self.setting_privacy_mode {
+                    self.setting_privacy_mode = false;
+                    let _ = vault.set_setting("privacy_mode", "false");
+                }
+                let _ = vault.set_setting("privacy_default_off_applied", "true");
+            }
+            if let Ok(Some(v)) = vault.get_setting("debug_logging")
+                && v == "true"
+            {
+                // Normally already armed by main.rs before the tracing
+                // subscriber was built; retrying here covers an earlier
+                // failure so the toggle reflects the sink's real state.
+                self.setting_debug_logging = crate::logging::is_enabled()
+                    || match crate::logging::enable() {
+                        Ok(_) => true,
+                        Err(e) => {
+                            tracing::warn!("failed to enable debug logging: {e}");
+                            false
+                        }
+                    };
             }
             if let Ok(Some(v)) = vault.get_setting("close_to_tray") {
                 self.setting_close_to_tray = v == "true";

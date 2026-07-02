@@ -43,6 +43,7 @@ mod dispatch_tabs;
 mod dispatch_terminal;
 mod fonts;
 mod i18n;
+mod logging;
 mod mcp;
 mod mcp_install;
 mod messages;
@@ -119,16 +120,25 @@ fn main() -> iced::Result {
     //   - "software" -> force iced's tiny-skia (CPU) renderer; the
     //                   terminal is a plain `canvas` widget so it renders
     //                   identically off the GPU.
-    if let Ok(vault) = oryxis_vault::VaultStore::open_default()
-        && let Ok(Some(mode)) = vault.get_setting("renderer_backend")
-    {
-        // SAFETY: still single-threaded here (tracing not yet
-        // initialized, no threads spawned), so mutating the process
-        // environment is sound under the Rust 2024 contract.
-        match mode.as_str() {
-            "opengl" => unsafe { std::env::set_var("WGPU_BACKEND", "gl") },
-            "software" => unsafe { std::env::set_var("ICED_BACKEND", "tiny-skia") },
-            _ => {}
+    if let Ok(vault) = oryxis_vault::VaultStore::open_default() {
+        if let Ok(Some(mode)) = vault.get_setting("renderer_backend") {
+            // SAFETY: still single-threaded here (tracing not yet
+            // initialized, no threads spawned), so mutating the process
+            // environment is sound under the Rust 2024 contract.
+            match mode.as_str() {
+                "opengl" => unsafe { std::env::set_var("WGPU_BACKEND", "gl") },
+                "software" => unsafe { std::env::set_var("ICED_BACKEND", "tiny-skia") },
+                _ => {}
+            }
+        }
+        // Debug logging (Settings > Advanced). Armed before the tracing
+        // subscriber below is built so the earliest boot lines land in
+        // the file too; same unlocked settings read as the renderer knob.
+        if let Ok(Some(v)) = vault.get_setting("debug_logging")
+            && v == "true"
+            && let Err(e) = logging::enable()
+        {
+            eprintln!("oryxis: failed to enable debug logging: {e}");
         }
     }
 
@@ -184,6 +194,15 @@ fn main() -> iced::Result {
         // click; everything else stays at info.
         .with(tracing_subscriber::EnvFilter::new("oryxis=debug,info,arboard=error"))
         .with(tracing_subscriber::fmt::layer())
+        // Second sink for the Settings > Advanced debug-log file. Always
+        // installed; the writer discards everything while the feature is
+        // off, so the toggle works at runtime without rebuilding the
+        // subscriber. No ANSI, the file is read in editors, not a tty.
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(logging::DebugFileWriter),
+        )
         .init();
 
     tracing::info!("Starting Oryxis");

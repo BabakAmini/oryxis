@@ -834,6 +834,10 @@ pub struct Oryxis {
     /// and revealed on hover. Off by default. A per-host
     /// `Connection.privacy_mode` override wins over this.
     pub(crate) setting_privacy_mode: bool,
+    /// Settings > Advanced debug logging: mirror of the `debug_logging`
+    /// setting, true while tracing events are also written to the
+    /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
+    pub(crate) setting_debug_logging: bool,
     /// When on, clicking the window's close button hides to the
     /// system tray instead of quitting. Only honoured on Windows
     /// (the tray module is a no-op everywhere else). Default off

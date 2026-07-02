@@ -315,7 +315,7 @@ fn pick_asset(
 /// running install so the auto-update preserves scope. On other
 /// platforms the function returns `false` (no per-user concept).
 #[cfg(target_os = "windows")]
-fn is_per_user_install() -> bool {
+pub(crate) fn is_per_user_install() -> bool {
     let exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(_) => return false,
