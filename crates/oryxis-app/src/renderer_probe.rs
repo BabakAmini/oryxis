@@ -84,6 +84,50 @@ pub fn auto_backend_override() -> Option<BackendOverride> {
     })
 }
 
+/// Inspect the GL adapters when the user explicitly selected the
+/// OpenGL renderer, and decide whether the "GPU-accelerated" promise
+/// of that option can actually be kept. wgpu's GL backend on top of a
+/// software rasterizer (llvmpipe on a WSLg session whose vGPU died,
+/// SwiftShader, WARP-GL) is its least mature combination and
+/// misrenders quads, background fills go missing and content leaks
+/// outside clips, while being no faster than the real software
+/// renderer. Redirect to tiny-skia, which is correct AND faster on a
+/// CPU. An empty enumeration is inconclusive (headless EGL quirks),
+/// so only positive evidence of a software-only GL stack redirects.
+pub fn opengl_backend_override() -> Option<BackendOverride> {
+    // An explicit env override always wins, same rule as the auto probe.
+    if std::env::var_os("WGPU_BACKEND").is_some() || std::env::var_os("ICED_BACKEND").is_some() {
+        return None;
+    }
+
+    let defect = gl_defect(&enumerate(wgpu::Backends::GL))?;
+    Some(BackendOverride {
+        env_key: "ICED_BACKEND",
+        env_value: "tiny-skia",
+        reason: format!(
+            "{defect}: the OpenGL selection would run software-rasterized GL, which \
+             misrenders; using the software renderer (tiny-skia) instead"
+        ),
+    })
+}
+
+/// Why the explicit-OpenGL selection cannot deliver hardware GL, or
+/// `None` when it can (or when we cannot tell).
+fn gl_defect(adapters: &[AdapterSummary]) -> Option<String> {
+    if adapters.is_empty() {
+        // Inconclusive: surfaceless EGL enumeration can fail where a
+        // windowed context would work. Let the real boot try.
+        return None;
+    }
+    if adapters.iter().all(|a| !a.is_hardware) {
+        return Some(format!(
+            "no hardware OpenGL adapter, only software rasterizers ({})",
+            names(adapters.iter())
+        ));
+    }
+    None
+}
+
 /// The slice of [`wgpu::AdapterInfo`] the decision logic needs, split
 /// out so the logic stays testable without a GPU (and stable against
 /// `AdapterInfo` gaining fields).
@@ -258,6 +302,31 @@ mod tests {
         ];
         let defect = primary_defect(&adapters).expect("Haswell-only must be flagged");
         assert!(defect.contains("Haswell"));
+    }
+
+    #[test]
+    fn gl_software_only_is_a_defect() {
+        // A WSLg session whose vGPU died: GL enumerates llvmpipe only.
+        // The explicit-OpenGL selection must fall back to tiny-skia.
+        let adapters = [adapter("llvmpipe (LLVM 20.1.2, 256 bits)", 0xFFFF, 0, false)];
+        let defect = gl_defect(&adapters).expect("software-only GL must be flagged");
+        assert!(defect.contains("llvmpipe"));
+    }
+
+    #[test]
+    fn gl_hardware_is_not_flagged() {
+        let adapters = [
+            adapter("D3D12 (NVIDIA GeForce RTX 3060)", 0x10DE, 0x2503, true),
+            adapter("llvmpipe (LLVM 20.1.2, 256 bits)", 0xFFFF, 0, false),
+        ];
+        assert!(gl_defect(&adapters).is_none());
+    }
+
+    #[test]
+    fn gl_empty_enumeration_is_inconclusive() {
+        // Surfaceless EGL can fail to enumerate where a windowed
+        // context would work; never redirect without positive evidence.
+        assert!(gl_defect(&[]).is_none());
     }
 
     #[test]

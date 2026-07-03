@@ -204,7 +204,23 @@ fn main() -> iced::Result {
     // environment is sound under the Rust 2024 contract.
     let mut renderer_probe_note: Option<String> = None;
     match renderer_mode.as_deref() {
-        Some("opengl") => unsafe { std::env::set_var("WGPU_BACKEND", "gl") },
+        Some("opengl") => {
+            // "OpenGL (GPU)" promises hardware acceleration. When the
+            // GL stack can only offer a software rasterizer (llvmpipe
+            // after a WSLg vGPU death, SwiftShader), wgpu-GL-on-software
+            // is the one combination that MISRENDERS (missing background
+            // quads, clip leaks), so honor the option's intent instead
+            // of its letter and fall back to the correct software
+            // renderer. Cross-platform: this stack class lives on
+            // Linux/WSL, not just Windows.
+            if let Some(redirect) = renderer_probe::opengl_backend_override() {
+                unsafe { std::env::set_var(redirect.env_key, redirect.env_value) };
+                renderer_probe::mark_redirected();
+                renderer_probe_note = Some(redirect.reason);
+            } else {
+                unsafe { std::env::set_var("WGPU_BACKEND", "gl") }
+            }
+        }
         Some("software") => unsafe { std::env::set_var("ICED_BACKEND", "tiny-skia") },
         _ => {
             // The probe is Windows-only: that's where the broken-DX12
