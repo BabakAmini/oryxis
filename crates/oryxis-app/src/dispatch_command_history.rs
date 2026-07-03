@@ -32,6 +32,16 @@ impl Oryxis {
             Message::PasteHistoryCommand(id) => {
                 self.inject_history_command(id, false);
             }
+            Message::RequestDeleteHistoryCommand(id) => {
+                // Deleting is destructive and the trash icon floats over
+                // the row on hover, one pixel from the paste click, so it
+                // goes through the shared confirm (Enter confirms via the
+                // modal keyboard layer, like every other destructive).
+                if let Some(entry) = self.command_history.iter().find(|e| e.id == id) {
+                    let name: String = entry.command.lines().next().unwrap_or("").chars().take(48).collect();
+                    self.confirm_remove(name, Message::DeleteHistoryCommand(id));
+                }
+            }
             Message::DeleteHistoryCommand(id) => {
                 if let Some(ref vault) = self.vault {
                     let _ = vault.delete_command_history_entry(&id);

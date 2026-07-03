@@ -556,6 +556,28 @@ impl Oryxis {
                 if let keyboard::Event::ModifiersChanged(m) = &event {
                     self.modifiers = *m;
                 }
+                // Key-gate tracing (debug log): Ctrl+Shift chords are
+                // always app hotkeys, so snapshot the gate-relevant
+                // state on arrival. Field report 2026-07-03: the
+                // FocusSidebarList chord worked on a local tab but not
+                // on an SSH tab of the same build, and no static
+                // difference between those paths exists; this line is
+                // how the next report pinpoints the consuming gate.
+                if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event
+                    && modifiers.control()
+                    && modifiers.shift()
+                {
+                    tracing::debug!(
+                        ?key,
+                        view = ?self.active_view,
+                        tab = ?self.active_tab,
+                        pick_open = self.keynav.pick_open,
+                        modal = self.any_modal_blocks_input(),
+                        panel = self.show_host_panel,
+                        capture = self.editing_hotkey.is_some(),
+                        "key-gate: ctrl+shift chord"
+                    );
+                }
                 // PrintScreen -> open the Windows snip overlay (region
                 // capture), matching the OS default. winit delivers the
                 // key to the focused window without forwarding it to
@@ -693,11 +715,13 @@ impl Oryxis {
                 if let Some(task) = self.handle_keynav_key(&event) {
                     return Ok(task);
                 }
-                // Terminal-sidebar list navigation (Snippets / History
-                // rows). Opt-in ring: engaged by the FocusSidebarList
-                // hotkey or by Up/Down while the cursor is over the
-                // sidebar; declines everything else so the PTY keeps
-                // the keyboard. See dispatch_keynav_sidebar.rs.
+                // Terminal-sidebar navigation (all four tabs). Opt-in:
+                // engaged by the FocusSidebarList hotkey, by Up/Down
+                // while the cursor is over a list tab, or by Tab while
+                // the cursor is over the sidebar; declines everything
+                // else so the PTY keeps the keyboard (a plain Tab over
+                // the terminal is still a literal \t). See
+                // dispatch_keynav_sidebar.rs.
                 if let Some(task) = self.handle_sidebar_nav_key(&event) {
                     return Ok(task);
                 }

@@ -1,22 +1,27 @@
-//! Keyboard router for the terminal-sidebar list tabs (Snippets /
-//! History), iteration 3 of the focus-zone framework.
+//! Keyboard router for the terminal-sidebar tabs (Chat / Snippets /
+//! History / Host config), iteration 3 of the focus-zone framework.
 //!
-//! Unlike modals and side panels, these lists coexist with a live
-//! terminal that owns every plain key, so the ring is strictly
+//! Unlike modals and side panels, this surface coexists with a live
+//! terminal that owns every plain key, so the layer is strictly
 //! opt-in:
 //!
-//! - The FocusSidebarList hotkey opens the sidebar (when closed),
-//!   lands on a list tab and rings the first row; pressed again it
-//!   cycles Snippets <-> History.
-//! - Up / Down while the mouse cursor is over the sidebar engage the
+//! - The FocusSidebarList hotkey opens the sidebar (when closed) and
+//!   cycles every visible tab; landing engages the tab's rows.
+//! - Up / Down while the mouse cursor is over a LIST tab engage the
 //!   ring directly (those keys were already swallowed there, never
 //!   reaching the PTY, so this upgrades a dead key into navigation).
+//! - Tab / Shift+Tab walk EVERY recorded row (panel contract: input
+//!   rows get real iced focus, the rest get the ring) while the ring
+//!   is engaged OR the cursor is over the sidebar. With the cursor
+//!   over the terminal and no ring, Tab stays a PTY `\t`.
 //!
-//! While engaged: Up/Down/Home/End move (wrapping), Enter pastes the
-//! row (its click action), Shift+Enter runs it (+ Enter), Delete
-//! removes it, Esc disengages. Everything else, typing included,
-//! keeps its normal routing, so the terminal (or the list's search
-//! field, when focused) still receives text while the ring is up;
+//! While engaged: Up/Down/Home/End move over non-input rows
+//! (wrapping), Enter activates (list rows RUN their command),
+//! Shift+Enter pastes without the newline, Left/Right cycle picker
+//! rows (the font-size stepper, the chat mode chips), Delete removes
+//! (through the row's confirm), Esc disengages. Everything else,
+//! typing included, keeps its normal routing, so the terminal (or a
+//! focused search field) still receives text while the ring is up;
 //! the selection is tagged by sidebar tab and clamped against each
 //! frame's recording, so filtering while ringed just clamps.
 
@@ -25,7 +30,15 @@ use iced::Task;
 
 use crate::app::{Message, Oryxis};
 use crate::keynav::movement::index_move;
+use crate::keynav::SidebarRow;
 use crate::state::TerminalSidebarTab;
+
+/// Blur every focusable (focusing a nonexistent id): moving the ring
+/// onto a non-input row takes the keyboard away from whatever input
+/// had focus (same trick as the side-panel router).
+fn blur_task() -> Task<Message> {
+    iced::widget::operation::focus(iced::widget::Id::new("__keynav_blur__"))
+}
 
 impl Oryxis {
     /// The sidebar tab actually shown for the active terminal tab
@@ -46,16 +59,32 @@ impl Oryxis {
         Some(active)
     }
 
-    /// The sidebar tab whose row list the ring can drive right now.
-    fn sidebar_list_tab(&self) -> Option<TerminalSidebarTab> {
-        self.effective_sidebar_tab().filter(|t| {
-            matches!(t, TerminalSidebarTab::Snippets | TerminalSidebarTab::History)
-        })
+    /// Whether the mouse cursor currently sits over the (open)
+    /// sidebar of the active terminal tab. Keys there never reach
+    /// the PTY (the chat-sidebar swallow gate), so promoting them to
+    /// navigation costs nothing.
+    fn cursor_over_sidebar(&self) -> bool {
+        self.active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t.chat_visible)
+            .unwrap_or(false)
+            && self.mouse_position.x > (self.window_size.width - self.chat_sidebar_width)
     }
 
-    /// Keep the ringed row visible; same best-effort relative snap as
-    /// the side-panel router (iced exposes no row bounds). Both list
-    /// tabs give their scrollable the shared id (only one renders).
+    /// Whether the recorded row at `idx` is an input row (Tab focuses
+    /// it instead of ringing it).
+    fn sidebar_row_is_input(&self, idx: usize) -> bool {
+        self.keynav
+            .sidebar_items
+            .borrow()
+            .get(idx)
+            .is_some_and(|r| r.action.focus.is_some())
+    }
+
+    /// Keep the selected row visible; same best-effort relative snap
+    /// as the side-panel router (iced exposes no row bounds). Both
+    /// list tabs give their scrollable the shared id (only one
+    /// renders); tabs without that scrollable no-op.
     fn sidebar_nav_scroll(&self, idx: usize) -> Task<Message> {
         let len = self.keynav.sidebar_items.borrow().len();
         let denom = len.saturating_sub(1).max(1);
@@ -68,13 +97,35 @@ impl Oryxis {
         )
     }
 
+    /// Tab / Shift+Tab over the recorded sidebar rows (panel
+    /// contract): input rows receive real iced focus, non-input rows
+    /// show the ring and blur whatever input had the keyboard.
+    fn sidebar_nav_tab(&mut self, tab: TerminalSidebarTab, forward: bool) -> Option<Task<Message>> {
+        let len = self.keynav.sidebar_items.borrow().len();
+        if len == 0 {
+            return None;
+        }
+        let cur = match self.keynav.sidebar_selected {
+            Some((tag, idx)) if tag == tab => Some(idx.min(len - 1)),
+            _ => None,
+        };
+        let next = index_move(len, cur, forward)?;
+        self.keynav.sidebar_selected = Some((tab, next));
+        let action = self.keynav.sidebar_items.borrow().get(next)?.action.clone();
+        let step = match action.focus {
+            Some(id) => iced::widget::operation::focus(id),
+            None => blur_task(),
+        };
+        Some(Task::batch([step, self.sidebar_nav_scroll(next)]))
+    }
+
     /// Entry point, called from the `KeyboardEvent` arm right after
     /// the vault-area router. Returns `Some(task)` when consumed.
     pub(crate) fn handle_sidebar_nav_key(
         &mut self,
         event: &keyboard::Event,
     ) -> Option<Task<Message>> {
-        let list_tab = self.sidebar_list_tab()?;
+        let tab = self.effective_sidebar_tab()?;
         if self.any_modal_blocks_input() || self.show_host_panel {
             return None;
         }
@@ -85,69 +136,130 @@ impl Oryxis {
             return None;
         }
         let len = self.keynav.sidebar_items.borrow().len();
-        // Selection engaged on the visible list, clamped against this
+        // Selection engaged on the visible tab, clamped against this
         // frame's recording (a search filter can shrink it).
-        let engaged = match self.keynav.sidebar_selected {
-            Some((tag, idx)) if tag == list_tab && len > 0 => Some(idx.min(len - 1)),
+        let selected = match self.keynav.sidebar_selected {
+            Some((tag, idx)) if tag == tab && len > 0 => Some(idx.min(len - 1)),
             _ => None,
         };
-        let cursor_over_sidebar = self
-            .active_tab
-            .and_then(|i| self.tabs.get(i))
-            .map(|t| t.chat_visible)
-            .unwrap_or(false)
-            && self.mouse_position.x > (self.window_size.width - self.chat_sidebar_width);
+        // The ring is "active" only on non-input rows; while the
+        // selection points at an input row the real focus owns the
+        // keys (typing, caret, the chat editor's own Enter binding).
+        let ring = selected.filter(|&i| !self.sidebar_row_is_input(i));
 
         let keyboard::Key::Named(named) = key else {
             return None;
         };
         use keyboard::key::Named;
         match named {
+            // Tab walks the rows while the sidebar owns the keyboard
+            // (ring engaged or cursor over it); otherwise the PTY
+            // keeps its literal \t.
+            Named::Tab => {
+                if selected.is_none() && !self.cursor_over_sidebar() {
+                    return None;
+                }
+                self.sidebar_nav_tab(tab, !modifiers.shift())
+            }
             Named::ArrowUp | Named::ArrowDown => {
                 if modifiers.shift() || len == 0 {
                     return None;
                 }
                 let forward = matches!(named, Named::ArrowDown);
-                let next = match engaged {
-                    Some(cur) => index_move(len, Some(cur), forward)?,
-                    // Not engaged: only the hover gate turns a dead
-                    // (already swallowed) arrow into an entry point.
-                    None if cursor_over_sidebar => {
-                        if forward {
-                            0
-                        } else {
-                            len - 1
-                        }
+                let cur = match selected {
+                    Some(cur) => {
+                        // Arrows only move from a ringed row; a focused
+                        // input keeps its native caret/history keys.
+                        ring?;
+                        cur
+                    }
+                    // Not engaged: only the hover gate over a LIST tab
+                    // turns a dead (already swallowed) arrow into an
+                    // entry point; Chat / Host config need the hotkey
+                    // or Tab.
+                    None if self.cursor_over_sidebar()
+                        && matches!(
+                            tab,
+                            TerminalSidebarTab::Snippets | TerminalSidebarTab::History
+                        ) =>
+                    {
+                        // Start one step "before" the edge so the move
+                        // below lands on the first / last row.
+                        if forward { len - 1 } else { 0 }
                     }
                     None => return None,
                 };
-                self.keynav.sidebar_selected = Some((list_tab, next));
-                Some(self.sidebar_nav_scroll(next))
+                // Hop over input rows (panel contract): arrows are the
+                // quick jump between actionable rows, Tab is the full
+                // walk.
+                let mut next = cur;
+                for _ in 0..len {
+                    next = index_move(len, Some(next), forward)?;
+                    if !self.sidebar_row_is_input(next) {
+                        break;
+                    }
+                }
+                if self.sidebar_row_is_input(next) {
+                    return Some(Task::none());
+                }
+                self.keynav.sidebar_selected = Some((tab, next));
+                Some(Task::batch([blur_task(), self.sidebar_nav_scroll(next)]))
             }
             Named::Home | Named::End => {
-                engaged?;
+                ring?;
                 if len == 0 {
                     return Some(Task::none());
                 }
-                let idx = if matches!(named, Named::Home) { 0 } else { len - 1 };
-                self.keynav.sidebar_selected = Some((list_tab, idx));
+                let mut idx = if matches!(named, Named::Home) { 0 } else { len - 1 };
+                let step_forward = matches!(named, Named::Home);
+                for _ in 0..len {
+                    if !self.sidebar_row_is_input(idx) {
+                        break;
+                    }
+                    idx = index_move(len, Some(idx), step_forward)?;
+                }
+                if self.sidebar_row_is_input(idx) {
+                    return Some(Task::none());
+                }
+                self.keynav.sidebar_selected = Some((tab, idx));
                 Some(self.sidebar_nav_scroll(idx))
             }
             Named::Enter => {
-                let idx = engaged?;
-                let row = self.keynav.sidebar_items.borrow().get(idx).cloned()?;
-                // Shift+Enter = run (+ Enter); plain Enter = paste, the
-                // row's click action. A row without a run verb (the
-                // sudo helper) falls back to its primary either way.
+                let idx = ring?;
+                let row: SidebarRow = self.keynav.sidebar_items.borrow().get(idx).cloned()?;
+                // Shift+Enter = paste without the newline; plain Enter
+                // = the row's primary (list rows RUN their command,
+                // buttons/toggles/cards activate). Picker rows consume
+                // as a no-op so the key can't leak into the PTY while
+                // ringed.
                 let msg = if modifiers.shift() {
-                    row.run.unwrap_or(row.paste)
+                    row.paste.or(row.action.activate)
                 } else {
-                    row.paste
+                    row.action.activate.or(row.paste)
                 };
-                Some(self.update(msg))
+                Some(match msg {
+                    Some(msg) => self.update(msg),
+                    None => Task::none(),
+                })
+            }
+            Named::ArrowLeft | Named::ArrowRight => {
+                let idx = ring?;
+                let action = self.keynav.sidebar_items.borrow().get(idx)?.action.clone();
+                if action.prev.is_none() && action.next.is_none() {
+                    // Ringed non-picker row: leave the key to the PTY
+                    // (shell cursor movement still works mid-ring).
+                    return None;
+                }
+                let rtl = crate::i18n::is_rtl_layout();
+                let forward = matches!(named, Named::ArrowRight) != rtl;
+                let msg = if forward { action.next } else { action.prev };
+                Some(match msg {
+                    Some(msg) => self.update(msg),
+                    None => Task::none(),
+                })
             }
             Named::Delete => {
-                let idx = engaged?;
+                let idx = ring?;
                 let row = self.keynav.sidebar_items.borrow().get(idx).cloned()?;
                 let msg = row.delete?;
                 // The recording shrinks next frame; the selection is
@@ -156,7 +268,7 @@ impl Oryxis {
                 Some(self.update(msg))
             }
             Named::Escape => {
-                if engaged.is_some() {
+                if selected.is_some() {
                     self.keynav.sidebar_selected = None;
                     return Some(Task::none());
                 }
@@ -169,9 +281,10 @@ impl Oryxis {
     /// FocusSidebarList hotkey: bring the keyboard to the sidebar.
     /// Opens it when closed (landing on the tab it already shows);
     /// pressed again it cycles EVERY visible tab, Chat (AI on) ->
-    /// Snippets -> History -> HostConfig -> wrap. Landing on a list
-    /// rings its first row; landing on Chat focuses the message
-    /// editor. No-op outside a terminal tab.
+    /// Snippets -> History -> HostConfig -> wrap. Landing focuses the
+    /// tab's natural entry point: Chat the message editor, History
+    /// its search field, Snippets/HostConfig their first row. No-op
+    /// outside a terminal tab.
     pub(crate) fn focus_sidebar_list(&mut self) -> Task<Message> {
         let Some(idx) = self.active_tab else {
             return Task::none();
@@ -204,24 +317,31 @@ impl Oryxis {
         } else {
             current
         };
+        tracing::debug!(?current, ?target, was_open, "FocusSidebarList");
         self.terminal_sidebar_tab = target;
         match target {
             TerminalSidebarTab::Chat => {
                 self.keynav.sidebar_selected = None;
                 iced::widget::operation::focus(iced::widget::Id::new("chat-input"))
             }
-            TerminalSidebarTab::Snippets | TerminalSidebarTab::History => {
-                if target == TerminalSidebarTab::History {
-                    self.refresh_command_history();
-                }
+            TerminalSidebarTab::History => {
+                self.refresh_command_history();
+                // Owner call: entering History goes straight to its
+                // search field (real focus; Tab walks on from there).
+                self.keynav.sidebar_selected = None;
+                iced::widget::operation::focus(iced::widget::Id::new(
+                    "sidebar-history-search",
+                ))
+            }
+            TerminalSidebarTab::Snippets => {
                 self.keynav.sidebar_selected = Some((target, 0));
                 self.sidebar_nav_scroll(0)
             }
             TerminalSidebarTab::HostConfig => {
-                // No recorded rows yet (its selects/toggles join the
-                // keyboard layer with the Tab-walk iteration); reaching
-                // the tab is the win for now.
-                self.keynav.sidebar_selected = None;
+                // Ring the first recorded row (next frame's recording;
+                // the slot only draws the ring on non-input rows, and
+                // Enter/Tab dive into inputs from there).
+                self.keynav.sidebar_selected = Some((target, 0));
                 Task::none()
             }
         }

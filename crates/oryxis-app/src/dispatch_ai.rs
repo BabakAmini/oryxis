@@ -474,6 +474,12 @@ impl Oryxis {
                 self.terminal_sidebar_tab = tab;
                 if tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();
+                    // Owner call: entering History lands the keyboard in
+                    // its search field. No-op on the empty state, whose
+                    // frame renders no such input.
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        "sidebar-history-search",
+                    )));
                 }
             }
             Message::SidebarSnippetSearchChanged(v) => {

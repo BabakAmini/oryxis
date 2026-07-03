@@ -59,26 +59,56 @@ impl Oryxis {
         });
 
         // Header: New + sort + search icons; when search is expanded, a
-        // focused input (with a close X) takes over the whole row.
+        // focused input (with a close X) takes over the whole row. Every
+        // control is recorded into the sidebar keyboard layer (display
+        // order), so Tab reaches them.
+        let stab = crate::state::TerminalSidebarTab::Snippets;
         let header_row: iced::widget::Row<'_, Message> = if self.sidebar_search_open {
             dir_row(vec![
-                iced::widget::text_input(t("search"), &self.sidebar_snippet_search)
-                    .id(iced::widget::Id::new("sidebar-snippet-search"))
-                    .on_input(Message::SidebarSnippetSearchChanged)
-                    .padding(8)
-                    .size(13)
-                    .style(crate::widgets::rounded_input_style)
-                    .into(),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::input(iced::widget::Id::new(
+                        "sidebar-snippet-search",
+                    )),
+                    stab,
+                    crate::widgets::INPUT_RADIUS,
+                    iced::widget::text_input(t("search"), &self.sidebar_snippet_search)
+                        .id(iced::widget::Id::new("sidebar-snippet-search"))
+                        .on_input(Message::SidebarSnippetSearchChanged)
+                        .padding(8)
+                        .size(13)
+                        .style(crate::widgets::rounded_input_style)
+                        .into(),
+                ),
                 Space::new().width(6).into(),
-                chat_header_btn(iced_fonts::lucide::x(), Message::ToggleSidebarSearch),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSearch),
+                    stab,
+                    6.0,
+                    chat_header_btn(iced_fonts::lucide::x(), Message::ToggleSidebarSearch),
+                ),
             ])
         } else {
             dir_row(vec![
-                new_btn.into(),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::ShowSnippetPanel),
+                    stab,
+                    6.0,
+                    new_btn.into(),
+                ),
                 Space::new().width(Length::Fill).into(),
-                chat_header_btn(sort_glyph(self.snippets_sort), Message::ToggleSidebarSort),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSort),
+                    stab,
+                    6.0,
+                    chat_header_btn(sort_glyph(self.snippets_sort), Message::ToggleSidebarSort),
+                ),
                 Space::new().width(2).into(),
-                chat_header_btn(iced_fonts::lucide::search(), Message::ToggleSidebarSearch),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSearch),
+                    stab,
+                    6.0,
+                    chat_header_btn(iced_fonts::lucide::search(), Message::ToggleSidebarSearch),
+                ),
             ])
         };
         let header = container(header_row.width(Length::Fill).align_y(iced::Alignment::Center))
@@ -87,17 +117,16 @@ impl Oryxis {
         // Built-in "global snippet": type the host's stored password +
         // Enter (e.g. to answer a sudo prompt). Shown only for a live SSH
         // session; the click no-ops with a toast if no password is stored.
-        // Deliberately NOT keynav-recorded: an action that types a stored
-        // credential into a visible prompt stays behind a deliberate
-        // pointer click, never one Enter away from a fresh ring (same
-        // rationale that retired the card menu's "Copy password").
+        // Keynav-recorded by owner request (2026-07-03): reaching it takes
+        // a deliberate Tab/arrow walk plus Enter, the same intent bar as a
+        // click, and it carries no paste/delete verbs.
         let ssh_active = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| t.active().ssh_session.is_some())
             .unwrap_or(false);
         let sudo_row: Element<'_, Message> = if ssh_active {
-            container(
+            let row = container(
                 button(
                     container(
                         dir_row(vec![
@@ -128,8 +157,13 @@ impl Oryxis {
                     }
                 }),
             )
-            .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 })
-            .into()
+            .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 });
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::ApplySudoPassword),
+                stab,
+                8.0,
+                row.into(),
+            )
         } else {
             Space::new().height(0).into()
         };
@@ -159,9 +193,11 @@ impl Oryxis {
             any = true;
             // Recorded into the sidebar keynav layer; the recording
             // index is the display position within the sorted/filtered
-            // list (the sudo row above is deliberately not recorded).
-            // Floating actions stay hover-only (owner call); the ring
-            // border alone marks the keyboard selection.
+            // list. Enter RUNS the snippet (owner call: there is no
+            // keyboard path to the terminal's own Enter afterwards),
+            // Shift+Enter pastes without the newline. Floating actions
+            // stay hover-only (owner call); the ring border alone
+            // marks the keyboard selection.
             let row = snippet_row(
                 idx,
                 &snip.label,
@@ -169,12 +205,12 @@ impl Oryxis {
                 self.hovered_snippet_card == Some(idx),
             );
             list = list.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow {
-                    paste: Message::PasteSnippet(idx),
-                    run: Some(Message::RunSnippet(idx)),
-                    delete: Some(Message::RequestDeleteSnippet(idx)),
-                },
-                crate::state::TerminalSidebarTab::Snippets,
+                crate::keynav::SidebarRow::item(
+                    Message::RunSnippet(idx),
+                    Message::PasteSnippet(idx),
+                    Message::RequestDeleteSnippet(idx),
+                ),
+                stab,
                 8.0,
                 row,
             ));

@@ -212,6 +212,10 @@ impl Oryxis {
 
     pub(crate) fn view_terminal_sidebar<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
         use crate::state::TerminalSidebarTab as STab;
+        // Fresh sidebar-row recording every frame, BEFORE any tab body
+        // is built: each tab records its keyboard rows while rendering,
+        // so a stale list from the previous frame must never leak in.
+        self.sidebar_nav_reset();
         // Chat is only reachable when AI is enabled; otherwise the active
         // tab effectively falls back to Snippets.
         let active = if self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled {
@@ -278,6 +282,62 @@ impl Oryxis {
                 ..Default::default()
             });
 
+        // 4 px draggable handle on the left edge, clicking starts a
+        // resize, the global mouse-move handler in app.rs follows the
+        // cursor, and the global mouse-up stops the drag.
+        let resize_handle: Element<'_, Message> = MouseArea::new(
+            container(Space::new().width(Length::Fixed(4.0)).height(Length::Fill))
+                .width(Length::Fixed(4.0))
+                .height(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().border)),
+                    ..Default::default()
+                }),
+        )
+        .on_press(Message::ChatSidebarResizeStart)
+        .interaction(iced::mouse::Interaction::ResizingHorizontally)
+        .into();
+
+        // ── Assemble sidebar ──
+        // Tab bodies are built lazily inside the match: building an
+        // inactive tab's body would record its keyboard rows into the
+        // per-frame sidebar recording (see `sidebar_nav_reset` above).
+        let content: Element<'_, Message> = match active {
+            STab::Chat => self.chat_tab_body(tab),
+            STab::Snippets => self.snippets_tab_content(),
+            STab::History => self.history_tab_content(),
+            STab::HostConfig => self.host_config_tab_content(tab),
+        };
+        let panel_column = column![header, header_separator, content]
+            .width(Length::Fill)
+            .height(Length::Fill);
+
+        // The toast now floats over the whole terminal view (see
+        // `view_terminal` / `toast_overlay`), not just this sidebar, so it
+        // shows even when the chat panel is closed.
+        let panel = container(panel_column)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_primary)),
+            ..Default::default()
+        });
+
+        container(
+            row![resize_handle, panel]
+                .width(Length::Fill)
+                .height(Length::Fill),
+        )
+        .width(Length::Fixed(self.chat_sidebar_width))
+        .height(Length::Fill)
+        .into()
+    }
+
+    /// Chat tab body: the message list, the floating Stop pill, the
+    /// Plan / Ask / Auto mode picker and the message editor. Split out
+    /// of `view_terminal_sidebar` so it only renders (and records its
+    /// keyboard rows) when the Chat tab is the active one.
+    fn chat_tab_body<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
         // ── Messages list ──
         let mut messages_col = column![].spacing(8).padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 });
 
@@ -392,27 +452,45 @@ impl Oryxis {
                 }
             });
 
+        // Plan / Ask / Auto picker, sitting just above the input so the
+        // active mode is visible while typing. Reflects (and sets) THIS
+        // tab's mode. Recorded as a picker row (Left/Right cycle the
+        // modes) BEFORE the editor, matching the display order.
+        let mode_row = {
+            use crate::state::ChatMode;
+            let (prev, next) = crate::keynav::slots::cycle_pair(
+                &[ChatMode::Plan, ChatMode::Ask, ChatMode::Auto],
+                &tab.chat_mode,
+                Message::ChatModeChanged,
+            );
+            container(
+                dir_row(vec![self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::picker(prev, next),
+                    crate::state::TerminalSidebarTab::Chat,
+                    6.0,
+                    crate::views::sidebar_chat::chat_mode_picker(tab.chat_mode),
+                )])
+                .width(Length::Fill)
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
+            .width(Length::Fill)
+            .align_x(crate::widgets::dir_align_x())
+        };
+
+        // The editor is an input row in the sidebar Tab walk (real
+        // focus via its "chat-input" id; its own key_binding keeps
+        // Enter = send).
         let input_row = container(
-            container(chat_editor).height(Length::Shrink.max(150.0)),
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::input(iced::widget::Id::new("chat-input")),
+                crate::state::TerminalSidebarTab::Chat,
+                crate::widgets::INPUT_RADIUS,
+                container(chat_editor).height(Length::Shrink.max(150.0)).into(),
+            ),
         )
         .padding(Padding { top: 8.0, right: 12.0, bottom: 12.0, left: 12.0 })
         .width(Length::Fill);
-
-        // 4 px draggable handle on the left edge, clicking starts a
-        // resize, the global mouse-move handler in app.rs follows the
-        // cursor, and the global mouse-up stops the drag.
-        let resize_handle: Element<'_, Message> = MouseArea::new(
-            container(Space::new().width(Length::Fixed(4.0)).height(Length::Fill))
-                .width(Length::Fixed(4.0))
-                .height(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(Background::Color(OryxisColors::t().border)),
-                    ..Default::default()
-                }),
-        )
-        .on_press(Message::ChatSidebarResizeStart)
-        .interaction(iced::mouse::Interaction::ResizingHorizontally)
-        .into();
 
         // Persistent reminder that the assistant runs commands on the
         // live server (some auto-execute), sitting just above the input.
@@ -492,59 +570,10 @@ impl Oryxis {
             None => messages_scroll.into(),
         };
 
-        // Plan / Ask / Auto picker, sitting just above the input so the
-        // active mode is visible while typing. Reflects (and sets) THIS
-        // tab's mode.
-        let mode_row = container(
-            dir_row(vec![crate::views::sidebar_chat::chat_mode_picker(tab.chat_mode)])
-                .width(Length::Fill)
-                .align_y(iced::Alignment::Center),
-        )
-        .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
-        .width(Length::Fill)
-        .align_x(crate::widgets::dir_align_x());
-
-        // ── Assemble sidebar ──
-        // Chat body (messages + input) is the content for the Chat tab;
-        // the other tabs swap their own content in below the strip.
-        let chat_body: Element<'_, Message> =
-            column![messages_area, input_separator, mode_row, chat_disclaimer, input_row]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into();
-        // Fresh sidebar-list recording every frame: the list tabs
-        // re-record below; Chat / HostConfig record nothing, so their
-        // frames must not inherit a stale row list.
-        self.sidebar_nav_reset();
-        let content: Element<'_, Message> = match active {
-            STab::Chat => chat_body,
-            STab::Snippets => self.snippets_tab_content(),
-            STab::History => self.history_tab_content(),
-            STab::HostConfig => self.host_config_tab_content(tab),
-        };
-        let panel_column = column![header, header_separator, content]
+        column![messages_area, input_separator, mode_row, chat_disclaimer, input_row]
             .width(Length::Fill)
-            .height(Length::Fill);
-
-        // The toast now floats over the whole terminal view (see
-        // `view_terminal` / `toast_overlay`), not just this sidebar, so it
-        // shows even when the chat panel is closed.
-        let panel = container(panel_column)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_primary)),
-            ..Default::default()
-        });
-
-        container(
-            row![resize_handle, panel]
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .width(Length::Fixed(self.chat_sidebar_width))
-        .height(Length::Fill)
-        .into()
+            .height(Length::Fill)
+            .into()
     }
 }
 

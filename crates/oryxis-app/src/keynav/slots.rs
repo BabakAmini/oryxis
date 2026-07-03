@@ -45,16 +45,45 @@ impl RowAction {
     }
 }
 
-/// One keyboard-actionable terminal-sidebar list row (Snippets /
-/// History tabs). Unlike `RowAction`, these rows carry several verbs:
-/// Enter pastes (the row's click action, no trailing newline),
-/// Shift+Enter runs (+ Enter), Delete removes. Rows without a verb
-/// (the sudo helper row) leave the extras `None`.
+/// One keyboard-actionable terminal-sidebar row. The sidebar walks
+/// the same `RowAction` vocabulary as the side panels (activate /
+/// picker prev+next / input focus), so buttons, selects, toggles,
+/// search fields and the chat editor all join the Tab walk. List
+/// rows (snippets / history commands) add two extra verbs on top:
+/// Shift+Enter pastes without the newline (`paste`; plain Enter runs
+/// via `action.activate`) and Delete removes (`delete`).
 #[derive(Clone)]
 pub(crate) struct SidebarRow {
-    pub(crate) paste: Message,
-    pub(crate) run: Option<Message>,
+    pub(crate) action: RowAction,
+    pub(crate) paste: Option<Message>,
     pub(crate) delete: Option<Message>,
+}
+
+impl SidebarRow {
+    /// A snippet / history command row: Enter runs, Shift+Enter
+    /// pastes, Delete removes (through its confirm).
+    pub(crate) fn item(run: Message, paste: Message, delete: Message) -> Self {
+        Self {
+            action: RowAction::activate(run),
+            paste: Some(paste),
+            delete: Some(delete),
+        }
+    }
+
+    /// A plain button / toggle / card row: Enter activates.
+    pub(crate) fn button(msg: Message) -> Self {
+        Self { action: RowAction::activate(msg), paste: None, delete: None }
+    }
+
+    /// A text-input / focusable-widget row: Tab gives it real focus.
+    pub(crate) fn input(id: iced::widget::Id) -> Self {
+        Self { action: RowAction::input(id), paste: None, delete: None }
+    }
+
+    /// A stepper / cycling row: Left/Right fire prev/next.
+    pub(crate) fn picker(prev: Option<Message>, next: Option<Message>) -> Self {
+        Self { action: RowAction::picker(prev, next), paste: None, delete: None }
+    }
 }
 
 /// Identity of the surface a modal-layer selection belongs to. A
@@ -268,9 +297,11 @@ impl crate::app::Oryxis {
         self.keynav.sidebar_items.borrow_mut().clear();
     }
 
-    /// Record one terminal-sidebar list row and ring it when selected.
+    /// Record one terminal-sidebar row and ring it when selected.
     /// Recording order is display order, so the recorded index always
-    /// matches the row's on-screen position.
+    /// matches the row's on-screen position. Input rows never draw
+    /// the ring: Tab gives them real iced focus and the widget's own
+    /// focused border is the indicator (panel contract).
     pub(crate) fn sidebar_nav_slot<'a>(
         &self,
         row: SidebarRow,
@@ -278,6 +309,7 @@ impl crate::app::Oryxis {
         radius: f32,
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
+        let is_input = row.action.focus.is_some();
         let idx = {
             let mut items = self.keynav.sidebar_items.borrow_mut();
             items.push(row);
@@ -285,7 +317,7 @@ impl crate::app::Oryxis {
         };
         // Always wrapped (transparent when unringed): see
         // select_ring_opt for why the wrapper must be shape-stable.
-        let ringed = self.keynav.sidebar_selected == Some((tab, idx));
+        let ringed = !is_input && self.keynav.sidebar_selected == Some((tab, idx));
         crate::widgets::select_ring_opt(
             el,
             radius,

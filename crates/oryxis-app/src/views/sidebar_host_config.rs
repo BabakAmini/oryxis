@@ -24,23 +24,39 @@ impl Oryxis {
         selected: Option<&str>,
         on_pick: fn(String) -> Message,
     ) -> Vec<Element<'a, Message>> {
+        // Each card joins the sidebar keyboard layer (Enter picks);
+        // caller order keeps the recording aligned with the display.
+        let slot = |card: Element<'a, Message>, msg: Message| {
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(msg),
+                crate::state::TerminalSidebarTab::HostConfig,
+                10.0,
+                card,
+            )
+        };
         let mut cards: Vec<Element<'a, Message>> = Vec::new();
         let app_theme_name = crate::theme::AppTheme::active().name();
         let follow_palette = self
             .terminal_palette_for_name(app_theme_name)
             .unwrap_or_default();
         let follow_label = format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
-        cards.push(crate::widgets::terminal_theme_card(
-            follow_palette,
-            &follow_label,
-            selected.is_none(),
+        cards.push(slot(
+            crate::widgets::terminal_theme_card(
+                follow_palette,
+                &follow_label,
+                selected.is_none(),
+                on_pick(String::new()),
+            ),
             on_pick(String::new()),
         ));
         for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
-            cards.push(crate::widgets::terminal_theme_card(
-                theme.palette(),
-                theme.name(),
-                selected == Some(theme.name()),
+            cards.push(slot(
+                crate::widgets::terminal_theme_card(
+                    theme.palette(),
+                    theme.name(),
+                    selected == Some(theme.name()),
+                    on_pick(theme.name().to_string()),
+                ),
                 on_pick(theme.name().to_string()),
             ));
         }
@@ -48,10 +64,13 @@ impl Oryxis {
             let palette = self
                 .terminal_palette_for_name(&ct.name)
                 .unwrap_or_default();
-            cards.push(crate::widgets::terminal_theme_card(
-                palette,
-                &ct.name,
-                selected == Some(ct.name.as_str()),
+            cards.push(slot(
+                crate::widgets::terminal_theme_card(
+                    palette,
+                    &ct.name,
+                    selected == Some(ct.name.as_str()),
+                    on_pick(ct.name.clone()),
+                ),
                 on_pick(ct.name.clone()),
             ));
         }
@@ -65,29 +84,57 @@ impl Oryxis {
     /// Plain `button`/`toggle` widgets (no tooltip) so clicks work here.
     fn terminal_appearance_controls(&self) -> Element<'_, Message> {
         let c = OryxisColors::t();
-        let size_row = dir_row(vec![
-            text(t("terminal_font_size")).size(12).color(c.text_secondary).into(),
-            Space::new().width(Length::Fill).into(),
-            step_btn("\u{2212}", Message::TerminalFontSizeDecrease),
-            Space::new().width(8).into(),
-            text(format!("{:.0}", self.terminal_font_size)).size(13).color(c.text_primary).into(),
-            Space::new().width(8).into(),
-            step_btn("+", Message::TerminalFontSizeIncrease),
-        ])
-        .align_y(iced::Alignment::Center);
+        let stab = crate::state::TerminalSidebarTab::HostConfig;
+        // Font-size stepper joins the keyboard layer as a picker row:
+        // Left/Right step the size, mirroring the two buttons.
+        let size_row = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::picker(
+                Some(Message::TerminalFontSizeDecrease),
+                Some(Message::TerminalFontSizeIncrease),
+            ),
+            stab,
+            4.0,
+            dir_row(vec![
+                text(t("terminal_font_size")).size(12).color(c.text_secondary).into(),
+                Space::new().width(Length::Fill).into(),
+                step_btn("\u{2212}", Message::TerminalFontSizeDecrease),
+                Space::new().width(8).into(),
+                text(format!("{:.0}", self.terminal_font_size)).size(13).color(c.text_primary).into(),
+                Space::new().width(8).into(),
+                step_btn("+", Message::TerminalFontSizeIncrease),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into(),
+        );
 
         let fonts = crate::app::enumerate_terminal_fonts();
-        let font_pick = iced::widget::pick_list(
-            Some(self.terminal_font_name.clone()),
-            fonts,
-            |s: &String| s.clone(),
-        )
-        .on_select(Message::TerminalFontChanged)
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
-        .width(Length::Fill)
-        .padding(8)
-        .style(crate::widgets::rounded_pick_list_style);
+        let font_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-hostcfg-font")),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            iced::widget::pick_list(
+                Some(self.terminal_font_name.clone()),
+                fonts,
+                |s: &String| s.clone(),
+            )
+            .id(iced::widget::Id::new("sidebar-hostcfg-font"))
+            .on_select(Message::TerminalFontChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
+            .width(Length::Fill)
+            .padding(8)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+
+        let toggle = |label: &'static str, value: bool, msg: Message| {
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(msg.clone()),
+                stab,
+                8.0,
+                crate::widgets::toggle_row(t(label), value, msg),
+            )
+        };
 
         column![
             text(t("host_config_global_appearance")).size(13).color(c.text_primary),
@@ -100,11 +147,11 @@ impl Oryxis {
             Space::new().height(4),
             font_pick,
             Space::new().height(12),
-            crate::widgets::toggle_row(t("bold_bright"), self.setting_bold_is_bright, Message::ToggleBoldIsBright),
+            toggle("bold_bright", self.setting_bold_is_bright, Message::ToggleBoldIsBright),
             Space::new().height(8),
-            crate::widgets::toggle_row(t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
+            toggle("keyword_highlight", self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
             Space::new().height(8),
-            crate::widgets::toggle_row(t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
+            toggle("smart_contrast", self.setting_smart_contrast, Message::ToggleSmartContrast),
         ]
         .width(Length::Fill)
         .into()
@@ -128,13 +175,12 @@ impl Oryxis {
         };
 
         let pl_style = crate::widgets::rounded_pick_list_style;
-
-        // Theme: swatch-preview cards (live repaint on pick). The
-        // "follow app theme" card is the None sentinel.
-        let mut theme_col = column![].spacing(8).width(Length::Fill);
-        for card in self.sidebar_theme_cards(conn.terminal_theme.as_deref(), Message::HostConfigThemeChanged) {
-            theme_col = theme_col.push(card);
-        }
+        let stab = crate::state::TerminalSidebarTab::HostConfig;
+        // Keyboard layer: every control below records itself through
+        // `sidebar_nav_slot`, and the recording order must match the
+        // display order (selects, then the appearance block, then the
+        // theme cards), so the theme cards are built LAST even though
+        // the column places them at the bottom anyway.
 
         let encoding_opts: Vec<String> = [
             "UTF-8", "Big5", "GBK", "gb18030", "Shift_JIS", "EUC-JP", "EUC-KR",
@@ -144,13 +190,20 @@ impl Oryxis {
         .map(|s| s.to_string())
         .collect();
         let encoding_selected = conn.encoding.clone().unwrap_or_else(|| "UTF-8".to_string());
-        let encoding_pick = pick_list(Some(encoding_selected), encoding_opts, |s: &String| s.clone())
-            .on_select(Message::HostConfigEncodingChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
-            .width(Length::Fill)
-            .padding(8)
-            .style(pl_style);
+        let encoding_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-hostcfg-encoding")),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            pick_list(Some(encoding_selected), encoding_opts, |s: &String| s.clone())
+                .id(iced::widget::Id::new("sidebar-hostcfg-encoding"))
+                .on_select(Message::HostConfigEncodingChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(Length::Fill)
+                .padding(8)
+                .style(pl_style)
+                .into(),
+        );
 
         let term_opts: Vec<String> = [
             "xterm-256color", "xterm", "screen-256color", "tmux-256color", "screen",
@@ -163,13 +216,20 @@ impl Oryxis {
             .terminal_type
             .clone()
             .unwrap_or_else(|| "xterm-256color".to_string());
-        let term_pick = pick_list(Some(term_selected), term_opts, |s: &String| s.clone())
-            .on_select(Message::HostConfigTerminalTypeChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
-            .width(Length::Fill)
-            .padding(8)
-            .style(pl_style);
+        let term_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-hostcfg-term")),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            pick_list(Some(term_selected), term_opts, |s: &String| s.clone())
+                .id(iced::widget::Id::new("sidebar-hostcfg-term"))
+                .on_select(Message::HostConfigTerminalTypeChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(Length::Fill)
+                .padding(8)
+                .style(pl_style)
+                .into(),
+        );
 
         let title_opts = vec![
             t("host_auto_title_default").to_string(),
@@ -182,15 +242,33 @@ impl Oryxis {
             None => t("host_auto_title_default"),
         }
         .to_string();
-        let title_pick = pick_list(Some(title_selected), title_opts, |s: &String| s.clone())
-            .on_select(Message::HostConfigAutoTitleChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
-            .width(Length::Fill)
-            .padding(8)
-            .style(pl_style);
+        let title_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-hostcfg-title")),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            pick_list(Some(title_selected), title_opts, |s: &String| s.clone())
+                .id(iced::widget::Id::new("sidebar-hostcfg-title"))
+                .on_select(Message::HostConfigAutoTitleChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(Length::Fill)
+                .padding(8)
+                .style(pl_style)
+                .into(),
+        );
 
         let label = |key: &str| text(t(key)).size(12).color(OryxisColors::t().text_secondary);
+
+        // Records the stepper / font / toggles; must run before the
+        // theme cards so the keyboard order matches the screen.
+        let appearance = self.terminal_appearance_controls();
+
+        // Theme: swatch-preview cards (live repaint on pick). The
+        // "follow app theme" card is the None sentinel.
+        let mut theme_col = column![].spacing(8).width(Length::Fill);
+        for card in self.sidebar_theme_cards(conn.terminal_theme.as_deref(), Message::HostConfigThemeChanged) {
+            theme_col = theme_col.push(card);
+        }
 
         let body = column![
             text(conn.label.clone()).size(13).color(c.text_primary),
@@ -213,7 +291,7 @@ impl Oryxis {
             Space::new().height(8),
             text(t("host_config_reconnect_note")).size(11).color(c.text_muted),
             Space::new().height(18),
-            self.terminal_appearance_controls(),
+            appearance,
             // Theme cards last: the swatch list is long, so keep the
             // compact selects/toggles above it.
             Space::new().height(18),
@@ -233,6 +311,10 @@ impl Oryxis {
     fn local_terminal_config_content(&self) -> Element<'_, Message> {
         let c = OryxisColors::t();
 
+        // Records the stepper / font / toggles; must run before the
+        // theme cards so the keyboard order matches the screen.
+        let appearance = self.terminal_appearance_controls();
+
         // Theme: swatch cards (applied to the open local panes on pick).
         let mut theme_col = column![].spacing(8).width(Length::Fill);
         for card in
@@ -241,21 +323,29 @@ impl Oryxis {
             theme_col = theme_col.push(card);
         }
 
-        // Promote is only meaningful once a session theme is chosen.
-        let save_btn = crate::widgets::styled_button_opt(
-            t("local_terminal_save_global"),
-            self.local_terminal_theme
-                .as_ref()
-                .map(|_| Message::LocalConfigSaveGlobal),
-            c.accent,
-        );
+        // Promote is only meaningful once a session theme is chosen;
+        // recorded (and thus Tab-reachable) only while enabled.
+        let save_btn: Element<'_, Message> = if self.local_terminal_theme.is_some() {
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::LocalConfigSaveGlobal),
+                crate::state::TerminalSidebarTab::HostConfig,
+                8.0,
+                crate::widgets::styled_button_opt(
+                    t("local_terminal_save_global"),
+                    Some(Message::LocalConfigSaveGlobal),
+                    c.accent,
+                ),
+            )
+        } else {
+            crate::widgets::styled_button_opt(t("local_terminal_save_global"), None, c.accent)
+        };
 
         let body = column![
             text(t("local_terminal_config_title")).size(13).color(c.text_primary),
             Space::new().height(2),
             text(t("local_terminal_config_subtitle")).size(11).color(c.text_muted),
             Space::new().height(14),
-            self.terminal_appearance_controls(),
+            appearance,
             // Theme cards last (long swatch list).
             Space::new().height(18),
             text(t("terminal_theme")).size(12).color(c.text_secondary),

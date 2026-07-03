@@ -513,6 +513,7 @@ impl Oryxis {
             }
             let Some(b) = bind_copy else { continue };
             if let Some(family) = b.match_event(key, modifiers) {
+                tracing::debug!(action = action.id(), "hotkey matched");
                 return Some(self.dispatch_hotkey_action(action, family));
             }
         }

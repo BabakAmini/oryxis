@@ -624,7 +624,11 @@ pub enum Message {
     RunHistoryCommand(Uuid),
     /// Insert a captured command WITHOUT the trailing newline.
     PasteHistoryCommand(Uuid),
-    /// Remove one captured command from the host's history.
+    /// Ask before removing a captured command (routes through the shared
+    /// confirm dialog; a lone misclick on the hover trash silently wiped
+    /// a host's only entry once, live QA 2026-07-03).
+    RequestDeleteHistoryCommand(Uuid),
+    /// Remove one captured command from the host's history (confirmed).
     DeleteHistoryCommand(Uuid),
     /// Filter text for the sidebar History tab's search field (distinct
     /// from `HistorySearchChanged`, which filters the session-logs view).

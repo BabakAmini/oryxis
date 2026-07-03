@@ -27,11 +27,21 @@ impl Oryxis {
             return sidebar_placeholder(t("history_empty"));
         }
 
-        let search = iced::widget::text_input(t("search"), &self.cmd_history_search)
-            .on_input(Message::CmdHistorySearchChanged)
-            .padding(8)
-            .size(13)
-            .style(crate::widgets::rounded_input_style);
+        // Focus target for SelectTerminalSidebarTab / the sidebar
+        // hotkey (entering History lands the keyboard here), and an
+        // input row in the Tab walk.
+        let search = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-history-search")),
+            crate::state::TerminalSidebarTab::History,
+            crate::widgets::INPUT_RADIUS,
+            iced::widget::text_input(t("search"), &self.cmd_history_search)
+                .id(iced::widget::Id::new("sidebar-history-search"))
+                .on_input(Message::CmdHistorySearchChanged)
+                .padding(8)
+                .size(13)
+                .style(crate::widgets::rounded_input_style)
+                .into(),
+        );
         let header = container(search)
             .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 })
             .width(Length::Fill);
@@ -97,8 +107,9 @@ impl Oryxis {
     /// One history row, recorded into the sidebar keynav layer. The
     /// floating actions stay hover-only (owner call: a ringed row
     /// showing them reads as a stuck-hover bug); the ring border is
-    /// the keyboard affordance, with Enter = paste, Shift+Enter =
-    /// run, Delete = remove.
+    /// the keyboard affordance, with Enter = run (owner call),
+    /// Shift+Enter = paste without the newline, Delete = remove
+    /// (through its confirm).
     fn recorded_history_row<'a>(
         &'a self,
         entry: &'a oryxis_vault::CommandHistoryEntry,
@@ -107,11 +118,11 @@ impl Oryxis {
         let tab = crate::state::TerminalSidebarTab::History;
         let row = history_row(entry, pos, self.hovered_history_card == Some(pos));
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow {
-                paste: Message::PasteHistoryCommand(entry.id),
-                run: Some(Message::RunHistoryCommand(entry.id)),
-                delete: Some(Message::DeleteHistoryCommand(entry.id)),
-            },
+            crate::keynav::SidebarRow::item(
+                Message::RunHistoryCommand(entry.id),
+                Message::PasteHistoryCommand(entry.id),
+                Message::RequestDeleteHistoryCommand(entry.id),
+            ),
             tab,
             8.0,
             row,
@@ -227,7 +238,7 @@ fn history_row<'a>(
                 ),
                 action_btn(
                     iced_fonts::lucide::trash(),
-                    Message::DeleteHistoryCommand(entry.id),
+                    Message::RequestDeleteHistoryCommand(entry.id),
                     t("delete"),
                 ),
             ])
