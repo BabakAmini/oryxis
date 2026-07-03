@@ -17,36 +17,146 @@ pub(crate) fn accent_gradient(glow: Color, base: Color) -> Background {
             .add_stop(1.0, base),
     ))
 }
-/// Overlay a 2px accent focus ring on a keyboard-selected card. Drawn as
-/// a `Stack` overlay so it doesn't change the element's footprint, with
-/// the same 10px radius as the cards.
+/// Overlay a 2px accent focus ring on a keyboard-selected card, drawn on
+/// top of the element's own paint so it doesn't change its footprint.
 ///
-/// Shape-stable ring: ALWAYS wraps `el` in the ring Stack and toggles
-/// only the border color (transparent when `color` is `None`). Every
-/// conditional ring call site must route through this: adding or
-/// removing the Stack layer between a button's press and its release
-/// rebuilds the subtree and resets the button's internal state, so the
-/// release lands on a widget that forgot the press and the click never
-/// fires. That is exactly what happens when clicking a ringed row (the
-/// press clears the keyboard selection). With a constant wrapper the
-/// ring change is pure style, which the tree diff preserves across.
+/// Implemented as a tree-transparent decorator (delegating tag / state /
+/// diff to the child, drawing the ring after the child), NOT a `Stack`
+/// overlay. `Stack::update` early-returns for its remaining layers once
+/// `shell.is_event_captured()` is set, and the flag is global to the
+/// whole traversal: after a text_input in row N captured a click, the
+/// per-row ring Stacks of rows N+1.. skipped their content entirely, so
+/// inputs there never saw the outside click that is their only unfocus
+/// signal. Result: clicking upward through a form accumulated focused
+/// inputs (multiple rings + blinking carets at once). A decorator has no
+/// layers to skip, events always reach the child.
+///
+/// Shape-stable ring: ALWAYS wraps `el` and toggles only the drawn color
+/// (nothing when `color` is `None`). Every conditional ring call site
+/// must route through this: since the wrapper adopts the child's tag and
+/// state, the tree diff is identical ringed or not, so a ring appearing
+/// between a button's press and its release can't reset the button's
+/// internal state and eat the click.
 pub(crate) fn select_ring_opt<'a>(
     el: Element<'a, Message>,
     radius: f32,
     color: Option<Color>,
 ) -> Element<'a, Message> {
-    let color = color.unwrap_or(Color::TRANSPARENT);
-    let ring = container(Space::new().width(Length::Fill).height(Length::Fill)).style(move |_| {
-        container::Style {
-            border: Border {
-                radius: Radius::from(radius),
-                color,
-                width: 2.0,
-            },
-            ..Default::default()
+    use iced::advanced::widget::{tree, Operation, Tree, Widget};
+    use iced::advanced::{layout, mouse, overlay, renderer, Layout, Renderer as _, Shell};
+    use iced::{Event, Length as L, Rectangle, Size, Vector};
+
+    struct SelectRing<'a> {
+        content: Element<'a, Message>,
+        radius: f32,
+        color: Option<Color>,
+    }
+
+    impl Widget<Message, Theme, iced::Renderer> for SelectRing<'_> {
+        fn tag(&self) -> tree::Tag {
+            self.content.as_widget().tag()
         }
-    });
-    Stack::new().push(el).push(ring).into()
+        fn state(&self) -> tree::State {
+            self.content.as_widget().state()
+        }
+        fn diff(&mut self, tree: &mut Tree) {
+            self.content.as_widget_mut().diff(tree);
+        }
+        fn size(&self) -> Size<L> {
+            self.content.as_widget().size()
+        }
+        fn layout(
+            &mut self,
+            tree: &mut Tree,
+            renderer: &iced::Renderer,
+            limits: &layout::Limits,
+        ) -> layout::Node {
+            self.content.as_widget_mut().layout(tree, renderer, limits)
+        }
+        fn draw(
+            &self,
+            tree: &Tree,
+            renderer: &mut iced::Renderer,
+            theme: &Theme,
+            style: &renderer::Style,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+        ) {
+            self.content
+                .as_widget()
+                .draw(tree, renderer, theme, style, layout, cursor, viewport);
+            if let Some(color) = self.color {
+                renderer.fill_quad(
+                    renderer::Quad {
+                        bounds: layout.bounds(),
+                        border: Border {
+                            radius: Radius::from(self.radius),
+                            color,
+                            width: 2.0,
+                        },
+                        ..Default::default()
+                    },
+                    Color::TRANSPARENT,
+                );
+            }
+        }
+        fn operate(
+            &mut self,
+            tree: &mut Tree,
+            layout: Layout<'_>,
+            renderer: &iced::Renderer,
+            operation: &mut dyn Operation,
+        ) {
+            self.content
+                .as_widget_mut()
+                .operate(tree, layout, renderer, operation);
+        }
+        fn update(
+            &mut self,
+            tree: &mut Tree,
+            event: &Event,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            renderer: &iced::Renderer,
+            shell: &mut Shell<'_, Message>,
+            viewport: &Rectangle,
+        ) {
+            self.content
+                .as_widget_mut()
+                .update(tree, event, layout, cursor, renderer, shell, viewport);
+        }
+        fn mouse_interaction(
+            &self,
+            tree: &Tree,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+            renderer: &iced::Renderer,
+        ) -> mouse::Interaction {
+            self.content
+                .as_widget()
+                .mouse_interaction(tree, layout, cursor, viewport, renderer)
+        }
+        fn overlay<'b>(
+            &'b mut self,
+            tree: &'b mut Tree,
+            layout: Layout<'b>,
+            renderer: &iced::Renderer,
+            viewport: &Rectangle,
+            translation: Vector,
+        ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+            self.content
+                .as_widget_mut()
+                .overlay(tree, layout, renderer, viewport, translation)
+        }
+    }
+
+    Element::new(SelectRing {
+        content: el,
+        radius,
+        color,
+    })
 }
 
 /// Soft left-to-right accent wash on a card: the card's own colour
