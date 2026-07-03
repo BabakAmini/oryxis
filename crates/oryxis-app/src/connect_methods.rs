@@ -119,4 +119,147 @@ impl Oryxis {
             oryxis_ssh::HostKeyStatus::Unknown
         })
     }
+
+    /// Find a connection by its display label, looking at saved hosts
+    /// first and quick-connect entries second (so a label collision always
+    /// resolves to the vault-backed host). The label-keyed reconnect and
+    /// status paths use this to cover ad-hoc tabs too.
+    pub(crate) fn any_connection_by_label(&self, label: &str) -> Option<&Connection> {
+        self.connections
+            .iter()
+            .find(|c| c.label == label)
+            .or_else(|| {
+                self.quick_connects
+                    .values()
+                    .map(|e| &e.conn)
+                    .find(|c| c.label == label)
+            })
+    }
+
+    /// Drop quick-connect entries no longer referenced by any pane or by
+    /// an in-flight connection progress. Called after closing tabs/panes
+    /// so typed credentials don't outlive the session that used them.
+    pub(crate) fn prune_quick_connects(&mut self) {
+        if self.quick_connects.is_empty() {
+            return;
+        }
+        let mut live: std::collections::HashSet<uuid::Uuid> = std::collections::HashSet::new();
+        for tab in &self.tabs {
+            for pane in tab.pane_grid.panes.values() {
+                if let crate::state::PaneOrigin::QuickHost(id) = &pane.origin {
+                    live.insert(*id);
+                }
+            }
+        }
+        if let Some(progress) = &self.connecting
+            && let crate::state::ProgressOrigin::Quick(id) = progress.origin
+        {
+            live.insert(id);
+        }
+        self.quick_connects.retain(|id, _| live.contains(id));
+    }
+
+    /// Overlay a quick-connect entry's typed credentials on top of the
+    /// vault hydration (which always misses for ephemeral ids): password,
+    /// TOTP secret, and the inline-proxy password `resolve_proxy` cannot
+    /// know. Vault-sourced values (a linked identity, a saved proxy
+    /// identity) keep precedence, matching saved-host semantics.
+    pub(crate) fn apply_quick_entry_secrets(
+        &self,
+        quick_id: uuid::Uuid,
+        conn: &mut Connection,
+        password: &mut Option<String>,
+        totp_secret: &mut Option<String>,
+    ) {
+        let Some(entry) = self.quick_connects.get(&quick_id) else {
+            return;
+        };
+        if password.is_none() {
+            *password = entry.password.clone();
+        }
+        if totp_secret.is_none() {
+            *totp_secret = entry.totp_secret.clone();
+        }
+        if conn.proxy_identity_id.is_none()
+            && let Some(proxy) = conn.proxy.as_mut()
+            && proxy.password.is_none()
+        {
+            proxy.password = entry.proxy_password.clone();
+        }
+    }
+
+    /// Parse the given input as an ad-hoc quick-connect target and build
+    /// the ephemeral `Connection` for it. `None` when the input is not
+    /// offered as a target: it must parse AND carry an explicit marker
+    /// (`@`, a port, an IP literal) or be a bare hostname matching no
+    /// saved host, so ordinary label searches never grow a spurious
+    /// quick-connect row.
+    pub(crate) fn quick_connect_target(&self, input: &str) -> Option<Connection> {
+        let target = oryxis_core::ssh_target::SshTarget::parse(input)?;
+        let needle = target.host.to_lowercase();
+        let matches_saved = self.connections.iter().any(|c| {
+            c.label.to_lowercase().contains(&needle)
+                || c.hostname.to_lowercase().contains(&needle)
+        });
+        if !quick_connect_offerable(&target, matches_saved) {
+            return None;
+        }
+        let username = target
+            .username
+            .clone()
+            .or_else(oryxis_core::ssh_target::local_username);
+        let resolved = oryxis_core::ssh_target::SshTarget {
+            username: username.clone(),
+            ..target
+        };
+        let mut conn = Connection::new(resolved.canonical(), &resolved.host);
+        if let Some(port) = resolved.port {
+            conn.port = port;
+        }
+        conn.username = username;
+        Some(conn)
+    }
+}
+
+/// Pure gate for offering quick connect (free of `self` so it unit-tests):
+/// explicit targets (a username, a port, an IP-literal host) always offer;
+/// a bare hostname offers only when it matches no saved host, so ordinary
+/// label searches never grow a spurious quick-connect row.
+pub(crate) fn quick_connect_offerable(
+    target: &oryxis_core::ssh_target::SshTarget,
+    matches_saved_host: bool,
+) -> bool {
+    target.username.is_some()
+        || target.port.is_some()
+        || target.host_is_ip_literal()
+        || !matches_saved_host
+}
+
+#[cfg(test)]
+mod tests {
+    use super::quick_connect_offerable;
+    use oryxis_core::ssh_target::SshTarget;
+
+    fn parsed(s: &str) -> SshTarget {
+        SshTarget::parse(s).expect("test input must parse")
+    }
+
+    #[test]
+    fn explicit_targets_always_offer() {
+        // A username, a port, or an IP literal is an unambiguous connect
+        // intent, even when a saved host also matches the text.
+        for s in ["root@web01", "web01:2222", "10.0.0.5", "::1"] {
+            assert!(quick_connect_offerable(&parsed(s), true), "{s}");
+            assert!(quick_connect_offerable(&parsed(s), false), "{s}");
+        }
+    }
+
+    #[test]
+    fn bare_hostname_defers_to_saved_matches() {
+        // Typing a plain word is a search first: only offer the ad-hoc
+        // row when nothing saved matches it.
+        let t = parsed("staging");
+        assert!(!quick_connect_offerable(&t, true));
+        assert!(quick_connect_offerable(&t, false));
+    }
 }

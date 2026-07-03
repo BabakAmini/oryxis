@@ -28,10 +28,16 @@ impl Oryxis {
     /// `self.show_new_tab_picker` before rendering and stacking it on top of
     /// the base view.
     pub(crate) fn view_new_tab_picker(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded by the row builders below in
+        // visual order; Up/Down move a selection, Enter is owned by
+        // the search's on_submit (selection-aware, see
+        // NewTabPickerSubmit) so the two paths can't double-fire.
+        self.modal_nav_reset();
         // Internal right-padding leaves room for the floating "Ctrl+K"
         // affordance so the typed value never slides under the hint.
         let search = text_input(t("search_hosts_or_tabs"), &self.new_tab_picker_search)
             .on_input(Message::NewTabPickerSearchChanged)
+            .on_submit(Message::NewTabPickerSubmit)
             .padding(Padding {
                 top: 14.0,
                 right: 64.0,
@@ -109,7 +115,10 @@ impl Oryxis {
                 ..Default::default()
             });
 
-        let list_scroll = scrollable(list_panel).height(Length::Fill);
+        let list_scroll = scrollable(list_panel)
+            // Stable id so the keyboard selection can be kept in view.
+            .id(iced::widget::Id::new("new-tab-picker-scroll"))
+            .height(Length::Fill);
 
         let body = container(
             column![
@@ -146,6 +155,23 @@ impl Oryxis {
     ) -> Vec<Element<'_, Message>> {
         let mut rows: Vec<Element<'_, Message>> = Vec::new();
 
+        // Ad-hoc quick connect: a search input that parses as
+        // `user@host[:port]` offers an immediate, unsaved connect as the
+        // very first row (Enter activates it via `NewTabPickerSubmit`).
+        // Raw input, not the lowercased needle: usernames keep their case.
+        if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search) {
+            let msg = Message::QuickConnect(Box::new(crate::state::QuickConnectEntry::bare(
+                conn.clone(),
+            )));
+            rows.push(self.modal_nav_slot(
+                crate::keynav::RowAction::activate(msg),
+                6.0,
+                false,
+                quick_connect_row(conn),
+            ));
+            rows.push(Space::new().height(14).into());
+        }
+
         // Local shell, always first. Routes into the pending pane (split)
         // or a fresh tab, handled by `Message::PickLocalShell`. SFTP follows
         // when enabled, but never while filling a pane (split panes are
@@ -157,10 +183,20 @@ impl Oryxis {
             && !filling_pane
             && (needle.is_empty() || t("sftp").to_lowercase().contains(needle));
         if want_local {
-            rows.push(local_shell_row());
+            rows.push(self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::PickLocalShell),
+                6.0,
+                false,
+                local_shell_row(),
+            ));
         }
         if want_sftp {
-            rows.push(sftp_row());
+            rows.push(self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::NewSftpTab),
+                6.0,
+                false,
+                sftp_row(),
+            ));
         }
         if want_local || want_sftp {
             rows.push(Space::new().height(14).into());
@@ -236,7 +272,12 @@ impl Oryxis {
         needle: &str,
         filling_pane: bool,
     ) -> Vec<Element<'a, Message>> {
-        let mut rows: Vec<Element<'a, Message>> = vec![back_header(&group.label)];
+        let mut rows: Vec<Element<'a, Message>> = vec![self.modal_nav_slot(
+            crate::keynav::RowAction::activate(Message::NewTabPickerBack),
+            6.0,
+            false,
+            back_header(&group.label),
+        )];
         rows.push(Space::new().height(8).into());
 
         if group.cloud_query.is_some() {
@@ -317,7 +358,12 @@ impl Oryxis {
             Some(DynamicGroupState::Failed(msg)) => vec![
                 info_row(&format!("{}: {msg}", t("cloud_test_failed"))),
                 Space::new().height(8).into(),
-                retry_row(gid),
+                self.modal_nav_slot(
+                    crate::keynav::RowAction::activate(Message::DynamicGroupResolve(gid)),
+                    6.0,
+                    false,
+                    retry_row(gid),
+                ),
             ],
             Some(DynamicGroupState::Loaded { hosts, .. }) => {
                 let mut rows: Vec<Element<'a, Message>> = Vec::new();
@@ -370,13 +416,25 @@ impl Oryxis {
                     } else {
                         h.resource_id.clone()
                     };
-                    rows.push(resource_row(
-                        msg,
+                    let row = resource_row(
+                        msg.clone(),
                         primary,
                         secondary,
                         status_upper.as_deref(),
                         connectable,
-                    ));
+                    );
+                    // Non-connectable tasks stay unrecorded so the
+                    // keyboard never lands on a dead row.
+                    rows.push(if connectable {
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(msg),
+                            6.0,
+                            false,
+                            row,
+                        )
+                    } else {
+                        row
+                    });
                 }
                 if rows.is_empty() {
                     rows.push(info_row(if needle.is_empty() {
@@ -459,7 +517,7 @@ impl Oryxis {
         ])
         .align_y(iced::Alignment::Center);
 
-        button(
+        let row: Element<'a, Message> = button(
             container(inner)
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
                 .width(Length::Fill),
@@ -467,7 +525,13 @@ impl Oryxis {
         .on_press(Message::NewTabPickerOpenGroup(group.id))
         .width(Length::Fill)
         .style(hover_row_style)
-        .into()
+        .into();
+        self.modal_nav_slot(
+            crate::keynav::RowAction::activate(Message::NewTabPickerOpenGroup(group.id)),
+            6.0,
+            false,
+            row,
+        )
     }
 
     /// A saved-connection row (mirrors the host card badge + breadcrumb),
@@ -502,7 +566,12 @@ impl Oryxis {
             .unwrap_or(default_color);
         let glyph_el: Element<'_, Message> = glyph.view(12.0, Color::WHITE);
         let badge = crate::widgets::host_icon(badge_style, badge_color, &conn.label, Some(glyph_el), 26.0);
-        picker_row(ci, &conn.label, breadcrumb, zebra_bg, badge)
+        self.modal_nav_slot(
+            crate::keynav::RowAction::activate(Message::ConnectSsh(ci)),
+            6.0,
+            false,
+            picker_row(ci, &conn.label, breadcrumb, zebra_bg, badge),
+        )
     }
 }
 
@@ -648,6 +717,63 @@ fn retry_row<'a>(gid: uuid::Uuid) -> Element<'a, Message> {
 
 /// A live cloud-resource row (ECS task / K8s pod). `on_press` is omitted
 /// when the task isn't connectable, which renders the row inert + muted.
+/// Distinct top row offering an ad-hoc connect for a search input that
+/// parses as `user@host[:port]`. Accent border + zap glyph so it reads
+/// apart from saved hosts; the secondary line spells out that nothing is
+/// saved to the vault.
+fn quick_connect_row<'a>(conn: oryxis_core::models::Connection) -> Element<'a, Message> {
+    let primary = format!("{}: {}", t("quick_connect"), conn.label);
+    button(
+        dir_row(vec![
+            iced_fonts::lucide::zap()
+                .size(16)
+                .color(OryxisColors::t().accent)
+                .into(),
+            Space::new().width(10).into(),
+            iced::widget::Column::with_children(vec![
+                text(primary)
+                    .size(13)
+                    .color(OryxisColors::t().text_primary)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+                Space::new().height(2).into(),
+                text(t("quick_connect_not_saved"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ])
+            .width(Length::Fill)
+            .align_x(dir_align_x())
+            .clip(true)
+            .into(),
+        ])
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(Message::QuickConnect(Box::new(
+        crate::state::QuickConnectEntry::bare(conn),
+    )))
+    .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
+    .width(Length::Fill)
+    .style(|_, status| {
+        let bg = match status {
+            BtnStatus::Hovered => OryxisColors::t().bg_hover,
+            BtnStatus::Pressed => OryxisColors::t().bg_selected,
+            _ => OryxisColors::t().bg_surface,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border {
+                radius: Radius::from(6.0),
+                color: OryxisColors::t().accent,
+                width: 1.0,
+            },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
 fn resource_row<'a>(
     msg: Message,
     primary: String,
