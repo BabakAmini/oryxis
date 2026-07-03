@@ -17,6 +17,48 @@ use crate::app::{Message, Oryxis};
 static LAST_MOUSE_X: AtomicI32 = AtomicI32::new(i32::MIN);
 static LAST_MOUSE_Y: AtomicI32 = AtomicI32::new(i32::MIN);
 
+// Interest gate for cursor-move forwarding. In iced, every forwarded
+// message goes through `update()` and forces a full view() rebuild +
+// layout + redraw, so streaming CursorMoved into the app re-renders the
+// whole UI at mouse-move frequency (60-125 Hz) even when nothing the
+// view draws depends on the position. Only a handful of app states
+// genuinely consume continuous positions (active drags, the fullscreen
+// top-zone reveal, the post-keyboard-nav hover restore), so the end of
+// every `update()` recomputes this flag from that state
+// (`Oryxis::mouse_interest`) and the listener below drops CursorMoved
+// before it ever becomes a message while the flag is off. Widget-level
+// hover (buttons, tooltips, the terminal canvas) rides iced's internal
+// event path and keeps working regardless; this gate only affects the
+// app-message lane.
+static MOUSE_INTEREST: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+// The live (raw, unsnapped) cursor position, updated on every
+// CursorMoved even while `MOUSE_INTEREST` is off, stored as f32 bits.
+// `Oryxis::update` syncs `self.mouse_position` from here at the top of
+// every message, so click-time readers (drag press anchors, the kebab
+// menu position) always see a fresh position without the app paying a
+// re-render per mouse move. The same sync doubles as the activity
+// signal: a position change since the previous message counts as user
+// input for the vault auto-lock idle clock.
+static LIVE_MOUSE_X: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static LIVE_MOUSE_Y: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+
+/// Publish whether the app currently needs continuous cursor positions.
+/// Called at the end of every `update()` pass.
+pub(crate) fn set_mouse_interest(on: bool) {
+    MOUSE_INTEREST.store(on, Ordering::Relaxed);
+}
+
+/// The most recent cursor position seen by the event listener, whether
+/// or not it was forwarded as a message.
+pub(crate) fn live_mouse_position() -> iced::Point {
+    iced::Point {
+        x: f32::from_bits(LIVE_MOUSE_X.load(Ordering::Relaxed)),
+        y: f32::from_bits(LIVE_MOUSE_Y.load(Ordering::Relaxed)),
+    }
+}
+
 impl Oryxis {
     pub fn subscription(&self) -> Subscription<Message> {
         let events = iced::event::listen_with(|event, _status, _window| {
@@ -31,6 +73,12 @@ impl Oryxis {
                     iced::advanced::input_method::Event::Commit(text),
                 ) => Some(Message::TerminalImeCommit(text)),
                 iced::event::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
+                    // Always record the raw position (cheap, no message):
+                    // `update()` syncs `self.mouse_position` from these on
+                    // the next message, so click-time consumers stay fresh
+                    // even while forwarding is gated off.
+                    LIVE_MOUSE_X.store(position.x.to_bits(), Ordering::Relaxed);
+                    LIVE_MOUSE_Y.store(position.y.to_bits(), Ordering::Relaxed);
                     // Quantise to a 4 px grid. Same cell as last forward
                     // → drop the event before it hits the subscription
                     // channel. Drag handlers that need pixel precision
@@ -42,6 +90,12 @@ impl Oryxis {
                     let prev_x = LAST_MOUSE_X.swap(sx, Ordering::Relaxed);
                     let prev_y = LAST_MOUSE_Y.swap(sy, Ordering::Relaxed);
                     if sx == prev_x && sy == prev_y {
+                        return None;
+                    }
+                    // Nothing in the app consumes continuous positions
+                    // right now: drop the event before it becomes a
+                    // message (and a full view rebuild).
+                    if !MOUSE_INTEREST.load(Ordering::Relaxed) {
                         return None;
                     }
                     Some(Message::MouseMoved(position))

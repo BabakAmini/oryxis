@@ -34,6 +34,23 @@ macro_rules! try_handler {
 
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Sync the cursor position from the event listener's atomics.
+        // CursorMoved is only forwarded as a message while something
+        // consumes continuous positions (see `mouse_interest` below), so
+        // this top-of-update sync is what keeps click-time readers (drag
+        // press anchors, the kebab-menu position) fresh the rest of the
+        // time. A change since the previous message means the user
+        // physically moved the mouse: restore the hover highlight that
+        // keyboard navigation muted and count it as activity for the
+        // vault auto-lock idle clock (the 30 s AutoLockTick is itself a
+        // message, so a moving-but-not-clicking user is registered here
+        // before the lock decision runs).
+        let live_mouse = crate::subscription::live_mouse_position();
+        if live_mouse != self.mouse_position {
+            self.mouse_position = live_mouse;
+            self.sftp.suppress_hover = false;
+            self.last_user_activity = std::time::Instant::now();
+        }
         // Any user input event resets the vault auto-lock idle clock.
         // These are the raw-event messages `subscription.rs` maps from
         // iced's global listener, so presence is detected app-wide
@@ -65,7 +82,33 @@ impl Oryxis {
         // `ordered_tab_refs`, which is derived from the freshly-synced
         // `tab_order`.
         self.reconcile_tab_mru();
+        // Republish the cursor-forwarding gate from the post-update
+        // state. Doing it here, once, after every message, means the
+        // flag can never drift from the drag/fullscreen state that
+        // demands continuous positions: the press that arms a drag is
+        // itself a message, so the gate is already open by the time the
+        // first CursorMoved of that drag arrives.
+        crate::subscription::set_mouse_interest(self.mouse_interest());
         task
+    }
+
+    /// Whether anything in the app currently consumes continuous cursor
+    /// positions, i.e. whether `CursorMoved` events should be forwarded
+    /// as messages at all. Mirrors the `needs_drag_update` set in the
+    /// `MouseMoved` handler, plus the two level-triggered readers in
+    /// `view()`: the fullscreen top-zone reveal and the
+    /// post-keyboard-nav hover restore (which needs exactly one move to
+    /// clear `suppress_hover`, after which the gate closes again).
+    fn mouse_interest(&self) -> bool {
+        self.chat_sidebar_drag.is_some()
+            || self.sftp_split_drag.is_some()
+            || self.sftp_log_drag.is_some()
+            || self.sftp_col_resize.is_some()
+            || self.sftp_col_drag.is_some()
+            || self.sftp.drag.is_some()
+            || self.tab_drag.is_some()
+            || self.window_fullscreen
+            || self.sftp.suppress_hover
     }
 
     /// Show a generic "remove this?" confirmation. Confirming dispatches
