@@ -648,6 +648,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "کلید میزبان ناشناخته",
         "hk_warning_title" => "کلید میزبان تغییر کرده است",
         "hk_warning_desc" => "هشدار: کلید میزبان تغییر کرده است! این می‌تواند نشانه حمله man-in-the-middle باشد.",
+        "hk_unknown_desc" => "اصالت {host} قابل تأیید نیست.",
+        "hk_fingerprint_sha256" => "اثر انگشت {key_type} به صورت SHA256:",
         "hk_old_fingerprint" => "اثر انگشت قبلی:",
         "hk_continue" => "ادامه",
         "hk_add_and_continue" => "افزودن و ادامه",

@@ -620,6 +620,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Chave do Host Desconhecida",
         "hk_warning_title" => "CHAVE DO HOST ALTERADA",
         "hk_warning_desc" => "ATENÇÃO: A chave do host mudou! Isso pode indicar um ataque man-in-the-middle.",
+        "hk_unknown_desc" => "A autenticidade de {host} não pode ser estabelecida.",
+        "hk_fingerprint_sha256" => "A impressão digital {key_type} é SHA256:",
         "hk_old_fingerprint" => "Fingerprint anterior:",
         "hk_continue" => "Continuar",
         "hk_add_and_continue" => "Adicionar e continuar",

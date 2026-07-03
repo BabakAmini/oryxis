@@ -646,6 +646,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "알 수 없는 호스트 키",
         "hk_warning_title" => "호스트 키 변경됨",
         "hk_warning_desc" => "경고: 호스트 키가 변경되었습니다! 이는 중간자 공격을 나타낼 수 있습니다.",
+        "hk_unknown_desc" => "{host}의 신뢰성을 확인할 수 없습니다.",
+        "hk_fingerprint_sha256" => "{key_type} 지문은 SHA256:",
         "hk_old_fingerprint" => "이전 지문:",
         "hk_continue" => "계속",
         "hk_add_and_continue" => "추가하고 계속",

@@ -646,6 +646,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Kunci Host Tidak Dikenal",
         "hk_warning_title" => "KUNCI HOST BERUBAH",
         "hk_warning_desc" => "PERINGATAN: Kunci host telah berubah! Ini bisa menandakan serangan man-in-the-middle.",
+        "hk_unknown_desc" => "Keaslian {host} tidak dapat dipastikan.",
+        "hk_fingerprint_sha256" => "Sidik jari {key_type} adalah SHA256:",
         "hk_old_fingerprint" => "Sidik jari sebelumnya:",
         "hk_continue" => "Lanjutkan",
         "hk_add_and_continue" => "Tambah dan lanjutkan",

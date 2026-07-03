@@ -502,6 +502,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Unbekannter Host-Schlüssel",
         "hk_warning_title" => "HOST-SCHLÜSSEL GEÄNDERT",
         "hk_warning_desc" => "WARNUNG: Der Host-Schlüssel hat sich geändert! Dies könnte auf einen Man-in-the-Middle-Angriff hinweisen.",
+        "hk_unknown_desc" => "Die Authentizität von {host} kann nicht festgestellt werden.",
+        "hk_fingerprint_sha256" => "Der {key_type}-Fingerabdruck ist SHA256:",
         "hk_old_fingerprint" => "Vorheriger Fingerabdruck:",
         "hk_continue" => "Fortfahren",
         "hk_add_and_continue" => "Hinzufügen und fortfahren",

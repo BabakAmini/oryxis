@@ -511,6 +511,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "不明なホストキー",
         "hk_warning_title" => "ホストキーが変更されました",
         "hk_warning_desc" => "警告：ホストキーが変更されました！中間者攻撃の可能性があります。",
+        "hk_unknown_desc" => "{host} の真正性を確認できません。",
+        "hk_fingerprint_sha256" => "{key_type} のフィンガープリントは SHA256：",
         "hk_old_fingerprint" => "以前のフィンガープリント：",
         "hk_continue" => "続行",
         "hk_add_and_continue" => "追加して続行",

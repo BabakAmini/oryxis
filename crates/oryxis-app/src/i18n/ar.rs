@@ -664,6 +664,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "مفتاح مضيف غير معروف",
         "hk_warning_title" => "تغيّر مفتاح المضيف",
         "hk_warning_desc" => "تحذير: تغيّر مفتاح المضيف! قد يكون هذا علامة على هجوم رجل في المنتصف.",
+        "hk_unknown_desc" => "تعذر التحقق من موثوقية {host}.",
+        "hk_fingerprint_sha256" => "بصمة {key_type} هي SHA256:",
         "hk_old_fingerprint" => "البصمة السابقة:",
         "hk_continue" => "متابعة",
         "hk_add_and_continue" => "إضافة ومتابعة",

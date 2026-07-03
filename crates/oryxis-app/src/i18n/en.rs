@@ -652,6 +652,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hk_unknown_title" => "Unknown Host Key",
         "hk_warning_title" => "HOST KEY CHANGED",
         "hk_warning_desc" => "WARNING: The host key has changed! This could indicate a man-in-the-middle attack.",
+        "hk_unknown_desc" => "The authenticity of {host} can not be established.",
+        "hk_fingerprint_sha256" => "{key_type} fingerprint is SHA256:",
         "hk_old_fingerprint" => "Previous fingerprint:",
         "hk_continue" => "Continue",
         "hk_add_and_continue" => "Add and continue",

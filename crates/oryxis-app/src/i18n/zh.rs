@@ -511,6 +511,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "未知主机密钥",
         "hk_warning_title" => "主机密钥已更改",
         "hk_warning_desc" => "警告：主机密钥已更改！这可能表示中间人攻击。",
+        "hk_unknown_desc" => "无法确认 {host} 的真实性。",
+        "hk_fingerprint_sha256" => "{key_type} 指纹为 SHA256：",
         "hk_old_fingerprint" => "之前的指纹：",
         "hk_continue" => "继续",
         "hk_add_and_continue" => "添加并继续",

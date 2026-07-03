@@ -32,23 +32,31 @@ impl Oryxis {
         }
     }
 
+    /// Whether Privacy Mode applies to this progress screen at all,
+    /// before the reveal toggle. The resolved connection's per-host
+    /// override wins; an unresolvable one falls back to the global
+    /// setting. Also gates the eye toggle in the header.
+    fn progress_privacy_on(&self, progress: &crate::state::ConnectionProgress) -> bool {
+        self.progress_connection(progress)
+            .map(|c| self.privacy_active(c))
+            .unwrap_or(self.setting_privacy_mode)
+    }
+
     /// Redact a connection-progress string under Privacy Mode. The text is
     /// our own controlled format ("Connecting to <host>...", `SSH host:port`),
     /// so on top of the generic IP / `user@host` masking we also replace this
     /// host's known hostname / username literally, which catches plain DNS
-    /// names the regex can't. Returns the input unchanged when off.
+    /// names the regex can't. Returns the input unchanged when off or while
+    /// the eye toggle reveals.
     fn redact_progress(
         &self,
         progress: &crate::state::ConnectionProgress,
         s: &str,
     ) -> String {
-        let conn = self.progress_connection(progress);
-        let mask = conn
-            .map(|c| self.privacy_active(c))
-            .unwrap_or(self.setting_privacy_mode);
-        if !mask {
+        if !self.progress_privacy_on(progress) || self.privacy_revealed {
             return s.to_string();
         }
+        let conn = self.progress_connection(progress);
         let mut out = crate::widgets::redact_for_display(s, &self.privacy_terms());
         if let Some(c) = conn {
             if !c.hostname.is_empty() {
@@ -101,7 +109,10 @@ impl Oryxis {
             badge,
             Space::new().width(14).into(),
             column![
-                text(&progress.label).size(16).color(OryxisColors::t().text_primary),
+                // A quick-connect label embeds `user@host`, so the label
+                // is redacted like every other string on this screen.
+                text(self.redact_progress(progress, &progress.label))
+                    .size(16).color(OryxisColors::t().text_primary),
                 Space::new().height(2),
                 text(self.redact_progress(progress, &progress.hostname))
                     .size(12).color(OryxisColors::t().text_muted),
@@ -110,7 +121,15 @@ impl Oryxis {
             .align_x(crate::widgets::dir_align_x())
             .into(),
         ];
+        if self.progress_privacy_on(progress) {
+            // Same eye affordance as Logs / Known Hosts, so the masked
+            // header and host-key prompt can be revealed in place.
+            header_children.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+        }
         if failed {
+            if self.progress_privacy_on(progress) {
+                header_children.push(Space::new().width(8).into());
+            }
             header_children.push(
                 button(
                     container(text(crate::i18n::t("edit_host")).size(13).color(OryxisColors::t().text_primary))
@@ -165,8 +184,9 @@ impl Oryxis {
                 .size(14)
                 .color(OryxisColors::t().warning)
                 .into();
+            // Redacted: a quick-connect label embeds `user@host`.
             let desc = crate::i18n::t("legacy_algo_desc")
-                .replace("{host}", &host_label)
+                .replace("{host}", &self.redact_progress(progress, &host_label))
                 .replace("{category}", crate::i18n::t(cat_key));
             let mut body_col = column![
                 text(desc).size(13).color(OryxisColors::t().text_secondary),
@@ -212,12 +232,15 @@ impl Oryxis {
             (status, body, btm)
         } else if let Some(ref kbi) = self.pending_kbi_prompt {
             // Keyboard-interactive (2FA / OTP). `name` and the prompt labels
-            // are server strings, rendered verbatim, never translated. Only
-            // the chrome (title fallback, buttons) goes through i18n.
+            // are server strings, never translated; only the chrome (title
+            // fallback, buttons) goes through i18n. They can carry
+            // `user@host` ("Password for root@203.0.113.7"), so they pass
+            // through the same Privacy Mode redaction as the rest of the
+            // screen.
             let title = if kbi.name.trim().is_empty() {
                 crate::i18n::t("kbi_title").to_string()
             } else {
-                kbi.name.clone()
+                self.redact_progress(progress, &kbi.name)
             };
             let status: Element<'_, Message> =
                 text(title).size(14).color(OryxisColors::t().accent).into();
@@ -226,13 +249,14 @@ impl Oryxis {
 
             if !kbi.instructions.trim().is_empty() {
                 body_col = body_col
-                    .push(text(kbi.instructions.clone()).size(13).color(OryxisColors::t().text_secondary))
+                    .push(text(self.redact_progress(progress, &kbi.instructions)).size(13).color(OryxisColors::t().text_secondary))
                     .push(Space::new().height(12));
             }
 
             for (i, prompt) in kbi.prompts.iter().enumerate() {
+                let prompt_label = self.redact_progress(progress, &prompt.prompt);
                 let value = self.kbi_inputs.get(i).map(|s| s.as_str()).unwrap_or("");
-                let mut input = text_input(&prompt.prompt, value)
+                let mut input = text_input(&prompt_label, value)
                     .on_input(move |v| Message::SshKbiInput(i, v))
                     .on_submit(Message::SshKbiSubmit)
                     .padding(10)
@@ -247,7 +271,7 @@ impl Oryxis {
                     input = input.secure(true);
                 }
                 body_col = body_col
-                    .push(text(prompt.prompt.clone()).size(12).color(OryxisColors::t().text_muted))
+                    .push(text(prompt_label.clone()).size(12).color(OryxisColors::t().text_muted))
                     .push(Space::new().height(4))
                     .push(input)
                     .push(Space::new().height(12));
@@ -339,15 +363,17 @@ impl Oryxis {
             } else {
                 body_col = body_col
                     .push(Space::new().height(8))
-                    .push(text(format!(
-                        "The authenticity of {} can not be established.",
-                        query.hostname,
-                    )).size(13).color(OryxisColors::t().text_secondary))
+                    .push(text(
+                        crate::i18n::t("hk_unknown_desc")
+                            .replace("{host}", &self.redact_progress(progress, &query.hostname)),
+                    ).size(13).color(OryxisColors::t().text_secondary))
                     .push(Space::new().height(12));
             }
 
             body_col = body_col
-                .push(text(format!("{} fingerprint is SHA256:", query.key_type)).size(13).color(OryxisColors::t().text_secondary))
+                .push(text(
+                    crate::i18n::t("hk_fingerprint_sha256").replace("{key_type}", &query.key_type),
+                ).size(13).color(OryxisColors::t().text_secondary))
                 .push(Space::new().height(8))
                 .push(text(&query.fingerprint).size(14).color(OryxisColors::t().text_primary))
                 .push(Space::new().height(16))

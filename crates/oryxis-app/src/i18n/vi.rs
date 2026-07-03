@@ -646,6 +646,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Khóa máy chủ không xác định",
         "hk_warning_title" => "KHÓA MÁY CHỦ ĐÃ THAY ĐỔI",
         "hk_warning_desc" => "CẢNH BÁO: Khóa máy chủ đã thay đổi! Điều này có thể chỉ ra một cuộc tấn công xen giữa.",
+        "hk_unknown_desc" => "Không thể xác minh tính xác thực của {host}.",
+        "hk_fingerprint_sha256" => "Vân tay {key_type} là SHA256:",
         "hk_old_fingerprint" => "Dấu vân tay trước:",
         "hk_continue" => "Tiếp tục",
         "hk_add_and_continue" => "Thêm và tiếp tục",

@@ -502,6 +502,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Неизвестный ключ хоста",
         "hk_warning_title" => "КЛЮЧ ХОСТА ИЗМЕНЁН",
         "hk_warning_desc" => "ВНИМАНИЕ: Ключ хоста изменился! Это может указывать на атаку «человек посередине».",
+        "hk_unknown_desc" => "Подлинность {host} не может быть установлена.",
+        "hk_fingerprint_sha256" => "SHA256-отпечаток {key_type}:",
         "hk_old_fingerprint" => "Предыдущий отпечаток:",
         "hk_continue" => "Продолжить",
         "hk_add_and_continue" => "Добавить и продолжить",

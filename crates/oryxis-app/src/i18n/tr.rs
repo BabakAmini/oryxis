@@ -646,6 +646,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hk_unknown_title" => "Bilinmeyen Sunucu Anahtarı",
         "hk_warning_title" => "SUNUCU ANAHTARI DEĞİŞTİ",
         "hk_warning_desc" => "UYARI: Sunucu anahtarı değişti! Bu bir ortadaki adam saldırısına işaret edebilir.",
+        "hk_unknown_desc" => "{host} kimliği doğrulanamıyor.",
+        "hk_fingerprint_sha256" => "{key_type} parmak izi SHA256:",
         "hk_old_fingerprint" => "Önceki parmak izi:",
         "hk_continue" => "Devam",
         "hk_add_and_continue" => "Ekle ve devam et",
