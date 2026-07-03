@@ -357,6 +357,9 @@ impl Oryxis {
         // inserts a newline. No send button, every chat-style UI uses
         // Enter today, so the arrow was just visual noise.
         let chat_editor = iced::widget::text_editor(&self.chat_input)
+            // Programmatic focus target for the FocusSidebarList hotkey's
+            // Chat stop (the fork's text_editor is operation::Focusable).
+            .id(iced::widget::Id::new("chat-input"))
             .placeholder(t("ask_ai"))
             .on_action(Message::ChatInputAction)
             .padding(10)

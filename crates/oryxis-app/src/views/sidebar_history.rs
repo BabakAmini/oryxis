@@ -94,22 +94,18 @@ impl Oryxis {
             .into()
     }
 
-    /// One history row, recorded into the sidebar keynav layer. A
-    /// ringed row also reveals its floating actions, the same
-    /// affordance hover gives, so the keyboard user sees the verbs
-    /// (Enter = paste, Shift+Enter = run, Delete = remove).
+    /// One history row, recorded into the sidebar keynav layer. The
+    /// floating actions stay hover-only (owner call: a ringed row
+    /// showing them reads as a stuck-hover bug); the ring border is
+    /// the keyboard affordance, with Enter = paste, Shift+Enter =
+    /// run, Delete = remove.
     fn recorded_history_row<'a>(
         &'a self,
         entry: &'a oryxis_vault::CommandHistoryEntry,
         pos: usize,
     ) -> Element<'a, Message> {
         let tab = crate::state::TerminalSidebarTab::History;
-        let ringed = self.sidebar_nav_ringed(tab, pos);
-        let row = history_row(
-            entry,
-            pos,
-            self.hovered_history_card == Some(pos) || ringed,
-        );
+        let row = history_row(entry, pos, self.hovered_history_card == Some(pos));
         self.sidebar_nav_slot(
             crate::keynav::SidebarRow {
                 paste: Message::PasteHistoryCommand(entry.id),

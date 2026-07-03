@@ -166,41 +166,64 @@ impl Oryxis {
         }
     }
 
-    /// FocusSidebarList hotkey: bring the keyboard to the sidebar
-    /// lists. Opens the sidebar when closed, lands on Snippets when
-    /// the sidebar is showing a non-list tab, cycles Snippets <->
-    /// History when the ring is already engaged, and rings the first
-    /// row. No-op outside a terminal tab.
+    /// FocusSidebarList hotkey: bring the keyboard to the sidebar.
+    /// Opens it when closed (landing on the tab it already shows);
+    /// pressed again it cycles EVERY visible tab, Chat (AI on) ->
+    /// Snippets -> History -> HostConfig -> wrap. Landing on a list
+    /// rings its first row; landing on Chat focuses the message
+    /// editor. No-op outside a terminal tab.
     pub(crate) fn focus_sidebar_list(&mut self) -> Task<Message> {
         let Some(idx) = self.active_tab else {
             return Task::none();
         };
-        let ai_enabled = self.ai.enabled;
-        if let Some(tab) = self.tabs.get_mut(idx)
-            && !tab.chat_visible
-        {
-            tab.chat_visible = true;
-            // Same landing rule as ToggleChatSidebar: with AI off the
-            // Chat tab is hidden, so an opening on it must move away
-            // (here it lands on a list either way, below).
-            let _ = ai_enabled;
+        let mut order: Vec<TerminalSidebarTab> = Vec::with_capacity(4);
+        if self.ai.enabled {
+            order.push(TerminalSidebarTab::Chat);
         }
-        let target = match (self.sidebar_list_tab(), &self.keynav.sidebar_selected) {
-            // Already ringed on a list: cycle to the sibling list.
-            (Some(cur), Some((tag, _))) if *tag == cur => match cur {
-                TerminalSidebarTab::History => TerminalSidebarTab::Snippets,
-                _ => TerminalSidebarTab::History,
-            },
-            // Sidebar on a list tab but not ringed: stay there.
-            (Some(cur), _) => cur,
-            // Chat / HostConfig showing: land on Snippets.
-            (None, _) => TerminalSidebarTab::Snippets,
+        order.extend([
+            TerminalSidebarTab::Snippets,
+            TerminalSidebarTab::History,
+            TerminalSidebarTab::HostConfig,
+        ]);
+
+        let was_open = self
+            .tabs
+            .get(idx)
+            .map(|t| t.chat_visible)
+            .unwrap_or(false);
+        if let Some(tab) = self.tabs.get_mut(idx) {
+            tab.chat_visible = true;
+        }
+        let current = self
+            .effective_sidebar_tab()
+            .unwrap_or(TerminalSidebarTab::Snippets);
+        // First press lands on what's already showing; repeats advance.
+        let target = if was_open {
+            let cur_pos = order.iter().position(|t| *t == current).unwrap_or(0);
+            order[(cur_pos + 1) % order.len()]
+        } else {
+            current
         };
         self.terminal_sidebar_tab = target;
-        if target == TerminalSidebarTab::History {
-            self.refresh_command_history();
+        match target {
+            TerminalSidebarTab::Chat => {
+                self.keynav.sidebar_selected = None;
+                iced::widget::operation::focus(iced::widget::Id::new("chat-input"))
+            }
+            TerminalSidebarTab::Snippets | TerminalSidebarTab::History => {
+                if target == TerminalSidebarTab::History {
+                    self.refresh_command_history();
+                }
+                self.keynav.sidebar_selected = Some((target, 0));
+                self.sidebar_nav_scroll(0)
+            }
+            TerminalSidebarTab::HostConfig => {
+                // No recorded rows yet (its selects/toggles join the
+                // keyboard layer with the Tab-walk iteration); reaching
+                // the tab is the win for now.
+                self.keynav.sidebar_selected = None;
+                Task::none()
+            }
         }
-        self.keynav.sidebar_selected = Some((target, 0));
-        self.sidebar_nav_scroll(0)
     }
 }

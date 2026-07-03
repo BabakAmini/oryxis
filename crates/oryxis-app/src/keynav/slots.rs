@@ -268,18 +268,6 @@ impl crate::app::Oryxis {
         self.keynav.sidebar_items.borrow_mut().clear();
     }
 
-    /// Whether the sidebar row about to be recorded at position `idx`
-    /// under `tab` is the current ring. The list views call this BEFORE
-    /// building the row so a ringed row can also reveal its floating
-    /// actions (same affordance as hover).
-    pub(crate) fn sidebar_nav_ringed(
-        &self,
-        tab: crate::state::TerminalSidebarTab,
-        idx: usize,
-    ) -> bool {
-        self.keynav.sidebar_selected == Some((tab, idx))
-    }
-
     /// Record one terminal-sidebar list row and ring it when selected.
     /// Recording order is display order, so the recorded index always
     /// matches the row's on-screen position.

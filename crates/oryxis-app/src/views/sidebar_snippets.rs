@@ -160,16 +160,13 @@ impl Oryxis {
             // Recorded into the sidebar keynav layer; the recording
             // index is the display position within the sorted/filtered
             // list (the sudo row above is deliberately not recorded).
-            // A ringed row also reveals its floating actions, same
-            // affordance as hover.
-            let pos = self.keynav.sidebar_items.borrow().len();
-            let ringed =
-                self.sidebar_nav_ringed(crate::state::TerminalSidebarTab::Snippets, pos);
+            // Floating actions stay hover-only (owner call); the ring
+            // border alone marks the keyboard selection.
             let row = snippet_row(
                 idx,
                 &snip.label,
                 &snip.command,
-                self.hovered_snippet_card == Some(idx) || ringed,
+                self.hovered_snippet_card == Some(idx),
             );
             list = list.push(self.sidebar_nav_slot(
                 crate::keynav::SidebarRow {
