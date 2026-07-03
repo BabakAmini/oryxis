@@ -74,6 +74,10 @@ dirs = "6"
 # SDK reports "dispatch failure" on the first STS call.
 rustls = { workspace = true }
 iced = { workspace = true }
+# Boot-time GPU adapter probe (renderer_probe.rs). Same wgpu the iced
+# fork renders with (one build in the tree via feature unification),
+# so the probe sees exactly the adapters iced's compositor will.
+wgpu = "29"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
