@@ -771,6 +771,10 @@ impl Oryxis {
             FocusPaneDown => {
                 Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Down))
             }
+            // Ring the sidebar lists (Snippets / History); repeat
+            // presses cycle the two tabs. Terminal-only like the
+            // split-pane family above.
+            FocusSidebarList => self.focus_sidebar_list(),
             // Vault section cycling: neighbor of the active view in the
             // sub-nav pill order, wrapping. The loop only reaches these
             // in the vault area (vault_only gate above).

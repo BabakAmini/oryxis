@@ -62,11 +62,7 @@ impl Oryxis {
             if !frequent.is_empty() {
                 list = list.push(section_label(t("history_frequent")));
                 for entry in frequent.into_iter().take(3) {
-                    list = list.push(history_row(
-                        entry,
-                        pos,
-                        self.hovered_history_card == Some(pos),
-                    ));
+                    list = list.push(self.recorded_history_row(entry, pos));
                     pos += 1;
                 }
                 list = list.push(section_label(t("history_recent")));
@@ -79,24 +75,51 @@ impl Oryxis {
                 continue;
             }
             any = true;
-            list = list.push(history_row(
-                entry,
-                pos,
-                self.hovered_history_card == Some(pos),
-            ));
+            list = list.push(self.recorded_history_row(entry, pos));
             pos += 1;
         }
         if !any {
             list = list.push(sidebar_placeholder(t("no_matches")));
         }
 
+        // Shared id with the Snippets list (only one renders): the
+        // sidebar keynav router snaps the ringed row into view by it.
         let body = iced::widget::scrollable(list)
+            .id(iced::widget::Id::new("sidebar-list-scroll"))
             .width(Length::Fill)
             .height(Length::Fill);
         column![header, body]
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
+    }
+
+    /// One history row, recorded into the sidebar keynav layer. A
+    /// ringed row also reveals its floating actions, the same
+    /// affordance hover gives, so the keyboard user sees the verbs
+    /// (Enter = paste, Shift+Enter = run, Delete = remove).
+    fn recorded_history_row<'a>(
+        &'a self,
+        entry: &'a oryxis_vault::CommandHistoryEntry,
+        pos: usize,
+    ) -> Element<'a, Message> {
+        let tab = crate::state::TerminalSidebarTab::History;
+        let ringed = self.sidebar_nav_ringed(tab, pos);
+        let row = history_row(
+            entry,
+            pos,
+            self.hovered_history_card == Some(pos) || ringed,
+        );
+        self.sidebar_nav_slot(
+            crate::keynav::SidebarRow {
+                paste: Message::PasteHistoryCommand(entry.id),
+                run: Some(Message::RunHistoryCommand(entry.id)),
+                delete: Some(Message::DeleteHistoryCommand(entry.id)),
+            },
+            tab,
+            8.0,
+            row,
+        )
     }
 }
 

@@ -84,50 +84,18 @@ impl Oryxis {
         let header = container(header_row.width(Length::Fill).align_y(iced::Alignment::Center))
             .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 });
 
-        // Sort then filter, carrying original indices so Run/Paste/Edit
-        // address the right snippet (the list reorders, `self.snippets`
-        // does not).
-        let needle = self.sidebar_snippet_search.to_lowercase();
-        let mut order: Vec<usize> = (0..self.snippets.len()).collect();
-        self.snippets_sort.sort_items(
-            &mut order,
-            |&i| self.snippets[i].label.clone(),
-            |&i| self.snippets[i].created_at,
-        );
-        let mut list = column![]
-            .spacing(6)
-            .padding(Padding { top: 0.0, right: 12.0, bottom: 12.0, left: 12.0 });
-        let mut any = false;
-        for idx in order {
-            let snip = &self.snippets[idx];
-            if !needle.is_empty()
-                && !snip.label.to_lowercase().contains(&needle)
-                && !snip.command.to_lowercase().contains(&needle)
-            {
-                continue;
-            }
-            any = true;
-            list = list.push(snippet_row(
-                idx,
-                &snip.label,
-                &snip.command,
-                self.hovered_snippet_card == Some(idx),
-            ));
-        }
-        if !any {
-            list = list.push(sidebar_placeholder(t("no_matches")));
-        }
-
         // Built-in "global snippet": type the host's stored password +
         // Enter (e.g. to answer a sudo prompt). Shown only for a live SSH
         // session; the click no-ops with a toast if no password is stored.
+        // Built (and keynav-recorded) BEFORE the list so the recording
+        // order matches the display order: sudo row first, then rows.
         let ssh_active = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| t.active().ssh_session.is_some())
             .unwrap_or(false);
         let sudo_row: Element<'_, Message> = if ssh_active {
-            container(
+            let el: Element<'_, Message> = container(
                 button(
                     container(
                         dir_row(vec![
@@ -159,14 +127,83 @@ impl Oryxis {
                 }),
             )
             .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 })
-            .into()
+            .into();
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow {
+                    paste: Message::ApplySudoPassword,
+                    run: None,
+                    delete: None,
+                },
+                crate::state::TerminalSidebarTab::Snippets,
+                8.0,
+                el,
+            )
         } else {
             Space::new().height(0).into()
         };
 
-        let base = column![header, sudo_row, scrollable(list).height(Length::Fill)]
-            .width(Length::Fill)
-            .height(Length::Fill);
+        // Sort then filter, carrying original indices so Run/Paste/Edit
+        // address the right snippet (the list reorders, `self.snippets`
+        // does not).
+        let needle = self.sidebar_snippet_search.to_lowercase();
+        let mut order: Vec<usize> = (0..self.snippets.len()).collect();
+        self.snippets_sort.sort_items(
+            &mut order,
+            |&i| self.snippets[i].label.clone(),
+            |&i| self.snippets[i].created_at,
+        );
+        let mut list = column![]
+            .spacing(6)
+            .padding(Padding { top: 0.0, right: 12.0, bottom: 12.0, left: 12.0 });
+        let mut any = false;
+        for idx in order {
+            let snip = &self.snippets[idx];
+            if !needle.is_empty()
+                && !snip.label.to_lowercase().contains(&needle)
+                && !snip.command.to_lowercase().contains(&needle)
+            {
+                continue;
+            }
+            any = true;
+            // Recorded into the sidebar keynav layer; the recording
+            // index is the display position (sudo row first, then the
+            // sorted/filtered list). A ringed row also reveals its
+            // floating actions, same affordance as hover.
+            let pos = self.keynav.sidebar_items.borrow().len();
+            let ringed =
+                self.sidebar_nav_ringed(crate::state::TerminalSidebarTab::Snippets, pos);
+            let row = snippet_row(
+                idx,
+                &snip.label,
+                &snip.command,
+                self.hovered_snippet_card == Some(idx) || ringed,
+            );
+            list = list.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow {
+                    paste: Message::PasteSnippet(idx),
+                    run: Some(Message::RunSnippet(idx)),
+                    delete: Some(Message::RequestDeleteSnippet(idx)),
+                },
+                crate::state::TerminalSidebarTab::Snippets,
+                8.0,
+                row,
+            ));
+        }
+        if !any {
+            list = list.push(sidebar_placeholder(t("no_matches")));
+        }
+
+        // Shared id with the History list (only one renders): the
+        // sidebar keynav router snaps the ringed row into view by it.
+        let base = column![
+            header,
+            sudo_row,
+            scrollable(list)
+                .id(iced::widget::Id::new("sidebar-list-scroll"))
+                .height(Length::Fill)
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill);
 
         if self.sidebar_sort_open {
             use crate::state::{ListSort, SortMenuKind};

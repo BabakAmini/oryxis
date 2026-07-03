@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Sağdaki bölmeye odaklan",
         "hotkey_focus_pane_up" => "Üstteki bölmeye odaklan",
         "hotkey_focus_pane_down" => "Alttaki bölmeye odaklan",
+        "hotkey_focus_sidebar_list" => "Kenar çubuğu listelerine odaklan",
         "hotkey_vault_section_prev" => "Önceki kasa bölümü",
         "hotkey_vault_section_next" => "Sonraki kasa bölümü",
         "detecting_shells" => "Shell'ler algılanıyor…",

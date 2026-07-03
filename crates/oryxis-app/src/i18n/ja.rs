@@ -179,6 +179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "右のペインにフォーカス",
         "hotkey_focus_pane_up" => "上のペインにフォーカス",
         "hotkey_focus_pane_down" => "下のペインにフォーカス",
+        "hotkey_focus_sidebar_list" => "サイドバーのリストにフォーカス",
         "hotkey_vault_section_prev" => "前のボールトセクション",
         "hotkey_vault_section_next" => "次のボールトセクション",
         "detecting_shells" => "シェルを検出中…",

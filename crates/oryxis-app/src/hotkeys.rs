@@ -49,6 +49,10 @@ pub enum HotkeyAction {
     FocusPaneRight,
     FocusPaneUp,
     FocusPaneDown,
+    /// Ring the terminal-sidebar list rows (Snippets / History):
+    /// opens the sidebar when closed, cycles the two list tabs on
+    /// repeat. Terminal-only, like the split-pane family.
+    FocusSidebarList,
     // Vault-area section cycling (Hosts -> Keychain -> ... in sub-nav
     // order). Only fire in the vault area (`vault_only`); inside a
     // terminal tab the key is left free for TUI apps.
@@ -83,6 +87,7 @@ impl HotkeyAction {
             FocusPaneRight,
             FocusPaneUp,
             FocusPaneDown,
+            FocusSidebarList,
             VaultSectionPrev,
             VaultSectionNext,
         ]
@@ -115,6 +120,7 @@ impl HotkeyAction {
             FocusPaneRight => "focus_pane_right",
             FocusPaneUp => "focus_pane_up",
             FocusPaneDown => "focus_pane_down",
+            FocusSidebarList => "focus_sidebar_list",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
         }
@@ -147,6 +153,7 @@ impl HotkeyAction {
             FocusPaneRight => "hotkey_focus_pane_right",
             FocusPaneUp => "hotkey_focus_pane_up",
             FocusPaneDown => "hotkey_focus_pane_down",
+            FocusSidebarList => "hotkey_focus_sidebar_list",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
         }
@@ -165,6 +172,7 @@ impl HotkeyAction {
                 | FocusPaneRight
                 | FocusPaneUp
                 | FocusPaneDown
+                | FocusSidebarList
         )
     }
 
@@ -703,6 +711,10 @@ pub fn default_bindings() -> HotkeyMap {
     put(&mut m, FocusPaneRight, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowRight));
     put(&mut m, FocusPaneUp, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowUp));
     put(&mut m, FocusPaneDown, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowDown));
+    // Ctrl+Shift+H (Cmd+Shift+H on macOS): Shift lifts it out of the
+    // terminal control-sequence gate (plain Ctrl+H is backspace on the
+    // PTY), H for the History/lists sidebar. Rebindable like the rest.
+    put(&mut m, FocusSidebarList, primary_ctrl, true, false, primary_logo, Char('h'));
     // Vault section cycling. Plain Ctrl on every platform (the
     // browser/IDE tab-strip convention; Cmd+PageUp/Down has no macOS
     // precedent), rebindable like everything else.

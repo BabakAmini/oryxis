@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Chuyển tiêu điểm sang khung phải",
         "hotkey_focus_pane_up" => "Chuyển tiêu điểm sang khung trên",
         "hotkey_focus_pane_down" => "Chuyển tiêu điểm sang khung dưới",
+        "hotkey_focus_sidebar_list" => "Tập trung vào danh sách thanh bên",
         "hotkey_vault_section_prev" => "Phần trước của kho",
         "hotkey_vault_section_next" => "Phần tiếp theo của kho",
         "detecting_shells" => "Đang dò shell…",

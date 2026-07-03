@@ -685,6 +685,14 @@ impl Oryxis {
                 if let Some(task) = self.handle_keynav_key(&event) {
                     return Ok(task);
                 }
+                // Terminal-sidebar list navigation (Snippets / History
+                // rows). Opt-in ring: engaged by the FocusSidebarList
+                // hotkey or by Up/Down while the cursor is over the
+                // sidebar; declines everything else so the PTY keeps
+                // the keyboard. See dispatch_keynav_sidebar.rs.
+                if let Some(task) = self.handle_sidebar_nav_key(&event) {
+                    return Ok(task);
+                }
                 // Hotkey dispatch + capture mode live in `shortcuts.rs`
                 // (`handle_hotkey_keypress`). Returns a Task when the
                 // event was consumed by a binding (or by the Settings

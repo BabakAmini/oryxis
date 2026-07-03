@@ -179,6 +179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Attiva riquadro a destra",
         "hotkey_focus_pane_up" => "Attiva riquadro in alto",
         "hotkey_focus_pane_down" => "Attiva riquadro in basso",
+        "hotkey_focus_sidebar_list" => "Focalizza gli elenchi della barra laterale",
         "hotkey_vault_section_prev" => "Sezione precedente del vault",
         "hotkey_vault_section_next" => "Sezione successiva del vault",
         "detecting_shells" => "Rilevamento shell…",

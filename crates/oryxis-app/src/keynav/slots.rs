@@ -45,6 +45,18 @@ impl RowAction {
     }
 }
 
+/// One keyboard-actionable terminal-sidebar list row (Snippets /
+/// History tabs). Unlike `RowAction`, these rows carry several verbs:
+/// Enter pastes (the row's click action, no trailing newline),
+/// Shift+Enter runs (+ Enter), Delete removes. Rows without a verb
+/// (the sudo helper row) leave the extras `None`.
+#[derive(Clone)]
+pub(crate) struct SidebarRow {
+    pub(crate) paste: Message,
+    pub(crate) run: Option<Message>,
+    pub(crate) delete: Option<Message>,
+}
+
 /// Identity of the surface a modal-layer selection belongs to. A
 /// selection carrying a stale tag counts as no selection, so closing
 /// one menu and opening another can never dispatch a row from the
@@ -242,6 +254,50 @@ impl crate::app::Oryxis {
         // Always wrapped (transparent when unringed): see
         // select_ring_opt for why the wrapper must be shape-stable.
         let ringed = !is_input && self.keynav.panel_selected == Some(idx);
+        crate::widgets::select_ring_opt(
+            el,
+            radius,
+            ringed.then(|| crate::theme::OryxisColors::t().accent),
+        )
+    }
+
+    /// Clear the terminal-sidebar list recording. `view_terminal_sidebar`
+    /// calls this before rendering its content tab, so Chat / HostConfig
+    /// frames (which record nothing) can't leave a stale row list behind.
+    pub(crate) fn sidebar_nav_reset(&self) {
+        self.keynav.sidebar_items.borrow_mut().clear();
+    }
+
+    /// Whether the sidebar row about to be recorded at position `idx`
+    /// under `tab` is the current ring. The list views call this BEFORE
+    /// building the row so a ringed row can also reveal its floating
+    /// actions (same affordance as hover).
+    pub(crate) fn sidebar_nav_ringed(
+        &self,
+        tab: crate::state::TerminalSidebarTab,
+        idx: usize,
+    ) -> bool {
+        self.keynav.sidebar_selected == Some((tab, idx))
+    }
+
+    /// Record one terminal-sidebar list row and ring it when selected.
+    /// Recording order is display order, so the recorded index always
+    /// matches the row's on-screen position.
+    pub(crate) fn sidebar_nav_slot<'a>(
+        &self,
+        row: SidebarRow,
+        tab: crate::state::TerminalSidebarTab,
+        radius: f32,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
+        let idx = {
+            let mut items = self.keynav.sidebar_items.borrow_mut();
+            items.push(row);
+            items.len() - 1
+        };
+        // Always wrapped (transparent when unringed): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        let ringed = self.keynav.sidebar_selected == Some((tab, idx));
         crate::widgets::select_ring_opt(
             el,
             radius,

@@ -179,6 +179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Фокус на панель справа",
         "hotkey_focus_pane_up" => "Фокус на панель сверху",
         "hotkey_focus_pane_down" => "Фокус на панель снизу",
+        "hotkey_focus_sidebar_list" => "Фокус на списки боковой панели",
         "hotkey_vault_section_prev" => "Предыдущий раздел хранилища",
         "hotkey_vault_section_next" => "Следующий раздел хранилища",
         "detecting_shells" => "Поиск оболочек…",

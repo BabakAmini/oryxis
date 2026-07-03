@@ -509,6 +509,10 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into();
+        // Fresh sidebar-list recording every frame: the list tabs
+        // re-record below; Chat / HostConfig record nothing, so their
+        // frames must not inherit a stale row list.
+        self.sidebar_nav_reset();
         let content: Element<'_, Message> = match active {
             STab::Chat => chat_body,
             STab::Snippets => self.snippets_tab_content(),

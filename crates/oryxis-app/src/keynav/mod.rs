@@ -29,7 +29,7 @@ mod tests;
 
 use std::cell::RefCell;
 
-pub(crate) use slots::{ModalNavState, ModalSurface, RowAction};
+pub(crate) use slots::{ModalNavState, ModalSurface, RowAction, SidebarRow};
 
 /// The vault-area focus zones, in Tab-cycle order. Search is "zone
 /// zero" and is represented by `KeyNavState::focus == None`.
@@ -187,6 +187,16 @@ pub(crate) struct KeyNavState {
     /// Enter/Space/Esc/Up/Down belong to the widget alone (Esc must
     /// close the dropdown, not the panel behind it).
     pub(crate) pick_open: bool,
+    /// Terminal-sidebar list layer (iteration 3): ring over the
+    /// Snippets / History rows, tagged by the sidebar tab that owns
+    /// it so a tab switch drops the selection for free. Engaged by
+    /// the FocusSidebarList hotkey or by Up/Down while the cursor is
+    /// over the sidebar; Esc disengages and gives the keyboard back
+    /// to the terminal.
+    pub(crate) sidebar_selected: Option<(crate::state::TerminalSidebarTab, usize)>,
+    /// Actionable sidebar list rows recorded during view(), display
+    /// order (History: frequent shortlist first, then recents).
+    pub(crate) sidebar_items: RefCell<Vec<SidebarRow>>,
 }
 
 impl KeyNavState {

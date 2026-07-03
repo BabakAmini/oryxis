@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "오른쪽 분할 창 포커스",
         "hotkey_focus_pane_up" => "위쪽 분할 창 포커스",
         "hotkey_focus_pane_down" => "아래쪽 분할 창 포커스",
+        "hotkey_focus_sidebar_list" => "사이드바 목록에 포커스",
         "hotkey_vault_section_prev" => "이전 볼트 섹션",
         "hotkey_vault_section_next" => "다음 볼트 섹션",
         "detecting_shells" => "셸 감지 중…",

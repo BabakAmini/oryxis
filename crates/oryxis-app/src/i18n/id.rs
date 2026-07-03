@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Fokus ke panel kanan",
         "hotkey_focus_pane_up" => "Fokus ke panel atas",
         "hotkey_focus_pane_down" => "Fokus ke panel bawah",
+        "hotkey_focus_sidebar_list" => "Fokus ke daftar bilah samping",
         "hotkey_vault_section_prev" => "Bagian vault sebelumnya",
         "hotkey_vault_section_next" => "Bagian vault berikutnya",
         "detecting_shells" => "Mendeteksi shell…",

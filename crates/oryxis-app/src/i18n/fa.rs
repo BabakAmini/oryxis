@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "تمرکز روی پنل راست",
         "hotkey_focus_pane_up" => "تمرکز روی پنل بالا",
         "hotkey_focus_pane_down" => "تمرکز روی پنل پایین",
+        "hotkey_focus_sidebar_list" => "تمرکز روی فهرست‌های نوار کناری",
         "hotkey_vault_section_prev" => "بخش قبلی صندوقچه",
         "hotkey_vault_section_next" => "بخش بعدی صندوقچه",
         "detecting_shells" => "در حال شناسایی شل‌ها…",

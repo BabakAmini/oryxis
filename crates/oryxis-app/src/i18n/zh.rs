@@ -179,6 +179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "聚焦右侧窗格",
         "hotkey_focus_pane_up" => "聚焦上方窗格",
         "hotkey_focus_pane_down" => "聚焦下方窗格",
+        "hotkey_focus_sidebar_list" => "聚焦侧边栏列表",
         "hotkey_vault_section_prev" => "上一个保险库区域",
         "hotkey_vault_section_next" => "下一个保险库区域",
         "detecting_shells" => "正在检测终端…",

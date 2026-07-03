@@ -179,6 +179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Activer le panneau de droite",
         "hotkey_focus_pane_up" => "Activer le panneau du haut",
         "hotkey_focus_pane_down" => "Activer le panneau du bas",
+        "hotkey_focus_sidebar_list" => "Focus sur les listes du panneau latéral",
         "hotkey_vault_section_prev" => "Section précédente du coffre",
         "hotkey_vault_section_next" => "Section suivante du coffre",
         "detecting_shells" => "Détection des shells…",
