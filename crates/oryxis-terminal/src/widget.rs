@@ -2119,14 +2119,25 @@ where
                         let revealed = hovered_privacy_extent.as_ref().is_some_and(in_extent)
                             || pinned_extents.iter().any(in_extent);
                         if !revealed {
-                            // Opaque tone blended toward the background so it reads as
-                            // a flat redaction mark (no alpha bleed tinting it teal).
-                            fg = Color {
+                            // Opaque tone blended toward the background, then
+                            // desaturated to neutral grey: keeping the theme hue
+                            // makes the mask mimic legitimate reverse-video
+                            // content (on a teal theme it reads as a highlight
+                            // banner, not a censor mark). Brightness is kept by
+                            // re-encoding the blend's linear luminance to sRGB.
+                            let blend = Color {
                                 r: palette.foreground.r * 0.45 + palette.background.r * 0.55,
                                 g: palette.foreground.g * 0.45 + palette.background.g * 0.55,
                                 b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
                                 a: 1.0,
                             };
+                            let lum = relative_luminance(blend);
+                            let grey = if lum <= 0.003_130_8 {
+                                lum * 12.92
+                            } else {
+                                1.055 * lum.powf(1.0 / 2.4) - 0.055
+                            };
+                            fg = Color { r: grey, g: grey, b: grey, a: 1.0 };
                             mask_bar = true;
                             glyph = ' ';
                         }
