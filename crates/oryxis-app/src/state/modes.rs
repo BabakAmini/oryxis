@@ -18,6 +18,9 @@ pub enum TerminalSidebarTab {
     #[default]
     Chat,
     Snippets,
+    /// Per-host command history (top frequent + recent), captured by the
+    /// OSC 133 / input-mirror pipeline.
+    History,
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,

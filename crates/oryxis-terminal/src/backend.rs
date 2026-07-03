@@ -153,6 +153,10 @@ pub struct TerminalBackend {
     /// Sniffs OSC 7/133/9 out of the byte stream (alacritty doesn't surface
     /// those as events).
     pub osc: crate::osc::OscSniffer,
+    /// OSC 133 shell-integration marks captured by `process`, each stamped
+    /// with the cursor position at the moment the emulator reached the mark.
+    /// Drained by `take_marks`; bounded so an undrained pane can't grow it.
+    marks: Vec<crate::osc::PositionedShellMark>,
 }
 
 impl TerminalBackend {
@@ -175,6 +179,7 @@ impl TerminalBackend {
             rows,
             config,
             osc: crate::osc::OscSniffer::default(),
+            marks: Vec::new(),
         }
     }
 
@@ -194,13 +199,43 @@ impl TerminalBackend {
     pub fn process(&mut self, bytes: &[u8]) {
         // Sniff OSC 7/133/9 before handing the bytes to the emulator (which
         // ignores those OSC numbers); a no-op for the common no-OSC chunk.
-        self.osc.feed(bytes);
+        let events = self.osc.feed(bytes);
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            self.processor.advance(&mut self.term, bytes);
+            if events.is_empty() {
+                self.processor.advance(&mut self.term, bytes);
+                return;
+            }
+            // OSC 133 marks in this batch: advance in mark-aligned segments
+            // so each mark's cursor snapshot is taken exactly where the shell
+            // emitted it. Advancing the whole batch first would sample the
+            // end-of-batch cursor, which lies whenever the batch carries more
+            // output after the mark (right-side prompts, command echo, ...).
+            let mut start = 0;
+            for ev in &events {
+                self.processor.advance(&mut self.term, &bytes[start..ev.offset]);
+                start = ev.offset;
+                let point = self.term.grid().cursor.point;
+                let abs_line =
+                    self.term.grid().history_size() as i64 + i64::from(point.line.0);
+                if self.marks.len() >= 4096 {
+                    self.marks.remove(0);
+                }
+                self.marks.push(crate::osc::PositionedShellMark {
+                    mark: ev.mark,
+                    abs_line,
+                    col: point.column.0 as u16,
+                });
+            }
+            self.processor.advance(&mut self.term, &bytes[start..]);
         }));
         if result.is_err() {
             tracing::error!("Terminal processor panic on {} bytes (ignored)", bytes.len());
         }
+    }
+
+    /// Drain the OSC 133 marks captured since the last call.
+    pub fn take_marks(&mut self) -> Vec<crate::osc::PositionedShellMark> {
+        std::mem::take(&mut self.marks)
     }
 
     /// Deadline at which an open synchronized update (DEC `?2026`) must be

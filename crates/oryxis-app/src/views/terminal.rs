@@ -239,6 +239,12 @@ impl Oryxis {
             t("snippets"),
         ));
         strip.push(sidebar_tab_btn(
+            iced_fonts::lucide::history(),
+            active == STab::History,
+            Message::SelectTerminalSidebarTab(STab::History),
+            t("tab_tip_history"),
+        ));
+        strip.push(sidebar_tab_btn(
             iced_fonts::lucide::cog(),
             active == STab::HostConfig,
             Message::SelectTerminalSidebarTab(STab::HostConfig),
@@ -506,6 +512,7 @@ impl Oryxis {
         let content: Element<'_, Message> = match active {
             STab::Chat => chat_body,
             STab::Snippets => self.snippets_tab_content(),
+            STab::History => self.history_tab_content(),
             STab::HostConfig => self.host_config_tab_content(tab),
         };
         let panel_column = column![header, header_separator, content]

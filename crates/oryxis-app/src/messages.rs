@@ -463,6 +463,8 @@ pub enum Message {
     IdentityCardHovered(usize),
     SnippetCardHovered(usize),
     SnippetCardUnhovered,
+    HistoryCardHovered(usize),
+    HistoryCardUnhovered,
     IdentityCardUnhovered,
     ShowCardMenu(usize),
     #[allow(dead_code)]
@@ -609,6 +611,19 @@ pub enum Message {
     /// then Enter into the terminal (e.g. to answer a sudo prompt). No-op
     /// with a toast when the host has no stored password.
     ApplySudoPassword,
+
+    // Command history (terminal sidebar History tab)
+    /// Re-run a captured command in the active terminal (+ Enter).
+    RunHistoryCommand(Uuid),
+    /// Insert a captured command WITHOUT the trailing newline.
+    PasteHistoryCommand(Uuid),
+    /// Remove one captured command from the host's history.
+    DeleteHistoryCommand(Uuid),
+    /// Filter text for the sidebar History tab's search field (distinct
+    /// from `HistorySearchChanged`, which filters the session-logs view).
+    CmdHistorySearchChanged(String),
+    /// Settings > Terminal: enable/disable command-history capture.
+    ToggleCommandHistory,
 
     // Split panes
     /// Focus a pane (click). Routes keyboard / snippets / paste to it.

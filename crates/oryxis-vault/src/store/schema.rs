@@ -180,6 +180,24 @@ impl VaultStore {
             CREATE INDEX IF NOT EXISTS idx_session_log_chunks_log
                 ON session_log_chunks(log_id);
 
+            -- Per-host command history (terminal sidebar History tab). One
+            -- row per distinct command per host, frequency-counted in place;
+            -- local-only like session logs (no sync, no portable export).
+            -- Command text is deliberately plaintext, mirroring
+            -- snippets.command; anything secret-shaped never reaches this
+            -- table (the capture layer refuses unechoed input and
+            -- mid-command stdin).
+            CREATE TABLE IF NOT EXISTS command_history (
+                id            TEXT PRIMARY KEY,
+                connection_id TEXT NOT NULL,
+                command       TEXT NOT NULL,
+                use_count     INTEGER NOT NULL DEFAULT 1,
+                last_used_at  TEXT NOT NULL,
+                created_at    TEXT NOT NULL
+            );
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_command_history_conn_cmd
+                ON command_history(connection_id, command);
+
             -- Cloud account credentials (AWS profile / SSO / access key,
             -- K8s kubeconfig path, ...). `config` carries the non-secret
             -- JSON payload owned by each provider crate. `secret` is the

@@ -112,6 +112,8 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
             Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::ToggleCommandHistory),
+            Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::ToggleTerminalAutoTitle),

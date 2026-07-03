@@ -180,9 +180,114 @@ impl TerminalState {
         self.backend.osc.progress()
     }
 
-    /// Drain the OSC 133 shell-integration marks captured since the last call.
-    pub fn take_shell_marks(&mut self) -> Vec<crate::osc::ShellMark> {
-        self.backend.osc.take_marks()
+    /// Drain the OSC 133 shell-integration marks captured since the last
+    /// call, each stamped with the cursor position at emission time.
+    pub fn take_shell_marks(&mut self) -> Vec<crate::osc::PositionedShellMark> {
+        self.backend.take_marks()
+    }
+
+    /// True while the alternate screen buffer is active (vim, htop, less...).
+    /// The command-history capture ignores everything typed there.
+    pub fn is_alt_screen(&self) -> bool {
+        use alacritty_terminal::term::TermMode;
+        self.backend.term.mode().contains(TermMode::ALT_SCREEN)
+    }
+
+    /// Text of the logical (wrap-joined) line the cursor sits on, from
+    /// column 0 of its first physical row (prompt included). Used by the
+    /// command-history capture's heuristic path on hosts without OSC 133.
+    /// Returns `None` on the alternate screen.
+    pub fn cursor_logical_line(&self) -> Option<String> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        if self.is_alt_screen() {
+            return None;
+        }
+        let grid = self.backend.term.grid();
+        let cols = grid.columns();
+        let topmost = grid.topmost_line().0;
+        let cursor_line = grid.cursor.point.line.0;
+
+        // Walk up to the first row of the wrapped chain. Bounded so a
+        // pathological full-width wrap chain can't stall the UI thread;
+        // 64 rows of a wide terminal is far beyond any real command line.
+        let mut first = cursor_line;
+        let mut walked = 0;
+        while first > topmost && walked < 64 {
+            let prev = &grid[Line(first - 1)];
+            if !prev[Column(cols - 1)].flags.contains(CellFlags::WRAPLINE) {
+                break;
+            }
+            first -= 1;
+            walked += 1;
+        }
+        Some(self.read_logical_line(first, 0))
+    }
+
+    /// Text of the logical (wrap-joined) line starting at physical row
+    /// `abs_line` (absolute index: `history_size + visible line`, the
+    /// coordinate space of [`crate::osc::PositionedShellMark`]) column
+    /// `start_col`. Returns `None` on the alternate screen or when the row
+    /// has left the addressable grid (scrollback ring saturated and rotated
+    /// past it), so a stale mark can never read unrelated rows. This is how
+    /// the capture reads the command the shell echoed after its OSC 133
+    /// `PromptEnd` mark.
+    pub fn logical_line_from_abs(&self, abs_line: i64, start_col: u16) -> Option<String> {
+        use alacritty_terminal::grid::Dimensions;
+        if self.is_alt_screen() {
+            return None;
+        }
+        let grid = self.backend.term.grid();
+        let rel = abs_line - grid.history_size() as i64;
+        if rel < i64::from(grid.topmost_line().0) || rel > i64::from(grid.bottommost_line().0) {
+            return None;
+        }
+        Some(self.read_logical_line(rel as i32, start_col as usize))
+    }
+
+    /// Join the soft-wrapped chain that starts at physical row `first`
+    /// (grid-relative), reading from `start_col` on that first row and from
+    /// column 0 on continuations. Wide-char spacers are skipped, trailing
+    /// whitespace trimmed. When the result is a single physical row, a run
+    /// of 8+ interior spaces truncates it: that gap is a zsh RPROMPT sitting
+    /// on the right edge of the prompt row, not command text (a real command
+    /// with 8 literal spaces inside is vanishingly rare next to how common
+    /// right prompts are).
+    fn read_logical_line(&self, first: i32, start_col: usize) -> String {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        let grid = self.backend.term.grid();
+        let cols = grid.columns();
+        let mut text = String::new();
+        let mut line = first;
+        let mut rows = 0;
+        loop {
+            let row = &grid[Line(line)];
+            let from = if line == first { start_col.min(cols) } else { 0 };
+            for c in from..cols {
+                let cell = &row[Column(c)];
+                if cell.c != '\0' && !cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                    text.push(cell.c);
+                }
+            }
+            rows += 1;
+            if !row[Column(cols - 1)].flags.contains(CellFlags::WRAPLINE)
+                || line >= grid.bottommost_line().0
+                || rows >= 64
+            {
+                break;
+            }
+            line += 1;
+        }
+        let mut text = text.trim_end().to_string();
+        if rows == 1
+            && let Some(gap) = text.find("        ")
+        {
+            text.truncate(gap);
+        }
+        text
     }
 
     /// True when the focused application has enabled application cursor keys

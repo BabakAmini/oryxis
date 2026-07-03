@@ -633,6 +633,12 @@ impl Oryxis {
                     self.active_tab = Some(idx);
                     self.remember_terminal_tab_focus(idx);
                     self.active_view = View::Terminal;
+                    // The History tab is per-host; follow the tab switch.
+                    if self.terminal_sidebar_tab
+                        == crate::state::TerminalSidebarTab::History
+                    {
+                        self.refresh_command_history();
+                    }
                     return Ok(self.tab_scroll_to_active());
                 }
             }

@@ -238,6 +238,10 @@ impl Oryxis {
                 hovered_key_card: None,
                 hovered_identity_card: None,
                 hovered_snippet_card: None,
+                hovered_history_card: None,
+                command_history: Vec::new(),
+                command_history_host: None,
+                cmd_history_search: String::new(),
                 snippet_context_menu: None,
                 card_context_menu: None,
                 overlay: None,
@@ -414,6 +418,7 @@ impl Oryxis {
                 setting_right_click_copy: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
+                setting_command_history: true,
                 setting_performance_mode: false,
                 setting_perf_overlay: false,
                 pending_perf_mode_toast: false,
@@ -931,6 +936,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.setting_keyword_highlight = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("command_history") {
+                self.setting_command_history = v == "true";
             }
             // Performance mode. An explicit stored choice always wins. When
             // the key is absent (first boot on this machine) and the render

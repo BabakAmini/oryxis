@@ -23,6 +23,30 @@ pub(crate) enum PaneOrigin {
     Ephemeral,
 }
 
+/// Where a pane's remote shell stands in the OSC 133 prompt cycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PromptState {
+    /// No OSC 133 mark seen yet: the host has no shell integration and the
+    /// command-history capture falls back to the echo heuristic.
+    NoIntegration,
+    /// `PromptEnd` (B) seen: the shell is reading a command line that starts
+    /// at `col` of absolute grid row `abs_line`.
+    AtPrompt { abs_line: i64, col: u16 },
+    /// A command is running or the prompt is being redrawn; input is a
+    /// program's stdin and must never be recorded.
+    Busy,
+}
+
+/// A command submitted while `AtPrompt` whose echo had not reached the grid
+/// yet (a paste with a trailing newline arrives before the round trip). The
+/// echoed line is read back from these coordinates when `OutputStart`
+/// confirms the shell accepted a command.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PendingCapture {
+    pub b_abs: i64,
+    pub b_col: u16,
+}
+
 /// One terminal pane, owns its alacritty grid and (optionally) the SSH
 /// session feeding it. A `TerminalTab` holds one or more panes in a
 /// `pane_grid::State`, which owns their split layout.
@@ -69,12 +93,19 @@ pub(crate) struct Pane {
     /// Working directory the shell last reported via OSC 7. Used so a new
     /// local shell can open in the focused pane's directory.
     pub cwd: Option<String>,
-    /// OSC 133 shell-integration marks captured for this pane (bounded ring).
-    /// Groundwork for the planned command-history feature; nothing reads it
-    /// yet, hence the allow, the value is the captured command boundaries
-    /// waiting for a consumer.
-    #[allow(dead_code)]
-    pub shell_marks: Vec<oryxis_terminal::ShellMark>,
+    /// Where the remote shell stands in the OSC 133 prompt cycle, driven by
+    /// the marks drained per output batch. Gates the command-history capture:
+    /// only input submitted while `AtPrompt` can be a command; everything
+    /// else is a running program's stdin (sudo passwords, editor keystrokes)
+    /// and is never recorded.
+    pub prompt: PromptState,
+    /// Mirror of the remote line editor, fed with every byte of user input
+    /// so the capture knows what was on the command line at Enter.
+    pub input_tracker: oryxis_terminal::InputTracker,
+    /// A command submitted at the prompt whose echo had not reached the grid
+    /// yet (paste with a trailing newline). Resolved when `OutputStart`
+    /// arrives, at which point the echoed line is read back from the grid.
+    pub pending_capture: Option<PendingCapture>,
     /// Latest OSC 9;4 progress the shell reported, drawn as a growing border
     /// around the tab. `None` (or state 0) means no active progress.
     pub progress: Option<oryxis_terminal::Progress>,
@@ -152,7 +183,9 @@ impl Pane {
             osc_title: None,
             bell_flash: false,
             cwd: None,
-            shell_marks: Vec::new(),
+            prompt: PromptState::NoIntegration,
+            input_tracker: oryxis_terminal::InputTracker::new(),
+            pending_capture: None,
             progress: None,
             mouse_hint_shown: false,
             link_hint_shown: false,

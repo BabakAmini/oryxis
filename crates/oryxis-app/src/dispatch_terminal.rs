@@ -114,9 +114,10 @@ impl Oryxis {
     /// local PTY. Shared by the clipboard (right-click / Ctrl+Shift+V)
     /// paste paths and the careful-paste confirmation.
     pub(crate) fn write_paste_to_active(&mut self, text: &str) {
-        if let Some(tab_idx) = self.active_tab
-            && let Some(tab) = self.tabs.get(tab_idx)
-        {
+        if let Some(tab_idx) = self.active_tab {
+            let Some(tab) = self.tabs.get(tab_idx) else {
+                return;
+            };
             let bracketed = tab
                 .active()
                 .terminal
@@ -124,11 +125,7 @@ impl Oryxis {
                 .map(|s| s.bracketed_paste_enabled())
                 .unwrap_or(false);
             let payload = oryxis_terminal::wrap_paste(text, bracketed);
-            if let Some(ref ssh) = tab.active().ssh_session {
-                let _ = ssh.write(&payload);
-            } else if let Ok(mut state) = tab.active().terminal.lock() {
-                state.write(&payload);
-            }
+            self.write_input_to_tab(tab_idx, &payload);
         }
     }
 
@@ -154,6 +151,10 @@ impl Oryxis {
                     && let Some(tab) = self.tabs.get_mut(tab_idx)
                 {
                     tab.focused = pane;
+                }
+                // The History tab is per-host; follow the focused pane.
+                if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
+                    self.refresh_command_history();
                 }
             }
             Message::ResizePane(ev) => {
@@ -240,6 +241,8 @@ impl Oryxis {
                 let win_focused = self.window_focused;
                 let mut flash_pane: Option<uuid::Uuid> = None;
                 let mut pending_notification: Option<String> = None;
+                let capture_enabled = self.setting_command_history;
+                let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
                 if let Some(pane) = self
                     .tabs
                     .iter_mut()
@@ -250,7 +253,6 @@ impl Oryxis {
                     let mut new_title = None;
                     let mut bell_rang = false;
                     let mut new_cwd = None;
-                    let mut new_marks = Vec::new();
                     let mut new_notification = None;
                     let mut new_progress = None;
                     if let Ok(mut state) = pane.terminal.lock() {
@@ -263,10 +265,27 @@ impl Oryxis {
                         // the auto-title setting only gates display.
                         new_title = state.take_title();
                         bell_rang = state.take_bell();
-                        // OSC 7 working directory + OSC 133 shell-integration
-                        // marks (the latter stored as command-history groundwork).
+                        // OSC 7 working directory.
                         new_cwd = state.take_cwd();
-                        new_marks = state.take_shell_marks();
+                        // OSC 133 shell-integration marks drive the pane's
+                        // prompt state (the command-history capture gate) and
+                        // resolve captures deferred until the echo arrived.
+                        // Applied inside the lock: the marks' grid positions
+                        // refer to rows this very batch drew.
+                        let new_marks = state.take_shell_marks();
+                        if !new_marks.is_empty() {
+                            let cmds = crate::command_capture::observe_output_marks(
+                                &mut pane.prompt,
+                                &mut pane.pending_capture,
+                                &state,
+                                &new_marks,
+                            );
+                            if capture_enabled
+                                && let crate::state::PaneOrigin::Host(hid) = &pane.origin
+                            {
+                                captured_cmds.extend(cmds.into_iter().map(|c| (*hid, c)));
+                            }
+                        }
                         // OSC 9 notification text + OSC 9;4 progress.
                         new_notification = state.take_notification();
                         new_progress = state.progress();
@@ -276,13 +295,6 @@ impl Oryxis {
                     pending_notification = new_notification;
                     if let Some(cwd) = new_cwd {
                         pane.cwd = Some(cwd);
-                    }
-                    if !new_marks.is_empty() {
-                        pane.shell_marks.extend(new_marks);
-                        let len = pane.shell_marks.len();
-                        if len > 256 {
-                            pane.shell_marks.drain(0..len - 256);
-                        }
                     }
                     if let Some(title) = new_title {
                         // Stored raw: when auto-title is on it's opt-in emulator
@@ -324,6 +336,9 @@ impl Oryxis {
                         over_threshold =
                             pane.session_log_buf.len() >= SESSION_LOG_FLUSH_BYTES;
                     }
+                }
+                for (host, cmd) in captured_cmds {
+                    self.record_command_history(host, cmd);
                 }
                 if over_threshold {
                     self.flush_session_logs();
@@ -497,14 +512,8 @@ impl Oryxis {
             // routing as keystrokes; without this the widget's local-PTY
             // fallback would never reach the remote session.
             Message::TerminalInput(bytes) => {
-                if let Some(tab_idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get(tab_idx)
-                {
-                    if let Some(ref ssh) = tab.active().ssh_session {
-                        let _ = ssh.write(&bytes);
-                    } else if let Ok(mut state) = tab.active().terminal.lock() {
-                        state.write(&bytes);
-                    }
+                if let Some(tab_idx) = self.active_tab {
+                    self.write_input_to_tab(tab_idx, &bytes);
                 }
             }
             Message::TerminalMouseCaptureHint => {
@@ -766,13 +775,7 @@ impl Oryxis {
                                     // Don't fall through to the normal key handler
                                 } else if c.as_str().eq_ignore_ascii_case("c") {
                                     // Ctrl+C → send interrupt (byte 3)
-                                    if let Some(tab) = self.tabs.get(tab_idx) {
-                                        if let Some(ref ssh) = tab.active().ssh_session {
-                                            let _ = ssh.write(&[3]);
-                                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                                            state.write(&[3]);
-                                        }
-                                    }
+                                    self.write_input_to_tab(tab_idx, &[3]);
                                 } else if c.as_str().eq_ignore_ascii_case("d")
                                     && self
                                         .tabs
@@ -788,23 +791,11 @@ impl Oryxis {
                                     return Ok(self.update(Message::CloseTab(tab_idx)));
                                 } else if let Some(bytes) = ctrl_key_bytes(&key) {
                                     // Other Ctrl+key combinations
-                                    if let Some(tab) = self.tabs.get(tab_idx) {
-                                        if let Some(ref ssh) = tab.active().ssh_session {
-                                            let _ = ssh.write(&bytes);
-                                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                                            state.write(&bytes);
-                                        }
-                                    }
+                                    self.write_input_to_tab(tab_idx, &bytes);
                                 }
                             } else if let Some(bytes) = key_to_named_bytes(&key, &modifiers, app_cursor) {
                                 // Ctrl + named key (e.g. Ctrl+Home)
-                                if let Some(tab) = self.tabs.get(tab_idx) {
-                                    if let Some(ref ssh) = tab.active().ssh_session {
-                                        let _ = ssh.write(&bytes);
-                                    } else if let Ok(mut state) = tab.active().terminal.lock() {
-                                        state.write(&bytes);
-                                    }
-                                }
+                                self.write_input_to_tab(tab_idx, &bytes);
                             }
                         } else if modifiers.shift() && modifiers.control() {
                             // Ctrl+Shift+V → paste from clipboard into SSH or local PTY.
@@ -858,13 +849,8 @@ impl Oryxis {
 
                             if let Some(bytes) = bytes
                                 && !bytes.is_empty()
-                                && let Some(tab) = self.tabs.get(tab_idx)
                             {
-                                if let Some(ref ssh) = tab.active().ssh_session {
-                                    let _ = ssh.write(&bytes);
-                                } else if let Ok(mut state) = tab.active().terminal.lock() {
-                                    state.write(&bytes);
-                                }
+                                self.write_input_to_tab(tab_idx, &bytes);
                             }
                         }
                     }
@@ -896,14 +882,9 @@ impl Oryxis {
                 }
                 if let Some(tab_idx) = self.active_tab
                     && self.connecting.is_none()
-                    && let Some(tab) = self.tabs.get(tab_idx)
                 {
                     let bytes = text.into_bytes();
-                    if let Some(ref ssh) = tab.active().ssh_session {
-                        let _ = ssh.write(&bytes);
-                    } else if let Ok(mut state) = tab.active().terminal.lock() {
-                        state.write(&bytes);
-                    }
+                    self.write_input_to_tab(tab_idx, &bytes);
                 }
             }
             m => return Err(m),

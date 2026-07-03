@@ -25,6 +25,7 @@ fn unlocked_vault() -> VaultStore {
 }
 
 mod cloud;
+mod command_history;
 mod connections;
 mod core_crypto;
 mod forwarding;

@@ -121,11 +121,7 @@ impl Oryxis {
                             .unwrap_or(false);
                         let mut payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
                         payload.push(b'\n');
-                        if let Some(ref ssh) = tab.active().ssh_session {
-                            let _ = ssh.write(&payload);
-                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                            state.write(&payload);
-                        }
+                        self.write_input_to_tab(tab_idx, &payload);
                     }
                 }
             }
@@ -184,11 +180,7 @@ impl Oryxis {
                             .map(|s| s.bracketed_paste_enabled())
                             .unwrap_or(false);
                         let payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
-                        if let Some(ref ssh) = tab.active().ssh_session {
-                            let _ = ssh.write(&payload);
-                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                            state.write(&payload);
-                        }
+                        self.write_input_to_tab(tab_idx, &payload);
                     }
                 }
             }

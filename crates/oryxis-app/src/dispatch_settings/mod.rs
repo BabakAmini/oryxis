@@ -835,6 +835,13 @@ impl Oryxis {
                     if self.setting_keyword_highlight { "true" } else { "false" },
                 );
             }
+            Message::ToggleCommandHistory => {
+                self.setting_command_history = !self.setting_command_history;
+                self.persist_setting(
+                    "command_history",
+                    if self.setting_command_history { "true" } else { "false" },
+                );
+            }
             Message::SettingTogglePerformanceMode => {
                 self.setting_performance_mode = !self.setting_performance_mode;
                 self.persist_setting(

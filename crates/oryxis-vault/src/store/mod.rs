@@ -90,6 +90,20 @@ pub struct SessionLogEntry {
     pub data_size: usize,
 }
 
+// ---------------------------------------------------------------------------
+// Command history entry (terminal sidebar History tab)
+// ---------------------------------------------------------------------------
+
+/// One distinct command executed on a host, frequency-counted.
+#[derive(Debug, Clone)]
+pub struct CommandHistoryEntry {
+    pub id: Uuid,
+    pub connection_id: Uuid,
+    pub command: String,
+    pub use_count: i64,
+    pub last_used_at: DateTime<Utc>,
+}
+
 /// Row from the sync_peers table.
 #[derive(Debug, Clone)]
 pub struct SyncPeerRow {
@@ -259,6 +273,7 @@ pub struct VaultStore {
 
 
 mod cloud;
+mod command_history;
 mod connections;
 mod forwarding;
 mod groups;

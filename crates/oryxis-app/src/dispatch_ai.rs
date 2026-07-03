@@ -463,6 +463,9 @@ impl Oryxis {
             }
             Message::SelectTerminalSidebarTab(tab) => {
                 self.terminal_sidebar_tab = tab;
+                if tab == crate::state::TerminalSidebarTab::History {
+                    self.refresh_command_history();
+                }
             }
             Message::SidebarSnippetSearchChanged(v) => {
                 self.sidebar_snippet_search = v;
@@ -1029,6 +1032,12 @@ impl Oryxis {
                         false
                     }
                 };
+                if write_ok {
+                    // AI-run commands are commands executed on the host:
+                    // mirror them into the history capture like any other
+                    // input (the direct write above preserves `write_ok`).
+                    self.feed_input_capture(idx, &bytes);
+                }
 
                 let tab = &mut self.tabs[idx];
                 // Record this execution against the per-turn loop guard. A

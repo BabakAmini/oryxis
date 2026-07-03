@@ -9,8 +9,10 @@
 //! scanner is resumable: an OSC split across two `feed` calls is reassembled.
 
 /// A shell-integration mark (OSC 133, the FinalTerm semantic-prompt protocol).
-/// Captured as groundwork for a future command-history feature; nothing
-/// consumes them yet beyond being stored per pane.
+/// Consumed by the command-history capture: `PromptEnd` tells the app the
+/// shell is reading a command line (and at which column it starts), and
+/// `OutputStart` / `CommandEnd` tell it any further input is a running
+/// program's stdin (passwords, editor keystrokes) and must not be recorded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShellMark {
     /// `OSC 133 ; A` prompt start.
@@ -22,6 +24,30 @@ pub enum ShellMark {
     /// `OSC 133 ; D` command finished, with the exit code when the shell
     /// reports one (`D;<code>`).
     CommandEnd(Option<i32>),
+}
+
+/// A [`ShellMark`] paired with the byte offset (into the `feed` slice) just
+/// past its terminator. The backend uses the offset to advance the emulator
+/// in segments and snapshot the cursor exactly where the mark was emitted,
+/// which is what makes the recorded prompt column trustworthy even when the
+/// same batch carries more output after the mark (right-side prompts,
+/// command echo, ...).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MarkEvent {
+    pub offset: usize,
+    pub mark: ShellMark,
+}
+
+/// A [`ShellMark`] stamped with the grid position the cursor held when the
+/// mark was processed: `abs_line` is `history_size + visible line` (an
+/// absolute row index that survives scrolling until the scrollback ring
+/// saturates) and `col` is the cursor column. For `PromptEnd` that column is
+/// where the user's command text begins.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PositionedShellMark {
+    pub mark: ShellMark,
+    pub abs_line: i64,
+    pub col: u16,
 }
 
 /// OSC 9;4 progress report (ConEmu / Windows Terminal). `state`: 0 = clear,
@@ -55,14 +81,18 @@ pub struct OscSniffer {
     cwd: Option<String>,
     notification: Option<String>,
     progress: Option<Progress>,
-    marks: Vec<ShellMark>,
 }
 
 impl OscSniffer {
-    /// Feed a chunk of PTY bytes. Extracts any complete OSC 7/133/9 sequences
-    /// into the pending fields, drained by the `take_*` accessors.
-    pub fn feed(&mut self, bytes: &[u8]) {
-        for &b in bytes {
+    /// Feed a chunk of PTY bytes. Extracts any complete OSC 7/9 sequences
+    /// into the pending fields, drained by the `take_*` accessors, and
+    /// returns the OSC 133 shell-integration marks found in this chunk with
+    /// the byte offset just past each terminator (empty for the common
+    /// no-mark chunk). A mark split across two `feed` calls completes in the
+    /// later call and reports its offset within that call's slice.
+    pub fn feed(&mut self, bytes: &[u8]) -> Vec<MarkEvent> {
+        let mut marks: Vec<MarkEvent> = Vec::new();
+        for (i, &b) in bytes.iter().enumerate() {
             match self.scan {
                 Scan::Normal => {
                     if b == 0x1b {
@@ -80,7 +110,9 @@ impl OscSniffer {
                 Scan::Osc => match b {
                     0x07 => {
                         // BEL terminator
-                        self.finish();
+                        if let Some(mark) = self.finish() {
+                            marks.push(MarkEvent { offset: i + 1, mark });
+                        }
                         self.scan = Scan::Normal;
                     }
                     0x1b => self.scan = Scan::OscEsc,
@@ -97,7 +129,9 @@ impl OscSniffer {
                 Scan::OscEsc => match b {
                     b'\\' => {
                         // ST terminator (ESC \)
-                        self.finish();
+                        if let Some(mark) = self.finish() {
+                            marks.push(MarkEvent { offset: i + 1, mark });
+                        }
                         self.scan = Scan::Normal;
                     }
                     0x1b => {} // another ESC, keep waiting for the backslash
@@ -110,13 +144,16 @@ impl OscSniffer {
                 },
             }
         }
+        marks
     }
 
-    /// Parse a completed OSC payload (`buf`) and route it.
-    fn finish(&mut self) {
+    /// Parse a completed OSC payload (`buf`) and route it. OSC 133 marks are
+    /// returned to `feed` (which stamps their byte offset); the rest land in
+    /// the pending fields.
+    fn finish(&mut self) -> Option<ShellMark> {
         let content = std::mem::take(&mut self.buf);
         let Ok(s) = std::str::from_utf8(&content) else {
-            return;
+            return None;
         };
         let (num, rest) = s.split_once(';').unwrap_or((s, ""));
         match num {
@@ -125,15 +162,7 @@ impl OscSniffer {
                     self.cwd = Some(path);
                 }
             }
-            "133" => {
-                if let Some(mark) = parse_osc133(rest) {
-                    // Bound the buffer; a future history reader drains it.
-                    if self.marks.len() >= 4096 {
-                        self.marks.remove(0);
-                    }
-                    self.marks.push(mark);
-                }
-            }
+            "133" => return parse_osc133(rest),
             "9" => {
                 if let Some(p) = rest.strip_prefix("4;") {
                     if let Some(progress) = parse_progress(p) {
@@ -145,6 +174,7 @@ impl OscSniffer {
             }
             _ => {}
         }
+        None
     }
 
     pub fn take_cwd(&mut self) -> Option<String> {
@@ -157,10 +187,6 @@ impl OscSniffer {
 
     pub fn progress(&self) -> Option<Progress> {
         self.progress
-    }
-
-    pub fn take_marks(&mut self) -> Vec<ShellMark> {
-        std::mem::take(&mut self.marks)
     }
 }
 
@@ -236,7 +262,7 @@ mod tests {
 
     fn sniff(input: &[u8]) -> OscSniffer {
         let mut s = OscSniffer::default();
-        s.feed(input);
+        let _ = s.feed(input);
         s
     }
 
@@ -253,16 +279,18 @@ mod tests {
     #[test]
     fn osc_split_across_feeds_is_reassembled() {
         let mut s = OscSniffer::default();
-        s.feed(b"\x1b]7;file://h/ho");
-        s.feed(b"me/w\x07");
+        let _ = s.feed(b"\x1b]7;file://h/ho");
+        let _ = s.feed(b"me/w\x07");
         assert_eq!(s.take_cwd().as_deref(), Some("/home/w"));
     }
 
     #[test]
-    fn osc133_marks() {
-        let mut s = sniff(b"\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07\x1b]133;D;7\x07");
+    fn osc133_marks_with_offsets() {
+        let mut s = OscSniffer::default();
+        let input: &[u8] = b"\x1b]133;A\x07\x1b]133;B\x07\x1b]133;C\x07\x1b]133;D;7\x07";
+        let events = s.feed(input);
         assert_eq!(
-            s.take_marks(),
+            events.iter().map(|e| e.mark).collect::<Vec<_>>(),
             vec![
                 ShellMark::PromptStart,
                 ShellMark::PromptEnd,
@@ -270,6 +298,23 @@ mod tests {
                 ShellMark::CommandEnd(Some(7)),
             ]
         );
+        // Offsets point just past each BEL terminator, so slicing the input
+        // at them replays the stream in mark-aligned segments.
+        assert_eq!(
+            events.iter().map(|e| e.offset).collect::<Vec<_>>(),
+            vec![8, 16, 24, 34]
+        );
+        assert_eq!(input.len(), 34);
+    }
+
+    #[test]
+    fn osc133_mark_split_across_feeds_reports_offset_in_second_slice() {
+        let mut s = OscSniffer::default();
+        assert!(s.feed(b"prompt\x1b]133;").is_empty());
+        let events = s.feed(b"B\x07tail");
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].mark, ShellMark::PromptEnd);
+        assert_eq!(events[0].offset, 2); // just past the BEL in this slice
     }
 
     #[test]
@@ -286,10 +331,11 @@ mod tests {
     #[test]
     fn unrelated_osc_and_text_ignored() {
         // OSC 0 (title, alacritty's job) and plain text leave no signals.
-        let mut s = sniff(b"hello \x1b]0;a title\x07 world");
+        let mut s = OscSniffer::default();
+        let events = s.feed(b"hello \x1b]0;a title\x07 world");
+        assert!(events.is_empty());
         assert!(s.take_cwd().is_none());
         assert!(s.take_notification().is_none());
         assert!(s.progress().is_none());
-        assert!(s.take_marks().is_empty());
     }
 }

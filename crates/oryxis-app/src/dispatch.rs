@@ -154,6 +154,7 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_session_group);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
+        let message = try_handler!(self, message, handle_command_history);
         let message = try_handler!(self, message, handle_share);
         let message = try_handler!(self, message, handle_known_hosts);
         let message = try_handler!(self, message, handle_tray);

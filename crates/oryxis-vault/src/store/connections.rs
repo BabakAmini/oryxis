@@ -431,6 +431,11 @@ impl VaultStore {
         for rid in orphan_rules {
             self.delete_port_forward_rule(&rid)?;
         }
+        // Command history is local-only and meaningless without its host;
+        // dropping it here is also the privacy-correct behavior (deleting a
+        // host must not leave its command trail behind). No tombstone: the
+        // table never syncs.
+        self.clear_command_history(id)?;
         Ok(())
     }
 

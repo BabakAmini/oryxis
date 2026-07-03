@@ -1,0 +1,240 @@
+//! History sidebar tab: the focused host's captured command history, a
+//! "Frequent" top-3 shortlist over a most-recent list, with the same
+//! hover-revealed floating row actions as the Snippets tab (Paste / Run /
+//! Delete). Rows re-insert like snippets: click = paste without Enter.
+
+use iced::border::Radius;
+use iced::widget::{column, container, text, MouseArea, Space};
+use iced::{Background, Border, Element, Length, Padding};
+
+use super::terminal::chat_header_btn;
+use crate::app::{Message, Oryxis};
+use crate::i18n::t;
+use crate::theme::OryxisColors;
+use crate::widgets::dir_row;
+
+/// Frequency floor for the "Frequent" shortlist: a command used once is
+/// recent, not frequent.
+const FREQUENT_MIN_USES: i64 = 2;
+
+impl Oryxis {
+    pub(crate) fn history_tab_content(&self) -> Element<'_, Message> {
+        // No saved host focused: nothing to key history on.
+        if self.command_history_host.is_none() {
+            return sidebar_placeholder(t("history_unavailable"));
+        }
+        if self.command_history.is_empty() {
+            return sidebar_placeholder(t("history_empty"));
+        }
+
+        let search = iced::widget::text_input(t("search"), &self.cmd_history_search)
+            .on_input(Message::CmdHistorySearchChanged)
+            .padding(8)
+            .size(13)
+            .style(crate::widgets::rounded_input_style);
+        let header = container(search)
+            .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 })
+            .width(Length::Fill);
+
+        let needle = self.cmd_history_search.to_lowercase();
+        let mut list = column![]
+            .spacing(6)
+            .padding(Padding { top: 0.0, right: 12.0, bottom: 12.0, left: 12.0 });
+
+        // `hovered_history_card` indexes display positions (frequent rows
+        // first, then recent), so each rendered row gets a unique index
+        // even though frequent entries also appear in the recent list.
+        let mut pos = 0usize;
+
+        // Frequent shortlist: top 3 by use count. Hidden while searching,
+        // the search results below are the whole answer then.
+        if needle.is_empty() {
+            let mut frequent: Vec<&oryxis_vault::CommandHistoryEntry> = self
+                .command_history
+                .iter()
+                .filter(|e| e.use_count >= FREQUENT_MIN_USES)
+                .collect();
+            frequent.sort_by(|a, b| {
+                b.use_count
+                    .cmp(&a.use_count)
+                    .then(b.last_used_at.cmp(&a.last_used_at))
+            });
+            if !frequent.is_empty() {
+                list = list.push(section_label(t("history_frequent")));
+                for entry in frequent.into_iter().take(3) {
+                    list = list.push(history_row(
+                        entry,
+                        pos,
+                        self.hovered_history_card == Some(pos),
+                    ));
+                    pos += 1;
+                }
+                list = list.push(section_label(t("history_recent")));
+            }
+        }
+
+        let mut any = false;
+        for entry in &self.command_history {
+            if !needle.is_empty() && !entry.command.to_lowercase().contains(&needle) {
+                continue;
+            }
+            any = true;
+            list = list.push(history_row(
+                entry,
+                pos,
+                self.hovered_history_card == Some(pos),
+            ));
+            pos += 1;
+        }
+        if !any {
+            list = list.push(sidebar_placeholder(t("no_matches")));
+        }
+
+        let body = iced::widget::scrollable(list)
+            .width(Length::Fill)
+            .height(Length::Fill);
+        column![header, body]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+}
+
+/// Muted section caption ("Frequent" / "Recent").
+fn section_label(label: &str) -> Element<'_, Message> {
+    container(
+        text(label)
+            .size(11)
+            .font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            })
+            .color(OryxisColors::t().text_muted),
+    )
+    .padding(Padding { top: 4.0, right: 0.0, bottom: 2.0, left: 2.0 })
+    .into()
+}
+
+/// Centered muted text for an empty History tab state.
+fn sidebar_placeholder(label: &str) -> Element<'_, Message> {
+    container(text(label).size(12).color(OryxisColors::t().text_muted))
+        .center_x(Length::Fill)
+        .padding(Padding { top: 40.0, right: 12.0, bottom: 0.0, left: 12.0 })
+        .width(Length::Fill)
+        .into()
+}
+
+/// An icon action with a tooltip (same chrome as the snippet-row actions).
+fn action_btn<'a>(
+    icon: iced::widget::Text<'a>,
+    msg: Message,
+    tip: &'a str,
+) -> Element<'a, Message> {
+    iced::widget::tooltip(
+        chat_header_btn(icon, msg),
+        container(text(tip).size(11).color(OryxisColors::t().text_primary))
+            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }),
+        iced::widget::tooltip::Position::Top,
+    )
+    .into()
+}
+
+/// One history row: the command (first line, ellipsized) with a muted use
+/// count, floating Paste / Run / Delete actions on hover, and click-to-paste
+/// on the row itself (the snippet re-insert convention).
+fn history_row<'a>(
+    entry: &'a oryxis_vault::CommandHistoryEntry,
+    pos: usize,
+    hovered: bool,
+) -> Element<'a, Message> {
+    let c = OryxisColors::t();
+    let first = entry.command.lines().next().unwrap_or("");
+    let multiline = entry.command.lines().nth(1).is_some();
+    let preview: String = {
+        let head: String = first.chars().take(48).collect();
+        if multiline || first.chars().count() > 48 {
+            format!("{head}…")
+        } else {
+            head
+        }
+    };
+    let mut info_row: Vec<Element<'a, Message>> = vec![
+        text(preview)
+            .size(12)
+            .font(iced::Font::MONOSPACE)
+            .color(c.text_primary)
+            .width(Length::Fill)
+            .into(),
+    ];
+    if entry.use_count > 1 {
+        info_row.push(Space::new().width(6).into());
+        info_row.push(
+            text(format!("\u{00d7}{}", entry.use_count))
+                .size(11)
+                .color(c.text_muted)
+                .into(),
+        );
+    }
+    let card = container(dir_row(info_row).align_y(iced::Alignment::Center))
+        .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+        .width(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            ..Default::default()
+        });
+
+    let row_el: Element<'a, Message> = if hovered {
+        let actions = container(
+            dir_row(vec![
+                action_btn(
+                    iced_fonts::lucide::clipboard_copy(),
+                    Message::PasteHistoryCommand(entry.id),
+                    t("snippet_paste"),
+                ),
+                action_btn(
+                    iced_fonts::lucide::play(),
+                    Message::RunHistoryCommand(entry.id),
+                    t("snippet_run"),
+                ),
+                action_btn(
+                    iced_fonts::lucide::trash(),
+                    Message::DeleteHistoryCommand(entry.id),
+                    t("delete"),
+                ),
+            ])
+            .spacing(2)
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 3.0, right: 5.0, bottom: 3.0, left: 5.0 })
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_selected)),
+            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            ..Default::default()
+        });
+        let overlay = container(actions)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Center)
+            .padding(Padding { top: 0.0, right: 6.0, bottom: 0.0, left: 0.0 });
+        iced::widget::Stack::new().push(card).push(overlay).into()
+    } else {
+        card.into()
+    };
+
+    MouseArea::new(row_el)
+        .on_enter(Message::HistoryCardHovered(pos))
+        .on_exit(Message::HistoryCardUnhovered)
+        .on_press(Message::PasteHistoryCommand(entry.id))
+        .into()
+}

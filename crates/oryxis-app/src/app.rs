@@ -348,6 +348,17 @@ pub struct Oryxis {
     /// hover-only-dots UX as host cards.
     pub(crate) hovered_key_card: Option<usize>,
     pub(crate) hovered_identity_card: Option<usize>,
+    /// Hovered row in the terminal-sidebar History tab (floating actions).
+    pub(crate) hovered_history_card: Option<usize>,
+    /// Loaded command history for `command_history_host`, most recent
+    /// first (the History tab derives its "frequent" shortlist from this).
+    pub(crate) command_history: Vec<oryxis_vault::CommandHistoryEntry>,
+    /// Which saved host `command_history` was loaded for (`None` when the
+    /// focused pane isn't a saved host).
+    pub(crate) command_history_host: Option<Uuid>,
+    /// Filter text of the sidebar History tab's search field (distinct
+    /// from `history_search`, which filters the session-logs view).
+    pub(crate) cmd_history_search: String,
     pub(crate) hovered_snippet_card: Option<usize>,
     /// Snippet card whose `⋮` context menu (Edit / Delete) is open;
     /// keeps the kebab visible while the popup is up, mirroring
@@ -803,6 +814,10 @@ pub struct Oryxis {
     /// copies on right-click instead of on release. Ignored when
     /// `setting_copy_on_select` is off.
     pub(crate) setting_right_click_copy: bool,
+    /// Command-history capture (default on): record commands executed on
+    /// saved hosts into the vault's `command_history` table, surfaced in
+    /// the terminal sidebar's History tab. Persisted as `command_history`.
+    pub(crate) setting_command_history: bool,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
