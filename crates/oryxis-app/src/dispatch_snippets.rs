@@ -121,7 +121,9 @@ impl Oryxis {
                             .unwrap_or(false);
                         let mut payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
                         payload.push(b'\n');
-                        self.write_input_to_tab(tab_idx, &payload);
+                        // Ring-preserving: may be fired by the sidebar ring's
+                        // Shift+Enter, which must survive its own action.
+                        self.write_ring_injection_to_tab(tab_idx, &payload);
                     }
                 }
             }
@@ -180,7 +182,9 @@ impl Oryxis {
                             .map(|s| s.bracketed_paste_enabled())
                             .unwrap_or(false);
                         let payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
-                        self.write_input_to_tab(tab_idx, &payload);
+                        // Ring-preserving: may be fired by the sidebar ring's
+                        // Enter, which must survive its own action.
+                        self.write_ring_injection_to_tab(tab_idx, &payload);
                     }
                 }
             }

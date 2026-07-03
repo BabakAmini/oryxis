@@ -49,6 +49,19 @@ impl Oryxis {
     /// the sudo-password autofill, which writes directly so a secret never
     /// touches the capture's line mirror.
     pub(crate) fn write_input_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
+        // Typing into the terminal DISENGAGES the sidebar keynav ring: the
+        // user has moved on, and a lingering ring would keep consuming
+        // Enter (live-QA bug: Enter appeared dead on an SSH tab because a
+        // forgotten ring from a Ctrl+Shift+H test was swallowing it).
+        // Sidebar-originated injections use the `_ring_injection_` variant
+        // below, which keeps the ring so arrow-Enter-arrow-Enter works.
+        self.keynav.sidebar_selected = None;
+        self.write_ring_injection_to_tab(tab_idx, bytes);
+    }
+
+    /// [`Self::write_input_to_tab`] without the ring disengage, for
+    /// injections the sidebar itself fires (row Paste / Run actions).
+    pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             let pane = tab.active_mut();
             if let Some(ref ssh) = pane.ssh_session {
@@ -148,6 +161,8 @@ impl Oryxis {
         if run {
             payload.push(b'\n');
         }
-        self.write_input_to_tab(tab_idx, &payload);
+        // Ring-preserving: Enter on a ringed row must not drop the ring,
+        // so the user can arrow to the next command and Enter again.
+        self.write_ring_injection_to_tab(tab_idx, &payload);
     }
 }

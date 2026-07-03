@@ -459,6 +459,9 @@ impl Oryxis {
                 // doesn't keep executing commands in the background.
                 if closing {
                     self.abort_active_chat_task();
+                    // A closed sidebar can't keep a keynav ring: it would
+                    // silently swallow Enter/arrows meant for the terminal.
+                    self.keynav.sidebar_selected = None;
                 }
             }
             Message::SelectTerminalSidebarTab(tab) => {

@@ -152,6 +152,9 @@ impl Oryxis {
                 {
                     tab.focused = pane;
                 }
+                // Clicking a terminal pane takes the keyboard back from the
+                // sidebar ring (see write_input_to_tab for the rationale).
+                self.keynav.sidebar_selected = None;
                 // The History tab is per-host; follow the focused pane.
                 if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();

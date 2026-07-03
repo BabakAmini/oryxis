@@ -87,15 +87,17 @@ impl Oryxis {
         // Built-in "global snippet": type the host's stored password +
         // Enter (e.g. to answer a sudo prompt). Shown only for a live SSH
         // session; the click no-ops with a toast if no password is stored.
-        // Built (and keynav-recorded) BEFORE the list so the recording
-        // order matches the display order: sudo row first, then rows.
+        // Deliberately NOT keynav-recorded: an action that types a stored
+        // credential into a visible prompt stays behind a deliberate
+        // pointer click, never one Enter away from a fresh ring (same
+        // rationale that retired the card menu's "Copy password").
         let ssh_active = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| t.active().ssh_session.is_some())
             .unwrap_or(false);
         let sudo_row: Element<'_, Message> = if ssh_active {
-            let el: Element<'_, Message> = container(
+            container(
                 button(
                     container(
                         dir_row(vec![
@@ -127,17 +129,7 @@ impl Oryxis {
                 }),
             )
             .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 })
-            .into();
-            self.sidebar_nav_slot(
-                crate::keynav::SidebarRow {
-                    paste: Message::ApplySudoPassword,
-                    run: None,
-                    delete: None,
-                },
-                crate::state::TerminalSidebarTab::Snippets,
-                8.0,
-                el,
-            )
+            .into()
         } else {
             Space::new().height(0).into()
         };
@@ -166,9 +158,10 @@ impl Oryxis {
             }
             any = true;
             // Recorded into the sidebar keynav layer; the recording
-            // index is the display position (sudo row first, then the
-            // sorted/filtered list). A ringed row also reveals its
-            // floating actions, same affordance as hover.
+            // index is the display position within the sorted/filtered
+            // list (the sudo row above is deliberately not recorded).
+            // A ringed row also reveals its floating actions, same
+            // affordance as hover.
             let pos = self.keynav.sidebar_items.borrow().len();
             let ringed =
                 self.sidebar_nav_ringed(crate::state::TerminalSidebarTab::Snippets, pos);
