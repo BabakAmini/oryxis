@@ -279,37 +279,40 @@ impl Oryxis {
             .width(Length::Fill)
             .style(crate::widgets::rounded_input_style)
             .align_x(dir_align_x());
-        if !quick_hint {
-            return field.into();
-        }
-        // Same floating-chip pattern as the picker's Ctrl+K affordance:
-        // a Stack overlay, so the chip takes no clicks and focus-on-click
-        // keeps working on the input below it.
-        let chip = iced::widget::container(
-            iced::widget::text(crate::i18n::t("quick_connect_hint"))
-                .size(11)
-                .color(OryxisColors::t().accent),
-        )
-        .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
-        .style(|_| iced::widget::container::Style {
-            background: Some(iced::Background::Color(OryxisColors::t().bg_hover)),
-            border: iced::Border {
-                radius: iced::border::Radius::from(4.0),
+        // The input is ALWAYS wrapped in the Stack, even without the hint
+        // chip: returning a bare `TextInput` here and a `Stack` once the
+        // query parses would change the widget type at this tree position,
+        // and iced rebuilds the subtree state on a type change, which
+        // drops the input's focus mid-typing (reported on `rpi@1`, the
+        // first keystroke where `user@host` parses).
+        let mut stack = iced::widget::Stack::new().push(field).width(Length::Fill);
+        if quick_hint {
+            // Same floating-chip pattern as the picker's Ctrl+K affordance:
+            // a Stack overlay, so the chip takes no clicks and focus-on-click
+            // keeps working on the input below it.
+            let chip = iced::widget::container(
+                iced::widget::text(crate::i18n::t("quick_connect_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().accent),
+            )
+            .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
+            .style(|_| iced::widget::container::Style {
+                background: Some(iced::Background::Color(OryxisColors::t().bg_hover)),
+                border: iced::Border {
+                    radius: iced::border::Radius::from(4.0),
+                    ..Default::default()
+                },
                 ..Default::default()
-            },
-            ..Default::default()
-        });
-        let chip_overlay = iced::widget::container(chip)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Right)
-            .align_y(iced::alignment::Vertical::Center)
-            .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
-        iced::widget::Stack::new()
-            .push(field)
-            .push(chip_overlay)
-            .width(Length::Fill)
-            .into()
+            });
+            let chip_overlay = iced::widget::container(chip)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right)
+                .align_y(iced::alignment::Vertical::Center)
+                .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
+            stack = stack.push(chip_overlay);
+        }
+        stack.into()
     }
 
     /// Workspace mode contextual sub-nav: horizontal pill row with
