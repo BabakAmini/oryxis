@@ -308,6 +308,15 @@ pub struct Oryxis {
     pub(crate) pending_kbi_prompt: Option<oryxis_ssh::KbiQuery>,
     pub(crate) kbi_inputs: Vec<String>,
     pub(crate) kbi_response_tx: Option<tokio::sync::mpsc::Sender<Option<Vec<String>>>>,
+    // Quick-connect entry id bound to the displayed KBI prompt (`None` for
+    // saved hosts). Unlocks the "use a saved identity / key instead"
+    // selector in the prompt modal; set/cleared together with the prompt.
+    pub(crate) pending_kbi_quick: Option<Uuid>,
+    // Armed when the user picks an identity / key mid-prompt
+    // (`QuickAuthSwitch` cancels the parked auth attempt): the resulting
+    // connect error is consumed as "retry with the mutated entry" instead
+    // of surfacing as a failure.
+    pub(crate) pending_auth_switch: Option<Uuid>,
 
     // Connection editor
     pub(crate) show_host_panel: bool,

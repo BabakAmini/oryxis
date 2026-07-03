@@ -723,6 +723,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "保存主机到保险库",
         "connect_without_saving" => "连接但不保存",
         "quick_connect_hostname_required" => "主机名为必填项",
+        "quick_auth_alt" => "或使用已保存的身份或密钥进行认证",
+        "quick_auth_pick" => "选择身份或密钥...",
         "local_terminal" => "本地终端",
         "search_tabs" => "搜索标签",
         "jump_to" => "跳转到",

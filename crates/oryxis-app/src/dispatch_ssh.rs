@@ -142,10 +142,13 @@ impl Oryxis {
                     let _ = tx.try_send(true);
                 }
             }
-            Message::SshKbiPrompt(query) => {
+            Message::SshKbiPrompt(quick, query) => {
                 // One empty answer buffer per prompt, parallel to query.prompts.
                 self.kbi_inputs = vec![String::new(); query.prompts.len()];
                 self.pending_kbi_prompt = Some(query);
+                // Quick-connect prompts carry their entry id, which unlocks
+                // the saved identity / key selector in the modal.
+                self.pending_kbi_quick = quick;
                 // Land focus in the first prompt field so OTP entry is
                 // type-and-Enter without a click.
                 return Ok(iced::widget::operation::focus(iced::widget::Id::new(
@@ -160,15 +163,68 @@ impl Oryxis {
             Message::SshKbiSubmit => {
                 let answers = std::mem::take(&mut self.kbi_inputs);
                 self.pending_kbi_prompt = None;
+                self.pending_kbi_quick = None;
                 if let Some(ref tx) = self.kbi_response_tx {
                     let _ = tx.try_send(Some(answers));
                 }
             }
             Message::SshKbiCancel => {
                 self.pending_kbi_prompt = None;
+                self.pending_kbi_quick = None;
                 self.kbi_inputs.clear();
                 if let Some(ref tx) = self.kbi_response_tx {
                     let _ = tx.try_send(None);
+                }
+            }
+            Message::QuickAuthSwitch(quick_id, choice) => {
+                // Mutate the ephemeral entry so this retry and every later
+                // reconnect of the tab carry the picked identity / key. The
+                // auth method stays Auto: the ladder tries the new material
+                // first and still falls back to the interactive prompt if
+                // the server rejects it.
+                let Some(entry) = self.quick_connects.get_mut(&quick_id) else {
+                    return Ok(Task::none());
+                };
+                match choice {
+                    crate::state::QuickAuthChoice::Identity(iid) => {
+                        entry.conn.identity_id = Some(iid);
+                        entry.conn.key_id = None;
+                        // The identity's username becomes the login user when
+                        // it carries one (the selector label shows it); the
+                        // typed username stays otherwise.
+                        if let Some(u) = self
+                            .identities
+                            .iter()
+                            .find(|i| i.id == iid)
+                            .and_then(|i| i.username.clone())
+                            .filter(|u| !u.trim().is_empty())
+                        {
+                            entry.conn.username = Some(u);
+                        }
+                    }
+                    crate::state::QuickAuthChoice::Key(kid) => {
+                        entry.conn.key_id = Some(kid);
+                        entry.conn.identity_id = None;
+                    }
+                }
+                if self.pending_kbi_prompt.take().is_some() {
+                    // Mid-prompt: cancel the parked auth attempt. The engine
+                    // fails with "Authentication cancelled"; the resulting
+                    // error is consumed by `SshError` / `PaneConnectError`
+                    // (via `pending_auth_switch`) as an immediate retry
+                    // instead of a surfaced failure.
+                    self.kbi_inputs.clear();
+                    self.pending_kbi_quick = None;
+                    self.pending_auth_switch = Some(quick_id);
+                    if let Some(ref tx) = self.kbi_response_tx {
+                        let _ = tx.try_send(None);
+                    }
+                } else if self.connecting.as_ref().is_some_and(|p| {
+                    p.origin == crate::state::ProgressOrigin::Quick(quick_id) && p.failed
+                }) {
+                    // Failed-connect screen: the old stream is already dead,
+                    // retry directly with the mutated entry.
+                    return Ok(self.update(Message::SshRetry));
                 }
             }
             Message::SshConnected(pane_id, session) => {
@@ -648,6 +704,8 @@ impl Oryxis {
                     }
                 }
                 self.connecting = None;
+                // A parked identity/key switch dies with its connect.
+                self.pending_auth_switch = None;
                 self.active_tab = None;
                 self.active_view = View::Dashboard;
             }
@@ -699,6 +757,28 @@ impl Oryxis {
                 }
             }
             Message::PaneConnectError(pane_id, msg) => {
+                // Identity / key switch on a split-pane quick connect: the
+                // error is the cancel we provoked, reconnect the same pane
+                // in place with the mutated entry.
+                if let Some(qid) = self.pending_auth_switch
+                    && let Some(tab_idx) = self.pane_tab_index(pane_id)
+                    && self.tabs[tab_idx].pane_by_id_mut(pane_id).is_some_and(|p| {
+                        matches!(
+                            p.origin,
+                            crate::state::PaneOrigin::QuickHost(q) if q == qid
+                        )
+                    })
+                {
+                    self.pending_auth_switch = None;
+                    if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id)
+                        && let Ok(mut state) = pane.terminal.lock()
+                    {
+                        state.process(
+                            b"\r\nRetrying with the selected identity...\r\n",
+                        );
+                    }
+                    return Ok(self.spawn_ssh_for_pane_quick(qid, tab_idx, pane_id));
+                }
                 // Surface the failure inside the pane that was connecting.
                 if let Some(pane) = self
                     .tabs
@@ -730,6 +810,18 @@ impl Oryxis {
                 tracing::error!("pane SSH connect failed: {msg}");
             }
             Message::SshError(err) => {
+                // A cancel provoked by the identity / key switch: retry with
+                // the mutated entry instead of surfacing the failure. The
+                // guard on the progress origin keeps an (unlikely) stale flag
+                // from hijacking an unrelated connect's error.
+                if let Some(qid) = self.pending_auth_switch
+                    && self.connecting.as_ref().is_some_and(|p| {
+                        p.origin == crate::state::ProgressOrigin::Quick(qid)
+                    })
+                {
+                    self.pending_auth_switch = None;
+                    return Ok(self.update(Message::SshRetry));
+                }
                 tracing::error!("SSH error: {}", err);
                 if self.should_record_history()
                     && let Some(vault) = &self.vault {
@@ -1217,6 +1309,12 @@ impl Oryxis {
                 // Captured for the map closure below, since `conn`
                 // itself is moved into the stream producer.
                 let map_conn_id = conn.id;
+                // Quick-connect prompts carry their entry id so the KBI
+                // modal can offer the saved identity / key selector.
+                let quick_origin = match origin {
+                    crate::state::ProgressOrigin::Quick(id) => Some(id),
+                    crate::state::ProgressOrigin::Saved(_) => None,
+                };
                 // Retry action for the legacy-algorithm dialog: re-dispatch
                 // the originating connect. Quick retries carry the stored
                 // entry; the handler reuses it by id, so in-place mutations
@@ -1454,7 +1552,7 @@ impl Oryxis {
                             Message::SshHostKeyVerify(query)
                         }
                         SshStreamMsg::KbiPrompt(query) => {
-                            Message::SshKbiPrompt(query)
+                            Message::SshKbiPrompt(quick_origin, query)
                         }
                         SshStreamMsg::Data(data) => {
                             Message::PtyOutput(pane_id, data)
@@ -1835,7 +1933,7 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PaneConnMsg::HostKey(q) => Message::SshHostKeyVerify(q),
-            PaneConnMsg::Kbi(q) => Message::SshKbiPrompt(q),
+            PaneConnMsg::Kbi(q) => Message::SshKbiPrompt(quick_id, q),
             PaneConnMsg::Connected(s) => Message::SshConnected(pane_id, s),
             PaneConnMsg::Data(d) => Message::PtyOutput(pane_id, d),
             PaneConnMsg::Disconnected => Message::SshDisconnected(pane_id),

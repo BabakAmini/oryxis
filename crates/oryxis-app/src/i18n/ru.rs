@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Сохранить хост в хранилище",
         "connect_without_saving" => "Подключиться без сохранения",
         "quick_connect_hostname_required" => "Требуется имя хоста",
+        "quick_auth_alt" => "Или войдите с сохранённой личностью или ключом",
+        "quick_auth_pick" => "Выберите личность или ключ...",
         "local_terminal" => "Локальный терминал",
         "search_tabs" => "Поиск вкладок",
         "jump_to" => "Перейти к",

@@ -220,6 +220,8 @@ impl Oryxis {
                 host_key_response_tx: None,
                 active_host_key_tx: None,
                 pending_kbi_prompt: None,
+                pending_kbi_quick: None,
+                pending_auth_switch: None,
                 kbi_inputs: Vec::new(),
                 kbi_response_tx: None,
                 show_host_panel: false,

@@ -580,13 +580,20 @@ pub enum Message {
     SshHostKeyContinue,
     SshHostKeyAcceptAndSave,
     /// A keyboard-interactive challenge round arrived from the engine.
-    SshKbiPrompt(oryxis_ssh::KbiQuery),
+    /// The `Option<Uuid>` is the quick-connect entry id when the prompt
+    /// belongs to an ad-hoc connect (it unlocks the saved identity / key
+    /// selector in the modal); `None` for saved hosts.
+    SshKbiPrompt(Option<Uuid>, oryxis_ssh::KbiQuery),
     /// User edited the answer for prompt `usize` in the current round.
     SshKbiInput(usize, String),
     /// User submitted all answers for the current round.
     SshKbiSubmit,
     /// User cancelled the interactive auth.
     SshKbiCancel,
+    /// User picked a saved identity / key for a quick-connect host (from
+    /// the interactive-prompt modal or the failed-connect screen). Mutates
+    /// the ephemeral entry and retries the connect with it.
+    QuickAuthSwitch(Uuid, crate::state::QuickAuthChoice),
     SshCloseProgress,
     SshEditFromProgress,
     SshRetry,

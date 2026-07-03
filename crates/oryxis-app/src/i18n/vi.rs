@@ -792,6 +792,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Lưu máy chủ vào kho",
         "connect_without_saving" => "Kết nối không lưu",
         "quick_connect_hostname_required" => "Cần nhập tên máy chủ",
+        "quick_auth_alt" => "Hoặc xác thực bằng danh tính hoặc khóa đã lưu",
+        "quick_auth_pick" => "Chọn danh tính hoặc khóa...",
         "local_terminal" => "Terminal cục bộ",
         "search_tabs" => "Tìm tab",
         "jump_to" => "Nhảy tới",

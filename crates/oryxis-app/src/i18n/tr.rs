@@ -792,6 +792,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Sunucuyu kasaya kaydet",
         "connect_without_saving" => "Kaydetmeden bağlan",
         "quick_connect_hostname_required" => "Sunucu adı gerekli",
+        "quick_auth_alt" => "Veya kayıtlı bir kimlik ya da anahtarla kimlik doğrulayın",
+        "quick_auth_pick" => "Kimlik veya anahtar seçin...",
         "local_terminal" => "Yerel Terminal",
         "search_tabs" => "Sekmeleri ara",
         "jump_to" => "Şuraya atla",

@@ -798,6 +798,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Zapisz hosta w sejfie",
         "connect_without_saving" => "Połącz bez zapisywania",
         "quick_connect_hostname_required" => "Nazwa hosta jest wymagana",
+        "quick_auth_alt" => "Lub uwierzytelnij się zapisaną tożsamością lub kluczem",
+        "quick_auth_pick" => "Wybierz tożsamość lub klucz...",
         "local_terminal" => "Lokalny terminal",
         "search_tabs" => "Szukaj kart",
         "jump_to" => "Przejdź do",

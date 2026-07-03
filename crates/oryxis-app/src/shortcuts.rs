@@ -183,7 +183,16 @@ impl Oryxis {
             Modal::FolderDelete => self.folder_delete = None,
             Modal::TabRename => self.tab_rename = None,
             Modal::CarefulPaste => self.pending_paste = None,
-            Modal::KbiPrompt => self.pending_kbi_prompt = None,
+            // Full mirror of SshKbiCancel: the engine must receive the
+            // cancel (`None`) or the in-flight auth stays parked forever.
+            Modal::KbiPrompt => {
+                self.pending_kbi_prompt = None;
+                self.pending_kbi_quick = None;
+                self.kbi_inputs.clear();
+                if let Some(ref tx) = self.kbi_response_tx {
+                    let _ = tx.try_send(None);
+                }
+            }
             Modal::ThemeEditor => {
                 self.theme_editor = None;
                 self.theme_color_popover = None;

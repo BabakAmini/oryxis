@@ -1431,6 +1431,10 @@ impl Oryxis {
                             let _ = tx.try_send(None);
                         }
                     }
+                    self.pending_kbi_quick = None;
+                    // A parked identity/key switch must not fire a
+                    // reconnect behind the lock screen.
+                    self.pending_auth_switch = None;
                     // Quick-connect entries hold typed plaintext credentials;
                     // sweep the secrets but keep the connections themselves,
                     // matching the soft-lock promise that live tabs survive.

@@ -723,6 +723,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "ホストをボールトに保存",
         "connect_without_saving" => "保存せずに接続",
         "quick_connect_hostname_required" => "ホスト名は必須です",
+        "quick_auth_alt" => "または保存済みのIDや鍵で認証",
+        "quick_auth_pick" => "IDまたは鍵を選択...",
         "local_terminal" => "ローカルターミナル",
         "search_tabs" => "タブを検索",
         "jump_to" => "ジャンプ",

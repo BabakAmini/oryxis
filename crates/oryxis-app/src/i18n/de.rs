@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Host im Tresor speichern",
         "connect_without_saving" => "Verbinden ohne zu speichern",
         "quick_connect_hostname_required" => "Adresse ist erforderlich",
+        "quick_auth_alt" => "Oder mit einer gespeicherten Identität oder einem Schlüssel authentifizieren",
+        "quick_auth_pick" => "Identität oder Schlüssel wählen...",
         "local_terminal" => "Lokales Terminal",
         "search_tabs" => "Tabs suchen",
         "jump_to" => "Springen zu",

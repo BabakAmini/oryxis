@@ -792,6 +792,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "호스트를 볼트에 저장",
         "connect_without_saving" => "저장하지 않고 연결",
         "quick_connect_hostname_required" => "호스트 이름은 필수입니다",
+        "quick_auth_alt" => "또는 저장된 ID나 키로 인증",
+        "quick_auth_pick" => "ID 또는 키 선택...",
         "local_terminal" => "로컬 터미널",
         "search_tabs" => "탭 검색",
         "jump_to" => "이동",

@@ -278,6 +278,26 @@ impl QuickConnectEntry {
     }
 }
 
+/// What the user picked in the quick-connect "authenticate with a saved
+/// identity / key instead" selector (keyboard-interactive prompt modal and
+/// the failed-connect screen). Applied by mutating the ephemeral entry's
+/// `Connection`, so the retry and every later reconnect carry it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum QuickAuthChoice {
+    /// A saved identity (username + password and/or key).
+    Identity(Uuid),
+    /// A saved SSH key on its own.
+    Key(Uuid),
+}
+
+/// One row of the quick-auth selector: the resolved choice plus the label
+/// the pick_list renders for it.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct QuickAuthOption {
+    pub choice: QuickAuthChoice,
+    pub label: String,
+}
+
 /// Manual impl so a Debug-formatted `Message::QuickConnect` (message
 /// tracing, debug log file) never prints the typed credentials.
 impl std::fmt::Debug for QuickConnectEntry {

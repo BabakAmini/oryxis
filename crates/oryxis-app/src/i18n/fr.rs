@@ -723,6 +723,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Enregistrer l'hôte dans le coffre",
         "connect_without_saving" => "Se connecter sans enregistrer",
         "quick_connect_hostname_required" => "L'adresse est requise",
+        "quick_auth_alt" => "Ou authentifiez-vous avec une identité ou une clé enregistrée",
+        "quick_auth_pick" => "Choisissez une identité ou une clé...",
         "local_terminal" => "Terminal local",
         "search_tabs" => "Rechercher des onglets",
         "jump_to" => "Aller à",

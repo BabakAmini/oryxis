@@ -697,6 +697,13 @@ impl Oryxis {
                 .push(input)
                 .push(Space::new().height(12));
         }
+        // Quick-connect prompt (split-pane connect): offer the saved
+        // identities / keys as an alternative to answering by hand.
+        if let Some(qid) = self.pending_kbi_quick
+            && let Some(section) = self.view_quick_auth_switch(qid)
+        {
+            body = body.push(section).push(Space::new().height(12));
+        }
         body = body.push(Space::new().height(6));
 
         let cancel_btn = button(

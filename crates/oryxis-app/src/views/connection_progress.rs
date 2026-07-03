@@ -3,7 +3,7 @@
 
 use iced::alignment::Horizontal;
 use iced::border::Radius;
-use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
+use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use crate::app::{Message, Oryxis};
@@ -253,6 +253,14 @@ impl Oryxis {
                     .push(Space::new().height(12));
             }
 
+            // Quick-connect prompt: offer the saved identities / keys as an
+            // alternative to answering the challenge by hand.
+            if let Some(qid) = self.pending_kbi_quick
+                && let Some(section) = self.view_quick_auth_switch(qid)
+            {
+                body_col = body_col.push(section).push(Space::new().height(12));
+            }
+
             let body: Element<'_, Message> = container(body_col)
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -445,6 +453,64 @@ impl Oryxis {
             ..Default::default()
         })
         .into()
+    }
+
+    /// The "or authenticate with a saved identity / key" selector for a
+    /// quick-connect host, offered inside the keyboard-interactive prompt
+    /// modal and on the failed-connect screen. `None` when the vault has
+    /// nothing to offer. Selecting an option mutates the ephemeral entry
+    /// and retries the connect with it (`QuickAuthSwitch`).
+    pub(crate) fn view_quick_auth_switch(
+        &self,
+        quick_id: uuid::Uuid,
+    ) -> Option<Element<'_, Message>> {
+        let mut options: Vec<crate::state::QuickAuthOption> =
+            Vec::with_capacity(self.identities.len() + self.keys.len());
+        for i in &self.identities {
+            // Surface the identity's username: picking it switches the
+            // login user, so the label must say who you'd become.
+            let label = match i.username.as_deref().filter(|u| !u.trim().is_empty()) {
+                Some(u) => format!("{}: {} ({u})", crate::i18n::t("identity"), i.label),
+                None => format!("{}: {}", crate::i18n::t("identity"), i.label),
+            };
+            options.push(crate::state::QuickAuthOption {
+                choice: crate::state::QuickAuthChoice::Identity(i.id),
+                label,
+            });
+        }
+        for k in &self.keys {
+            options.push(crate::state::QuickAuthOption {
+                choice: crate::state::QuickAuthChoice::Key(k.id),
+                label: format!("{}: {}", crate::i18n::t("auth_key"), k.label),
+            });
+        }
+        if options.is_empty() {
+            return None;
+        }
+        // Action picker, never a state picker: nothing is pre-selected and
+        // choosing an option fires the switch immediately.
+        let pick = pick_list(
+            None::<crate::state::QuickAuthOption>,
+            options,
+            |o: &crate::state::QuickAuthOption| o.label.clone(),
+        )
+        .on_select(move |o| Message::QuickAuthSwitch(quick_id, o.choice))
+        .placeholder(crate::i18n::t("quick_auth_pick"))
+        .width(Length::Fill)
+        .padding(10)
+        .text_size(13)
+        .style(crate::widgets::rounded_pick_list_style);
+        Some(
+            column![
+                text(crate::i18n::t("quick_auth_alt"))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(6),
+                pick,
+            ]
+            .width(Length::Fill)
+            .into(),
+        )
     }
 
     /// The log box rendered as a vertical timeline: one node per log line,
@@ -640,14 +706,33 @@ impl Oryxis {
             })
         };
 
-        crate::widgets::dir_row(vec![
+        let buttons = crate::widgets::dir_row(vec![
             copy_btn.into(),
             Space::new().width(Length::Fill).into(),
             close_btn.into(),
             Space::new().width(8).into(),
             start_over_btn.into(),
         ])
-        .align_y(iced::Alignment::Center)
-        .into()
+        .align_y(iced::Alignment::Center);
+
+        // Quick connect that died in the auth stage (a publickey-only
+        // server never even raises the interactive prompt): offer the
+        // saved identities / keys right where the failure landed. Earlier
+        // stages (DNS, TCP, handshake) aren't auth problems, so the
+        // selector would be noise there.
+        let switch_section = match progress.origin {
+            crate::state::ProgressOrigin::Quick(id)
+                if progress.step == ConnectionStep::Authenticating =>
+            {
+                self.view_quick_auth_switch(id)
+            }
+            _ => None,
+        };
+        match switch_section {
+            Some(section) => column![section, Space::new().height(14), buttons]
+                .width(Length::Fill)
+                .into(),
+            None => buttons.into(),
+        }
     }
 }

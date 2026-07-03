@@ -787,6 +787,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "ذخیره میزبان در صندوقچه",
         "connect_without_saving" => "اتصال بدون ذخیره",
         "quick_connect_hostname_required" => "نام میزبان الزامی است",
+        "quick_auth_alt" => "یا با هویت یا کلید ذخیره‌شده احراز هویت کنید",
+        "quick_auth_pick" => "انتخاب هویت یا کلید...",
         "local_terminal" => "ترمینال محلی",
         "search_tabs" => "جستجوی برگه‌ها",
         "jump_to" => "پرش به",

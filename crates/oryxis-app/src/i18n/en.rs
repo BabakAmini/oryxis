@@ -798,6 +798,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "quick_connect_save_host" => "Save host to vault",
         "connect_without_saving" => "Connect without saving",
         "quick_connect_hostname_required" => "Hostname is required",
+        "quick_auth_alt" => "Or authenticate with a saved identity or key",
+        "quick_auth_pick" => "Choose an identity or key...",
         "local_terminal" => "Local Terminal",
         "search_tabs" => "Search tabs",
         "jump_to" => "Jump to",

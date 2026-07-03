@@ -803,6 +803,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "حفظ المضيف في الخزنة",
         "connect_without_saving" => "الاتصال دون حفظ",
         "quick_connect_hostname_required" => "اسم المضيف مطلوب",
+        "quick_auth_alt" => "أو قم بالمصادقة باستخدام هوية أو مفتاح محفوظ",
+        "quick_auth_pick" => "اختر هوية أو مفتاحاً...",
         "local_terminal" => "طرفية محلية",
         "search_tabs" => "البحث في التبويبات",
         "jump_to" => "الانتقال إلى",

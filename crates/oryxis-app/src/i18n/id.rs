@@ -792,6 +792,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Simpan host ke vault",
         "connect_without_saving" => "Hubungkan tanpa menyimpan",
         "quick_connect_hostname_required" => "Hostname wajib diisi",
+        "quick_auth_alt" => "Atau autentikasi dengan identitas atau kunci tersimpan",
+        "quick_auth_pick" => "Pilih identitas atau kunci...",
         "local_terminal" => "Terminal Lokal",
         "search_tabs" => "Cari tab",
         "jump_to" => "Lompat ke",

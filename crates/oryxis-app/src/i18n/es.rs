@@ -720,6 +720,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "quick_connect_save_host" => "Guardar host en el cofre",
         "connect_without_saving" => "Conectar sin guardar",
         "quick_connect_hostname_required" => "La dirección es obligatoria",
+        "quick_auth_alt" => "O autentícate con una identidad o clave guardada",
+        "quick_auth_pick" => "Elige una identidad o clave...",
         "local_terminal" => "Terminal Local",
         "search_tabs" => "Buscar pestañas",
         "jump_to" => "Ir a",
