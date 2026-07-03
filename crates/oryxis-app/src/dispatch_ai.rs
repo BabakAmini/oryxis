@@ -461,10 +461,16 @@ impl Oryxis {
                     self.abort_active_chat_task();
                     // A closed sidebar can't keep a keynav ring: it would
                     // silently swallow Enter/arrows meant for the terminal.
+                    // Same for the dropdown gate: a HostConfig pick_list
+                    // open at close time unmounts without on_close.
                     self.keynav.sidebar_selected = None;
+                    self.keynav.pick_open = false;
                 }
             }
             Message::SelectTerminalSidebarTab(tab) => {
+                // A HostConfig dropdown open when the sidebar tab swaps
+                // unmounts without on_close; drop the gate with it.
+                self.keynav.pick_open = false;
                 self.terminal_sidebar_tab = tab;
                 if tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();

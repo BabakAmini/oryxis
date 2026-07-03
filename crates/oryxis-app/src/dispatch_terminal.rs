@@ -153,8 +153,13 @@ impl Oryxis {
                     tab.focused = pane;
                 }
                 // Clicking a terminal pane takes the keyboard back from the
-                // sidebar ring (see write_input_to_tab for the rationale).
+                // sidebar ring (see write_input_to_tab for the rationale),
+                // and drops the dropdown gate defensively: a click outside
+                // an open pick_list normally fires on_close, but if the
+                // widget unmounted first the stuck flag would swallow
+                // Enter/Space/Esc/arrows forever.
                 self.keynav.sidebar_selected = None;
+                self.keynav.pick_open = false;
                 // The History tab is per-host; follow the focused pane.
                 if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();

@@ -730,6 +730,12 @@ impl Oryxis {
                     self.editing_hotkey = None;
                 }
                 self.settings_section = section;
+                // A pick_list dropdown open on the old section unmounts
+                // WITHOUT firing on_close when the section swaps, and a
+                // stuck `pick_open` swallows Enter/Space/Esc/arrows
+                // process-wide (live-QA bug: Enter dead in every
+                // terminal after fiddling with the renderer dropdown).
+                self.keynav.pick_open = false;
                 // Keyboard navigation: the old section's rows are gone;
                 // keep a sidebar (SubNav) selection alive through the
                 // switch (keynav's own Enter path sets the flag) so

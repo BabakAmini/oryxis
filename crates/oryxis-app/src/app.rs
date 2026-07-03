@@ -1340,6 +1340,12 @@ impl Oryxis {
         // (the sibling rule to the PTY-write disengage; both halves of
         // the same live-QA bug).
         self.keynav.sidebar_selected = None;
+        // Same lifecycle rule for the pick_list dropdown gate: any
+        // dropdown that was open belonged to the surface we just left
+        // (Settings, a panel, the old tab's HostConfig) and unmounted
+        // without firing on_close; a stuck flag swallows
+        // Enter/Space/Esc/arrows process-wide.
+        self.keynav.pick_open = false;
     }
 
     pub(crate) fn adjust_last_terminal_tab_after_remove(&mut self, removed_idx: usize) {
