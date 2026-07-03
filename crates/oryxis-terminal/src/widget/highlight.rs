@@ -11,6 +11,58 @@ enum HighlightKind {
     /// solely so the draw pass can mask it. Also catches emails / typed
     /// `ssh user@host` targets, which are sensitive too.
     HostUser,
+    /// The `<name>` segment of a home-directory path (`C:\Users\<name>`,
+    /// `/home/<name>`, `/Users/<name>`). It identifies the local account
+    /// just like a prompt `user@host` does, so Privacy Mode masks it.
+    /// Same contract as [`HighlightKind::HostUser`]: privacy-only, never
+    /// colored.
+    UserDir,
+    /// An exact occurrence of a saved connection's hostname (passed in by
+    /// the app as a privacy term). Plain DNS names have no detectable
+    /// shape (file extensions collide with ccTLDs: `main.rs`,
+    /// `install.sh` are FQDN-shaped), so the known values are matched
+    /// literally instead. Privacy-only, never colored.
+    KnownHost,
+}
+
+impl HighlightKind {
+    /// Privacy-Mode-only markers: masked by the draw pass, never used as
+    /// a keyword-highlight color.
+    fn privacy_only(self) -> bool {
+        matches!(self, Self::HostUser | Self::UserDir | Self::KnownHost)
+    }
+}
+
+/// Whether a hex-digit/colon run is IPv6-shaped: the full 8-group form
+/// (exactly 7 colons) or the `::`-compressed form, groups of 1-4 hex
+/// digits, at most one `::`, no `:::`. A run without `::` and without the
+/// full form's 7 colons is rejected, which keeps timestamps (`12:34:56`)
+/// and MAC addresses (`aa:bb:cc:dd:ee:ff`) out. Shared by the terminal
+/// highlighter and the app-side session-log redaction so both agree on
+/// what gets masked; callers are responsible for context (a run glued to
+/// a word, like `std::io`, is theirs to reject).
+pub fn looks_like_ipv6(run: &str) -> bool {
+    let bytes = run.as_bytes();
+    if bytes.is_empty() || !bytes.iter().all(|b| b.is_ascii_hexdigit() || *b == b':') {
+        return false;
+    }
+    if run.contains(":::") || run.matches("::").count() > 1 {
+        return false;
+    }
+    let groups: Vec<&str> = run.split(':').filter(|g| !g.is_empty()).collect();
+    if groups.is_empty() || groups.iter().any(|g| g.len() > 4) {
+        return false;
+    }
+    if run.contains("::") {
+        // `::` stands for at least one zero group, so at most 7 explicit
+        // groups remain; a single leading/trailing colon that isn't part
+        // of the `::` is malformed.
+        groups.len() <= 7
+            && (!run.starts_with(':') || run.starts_with("::"))
+            && (!run.ends_with(':') || run.ends_with("::"))
+    } else {
+        bytes.iter().filter(|b| **b == b':').count() == 7 && groups.len() == 8
+    }
 }
 
 pub(crate) struct Highlight {
@@ -21,14 +73,17 @@ pub(crate) struct Highlight {
     kind: HighlightKind,
 }
 
-/// Scan row text for IPv4 addresses, URLs, and Unix file paths (no regex).
-/// Takes `(row, non-blank cells)` pairs; rows with no printable chars are
-/// simply absent (the draw pass builds this per frame, so a dense Vec
-/// beats re-hashing every row into a map).
+/// Scan row text for IPv4/IPv6 addresses, URLs, and Unix file paths (no
+/// regex). Takes `(row, non-blank cells)` pairs; rows with no printable
+/// chars are simply absent (the draw pass builds this per frame, so a
+/// dense Vec beats re-hashing every row into a map). `privacy_terms` are
+/// extra strings (saved-connection hostnames, lowercase) masked wherever
+/// they appear, Privacy Mode only.
 pub(crate) fn detect_highlights(
     row_chars: &[(u16, Vec<(u16, char)>)],
     palette: &TerminalPalette,
     privacy: bool,
+    privacy_terms: &[String],
 ) -> Vec<Highlight> {
     let ip_color = palette.ansi[5];   // magenta
     let url_color = palette.ansi[4];  // blue
@@ -155,6 +210,56 @@ pub(crate) fn detect_highlights(
             }
         }
 
+        // --- IPv6: hex-digit groups separated by colons, validated by
+        // `looks_like_ipv6` (needs `::` or the full form's 7 colons, so
+        // timestamps and MACs stay out). Runs glued to a word on either
+        // side (std::io, Vec::new, beef42) are identifiers, not
+        // addresses. A single leading/trailing colon is prose
+        // punctuation and is trimmed off first. Same kind as IPv4:
+        // colored by keyword highlighting, masked by Privacy Mode. An
+        // embedded dotted-quad tail (`::ffff:192.0.2.1`) is already
+        // covered by the IPv4 pass above; the two spans sit side by side.
+        {
+            let mut i = 0;
+            while i < len {
+                if !bytes[i].is_ascii_hexdigit() && bytes[i] != b':' {
+                    i += 1;
+                    continue;
+                }
+                // Take the whole run up front so a rejected start skips it
+                // entirely instead of re-matching at every inner offset.
+                let start = i;
+                let mut j = i;
+                while j < len && (bytes[j].is_ascii_hexdigit() || bytes[j] == b':') {
+                    j += 1;
+                }
+                let glued = (start > 0
+                    && (is_word_byte(bytes[start - 1]) || bytes[start - 1] == b'.'))
+                    || (j < len && is_word_byte(bytes[j]));
+                let mut s2 = start;
+                let mut e2 = j;
+                if e2 - s2 >= 2 && bytes[s2] == b':' && bytes[s2 + 1] != b':' {
+                    s2 += 1;
+                }
+                if e2 - s2 >= 2 && bytes[e2 - 1] == b':' && bytes[e2 - 2] != b':' {
+                    e2 -= 1;
+                }
+                let dominated = highlights.iter().any(|h| {
+                    h.row == row && s2 as u16 >= h.start_col && (s2 as u16) <= h.end_col
+                });
+                if !glued && !dominated && looks_like_ipv6(&row_str[s2..e2]) {
+                    highlights.push(Highlight {
+                        row,
+                        start_col: s2 as u16,
+                        end_col: (e2 - 1) as u16,
+                        color: ip_color,
+                        kind: HighlightKind::Ip,
+                    });
+                }
+                i = j;
+            }
+        }
+
         // --- user@host prompt tokens (Privacy Mode only): word@word ---
         // Anchored on '@' with token chars on both sides. Token chars are
         // alnum plus `. _ -` (host labels, usernames, email locals). This
@@ -190,6 +295,85 @@ pub(crate) fn detect_highlights(
                     continue;
                 }
                 i += 1;
+            }
+        }
+
+        // --- Home-directory usernames (Privacy Mode only): the `<name>` in
+        // `C:\Users\<name>`, `/home/<name>` or `/Users/<name>` (Windows /
+        // Linux / macOS prompts and paths). Only the name segment is
+        // masked, the rest of the path stays readable. Markers compare
+        // case-insensitively (`c:\users\` prompts exist too).
+        if privacy {
+            let is_tok = |b: u8| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-';
+            const MARKERS: [&[u8]; 3] = [b"\\users\\", b"/home/", b"/users/"];
+            let mut i = 0;
+            while i < len {
+                if bytes[i] != b'\\' && bytes[i] != b'/' {
+                    i += 1;
+                    continue;
+                }
+                let Some(mlen) = MARKERS
+                    .iter()
+                    .find(|m| i + m.len() <= len && bytes[i..i + m.len()].eq_ignore_ascii_case(m))
+                    .map(|m| m.len())
+                else {
+                    i += 1;
+                    continue;
+                };
+                let start = i + mlen;
+                let mut end = start;
+                while end < len && is_tok(bytes[end]) {
+                    end += 1;
+                }
+                // A `/home/` or `/users/` inside a detected URL is a web
+                // path (`https://cdn.io/users/42`), not this machine's
+                // account name; leave those alone.
+                let inside_url = highlights.iter().any(|h| {
+                    h.kind == HighlightKind::Url
+                        && h.row == row
+                        && start as u16 >= h.start_col
+                        && (start as u16) <= h.end_col
+                });
+                if end > start && !inside_url {
+                    highlights.push(Highlight {
+                        row,
+                        start_col: start as u16,
+                        end_col: (end - 1) as u16,
+                        color: ip_color,
+                        kind: HighlightKind::UserDir,
+                    });
+                }
+                i = end.max(i + 1);
+            }
+        }
+
+        // --- Saved-connection hostnames (Privacy Mode only): exact,
+        // case-insensitive, token-bounded occurrences of the vault's host
+        // addresses, provided by the app in `privacy_terms` (lowercase).
+        // Plain DNS names have no detectable shape, file extensions
+        // collide with ccTLDs (`main.rs`, `install.sh` are FQDN-shaped),
+        // so the known values are matched literally instead of guessed.
+        if privacy && !privacy_terms.is_empty() {
+            let is_tok = |b: u8| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-';
+            let lower = row_str.to_ascii_lowercase();
+            for term in privacy_terms {
+                let mut from = 0;
+                while let Some(pos) = lower[from..].find(term.as_str()) {
+                    let s0 = from + pos;
+                    let e0 = s0 + term.len();
+                    let bounded = (s0 == 0 || !is_tok(bytes[s0 - 1]))
+                        && (e0 >= len || !is_tok(bytes[e0]));
+                    if bounded {
+                        highlights.push(Highlight {
+                            row,
+                            start_col: s0 as u16,
+                            end_col: (e0 - 1) as u16,
+                            color: ip_color,
+                            kind: HighlightKind::KnownHost,
+                        });
+                    }
+                    from = e0;
+                }
             }
         }
 
@@ -346,13 +530,10 @@ fn is_word_byte(b: u8) -> bool {
 #[inline]
 pub(crate) fn highlight_color_at(highlights: &[Highlight], row: u16, col: u16) -> Option<Color> {
     for h in highlights {
-        // HostUser is a Privacy-Mode-only marker, never a syntax color:
-        // skip it so prompts aren't tinted when keyword highlighting is on.
-        if h.kind != HighlightKind::HostUser
-            && h.row == row
-            && col >= h.start_col
-            && col <= h.end_col
-        {
+        // HostUser / UserDir are Privacy-Mode-only markers, never a syntax
+        // color: skip them so prompts aren't tinted when keyword
+        // highlighting is on.
+        if !h.kind.privacy_only() && h.row == row && col >= h.start_col && col <= h.end_col {
             return Some(h.color);
         }
     }
@@ -372,7 +553,7 @@ pub(crate) fn privacy_span_at(
     highlights
         .iter()
         .find(|h| {
-            (h.kind == HighlightKind::Ip || h.kind == HighlightKind::HostUser)
+            (h.kind == HighlightKind::Ip || h.kind.privacy_only())
                 && h.row == row
                 && col >= h.start_col
                 && col <= h.end_col
@@ -386,11 +567,77 @@ pub(crate) fn privacy_span_at(
 #[inline]
 pub(crate) fn is_privacy_cell(highlights: &[Highlight], row: u16, col: u16) -> bool {
     highlights.iter().any(|h| {
-        (h.kind == HighlightKind::Ip || h.kind == HighlightKind::HostUser)
+        (h.kind == HighlightKind::Ip || h.kind.privacy_only())
             && h.row == row
             && col >= h.start_col
             && col <= h.end_col
     })
+}
+
+/// All privacy spans with their text, resolved from the same per-frame row
+/// data the draw pass uses. The draw pass matches these against the
+/// click-pinned value set so every occurrence of a pinned value stays
+/// revealed, wherever it appears.
+pub(crate) fn privacy_spans_with_text(
+    highlights: &[Highlight],
+    row_chars: &[(u16, Vec<(u16, char)>)],
+) -> Vec<((u16, u16, u16), String)> {
+    highlights
+        .iter()
+        .filter(|h| h.kind == HighlightKind::Ip || h.kind.privacy_only())
+        .filter_map(|h| {
+            let (_, cells) = row_chars.iter().find(|(r, _)| *r == h.row)?;
+            let mut text = String::with_capacity((h.end_col - h.start_col + 1) as usize);
+            for col in h.start_col..=h.end_col {
+                text.push(
+                    cells
+                        .iter()
+                        .find(|(c, _)| *c == col)
+                        .map(|(_, ch)| *ch)
+                        .unwrap_or(' '),
+                );
+            }
+            Some(((h.row, h.start_col, h.end_col), text))
+        })
+        .collect()
+}
+
+/// Text of the privacy span covering a cell, scroll-aware. Rebuilds the
+/// one grid row (the way `smart_span_at` does), reruns the privacy
+/// detection on it, and returns the covered span's text. Drives the
+/// click-to-pin reveal: the returned value keys the pinned set.
+pub(crate) fn privacy_value_at_cell(
+    term: &alacritty_terminal::Term<crate::backend::EventProxy>,
+    palette: &TerminalPalette,
+    privacy_terms: &[String],
+    line: i32,
+    col: u16,
+) -> Option<String> {
+    use alacritty_terminal::grid::Dimensions;
+    use alacritty_terminal::index::{Column, Line};
+    let grid = term.grid();
+    let l = Line(line);
+    if l < grid.topmost_line() || l > grid.bottommost_line() {
+        return None;
+    }
+    let row = &grid[l];
+    let ncols = grid.columns();
+    let mut cols: Vec<(u16, char)> = Vec::new();
+    for ci in 0..ncols {
+        let c = row[Column(ci)].c;
+        if c != ' ' && c != '\0' {
+            cols.push((ci as u16, c));
+        }
+    }
+    if cols.is_empty() {
+        return None;
+    }
+    let rows = [(0u16, cols)];
+    let highlights = detect_highlights(&rows, palette, true, privacy_terms);
+    privacy_spans_with_text(&highlights, &rows)
+        .into_iter()
+        .find(|((_, sc, ec), _)| col >= *sc && col <= *ec)
+        .map(|(_, text)| text)
 }
 
 /// Returns true when the given cell is part of a URL highlight, used by the
@@ -595,11 +842,242 @@ pub(crate) fn smart_span_at(
     // containment test. `detect_highlights` takes (row, cells) pairs; a
     // single synthetic row 0 is enough as long as we match on the same key.
     let rows = [(0u16, cols)];
-    let hit = detect_highlights(&rows, palette, false).into_iter().any(|h| {
+    let hit = detect_highlights(&rows, palette, false, &[]).into_iter().any(|h| {
         h.row == 0
             && h.kind != HighlightKind::Number
             && h.start_col <= right
             && h.end_col >= left
     });
     hit.then_some((left, right))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn rows_from(s: &str) -> Vec<(u16, Vec<(u16, char)>)> {
+        vec![(
+            0,
+            s.chars()
+                .enumerate()
+                .filter(|(_, c)| *c != ' ')
+                .map(|(i, c)| (i as u16, c))
+                .collect(),
+        )]
+    }
+
+    /// `(start, end)` byte spans of the UserDir highlights detected in `s`.
+    fn user_dir_spans(s: &str, privacy: bool) -> Vec<(usize, usize)> {
+        let rows = rows_from(s);
+        detect_highlights(&rows, &TerminalPalette::default(), privacy, &[])
+            .into_iter()
+            .filter(|h| h.kind == HighlightKind::UserDir)
+            .map(|h| (h.start_col as usize, h.end_col as usize))
+            .collect()
+    }
+
+    fn masked_text(s: &str, spans: &[(usize, usize)]) -> Vec<String> {
+        spans.iter().map(|&(a, b)| s[a..=b].to_string()).collect()
+    }
+
+    #[test]
+    fn windows_prompt_masks_username_only() {
+        let s = r"PS C:\Users\koobs> winget upgrade";
+        let spans = user_dir_spans(s, true);
+        assert_eq!(masked_text(s, &spans), vec!["koobs"]);
+    }
+
+    #[test]
+    fn windows_deep_path_masks_username_only() {
+        let s = r"C:\Users\koobs\AppData\Local\Oryxis";
+        let spans = user_dir_spans(s, true);
+        assert_eq!(masked_text(s, &spans), vec!["koobs"]);
+    }
+
+    #[test]
+    fn windows_marker_is_case_insensitive() {
+        let s = r"c:\users\bob>";
+        let spans = user_dir_spans(s, true);
+        assert_eq!(masked_text(s, &spans), vec!["bob"]);
+    }
+
+    #[test]
+    fn linux_home_masks_username_only() {
+        let s = "drwxr-xr-x /home/wilson/dev";
+        let spans = user_dir_spans(s, true);
+        assert_eq!(masked_text(s, &spans), vec!["wilson"]);
+    }
+
+    #[test]
+    fn macos_users_masks_username_only() {
+        let s = "/Users/wilson/Library/Logs";
+        let spans = user_dir_spans(s, true);
+        assert_eq!(masked_text(s, &spans), vec!["wilson"]);
+    }
+
+    #[test]
+    fn user_dir_requires_privacy_mode() {
+        let s = r"PS C:\Users\koobs>";
+        assert!(user_dir_spans(s, false).is_empty());
+    }
+
+    #[test]
+    fn url_paths_are_not_user_dirs() {
+        let s = "GET https://cdn.example.com/users/42/avatar.png";
+        assert!(user_dir_spans(s, true).is_empty());
+    }
+
+    #[test]
+    fn user_dir_cells_are_privacy_cells() {
+        let s = r"PS C:\Users\koobs> ";
+        let rows = rows_from(s);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let name_start = s.find("koobs").unwrap() as u16;
+        // Every cell of the name is masked; the separators around it are not.
+        for col in name_start..name_start + 5 {
+            assert!(is_privacy_cell(&hs, 0, col), "col {col} should be masked");
+        }
+        assert!(!is_privacy_cell(&hs, 0, name_start - 1));
+        assert!(!is_privacy_cell(&hs, 0, name_start + 5));
+        // Hover-reveal resolves the same span.
+        assert_eq!(
+            privacy_span_at(&hs, 0, name_start),
+            Some((0, name_start, name_start + 4))
+        );
+    }
+
+    #[test]
+    fn user_dir_is_never_a_syntax_color() {
+        let s = r"cd C:\Users\koobs";
+        let rows = rows_from(s);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let name_start = s.find("koobs").unwrap() as u16;
+        // The Windows path isn't a Unix-path highlight and UserDir itself
+        // must not tint cells, so the name carries no keyword color.
+        assert_eq!(highlight_color_at(&hs, 0, name_start), None);
+    }
+
+    /// `(start, end)` spans of Ip-kind highlights detected in `s`.
+    fn ip_spans(s: &str) -> Vec<(usize, usize)> {
+        let rows = rows_from(s);
+        detect_highlights(&rows, &TerminalPalette::default(), false, &[])
+            .into_iter()
+            .filter(|h| h.kind == HighlightKind::Ip)
+            .map(|h| (h.start_col as usize, h.end_col as usize))
+            .collect()
+    }
+
+    fn ip_texts(s: &str) -> Vec<String> {
+        ip_spans(s).into_iter().map(|(a, b)| s[a..=b].to_string()).collect()
+    }
+
+    #[test]
+    fn ipv6_full_form_detected() {
+        assert_eq!(
+            ip_texts("addr 2001:0db8:85a3:0000:0000:8a2e:0370:7334 up"),
+            vec!["2001:0db8:85a3:0000:0000:8a2e:0370:7334"]
+        );
+    }
+
+    #[test]
+    fn ipv6_compressed_forms_detected() {
+        assert_eq!(ip_texts("ping ::1 ok"), vec!["::1"]);
+        assert_eq!(ip_texts("via 2001:db8::1 dev"), vec!["2001:db8::1"]);
+        assert_eq!(ip_texts("prefix 2001:db8:: len"), vec!["2001:db8::"]);
+        assert_eq!(ip_texts("inet6 fe80::215:5dff:fe10:a3b1 scope"),
+            vec!["fe80::215:5dff:fe10:a3b1"]);
+    }
+
+    #[test]
+    fn ipv6_bracketed_leaves_port_visible() {
+        // `[::1]:22`: the address is detected; the `:22` after the bracket
+        // is a lone-colon run and stays visible.
+        assert_eq!(ip_texts("connect [2001:db8::1]:8080"), vec!["2001:db8::1"]);
+    }
+
+    #[test]
+    fn ipv6_trailing_prose_colon_is_trimmed() {
+        assert_eq!(ip_texts("gateway 2001:db8::1: unreachable"), vec!["2001:db8::1"]);
+    }
+
+    #[test]
+    fn timestamps_and_macs_are_not_ipv6() {
+        assert!(ip_texts("12:34:56 log line").is_empty());
+        assert!(ip_texts("mac aa:bb:cc:dd:ee:ff up").is_empty());
+    }
+
+    #[test]
+    fn rust_paths_are_not_ipv6() {
+        assert!(ip_texts("use std::io and Vec::new()").is_empty());
+        assert!(ip_texts("err at core::fmt::Debug").is_empty());
+    }
+
+    #[test]
+    fn ipv6_with_embedded_ipv4_is_fully_covered() {
+        // Two side-by-side spans (hex part + dotted-quad tail from the
+        // IPv4 pass); together they must cover the whole address.
+        let s = "nat ::ffff:192.0.2.1 ok";
+        let spans = ip_spans(s);
+        let addr_start = s.find("::ffff").unwrap();
+        let addr_end = s.find(" ok").unwrap() - 1;
+        for col in addr_start..=addr_end {
+            assert!(
+                spans.iter().any(|&(a, b)| col >= a && col <= b),
+                "col {col} ({}) uncovered", &s[col..=col]
+            );
+        }
+    }
+
+    #[test]
+    fn looks_like_ipv6_validator_edges() {
+        assert!(looks_like_ipv6("::1"));
+        assert!(looks_like_ipv6("2001:db8::"));
+        assert!(looks_like_ipv6("1:2:3:4:5:6:7:8"));
+        assert!(!looks_like_ipv6("12:34:56"));
+        assert!(!looks_like_ipv6("1:2:3:4:5:6:7:8:9"));
+        assert!(!looks_like_ipv6("12345::1"));
+        assert!(!looks_like_ipv6("1::2::3"));
+        assert!(!looks_like_ipv6(":::"));
+        assert!(!looks_like_ipv6(":1:2:3"));
+        assert!(!looks_like_ipv6("1:2:3:"));
+        assert!(!looks_like_ipv6("::")); // path separator, needs a group
+        assert!(!looks_like_ipv6("g::1")); // non-hex
+    }
+
+    /// `(start, end)` spans of KnownHost-kind highlights.
+    fn term_spans(s: &str, terms: &[&str]) -> Vec<String> {
+        let rows = rows_from(s);
+        let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+            .into_iter()
+            .filter(|h| h.kind == HighlightKind::KnownHost)
+            .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
+            .collect()
+    }
+
+    #[test]
+    fn known_host_terms_masked_case_insensitively() {
+        assert_eq!(
+            term_spans("ping WEB01.prod.internal ok", &["web01.prod.internal"]),
+            vec!["WEB01.prod.internal"]
+        );
+    }
+
+    #[test]
+    fn known_host_terms_are_token_bounded() {
+        // "web01" inside "web01-backup" is a different token; only the
+        // standalone occurrence matches.
+        assert_eq!(
+            term_spans("host web01 and web01-backup", &["web01"]),
+            vec!["web01"]
+        );
+    }
+
+    #[test]
+    fn known_host_terms_require_privacy_mode() {
+        let rows = rows_from("ping web01 ok");
+        let terms = vec!["web01".to_string()];
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), false, &terms);
+        assert!(hs.iter().all(|h| h.kind != HighlightKind::KnownHost));
+    }
 }

@@ -5,6 +5,8 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn view_settings_ai(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order.
+        self.keynav_settings_reset();
         // Enable/disable lives on the Plugins screen now; this
         // section only renders while AI is enabled.
         let mut content_col = column![
@@ -22,23 +24,64 @@ impl Oryxis {
                 .map(|p| p.display.to_string())
                 .collect();
 
-            let provider_pick: Element<'_, Message> = pick_list(
-                Some(current_info.display.to_string()),
-                provider_options,
-                |s: &String| s.clone(),
-            )
-            .on_select(Message::AiProviderChanged)
-            .width(220)
-            .padding(10)
-            .style(crate::widgets::rounded_pick_list_style)
-            .into();
-
-            let model_input: Element<'_, Message> = text_input(t("ai_model_placeholder"), &self.ai.model)
-                .on_input(Message::AiModelChanged)
+            let (prov_prev, prov_next) = crate::keynav::slots::cycle_pair(
+                &provider_options,
+                &current_info.display.to_string(),
+                Message::AiProviderChanged,
+            );
+            let provider_pick: Element<'_, Message> = self.settings_nav_slot(
+                crate::keynav::RowAction::picker(prov_prev, prov_next),
+                10.0,
+                pick_list(
+                    Some(current_info.display.to_string()),
+                    provider_options,
+                    |s: &String| s.clone(),
+                )
+                .on_select(Message::AiProviderChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(220)
                 .padding(10)
-                .width(300)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                .into();
+                .style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            );
+
+            let model_input: Element<'_, Message> = self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-model")),
+                10.0,
+                text_input(t("ai_model_placeholder"), &self.ai.model)
+                    .id(iced::widget::Id::new("set-ai-model"))
+                    .on_input(Message::AiModelChanged)
+                    .padding(10)
+                    .width(300)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            );
+
+            let mut provider_col = column![
+                panel_field(t("provider"), provider_pick),
+                Space::new().height(12),
+                panel_field(t("model"), model_input),
+            ];
+
+            if current_info.kind == crate::ai::ProviderKind::Custom {
+                let url_input: Element<'_, Message> = self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-url")),
+                    10.0,
+                    text_input("https://api.example.com/v1/chat/completions", &self.ai.api_url)
+                        .id(iced::widget::Id::new("set-ai-url"))
+                        .on_input(Message::AiApiUrlChanged)
+                        .padding(10)
+                        .width(300)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                );
+                provider_col = provider_col
+                    .push(Space::new().height(12))
+                    .push(panel_field(crate::i18n::t("api_url"), url_input));
+            }
 
             // When a key is already stored, the input is cleared
             // for security but the placeholder communicates that
@@ -48,23 +91,35 @@ impl Oryxis {
             } else {
                 "sk-..."
             };
-            let key_input: Element<'_, Message> = container(
-                crate::widgets::password_input_with_eye(
-                    key_placeholder,
-                    &self.ai.api_key,
-                    Message::AiApiKeyChanged,
-                    Some(Message::SaveAiApiKey),
-                    self.revealed_secrets
-                        .contains(&crate::state::SecretField::AiApiKey),
-                    Message::ToggleSecretVisibility(
-                        crate::state::SecretField::AiApiKey,
+            // Keyboard row: Tab focuses the inner input via its id.
+            // Built here, after the Custom API-URL row, so the rows
+            // record in visual order.
+            let key_input: Element<'_, Message> = self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-key")),
+                10.0,
+                container(
+                    crate::widgets::password_input_with_eye_id(
+                        key_placeholder,
+                        &self.ai.api_key,
+                        Message::AiApiKeyChanged,
+                        Some(Message::SaveAiApiKey),
+                        self.revealed_secrets
+                            .contains(&crate::state::SecretField::AiApiKey),
+                        Message::ToggleSecretVisibility(
+                            crate::state::SecretField::AiApiKey,
+                        ),
+                        10.0,
+                        Some(iced::widget::Id::new("set-ai-key")),
                     ),
-                    10.0,
-                ),
-            )
-            .width(280)
-            .into();
-            let save_btn = styled_button(crate::i18n::t("save"), Message::SaveAiApiKey, OryxisColors::t().accent);
+                )
+                .width(280)
+                .into(),
+            );
+            let save_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::SaveAiApiKey),
+                6.0,
+                styled_button(crate::i18n::t("save"), Message::SaveAiApiKey, OryxisColors::t().accent),
+            );
             let key_status: Element<'_, Message> = if self.ai.api_key_set {
                 dir_row(vec![
                     iced_fonts::lucide::circle_check().size(13).color(OryxisColors::t().success).into(),
@@ -82,24 +137,6 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into()
             };
-
-            let mut provider_col = column![
-                panel_field(t("provider"), provider_pick),
-                Space::new().height(12),
-                panel_field(t("model"), model_input),
-            ];
-
-            if current_info.kind == crate::ai::ProviderKind::Custom {
-                let url_input: Element<'_, Message> = text_input("https://api.example.com/v1/chat/completions", &self.ai.api_url)
-                    .on_input(Message::AiApiUrlChanged)
-                    .padding(10)
-                    .width(300)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into();
-                provider_col = provider_col
-                    .push(Space::new().height(12))
-                    .push(panel_field(crate::i18n::t("api_url"), url_input));
-            }
 
             provider_col = provider_col
                 .push(Space::new().height(12))
@@ -158,6 +195,9 @@ impl Oryxis {
             container(content_col)
                 .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-ai-scroll"))
         .height(Length::Fill)
         .into()
     }

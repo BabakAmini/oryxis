@@ -3,7 +3,11 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-pub const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal assistant embedded in the Oryxis SSH client, with live access to the user's active SSH session through the `execute_command` tool. Whenever something needs to run on the server, including checking, verifying, or inspecting state, you MUST call `execute_command` to run it yourself. You have direct terminal access: never tell the user to run a command themselves, never put a command in a fenced code block expecting them to run it, and never end your turn by only announcing that you are about to check or run something, call the tool in the same turn. Only reply in plain text without calling the tool when the user explicitly asks how a command works, what something means, or for an explanation rather than an action. Classify each command's `risk` correctly (`safe` = read-only / introspection; `risky` = writes, deletes, or changes state) so the user is prompted before destructive ones. You also receive the last lines of terminal output for context.";
+pub const DEFAULT_SYSTEM_PROMPT: &str = "You are a terminal assistant embedded in the Oryxis SSH client, with live access to the user's active SSH session through the `execute_command` tool. Whenever something needs to run on the server, including checking, verifying, or inspecting state, you MUST call `execute_command` to run it yourself. You have direct terminal access: never tell the user to run a command themselves, never put a command in a fenced code block expecting them to run it, and never end your turn by only announcing that you are about to check or run something, call the tool in the same turn. Run only ONE command per turn: after each command runs you receive its output and can decide the next step, so do not try to batch multiple commands into a single response. Only reply in plain text without calling the tool when the user explicitly asks how a command works, what something means, or for an explanation rather than an action. Classify each command's `risk` correctly (`safe` = read-only / introspection; `risky` = writes, deletes, or changes state) so the user is prompted before destructive ones. You also receive the last lines of terminal output for context.";
+
+/// Appended to the assistant reply when the provider stopped because it hit
+/// the output token cap, so a cut-off answer doesn't read as complete.
+const TRUNCATION_NOTE: &str = "\n\n_[response truncated: hit the model's output length limit]_";
 
 #[derive(Debug, Clone)]
 pub struct AiConfig {
@@ -42,7 +46,7 @@ pub const PROVIDERS: &[ProviderInfo] = &[
         id: "anthropic",
         display: "Anthropic",
         default_url: "https://api.anthropic.com/v1/messages",
-        default_model: "claude-sonnet-4-20250514",
+        default_model: "claude-sonnet-5",
         kind: ProviderKind::Anthropic,
     },
     ProviderInfo {
@@ -142,10 +146,99 @@ pub fn provider_from_display(display: &str) -> Option<&'static ProviderInfo> {
     PROVIDERS.iter().find(|p| p.display == display)
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// HTTP client for streaming provider calls. A connect timeout so a dead host
+/// fails fast instead of hanging the chat, and a read (inactivity) timeout so
+/// a mid-stream stall doesn't spin `chat_loading` forever, without the
+/// total-request timeout that would cut off a long but still-active stream.
+fn stream_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .read_timeout(std::time::Duration::from_secs(120))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// HTTP client for the non-streaming auto-exec judge. A short total timeout is
+/// fine here (one small completion) and desirable: the judge fails safe to
+/// BLOCK, so a hung request must not stall the whole tool pipeline.
+fn judge_http_client() -> reqwest::Client {
+    reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new())
+}
+
+/// The OpenAI Chat Completions API rejects `max_tokens` on its reasoning
+/// models (o-series, gpt-5.x) and wants `max_completion_tokens`, which every
+/// current OpenAI chat model accepts. Third-party OpenAI-compatible endpoints
+/// still expect `max_tokens`, so key the field name off the official host.
+fn openai_max_tokens_field(url: &str) -> &'static str {
+    if url.contains("api.openai.com") {
+        "max_completion_tokens"
+    } else {
+        "max_tokens"
+    }
+}
+
+/// One turn in a conversation, in a provider-agnostic shape. The three
+/// `stream_*` functions translate this into each provider's native message
+/// format (Anthropic content blocks, OpenAI `tool_calls` + `role:"tool"`,
+/// Gemini `functionCall`/`functionResponse`). A plain turn carries just
+/// `role` + `content` (text). A tool turn additionally carries `tool_use`
+/// (an assistant turn that calls the bash tool) or `tool_result` (the turn
+/// that reports its output); `id` pairs the two.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct ChatMsg {
-    pub role: String,     // "user", "assistant", "system"
-    pub content: serde_json::Value, // string or array of content blocks
+    pub role: String, // "user" | "assistant" | "tool"
+    #[serde(default)]
+    pub content: serde_json::Value, // text string; "" for a pure tool_use turn
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub tool_use: Option<ToolUseMsg>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub tool_result: Option<ToolResultMsg>,
+}
+
+/// A bash-tool invocation carried on an assistant turn.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ToolUseMsg {
+    pub id: String,
+    pub command: String,
+    pub risk: String,
+}
+
+/// The output of a prior [`ToolUseMsg`], carried on a `tool` turn.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ToolResultMsg {
+    pub id: String,
+    pub output: String,
+}
+
+impl ChatMsg {
+    /// A plain text turn (no tool blocks).
+    pub fn text(role: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: role.into(),
+            content: serde_json::Value::String(content.into()),
+            tool_use: None,
+            tool_result: None,
+        }
+    }
+
+    /// A `tool` turn reporting the result of a prior tool call.
+    pub fn tool_result(result: ToolResultMsg) -> Self {
+        Self {
+            role: "tool".into(),
+            content: serde_json::Value::String(String::new()),
+            tool_use: None,
+            tool_result: Some(result),
+        }
+    }
+
+    /// The turn's text content, or `""` when it carries none.
+    fn text_content(&self) -> &str {
+        self.content.as_str().unwrap_or("")
+    }
 }
 
 /// The bash execution tool definition (Anthropic format).
@@ -250,7 +343,7 @@ pub async fn judge_auto_exec(config: AiConfig, command: String) -> bool {
 }
 
 async fn judge_auto_exec_inner(config: &AiConfig, command: &str) -> Result<bool, String> {
-    let client = reqwest::Client::new();
+    let client = judge_http_client();
     let info = provider_info(&config.provider);
     let user_msg = format!("Command about to auto-run:\n`{command}`\n\nALLOW or BLOCK?");
 
@@ -339,16 +432,17 @@ async fn judge_auto_exec_inner(config: &AiConfig, command: &str) -> Result<bool,
             if url.is_empty() {
                 return Err("judge: provider requires an API URL".into());
             }
-            let body = serde_json::json!({
+            let mut body = serde_json::json!({
                 "model": config.model,
-                // Headroom for a reasoning model to think before the
-                // one-word verdict; an instruct model still stops early.
-                "max_tokens": 512,
                 "messages": [
                     { "role": "system", "content": AUTO_EXEC_JUDGE_PROMPT },
                     { "role": "user", "content": user_msg },
                 ],
             });
+            // Headroom for a reasoning model to think before the one-word
+            // verdict; an instruct model still stops early. Field name depends
+            // on the host (OpenAI reasoning models reject `max_tokens`).
+            body[openai_max_tokens_field(url)] = serde_json::json!(512);
             let resp = client
                 .post(url)
                 .header("Authorization", format!("Bearer {}", config.api_key))
@@ -524,12 +618,50 @@ where
     Ok(())
 }
 
+/// Map provider-agnostic `ChatMsg`s to Anthropic's native message array. A
+/// `tool_use` turn becomes an assistant message whose content is a block
+/// array `[text?, tool_use]`; a `tool_result` turn becomes a **user** message
+/// (Anthropic has no `tool` role) carrying a `tool_result` block; plain turns
+/// pass through as `{role, content}`.
+fn anthropic_messages(messages: &[ChatMsg]) -> Vec<serde_json::Value> {
+    messages
+        .iter()
+        .map(|m| {
+            if let Some(tr) = &m.tool_result {
+                serde_json::json!({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": tr.id,
+                        "content": tr.output,
+                    }],
+                })
+            } else if let Some(tu) = &m.tool_use {
+                let mut blocks: Vec<serde_json::Value> = Vec::new();
+                let text = m.text_content();
+                if !text.is_empty() {
+                    blocks.push(serde_json::json!({ "type": "text", "text": text }));
+                }
+                blocks.push(serde_json::json!({
+                    "type": "tool_use",
+                    "id": tu.id,
+                    "name": "execute_command",
+                    "input": { "command": tu.command, "risk": tu.risk },
+                }));
+                serde_json::json!({ "role": "assistant", "content": blocks })
+            } else {
+                serde_json::json!({ "role": m.role, "content": m.content })
+            }
+        })
+        .collect()
+}
+
 async fn stream_anthropic(
     config: &AiConfig,
     messages: &[ChatMsg],
     tx: &mpsc::UnboundedSender<StreamChunk>,
 ) -> Result<(), String> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let system_prompt = config
         .system_prompt
         .as_deref()
@@ -539,7 +671,7 @@ async fn stream_anthropic(
         "max_tokens": 4096,
         "system": system_prompt,
         "tools": [bash_tool()],
-        "messages": messages,
+        "messages": anthropic_messages(messages),
         "stream": true,
     });
     let url = config
@@ -617,6 +749,13 @@ async fn stream_anthropic(
                     }
                 }
             }
+            // `max_tokens` here means the reply was cut off at the cap; flag
+            // it so a truncated answer doesn't look complete.
+            "message_delta"
+                if v["delta"]["stop_reason"].as_str() == Some("max_tokens") =>
+            {
+                let _ = tx.send(StreamChunk::Text(TRUNCATION_NOTE.to_string()));
+            }
             "message_stop" => return Ok(true),
             _ => {}
         }
@@ -625,28 +764,57 @@ async fn stream_anthropic(
     .await
 }
 
+/// Map `ChatMsg`s to OpenAI's `chat/completions` message array (with the
+/// system prompt prepended). A `tool_use` turn becomes an assistant message
+/// with a `tool_calls` entry whose arguments are a JSON string; a
+/// `tool_result` turn becomes a `role:"tool"` message keyed by `tool_call_id`.
+fn openai_messages(system_prompt: &str, messages: &[ChatMsg]) -> Vec<serde_json::Value> {
+    std::iter::once(serde_json::json!({
+        "role": "system",
+        "content": system_prompt
+    }))
+    .chain(messages.iter().map(|m| {
+        if let Some(tr) = &m.tool_result {
+            serde_json::json!({
+                "role": "tool",
+                "tool_call_id": tr.id,
+                "content": tr.output,
+            })
+        } else if let Some(tu) = &m.tool_use {
+            let text = m.text_content();
+            let args = serde_json::json!({ "command": tu.command, "risk": tu.risk });
+            serde_json::json!({
+                "role": "assistant",
+                "content": if text.is_empty() { serde_json::Value::Null }
+                           else { serde_json::Value::String(text.to_string()) },
+                "tool_calls": [{
+                    "id": tu.id,
+                    "type": "function",
+                    "function": {
+                        "name": "execute_command",
+                        "arguments": args.to_string(),
+                    },
+                }],
+            })
+        } else {
+            serde_json::json!({ "role": m.role, "content": m.content })
+        }
+    }))
+    .collect()
+}
+
 async fn stream_openai_at(
     url: &str,
     config: &AiConfig,
     messages: &[ChatMsg],
     tx: &mpsc::UnboundedSender<StreamChunk>,
 ) -> Result<(), String> {
-    let client = reqwest::Client::new();
+    let client = stream_http_client();
     let system_prompt = config
         .system_prompt
         .as_deref()
         .unwrap_or(DEFAULT_SYSTEM_PROMPT);
-    let openai_messages: Vec<serde_json::Value> = std::iter::once(serde_json::json!({
-        "role": "system",
-        "content": system_prompt
-    }))
-    .chain(messages.iter().map(|m| {
-        serde_json::json!({
-            "role": m.role,
-            "content": m.content,
-        })
-    }))
-    .collect();
+    let openai_messages = openai_messages(system_prompt, messages);
     let tools = serde_json::json!([{
         "type": "function",
         "function": {
@@ -669,13 +837,15 @@ async fn stream_openai_at(
             }
         }
     }]);
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": config.model,
-        "max_tokens": 4096,
         "messages": openai_messages,
         "tools": tools,
         "stream": true,
     });
+    // `max_completion_tokens` on the official OpenAI host (its reasoning
+    // models reject `max_tokens`); `max_tokens` on third-party compat hosts.
+    body[openai_max_tokens_field(url)] = serde_json::json!(4096);
     let resp = client
         .post(url)
         .header("Authorization", format!("Bearer {}", config.api_key))
@@ -745,6 +915,11 @@ async fn stream_openai_at(
                     }
                 }
             }
+            // `length` means the reply was cut off at the token cap; flag it
+            // so a truncated answer doesn't look complete.
+            if finish == "length" {
+                let _ = tx.send(StreamChunk::Text(TRUNCATION_NOTE.to_string()));
+            }
             return Ok(true);
         }
         Ok(false)
@@ -752,22 +927,52 @@ async fn stream_openai_at(
     .await
 }
 
+/// Map `ChatMsg`s to Gemini's `contents` array. A `tool_use` turn becomes a
+/// `model` turn with a `functionCall` part; a `tool_result` turn becomes a
+/// `user` turn with a `functionResponse` part (Gemini pairs by function name,
+/// there is no id field).
+fn gemini_contents(messages: &[ChatMsg]) -> Vec<serde_json::Value> {
+    messages
+        .iter()
+        .map(|m| {
+            if let Some(tr) = &m.tool_result {
+                serde_json::json!({
+                    "role": "user",
+                    "parts": [{
+                        "functionResponse": {
+                            "name": "execute_command",
+                            "response": { "output": tr.output },
+                        }
+                    }],
+                })
+            } else if let Some(tu) = &m.tool_use {
+                let mut parts: Vec<serde_json::Value> = Vec::new();
+                let text = m.text_content();
+                if !text.is_empty() {
+                    parts.push(serde_json::json!({ "text": text }));
+                }
+                parts.push(serde_json::json!({
+                    "functionCall": {
+                        "name": "execute_command",
+                        "args": { "command": tu.command, "risk": tu.risk },
+                    }
+                }));
+                serde_json::json!({ "role": "model", "parts": parts })
+            } else {
+                let role = if m.role == "assistant" { "model" } else { "user" };
+                serde_json::json!({ "role": role, "parts": [{ "text": m.content }] })
+            }
+        })
+        .collect()
+}
+
 async fn stream_gemini(
     config: &AiConfig,
     messages: &[ChatMsg],
     tx: &mpsc::UnboundedSender<StreamChunk>,
 ) -> Result<(), String> {
-    let client = reqwest::Client::new();
-    let gemini_contents: Vec<serde_json::Value> = messages
-        .iter()
-        .map(|m| {
-            let role = if m.role == "assistant" { "model" } else { "user" };
-            serde_json::json!({
-                "role": role,
-                "parts": [{ "text": m.content }]
-            })
-        })
-        .collect();
+    let client = stream_http_client();
+    let gemini_contents = gemini_contents(messages);
     let system_prompt = config
         .system_prompt
         .as_deref()
@@ -825,11 +1030,13 @@ async fn stream_gemini(
     for_each_sse_event(stream, |data| {
         let v: serde_json::Value = serde_json::from_str(data)
             .map_err(|e| format!("gemini SSE parse: {e}"))?;
-        let Some(parts) = v["candidates"]
-            .as_array()
-            .and_then(|a| a.first())
-            .and_then(|c| c["content"]["parts"].as_array())
-        else {
+        let candidate = v["candidates"].as_array().and_then(|a| a.first());
+        // `MAX_TOKENS` means the reply was cut off at the cap; flag it so a
+        // truncated answer doesn't look complete.
+        if candidate.and_then(|c| c["finishReason"].as_str()) == Some("MAX_TOKENS") {
+            let _ = tx.send(StreamChunk::Text(TRUNCATION_NOTE.to_string()));
+        }
+        let Some(parts) = candidate.and_then(|c| c["content"]["parts"].as_array()) else {
             return Ok(false);
         };
         for part in parts {
@@ -1031,5 +1238,103 @@ mod tests {
                 "simple command wrongly flagged as chained: {cmd}"
             );
         }
+    }
+
+    // ── Per-provider tool-block shaping ──
+    //
+    // A completed exchange in provider-agnostic form: an assistant turn with
+    // a preamble + tool_use, followed by the matching tool_result turn.
+
+    fn tool_exchange_msgs() -> Vec<ChatMsg> {
+        let mut assistant = ChatMsg::text("assistant", "Checking disk.");
+        assistant.tool_use = Some(ToolUseMsg {
+            id: "toolu_1".into(),
+            command: "df -h".into(),
+            risk: "safe".into(),
+        });
+        vec![
+            ChatMsg::text("user", "how much disk is free?"),
+            assistant,
+            ChatMsg::tool_result(ToolResultMsg {
+                id: "toolu_1".into(),
+                output: "Filesystem 40% /".into(),
+            }),
+        ]
+    }
+
+    #[test]
+    fn anthropic_shape_pairs_tool_use_and_result() {
+        let out = anthropic_messages(&tool_exchange_msgs());
+        assert_eq!(out.len(), 3);
+        // Assistant turn: content is a [text, tool_use] block array.
+        assert_eq!(out[1]["role"], "assistant");
+        let blocks = out[1]["content"].as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "text");
+        assert_eq!(blocks[1]["type"], "tool_use");
+        assert_eq!(blocks[1]["id"], "toolu_1");
+        assert_eq!(blocks[1]["name"], "execute_command");
+        assert_eq!(blocks[1]["input"]["command"], "df -h");
+        // Result turn: a user message carrying a tool_result block by id.
+        assert_eq!(out[2]["role"], "user");
+        let rblocks = out[2]["content"].as_array().unwrap();
+        assert_eq!(rblocks[0]["type"], "tool_result");
+        assert_eq!(rblocks[0]["tool_use_id"], "toolu_1");
+        assert_eq!(rblocks[0]["content"], "Filesystem 40% /");
+    }
+
+    #[test]
+    fn openai_shape_uses_tool_calls_and_tool_role() {
+        let out = openai_messages("SYS", &tool_exchange_msgs());
+        // [system, user, assistant(tool_calls), tool]
+        assert_eq!(out[0]["role"], "system");
+        assert_eq!(out[2]["role"], "assistant");
+        let tc = &out[2]["tool_calls"][0];
+        assert_eq!(tc["id"], "toolu_1");
+        assert_eq!(tc["type"], "function");
+        assert_eq!(tc["function"]["name"], "execute_command");
+        // arguments is a JSON *string*.
+        let args: serde_json::Value =
+            serde_json::from_str(tc["function"]["arguments"].as_str().unwrap()).unwrap();
+        assert_eq!(args["command"], "df -h");
+        assert_eq!(out[3]["role"], "tool");
+        assert_eq!(out[3]["tool_call_id"], "toolu_1");
+        assert_eq!(out[3]["content"], "Filesystem 40% /");
+    }
+
+    #[test]
+    fn gemini_shape_uses_functioncall_and_functionresponse() {
+        let out = gemini_contents(&tool_exchange_msgs());
+        assert_eq!(out.len(), 3);
+        assert_eq!(out[1]["role"], "model");
+        let parts = out[1]["parts"].as_array().unwrap();
+        assert_eq!(parts[0]["text"], "Checking disk.");
+        assert_eq!(parts[1]["functionCall"]["name"], "execute_command");
+        assert_eq!(parts[1]["functionCall"]["args"]["command"], "df -h");
+        // Result: a user turn with a functionResponse part.
+        assert_eq!(out[2]["role"], "user");
+        let rparts = out[2]["parts"].as_array().unwrap();
+        assert_eq!(rparts[0]["functionResponse"]["name"], "execute_command");
+        assert_eq!(
+            rparts[0]["functionResponse"]["response"]["output"],
+            "Filesystem 40% /"
+        );
+    }
+
+    #[test]
+    fn standalone_tool_use_has_no_leading_text_block() {
+        // An assistant tool_use with empty text must not emit an empty text
+        // block (Anthropic rejects empty text) / must send null OpenAI content.
+        let mut a = ChatMsg::text("assistant", "");
+        a.tool_use = Some(ToolUseMsg {
+            id: "x".into(),
+            command: "ls".into(),
+            risk: "safe".into(),
+        });
+        let anth = anthropic_messages(&[a.clone()]);
+        let blocks = anth[0]["content"].as_array().unwrap();
+        assert_eq!(blocks.len(), 1); // only the tool_use, no empty text block
+        assert_eq!(blocks[0]["type"], "tool_use");
+        let oai = openai_messages("SYS", &[a]);
+        assert!(oai[1]["content"].is_null()); // content omitted as null
     }
 }

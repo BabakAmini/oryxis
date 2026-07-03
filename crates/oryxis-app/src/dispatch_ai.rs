@@ -9,6 +9,8 @@ use iced::Task;
 
 use std::sync::Arc;
 
+use uuid::Uuid;
+
 use crate::app::{Message, Oryxis};
 use crate::state::{ChatMessage, ChatRole};
 use crate::util::chat_scroll_to_end;
@@ -19,10 +21,111 @@ use crate::util::chat_scroll_to_end;
 /// exact-repeat loops are caught earlier by `chat_auto_run_history`.
 const CHAT_AUTO_RUN_STREAK_MAX: usize = 12;
 
+/// Snapshot the last `n_lines` of a terminal pane's visible grid as text
+/// for the AI context. Trailing whitespace is trimmed per line (alacritty
+/// pads empty cells with spaces, which would otherwise inflate the token
+/// count for no signal). When `privacy_terms` is `Some`, every line is run
+/// through the same redaction the live terminal and session-log viewer use,
+/// so IPs / hostnames / usernames the user chose to hide never leave the
+/// machine in an AI request. Free function (not a method) so it works both
+/// synchronously and inside the detached tool-followup `tokio::spawn`, which
+/// can't borrow `self`. Returns an empty string if the lock is poisoned.
+fn capture_terminal_context(
+    terminal: &std::sync::Mutex<crate::state::TerminalState>,
+    n_lines: usize,
+    privacy_terms: Option<&[String]>,
+) -> String {
+    let Ok(state) = terminal.lock() else {
+        return String::new();
+    };
+    // `tail_text` reads the last N rows including scrollback history (already
+    // trimmed, wide-char-aware), so a command whose output scrolled off the
+    // visible screen still reaches the model. Redact per line under Privacy.
+    state
+        .tail_text(n_lines)
+        .into_iter()
+        .map(|l| match privacy_terms {
+            Some(terms) => crate::widgets::redact_for_display(&l, terms),
+            None => l,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Reconstruct the provider-agnostic message list from chat history,
+/// rebuilding native `tool_use` / `tool_result` pairs from completed `Tool`
+/// exchanges. Rules that keep the request valid on every provider:
+///
+/// - A completed `Tool` exchange (output `Some`) merges its `tool_use` into
+///   the immediately-preceding assistant text turn (the canonical single
+///   `[text, tool_use]` turn), or emits a standalone assistant `tool_use`
+///   turn when there is no preamble; then a `tool` turn carries the result.
+/// - A `Tool` exchange still running (output `None`) is emitted as flat text,
+///   so an in-flight command never leaves a dangling `tool_use` that would
+///   400 the next request.
+/// - `Error` / `PendingTool` bubbles and empty assistant placeholders are
+///   dropped. `System` notes ride along as plain user text.
+///
+/// Pure (no `self`), so the per-provider shaping is unit-tested end to end.
+fn build_provider_messages(history: &[ChatMessage]) -> Vec<crate::ai::ChatMsg> {
+    use crate::ai::{ChatMsg, ToolResultMsg, ToolUseMsg};
+    let mut out: Vec<ChatMsg> = Vec::new();
+    for m in history {
+        match m.role {
+            ChatRole::Error | ChatRole::PendingTool => {}
+            ChatRole::Assistant => {
+                if !m.content.is_empty() {
+                    out.push(ChatMsg::text("assistant", &m.content));
+                }
+            }
+            ChatRole::User | ChatRole::System => {
+                out.push(ChatMsg::text("user", &m.content));
+            }
+            ChatRole::Tool => {
+                let Some(tx) = &m.tool else { continue };
+                match &tx.output {
+                    // Still running: flat text, no structured tool_use.
+                    None => out.push(ChatMsg::text(
+                        "user",
+                        format!("[Running command: {}]", tx.command),
+                    )),
+                    Some(output) => {
+                        let tu = ToolUseMsg {
+                            id: tx.id.clone(),
+                            command: tx.command.clone(),
+                            risk: tx.risk.clone(),
+                        };
+                        // Merge into the preceding assistant text turn if any,
+                        // else emit a standalone assistant tool_use turn.
+                        if let Some(last) = out.last_mut()
+                            && last.role == "assistant"
+                            && last.tool_use.is_none()
+                            && last.tool_result.is_none()
+                        {
+                            last.tool_use = Some(tu);
+                        } else {
+                            let mut a = ChatMsg::text("assistant", "");
+                            a.tool_use = Some(tu);
+                            out.push(a);
+                        }
+                        out.push(ChatMsg::tool_result(ToolResultMsg {
+                            id: tx.id.clone(),
+                            output: output.clone(),
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Flags that decide how a proposed AI tool call is gated. Pulled out of
 /// `Oryxis` state so the decision is a pure function (see
 /// [`classify_tool_gate`]) and can be unit-tested.
 struct ToolGateInput {
+    /// The tab's chat mode (`Plan` / `Ask` / `Auto`), the top-level branch.
+    mode: crate::state::ChatMode,
     /// First token is on the tab's "always run" allow-list.
     allowed: bool,
     /// Command chains / pipes / redirects / substitutes (e.g. `ls; rm`).
@@ -50,15 +153,28 @@ enum ToolGate {
     Prompt,
 }
 
-/// Decide how a proposed tool call is gated. Order matters only between
-/// `AutoExec` and the guards, every guard collapses to `Confirm`, so the
-/// relative order of the destructive floor and the loop guards is
-/// irrelevant to the outcome.
+/// Decide how a proposed tool call is gated, given the tab's chat mode.
+///
+/// The allow-list bypass runs first in every mode: a command whose exact
+/// name the user marked "always run" is honored (still subject to the loop
+/// backstop) whether the tab is in Plan, Ask, or Auto, because that decision
+/// was an explicit per-command grant. After that the mode decides:
+///
+/// - **Ask**: nothing runs unattended; every non-allow-listed command is a
+///   `Prompt`.
+/// - **Plan**: read-only investigation may auto-run (same floor + judge path
+///   as Auto), but any write / destructive / unclassified command is
+///   surfaced (`Prompt`) instead of executed, so the session stays read-only
+///   by default. The user can still click RUN on a surfaced write.
+/// - **Auto**: the full pipeline (destructive floor + loop guards collapse
+///   to `Confirm`, model-claimed safe goes to the `Judge`, everything else
+///   `Prompt`).
 fn classify_tool_gate(i: ToolGateInput) -> ToolGate {
-    // Allow-listed simple command: runs unattended, but even a trusted
-    // command can't loop forever, so the streak backstop still applies.
-    // Exact-repeat is deliberately NOT applied to allow-listed commands
-    // (the user may legitimately want `ls` run more than once).
+    use crate::state::ChatMode;
+    // Allow-listed simple command: runs unattended in any mode, but even a
+    // trusted command can't loop forever, so the streak backstop still
+    // applies. Exact-repeat is deliberately NOT applied to allow-listed
+    // commands (the user may legitimately want `ls` run more than once).
     if i.allowed && !i.has_chaining {
         return if i.streak_exceeded {
             ToolGate::Confirm
@@ -66,42 +182,89 @@ fn classify_tool_gate(i: ToolGateInput) -> ToolGate {
             ToolGate::AutoExec
         };
     }
-    // Deterministic catastrophic-command floor: always prompt, never judged.
-    if i.risk_safe && i.obviously_destructive {
-        return ToolGate::Confirm;
+    match i.mode {
+        // Every command needs an explicit click.
+        ChatMode::Ask => ToolGate::Prompt,
+        // Read-only auto-runs (through the same guards as Auto); anything
+        // that isn't cleanly read-only is surfaced rather than executed.
+        ChatMode::Plan => {
+            if i.risk_safe
+                && !i.obviously_destructive
+                && !i.streak_exceeded
+                && !i.already_auto_ran
+            {
+                ToolGate::Judge
+            } else {
+                ToolGate::Prompt
+            }
+        }
+        ChatMode::Auto => {
+            // Deterministic catastrophic-command floor: always prompt.
+            if i.risk_safe && i.obviously_destructive {
+                return ToolGate::Confirm;
+            }
+            // Loop guards on the judge path: a repeated command or an
+            // over-long streak is refused auto-exec and surfaced instead.
+            // This is what breaks the runaway loop with no user action.
+            if i.risk_safe && (i.streak_exceeded || i.already_auto_ran) {
+                return ToolGate::Confirm;
+            }
+            // Model-claimed safe and nothing objected: let the judge decide.
+            if i.risk_safe {
+                return ToolGate::Judge;
+            }
+            // Risky or unclassified: explicit prompt.
+            ToolGate::Prompt
+        }
     }
-    // Loop guards on the judge path: a repeated command or an over-long
-    // streak is refused auto-exec and surfaced instead. This is what breaks
-    // the runaway loop with no user action.
-    if i.risk_safe && (i.streak_exceeded || i.already_auto_ran) {
-        return ToolGate::Confirm;
-    }
-    // Model-claimed safe and nothing objected: let the judge decide.
-    if i.risk_safe {
-        return ToolGate::Judge;
-    }
-    // Risky or unclassified: explicit prompt.
-    ToolGate::Prompt
 }
 
 impl Oryxis {
-    /// Abort the in-flight chat stream (if any) and forget its handle.
-    /// Aborting the iced stream drops the receiver feeding it, which makes
-    /// the detached tool-followup task's `tx.send` fail so it stops too.
-    pub(crate) fn abort_chat_task(&mut self) {
-        if let Some(handle) = self.chat_task.take() {
+    /// Index of the tab with this id, if it still exists. The chat pipeline
+    /// routes by id (not `active_tab`) so switching or closing tabs
+    /// mid-stream can never land a delta or a command on the wrong session.
+    fn chat_tab_index(&self, id: Uuid) -> Option<usize> {
+        self.tabs.iter().position(|t| t._id == id)
+    }
+
+    /// Abort the in-flight chat stream on the tab with `id` (if any) and
+    /// forget its handle. Aborting the iced stream drops the receiver
+    /// feeding it, which makes the detached tool-followup task's `tx.send`
+    /// fail so it stops too. No-op if the tab is gone or idle.
+    pub(crate) fn abort_chat_task_for(&mut self, id: Uuid) {
+        if let Some(idx) = self.chat_tab_index(id)
+            && let Some(handle) = self.tabs[idx].chat_task.take()
+        {
             handle.abort();
         }
     }
 
-    /// Replace the tracked chat task: abort whatever was running, make the
-    /// new task abortable, store its handle, and return the wrapped task to
-    /// hand back to iced. Funnel every chat-stream / judge task through
-    /// this so a single Stop / close / reset can cancel the live work.
-    fn track_chat_task(&mut self, task: Task<Message>) -> Task<Message> {
-        self.abort_chat_task();
+    /// Abort the active tab's chat stream and clear its loading flag. The
+    /// user-gesture stop path (Stop button, closing the sidebar, reset):
+    /// those always act on the tab the user is looking at.
+    pub(crate) fn abort_active_chat_task(&mut self) {
+        if let Some(idx) = self.active_tab
+            && let Some(tab) = self.tabs.get_mut(idx)
+        {
+            if let Some(handle) = tab.chat_task.take() {
+                handle.abort();
+            }
+            tab.chat_loading = false;
+        }
+    }
+
+    /// Replace a tab's tracked chat task: abort whatever was running on it,
+    /// make the new task abortable, store its handle on the tab, and return
+    /// the wrapped task to hand back to iced. Funnel every chat-stream /
+    /// judge task through this (keyed by origin tab id) so a single Stop /
+    /// close / reset cancels the right conversation's live work, and a chat
+    /// on one tab never cancels another's. Passthrough if the tab is gone.
+    fn track_chat_task_for(&mut self, id: Uuid, task: Task<Message>) -> Task<Message> {
+        self.abort_chat_task_for(id);
         let (task, handle) = task.abortable();
-        self.chat_task = Some(handle);
+        if let Some(idx) = self.chat_tab_index(id) {
+            self.tabs[idx].chat_task = Some(handle);
+        }
         task
     }
 
@@ -116,6 +279,89 @@ impl Oryxis {
             tab.chat_auto_run_history.clear();
             tab.chat_auto_run_streak = 0;
         }
+    }
+
+    /// Spawn a fresh assistant stream for tab `idx` over its CURRENT chat
+    /// history, marking the tab loading, pushing the empty assistant
+    /// placeholder the deltas land in, and returning the tracked stream task.
+    /// Shared by `SendChat` (after it pushes the user message) and `ChatRetry`
+    /// (which resumes over the existing history, including tool-output System
+    /// bubbles, without needing a trailing user message). Injects the current
+    /// terminal output (redacted under Privacy Mode) as leading context.
+    fn spawn_chat_stream_for(&mut self, idx: usize) -> Task<Message> {
+        // Resolve everything that needs an immutable borrow of `self` up
+        // front (tab id for routing, terminal handle, Privacy-Mode inputs,
+        // provider config) so the mutable history push doesn't collide.
+        let tab_id = self.tabs[idx]._id;
+        let terminal = Arc::clone(&self.tabs[idx].active().terminal);
+        let pane_label = self.tabs[idx].active().label.clone();
+        let privacy_terms = self
+            .privacy_active_for_label(&pane_label)
+            .then(|| self.privacy_terms());
+        let api_key = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.get_ai_api_key().ok().flatten())
+            .unwrap_or_default();
+        let extra_prompt = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.get_setting("ai_system_prompt").ok().flatten());
+        let config = crate::ai::AiConfig {
+            provider: self.ai.provider.clone(),
+            model: self.ai.model.clone(),
+            api_key,
+            api_url: if self.ai.api_url.is_empty() {
+                None
+            } else {
+                Some(self.ai.api_url.clone())
+            },
+            system_prompt: extra_prompt,
+        };
+
+        // Snapshot the last ~50 lines of terminal output for context,
+        // redacted when Privacy Mode is active for this pane.
+        let terminal_context =
+            capture_terminal_context(&terminal, 50, privacy_terms.as_deref());
+
+        let tab = &mut self.tabs[idx];
+        tab.chat_loading = true;
+
+        // Build messages: inject current terminal output as a leading user
+        // turn, then the reconstructed history (with native tool blocks).
+        let mut messages: Vec<crate::ai::ChatMsg> = Vec::new();
+        if !terminal_context.is_empty() {
+            messages.push(crate::ai::ChatMsg::text(
+                "user",
+                format!(
+                    "[Current terminal output (last ~50 lines)]\n```\n{}\n```",
+                    terminal_context
+                ),
+            ));
+            messages.push(crate::ai::ChatMsg::text(
+                "assistant",
+                "I can see the terminal output. How can I help?",
+            ));
+        }
+        messages.extend(build_provider_messages(&tab.chat_history));
+
+        // Insert an empty assistant placeholder so streamed text deltas have
+        // a bubble to land in.
+        tab.chat_history
+            .push(ChatMessage::text(ChatRole::Assistant, String::new()));
+
+        let stream_task = Task::stream(crate::ai::send_chat_stream(config, messages)).map(
+            move |chunk| match chunk {
+                crate::ai::StreamChunk::Text(delta) => Message::ChatStreamChunk { tab_id, delta },
+                crate::ai::StreamChunk::ToolUse { command, risk } => {
+                    Message::ChatToolProposed { tab_id, command, risk }
+                }
+                crate::ai::StreamChunk::Done => Message::ChatStreamDone { tab_id },
+                crate::ai::StreamChunk::Error(error) => Message::ChatError { tab_id, error },
+            },
+        );
+        // Track the stream so Stop / close / reset can abort it.
+        self.track_chat_task_for(tab_id, stream_task)
     }
 
     pub(crate) fn handle_ai(
@@ -212,8 +458,7 @@ impl Oryxis {
                 // sidebar was closed). Cancel any live chat work so it
                 // doesn't keep executing commands in the background.
                 if closing {
-                    self.abort_chat_task();
-                    self.chat_loading = false;
+                    self.abort_active_chat_task();
                 }
             }
             Message::SelectTerminalSidebarTab(tab) => {
@@ -251,16 +496,29 @@ impl Oryxis {
             Message::ChatResetConversation => {
                 // Cancel any in-flight stream first, otherwise the detached
                 // tool-followup task would keep running and re-populate the
-                // history we're about to clear.
-                self.abort_chat_task();
+                // history we're about to clear. Acts on the active tab (the
+                // conversation the user is looking at).
+                self.abort_active_chat_task();
                 self.reset_chat_auto_run_guard();
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                 {
                     tab.chat_history.clear();
                 }
-                self.chat_loading = false;
                 self.chat_scroll_at_bottom = true;
+            }
+            Message::ChatModeChanged(mode) => {
+                // Apply to the active tab's conversation and remember it as
+                // the default for new tabs (process-wide default + setting).
+                if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    tab.chat_mode = mode;
+                }
+                crate::state::set_default_chat_mode(mode);
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting("ai_default_mode", mode.as_setting());
+                }
             }
             Message::ChatSidebarResizeStart => {
                 // Capture cursor x and current width, the MouseMoved
@@ -360,313 +618,190 @@ impl Oryxis {
                 if input.is_empty() || !self.ai.enabled {
                     return Ok(Task::none());
                 }
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx) {
-                        tab.chat_history.push(ChatMessage {
-                            role: ChatRole::User,
-                            content: input,
-                            parsed_md: Vec::new(),
-                        });
-                        // A fresh user turn clears the auto-exec guard so the
-                        // streak / repeat history from the previous turn
-                        // doesn't bleed into this one.
-                        tab.chat_auto_run_history.clear();
-                        tab.chat_auto_run_streak = 0;
-                        self.chat_input = text_editor::Content::new();
-                        self.chat_loading = true;
-                        // Sending a message snaps focus back to the latest
-                        // exchange, so the next assistant response should
-                        // also follow (until the user scrolls up again).
-                        self.chat_scroll_at_bottom = true;
-
-                        // Build AI config
-                        let api_key = self.vault.as_ref()
-                            .and_then(|v| v.get_ai_api_key().ok().flatten())
-                            .unwrap_or_default();
-
-                        // Get additional system prompt from settings
-                        let extra_prompt = self.vault.as_ref()
-                            .and_then(|v| v.get_setting("ai_system_prompt").ok().flatten());
-
-                        let config = crate::ai::AiConfig {
-                            provider: self.ai.provider.clone(),
-                            model: self.ai.model.clone(),
-                            api_key,
-                            api_url: if self.ai.api_url.is_empty() {
-                                None
-                            } else {
-                                Some(self.ai.api_url.clone())
-                            },
-                            system_prompt: extra_prompt,
-                        };
-
-                        // Get last ~50 lines of terminal output for context
-                        let terminal_context = if let Ok(state) = tab.active().terminal.lock() {
-                            let term = &state.backend.term;
-                            let content = term.renderable_content();
-                            let mut lines: Vec<String> = Vec::new();
-                            let mut current_line = String::new();
-                            let mut last_row = 0i32;
-                            for item in content.display_iter {
-                                let row = item.point.line.0;
-                                if row != last_row && !current_line.is_empty() {
-                                    lines.push(std::mem::take(&mut current_line));
-                                    last_row = row;
-                                }
-                                let c = item.cell.c;
-                                if c != '\0' {
-                                    current_line.push(c);
-                                }
-                            }
-                            if !current_line.is_empty() {
-                                lines.push(current_line);
-                            }
-                            // Take last 50 lines
-                            let start = lines.len().saturating_sub(50);
-                            lines[start..].join("\n")
-                        } else {
-                            String::new()
-                        };
-
-                        // Build messages: inject terminal context as first user message
-                        let mut messages: Vec<crate::ai::ChatMsg> = Vec::new();
-                        if !terminal_context.is_empty() {
-                            messages.push(crate::ai::ChatMsg {
-                                role: "user".into(),
-                                content: serde_json::Value::String(format!(
-                                    "[Current terminal output (last ~50 lines)]\n```\n{}\n```",
-                                    terminal_context
-                                )),
-                            });
-                            messages.push(crate::ai::ChatMsg {
-                                role: "assistant".into(),
-                                content: serde_json::Value::String(
-                                    "I can see the terminal output. How can I help?".into()
-                                ),
-                            });
-                        }
-                        // Add chat history. Skip Error bubbles (UI-only)
-                        // and empty assistant placeholders (the staging
-                        // slots streaming chunks land in, sending an
-                        // empty `assistant: ""` upsets some providers).
-                        messages.extend(
-                            tab.chat_history
-                                .iter()
-                                .filter(|m| {
-                                    !(matches!(m.role, ChatRole::Error | ChatRole::PendingTool)
-                                        || (m.role == ChatRole::Assistant
-                                            && m.content.is_empty()))
-                                })
-                                .map(|m| crate::ai::ChatMsg {
-                                    role: match m.role {
-                                        ChatRole::User => "user".into(),
-                                        ChatRole::Assistant => "assistant".into(),
-                                        ChatRole::System => "user".into(),
-                                        ChatRole::Error | ChatRole::PendingTool => unreachable!(),
-                                    },
-                                    content: serde_json::Value::String(m.content.clone()),
-                                }),
-                        );
-
-                        // Insert an empty assistant placeholder so
-                        // streamed text deltas have a bubble to land in.
-                        // The view filters out empty assistant bubbles
-                        // (they look like a glitch); the message builder
-                        // above skips them too, so they remain in
-                        // history harmlessly until the next reset.
-                        tab.chat_history.push(ChatMessage {
-                            role: ChatRole::Assistant,
-                            content: String::new(),
-                            parsed_md: Vec::new(),
-                        });
-
-                        let stream_task = Task::stream(
-                            crate::ai::send_chat_stream(config, messages),
-                        )
-                        .map(|chunk| match chunk {
-                            crate::ai::StreamChunk::Text(t) => Message::ChatStreamChunk(t),
-                            crate::ai::StreamChunk::ToolUse { command, risk } => {
-                                Message::ChatToolProposed { command, risk }
-                            }
-                            crate::ai::StreamChunk::Done => Message::ChatStreamDone,
-                            crate::ai::StreamChunk::Error(e) => Message::ChatError(e),
-                        });
-                        // Track the stream so Stop / close / reset can abort it.
-                        let stream_task = self.track_chat_task(stream_task);
-                        return Ok(Task::batch(vec![chat_scroll_to_end(), stream_task]));
+                let Some(idx) = self.active_tab else {
+                    return Ok(Task::none());
+                };
+                if idx >= self.tabs.len() {
+                    return Ok(Task::none());
                 }
+
+                let tab = &mut self.tabs[idx];
+                tab.chat_history
+                    .push(ChatMessage::text(ChatRole::User, input));
+                // A fresh user turn clears the auto-exec guard so the
+                // streak / repeat history from the previous turn
+                // doesn't bleed into this one.
+                tab.chat_auto_run_history.clear();
+                tab.chat_auto_run_streak = 0;
+                self.chat_input = text_editor::Content::new();
+                // Sending a message snaps focus back to the latest
+                // exchange, so the next assistant response should
+                // also follow (until the user scrolls up again).
+                self.chat_scroll_at_bottom = true;
+
+                let stream_task = self.spawn_chat_stream_for(idx);
+                return Ok(Task::batch(vec![chat_scroll_to_end(), stream_task]));
             }
-            Message::ChatStreamChunk(delta) => {
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
-                    && let Some(last) = tab.chat_history.last_mut()
-                    && last.role == ChatRole::Assistant
-                {
-                    last.content.push_str(&delta);
-                    // Markdown parse is O(content), so re-parsing on
-                    // every token makes a long streamed reply O(n^2).
-                    // Throttle to ~10 parses/s; `ChatStreamDone` does
-                    // the final authoritative parse. Single static is
-                    // enough: one chat stream runs at a time.
-                    static LAST_MD_PARSE: std::sync::Mutex<Option<std::time::Instant>> =
-                        std::sync::Mutex::new(None);
+            Message::ChatStreamChunk { tab_id, delta } => {
+                // Route to the origin tab by id (not `active_tab`): the user
+                // may have switched tabs while this stream keeps running.
+                let is_active = self.chat_tab_index(tab_id) == self.active_tab;
+                if let Some(idx) = self.chat_tab_index(tab_id) {
+                    // Markdown parse is O(content), so re-parsing on every
+                    // token makes a long streamed reply O(n^2). Throttle to
+                    // ~10 parses/s off the tab's own last-parse clock (a
+                    // shared static would never throttle when two tabs stream
+                    // at once); `ChatStreamDone` does the final parse.
                     let now = std::time::Instant::now();
-                    let mut guard = LAST_MD_PARSE.lock().unwrap();
-                    let due = guard
+                    let due = self.tabs[idx]
+                        .chat_last_md_parse
                         .map(|t| now.duration_since(t).as_millis() >= 100)
                         .unwrap_or(true);
+                    if let Some(last) = self.tabs[idx].chat_history.last_mut()
+                        && last.role == ChatRole::Assistant
+                    {
+                        last.content.push_str(&delta);
+                        if due {
+                            last.parsed_md =
+                                iced::widget::markdown::parse(&last.content).collect();
+                        }
+                    }
                     if due {
-                        *guard = Some(now);
-                        drop(guard);
-                        last.parsed_md =
-                            iced::widget::markdown::parse(&last.content).collect();
+                        self.tabs[idx].chat_last_md_parse = Some(now);
                     }
                 }
-                if self.chat_scroll_at_bottom {
+                // Only follow the scroll when the streaming tab is the one
+                // on screen; a background stream must not yank the view.
+                if is_active && self.chat_scroll_at_bottom {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatStreamDone => {
-                // Final parse so the rendered markdown can't lag behind
-                // the throttled streaming parses above.
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
-                    && let Some(last) = tab.chat_history.last_mut()
-                    && last.role == ChatRole::Assistant
-                {
-                    last.parsed_md =
-                        iced::widget::markdown::parse(&last.content).collect();
+            Message::ChatStreamDone { tab_id } => {
+                let is_active = self.chat_tab_index(tab_id) == self.active_tab;
+                if let Some(idx) = self.chat_tab_index(tab_id) {
+                    // Final parse so the rendered markdown can't lag behind
+                    // the throttled streaming parses above.
+                    if let Some(last) = self.tabs[idx].chat_history.last_mut()
+                        && last.role == ChatRole::Assistant
+                    {
+                        last.parsed_md =
+                            iced::widget::markdown::parse(&last.content).collect();
+                    }
+                    // Empty assistant placeholders are filtered out at the
+                    // view layer and excluded from the message-builder when
+                    // we send to the model, so we don't try to pop them
+                    // here. (Popping was racy when a tool followup pushed
+                    // its own placeholder before the original stream's Done
+                    // arrived.)
+                    // The stream finished on its own; drop the now-spent
+                    // abort handle so a later Stop doesn't cancel nothing.
+                    self.tabs[idx].chat_task = None;
+                    self.tabs[idx].chat_loading = false;
                 }
-                // Empty assistant placeholders are filtered out at the
-                // view layer and excluded from the message-builder when
-                // we send to the model, so we don't try to pop them
-                // here. (Popping was racy when a tool followup pushed
-                // its own placeholder before the original stream's Done
-                // arrived.)
-                // The stream finished on its own; drop the now-spent abort
-                // handle so a later Stop doesn't try to cancel nothing.
-                self.chat_task = None;
-                self.chat_loading = false;
-                if self.chat_scroll_at_bottom {
+                if is_active && self.chat_scroll_at_bottom {
                     return Ok(chat_scroll_to_end());
                 }
             }
             Message::ChatStop => {
-                // User asked to stop. Abort the live stream (and the
-                // detached tool-followup pipeline it feeds) and freeze the
-                // auto-exec guard where it is, so nothing else runs until
+                // User asked to stop. Abort the active tab's live stream (and
+                // the detached tool-followup pipeline it feeds) and freeze
+                // the auto-exec guard where it is, so nothing else runs until
                 // the user sends the next message.
-                self.abort_chat_task();
-                self.chat_loading = false;
+                self.abort_active_chat_task();
             }
-            Message::ChatError(e) => {
+            Message::ChatError { tab_id, error } => {
                 // Provider/network failures get their own role so the
                 // bubble can render with an error treatment + Retry,
                 // instead of being indistinguishable from a real reply.
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
-                {
+                let is_active = self.chat_tab_index(tab_id) == self.active_tab;
+                if let Some(idx) = self.chat_tab_index(tab_id) {
                     // If the stream errored before the model wrote any
                     // text, drop the empty assistant placeholder so we
                     // don't render a blank bubble above the error.
-                    if let Some(last) = tab.chat_history.last()
+                    if let Some(last) = self.tabs[idx].chat_history.last()
                         && last.role == ChatRole::Assistant
                         && last.content.is_empty()
                     {
-                        tab.chat_history.pop();
+                        self.tabs[idx].chat_history.pop();
                     }
-                    tab.chat_history.push(ChatMessage {
-                        role: ChatRole::Error,
-                        content: e,
-                        parsed_md: Vec::new(),
-                    });
+                    self.tabs[idx]
+                        .chat_history
+                        .push(ChatMessage::text(ChatRole::Error, error));
+                    self.tabs[idx].chat_task = None;
+                    self.tabs[idx].chat_loading = false;
                 }
-                self.chat_task = None;
-                self.chat_loading = false;
-                if self.chat_scroll_at_bottom {
+                if is_active && self.chat_scroll_at_bottom {
                     return Ok(chat_scroll_to_end());
                 }
             }
             Message::ChatRetry => {
-                // Strip the trailing error bubble + the user message
-                // that led to it, then re-dispatch SendChat so the
-                // existing pipeline pushes a fresh user message and
-                // re-sends. Without popping the user msg too, retry
-                // would duplicate it in history.
+                // Strip the trailing error bubble plus any partial-stream
+                // assistant remnants (empty placeholders, or text that
+                // arrived before the error), then resume a fresh assistant
+                // stream over whatever remains. Unlike the old flow this does
+                // NOT require a trailing user message: when the error followed
+                // a tool execution the history ends on a System bubble (the
+                // command + its output), and the stream continues from there
+                // (#3). It also does not pop the user message, so nothing is
+                // lost if the remaining history isn't what we expected.
                 let Some(idx) = self.active_tab else {
                     return Ok(Task::none());
                 };
-                let last_user: Option<String> = {
-                    let Some(tab) = self.tabs.get_mut(idx) else {
-                        return Ok(Task::none());
-                    };
-                    // Pop trailing Error / Assistant entries, the
-                    // Assistants are partial-stream remnants (could be
-                    // empty placeholders or text that arrived before
-                    // the error). Then pop the user message so the
-                    // re-dispatch pushes it fresh.
+                if idx >= self.tabs.len() {
+                    return Ok(Task::none());
+                }
+                {
+                    let tab = &mut self.tabs[idx];
                     while matches!(
                         tab.chat_history.last().map(|m| &m.role),
                         Some(ChatRole::Error) | Some(ChatRole::Assistant)
                     ) {
                         tab.chat_history.pop();
                     }
-                    if matches!(
-                        tab.chat_history.last().map(|m| &m.role),
-                        Some(ChatRole::User)
-                    ) {
-                        tab.chat_history.pop().map(|m| m.content)
-                    } else {
-                        None
+                    // Nothing left to respond to (whole conversation was error
+                    // remnants): don't spawn an empty stream.
+                    if tab.chat_history.is_empty() {
+                        tab.chat_loading = false;
+                        return Ok(Task::none());
                     }
-                };
-                if let Some(text) = last_user {
-                    self.chat_input = text_editor::Content::with_text(&text);
-                    return Ok(Task::done(Message::SendChat));
                 }
+                self.chat_scroll_at_bottom = true;
+                let stream_task = self.spawn_chat_stream_for(idx);
+                return Ok(Task::batch(vec![chat_scroll_to_end(), stream_task]));
             }
-            Message::ChatToolProposed { command, risk } => {
-                // Gate the tool call: safe commands run immediately;
-                // risky ones become a `PendingTool` bubble waiting on
-                // a RUN / ALWAYS RUN / DENY click. The first whitespace
-                // token is matched against the tab's allow-list so the
-                // user's "always run X" decisions stick across the
-                // session.
+            Message::ChatToolProposed { tab_id, command, risk } => {
+                // Gate the tool call against the ORIGIN tab (routed by id, so
+                // switching tabs mid-stream can't run a command on the wrong
+                // host). Mode + allow-list + loop guards all read from that
+                // tab. If it's gone (closed mid-stream), drop the proposal.
+                let Some(idx) = self.chat_tab_index(tab_id) else {
+                    return Ok(Task::none());
+                };
                 let first_token = command
                     .split_whitespace()
                     .next()
                     .unwrap_or("")
                     .to_string();
-                let allowed = self
-                    .active_tab
-                    .and_then(|i| self.tabs.get(i))
-                    .map(|tab| {
-                        tab.chat_always_run_commands
-                            .iter()
-                            .any(|c| c == &first_token)
-                    })
-                    .unwrap_or(false);
-                // Loop guards, read from the active tab's per-turn auto-exec
+                let tab = &self.tabs[idx];
+                let allowed = tab
+                    .chat_always_run_commands
+                    .iter()
+                    .any(|c| c == &first_token);
+                // Loop guards, read from the origin tab's per-turn auto-exec
                 // state. `streak_exceeded` catches a long run of *different*
                 // auto-executed commands; `already_auto_ran` catches the
                 // model re-proposing the exact same command (the reported
                 // `docker --version` loop). Both convert an auto-exec into a
                 // confirmation prompt so the loop can't run unattended.
-                let (streak_exceeded, already_auto_ran) = self
-                    .active_tab
-                    .and_then(|i| self.tabs.get(i))
-                    .map(|tab| {
-                        (
-                            tab.chat_auto_run_streak >= CHAT_AUTO_RUN_STREAK_MAX,
-                            tab.chat_auto_run_history.iter().any(|c| c == &command),
-                        )
-                    })
-                    .unwrap_or((false, false));
-                // Decide how this tool call is gated. The branching (allow-list
-                // bypass, destructive floor, loop guards, judge, prompt) is a
-                // pure function of these flags so it can be unit-tested without
-                // a live `Oryxis`, see `classify_tool_gate`.
+                let streak_exceeded = tab.chat_auto_run_streak >= CHAT_AUTO_RUN_STREAK_MAX;
+                let already_auto_ran = tab.chat_auto_run_history.iter().any(|c| c == &command);
+                let mode = tab.chat_mode;
+                // Decide how this tool call is gated. The branching (mode,
+                // allow-list bypass, destructive floor, loop guards, judge,
+                // prompt) is a pure function of these flags so it can be
+                // unit-tested without a live `Oryxis`, see `classify_tool_gate`.
                 let gate = classify_tool_gate(ToolGateInput {
+                    mode,
                     allowed,
                     has_chaining: crate::ai::has_shell_chaining(&command),
                     risk_safe: risk == "safe",
@@ -677,14 +812,14 @@ impl Oryxis {
                 match gate {
                     // Allow-listed simple command under the streak cap: run now.
                     ToolGate::AutoExec => {
-                        return Ok(Task::done(Message::ChatToolExec(command)));
+                        return Ok(Task::done(Message::ChatToolExec { tab_id, command, risk }));
                     }
                     // Loop guard tripped, or the deterministic destructive
                     // floor fired: surface it for explicit approval instead of
                     // running it unattended. This is what stops the reported
                     // runaway loop on its own.
                     ToolGate::Confirm => {
-                        return Ok(Task::done(Message::ChatToolGuardBlocked { command }));
+                        return Ok(Task::done(Message::ChatToolGuardBlocked { tab_id, command }));
                     }
                     // Model-claimed `safe` and nothing above objected: hand to
                     // the independent auto-exec judge, which can only escalate
@@ -706,15 +841,21 @@ impl Oryxis {
                             },
                             system_prompt: None,
                         };
-                        self.chat_loading = true;
+                        self.tabs[idx].chat_loading = true;
                         let cmd_for_judge = command.clone();
+                        let risk_for_exec = risk.clone();
                         let judge = Task::perform(
                             crate::ai::judge_auto_exec(config, cmd_for_judge),
                             move |allow| {
                                 if allow {
-                                    Message::ChatToolExec(command.clone())
+                                    Message::ChatToolExec {
+                                        tab_id,
+                                        command: command.clone(),
+                                        risk: risk_for_exec.clone(),
+                                    }
                                 } else {
                                     Message::ChatToolGuardBlocked {
+                                        tab_id,
                                         command: command.clone(),
                                     }
                                 }
@@ -723,63 +864,62 @@ impl Oryxis {
                         // Track the judge call so Stop cancels a pending
                         // auto-exec decision before it can fire ChatToolExec
                         // and run a command behind the user's back.
-                        return Ok(self.track_chat_task(judge));
+                        return Ok(self.track_chat_task_for(tab_id, judge));
                     }
                     // Risky / unclassified: fall through to the pending bubble.
                     ToolGate::Prompt => {}
                 }
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
+                // Drop the empty assistant placeholder if the model went
+                // straight to a tool call without any text.
+                if let Some(last) = self.tabs[idx].chat_history.last()
+                    && last.role == ChatRole::Assistant
+                    && last.content.is_empty()
                 {
-                    // Drop the empty assistant placeholder if the model
-                    // went straight to a tool call without any text.
-                    if let Some(last) = tab.chat_history.last()
-                        && last.role == ChatRole::Assistant
-                        && last.content.is_empty()
-                    {
-                        tab.chat_history.pop();
-                    }
-                    tab.chat_history.push(ChatMessage {
-                        role: ChatRole::PendingTool,
-                        content: command,
-                        parsed_md: Vec::new(),
-                    });
+                    self.tabs[idx].chat_history.pop();
                 }
-                self.chat_loading = false;
-                if self.chat_scroll_at_bottom {
+                self.tabs[idx]
+                    .chat_history
+                    .push(ChatMessage::text(ChatRole::PendingTool, command));
+                self.tabs[idx].chat_loading = false;
+                if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatToolGuardBlocked { command } => {
-                // The independent judge declined to auto-run this
-                // model-claimed `safe` command, so surface it for explicit
-                // approval exactly like a risky one.
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
+            Message::ChatToolGuardBlocked { tab_id, command } => {
+                // A mode / loop guard or the independent judge declined to
+                // auto-run this command, so surface it on the origin tab for
+                // explicit approval exactly like a risky one.
+                let Some(idx) = self.chat_tab_index(tab_id) else {
+                    return Ok(Task::none());
+                };
+                if let Some(last) = self.tabs[idx].chat_history.last()
+                    && last.role == ChatRole::Assistant
+                    && last.content.is_empty()
                 {
-                    if let Some(last) = tab.chat_history.last()
-                        && last.role == ChatRole::Assistant
-                        && last.content.is_empty()
-                    {
-                        tab.chat_history.pop();
-                    }
-                    tab.chat_history.push(ChatMessage {
-                        role: ChatRole::PendingTool,
-                        content: command,
-                        parsed_md: Vec::new(),
-                    });
+                    self.tabs[idx].chat_history.pop();
                 }
-                self.chat_loading = false;
-                if self.chat_scroll_at_bottom {
+                self.tabs[idx]
+                    .chat_history
+                    .push(ChatMessage::text(ChatRole::PendingTool, command));
+                self.tabs[idx].chat_loading = false;
+                if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
                     return Ok(chat_scroll_to_end());
                 }
             }
             Message::ChatToolApprove(command) => {
-                // Pop the pending bubble that triggered this approval.
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
+                // RUN on a pending prompt in the active tab. Only pop the
+                // trailing bubble when it's the pending prompt for THIS exact
+                // command: a Play click on an older code block must not
+                // silently swallow a different command still awaiting a
+                // decision (#4).
+                let Some(idx) = self.active_tab else {
+                    return Ok(Task::none());
+                };
+                let tab_id = self.tabs.get(idx).map(|t| t._id);
+                if let Some(tab) = self.tabs.get_mut(idx)
                     && let Some(last) = tab.chat_history.last()
                     && last.role == ChatRole::PendingTool
+                    && last.content == command
                 {
                     tab.chat_history.pop();
                 }
@@ -787,17 +927,27 @@ impl Oryxis {
                 // starts a fresh auto-exec chain (clears the streak / repeat
                 // history the loop guard accumulated).
                 self.reset_chat_auto_run_guard();
-                return Ok(Task::done(Message::ChatToolExec(command)));
+                if let Some(tab_id) = tab_id {
+                    // User-approved (was surfaced as needing confirmation), so
+                    // record it as `risky` in the reconstructed tool_use.
+                    return Ok(Task::done(Message::ChatToolExec {
+                        tab_id,
+                        command,
+                        risk: "risky".into(),
+                    }));
+                }
             }
             Message::ChatToolApproveAlways(command) => {
+                let Some(idx) = self.active_tab else {
+                    return Ok(Task::none());
+                };
+                let tab_id = self.tabs.get(idx).map(|t| t._id);
                 let first_token = command
                     .split_whitespace()
                     .next()
                     .unwrap_or("")
                     .to_string();
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
-                {
+                if let Some(tab) = self.tabs.get_mut(idx) {
                     if !first_token.is_empty()
                         && !tab
                             .chat_always_run_commands
@@ -808,6 +958,7 @@ impl Oryxis {
                     }
                     if let Some(last) = tab.chat_history.last()
                         && last.role == ChatRole::PendingTool
+                        && last.content == command
                     {
                         tab.chat_history.pop();
                     }
@@ -815,196 +966,189 @@ impl Oryxis {
                     tab.chat_auto_run_history.clear();
                     tab.chat_auto_run_streak = 0;
                 }
-                return Ok(Task::done(Message::ChatToolExec(command)));
+                if let Some(tab_id) = tab_id {
+                    return Ok(Task::done(Message::ChatToolExec {
+                        tab_id,
+                        command,
+                        risk: "risky".into(),
+                    }));
+                }
             }
-            Message::ChatToolDeny(_command) => {
-                // User said no. Drop the pending bubble and stop
-                // the AI doesn't get a callback; the user can write
-                // their own follow-up if they want a textual answer.
+            Message::ChatToolDeny(command) => {
+                // User said no. Drop the pending bubble and record the
+                // refusal so the next user turn tells the model the command
+                // was declined (otherwise it tends to re-propose the same
+                // one). No stream is spawned; the user can also just type.
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
-                    && let Some(last) = tab.chat_history.last()
-                    && last.role == ChatRole::PendingTool
                 {
-                    tab.chat_history.pop();
-                }
-                self.chat_loading = false;
-            }
-            Message::ChatToolExec(command) => {
-                // AI requested to execute a command in the terminal
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx) {
-                        tab.chat_history.push(ChatMessage {
-                            role: ChatRole::System,
-                            content: format!("$ {}", command),
-                            parsed_md: Vec::new(),
-                        });
-
-                        // Record this execution against the per-turn loop
-                        // guard. A later proposal of the same command (or one
-                        // past the streak cap) is then refused auto-exec by
-                        // `ChatToolProposed`. User-approval paths reset this
-                        // first, so the count only ever reflects commands run
-                        // since the user last took control. Cap the history
-                        // length so a long agentic turn can't grow it without
-                        // bound; the repeated command stays within the window.
-                        tab.chat_auto_run_history.push(command.clone());
-                        if tab.chat_auto_run_history.len() > 50 {
-                            tab.chat_auto_run_history.remove(0);
-                        }
-                        tab.chat_auto_run_streak += 1;
-
-                        // Write the command to the terminal
-                        let cmd_bytes = format!("{}\n", command);
-                        if let Some(ref ssh) = tab.active().ssh_session {
-                            let _ = ssh.write(cmd_bytes.as_bytes());
-                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                            state.write(cmd_bytes.as_bytes());
-                        }
-
-                        // Wait 1.5s for output, then capture terminal and send back to AI
-                        let terminal = Arc::clone(&tab.active().terminal);
-                        let api_key = self.vault.as_ref()
-                            .and_then(|v| v.get_ai_api_key().ok().flatten())
-                            .unwrap_or_default();
-                        let extra_prompt = self.vault.as_ref()
-                            .and_then(|v| v.get_setting("ai_system_prompt").ok().flatten());
-
-                        let config = crate::ai::AiConfig {
-                            provider: self.ai.provider.clone(),
-                            model: self.ai.model.clone(),
-                            api_key,
-                            api_url: if self.ai.api_url.is_empty() { None } else { Some(self.ai.api_url.clone()) },
-                            system_prompt: extra_prompt,
-                        };
-
-                        // Build message history including the tool result.
-                        // Errors are skipped, they're a UI-only concern,
-                        // not part of the conversation we want to send
-                        // back to the model.
-                        let mut messages: Vec<crate::ai::ChatMsg> = tab
-                            .chat_history
-                            .iter()
-                            .filter(|m| {
-                                !(matches!(m.role, ChatRole::Error | ChatRole::PendingTool)
-                                    || (m.role == ChatRole::Assistant
-                                        && m.content.is_empty()))
-                            })
-                            .map(|m| crate::ai::ChatMsg {
-                                role: match m.role {
-                                    ChatRole::User => "user".into(),
-                                    ChatRole::Assistant => "assistant".into(),
-                                    ChatRole::System => "user".into(),
-                                    ChatRole::Error | ChatRole::PendingTool => unreachable!(),
-                                },
-                                content: serde_json::Value::String(m.content.clone()),
-                            })
-                            .collect();
-
-                        let cmd_clone = command.clone();
-
-                        // Push an empty assistant placeholder so the
-                        // followup stream's text deltas have a bubble
-                        // to land in (mirrors SendChat's flow).
-                        tab.chat_history.push(ChatMessage {
-                            role: ChatRole::Assistant,
-                            content: String::new(),
-                            parsed_md: Vec::new(),
-                        });
-
-                        // Spawn a single tokio task that owns the whole
-                        // pipeline: terminal poll → append tool-result
-                        // user message → forward streaming chunks. The
-                        // outer mpsc lets us turn this into a single
-                        // `Task::stream` so dispatch sees one stream of
-                        // chunks, regardless of which provider is wired.
-                        use futures_util::StreamExt as _;
-                        let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<crate::ai::StreamChunk>();
-                        tokio::spawn(async move {
-                            // Poll terminal until output stabilizes (no
-                            // change for 800ms) or timeout after 15s.
-                            let poll_interval = std::time::Duration::from_millis(300);
-                            let stable_threshold = std::time::Duration::from_millis(800);
-                            let max_wait = std::time::Duration::from_secs(15);
-                            let start_time = std::time::Instant::now();
-                            let mut last_snapshot = String::new();
-                            let mut stable_since = std::time::Instant::now();
-                            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                            loop {
-                                let snapshot = if let Ok(state) = terminal.lock() {
-                                    let term = &state.backend.term;
-                                    let content = term.renderable_content();
-                                    let mut lines: Vec<String> = Vec::new();
-                                    let mut current_line = String::new();
-                                    let mut last_row = 0i32;
-                                    for item in content.display_iter {
-                                        let row = item.point.line.0;
-                                        if row != last_row && !current_line.is_empty() {
-                                            lines.push(std::mem::take(&mut current_line));
-                                            last_row = row;
-                                        }
-                                        let c = item.cell.c;
-                                        if c != '\0' { current_line.push(c); }
-                                    }
-                                    if !current_line.is_empty() { lines.push(current_line); }
-                                    let start = lines.len().saturating_sub(40);
-                                    lines[start..].join("\n")
-                                } else {
-                                    break;
-                                };
-                                if snapshot != last_snapshot {
-                                    last_snapshot = snapshot;
-                                    stable_since = std::time::Instant::now();
-                                } else if stable_since.elapsed() >= stable_threshold {
-                                    break;
-                                }
-                                if start_time.elapsed() >= max_wait {
-                                    break;
-                                }
-                                tokio::time::sleep(poll_interval).await;
-                            }
-
-                            messages.push(crate::ai::ChatMsg {
-                                role: "user".into(),
-                                content: serde_json::Value::String(format!(
-                                    "[Command executed: `{}`]\nOutput:\n```\n{}\n```\nPlease analyze the output and respond.",
-                                    cmd_clone, last_snapshot
-                                )),
-                            });
-
-                            let mut inner = crate::ai::send_chat_stream(config, messages);
-                            while let Some(chunk) = inner.next().await {
-                                if tx.send(chunk).is_err() {
-                                    break;
-                                }
-                            }
-                        });
-
-                        let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-                        let followup = Task::stream(stream).map(|chunk| match chunk {
-                            crate::ai::StreamChunk::Text(t) => Message::ChatStreamChunk(t),
-                            crate::ai::StreamChunk::ToolUse { command, risk } => {
-                                Message::ChatToolProposed { command, risk }
-                            }
-                            crate::ai::StreamChunk::Done => Message::ChatStreamDone,
-                            crate::ai::StreamChunk::Error(e) => Message::ChatError(e),
-                        });
-                        // Track the followup stream too: it's the part that
-                        // keeps the tool loop going, so Stop / close / reset
-                        // must be able to abort it. This supersedes the
-                        // original send stream's handle (already spent).
-                        return Ok(self.track_chat_task(followup));
+                    if let Some(last) = tab.chat_history.last()
+                        && last.role == ChatRole::PendingTool
+                        && last.content == command
+                    {
+                        tab.chat_history.pop();
+                    }
+                    tab.chat_history.push(ChatMessage::text(
+                        ChatRole::System,
+                        format!("[user declined to run: {command}]"),
+                    ));
+                    tab.chat_loading = false;
                 }
             }
-            Message::ChatToolResult(output) => {
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx) {
-                        tab.chat_history.push(ChatMessage {
-                            role: ChatRole::System,
-                            content: output,
-                            parsed_md: Vec::new(),
-                        });
+            Message::ChatToolExec { tab_id, command, risk } => {
+                // Run a command in the ORIGIN tab's terminal (routed by id so
+                // a tool call can never land in another session). We record a
+                // *running* Tool exchange now; the poll delivers `ChatToolResult`
+                // which persists the output and fires the analysis followup.
+                let Some(idx) = self.chat_tab_index(tab_id) else {
+                    return Ok(Task::none());
+                };
+                let terminal = Arc::clone(&self.tabs[idx].active().terminal);
+                let pane_label = self.tabs[idx].active().label.clone();
+                let privacy_terms = self
+                    .privacy_active_for_label(&pane_label)
+                    .then(|| self.privacy_terms());
+
+                // Write the command, clearing any half-typed prompt line
+                // first (Ctrl+U) so the AI's command isn't concatenated onto
+                // stray user input. `write_ok` is false when the session is
+                // gone, so we surface that instead of feeding back a stale
+                // screen as if it were the command's output.
+                let mut bytes = Vec::with_capacity(command.len() + 2);
+                bytes.push(0x15); // Ctrl+U: discard a partially-typed line
+                bytes.extend_from_slice(command.as_bytes());
+                bytes.push(b'\n');
+                let write_ok = {
+                    let pane = self.tabs[idx].active();
+                    if let Some(ref ssh) = pane.ssh_session {
+                        ssh.write(&bytes).is_ok()
+                    } else if let Ok(mut state) = pane.terminal.lock() {
+                        state.write(&bytes);
+                        true
+                    } else {
+                        false
+                    }
+                };
+
+                let tab = &mut self.tabs[idx];
+                // Record this execution against the per-turn loop guard. A
+                // later proposal of the same command (or one past the streak
+                // cap) is then refused auto-exec by `ChatToolProposed`.
+                // User-approval paths reset this first, so the count only ever
+                // reflects commands run since the user last took control. Cap
+                // the history length so a long agentic turn can't grow it
+                // without bound; the repeated command stays within the window.
+                tab.chat_auto_run_history.push(command.clone());
+                if tab.chat_auto_run_history.len() > 50 {
+                    tab.chat_auto_run_history.remove(0);
                 }
+                tab.chat_auto_run_streak += 1;
+
+                if !write_ok {
+                    // Session torn down: don't spawn a poll that would capture
+                    // the dead screen and hand it to the model.
+                    tab.chat_history.push(ChatMessage::text(
+                        ChatRole::System,
+                        "[terminal session is not connected; command not sent]",
+                    ));
+                    tab.chat_loading = false;
+                    if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
+                        return Ok(chat_scroll_to_end());
+                    }
+                    return Ok(Task::none());
+                }
+
+                // Push a *running* Tool exchange (output `None`). Until the
+                // poll fills it in, the message builder renders it as flat
+                // text, so an interrupted command never dangles a `tool_use`.
+                let tool_id = format!("toolu_{}", Uuid::new_v4().simple());
+                tab.chat_history.push(ChatMessage {
+                    role: ChatRole::Tool,
+                    content: format!("$ {}", command),
+                    parsed_md: Vec::new(),
+                    tool: Some(crate::state::ToolExchange {
+                        id: tool_id.clone(),
+                        command: command.clone(),
+                        risk,
+                        output: None,
+                    }),
+                });
+                tab.chat_loading = true;
+
+                // Poll the terminal off-thread until output stabilizes (no
+                // change for 800ms) or a 15s cap, then deliver the captured
+                // text as `ChatToolResult`. Redaction + trim + scrollback are
+                // handled by the shared capture helper.
+                let poll = Task::perform(
+                    async move {
+                        let poll_interval = std::time::Duration::from_millis(300);
+                        let stable_threshold = std::time::Duration::from_millis(800);
+                        let max_wait = std::time::Duration::from_secs(15);
+                        let start_time = std::time::Instant::now();
+                        let mut last_snapshot = String::new();
+                        let mut stable_since = std::time::Instant::now();
+                        let mut timed_out = false;
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        loop {
+                            let snapshot = capture_terminal_context(
+                                &terminal,
+                                40,
+                                privacy_terms.as_deref(),
+                            );
+                            if snapshot != last_snapshot {
+                                last_snapshot = snapshot;
+                                stable_since = std::time::Instant::now();
+                            } else if stable_since.elapsed() >= stable_threshold {
+                                break;
+                            }
+                            if start_time.elapsed() >= max_wait {
+                                timed_out = true;
+                                break;
+                            }
+                            tokio::time::sleep(poll_interval).await;
+                        }
+                        // A command still producing output at the 15s cap
+                        // (long build, `tail -f`, a TUI) would otherwise look
+                        // "done" to the model; flag the partial capture.
+                        if timed_out {
+                            last_snapshot.push_str(
+                                "\n[Note: command may still be running; output captured after 15s]",
+                            );
+                        }
+                        last_snapshot
+                    },
+                    move |output| Message::ChatToolResult { tab_id, tool_id, output },
+                );
+                // Track the poll so Stop / close / reset can cancel a command
+                // whose output hasn't come back yet.
+                return Ok(self.track_chat_task_for(tab_id, poll));
+            }
+            Message::ChatToolResult { tab_id, tool_id, output } => {
+                // Persist the captured output onto its running Tool exchange
+                // (pairing it with the tool_use), then fire the analysis
+                // followup from the now-complete history.
+                let Some(idx) = self.chat_tab_index(tab_id) else {
+                    return Ok(Task::none());
+                };
+                let mut attached = false;
+                for m in self.tabs[idx].chat_history.iter_mut().rev() {
+                    if let Some(t) = m.tool.as_mut()
+                        && t.id == tool_id
+                        && t.output.is_none()
+                    {
+                        t.output = Some(output);
+                        attached = true;
+                        break;
+                    }
+                }
+                if !attached {
+                    // The exchange was reset / cleared while polling; nothing
+                    // to continue from.
+                    self.tabs[idx].chat_loading = false;
+                    return Ok(Task::none());
+                }
+                let followup = self.spawn_chat_stream_for(idx);
+                return Ok(Task::batch(vec![chat_scroll_to_end(), followup]));
             }
 
             m => return Err(m),
@@ -1016,10 +1160,14 @@ impl Oryxis {
 #[cfg(test)]
 mod tests {
     use super::{classify_tool_gate, ToolGate, ToolGateInput};
+    use crate::state::ChatMode;
 
-    /// Convenience builder: everything off (a plain risky/unclassified call).
+    /// Convenience builder: Auto mode, everything else off (a plain
+    /// risky/unclassified call). Individual tests override the fields they
+    /// exercise via struct-update syntax.
     fn input() -> ToolGateInput {
         ToolGateInput {
+            mode: ChatMode::Auto,
             allowed: false,
             has_chaining: false,
             risk_safe: false,
@@ -1119,5 +1267,183 @@ mod tests {
             ..input()
         });
         assert_eq!(gate, ToolGate::Confirm);
+    }
+
+    // ── Mode branches ──
+
+    #[test]
+    fn ask_mode_prompts_even_for_safe_commands() {
+        // Ask never auto-runs; a model-claimed safe command still needs a
+        // click instead of going to the judge.
+        let gate = classify_tool_gate(ToolGateInput {
+            mode: ChatMode::Ask,
+            risk_safe: true,
+            ..input()
+        });
+        assert_eq!(gate, ToolGate::Prompt);
+    }
+
+    #[test]
+    fn ask_mode_still_honors_allow_list() {
+        // An explicit "always run X" grant applies in every mode.
+        let gate = classify_tool_gate(ToolGateInput {
+            mode: ChatMode::Ask,
+            allowed: true,
+            ..input()
+        });
+        assert_eq!(gate, ToolGate::AutoExec);
+    }
+
+    #[test]
+    fn plan_mode_lets_read_only_reach_the_judge() {
+        // Plan allows investigation: a safe, non-destructive command goes to
+        // the judge just like Auto.
+        let gate = classify_tool_gate(ToolGateInput {
+            mode: ChatMode::Plan,
+            risk_safe: true,
+            ..input()
+        });
+        assert_eq!(gate, ToolGate::Judge);
+    }
+
+    #[test]
+    fn plan_mode_surfaces_writes_instead_of_running_them() {
+        // A risky / unclassified (write) command is surfaced, never
+        // auto-run, so a Plan session stays read-only by default.
+        let gate = classify_tool_gate(ToolGateInput {
+            mode: ChatMode::Plan,
+            risk_safe: false,
+            ..input()
+        });
+        assert_eq!(gate, ToolGate::Prompt);
+    }
+
+    #[test]
+    fn plan_mode_surfaces_destructive_safe_commands() {
+        // Even a model-claimed-safe command that trips the destructive floor
+        // is surfaced under Plan, not sent to the judge.
+        let gate = classify_tool_gate(ToolGateInput {
+            mode: ChatMode::Plan,
+            risk_safe: true,
+            obviously_destructive: true,
+            ..input()
+        });
+        assert_eq!(gate, ToolGate::Prompt);
+    }
+
+    // ── Message reconstruction (build_provider_messages) ──
+
+    use super::build_provider_messages;
+    use crate::state::{ChatMessage, ChatRole, ToolExchange};
+
+    fn tool_msg(id: &str, command: &str, risk: &str, output: Option<&str>) -> ChatMessage {
+        ChatMessage {
+            role: ChatRole::Tool,
+            content: format!("$ {command}"),
+            parsed_md: Vec::new(),
+            tool: Some(ToolExchange {
+                id: id.into(),
+                command: command.into(),
+                risk: risk.into(),
+                output: output.map(str::to_string),
+            }),
+        }
+    }
+
+    #[test]
+    fn completed_tool_merges_preamble_then_emits_result() {
+        // Assistant preamble + completed tool → ONE assistant turn carrying
+        // [text, tool_use], then a `tool` turn with the matching result.
+        let history = vec![
+            ChatMessage::text(ChatRole::Assistant, "Let me check."),
+            tool_msg("t1", "df -h", "safe", Some("Filesystem ... 40% /")),
+        ];
+        let out = build_provider_messages(&history);
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].role, "assistant");
+        assert_eq!(out[0].content.as_str(), Some("Let me check."));
+        let tu = out[0].tool_use.as_ref().expect("tool_use on assistant turn");
+        assert_eq!(tu.id, "t1");
+        assert_eq!(tu.command, "df -h");
+        assert_eq!(tu.risk, "safe");
+        assert_eq!(out[1].role, "tool");
+        let tr = out[1].tool_result.as_ref().expect("tool_result turn");
+        assert_eq!(tr.id, "t1"); // pairs with the tool_use id
+        assert_eq!(tr.output, "Filesystem ... 40% /");
+    }
+
+    #[test]
+    fn completed_tool_without_preamble_is_standalone() {
+        // No assistant text before the tool → a standalone assistant turn
+        // carrying just the tool_use (empty text), then the result.
+        let history = vec![
+            ChatMessage::text(ChatRole::User, "how much disk is free?"),
+            tool_msg("t2", "df -h", "safe", Some("ok")),
+        ];
+        let out = build_provider_messages(&history);
+        assert_eq!(out.len(), 3);
+        assert_eq!(out[0].role, "user");
+        assert_eq!(out[1].role, "assistant");
+        assert_eq!(out[1].content.as_str(), Some(""));
+        assert!(out[1].tool_use.is_some());
+        assert_eq!(out[2].role, "tool");
+    }
+
+    #[test]
+    fn running_tool_is_flat_never_a_dangling_tool_use() {
+        // A still-running exchange (output None) must NOT produce a tool_use
+        // block, or the next request would 400 on a dangling tool_use.
+        let history = vec![
+            ChatMessage::text(ChatRole::Assistant, "Checking."),
+            tool_msg("t3", "sleep 30", "safe", None),
+        ];
+        let out = build_provider_messages(&history);
+        assert!(out.iter().all(|m| m.tool_use.is_none() && m.tool_result.is_none()));
+        assert_eq!(out.last().unwrap().role, "user");
+        assert_eq!(
+            out.last().unwrap().content.as_str(),
+            Some("[Running command: sleep 30]")
+        );
+    }
+
+    #[test]
+    fn deny_and_error_and_pending_leave_no_tool_use() {
+        // The not-run paths stay flat: a declined command is a System note, and
+        // Error / PendingTool bubbles are dropped entirely. No tool_use leaks.
+        let history = vec![
+            ChatMessage::text(ChatRole::Assistant, "I could run this."),
+            ChatMessage::text(ChatRole::PendingTool, "rm -rf /"),
+            ChatMessage::text(ChatRole::System, "[user declined to run: rm -rf /]"),
+            ChatMessage::text(ChatRole::Error, "network blip"),
+            ChatMessage::text(ChatRole::User, "never mind"),
+        ];
+        let out = build_provider_messages(&history);
+        assert!(out.iter().all(|m| m.tool_use.is_none() && m.tool_result.is_none()));
+        // assistant text + declined-note(as user) + user follow-up; the
+        // PendingTool and Error bubbles are gone.
+        assert_eq!(out.len(), 3);
+        assert_eq!(out[0].role, "assistant");
+        assert_eq!(out[1].role, "user");
+        assert_eq!(out[2].role, "user");
+    }
+
+    #[test]
+    fn two_tools_back_to_back_stay_paired() {
+        // A second tool right after a result (no text between) gets its own
+        // standalone assistant turn: every tool_use has exactly one following
+        // tool_result, so the sequence is valid.
+        let history = vec![
+            ChatMessage::text(ChatRole::Assistant, "First."),
+            tool_msg("a", "ls", "safe", Some("file1")),
+            tool_msg("b", "pwd", "safe", Some("/home")),
+        ];
+        let out = build_provider_messages(&history);
+        // assistant[First,tool a] / tool a-result / assistant[tool b] / tool b-result
+        assert_eq!(out.len(), 4);
+        assert_eq!(out[0].tool_use.as_ref().unwrap().id, "a");
+        assert_eq!(out[1].tool_result.as_ref().unwrap().id, "a");
+        assert!(out[2].tool_use.is_some() && out[2].content.as_str() == Some(""));
+        assert_eq!(out[2].tool_use.as_ref().unwrap().id, "b");
+        assert_eq!(out[3].tool_result.as_ref().unwrap().id, "b");
     }
 }

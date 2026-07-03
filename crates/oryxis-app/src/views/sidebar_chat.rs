@@ -56,6 +56,78 @@ impl Oryxis {
         md_settings: iced::widget::markdown::Settings,
     ) -> Element<'a, Message> {
         match msg.role {
+            ChatRole::Tool => {
+                // A tool execution: the command that ran on a monospace line,
+                // and (once captured) its output in a scrollable block. While
+                // the output is pending the global "Thinking..." row signals
+                // activity, so the bubble just shows the command.
+                let nerd = iced::Font::new("SauceCodePro Nerd Font");
+                let command = msg
+                    .tool
+                    .as_ref()
+                    .map(|t| t.command.clone())
+                    .unwrap_or_else(|| msg.content.clone());
+                let cmd_line = iced::widget::row![
+                    text("❯").size(12).font(nerd).color(OryxisColors::t().success),
+                    iced::widget::Space::new().width(6),
+                    text(command)
+                        .size(12)
+                        .font(nerd)
+                        .color(OryxisColors::t().text_primary),
+                ]
+                .align_y(iced::Alignment::Center);
+
+                let mut col = iced::widget::column![cmd_line].spacing(6);
+                if let Some(output) = msg.tool.as_ref().and_then(|t| t.output.as_ref())
+                    && !output.trim().is_empty()
+                {
+                    let out_block = iced::widget::scrollable(
+                        container(
+                            text(output.clone())
+                                .size(11)
+                                .font(nerd)
+                                .color(OryxisColors::t().text_secondary),
+                        )
+                        .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 8.0 })
+                        .width(Length::Fill),
+                    )
+                    .height(Length::Shrink);
+                    col = col.push(
+                        container(out_block)
+                            .height(Length::Shrink.max(220.0))
+                            .width(Length::Fill)
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(Color {
+                                    r: 0.09,
+                                    g: 0.09,
+                                    b: 0.11,
+                                    a: 1.0,
+                                })),
+                                border: Border {
+                                    radius: Radius::from(6.0),
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            }),
+                    );
+                }
+
+                let bubble = container(col)
+                    .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+                    .width(Length::Fill)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                        border: Border {
+                            radius: Radius::from(8.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    });
+                container(bubble)
+                    .width(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Left)
+                    .into()
+            }
             ChatRole::User => {
                 // The accent fill pairs with the per-theme `button_text`
                 // (same rule the rest of the CTA buttons follow). User
@@ -67,7 +139,7 @@ impl Oryxis {
                         .color(OryxisColors::t().button_text),
                 )
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
-                .max_width(280)
+                .width(Length::Shrink.max(280.0))
                 .style(|_| container::Style {
                     background: Some(Background::Color(OryxisColors::t().accent)),
                     border: Border { radius: Radius::from(12.0), ..Default::default() },
@@ -124,7 +196,7 @@ impl Oryxis {
                     text(msg.content.as_str()).size(11).color(OryxisColors::t().text_muted),
                 )
                 .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
-                .max_width(300)
+                .width(Length::Shrink.max(300.0))
                 .style(|_| container::Style {
                     background: Some(Background::Color(Color { r: 0.12, g: 0.12, b: 0.14, a: 1.0 })),
                     border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -273,7 +345,7 @@ impl Oryxis {
                     ],
                 )
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
-                .max_width(300)
+                .width(Length::Shrink.max(300.0))
                 .style(|_| container::Style {
                     background: Some(Background::Color(Color {
                         a: 0.10,
@@ -411,6 +483,66 @@ impl<'a>
             .into()
     }
 
+}
+
+/// Compact segmented Plan / Ask / Auto picker for the chat sidebar. The
+/// active mode is accent-filled; the others are quiet outline chips that
+/// light up on hover. Each chip sends `ChatModeChanged`, which applies to
+/// the active tab and becomes the default for new tabs. A tooltip on each
+/// chip explains what the mode does.
+pub(crate) fn chat_mode_picker<'a>(current: crate::state::ChatMode) -> Element<'a, Message> {
+    use crate::state::ChatMode;
+    let chip = |mode: ChatMode, tip_key: &'a str| -> Element<'a, Message> {
+        let selected = mode == current;
+        let label = text(t(mode.label_key()))
+            .size(11)
+            .font(iced::Font {
+                weight: iced::font::Weight::Semibold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            })
+            .color(if selected {
+                OryxisColors::t().button_text
+            } else {
+                OryxisColors::t().text_secondary
+            });
+        let btn = iced::widget::button(label)
+            .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
+            .on_press(Message::ChatModeChanged(mode))
+            .style(move |_, status| {
+                let c = OryxisColors::t();
+                let bg = if selected {
+                    c.accent
+                } else {
+                    match status {
+                        iced::widget::button::Status::Hovered => c.bg_hover,
+                        _ => Color::TRANSPARENT,
+                    }
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: if selected {
+                        c.button_text
+                    } else {
+                        c.text_secondary
+                    },
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        width: 1.0,
+                        color: if selected { c.accent } else { c.border },
+                    },
+                    ..Default::default()
+                }
+            });
+        crate::views::terminal::icon_tooltip(btn.into(), t(tip_key))
+    };
+    iced::widget::row![
+        chip(ChatMode::Plan, "ai_mode_plan_tip"),
+        chip(ChatMode::Ask, "ai_mode_ask_tip"),
+        chip(ChatMode::Auto, "ai_mode_auto_tip"),
+    ]
+    .spacing(4)
+    .align_y(iced::Alignment::Center)
+    .into()
 }
 
 /// Filled chip-button used by the PendingTool confirmation prompt
