@@ -326,7 +326,8 @@ impl Oryxis {
         // Promote is only meaningful once a session theme is chosen;
         // recorded (and thus Tab-reachable) only while enabled.
         let save_btn: Element<'_, Message> = if self.local_terminal_theme.is_some() {
-            self.sidebar_nav_slot(
+            // Contrast ring: accent-filled button.
+            self.sidebar_nav_slot_contrast(
                 crate::keynav::SidebarRow::button(Message::LocalConfigSaveGlobal),
                 crate::state::TerminalSidebarTab::HostConfig,
                 8.0,

@@ -46,6 +46,11 @@ impl Oryxis {
                 if let Some(ref vault) = self.vault {
                     let _ = vault.delete_command_history_entry(&id);
                 }
+                // Tripwire for the debug log: history rows only ever
+                // leave the vault through here (or a host deletion), so
+                // any future "my history vanished" report is
+                // attributable at a glance.
+                tracing::info!(%id, "command-history: entry deleted by user");
                 self.command_history.retain(|e| e.id != id);
             }
             m => return Err(m),

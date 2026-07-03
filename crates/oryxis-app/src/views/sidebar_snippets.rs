@@ -89,7 +89,9 @@ impl Oryxis {
             ])
         } else {
             dir_row(vec![
-                self.sidebar_nav_slot(
+                // Contrast ring: the button is accent-filled, an
+                // accent ring would vanish into it.
+                self.sidebar_nav_slot_contrast(
                     crate::keynav::SidebarRow::button(Message::ShowSnippetPanel),
                     stab,
                     6.0,

@@ -491,7 +491,19 @@ impl Oryxis {
         //    materialise it before calling dispatch_hotkey_action
         //    (which takes &mut self) and avoid the per-press
         //    allocation that the prior `.to_vec()` paid.
-        let in_terminal = self.active_view == View::Terminal;
+        //
+        //    "In a terminal" means A TERMINAL TAB IS FOCUSED, not
+        //    `active_view == Terminal`: in workspace mode a focused
+        //    terminal runs under the Dashboard view (the PTY key
+        //    routing in dispatch_terminal.rs already goes by
+        //    `active_tab` for the same reason). Field bug 2026-07-03:
+        //    every terminal_only hotkey (FocusSidebarList, splits,
+        //    pane focus) was dead on tabs opened under the workspace,
+        //    while the same chord worked on a View::Terminal tab of
+        //    the same build. `active_tab` is cleared on every
+        //    navigation into the vault / settings / SFTP surfaces, so
+        //    it is exactly the "keys route to a PTY" signal.
+        let in_terminal = self.active_view == View::Terminal || self.active_tab.is_some();
         for &action in HotkeyAction::all() {
             // Split-pane actions only apply inside the terminal view.
             // Skipping (not consuming) elsewhere leaves their key free
@@ -659,11 +671,12 @@ impl Oryxis {
             OpenLocalShell => Task::done(Message::OpenLocalShell),
             NewWindow => Task::done(Message::SpawnNewWindow),
             CloseActiveTab => {
-                // In the terminal view this closes the focused split
-                // pane; ClosePane already falls back to closing the whole
+                // With a terminal tab focused (View::Terminal or the
+                // workspace) this closes the focused split pane;
+                // ClosePane already falls back to closing the whole
                 // tab when it's the last pane. Elsewhere there are no
                 // panes, so close the active tab directly.
-                if self.active_view == View::Terminal {
+                if self.active_view == View::Terminal || self.active_tab.is_some() {
                     Task::done(Message::ClosePane)
                 } else if let Some(idx) = self.active_tab {
                     Task::done(Message::CloseTab(idx))

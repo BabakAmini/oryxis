@@ -16,14 +16,16 @@
 //!   over the terminal and no ring, Tab stays a PTY `\t`.
 //!
 //! While engaged: Up/Down/Home/End move over non-input rows
-//! (wrapping), Enter activates (list rows RUN their command),
-//! Shift+Enter pastes without the newline, Left/Right cycle picker
-//! rows (the font-size stepper, the chat mode chips), Delete removes
-//! (through the row's confirm), Esc disengages. Everything else,
-//! typing included, keeps its normal routing, so the terminal (or a
-//! focused search field) still receives text while the ring is up;
-//! the selection is tagged by sidebar tab and clamped against each
-//! frame's recording, so filtering while ringed just clamps.
+//! (wrapping), Enter or Space activates (list rows RUN their
+//! command), Shift+Enter pastes without the newline, Left/Right
+//! cycle picker rows (the font-size stepper, the chat mode chips)
+//! and otherwise move the ring too (the header buttons sit side by
+//! side, owner QA), Delete removes (through the row's confirm), Esc
+//! disengages. Everything else, typing included, keeps its normal
+//! routing, so the terminal (or a focused search field) still
+//! receives text while the ring is up; the selection is tagged by
+//! sidebar tab and clamped against each frame's recording, so
+//! filtering while ringed just clamps.
 
 use iced::keyboard;
 use iced::Task;
@@ -147,6 +149,18 @@ impl Oryxis {
         // keys (typing, caret, the chat editor's own Enter binding).
         let ring = selected.filter(|&i| !self.sidebar_row_is_input(i));
 
+        // Space presses the ringed control, matching the desktop
+        // convention (owner ask). Only while ringed: an idle Space
+        // belongs to the PTY (and typing there drops the ring anyway).
+        let is_space = matches!(key, keyboard::Key::Named(keyboard::key::Named::Space))
+            || matches!(key, keyboard::Key::Character(c) if c.as_str() == " ");
+        if is_space {
+            let idx = ring?;
+            let row: SidebarRow = self.keynav.sidebar_items.borrow().get(idx).cloned()?;
+            let msg = row.action.activate.or(row.paste)?;
+            return Some(self.update(msg));
+        }
+
         let keyboard::Key::Named(named) = key else {
             return None;
         };
@@ -245,18 +259,33 @@ impl Oryxis {
             Named::ArrowLeft | Named::ArrowRight => {
                 let idx = ring?;
                 let action = self.keynav.sidebar_items.borrow().get(idx)?.action.clone();
-                if action.prev.is_none() && action.next.is_none() {
-                    // Ringed non-picker row: leave the key to the PTY
-                    // (shell cursor movement still works mid-ring).
-                    return None;
-                }
                 let rtl = crate::i18n::is_rtl_layout();
                 let forward = matches!(named, Named::ArrowRight) != rtl;
-                let msg = if forward { action.next } else { action.prev };
-                Some(match msg {
-                    Some(msg) => self.update(msg),
-                    None => Task::none(),
-                })
+                if action.prev.is_some() || action.next.is_some() {
+                    // Picker row: cycle the value in place.
+                    let msg = if forward { action.next } else { action.prev };
+                    return Some(match msg {
+                        Some(msg) => self.update(msg),
+                        None => Task::none(),
+                    });
+                }
+                // Non-picker row: move the ring along the recording,
+                // hopping over inputs. Owner QA: the sort / search
+                // header buttons sit side by side, so switching
+                // between them must answer to the horizontal arrows
+                // too, not only Up/Down.
+                let mut next = idx;
+                for _ in 0..len {
+                    next = index_move(len, Some(next), forward)?;
+                    if !self.sidebar_row_is_input(next) {
+                        break;
+                    }
+                }
+                if self.sidebar_row_is_input(next) {
+                    return Some(Task::none());
+                }
+                self.keynav.sidebar_selected = Some((tab, next));
+                Some(Task::batch([blur_task(), self.sidebar_nav_scroll(next)]))
             }
             Named::Delete => {
                 let idx = ring?;

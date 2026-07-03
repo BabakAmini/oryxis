@@ -309,6 +309,31 @@ impl crate::app::Oryxis {
         radius: f32,
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
+        self.sidebar_nav_slot_inner(row, tab, radius, false, el)
+    }
+
+    /// [`Self::sidebar_nav_slot`] with the text_primary contrast ring,
+    /// for accent-filled controls (the "+ SNIPPET" button, the local
+    /// config's save): an accent ring vanishes into them, same
+    /// rationale as the toolbar / modal contrast rings.
+    pub(crate) fn sidebar_nav_slot_contrast<'a>(
+        &self,
+        row: SidebarRow,
+        tab: crate::state::TerminalSidebarTab,
+        radius: f32,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
+        self.sidebar_nav_slot_inner(row, tab, radius, true, el)
+    }
+
+    fn sidebar_nav_slot_inner<'a>(
+        &self,
+        row: SidebarRow,
+        tab: crate::state::TerminalSidebarTab,
+        radius: f32,
+        contrast: bool,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
         let is_input = row.action.focus.is_some();
         let idx = {
             let mut items = self.keynav.sidebar_items.borrow_mut();
@@ -321,7 +346,13 @@ impl crate::app::Oryxis {
         crate::widgets::select_ring_opt(
             el,
             radius,
-            ringed.then(|| crate::theme::OryxisColors::t().accent),
+            ringed.then(|| {
+                if contrast {
+                    crate::theme::OryxisColors::t().text_primary
+                } else {
+                    crate::theme::OryxisColors::t().accent
+                }
+            }),
         )
     }
 
