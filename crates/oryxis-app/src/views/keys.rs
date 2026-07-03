@@ -16,7 +16,7 @@ use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
-    card_grid_columns, dir_align_x, dir_row, distribute_card_grid, password_input_with_eye,
+    card_grid_columns, dir_align_x, dir_row, distribute_card_grid, password_input_with_eye_id,
 };
 
 impl Oryxis {
@@ -124,20 +124,33 @@ impl Oryxis {
 
         // Responsive collapse: search yields first, then folds to an
         // icon; when the buttons can't fit they all move into a `…` menu.
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
         let mut row_items: Vec<Element<'_, Message>> = vec![
-            self.vault_search_slot(search_collapsed),
+            if search_collapsed {
+                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+            } else {
+                search_slot
+            },
             Space::new().width(10).into(),
         ];
         if buttons_overflow {
-            row_items.push(crate::widgets::toolbar_overflow_icon(matches!(
-                self.overlay.as_ref().map(|o| &o.content),
-                Some(crate::state::OverlayContent::ToolbarOverflow)
-            )));
+            row_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ToolbarOverflow)
+                )),
+            ));
         } else {
-            row_items.push(sort_btn);
+            row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Sort, sort_btn));
             row_items.push(Space::new().width(8).into());
-            row_items.push(add_btn);
+            // Both split halves open the same add menu; one keynav stop.
+            row_items
+                .push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, add_btn));
         }
         let toolbar = container(dir_row(row_items).align_y(iced::Alignment::Center))
             .padding(Padding { top: 16.0, right: 24.0, bottom: 16.0, left: 24.0 })
@@ -221,6 +234,10 @@ impl Oryxis {
             // No toolbar when empty: search is hidden and the "+ Add" lives
             // in the empty-state CTA (avoids an orphaned action button).
             // Side panels are hoisted to `view_main` (active_side_panel).
+            // Un-record the toolbar items registered above; none of
+            // them render on this path. Same for content rows.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             let main_content = column![search_bar, status, empty_state]
                 .width(Length::Fill)
                 .height(Length::Fill);
@@ -234,7 +251,7 @@ impl Oryxis {
             cards.push(no_results.into());
         }
 
-        for (idx, key) in filtered_keys {
+        for &(idx, key) in &filtered_keys {
             let algo = format!("{} {}", t("type_label"), key.algorithm);
             let key_style = crate::widgets::resolve_host_icon_style(
                 None,
@@ -257,8 +274,11 @@ impl Oryxis {
             // corner so it doesn't take inline width. Always mounted with
             // a transparent glyph + no-hover bg when not active so the
             // surrounding MouseArea bounds stay stable.
-            let key_show_dots =
-                self.hovered_key_card == Some(idx) || self.key_context_menu == Some(idx);
+            let key_kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::Key(idx));
+            let key_show_dots = self.hovered_key_card == Some(idx)
+                || self.key_context_menu == Some(idx)
+                || key_kb_selected;
             let key_rtl = crate::i18n::is_rtl_layout();
             // Match the dashboard host-card geometry exactly: the host
             // card wraps its row in `container(...).padding(...)` and
@@ -353,7 +373,12 @@ impl Oryxis {
 
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
-            cards.push(self.card_wash(card_el, OryxisColors::t().accent));
+            let card_el = self.card_wash(card_el, OryxisColors::t().accent);
+            cards.push(if key_kb_selected {
+                self.keynav_ring_content(card_el)
+            } else {
+                card_el
+            });
         }
 
         // Responsive grid: column count derived from the current window
@@ -449,8 +474,11 @@ impl Oryxis {
 
             // Floating ⋮ kebab in a Stack overlay on the trailing corner,
             // same pattern as host / key cards.
-            let id_show_dots =
-                self.hovered_identity_card == Some(idx) || self.identity_context_menu == Some(idx);
+            let id_kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::Identity(idx));
+            let id_show_dots = self.hovered_identity_card == Some(idx)
+                || self.identity_context_menu == Some(idx)
+                || id_kb_selected;
             let id_rtl = crate::i18n::is_rtl_layout();
             // Match the host-card geometry (see key card comment
             // above): 13 top/bottom + 12 leading + 24 trailing brings
@@ -540,10 +568,34 @@ impl Oryxis {
 
             let id_card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
-            identity_cards.push(self.card_wash(id_card_el, OryxisColors::t().accent));
+            let id_card_el = self.card_wash(id_card_el, OryxisColors::t().accent);
+            identity_cards.push(if id_kb_selected {
+                self.keynav_ring_content(id_card_el)
+            } else {
+                id_card_el
+            });
         }
 
         let identity_grid_elem = distribute_card_grid(identity_cards, cols, 12.0, 12.0);
+
+        // Record the keyboard-navigation order as two Tab sections
+        // (Keys, then Identities), both chunked to the same column
+        // count the grids render with; arrows flow across both.
+        {
+            let cw = cols.max(1);
+            let key_nav: Vec<crate::keynav::NavItem> = filtered_keys
+                .iter()
+                .map(|(i, _)| crate::keynav::NavItem::Key(*i))
+                .collect();
+            let id_nav: Vec<crate::keynav::NavItem> = filtered_identities
+                .iter()
+                .map(|(i, _)| crate::keynav::NavItem::Identity(*i))
+                .collect();
+            self.keynav_set_content_sections(vec![
+                key_nav.chunks(cw).map(|c| c.to_vec()).collect(),
+                id_nav.chunks(cw).map(|c| c.to_vec()).collect(),
+            ]);
+        }
 
         // Combine keys and identities into one scrollable area
         let mut all_rows: Vec<Element<'_, Message>> = Vec::new();
@@ -566,6 +618,9 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 })
                 .align_x(crate::widgets::dir_align_x()),
         )
+        // Stable id so the keyboard router can keep the selected card
+        // scrolled into view.
+        .id(iced::widget::Id::new("keys-grid-scroll"))
         .height(Length::Fill);
 
         // ── Main content ──
@@ -578,6 +633,8 @@ impl Oryxis {
     }
 
     pub(crate) fn view_key_import_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let has_content = !self.key_import_form.pem.is_empty();
         let panel_title = if self.key_import_form.editing_id.is_some() { t("edit_key") } else { t("add_key") };
 
@@ -603,38 +660,49 @@ impl Oryxis {
         let name_field = column![
             text(t("name")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(6),
-            text_input("my-server-key", &self.key_import_form.label)
-                .on_input(Message::KeyImportLabelChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-name")),
+                10.0,
+                text_input("my-server-key", &self.key_import_form.label)
+                    .id(iced::widget::Id::new("panel-key-import-name"))
+                    .on_input(Message::KeyImportLabelChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
 
         // File selector button
-        let browse_btn = button(
-            container(
-                dir_row(vec![
-                    text(t("select_file"))
-                        .size(13)
-                        .font(iced::Font {
-                            weight: iced::font::Weight::Semibold,
-                            ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                        })
-                        .color(crate::theme::contrast_text_for(OryxisColors::t().accent))
-                        .into(),
-                ])
-                .align_y(iced::Alignment::Center),
+        let browse_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::BrowseKeyFile),
+            8.0,
+            button(
+                container(
+                    dir_row(vec![
+                        text(t("select_file"))
+                            .size(13)
+                            .font(iced::Font {
+                                weight: iced::font::Weight::Semibold,
+                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                            })
+                            .color(crate::theme::contrast_text_for(OryxisColors::t().accent))
+                            .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 }),
             )
-            .padding(Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 }),
-        )
-        .on_press(Message::BrowseKeyFile)
-        .width(Length::Fill)
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().accent)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
+            .on_press(Message::BrowseKeyFile)
+            .width(Length::Fill)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().accent)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into(),
+        );
 
         // Status indicator
         let file_status: Element<'_, Message> = if has_content {
@@ -659,34 +727,47 @@ impl Oryxis {
         };
 
         // Editable key content (text_editor = multi-line)
-        let editor = text_editor(&self.key_import_content)
-            .on_action(Message::KeyContentAction)
-            .padding(10)
-            .height(180)
-            .font(iced::Font::MONOSPACE)
-            .size(11);
+        let editor = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-content")),
+            10.0,
+            text_editor(&self.key_import_content)
+                .id(iced::widget::Id::new("panel-key-import-content"))
+                .on_action(Message::KeyContentAction)
+                .padding(10)
+                .height(180)
+                .font(iced::Font::MONOSPACE)
+                .size(11)
+                .into(),
+        );
 
         // Passphrase prompt, shown only after import_key signals the key
         // is encrypted. The hint explains the one-time-decrypt model so
         // users understand we're not storing the passphrase anywhere.
+        // Recorded only when rendered, so the keyboard row appears in
+        // place between the content editor and the Save button.
         let passphrase_section: Element<'_, Message> = if self.key_import_form.passphrase_required {
             column![
                 Space::new().height(12),
                 text(t("key_passphrase_label")).size(12).color(OryxisColors::t().text_secondary),
                 Space::new().height(6),
-                dir_row(vec![
-                    iced_fonts::lucide::lock().size(13).color(OryxisColors::t().text_muted).into(),
-                    Space::new().width(10).into(),
-                    password_input_with_eye(
-                        t("key_passphrase_placeholder"),
-                        &self.key_import_form.passphrase,
-                        Message::KeyImportPassphraseChanged,
-                        Some(Message::ImportKey),
-                        self.key_import_form.passphrase_visible,
-                        Message::KeyImportPassphraseToggleVisibility,
-                        10.0,
-                    ),
-                ]).align_y(iced::Alignment::Center),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-passphrase")),
+                    10.0,
+                    dir_row(vec![
+                        iced_fonts::lucide::lock().size(13).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        password_input_with_eye_id(
+                            t("key_passphrase_placeholder"),
+                            &self.key_import_form.passphrase,
+                            Message::KeyImportPassphraseChanged,
+                            Some(Message::ImportKey),
+                            self.key_import_form.passphrase_visible,
+                            Message::KeyImportPassphraseToggleVisibility,
+                            10.0,
+                            Some(iced::widget::Id::new("panel-key-import-passphrase")),
+                        ),
+                    ]).align_y(iced::Alignment::Center).into(),
+                ),
                 Space::new().height(6),
                 text(t("key_passphrase_hint")).size(11).color(OryxisColors::t().text_muted),
             ]
@@ -706,22 +787,27 @@ impl Oryxis {
 
         // Save button
         let save_label = if self.key_import_form.editing_id.is_some() { t("update_key") } else { t("save_key") };
-        let save_btn = button(
-            container(text(save_label).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-        )
-        .on_press(Message::ImportKey)
-        .width(Length::Fill)
-        .style(move |_, _| {
-            let bg = if has_content { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            }
-        });
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::ImportKey),
+            8.0,
+            button(
+                container(text(save_label).size(13).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+            )
+            .on_press(Message::ImportKey)
+            .width(Length::Fill)
+            .style(move |_, _| {
+                let bg = if has_content { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        );
 
         let panel_content = column![
             panel_header,
@@ -765,6 +851,8 @@ impl Oryxis {
     }
 
     pub(crate) fn view_identity_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let panel_title = if self.identity_form.editing_id.is_some() { t("edit_identity") } else { t("new_identity") };
 
         // Panel header
@@ -789,10 +877,16 @@ impl Oryxis {
         let label_field = column![
             text(t("label")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(6),
-            text_input(t("my_identity_placeholder"), &self.identity_form.label)
-                .on_input(Message::IdentityLabelChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-identity-label")),
+                10.0,
+                text_input(t("my_identity_placeholder"), &self.identity_form.label)
+                    .id(iced::widget::Id::new("panel-identity-label"))
+                    .on_input(Message::IdentityLabelChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
@@ -804,17 +898,23 @@ impl Oryxis {
             dir_row(vec![
                 iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(10).into(),
-                text_input("root", &self.identity_form.username)
-                    .on_input(Message::IdentityUsernameChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("panel-identity-username")),
+                    10.0,
+                    text_input("root", &self.identity_form.username)
+                        .id(iced::widget::Id::new("panel-identity-username"))
+                        .on_input(Message::IdentityUsernameChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
             ]).align_y(iced::Alignment::Center),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        // Password field with eye toggle
+        // Password field with eye toggle. Keyboard row: Tab focuses the
+        // inner input via its id.
         let identity_pw_placeholder: &'static str = if self.identity_form.has_existing_password
             && !self.identity_form.password_touched
         {
@@ -828,40 +928,54 @@ impl Oryxis {
             dir_row(vec![
                 iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(10).into(),
-                password_input_with_eye(
-                    identity_pw_placeholder,
-                    &self.identity_form.password,
-                    Message::IdentityPasswordChanged,
-                    None,
-                    self.identity_form.password_visible,
-                    Message::IdentityTogglePasswordVisibility,
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("panel-identity-password")),
                     10.0,
+                    password_input_with_eye_id(
+                        identity_pw_placeholder,
+                        &self.identity_form.password,
+                        Message::IdentityPasswordChanged,
+                        None,
+                        self.identity_form.password_visible,
+                        Message::IdentityTogglePasswordVisibility,
+                        10.0,
+                        Some(iced::widget::Id::new("panel-identity-password")),
+                    ),
                 ),
             ]).align_y(iced::Alignment::Center),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        // Key selector
+        // Key selector. Focusable select: Tab reaches it, Enter/Space
+        // open it, the widget owns arrows/Esc while focused.
         let key_options = {
             let mut opts = vec!["(none)".to_string()];
             opts.extend(self.keys.iter().map(|k| k.label.clone()));
             opts
         };
+        let key_selected = self.identity_form.key.clone().unwrap_or_else(|| "(none)".into());
         let key_field = column![
             text(t("ssh_key")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(6),
             dir_row(vec![
                 text(t("add_key_btn")).size(12).color(OryxisColors::t().accent).into(),
                 Space::new().width(16).into(),
-                pick_list(
-                    Some(self.identity_form.key.clone().unwrap_or_else(|| "(none)".into())),
-                    key_options,
-                    |s: &String| s.clone(),
-                )
-                .on_select(Message::IdentityKeyChanged)
-                .padding(10).style(crate::widgets::rounded_pick_list_style)
-                .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("identity-pick-key")),
+                    10.0,
+                    pick_list(
+                        Some(key_selected),
+                        key_options,
+                        |s: &String| s.clone(),
+                    )
+                    .on_select(Message::IdentityKeyChanged)
+                    .id(iced::widget::Id::new("identity-pick-key"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .padding(10).style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
             ]).align_y(iced::Alignment::Center),
         ]
         .width(Length::Fill)
@@ -907,22 +1021,27 @@ impl Oryxis {
         // Save button
         let save_label = if self.identity_form.editing_id.is_some() { crate::i18n::t("update_identity") } else { crate::i18n::t("save_identity") };
         let has_label = !self.identity_form.label.trim().is_empty();
-        let save_btn = button(
-            container(text(save_label).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-        )
-        .on_press(Message::SaveIdentity)
-        .width(Length::Fill)
-        .style(move |_, _| {
-            let bg = if has_label { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            }
-        });
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SaveIdentity),
+            8.0,
+            button(
+                container(text(save_label).size(13).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+            )
+            .on_press(Message::SaveIdentity)
+            .width(Length::Fill)
+            .style(move |_, _| {
+                let bg = if has_label { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        );
 
         let panel_content = column![
             panel_header,

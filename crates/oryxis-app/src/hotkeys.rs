@@ -49,6 +49,11 @@ pub enum HotkeyAction {
     FocusPaneRight,
     FocusPaneUp,
     FocusPaneDown,
+    // Vault-area section cycling (Hosts -> Keychain -> ... in sub-nav
+    // order). Only fire in the vault area (`vault_only`); inside a
+    // terminal tab the key is left free for TUI apps.
+    VaultSectionPrev,
+    VaultSectionNext,
 }
 
 impl HotkeyAction {
@@ -78,6 +83,8 @@ impl HotkeyAction {
             FocusPaneRight,
             FocusPaneUp,
             FocusPaneDown,
+            VaultSectionPrev,
+            VaultSectionNext,
         ]
     }
 
@@ -108,6 +115,8 @@ impl HotkeyAction {
             FocusPaneRight => "focus_pane_right",
             FocusPaneUp => "focus_pane_up",
             FocusPaneDown => "focus_pane_down",
+            VaultSectionPrev => "vault_section_prev",
+            VaultSectionNext => "vault_section_next",
         }
     }
 
@@ -138,6 +147,8 @@ impl HotkeyAction {
             FocusPaneRight => "hotkey_focus_pane_right",
             FocusPaneUp => "hotkey_focus_pane_up",
             FocusPaneDown => "hotkey_focus_pane_down",
+            VaultSectionPrev => "hotkey_vault_section_prev",
+            VaultSectionNext => "hotkey_vault_section_next",
         }
     }
 
@@ -154,6 +165,17 @@ impl HotkeyAction {
                 | FocusPaneRight
                 | FocusPaneUp
                 | FocusPaneDown
+        )
+    }
+
+    /// Whether the action only applies in the vault area (Home and
+    /// its sub-sections). The dispatch loop skips these elsewhere,
+    /// leaving the key free: Ctrl+PageUp/Down inside a terminal tab
+    /// belongs to the TUI running there, not to Oryxis.
+    pub fn vault_only(self) -> bool {
+        matches!(
+            self,
+            HotkeyAction::VaultSectionPrev | HotkeyAction::VaultSectionNext
         )
     }
 
@@ -681,6 +703,11 @@ pub fn default_bindings() -> HotkeyMap {
     put(&mut m, FocusPaneRight, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowRight));
     put(&mut m, FocusPaneUp, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowUp));
     put(&mut m, FocusPaneDown, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowDown));
+    // Vault section cycling. Plain Ctrl on every platform (the
+    // browser/IDE tab-strip convention; Cmd+PageUp/Down has no macOS
+    // precedent), rebindable like everything else.
+    put(&mut m, VaultSectionPrev, true, false, false, false, Named(keyboard::key::Named::PageUp));
+    put(&mut m, VaultSectionNext, true, false, false, false, Named(keyboard::key::Named::PageDown));
     m
 }
 
@@ -699,6 +726,21 @@ mod tests {
                 *binding, parsed,
                 "round-trip mismatch for {s}: {binding:?} != {parsed:?}"
             );
+        }
+    }
+
+    #[test]
+    fn vault_section_defaults_parse_from_settings_strings() {
+        // The serialized form users end up with in the settings table
+        // must parse back to the exact default bindings.
+        let defaults = default_bindings();
+        for (action, expected) in [
+            (HotkeyAction::VaultSectionPrev, "ctrl+pgup"),
+            (HotkeyAction::VaultSectionNext, "ctrl+pgdn"),
+        ] {
+            let b = defaults.get(&action).copied().expect("default missing");
+            assert_eq!(b.serialize(), expected);
+            assert_eq!(HotkeyBinding::parse(expected), Some(b));
         }
     }
 

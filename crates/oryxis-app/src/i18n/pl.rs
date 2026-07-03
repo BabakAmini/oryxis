@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Fokus na panel po prawej",
         "hotkey_focus_pane_up" => "Fokus na panel u góry",
         "hotkey_focus_pane_down" => "Fokus na panel u dołu",
+        "hotkey_vault_section_prev" => "Poprzednia sekcja sejfu",
+        "hotkey_vault_section_next" => "Następna sekcja sejfu",
         "detecting_shells" => "Wykrywanie powłok…",
 
         // Actions
@@ -775,6 +777,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Nowa karta",
         "tabs" => "Karty",
         "quick_connect" => "Szybkie połączenie",
+        "quick_connect_hint" => "Enter, aby połączyć",
+        "quick_connect_not_saved" => "Łączy bez zapisywania w sejfie",
+        "quick_connect_save_host" => "Zapisz hosta w sejfie",
+        "connect_without_saving" => "Połącz bez zapisywania",
+        "quick_connect_hostname_required" => "Nazwa hosta jest wymagana",
         "local_terminal" => "Lokalny terminal",
         "search_tabs" => "Szukaj kart",
         "jump_to" => "Przejdź do",
@@ -850,6 +857,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Uruchom",
         "ai_tool_always" => "Zawsze",
         "ai_tool_deny" => "Odmów",
+        "ai_mode_plan" => "Plan",
+        "ai_mode_ask" => "Pytaj",
+        "ai_mode_auto" => "Auto",
+        "ai_mode_plan_tip" => "Plan: analiza tylko do odczytu, nie wprowadza zmian",
+        "ai_mode_ask_tip" => "Pytaj: potwierdź każde polecenie przed uruchomieniem",
+        "ai_mode_auto_tip" => "Auto: uruchamia bezpieczne polecenia, potwierdza ryzykowne",
         "retry" => "Ponów",
 
         // SFTP view
@@ -1124,7 +1137,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
 
         "vault" => "Sejf",
-        "terminal_link_hint" => "Ctrl + kliknięcie, aby otworzyć link",
+        "terminal_link_hint" => "Przytrzymaj Ctrl i kliknij, aby otworzyć link.",
         "mouse_capture_hint" => "Tryb myszy włączony. Przytrzymaj Shift, aby zaznaczyć tekst.",
         "terminal_hints" => "Podpowiedzi terminala",
         "terminal_hints_desc" => "Kiedy pokazywać podpowiedzi, takie jak komunikat o przechwyceniu myszy i wskazówka Ctrl + kliknięcie na link.",

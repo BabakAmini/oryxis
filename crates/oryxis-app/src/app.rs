@@ -51,18 +51,9 @@ pub(crate) const SIDEBAR_WIDTH_COLLAPSED: f32 = 56.0;
 pub(crate) const NAV_RAIL_WIDTH_EXPANDED: f32 = 190.0;
 pub(crate) const CARD_WIDTH: f32 = 280.0;
 
-/// A keyboard-navigable item on the dashboard. Groups (host folders +
-/// session groups) come first, then hosts, mirroring the on-screen
-/// order. Enter opens a group / connects a host.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DashNavItem {
-    /// Host folder; Enter → `OpenGroup`.
-    Group(uuid::Uuid),
-    /// Saved session group (index into `session_groups`); Enter → `OpenSessionGroup`.
-    SessionGroup(usize),
-    /// Host (index into `connections`); Enter → `ConnectSsh`.
-    Host(usize),
-}
+// `DashNavItem` moved into the keynav module with the rest of the
+// focus-zone types; re-export so existing call sites keep working.
+pub(crate) use crate::keynav::DashNavItem;
 
 /// Tab-title prefix for SSM-into-EC2 sessions (`format!("{SSM_TAB_PREFIX}{host}")`).
 /// The middle dot is U+00B7 with a space on each side. Shared so the
@@ -178,6 +169,12 @@ pub struct Oryxis {
 
     // Data
     pub(crate) connections: Vec<Connection>,
+    /// Ad-hoc quick-connect hosts, keyed by connection id. Never touches
+    /// the vault or `connections` (so no grid / sync / export leakage).
+    /// Entries carry the credentials typed in the editor flow so a
+    /// reconnect can reuse them; swept on vault lock, pruned when the
+    /// last pane referencing an entry closes.
+    pub(crate) quick_connects: std::collections::HashMap<Uuid, crate::state::QuickConnectEntry>,
     pub(crate) groups: Vec<Group>,
     /// Saved split-panel arrangements. Each references hosts by id and/or
     /// local shells; opening one rebuilds a single splitted tab.
@@ -338,16 +335,12 @@ pub struct Oryxis {
 
     // Card hover & context menu
     pub(crate) hovered_card: Option<usize>,
-    /// Keyboard-selected dashboard item (group or host), driven by Tab /
-    /// arrow keys. Renders the same accent highlight as hover; Enter
-    /// opens/connects. Cleared on search / view / filter change and on
-    /// any mouse click.
-    pub(crate) selected_nav: Option<DashNavItem>,
-    /// Snapshot of the dashboard's navigable items as visual rows
-    /// (groups rows then hosts rows, each chunked to the column count),
-    /// recorded during render so the keyboard handler can move the
-    /// selection in 2-D without re-deriving the complex group order.
-    pub(crate) dashboard_nav: std::cell::RefCell<Vec<Vec<DashNavItem>>>,
+    /// Unified vault-area keyboard navigation: active focus zone +
+    /// selected item, plus the per-zone item lists recorded during
+    /// render. Replaces the old dashboard-only `selected_nav` /
+    /// `dashboard_nav` pair; see `keynav/mod.rs` for the model and
+    /// `dispatch_keynav.rs` for the key router.
+    pub(crate) keynav: crate::keynav::KeyNavState,
     /// Hovered folder card on the dashboard (root view), drives the
     /// `⋮` menu visibility, mirroring `hovered_card` for hosts.
     pub(crate) hovered_folder_card: Option<Uuid>,
@@ -988,7 +981,7 @@ pub struct Oryxis {
     /// state only, never persisted; cleared per-field on toggle.
     pub(crate) revealed_secrets: std::collections::HashSet<crate::state::SecretField>,
     /// How terminal teaching hints are surfaced (the mouse-capture toast
-    /// and the "Ctrl + Click to open" link tooltip). Persisted as the
+    /// and the "hold Ctrl and click" link toast). Persisted as the
     /// `terminal_hint_mode` setting. `Once` (default) shows each hint a
     /// single time per pane, tracked in-memory on `Pane`.
     pub(crate) setting_hint_mode: crate::util::HintMode,
@@ -1100,19 +1093,9 @@ pub struct Oryxis {
 
     // AI chat sidebar
     pub(crate) chat_input: text_editor::Content,
-    pub(crate) chat_loading: bool,
-    /// Abort handle for the in-flight chat stream (the assistant reply and
-    /// any tool-followup pipeline it spawns). Stored so the user can Stop a
-    /// runaway tool loop, and so closing the sidebar / resetting / starting
-    /// a new conversation actually cancels the detached task instead of
-    /// leaving it to keep calling the model. `None` when nothing is in
-    /// flight. Only one chat stream runs at a time (mirrors `chat_loading`),
-    /// so a single global handle is enough. It is intentionally global, not
-    /// per-tab: chat activity on one tab (a new message / reset / closing the
-    /// sidebar) will abort a stream still running on another tab. That's
-    /// consistent with the global `chat_loading` and errs toward containing
-    /// runaways; making it per-tab (like `chat_history`) is a larger change.
-    pub(crate) chat_task: Option<iced::task::Handle>,
+    // Per-conversation stream state (`chat_loading` + `chat_task`) lives on
+    // `TerminalTab` now, so a chat on one tab keeps running while the user
+    // works in another and Stop / close / reset target the right tab.
     /// True when the user's scroll is anchored at (or very near) the bottom
     /// of the chat history, used to decide whether new assistant messages
     /// should auto-scroll. If the user has scrolled up to read older

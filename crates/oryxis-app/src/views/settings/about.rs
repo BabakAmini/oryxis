@@ -5,6 +5,8 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn view_settings_about(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order.
+        self.keynav_settings_reset();
         // Channel-aware build string: nightly builds append the
         // channel + short commit so a nightly user sees exactly what
         // they're running, not just the base version number.
@@ -41,62 +43,75 @@ impl Oryxis {
             Space::new().height(6),
             settings_row(t("license"), "AGPL-3.0".into()),
             Space::new().height(6),
-            crate::widgets::settings_row_link(
-                crate::i18n::t("website"),
-                "oryxis.app".into(),
-                "https://oryxis.app/".into(),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::OpenUrl(
+                    "https://oryxis.app/".to_string(),
+                )),
+                8.0,
+                crate::widgets::settings_row_link(
+                    crate::i18n::t("website"),
+                    "oryxis.app".into(),
+                    "https://oryxis.app/".into(),
+                ),
             ),
             Space::new().height(6),
-            crate::widgets::settings_row_link(
-                crate::i18n::t("github"),
-                "github.com/wilsonglasser/oryxis".into(),
-                "https://github.com/wilsonglasser/oryxis".into(),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::OpenUrl(
+                    "https://github.com/wilsonglasser/oryxis".to_string(),
+                )),
+                8.0,
+                crate::widgets::settings_row_link(
+                    crate::i18n::t("github"),
+                    "github.com/wilsonglasser/oryxis".into(),
+                    "https://github.com/wilsonglasser/oryxis".into(),
+                ),
             ),
         ]);
 
-        // Each stat row navigates to its section (issue #38):
-        // the count doubles as a shortcut into the data it
-        // describes. Logs combines connection events + session
-        // recordings, matching what the Logs view lists.
-        let vault_section = panel_section(column![
-            text(crate::i18n::t("vault_stats")).size(14).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            crate::widgets::settings_row_nav(
-                crate::i18n::t("hosts"),
-                self.connections.len().to_string(),
-                Message::ChangeView(crate::state::View::Dashboard),
-            ),
-            Space::new().height(6),
-            crate::widgets::settings_row_nav(
-                crate::i18n::t("keychain"),
-                self.keys.len().to_string(),
-                Message::ChangeView(crate::state::View::Keys),
-            ),
-            Space::new().height(6),
-            crate::widgets::settings_row_nav(
-                crate::i18n::t("snippets"),
-                self.snippets.len().to_string(),
-                Message::ChangeView(crate::state::View::Snippets),
-            ),
-            Space::new().height(6),
-            crate::widgets::settings_row_nav(
-                t("groups"),
-                self.groups.len().to_string(),
-                Message::ChangeView(crate::state::View::Dashboard),
-            ),
-            Space::new().height(6),
-            crate::widgets::settings_row_nav(
-                t("logs"),
-                (self.logs_total + self.session_logs_total).to_string(),
-                Message::ChangeView(crate::state::View::History),
-            ),
-        ]);
-
+        // The update panel renders between About and the vault stats,
+        // so it is CONSTRUCTED here (before the stats) to keep the
+        // keyboard recording in visual order.
         let auto_update_enabled = self.setting_auto_check_updates;
-        let check_now_btn = styled_button(
-            t("check_for_updates_now"),
-            Message::CheckForUpdateManual,
-            OryxisColors::t().accent,
+        let auto_update_toggle = self.nav_toggle_row(
+            crate::i18n::t("auto_check_updates"),
+            auto_update_enabled,
+            Message::SettingToggleAutoCheckUpdates,
+        );
+        // Non-standard picker layout (label line above the control),
+        // so it takes the cycle_pair + slot treatment instead of
+        // nav_pick_row.
+        let (channel_prev, channel_next) = crate::keynav::slots::cycle_pair(
+            &crate::update::UPDATE_CHANNELS,
+            &self.setting_update_channel,
+            Message::SettingUpdateChannelChanged,
+        );
+        let channel_picker = self.settings_nav_slot(
+            crate::keynav::RowAction::picker(channel_prev, channel_next),
+            10.0,
+            pick_list(
+                Some(self.setting_update_channel),
+                crate::update::UPDATE_CHANNELS.to_vec(),
+                |c: &crate::update::UpdateChannel| match c {
+                    crate::update::UpdateChannel::Stable => t("update_channel_stable").to_string(),
+                    crate::update::UpdateChannel::Nightly => t("update_channel_nightly").to_string(),
+                },
+            )
+            .on_select(Message::SettingUpdateChannelChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
+            .width(260)
+            .padding(10)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+        let check_now_btn = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::CheckForUpdateManual),
+            6.0,
+            styled_button(
+                t("check_for_updates_now"),
+                Message::CheckForUpdateManual,
+                OryxisColors::t().accent,
+            ),
         );
         let status_line: Element<'_, Message> = match &self.update_check_status {
             Some(status) => {
@@ -125,10 +140,14 @@ impl Oryxis {
                     vec![text(msg).size(11).color(color).into()];
                 if matches!(status, UpdateStatus::Failed(_)) {
                     line_items.push(Space::new().width(10).into());
-                    line_items.push(styled_button(
-                        t("retry"),
-                        Message::CheckForUpdateManual,
-                        OryxisColors::t().text_muted,
+                    line_items.push(self.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::CheckForUpdateManual),
+                        6.0,
+                        styled_button(
+                            t("retry"),
+                            Message::CheckForUpdateManual,
+                            OryxisColors::t().text_muted,
+                        ),
                     ));
                 }
                 let line = crate::widgets::dir_row(line_items)
@@ -139,18 +158,6 @@ impl Oryxis {
             }
             None => Space::new().height(0).into(),
         };
-        let channel_picker = pick_list(
-            Some(self.setting_update_channel),
-            crate::update::UPDATE_CHANNELS.to_vec(),
-            |c: &crate::update::UpdateChannel| match c {
-                crate::update::UpdateChannel::Stable => t("update_channel_stable").to_string(),
-                crate::update::UpdateChannel::Nightly => t("update_channel_nightly").to_string(),
-            },
-        )
-        .on_select(Message::SettingUpdateChannelChanged)
-        .width(260)
-        .padding(10)
-        .style(crate::widgets::rounded_pick_list_style);
         // Bleeding-edge warning, only while the nightly channel is
         // selected, so stable users don't see scary copy.
         let channel_note: Element<'_, Message> =
@@ -166,11 +173,7 @@ impl Oryxis {
                 Space::new().height(0).into()
             };
         let auto_update_section = panel_section(column![
-            toggle_row(
-                crate::i18n::t("auto_check_updates"),
-                auto_update_enabled,
-                Message::SettingToggleAutoCheckUpdates,
-            ),
+            auto_update_toggle,
             Space::new().height(4),
             text(t("setting_update_check_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
@@ -182,6 +185,74 @@ impl Oryxis {
             Space::new().height(10),
             check_now_btn,
             status_line,
+        ]);
+
+        // Each stat row navigates to its section (issue #38):
+        // the count doubles as a shortcut into the data it
+        // describes. Logs combines connection events + session
+        // recordings, matching what the Logs view lists.
+        let vault_section = panel_section(column![
+            text(crate::i18n::t("vault_stats")).size(14).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ChangeView(
+                    crate::state::View::Dashboard,
+                )),
+                8.0,
+                crate::widgets::settings_row_nav(
+                    crate::i18n::t("hosts"),
+                    self.connections.len().to_string(),
+                    Message::ChangeView(crate::state::View::Dashboard),
+                ),
+            ),
+            Space::new().height(6),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ChangeView(
+                    crate::state::View::Keys,
+                )),
+                8.0,
+                crate::widgets::settings_row_nav(
+                    crate::i18n::t("keychain"),
+                    self.keys.len().to_string(),
+                    Message::ChangeView(crate::state::View::Keys),
+                ),
+            ),
+            Space::new().height(6),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ChangeView(
+                    crate::state::View::Snippets,
+                )),
+                8.0,
+                crate::widgets::settings_row_nav(
+                    crate::i18n::t("snippets"),
+                    self.snippets.len().to_string(),
+                    Message::ChangeView(crate::state::View::Snippets),
+                ),
+            ),
+            Space::new().height(6),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ChangeView(
+                    crate::state::View::Dashboard,
+                )),
+                8.0,
+                crate::widgets::settings_row_nav(
+                    t("groups"),
+                    self.groups.len().to_string(),
+                    Message::ChangeView(crate::state::View::Dashboard),
+                ),
+            ),
+            Space::new().height(6),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ChangeView(
+                    crate::state::View::History,
+                )),
+                8.0,
+                crate::widgets::settings_row_nav(
+                    t("logs"),
+                    (self.logs_total + self.session_logs_total).to_string(),
+                    Message::ChangeView(crate::state::View::History),
+                ),
+            ),
         ]);
 
         scrollable(
@@ -199,6 +270,9 @@ impl Oryxis {
             )
             .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-about-scroll"))
         .height(Length::Fill)
         .into()
     }

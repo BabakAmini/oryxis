@@ -14,17 +14,22 @@ use crate::state::ProxyKind;
 use crate::theme::OryxisColors;
 use crate::app::PANEL_WIDTH;
 use crate::widgets::{
-    dir_align_x, dir_row, panel_divider, panel_field, panel_option_pick,
-    panel_option_pick_w, panel_section, password_input_with_eye,
+    dir_align_x, dir_row, panel_divider, panel_field, panel_option_row,
+    panel_section, password_input_with_eye_id,
 };
 
 impl Oryxis {
     pub(crate) fn view_host_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let is_editing = self.editor_form.editing_id.is_some();
         let title = if is_editing { crate::i18n::t("edit_host") } else { crate::i18n::t("new_host") };
         let has_address = !self.editor_form.hostname.is_empty();
 
         // ── Header ──
+        // The close (×) is intentionally not a keyboard row: Esc already
+        // owns panel close, and recording it would make the header the
+        // first Down target instead of the form.
         let panel_header = container(
             dir_row(vec![
                 text(title).size(16).color(OryxisColors::t().text_primary).into(),
@@ -44,6 +49,53 @@ impl Oryxis {
         // lands the title's top edge level with the left gutter.
         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 });
 
+        // ── Section: Host (label + parent group) ──
+        // Built before the Connection widgets so their keyboard rows
+        // record ahead of the hostname's (the assembly at the bottom
+        // lays the Host card out first).
+        let label_field: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-label")),
+            10.0,
+            text_input(t("my_server_placeholder"), &self.editor_form.label)
+                .id(iced::widget::Id::new("editor-label"))
+                .on_input(Message::EditorLabelChanged).on_submit(Message::EditorSave).padding(10)
+                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+        );
+
+        // Parent Group is a native iced combo_box: a single field that
+        // filters the existing (visible) groups as you type and lets you
+        // pick one, while still accepting a brand new name. The typed /
+        // picked value flows through `EditorGroupChanged` into
+        // `editor_form.group_name`, so the save path (find-or-create by
+        // label) is unchanged. The `selection` prop drives the unfocused
+        // display (the combo clears its internal value after a pick).
+        let parent_selection = (!self.editor_form.group_name.is_empty())
+            .then_some(&self.editor_form.group_name);
+        // Keyboard row: Left/Right cycle the existing group names (the
+        // fork's combo_box has no id hook, so Enter cannot focus it;
+        // free-text entry stays a mouse/typing affordance).
+        let (group_prev, group_next) = crate::keynav::slots::cycle_pair(
+            self.editor_parent_combo.options(),
+            &self.editor_form.group_name,
+            Message::EditorGroupChanged,
+        );
+        let parent_combo: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::picker(group_prev, group_next),
+            10.0,
+            iced::widget::combo_box(
+                &self.editor_parent_combo,
+                t("group_placeholder"),
+                parent_selection,
+                Message::EditorGroupChanged,
+            )
+            .on_input(Message::EditorGroupChanged)
+            .padding(10)
+            .input_style(crate::widgets::rounded_input_style)
+            .menu_style(crate::widgets::combo_menu_style)
+            .width(Length::Fill)
+            .into(),
+        );
+
         // ── Section: Address ──
         // Icon + color reflect the detected OS (once the silent probe has
         // run) or a user-picked override.
@@ -60,29 +112,33 @@ impl Oryxis {
         // Icon is a button when we're editing an existing host, clicking it
         // opens the icon/color picker so the user can override the OS mark.
         // For new (unsaved) hosts the id doesn't exist yet, so it's just a
-        // static badge until the first save.
+        // static badge until the first save (and not a keyboard row).
         let icon_element: Element<'_, Message> = if let Some(id) = self.editor_form.editing_id {
-            button(
-                container(addr_glyph.view(18.0, Color::WHITE))
-                    .width(Length::Fixed(32.0))
-                    .height(Length::Fixed(32.0))
-                    .center_x(Length::Fixed(32.0))
-                    .center_y(Length::Fixed(32.0)),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShowIconPicker(id)),
+                8.0,
+                button(
+                    container(addr_glyph.view(18.0, Color::WHITE))
+                        .width(Length::Fixed(32.0))
+                        .height(Length::Fixed(32.0))
+                        .center_x(Length::Fixed(32.0))
+                        .center_y(Length::Fixed(32.0)),
+                )
+                .on_press(Message::ShowIconPicker(id))
+                .padding(0)
+                .style(move |_, status| {
+                    let ring = match status {
+                        BtnStatus::Hovered => Color::from_rgba(1.0, 1.0, 1.0, 0.25),
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(addr_color)),
+                        border: Border { radius: Radius::from(8.0), color: ring, width: 1.5 },
+                        ..Default::default()
+                    }
+                })
+                .into(),
             )
-            .on_press(Message::ShowIconPicker(id))
-            .padding(0)
-            .style(move |_, status| {
-                let ring = match status {
-                    BtnStatus::Hovered => Color::from_rgba(1.0, 1.0, 1.0, 0.25),
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(addr_color)),
-                    border: Border { radius: Radius::from(8.0), color: ring, width: 1.5 },
-                    ..Default::default()
-                }
-            })
-            .into()
         } else {
             container(addr_glyph.view(18.0, Color::WHITE))
                 .width(Length::Fixed(32.0))
@@ -101,36 +157,60 @@ impl Oryxis {
         let hostname_row: Element<'_, Message> = dir_row(vec![
             icon_element,
             Space::new().width(10).into(),
-            text_input(t("ip_or_hostname"), &self.editor_form.hostname)
-                .id(iced::widget::Id::new("editor-hostname"))
-                .on_input(Message::EditorHostnameChanged)
-                .on_submit(Message::EditorSave)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-hostname")),
+                10.0,
+                text_input(t("ip_or_hostname"), &self.editor_form.hostname)
+                    .id(iced::widget::Id::new("editor-hostname"))
+                    .on_input(Message::EditorHostnameChanged)
+                    .on_submit(Message::EditorSave)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+            ),
         ]).align_y(iced::Alignment::Center).into();
 
-        // ── Section: General ──
-        // Parent Group is a native iced combo_box: a single field that
-        // filters the existing (visible) groups as you type and lets you
-        // pick one, while still accepting a brand new name. The typed /
-        // picked value flows through `EditorGroupChanged` into
-        // `editor_form.group_name`, so the save path (find-or-create by
-        // label) is unchanged. The `selection` prop drives the unfocused
-        // display (the combo clears its internal value after a pick).
-        let parent_selection = (!self.editor_form.group_name.is_empty())
-            .then_some(&self.editor_form.group_name);
-        let parent_combo: Element<'_, Message> = iced::widget::combo_box(
-            &self.editor_parent_combo,
-            t("group_placeholder"),
-            parent_selection,
-            Message::EditorGroupChanged,
-        )
-        .on_input(Message::EditorGroupChanged)
-        .padding(10)
-        .input_style(crate::widgets::rounded_input_style)
-        .menu_style(crate::widgets::combo_menu_style)
-        .width(Length::Fill)
-        .into();
+        // Cloud-managed transport picker (Connection), only when the
+        // connection being edited carries a `cloud_ref` (i.e. it was
+        // imported from a cloud provider). Lets the user flip between
+        // SSH (default) and AWS Instance Connect / SSM transports.
+        // Built here (before the SSH card widgets) so its keyboard row
+        // records in visual order inside the Host card.
+        let cloud_transport_row: Option<Element<'_, Message>> =
+            self.editor_form.cloud_transport.map(|current| {
+                use oryxis_core::models::cloud::TransportKind;
+                let options = vec![
+                    TransportKind::Ssh,
+                    TransportKind::InstanceConnect,
+                    TransportKind::Ssm,
+                ];
+                // Focusable select: Tab reaches it, Enter/Space open it,
+                // the widget owns arrows/Esc while focused (fork support).
+                let picker = self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "editor-pick-cloud-transport",
+                    )),
+                    crate::widgets::INPUT_RADIUS,
+                    pick_list(Some(current), options, |t| match t {
+                        TransportKind::Ssh => "SSH".to_string(),
+                        TransportKind::InstanceConnect => "EC2 Instance Connect".to_string(),
+                        TransportKind::Ssm => "SSM Session".to_string(),
+                        TransportKind::EcsExec => "ECS Exec".to_string(),
+                        TransportKind::KubectlExec => "kubectl exec".to_string(),
+                    })
+                    .on_select(Message::EditorCloudTransportChanged)
+                    .id(iced::widget::Id::new("editor-pick-cloud-transport"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                );
+                column![
+                    text(t("cloud_dynamic_form_transport")).size(12).color(OryxisColors::t().text_muted),
+                    Space::new().height(8),
+                    picker,
+                ].into()
+            });
 
         // ── Connection / Credentials / SSH fields ──
         // The host editor is being reorganised into a universal region
@@ -139,16 +219,23 @@ impl Oryxis {
         // protocol switch can hide the SSH block wholesale. Each widget
         // is extracted into a local here, then composed into sections in
         // the assembly at the bottom; nothing about the form state, save
-        // path, or messages changes.
+        // path, or messages changes. Locals are built in the same order
+        // the assembly lays them out so keyboard rows record in visual
+        // order.
 
         // Port input, dropped inline into the SSH card header
         // ("SSH ........ [22] port").
-        let port_input: Element<'_, Message> = text_input("22", &self.editor_form.port)
-            .on_input(Message::EditorPortChanged)
-            .on_submit(Message::EditorSave)
-            .padding(6)
-            .width(56)
-            .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into();
+        let port_input: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-port")),
+            10.0,
+            text_input("22", &self.editor_form.port)
+                .id(iced::widget::Id::new("editor-port"))
+                .on_input(Message::EditorPortChanged)
+                .on_submit(Message::EditorSave)
+                .padding(6)
+                .width(56)
+                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+        );
 
         // Credentials column: username, then identity suggestions, then
         // either the "managed by identity" banner is hoisted to the SSH
@@ -157,11 +244,16 @@ impl Oryxis {
             dir_row(vec![
                 iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(10).into(),
-                text_input(t("username"), &self.editor_form.username)
-                    .on_input(Message::EditorUsernameChanged)
-                    .on_submit(Message::EditorSave)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-username")),
+                    10.0,
+                    text_input(t("username"), &self.editor_form.username)
+                        .id(iced::widget::Id::new("editor-username"))
+                        .on_input(Message::EditorUsernameChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+                ),
             ]).align_y(iced::Alignment::Center)
         ];
 
@@ -190,7 +282,11 @@ impl Oryxis {
                         } else { String::new() },
                     );
                     let ident_label = identity.label.clone();
-                    cred_items = cred_items.push(
+                    cred_items = cred_items.push(self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::EditorIdentityChanged(
+                            ident_label.clone(),
+                        )),
+                        6.0,
                         button(
                             container(
                                 dir_row(vec![
@@ -221,8 +317,9 @@ impl Oryxis {
                                 background: Some(Background::Color(bg)),
                                 ..Default::default()
                             }
-                        }),
-                    );
+                        })
+                        .into(),
+                    ));
                     cred_items = cred_items.push(Space::new().height(2));
                 }
             }
@@ -259,70 +356,17 @@ impl Oryxis {
                 .into()
             });
 
-        // Key row (SSH > Authentication): only when Auth Method is `Key`
-        // (the chosen-method's field) and no identity is set (an identity
-        // provides its own key). Layout is [key icon] [combo] [+ Key].
-        let ssh_key_row: Option<Element<'_, Message>> = if self.editor_form.selected_identity.is_none()
-            && self.editor_form.auth_method == AuthMethod::Key
-        {
-            // "+ Key" is clickable, opens the existing key import panel.
-            let add_key_btn = button(
-                text(t("add_key_btn")).size(12).color(OryxisColors::t().accent),
-            )
-            .on_press(Message::ShowKeyPanel)
-            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
-            .style(|_, status| {
-                let bg = match status {
-                    BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(6.0), ..Default::default() },
-                    ..Default::default()
-                }
-            });
-            // Forced-selection searchable key combo (same pattern as the
-            // startup combo): options + clear-on-focus built in
-            // `rebuild_editor_combos` / `EditorKeyComboOpened`.
-            let key_selected = self
-                .editor_form
-                .selected_key
-                .clone()
-                .unwrap_or_else(|| "(none)".into());
-            let key_combo: Element<'_, Message> = iced::widget::combo_box(
-                &self.editor_key_combo,
-                &key_selected,
-                Some(&key_selected),
-                Message::EditorKeyChanged,
-            )
-            .on_open(Message::EditorKeyComboOpened)
-            .padding(10)
-            .input_style(crate::widgets::rounded_input_style)
-            .menu_style(crate::widgets::combo_menu_style)
-            .width(Length::Fill)
-            .into();
-            Some(
-                dir_row(vec![
-                    iced_fonts::lucide::key_round()
-                        .size(13)
-                        .color(OryxisColors::t().text_muted)
-                        .into(),
-                    Space::new().width(10).into(),
-                    key_combo,
-                    Space::new().width(8).into(),
-                    add_key_btn.into(),
-                ]).align_y(iced::Alignment::Center).into(),
-            )
-        } else {
-            None
-        };
-
         // Credentials body: password row when no identity, else the
         // "managed by identity" banner (both belong with the login).
         cred_items = cred_items.push(Space::new().height(8));
         if let Some(banner) = ssh_identity_banner {
-            cred_items = cred_items.push(banner);
+            // Keyboard row: Enter/Space clears the identity (the
+            // banner's only verb, same as its × button).
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorIdentityChanged("(none)".into())),
+                8.0,
+                banner,
+            ));
         } else if self.editor_form.auth_method == AuthMethod::PasswordPrompt {
             // "Ask every time": no password is stored, so there is no field
             // to fill. A one-line note explains the prompt-on-connect flow.
@@ -344,11 +388,14 @@ impl Oryxis {
             } else {
                 t("password")
             };
-            cred_items = cred_items.push(
+            // Keyboard row: Tab focuses the inner input via its id.
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-password")),
+                10.0,
                 dir_row(vec![
                     iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
                     Space::new().width(10).into(),
-                    password_input_with_eye(
+                    password_input_with_eye_id(
                         pw_placeholder,
                         &self.editor_form.password,
                         Message::EditorPasswordChanged,
@@ -356,9 +403,10 @@ impl Oryxis {
                         self.editor_form.password_visible,
                         Message::EditorTogglePasswordVisibility,
                         10.0,
+                        Some(iced::widget::Id::new("editor-password")),
                     ),
-                ]).align_y(iced::Alignment::Center)
-            );
+                ]).align_y(iced::Alignment::Center).into(),
+            ));
         }
 
         // TOTP secret (2FA autofill). Shown for every auth method: a
@@ -373,11 +421,14 @@ impl Oryxis {
             } else {
                 t("totp_secret")
             };
-            cred_items = cred_items.push(
+            // Keyboard row: Tab focuses the inner input via its id.
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-totp")),
+                10.0,
                 dir_row(vec![
                     iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
                     Space::new().width(10).into(),
-                    password_input_with_eye(
+                    password_input_with_eye_id(
                         totp_placeholder,
                         &self.editor_form.totp_secret,
                         Message::EditorTotpChanged,
@@ -385,86 +436,11 @@ impl Oryxis {
                         self.editor_form.totp_visible,
                         Message::EditorToggleTotpVisibility,
                         10.0,
+                        Some(iced::widget::Id::new("editor-totp")),
                     ),
-                ]).align_y(iced::Alignment::Center)
-            );
+                ]).align_y(iced::Alignment::Center).into(),
+            ));
         }
-
-        // Cloud-managed transport picker (Connection), only when the
-        // connection being edited carries a `cloud_ref` (i.e. it was
-        // imported from a cloud provider). Lets the user flip between
-        // SSH (default) and AWS Instance Connect / SSM transports.
-        let cloud_transport_row: Option<Element<'_, Message>> =
-            self.editor_form.cloud_transport.map(|current| {
-                use oryxis_core::models::cloud::TransportKind;
-                let options = vec![
-                    TransportKind::Ssh,
-                    TransportKind::InstanceConnect,
-                    TransportKind::Ssm,
-                ];
-                column![
-                    text(t("cloud_dynamic_form_transport")).size(12).color(OryxisColors::t().text_muted),
-                    Space::new().height(8),
-                    pick_list(Some(current), options, |t| match t {
-                        TransportKind::Ssh => "SSH".to_string(),
-                        TransportKind::InstanceConnect => "EC2 Instance Connect".to_string(),
-                        TransportKind::Ssm => "SSM Session".to_string(),
-                        TransportKind::EcsExec => "ECS Exec".to_string(),
-                        TransportKind::KubectlExec => "kubectl exec".to_string(),
-                    })
-                    .on_select(Message::EditorCloudTransportChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_pick_list_style),
-                ].into()
-            });
-
-        // Initial command / snippet (Terminal), sent to the shell right
-        // after the session opens. Universal (keystrokes), so it lives in
-        // the universal Terminal section, not the SSH block.
-        // Forced-selection searchable combo: the None / Custom sentinels
-        // and snippet labels (options built once in
-        // `rebuild_editor_combos`). Picking commits via
-        // EditorStartupChoiceChanged; typing only filters (no on_input,
-        // so there is no free-text path). The current choice's label
-        // seeds the selection (and doubles as the focused placeholder).
-        let startup_selected = self.editor_startup_label();
-        let startup_picker: Element<'_, Message> = iced::widget::combo_box(
-            &self.editor_startup_combo,
-            &startup_selected,
-            Some(&startup_selected),
-            Message::EditorStartupChoiceChanged,
-        )
-        .on_open(Message::EditorStartupComboOpened)
-        .padding(10)
-        .input_style(crate::widgets::rounded_input_style)
-        .menu_style(crate::widgets::combo_menu_style)
-        .width(Length::Fill)
-        .into();
-
-        let mut startup_block = column![
-            text(t("initial_command_label"))
-                .size(12)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            startup_picker,
-        ];
-        if matches!(self.editor_startup_choice, crate::state::StartupChoice::Custom) {
-            startup_block = startup_block.push(Space::new().height(8)).push(
-                // Multi-line, auto-grows with content; container caps the
-                // height (~8 lines) and then it scrolls internally. Supports
-                // multi-command scripts (one command per line).
-                container(
-                    text_editor(&self.editor_initial_command)
-                        .placeholder(t("initial_command_ph"))
-                        .on_action(Message::EditorInitialCommandChanged)
-                        .padding(10)
-                        .height(Length::Shrink)
-                        .style(crate::widgets::rounded_editor_style),
-                )
-                .max_height(200.0),
-            );
-        }
-        let startup_block: Element<'_, Message> = startup_block.into();
 
         // ── Section: Advanced Options ──
         // Chain summary for the "Host Chaining" row: the hop labels
@@ -497,205 +473,182 @@ impl Oryxis {
             AuthMethod::PasswordPrompt => t("auth_password_prompt"),
         };
 
-        // Single "Host Chaining" entry point (SSH > Network). Clicking
-        // opens the chain editor (Termius-style multi-hop). Replaces the
-        // old read-only row + separate single-host "Jump Host" picker.
-        let row_chaining: Element<'_, Message> = container(
-            button(
-                dir_row(vec![
-                    iced_fonts::lucide::link().size(14).color(OryxisColors::t().text_muted).into(),
-                    Space::new().width(10).into(),
-                    text(t("host_chaining")).size(13).color(OryxisColors::t().text_secondary).into(),
-                    Space::new().width(Length::Fill).into(),
-                    text(chain_summary)
-                        .size(13)
-                        .color(OryxisColors::t().text_primary)
-                        .into(),
-                    Space::new().width(8).into(),
-                    iced_fonts::lucide::chevron_right().size(12).color(OryxisColors::t().text_muted).into(),
-                ])
-                .align_y(iced::Alignment::Center),
-            )
-            .on_press(Message::OpenChainEditor)
-            .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 0.0 })
-            .style(|_, status| {
-                let bg = match status {
-                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(6.0), ..Default::default() },
-                    ..Default::default()
-                }
-            })
-        ).into();
-
-        // Auth method (SSH > Authentication).
-        let row_auth_method: Element<'_, Message> = panel_option_pick_w(
+        // Auth method (SSH > Authentication). Left/Right cycle the same
+        // options the pick_list offers.
+        let auth_options = vec![
+            t("auth_auto").to_string(),
+            t("auth_password").to_string(),
+            t("auth_key").to_string(),
+            t("auth_agent").to_string(),
+            t("auth_interactive").to_string(),
+            t("auth_password_prompt").to_string(),
+        ];
+        let auth_selected = auth_value.to_string();
+        // Focusable select: Tab reaches it, Enter/Space open it, the
+        // widget owns arrows/Esc while focused (fork support).
+        let row_auth_method: Element<'_, Message> = panel_option_row(
             iced_fonts::lucide::shield(),
             t("auth_method"),
-            vec![
-                t("auth_auto").to_string(),
-                t("auth_password").to_string(),
-                t("auth_key").to_string(),
-                t("auth_agent").to_string(),
-                t("auth_interactive").to_string(),
-                t("auth_password_prompt").to_string(),
-            ],
-            auth_value.to_string(),
-            // Wider than the default 120px so the longest option
-            // ("Password (ask...)" and its translations) is not truncated.
-            200.0,
-            Message::EditorAuthMethodChanged,
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-auth-method")),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(auth_selected), auth_options, |s: &String| s.clone())
+                    .on_select(Message::EditorAuthMethodChanged)
+                    .id(iced::widget::Id::new("editor-pick-auth-method"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    // Wider than the usual 120px so the longest option
+                    // ("Password (ask...)" and its translations) is not truncated.
+                    .width(200)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            ),
         );
 
-        // Expose to MCP / AI (SSH > Integration).
-        let row_mcp: Element<'_, Message> = container(
-            dir_row(vec![
-                iced_fonts::lucide::plug().size(14).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                text(t("expose_to_mcp")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                {
-                    let on = self.editor_form.mcp_enabled;
-                    let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
-                    let fg = crate::theme::contrast_text_for(bg);
-                    button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
-                        .on_press(Message::EditorToggleMcpEnabled)
-                        .style(move |_theme, _status| button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border { radius: Radius::from(4.0), ..Default::default() },
-                            text_color: fg,
-                            ..Default::default()
-                        })
-                        .into()
-                },
-            ]).align_y(iced::Alignment::Center)
-        )
-        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
-
-        // Session logging (universal -> Terminal). Tri-state: Default
-        // (inherit global) / On / Off.
-        let row_session_logging: Element<'_, Message> = container(
-            dir_row(vec![
-                iced_fonts::lucide::file_text().size(14).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                text(t("session_logging")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                {
-                    let (label_key, bg) = match self.editor_form.session_logging {
-                        None => ("session_log_default", OryxisColors::t().bg_hover),
-                        Some(true) => ("session_log_on", OryxisColors::t().success),
-                        Some(false) => ("session_log_off", OryxisColors::t().error),
+        // Key row (SSH > Authentication): only when Auth Method is `Key`
+        // (the chosen-method's field) and no identity is set (an identity
+        // provides its own key). Layout is [key icon] [combo] [+ Key].
+        // Built after the auth-method row so its keyboard rows record
+        // right below it, matching the layout.
+        let ssh_key_row: Option<Element<'_, Message>> = if self.editor_form.selected_identity.is_none()
+            && self.editor_form.auth_method == AuthMethod::Key
+        {
+            // "+ Key" is clickable, opens the existing key import panel.
+            let add_key_btn = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShowKeyPanel),
+                6.0,
+                button(
+                    text(t("add_key_btn")).size(12).color(OryxisColors::t().accent),
+                )
+                .on_press(Message::ShowKeyPanel)
+                .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
+                        _ => Color::TRANSPARENT,
                     };
-                    let fg = crate::theme::contrast_text_for(bg);
-                    button(text(t(label_key)).size(12).color(fg))
-                        .on_press(Message::EditorCycleSessionLogging)
-                        .style(move |_theme, _status| button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border { radius: Radius::from(4.0), ..Default::default() },
-                            text_color: fg,
-                            ..Default::default()
-                        })
-                        .into()
-                },
-            ]).align_y(iced::Alignment::Center)
-        )
-        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(6.0), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+            );
+            // Forced-selection searchable key combo (same pattern as the
+            // startup combo): options + clear-on-focus built in
+            // `rebuild_editor_combos` / `EditorKeyComboOpened`.
+            let key_selected = self
+                .editor_form
+                .selected_key
+                .clone()
+                .unwrap_or_else(|| "(none)".into());
+            // Keyboard row: Left/Right cycle the saved keys (the combo
+            // itself cannot be focused by id in the fork).
+            let (key_prev, key_next) = crate::keynav::slots::cycle_pair(
+                self.editor_key_combo.options(),
+                &key_selected,
+                Message::EditorKeyChanged,
+            );
+            let key_combo: Element<'_, Message> = self.panel_nav_slot(
+                crate::keynav::RowAction::picker(key_prev, key_next),
+                10.0,
+                iced::widget::combo_box(
+                    &self.editor_key_combo,
+                    &key_selected,
+                    Some(&key_selected),
+                    Message::EditorKeyChanged,
+                )
+                .on_open(Message::EditorKeyComboOpened)
+                .padding(10)
+                .input_style(crate::widgets::rounded_input_style)
+                .menu_style(crate::widgets::combo_menu_style)
+                .width(Length::Fill)
+                .into(),
+            );
+            Some(
+                dir_row(vec![
+                    iced_fonts::lucide::key_round()
+                        .size(13)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(10).into(),
+                    key_combo,
+                    Space::new().width(8).into(),
+                    add_key_btn,
+                ]).align_y(iced::Alignment::Center).into(),
+            )
+        } else {
+            None
+        };
 
         // Agent forwarding (SSH > Authentication). `share` (not the key
         // glyph) so it doesn't read as a duplicate of the Key row above.
-        let row_agent_fwd: Element<'_, Message> = container(
-            dir_row(vec![
-                iced_fonts::lucide::share().size(14).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                text(t("forward_ssh_agent")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                {
-                    let on = self.editor_form.agent_forwarding;
-                    let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
-                    let fg = crate::theme::contrast_text_for(bg);
-                    button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
-                        .on_press(Message::EditorToggleAgentForwarding)
-                        .style(move |_theme, _status| button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border { radius: Radius::from(4.0), ..Default::default() },
-                            text_color: fg,
-                            ..Default::default()
-                        })
-                        .into()
-                },
-            ]).align_y(iced::Alignment::Center)
-        )
-        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
-
-        // Per-host keepalive override (SSH > Network). Empty placeholder
-        // reflects the global default so the user sees what "inherit"
-        // means; "0" disables keepalive on this host.
-        let row_keepalive: Element<'_, Message> = container(
-            dir_row(vec![
-                iced_fonts::lucide::activity().size(14).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                column![
-                    text(t("host_keepalive")).size(13).color(OryxisColors::t().text_secondary),
-                    Space::new().height(2),
-                    text(t("host_keepalive_desc")).size(11).color(OryxisColors::t().text_muted),
-                ].width(Length::Fill).into(),
-                Space::new().width(12).into(),
-                text_input(
-                    &self.setting_keepalive_interval,
-                    &self.editor_form.keepalive_interval,
-                )
-                    .on_input(Message::EditorKeepaliveChanged)
-                    .on_submit(Message::EditorSave)
-                    .padding(6)
-                    .width(100)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
-            ]).align_y(iced::Alignment::Center)
-        )
-        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
-
-        // Per-host auto-title (OSC 0/2) override: Default (inherit global) /
-        // Show (always use the shell title) / Hide (always keep this host's
-        // curated label).
-        let auto_title_selected = match self.editor_form.auto_title {
-            Some(true) => t("host_auto_title_show"),
-            Some(false) => t("host_auto_title_hide"),
-            None => t("host_auto_title_default"),
-        }
-        .to_string();
-        let row_auto_title: Element<'_, Message> = panel_option_pick(
-            iced_fonts::lucide::file_text(),
-            t("host_auto_title"),
-            vec![
-                t("host_auto_title_default").to_string(),
-                t("host_auto_title_show").to_string(),
-                t("host_auto_title_hide").to_string(),
-            ],
-            auto_title_selected,
-            Message::EditorAutoTitleChanged,
+        let row_agent_fwd: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::EditorToggleAgentForwarding),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::share().size(14).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("forward_ssh_agent")).size(13).color(OryxisColors::t().text_secondary).into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let on = self.editor_form.agent_forwarding;
+                        let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                            .on_press(Message::EditorToggleAgentForwarding)
+                            .style(move |_theme, _status| button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: fg,
+                                ..Default::default()
+                            })
+                            .into()
+                    },
+                ]).align_y(iced::Alignment::Center)
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
         );
 
-        // Per-host Privacy Mode override: Default (inherit global) / On
-        // (always hide sensitive data for this host) / Off (never hide).
-        let privacy_mode_selected = match self.editor_form.privacy_mode {
-            Some(true) => t("host_privacy_mode_on"),
-            Some(false) => t("host_privacy_mode_off"),
-            None => t("host_privacy_mode_default"),
-        }
-        .to_string();
-        let row_privacy_mode: Element<'_, Message> = panel_option_pick(
-            iced_fonts::lucide::eye_off(),
-            t("host_privacy_mode"),
-            vec![
-                t("host_privacy_mode_default").to_string(),
-                t("host_privacy_mode_on").to_string(),
-                t("host_privacy_mode_off").to_string(),
-            ],
-            privacy_mode_selected,
-            Message::EditorPrivacyModeChanged,
+        // Single "Host Chaining" entry point (SSH > Network). Clicking
+        // opens the chain editor (Termius-style multi-hop). Replaces the
+        // old read-only row + separate single-host "Jump Host" picker.
+        let row_chaining: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::OpenChainEditor),
+            6.0,
+            container(
+                button(
+                    dir_row(vec![
+                        iced_fonts::lucide::link().size(14).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        text(t("host_chaining")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        text(chain_summary)
+                            .size(13)
+                            .color(OryxisColors::t().text_primary)
+                            .into(),
+                        Space::new().width(8).into(),
+                        iced_fonts::lucide::chevron_right().size(12).color(OryxisColors::t().text_muted).into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .on_press(Message::OpenChainEditor)
+                .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 0.0 })
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(6.0), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+            ).into(),
         );
 
         // Proxy rows (SSH > Network), nested inline (no card wrapper).
@@ -708,22 +661,29 @@ impl Oryxis {
                 Space::new().width(10).into(),
                 text(t("port_forwarding")).size(13).color(OryxisColors::t().text_secondary).into(),
                 Space::new().width(Length::Fill).into(),
-                button(text("+").size(14).color(OryxisColors::t().text_primary))
-                    .on_press(Message::EditorAddPortForward)
-                    .style(|_, _| button::Style {
-                        background: Some(Background::Color(OryxisColors::t().bg_hover)),
-                        border: Border { radius: Radius::from(4.0), ..Default::default() },
-                        text_color: OryxisColors::t().text_primary,
-                        ..Default::default()
-                    })
-                    .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::EditorAddPortForward),
+                    4.0,
+                    button(text("+").size(14).color(OryxisColors::t().text_primary))
+                        .on_press(Message::EditorAddPortForward)
+                        .style(|_, _| button::Style {
+                            background: Some(Background::Color(OryxisColors::t().bg_hover)),
+                            border: Border { radius: Radius::from(4.0), ..Default::default() },
+                            text_color: OryxisColors::t().text_primary,
+                            ..Default::default()
+                        })
+                        .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+                        .into(),
+                ),
             ]).align_y(iced::Alignment::Center),
         ];
 
         for (i, pf) in self.editor_form.port_forwards.iter().enumerate() {
             let idx = i;
             pf_items = pf_items.push(Space::new().height(8));
+            // The three per-rule inputs stay mouse-only: the fork's
+            // Id::new takes &'static str, so dynamic rows cannot carry
+            // unique focus ids. The remove button is the keyboard row.
             pf_items = pf_items.push(
                 dir_row(vec![
                     text_input("8080", &pf.local_port)
@@ -746,22 +706,125 @@ impl Oryxis {
                         .width(70)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
-                    button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
-                        .on_press(Message::EditorRemovePortForward(idx))
-                        .style(|_, _| button::Style {
-                            background: None,
-                            border: Border::default(),
-                            text_color: OryxisColors::t().error,
-                            ..Default::default()
-                        })
-                        .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })
-                        .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::EditorRemovePortForward(idx)),
+                        4.0,
+                        button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
+                            .on_press(Message::EditorRemovePortForward(idx))
+                            .style(|_, _| button::Style {
+                                background: None,
+                                border: Border::default(),
+                                text_color: OryxisColors::t().error,
+                                ..Default::default()
+                            })
+                            .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })
+                            .into(),
+                    ),
                 ]).align_y(iced::Alignment::Center).spacing(4),
             );
         }
 
         // pf_items (the port-forwarding column) is nested into SSH >
         // Network in the assembly below.
+
+        // Per-host keepalive override (SSH > Network). Empty placeholder
+        // reflects the global default so the user sees what "inherit"
+        // means; "0" disables keepalive on this host.
+        let row_keepalive: Element<'_, Message> = container(
+            dir_row(vec![
+                iced_fonts::lucide::activity().size(14).color(OryxisColors::t().text_muted).into(),
+                Space::new().width(10).into(),
+                column![
+                    text(t("host_keepalive")).size(13).color(OryxisColors::t().text_secondary),
+                    Space::new().height(2),
+                    text(t("host_keepalive_desc")).size(11).color(OryxisColors::t().text_muted),
+                ].width(Length::Fill).into(),
+                Space::new().width(12).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-keepalive")),
+                    10.0,
+                    text_input(
+                        &self.setting_keepalive_interval,
+                        &self.editor_form.keepalive_interval,
+                    )
+                        .id(iced::widget::Id::new("editor-keepalive"))
+                        .on_input(Message::EditorKeepaliveChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(6)
+                        .width(100)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+            ]).align_y(iced::Alignment::Center)
+        )
+        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
+
+        // Per-host auto-title (OSC 0/2) override: Default (inherit global) /
+        // Show (always use the shell title) / Hide (always keep this host's
+        // curated label).
+        let auto_title_selected = match self.editor_form.auto_title {
+            Some(true) => t("host_auto_title_show"),
+            Some(false) => t("host_auto_title_hide"),
+            None => t("host_auto_title_default"),
+        }
+        .to_string();
+        let auto_title_options = vec![
+            t("host_auto_title_default").to_string(),
+            t("host_auto_title_show").to_string(),
+            t("host_auto_title_hide").to_string(),
+        ];
+        // Focusable select (Tab + Enter/Space, widget-owned keys).
+        let row_auto_title: Element<'_, Message> = panel_option_row(
+            iced_fonts::lucide::file_text(),
+            t("host_auto_title"),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-auto-title")),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(auto_title_selected), auto_title_options, |s: &String| s.clone())
+                    .on_select(Message::EditorAutoTitleChanged)
+                    .id(iced::widget::Id::new("editor-pick-auto-title"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            ),
+        );
+
+        // Algorithm overrides (SSH > Network). Called here (not at the
+        // assembly) so its keyboard rows record between the Network and
+        // Integration rows, matching the layout.
+        let algo_overrides = self.algo_overrides_section();
+
+        // Expose to MCP / AI (SSH > Integration).
+        let row_mcp: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::EditorToggleMcpEnabled),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::plug().size(14).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("expose_to_mcp")).size(13).color(OryxisColors::t().text_secondary).into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let on = self.editor_form.mcp_enabled;
+                        let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                            .on_press(Message::EditorToggleMcpEnabled)
+                            .style(move |_theme, _status| button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: fg,
+                                ..Default::default()
+                            })
+                            .into()
+                    },
+                ]).align_y(iced::Alignment::Center)
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+        );
 
         // ── Section: Environment Variables ──
         let mut env_items = column![
@@ -774,22 +837,29 @@ impl Oryxis {
                     text(t("env_vars_desc")).size(11).color(OryxisColors::t().text_muted),
                 ].width(Length::Fill).into(),
                 Space::new().width(8).into(),
-                button(text("+").size(14).color(OryxisColors::t().text_primary))
-                    .on_press(Message::EditorAddEnvVar)
-                    .style(|_, _| button::Style {
-                        background: Some(Background::Color(OryxisColors::t().bg_hover)),
-                        border: Border { radius: Radius::from(4.0), ..Default::default() },
-                        text_color: OryxisColors::t().text_primary,
-                        ..Default::default()
-                    })
-                    .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::EditorAddEnvVar),
+                    4.0,
+                    button(text("+").size(14).color(OryxisColors::t().text_primary))
+                        .on_press(Message::EditorAddEnvVar)
+                        .style(|_, _| button::Style {
+                            background: Some(Background::Color(OryxisColors::t().bg_hover)),
+                            border: Border { radius: Radius::from(4.0), ..Default::default() },
+                            text_color: OryxisColors::t().text_primary,
+                            ..Default::default()
+                        })
+                        .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+                        .into(),
+                ),
             ]).align_y(iced::Alignment::Center),
         ];
 
         for (i, e) in self.editor_form.env_vars.iter().enumerate() {
             let idx = i;
             env_items = env_items.push(Space::new().height(8));
+            // Same static-id limitation as the port-forward rows: the
+            // key/value inputs stay mouse-only, the remove button is
+            // the keyboard row.
             env_items = env_items.push(
                 dir_row(vec![
                     text_input("LC_EXAMPLE", &e.key)
@@ -805,22 +875,90 @@ impl Oryxis {
                         .width(Length::FillPortion(3))
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
-                    button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
-                        .on_press(Message::EditorRemoveEnvVar(idx))
-                        .style(|_, _| button::Style {
-                            background: None,
-                            border: Border::default(),
-                            text_color: OryxisColors::t().error,
-                            ..Default::default()
-                        })
-                        .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })
-                        .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::EditorRemoveEnvVar(idx)),
+                        4.0,
+                        button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
+                            .on_press(Message::EditorRemoveEnvVar(idx))
+                            .style(|_, _| button::Style {
+                                background: None,
+                                border: Border::default(),
+                                text_color: OryxisColors::t().error,
+                                ..Default::default()
+                            })
+                            .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })
+                            .into(),
+                    ),
                 ]).align_y(iced::Alignment::Center).spacing(4),
             );
         }
 
         // env_items (the environment-variables column) is nested into
         // SSH > Integration in the assembly below.
+
+        // Initial command / snippet (Terminal), sent to the shell right
+        // after the session opens. Universal (keystrokes), so it lives in
+        // the universal Terminal section, not the SSH block.
+        // Forced-selection searchable combo: the None / Custom sentinels
+        // and snippet labels (options built once in
+        // `rebuild_editor_combos`). Picking commits via
+        // EditorStartupChoiceChanged; typing only filters (no on_input,
+        // so there is no free-text path). The current choice's label
+        // seeds the selection (and doubles as the focused placeholder).
+        let startup_selected = self.editor_startup_label();
+        // Keyboard row: Left/Right cycle None / Custom / snippet labels.
+        let (startup_prev, startup_next) = crate::keynav::slots::cycle_pair(
+            self.editor_startup_combo.options(),
+            &startup_selected,
+            Message::EditorStartupChoiceChanged,
+        );
+        let startup_picker: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::picker(startup_prev, startup_next),
+            10.0,
+            iced::widget::combo_box(
+                &self.editor_startup_combo,
+                &startup_selected,
+                Some(&startup_selected),
+                Message::EditorStartupChoiceChanged,
+            )
+            .on_open(Message::EditorStartupComboOpened)
+            .padding(10)
+            .input_style(crate::widgets::rounded_input_style)
+            .menu_style(crate::widgets::combo_menu_style)
+            .width(Length::Fill)
+            .into(),
+        );
+
+        let mut startup_block = column![
+            text(t("initial_command_label"))
+                .size(12)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            startup_picker,
+        ];
+        if matches!(self.editor_startup_choice, crate::state::StartupChoice::Custom) {
+            startup_block = startup_block.push(Space::new().height(8)).push(
+                // Multi-line, auto-grows with content; container caps the
+                // height (~8 lines) and then it scrolls internally. Supports
+                // multi-command scripts (one command per line).
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-initial-command")),
+                    10.0,
+                    container(
+                        text_editor(&self.editor_initial_command)
+                            .id(iced::widget::Id::new("editor-initial-command"))
+                            .placeholder(t("initial_command_ph"))
+                            .on_action(Message::EditorInitialCommandChanged)
+                            .padding(10)
+                            .height(Length::Shrink)
+                            .style(crate::widgets::rounded_editor_style),
+                    )
+                    .height(Length::Shrink.max(200.0))
+                    .into(),
+                ),
+            );
+        }
+        let startup_block: Element<'_, Message> = startup_block.into();
 
         // ── Section: Terminal appearance ──
         // A single "click to open picker" tile that mirrors the
@@ -853,7 +991,11 @@ impl Oryxis {
                 ),
             ),
         };
-        let theme_trigger: Element<'_, Message> = terminal_theme_trigger(preview_palette, theme_label);
+        let theme_trigger: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::EditorOpenThemePicker),
+            8.0,
+            terminal_theme_trigger(preview_palette, theme_label),
+        );
 
         // Per-host icon shape override. The "Use default" entry maps to
         // an empty string which clears the override (resolved to the
@@ -886,9 +1028,22 @@ impl Oryxis {
             },
         )
         .on_select(Message::EditorIconStyleChanged)
+        .id(iced::widget::Id::new("editor-pick-icon-style"))
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .width(170)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
+        // Focusable select (Tab + Enter/Space, widget-owned keys).
+        let icon_row: Element<'_, Message> = dir_row(vec![
+            text(crate::i18n::t("host_icon_style")).size(13).color(OryxisColors::t().text_secondary).into(),
+            Space::new().width(Length::Fill).into(),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-icon-style")),
+                crate::widgets::INPUT_RADIUS,
+                icon_picker.into(),
+            ),
+        ]).align_y(iced::Alignment::Center).into();
 
         // Per-host terminal encoding. "UTF-8" is the default (stored as
         // None); the rest are encoding_rs labels the SSH engine transcodes.
@@ -907,9 +1062,22 @@ impl Oryxis {
             .unwrap_or_else(|| "UTF-8".to_string());
         let encoding_picker = pick_list(Some(encoding_selected), encoding_options, |s: &String| s.clone())
             .on_select(Message::EditorEncodingChanged)
+            .id(iced::widget::Id::new("editor-pick-encoding"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .width(170)
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
+        // Focusable select, same treatment as the icon row.
+        let encoding_row: Element<'_, Message> = dir_row(vec![
+            text(crate::i18n::t("host_encoding")).size(13).color(OryxisColors::t().text_secondary).into(),
+            Space::new().width(Length::Fill).into(),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-encoding")),
+                crate::widgets::INPUT_RADIUS,
+                encoding_picker.into(),
+            ),
+        ]).align_y(iced::Alignment::Center).into();
 
         // Per-host TERM. "xterm-256color" is the default (stored as None);
         // the rest are fallbacks for hosts whose terminfo trips on it.
@@ -927,9 +1095,22 @@ impl Oryxis {
             .unwrap_or_else(|| "xterm-256color".to_string());
         let term_picker = pick_list(Some(term_selected), term_options, |s: &String| s.clone())
             .on_select(Message::EditorTerminalTypeChanged)
+            .id(iced::widget::Id::new("editor-pick-term"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .width(170)
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
+        // Focusable select, same treatment as the icon row.
+        let term_row: Element<'_, Message> = dir_row(vec![
+            text(crate::i18n::t("host_terminal_type")).size(13).color(OryxisColors::t().text_secondary).into(),
+            Space::new().width(Length::Fill).into(),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-term")),
+                crate::widgets::INPUT_RADIUS,
+                term_picker.into(),
+            ),
+        ]).align_y(iced::Alignment::Center).into();
 
         // Terminal card body: the theme keeps its full-width preview tile
         // (it's a live swatch, not a plain dropdown); icon and encoding
@@ -943,24 +1124,77 @@ impl Oryxis {
             Space::new().height(8),
             theme_trigger,
             Space::new().height(14),
-            dir_row(vec![
-                text(crate::i18n::t("host_icon_style")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                icon_picker.into(),
-            ]).align_y(iced::Alignment::Center),
+            icon_row,
             Space::new().height(12),
-            dir_row(vec![
-                text(crate::i18n::t("host_encoding")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                encoding_picker.into(),
-            ]).align_y(iced::Alignment::Center),
+            encoding_row,
             Space::new().height(12),
-            dir_row(vec![
-                text(crate::i18n::t("host_terminal_type")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                term_picker.into(),
-            ]).align_y(iced::Alignment::Center),
+            term_row,
         ];
+
+        // Session logging (universal -> Terminal). Tri-state: Default
+        // (inherit global) / On / Off. Enter/Space cycles the state.
+        let row_session_logging: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::EditorCycleSessionLogging),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::file_text().size(14).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("session_logging")).size(13).color(OryxisColors::t().text_secondary).into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let (label_key, bg) = match self.editor_form.session_logging {
+                            None => ("session_log_default", OryxisColors::t().bg_hover),
+                            Some(true) => ("session_log_on", OryxisColors::t().success),
+                            Some(false) => ("session_log_off", OryxisColors::t().error),
+                        };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(text(t(label_key)).size(12).color(fg))
+                            .on_press(Message::EditorCycleSessionLogging)
+                            .style(move |_theme, _status| button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: fg,
+                                ..Default::default()
+                            })
+                            .into()
+                    },
+                ]).align_y(iced::Alignment::Center)
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+        );
+
+        // Per-host Privacy Mode override: Default (inherit global) / On
+        // (always hide sensitive data for this host) / Off (never hide).
+        let privacy_mode_selected = match self.editor_form.privacy_mode {
+            Some(true) => t("host_privacy_mode_on"),
+            Some(false) => t("host_privacy_mode_off"),
+            None => t("host_privacy_mode_default"),
+        }
+        .to_string();
+        let privacy_mode_options = vec![
+            t("host_privacy_mode_default").to_string(),
+            t("host_privacy_mode_on").to_string(),
+            t("host_privacy_mode_off").to_string(),
+        ];
+        // Focusable select (Tab + Enter/Space, widget-owned keys).
+        let row_privacy_mode: Element<'_, Message> = panel_option_row(
+            iced_fonts::lucide::eye_off(),
+            t("host_privacy_mode"),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-privacy-mode")),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(privacy_mode_selected), privacy_mode_options, |s: &String| s.clone())
+                    .on_select(Message::EditorPrivacyModeChanged)
+                    .id(iced::widget::Id::new("editor-pick-privacy-mode"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            ),
+        );
 
         // ── Error ──
         let panel_error: Element<'_, Message> = if let Some(err) = &self.host_panel_error {
@@ -973,25 +1207,77 @@ impl Oryxis {
 
         // ── Bottom actions ──
         let save_btn_bg = if has_address { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-        let save_btn = button(
-            container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-        )
-        .on_press(Message::EditorSave)
-        .width(Length::Fill)
-        .style(move |_, _| button::Style {
-            background: Some(Background::Color(save_btn_bg)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
+        let save_btn: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::EditorSave),
+            8.0,
+            button(
+                container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+            )
+            .on_press(Message::EditorSave)
+            .width(Length::Fill)
+            .style(move |_, _| button::Style {
+                background: Some(Background::Color(save_btn_bg)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into(),
+        );
+
+        // "Connect without saving": quick-connect straight from the form,
+        // new-host flow only (an existing host already has a card to
+        // connect from, and its stored secrets would not ride along).
+        let quick_connect_btn: Element<'_, Message> =
+            if self.editor_form.editing_id.is_none() {
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::EditorConnectWithoutSaving),
+                    8.0,
+                    button(
+                        container(
+                            text(crate::i18n::t("connect_without_saving"))
+                                .size(13)
+                                .color(if has_address {
+                                    OryxisColors::t().text_primary
+                                } else {
+                                    OryxisColors::t().text_muted
+                                }),
+                        )
+                        .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                        .width(Length::Fill)
+                        .center_x(Length::Fill),
+                    )
+                    .on_press(Message::EditorConnectWithoutSaving)
+                    .width(Length::Fill)
+                    .style(move |_, status| {
+                        let bg = match status {
+                            button::Status::Hovered | button::Status::Pressed => {
+                                OryxisColors::t().bg_hover
+                            }
+                            _ => OryxisColors::t().bg_surface,
+                        };
+                        button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border {
+                                radius: Radius::from(8.0),
+                                width: 1.0,
+                                color: OryxisColors::t().border,
+                            },
+                            ..Default::default()
+                        }
+                    })
+                    .into(),
+                )
+            } else {
+                Space::new().height(0).into()
+            };
 
         // The error must live OUTSIDE the scrollable so it sits above
         // the Save button at the bottom of the panel, otherwise long
         // forms hide it below the fold and the user clicks Save again
         // wondering why nothing happens.
-        let bottom = column![panel_error, save_btn].spacing(8);
+        let bottom = column![panel_error, save_btn, quick_connect_btn].spacing(8);
 
         // ── Compose one card per semantic group ──
         // Host (label / parent / connection target), SSH (everything
@@ -1018,9 +1304,7 @@ impl Oryxis {
         let mut host_col = column![
             section_header(t("host")),
             Space::new().height(ROW_GAP),
-            panel_field(t("label"), text_input(t("my_server_placeholder"), &self.editor_form.label)
-                .on_input(Message::EditorLabelChanged).on_submit(Message::EditorSave).padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into()),
+            panel_field(t("label"), label_field),
             Space::new().height(ROW_GAP),
             panel_field(t("parent_group"), parent_combo),
         ];
@@ -1075,7 +1359,7 @@ impl Oryxis {
             .push(Space::new().height(ROW_GAP))
             .push(row_auto_title)
             .push(Space::new().height(ROW_GAP))
-            .push(self.algo_overrides_section());
+            .push(algo_overrides);
         // Integration subgroup + initial command.
         ssh_col = ssh_col
             .push(group_sep())
@@ -1109,6 +1393,8 @@ impl Oryxis {
             ]
             .padding(Padding { top: 0.0, right: 16.0, bottom: 16.0, left: 16.0 }),
         )
+        // Shared id: the keyboard router keeps the selected row in view.
+        .id(iced::widget::Id::new("side-panel-scroll"))
         .height(Length::Fill);
 
         let panel_content = column![
@@ -1148,15 +1434,36 @@ impl Oryxis {
             let is_auto = self.editor_form.algo_list(cat).is_none();
             col = col.push(Space::new().height(10));
             // Explicit "Auto / Custom" picker per category; choosing Custom
-            // reveals the algorithm checklist below.
+            // reveals the algorithm checklist below. Left/Right cycle the
+            // two modes from the keyboard.
             let auto_label = t("algo_auto");
             let selected = if is_auto { auto_label } else { t("algo_custom") }.to_string();
-            col = col.push(panel_option_pick(
+            let mode_options = vec![auto_label.to_string(), t("algo_custom").to_string()];
+            let mk_mode = move |s: String| Message::EditorAlgoSetAuto(cat, s == auto_label);
+            // Focusable select; the id must be unique per category so
+            // Tab focuses exactly one of the four mode pickers.
+            let mode_id: &'static str = match cat {
+                crate::state::AlgoCategory::Cipher => "editor-pick-algo-cipher",
+                crate::state::AlgoCategory::Kex => "editor-pick-algo-kex",
+                crate::state::AlgoCategory::Mac => "editor-pick-algo-mac",
+                crate::state::AlgoCategory::HostKey => "editor-pick-algo-hostkey",
+            };
+            col = col.push(panel_option_row(
                 iced_fonts::lucide::shield(),
                 t(cat.label_key()),
-                vec![auto_label.to_string(), t("algo_custom").to_string()],
-                selected,
-                move |s| Message::EditorAlgoSetAuto(cat, s == auto_label),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(mode_id)),
+                    crate::widgets::INPUT_RADIUS,
+                    pick_list(Some(selected), mode_options, |s: &String| s.clone())
+                        .on_select(mk_mode)
+                        .id(iced::widget::Id::new(mode_id))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                ),
             ));
             if !is_auto {
                 let selected: Vec<String> =
@@ -1165,13 +1472,21 @@ impl Oryxis {
                 for algo in cat.supported() {
                     let name = algo.to_string();
                     let checked = selected.iter().any(|n| n == algo);
-                    checks = checks.push(
+                    // Each algorithm checkbox is its own keyboard row;
+                    // Enter/Space flips it like a click.
+                    checks = checks.push(self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::EditorAlgoToggle(
+                            cat,
+                            name.clone(),
+                        )),
+                        4.0,
                         checkbox(checked)
                             .label(algo)
                             .on_toggle(move |_| Message::EditorAlgoToggle(cat, name.clone()))
                             .size(15)
-                            .text_size(12),
-                    );
+                            .text_size(12)
+                            .into(),
+                    ));
                 }
                 col = col.push(container(checks).padding(Padding {
                     top: 4.0,
@@ -1209,12 +1524,13 @@ impl Oryxis {
         // Inline row (label left, picker right) mirroring the Auth Method
         // row, so the two pickers read as the same control family. The
         // type-dependent fields still stack below.
-        let picker: Element<'_, Message> = container(
-            dir_row(vec![
-                iced_fonts::lucide::route().size(13).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                text(crate::i18n::t("proxy_type")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
+        // Focusable select (Tab + Enter/Space, widget-owned keys).
+        let picker: Element<'_, Message> = panel_option_row(
+            iced_fonts::lucide::route(),
+            crate::i18n::t("proxy_type"),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-proxy-kind")),
+                crate::widgets::INPUT_RADIUS,
                 pick_list(Some(kind), options, move |k: &ProxyKind| match k {
                     ProxyKind::Identity(id) => identities
                         .iter()
@@ -1224,15 +1540,15 @@ impl Oryxis {
                     other => other.to_string(),
                 })
                 .on_select(Message::EditorProxyKindChanged)
+                .id(iced::widget::Id::new("editor-pick-proxy-kind"))
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
                 .width(140)
                 .padding(10)
                 .style(crate::widgets::rounded_pick_list_style)
                 .into(),
-            ])
-            .align_y(iced::Alignment::Center),
-        )
-        .padding(Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 0.0 })
-        .into();
+            ),
+        );
 
         let mut col = column![picker];
 
@@ -1273,15 +1589,20 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_command"),
-                    text_input(
-                        crate::i18n::t("proxy_command_placeholder"),
-                        &self.editor_form.proxy_command,
-                    )
-                    .on_input(Message::EditorProxyCommandChanged)
-                    .on_submit(Message::EditorSave)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-command")),
+                        10.0,
+                        text_input(
+                            crate::i18n::t("proxy_command_placeholder"),
+                            &self.editor_form.proxy_command,
+                        )
+                        .id(iced::widget::Id::new("editor-proxy-command"))
+                        .on_input(Message::EditorProxyCommandChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                    ),
                 ));
             return col;
         }
@@ -1291,39 +1612,54 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_host"),
-                    text_input(
-                        crate::i18n::t("proxy_host_placeholder"),
-                        &self.editor_form.proxy_host,
-                    )
-                    .on_input(Message::EditorProxyHostChanged)
-                    .on_submit(Message::EditorSave)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-host")),
+                        10.0,
+                        text_input(
+                            crate::i18n::t("proxy_host_placeholder"),
+                            &self.editor_form.proxy_host,
+                        )
+                        .id(iced::widget::Id::new("editor-proxy-host"))
+                        .on_input(Message::EditorProxyHostChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                    ),
                 ))
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_port"),
-                    text_input("1080", &self.editor_form.proxy_port)
-                        .on_input(Message::EditorProxyPortChanged)
-                        .on_submit(Message::EditorSave)
-                        .padding(6)
-                        .width(70)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                        .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-port")),
+                        10.0,
+                        text_input("1080", &self.editor_form.proxy_port)
+                            .id(iced::widget::Id::new("editor-proxy-port"))
+                            .on_input(Message::EditorProxyPortChanged)
+                            .on_submit(Message::EditorSave)
+                            .padding(6)
+                            .width(70)
+                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                            .into(),
+                    ),
                 ))
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_username"),
-                    text_input(
-                        crate::i18n::t("proxy_username_placeholder"),
-                        &self.editor_form.proxy_username,
-                    )
-                    .on_input(Message::EditorProxyUsernameChanged)
-                    .on_submit(Message::EditorSave)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-username")),
+                        10.0,
+                        text_input(
+                            crate::i18n::t("proxy_username_placeholder"),
+                            &self.editor_form.proxy_username,
+                        )
+                        .id(iced::widget::Id::new("editor-proxy-username"))
+                        .on_input(Message::EditorProxyUsernameChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                    ),
                 ));
         }
 
@@ -1342,17 +1678,22 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_password"),
-                    crate::widgets::password_input_with_eye(
-                        placeholder,
-                        &self.editor_form.proxy_password,
-                        Message::EditorProxyPasswordChanged,
-                        Some(Message::EditorSave),
-                        self.revealed_secrets
-                            .contains(&crate::state::SecretField::ProxyPassword),
-                        Message::ToggleSecretVisibility(
-                            crate::state::SecretField::ProxyPassword,
-                        ),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-password")),
                         10.0,
+                        crate::widgets::password_input_with_eye_id(
+                            placeholder,
+                            &self.editor_form.proxy_password,
+                            Message::EditorProxyPasswordChanged,
+                            Some(Message::EditorSave),
+                            self.revealed_secrets
+                                .contains(&crate::state::SecretField::ProxyPassword),
+                            Message::ToggleSecretVisibility(
+                                crate::state::SecretField::ProxyPassword,
+                            ),
+                            10.0,
+                            Some(iced::widget::Id::new("editor-proxy-password")),
+                        ),
                     ),
                 ));
         }

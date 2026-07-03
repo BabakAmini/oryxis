@@ -54,16 +54,29 @@ impl Oryxis {
 
         // Privacy reveal toggle, shown only when the global Privacy Mode is on
         // (known hosts follow the global setting). Same eye affordance as Logs.
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here; the empty
+        // state has no actions, so nothing is recorded there).
+        self.keynav_toolbar_reset();
         let mut toolbar_items: Vec<Element<'_, Message>> = vec![
             // Title dropped (the nav shows the active section).
             Space::new().width(0).into(),
             Space::new().width(Length::Fill).into(),
         ];
         if self.setting_privacy_mode {
-            toolbar_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+            // Rendered on the empty path too (the toolbar survives the
+            // empty state here), so it is always recorded.
+            toolbar_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::PrivacyReveal,
+                crate::widgets::privacy_reveal_btn(self.privacy_revealed),
+            ));
             toolbar_items.push(Space::new().width(8).into());
         }
-        toolbar_items.push(clear_all_btn);
+        toolbar_items.push(if has_entries {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, clear_all_btn)
+        } else {
+            clear_all_btn
+        });
         let toolbar = container(
             dir_row(toolbar_items).align_y(iced::Alignment::Center),
         )
@@ -71,6 +84,8 @@ impl Oryxis {
         .width(Length::Fill);
 
         if self.known_hosts.is_empty() {
+            // Nothing navigable in the empty state.
+            self.keynav_clear_content();
             let empty = crate::widgets::empty_state(
                 iced_fonts::lucide::shield_check()
                     .size(32)
@@ -87,8 +102,18 @@ impl Oryxis {
         }
 
         let mut rows: Vec<Element<'_, Message>> = Vec::new();
+        // Keyboard-navigation order: one row per entry (no filter on
+        // this view). Enter triggers the row's only action, the
+        // confirm-gated Remove.
+        self.keynav_set_content_rows(
+            (0..self.known_hosts.len())
+                .map(|i| vec![crate::keynav::NavItem::KnownHost(i)])
+                .collect(),
+        );
 
         for (idx, kh) in self.known_hosts.iter().enumerate() {
+            let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::KnownHost(idx));
             let fp_short = if kh.fingerprint.len() > 40 {
                 format!("{}...", &kh.fingerprint[..40])
             } else {
@@ -164,13 +189,21 @@ impl Oryxis {
                 ..Default::default()
             });
 
-            rows.push(entry.into());
+            rows.push(if kb_selected {
+                crate::widgets::select_ring_radius(entry.into(), 8.0)
+            } else {
+                entry.into()
+            });
             rows.push(Space::new().height(6).into());
         }
 
         let list = scrollable(
             column(rows).padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }),
-        ).height(Length::Fill);
+        )
+        // Stable id so the keyboard router can keep the selected row
+        // scrolled into view.
+        .id(iced::widget::Id::new("known-hosts-scroll"))
+        .height(Length::Fill);
 
         column![toolbar, list]
             .width(Length::Fill)

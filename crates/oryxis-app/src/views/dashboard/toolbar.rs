@@ -184,8 +184,16 @@ impl Oryxis {
                 ..Default::default()
             }
         });
+        // Keyboard-navigation focus rings on each split half; the
+        // recording (visual order) happens at row assembly below.
+        let primary_el = self
+            .keynav_toolbar_ring(crate::keynav::ToolbarItem::Primary, primary_btn.into());
+        let chevron_el = self.keynav_toolbar_ring(
+            crate::keynav::ToolbarItem::PrimaryChevron,
+            chevron_btn.into(),
+        );
         let action_group: Element<'_, Message> =
-            dir_row(vec![primary_btn.into(), separator.into(), chevron_btn.into()])
+            dir_row(vec![primary_el, separator.into(), chevron_el])
                 .align_y(iced::Alignment::Center)
                 .into();
 
@@ -195,7 +203,13 @@ impl Oryxis {
         // profile via its children's `cloud_ref`/`cloud_query`),
         // "+ HOST" turns into "+ DISCOVER" so the user lands directly
         // in the right import flow.
-        let resolved_action: Element<'_, Message> = if let Some(gid) = self.active_group {
+        // Alongside the element, expose which keynav items the resolved
+        // action contributes (in visual order) so the row assembly can
+        // record exactly what rendered.
+        let (resolved_action, resolved_items): (
+            Element<'_, Message>,
+            Vec<crate::keynav::ToolbarItem>,
+        ) = if let Some(gid) = self.active_group {
             // Is this a dynamic group?
             let dynamic_query_profile = self
                 .groups
@@ -215,10 +229,13 @@ impl Oryxis {
                 // the same y-position across views; iced's Space
                 // also ignores `height` when `width == 0`, so use a
                 // 1 px-wide sliver to actually force the height.
-                Space::new()
-                    .width(Length::Fixed(1.0))
-                    .height(Length::Fixed(34.0))
-                    .into()
+                (
+                    Space::new()
+                        .width(Length::Fixed(1.0))
+                        .height(Length::Fixed(34.0))
+                        .into(),
+                    Vec::new(),
+                )
             } else {
                 // Manual folder: derive the linked profile from any
                 // child host's cloud_ref or any child dynamic group's
@@ -237,7 +254,7 @@ impl Oryxis {
                 match linked_profile {
                     Some(pid) => {
                         let fg = OryxisColors::t().button_text;
-                        button(
+                        let discover: Element<'_, Message> = button(
                             container(
                                 dir_row(vec![
                                     iced_fonts::lucide::download()
@@ -276,21 +293,35 @@ impl Oryxis {
                                 ..Default::default()
                             }
                         })
-                        .into()
+                        .into();
+                        let item = crate::keynav::ToolbarItem::CloudDiscover(pid);
+                        (self.keynav_toolbar_ring(item, discover), vec![item])
                     }
-                    None => action_group,
+                    None => (
+                        action_group,
+                        vec![
+                            crate::keynav::ToolbarItem::Primary,
+                            crate::keynav::ToolbarItem::PrimaryChevron,
+                        ],
+                    ),
                 }
             }
         } else {
-            action_group
+            (
+                action_group,
+                vec![
+                    crate::keynav::ToolbarItem::Primary,
+                    crate::keynav::ToolbarItem::PrimaryChevron,
+                ],
+            )
         };
 
         // Sort dropdown trigger, sits just before the "+ Host" /
         // "+ Discover" action. Glyph reflects the active sort so the
         // current mode is readable without opening the menu.
-        let sort_btn = crate::widgets::sort_toolbar_button(
-            crate::state::SortMenuKind::Hosts,
-            self.hosts_sort,
+        let sort_btn = self.keynav_toolbar_ring(
+            crate::keynav::ToolbarItem::Sort,
+            crate::widgets::sort_toolbar_button(crate::state::SortMenuKind::Hosts, self.hosts_sort),
         );
 
         // Grid/List toggle, hidden once the window is so narrow that the
@@ -304,7 +335,10 @@ impl Oryxis {
         let show_view_toggle = responsive_cols > 1;
         let view_toggle: Element<'_, Message> = if show_view_toggle {
             dir_row(vec![
-                crate::widgets::host_view_toggle_button(self.setting_host_list_view),
+                self.keynav_toolbar_ring(
+                    crate::keynav::ToolbarItem::ViewToggle,
+                    crate::widgets::host_view_toggle_button(self.setting_host_list_view),
+                ),
                 Space::new().width(6).into(),
             ])
             .align_y(iced::Alignment::Center)
@@ -363,15 +397,42 @@ impl Oryxis {
             toolbar_left
         };
 
+        // Record the rendered actions for the keyboard router, in
+        // visual (leading-to-trailing) order; the focus rings were
+        // applied at each build site above.
+        self.keynav_toolbar_reset();
+        if search_collapsed {
+            self.keynav_toolbar_record(crate::keynav::ToolbarItem::SearchIcon);
+        }
+        if buttons_overflow {
+            self.keynav_toolbar_record(crate::keynav::ToolbarItem::Overflow);
+        } else {
+            if show_view_toggle {
+                self.keynav_toolbar_record(crate::keynav::ToolbarItem::ViewToggle);
+            }
+            self.keynav_toolbar_record(crate::keynav::ToolbarItem::Sort);
+            for it in &resolved_items {
+                self.keynav_toolbar_record(*it);
+            }
+        }
+
         let mut row_items: Vec<Element<'_, Message>> = vec![left_el];
         if in_group {
             row_items.push(Space::new().width(12).into());
         }
-        row_items.push(self.vault_search_slot(search_collapsed));
+        let search_slot = self.vault_search_slot(search_collapsed);
+        row_items.push(if search_collapsed {
+            self.keynav_toolbar_ring(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+        } else {
+            search_slot
+        });
         row_items.push(Space::new().width(10).into());
         if buttons_overflow {
             // Every action folds into the one `…` menu.
-            row_items.push(crate::widgets::toolbar_overflow_icon(overflow_open));
+            row_items.push(self.keynav_toolbar_ring(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(overflow_open),
+            ));
         } else {
             row_items.push(view_toggle);
             row_items.push(sort_btn);

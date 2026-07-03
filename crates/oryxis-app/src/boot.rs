@@ -146,6 +146,7 @@ impl Oryxis {
                 // site's box.
                 logo_handle: svg::Handle::from_memory(include_bytes!("../../../resources/logo.svg").as_slice()),
                 connections: Vec::new(),
+                quick_connects: std::collections::HashMap::new(),
                 groups: Vec::new(),
                 session_groups: Vec::new(),
                 active_view: View::Dashboard,
@@ -194,8 +195,7 @@ impl Oryxis {
                 hovered_session_group_card: None,
                 pane_script_overrides: std::collections::HashMap::new(),
                 hovered_card: None,
-                selected_nav: None,
-                dashboard_nav: std::cell::RefCell::new(Vec::new()),
+                keynav: crate::keynav::KeyNavState::default(),
                 hovered_folder_card: None,
                 hovered_key_card: None,
                 hovered_identity_card: None,
@@ -466,8 +466,6 @@ impl Oryxis {
                 hovered_local_terminal_card: None,
                 local_shell_picker_open: false,
                 chat_input: text_editor::Content::new(),
-                chat_loading: false,
-                chat_task: None,
                 chat_scroll_at_bottom: true,
                 terminal_sidebar_tab: crate::state::TerminalSidebarTab::default(),
                 sidebar_snippet_search: String::new(),
@@ -712,6 +710,15 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("ai_api_url") {
                 self.ai.api_url = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("ai_default_mode") {
+                let mode = crate::state::ChatMode::from_setting(&v);
+                // Seed the process-wide default for tabs created later, and
+                // apply to any tab that already exists at boot.
+                crate::state::set_default_chat_mode(mode);
+                for tab in &mut self.tabs {
+                    tab.chat_mode = mode;
+                }
             }
             self.ai.api_key_set = vault.get_ai_api_key().ok().flatten().is_some();
             if let Ok(Some(v)) = vault.get_setting("mcp_server_enabled") {

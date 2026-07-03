@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Fokus ke panel kanan",
         "hotkey_focus_pane_up" => "Fokus ke panel atas",
         "hotkey_focus_pane_down" => "Fokus ke panel bawah",
+        "hotkey_vault_section_prev" => "Bagian vault sebelumnya",
+        "hotkey_vault_section_next" => "Bagian vault berikutnya",
         "detecting_shells" => "Mendeteksi shell…",
 
         // Actions
@@ -769,6 +771,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Tab Baru",
         "tabs" => "Tab",
         "quick_connect" => "Hubungkan cepat",
+        "quick_connect_hint" => "Enter untuk menghubungkan",
+        "quick_connect_not_saved" => "Terhubung tanpa menyimpan ke vault",
+        "quick_connect_save_host" => "Simpan host ke vault",
+        "connect_without_saving" => "Hubungkan tanpa menyimpan",
+        "quick_connect_hostname_required" => "Hostname wajib diisi",
         "local_terminal" => "Terminal Lokal",
         "search_tabs" => "Cari tab",
         "jump_to" => "Lompat ke",
@@ -844,6 +851,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Jalankan",
         "ai_tool_always" => "Selalu",
         "ai_tool_deny" => "Tolak",
+        "ai_mode_plan" => "Rencana",
+        "ai_mode_ask" => "Tanya",
+        "ai_mode_auto" => "Otomatis",
+        "ai_mode_plan_tip" => "Rencana: investigasi hanya-baca, tidak pernah menjalankan perubahan",
+        "ai_mode_ask_tip" => "Tanya: konfirmasi setiap perintah sebelum dijalankan",
+        "ai_mode_auto_tip" => "Otomatis: jalankan perintah aman, konfirmasi yang berisiko",
         "retry" => "Coba lagi",
 
         // SFTP view
@@ -1126,7 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_history_title" => "Hapus semua log?",
         "clear_history_confirm" => "Ini akan menghapus permanen semua rekaman sesi dan peristiwa koneksi.",
         "update_check_failed" => "Pemeriksaan pembaruan gagal",
-        "terminal_link_hint" => "Ctrl + Klik untuk membuka tautan",
+        "terminal_link_hint" => "Tahan Ctrl dan klik untuk membuka tautan.",
         "mouse_capture_hint" => "Mode mouse aktif. Tahan Shift untuk memilih teks.",
         "terminal_hints" => "Petunjuk terminal",
         "terminal_hints_desc" => "Kapan menampilkan petunjuk seperti notifikasi tangkapan mouse dan tip tautan Ctrl + Klik.",

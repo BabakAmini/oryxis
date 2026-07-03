@@ -19,6 +19,8 @@ use crate::widgets::{dir_align_x, dir_row, panel_section, toggle_row_desc};
 
 impl Oryxis {
     pub(crate) fn view_plugins_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order.
+        self.keynav_settings_reset();
         // Built-in "feature plugins": SFTP / AI / Sync / MCP are enabled
         // here (their Settings sections only appear once enabled), the
         // same surface as the downloadable provider plugins below.
@@ -29,29 +31,41 @@ impl Oryxis {
                 .into(),
             Space::new().height(8).into(),
             panel_section(column![
-                toggle_row_desc(
-                    crate::i18n::t("ai_assistant"),
-                    crate::i18n::t("feature_ai_desc"),
-                    self.ai.enabled,
-                    Message::ToggleAiEnabled,
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ToggleAiEnabled),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("ai_assistant"),
+                        crate::i18n::t("feature_ai_desc"),
+                        self.ai.enabled,
+                        Message::ToggleAiEnabled,
+                    ),
                 ),
                 Space::new().height(12),
                 // MCP is not listed here: it's a real plugin binary (the
                 // "Oryxis MCP Server" card below), so it's activated and
                 // managed there, and its server on/off lives in the MCP
                 // settings section that appears once the plugin is present.
-                toggle_row_desc(
-                    "SFTP",
-                    crate::i18n::t("feature_sftp_desc"),
-                    self.sftp_enabled,
-                    Message::SettingToggleSftpEnabled,
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SettingToggleSftpEnabled),
+                    8.0,
+                    toggle_row_desc(
+                        "SFTP",
+                        crate::i18n::t("feature_sftp_desc"),
+                        self.sftp_enabled,
+                        Message::SettingToggleSftpEnabled,
+                    ),
                 ),
                 Space::new().height(12),
-                toggle_row_desc(
-                    crate::i18n::t("sync"),
-                    crate::i18n::t("feature_sync_desc"),
-                    self.sync.enabled,
-                    Message::SyncToggleEnabled,
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SyncToggleEnabled),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("sync"),
+                        crate::i18n::t("feature_sync_desc"),
+                        self.sync.enabled,
+                        Message::SyncToggleEnabled,
+                    ),
                 ),
             ]),
             Space::new().height(18).into(),
@@ -63,10 +77,16 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                crate::widgets::toggle_switch_labeled(
-                    crate::i18n::t("plugins_auto_update_global"),
-                    self.plugins_auto_update_global,
-                    Message::PluginToggleGlobalAutoUpdate(!self.plugins_auto_update_global),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::PluginToggleGlobalAutoUpdate(
+                        !self.plugins_auto_update_global,
+                    )),
+                    8.0,
+                    crate::widgets::toggle_switch_labeled(
+                        crate::i18n::t("plugins_auto_update_global"),
+                        self.plugins_auto_update_global,
+                        Message::PluginToggleGlobalAutoUpdate(!self.plugins_auto_update_global),
+                    ),
                 ),
             ])
             .align_y(iced::Alignment::Center)
@@ -88,7 +108,7 @@ impl Oryxis {
         }
 
         for entry in &self.plugins {
-            rows.push(plugin_card(entry));
+            rows.push(plugin_card(self, entry));
             rows.push(Space::new().height(8).into());
         }
 
@@ -100,6 +120,9 @@ impl Oryxis {
                 left: 24.0,
             }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-plugins-scroll"))
         .height(Length::Fill)
         .width(Length::Fill)
         .into()
@@ -258,8 +281,9 @@ impl Oryxis {
 
 /// One provider row: icon + name + status badge, a version / hint
 /// line, the action buttons, and (when installed) the per-plugin
-/// auto-update toggle.
-fn plugin_card(entry: &PluginUiEntry) -> Element<'_, Message> {
+/// auto-update toggle. Takes the app so the pill actions and the
+/// auto-update toggle register as keyboard rows at construction.
+fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Message> {
     let id = entry.provider_id.clone();
 
     let (badge_label, badge_color) = match &entry.status {
@@ -364,45 +388,68 @@ fn plugin_card(entry: &PluginUiEntry) -> Element<'_, Message> {
         );
     }
 
-    // Action buttons, per status.
+    // Action buttons, per status. Every button here has a real
+    // message (a disabled `pill_button(None)` never reaches this
+    // match), so each one is recorded as a keyboard row, in visual
+    // order: primary action first, then the secondary one.
     let mut actions: Vec<Element<'_, Message>> = Vec::new();
     match &entry.status {
         PluginUiStatus::NotInstalled => {
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_install"),
-                Some(Message::ShowPluginInstallModal(id.clone())),
-                OryxisColors::t().accent,
-                true,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_install"),
+                    Some(Message::ShowPluginInstallModal(id.clone())),
+                    OryxisColors::t().accent,
+                    true,
+                ),
             ));
         }
         PluginUiStatus::UpdateAvailable { .. } => {
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_update"),
-                Some(Message::PluginInstall(id.clone())),
-                OryxisColors::t().accent,
-                true,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginInstall(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_update"),
+                    Some(Message::PluginInstall(id.clone())),
+                    OryxisColors::t().accent,
+                    true,
+                ),
             ));
             actions.push(Space::new().width(8).into());
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_uninstall"),
-                Some(Message::PluginUninstall(id.clone())),
-                OryxisColors::t().error,
-                false,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_uninstall"),
+                    Some(Message::PluginUninstall(id.clone())),
+                    OryxisColors::t().error,
+                    false,
+                ),
             ));
         }
         PluginUiStatus::Installed(_) => {
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_check_updates"),
-                Some(Message::PluginCheckUpdates(id.clone())),
-                OryxisColors::t().text_secondary,
-                false,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginCheckUpdates(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_check_updates"),
+                    Some(Message::PluginCheckUpdates(id.clone())),
+                    OryxisColors::t().text_secondary,
+                    false,
+                ),
             ));
             actions.push(Space::new().width(8).into());
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_uninstall"),
-                Some(Message::PluginUninstall(id.clone())),
-                OryxisColors::t().error,
-                false,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_uninstall"),
+                    Some(Message::PluginUninstall(id.clone())),
+                    OryxisColors::t().error,
+                    false,
+                ),
             ));
         }
         PluginUiStatus::DevBuild => {
@@ -411,27 +458,39 @@ fn plugin_card(entry: &PluginUiEntry) -> Element<'_, Message> {
             // noise repeated on every card. Only the cached downloads it
             // shadows (and the MCP launcher copy) are removable.
             if entry.cached_install {
-                actions.push(pill_button(
-                    crate::i18n::t("plugin_action_remove_downloads"),
-                    Some(Message::PluginUninstall(id.clone())),
-                    OryxisColors::t().error,
-                    false,
+                actions.push(app.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
+                    6.0,
+                    pill_button(
+                        crate::i18n::t("plugin_action_remove_downloads"),
+                        Some(Message::PluginUninstall(id.clone())),
+                        OryxisColors::t().error,
+                        false,
+                    ),
                 ));
             }
         }
         PluginUiStatus::Failed(_) => {
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_retry"),
-                Some(Message::PluginCheckUpdates(id.clone())),
-                OryxisColors::t().text_secondary,
-                false,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginCheckUpdates(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_retry"),
+                    Some(Message::PluginCheckUpdates(id.clone())),
+                    OryxisColors::t().text_secondary,
+                    false,
+                ),
             ));
             actions.push(Space::new().width(8).into());
-            actions.push(pill_button(
-                crate::i18n::t("plugin_action_install"),
-                Some(Message::ShowPluginInstallModal(id.clone())),
-                OryxisColors::t().accent,
-                false,
+            actions.push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
+                6.0,
+                pill_button(
+                    crate::i18n::t("plugin_action_install"),
+                    Some(Message::ShowPluginInstallModal(id.clone())),
+                    OryxisColors::t().accent,
+                    false,
+                ),
             ));
         }
         // Checking / Downloading: in-flight, no actions.
@@ -450,10 +509,17 @@ fn plugin_card(entry: &PluginUiEntry) -> Element<'_, Message> {
     ) {
         card = card.push(Space::new().height(2));
         card = card.push(
-            container(crate::widgets::toggle_switch_labeled(
-                crate::i18n::t("plugins_auto_update"),
-                entry.auto_update,
-                Message::PluginToggleAutoUpdate(id.clone(), !entry.auto_update),
+            container(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::PluginToggleAutoUpdate(
+                    id.clone(),
+                    !entry.auto_update,
+                )),
+                8.0,
+                crate::widgets::toggle_switch_labeled(
+                    crate::i18n::t("plugins_auto_update"),
+                    entry.auto_update,
+                    Message::PluginToggleAutoUpdate(id.clone(), !entry.auto_update),
+                ),
             ))
             .width(Length::Fill)
             .align_x(dir_align_x()),

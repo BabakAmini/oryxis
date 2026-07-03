@@ -23,11 +23,16 @@ use oryxis_core::models::Connection;
 
 use crate::app::{Message, Oryxis};
 use crate::i18n::t;
+use crate::keynav::RowAction;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, HostIconStyle};
 
 impl Oryxis {
     pub(crate) fn view_chain_editor(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order by the two mode
+        // views below (list mode = row menu, add mode = search picker,
+        // see `modal_nav_surface`); Up/Down move, Enter/Space activate.
+        self.modal_nav_reset();
         let inner: Element<'_, Message> = if self.chain_editor_adding {
             self.chain_editor_add_view()
         } else {
@@ -63,7 +68,14 @@ impl Oryxis {
                 .color(OryxisColors::t().text_primary)
                 .into(),
             Space::new().width(Length::Fill).into(),
-            chain_icon_button(iced_fonts::lucide::x(), Message::CloseChainEditor, false),
+            // The close X doubles as the "Done" action, so it is a
+            // keyboard row too (Esc also closes, via close_topmost_modal).
+            self.modal_nav_slot(
+                RowAction::activate(Message::CloseChainEditor),
+                6.0,
+                false,
+                chain_icon_button(iced_fonts::lucide::x(), Message::CloseChainEditor, false),
+            ),
         ])
         .align_y(iced::Alignment::Center);
 
@@ -170,6 +182,15 @@ impl Oryxis {
         }))
         .center_x(Length::Fill);
 
+        // Keyboard row for "Add a Host". With an empty chain there is
+        // no hop row to default to, so this button takes the ring.
+        let add_action = RowAction::activate(Message::ChainEditorStartAdd);
+        let add_btn: Element<'_, Message> = if total == 0 {
+            self.modal_nav_slot_default(add_action, 8.0, false, add_btn.into())
+        } else {
+            self.modal_nav_slot(add_action, 8.0, false, add_btn.into())
+        };
+
         column![
             header,
             Space::new().height(8),
@@ -263,12 +284,17 @@ impl Oryxis {
                 Color::TRANSPARENT
             };
             let badge = self.chain_host_badge(Some(conn));
-            rows.push(pick_row(
-                badge,
-                &conn.label,
-                breadcrumb,
-                zebra_bg,
-                Message::ChainEditorAddHop(conn.id),
+            // Keyboard row: Enter appends the hop (with no selection it
+            // takes the top match, picker-family fallback). The back
+            // arrow in the header is deliberately NOT recorded so index
+            // 0 is always the best match, not "go back" (Esc pops the
+            // sub-view already).
+            let msg = Message::ChainEditorAddHop(conn.id);
+            rows.push(self.modal_nav_slot(
+                RowAction::activate(msg.clone()),
+                6.0,
+                false,
+                pick_row(badge, &conn.label, breadcrumb, zebra_bg, msg),
             ));
         }
 
@@ -392,9 +418,9 @@ impl Oryxis {
         let down_msg = (idx + 1 < total).then_some(Message::ChainEditorMoveHopDown(idx));
 
         let controls = dir_row(vec![
-            opt_icon_button(iced_fonts::lucide::chevron_up(), up_msg),
+            opt_icon_button(iced_fonts::lucide::chevron_up(), up_msg.clone()),
             Space::new().width(2).into(),
-            opt_icon_button(iced_fonts::lucide::chevron_down(), down_msg),
+            opt_icon_button(iced_fonts::lucide::chevron_down(), down_msg.clone()),
             Space::new().width(2).into(),
             chain_icon_button(
                 iced_fonts::lucide::trash(),
@@ -413,7 +439,7 @@ impl Oryxis {
         ])
         .align_y(iced::Alignment::Center);
 
-        container(row)
+        let card: Element<'a, Message> = container(row)
             .padding(Padding {
                 top: 10.0,
                 right: 12.0,
@@ -430,7 +456,26 @@ impl Oryxis {
                 },
                 ..Default::default()
             })
-            .into()
+            .into();
+
+        // Keyboard row: the card itself is not clickable, so Enter and
+        // Space fire the remove button (its primary action) and
+        // Left/Right reuse the picker prev/next channel to fire the
+        // reorder arrows, absent at the chain ends just like the
+        // buttons. Note the ring stays put after a reorder (index-based
+        // selection): step onto the moved hop to keep dragging it. The
+        // first hop is the surface default when the chain is non-empty.
+        let action = RowAction {
+            activate: Some(Message::ChainEditorRemoveHop(idx)),
+            prev: up_msg,
+            next: down_msg,
+            focus: None,
+        };
+        if idx == 0 {
+            self.modal_nav_slot_default(action, 8.0, false, card)
+        } else {
+            self.modal_nav_slot(action, 8.0, false, card)
+        }
     }
 }
 

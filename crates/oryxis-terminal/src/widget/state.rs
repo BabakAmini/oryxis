@@ -278,4 +278,47 @@ impl TerminalState {
 
         rows.join("\n")
     }
+
+    /// Last `n_lines` rows of the terminal buffer as text, **including
+    /// scrollback history** (not just the visible viewport). Each grid row is
+    /// one line; wide-char spacer cells are dropped and trailing whitespace is
+    /// trimmed, and the blank rows below the last output are skipped so the
+    /// tail ends on real content. Internal blank lines (e.g. between blocks of
+    /// output) are preserved. Used to feed recent terminal output to the AI
+    /// assistant, which previously saw only the on-screen rows and silently
+    /// lost anything that had scrolled off.
+    pub fn tail_text(&self, n_lines: usize) -> Vec<String> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        if n_lines == 0 {
+            return Vec::new();
+        }
+        let grid = self.backend.term.grid();
+        let cols = grid.columns();
+        let top = grid.topmost_line().0;
+        let bot = grid.bottommost_line().0;
+        let line_text = |li: i32| -> String {
+            let row = &grid[Line(li)];
+            let mut s = String::new();
+            for c in 0..cols {
+                let cell = &row[Column(c)];
+                // Skip wide-char spacer cells (the trailing half of a CJK
+                // glyph); otherwise each copies out as an extra space.
+                if cell.c != '\0' && !cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                    s.push(cell.c);
+                }
+            }
+            s.trim_end().to_string()
+        };
+        // Skip the blank rows below the last real output so the tail ends on
+        // content, then take the last `n_lines` rows ending there (reaching
+        // up into history when the viewport doesn't hold that many).
+        let mut end = bot;
+        while end > top && line_text(end).is_empty() {
+            end -= 1;
+        }
+        let start = (end - (n_lines as i32 - 1)).max(top);
+        (start..=end).map(line_text).collect()
+    }
 }

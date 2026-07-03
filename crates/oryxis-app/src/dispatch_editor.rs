@@ -158,6 +158,316 @@ impl Oryxis {
         }
     }
 
+
+    /// Build a `Connection` from the host-editor form: everything
+    /// `EditorSave` persists except the tri-state secrets (main password,
+    /// proxy password, TOTP secret), which each flow handles itself.
+    /// `persist_group` gates the find-or-create group side effect; the
+    /// connect-without-saving flow passes `false` so nothing is written.
+    /// Errors are user-facing strings for `host_panel_error`.
+    fn connection_from_editor_form(
+        &mut self,
+        persist_group: bool,
+    ) -> Result<Connection, String> {
+        let port: u16 = self.editor_form.port.parse().unwrap_or(22);
+
+        // Find or create group. Skipped entirely for the
+        // connect-without-saving flow: an ad-hoc host must not write
+        // anything, not even a newly typed group.
+        let group_id = if persist_group && !self.editor_form.group_name.is_empty() {
+            let existing = self
+                .groups
+                .iter()
+                .find(|g| g.label == self.editor_form.group_name);
+            match existing {
+                Some(g) => Some(g.id),
+                None => {
+                    let g = Group::new(&self.editor_form.group_name);
+                    let gid = g.id;
+                    if let Some(vault) = &self.vault {
+                        let _ = vault.save_group(&g);
+                    }
+                    self.groups.push(g);
+                    Some(gid)
+                }
+            }
+        } else {
+            None
+        };
+
+        // Snapshot the pre-edit Connection (when editing an
+        // existing row) so we can diff the user's changes after
+        // all the per-field assignments below. The diff feeds
+        // `customized_fields`, which the cloud reimport flow
+        // honours to leave user-edited values alone on refresh.
+        let original: Option<Connection> = self
+            .editor_form
+            .editing_id
+            .and_then(|id| self.connections.iter().find(|c| c.id == id).cloned());
+
+        let mut conn = original
+            .clone()
+            .unwrap_or_else(|| Connection::new("", ""));
+
+        conn.label = self.editor_form.label.clone();
+        conn.hostname = self.editor_form.hostname.clone();
+        conn.port = port;
+        conn.username = if self.editor_form.username.is_empty() {
+            None
+        } else {
+            Some(self.editor_form.username.clone())
+        };
+        conn.auth_method = self.editor_form.auth_method.clone();
+        conn.group_id = group_id;
+        conn.key_id = self.editor_form.selected_key.as_ref().and_then(|label| {
+            self.keys.iter().find(|k| k.label == *label).map(|k| k.id)
+        });
+        conn.identity_id = self.editor_form.selected_identity.as_ref().and_then(|label| {
+            self.identities.iter().find(|i| i.label == *label).map(|i| i.id)
+        });
+        // Persist the full ordered chain. Drop any hop pointing
+        // at a host that no longer exists or at this host itself
+        // (a self-reference would be a connect-time loop), so a
+        // stale form never writes a broken chain.
+        let self_id = self.editor_form.editing_id;
+        conn.jump_chain = self
+            .editor_form
+            .jump_chain
+            .iter()
+            .filter(|id| Some(**id) != self_id)
+            .filter(|id| self.connections.iter().any(|c| c.id == **id))
+            .copied()
+            .collect();
+        conn.port_forwards = self.editor_form.port_forwards.iter().filter_map(|pf| {
+            let local_port = pf.local_port.parse::<u16>().ok()?;
+            let remote_port = pf.remote_port.parse::<u16>().ok()?;
+            if pf.remote_host.is_empty() { return None; }
+            Some(oryxis_core::models::connection::PortForward {
+                local_port,
+                remote_host: pf.remote_host.clone(),
+                remote_port,
+            })
+        }).collect();
+        // Env vars: keep rows with a non-empty key (value may be
+        // empty); trim the key so accidental whitespace doesn't
+        // create a bogus variable name.
+        conn.env_vars = self.editor_form.env_vars.iter().filter_map(|e| {
+            let key = e.key.trim();
+            if key.is_empty() { return None; }
+            Some(oryxis_core::models::connection::EnvVar {
+                key: key.to_string(),
+                value: e.value.clone(),
+            })
+        }).collect();
+        conn.mcp_enabled = self.editor_form.mcp_enabled;
+        conn.agent_forwarding = self.editor_form.agent_forwarding;
+        conn.session_logging = self.editor_form.session_logging;
+        conn.terminal_theme = self.editor_form.terminal_theme.clone();
+        conn.icon_style = self.editor_form.icon_style.clone();
+        conn.encoding = self.editor_form.encoding.clone();
+        conn.terminal_type = self.editor_form.terminal_type.clone();
+        conn.ciphers = self.editor_form.ciphers.clone();
+        conn.kex = self.editor_form.kex.clone();
+        conn.macs = self.editor_form.macs.clone();
+        conn.host_key_algorithms = self.editor_form.host_key_algorithms.clone();
+        // Startup command source. Snippet -> store the live id and
+        // clear the literal; Custom -> store the trimmed text (empty
+        // == None); None -> clear both. `.text()` appends a trailing
+        // newline, so trim before checking.
+        match &self.editor_startup_choice {
+            crate::state::StartupChoice::Snippet(id) => {
+                conn.startup_snippet_id = Some(*id);
+                conn.initial_command = None;
+            }
+            crate::state::StartupChoice::Custom => {
+                conn.startup_snippet_id = None;
+                let initial_command = self.editor_initial_command.text();
+                conn.initial_command = if initial_command.trim().is_empty() {
+                    None
+                } else {
+                    Some(initial_command.trim_end().to_string())
+                };
+            }
+            crate::state::StartupChoice::None => {
+                conn.startup_snippet_id = None;
+                conn.initial_command = None;
+            }
+        }
+        // If the host is cloud-imported (carries a cloud_ref)
+        // and the user picked a transport in the editor,
+        // persist it onto the existing CloudRef. Don't touch
+        // anything else (resource_id, region, profile_id).
+        if let Some(picked) = self.editor_form.cloud_transport
+            && let Some(cref) = conn.cloud_ref.as_mut()
+        {
+            cref.transport_pref = picked;
+        }
+        // Empty string == inherit global; "0" == explicitly disabled
+        // on this host; positive integer == per-host override.
+        conn.keepalive_interval = if self.editor_form.keepalive_interval.is_empty() {
+            None
+        } else {
+            self.editor_form.keepalive_interval.parse::<u32>().ok()
+        };
+        conn.auto_title = self.editor_form.auto_title;
+        conn.privacy_mode = self.editor_form.privacy_mode;
+        // Map the editor form into either an inline ProxyConfig
+        // or a `proxy_identity_id` reference. Validates host /
+        // port / command up-front so the user gets an error
+        // instead of a silently-broken proxy entry.
+        match build_proxy_resolution(&self.editor_form) {
+            Ok(r) => {
+                conn.proxy = r.proxy;
+                conn.proxy_identity_id = r.proxy_identity_id;
+            }
+            Err(msg) => return Err(msg),
+        }
+        conn.updated_at = chrono::Utc::now();
+
+        // Track user edits on cloud-imported hosts so the next
+        // refresh from AWS doesn't clobber them. Only the
+        // fields that discovery actually pushes are tracked,
+        // anything else (port, color, group_id, ...) is fully
+        // user-controlled on imported hosts already and doesn't
+        // need a flag.
+        if conn.cloud_ref.is_some()
+            && let Some(orig) = &original
+        {
+            let mut customized = conn.customized_fields.clone();
+            let mark = |list: &mut Vec<String>, name: &str| {
+                if !list.iter().any(|s| s == name) {
+                    list.push(name.to_string());
+                }
+            };
+            if conn.label != orig.label {
+                mark(&mut customized, "label");
+            }
+            if conn.hostname != orig.hostname {
+                mark(&mut customized, "hostname");
+            }
+            if conn.username != orig.username {
+                mark(&mut customized, "username");
+            }
+            conn.customized_fields = customized;
+        }
+        // Validate a newly typed TOTP secret before anything is
+        // written, so a typo'd secret can't be stored and then
+        // silently fail at connect time. Cleared/untouched skip.
+        if self.editor_form.totp_touched
+            && !self.editor_form.totp_secret.trim().is_empty()
+            && let Err(e) =
+                oryxis_core::totp::Totp::parse(&self.editor_form.totp_secret)
+        {
+            return Err(format!("{}: {e}", crate::i18n::t("totp_invalid")));
+        }
+
+        Ok(conn)
+    }
+
+
+    /// Build a fully populated `ConnectionForm` from an existing
+    /// `Connection` (labels resolved against the current groups / keys /
+    /// identities lists). Secrets are never prefilled: the `has_*` flags
+    /// drive the masked placeholders and the `*_touched` tri-state decides
+    /// what a later save writes. Shared by `EditConnection` (vault hosts)
+    /// and `SaveQuickHost` (ad-hoc hosts being persisted).
+    fn form_from_connection(
+        &self,
+        conn: &Connection,
+        has_pw: bool,
+        has_proxy_pw: bool,
+        has_totp: bool,
+    ) -> ConnectionForm {
+        ConnectionForm {
+            label: conn.label.clone(),
+            hostname: conn.hostname.clone(),
+            port: conn.port.to_string(),
+            username: conn.username.clone().unwrap_or_default(),
+            password: String::new(),
+            auth_method: conn.auth_method.clone(),
+            group_name: conn
+                .group_id
+                .and_then(|gid| {
+                    self.groups.iter().find(|g| g.id == gid).map(|g| g.label.clone())
+                })
+                .unwrap_or_default(),
+            selected_key: conn.key_id.and_then(|kid| {
+                self.keys.iter().find(|k| k.id == kid).map(|k| k.label.clone())
+            }),
+            jump_chain: conn.jump_chain.clone(),
+            selected_identity: conn.identity_id.and_then(|iid| {
+                self.identities.iter().find(|i| i.id == iid).map(|i| i.label.clone())
+            }),
+            editing_id: Some(conn.id),
+            has_existing_password: has_pw,
+            password_touched: false,
+            password_visible: false,
+            username_focused: false,
+            port_forwards: conn.port_forwards.iter().map(|pf| PortForwardForm {
+                local_port: pf.local_port.to_string(),
+                remote_host: pf.remote_host.clone(),
+                remote_port: pf.remote_port.to_string(),
+            }).collect(),
+            env_vars: conn.env_vars.iter().map(|e| crate::state::EnvVarForm {
+                key: e.key.clone(),
+                value: e.value.clone(),
+            }).collect(),
+            mcp_enabled: conn.mcp_enabled,
+            agent_forwarding: conn.agent_forwarding,
+            session_logging: conn.session_logging,
+            // Saved-identity reference takes precedence over
+            // an inline proxy when both are populated, mirroring
+            // the runtime resolver in `Vault::resolve_proxy`.
+            proxy_kind: if let Some(pid) = conn.proxy_identity_id {
+                ProxyKind::Identity(pid)
+            } else {
+                conn.proxy.as_ref().map(|p| match &p.proxy_type {
+                    ProxyType::Socks5 => ProxyKind::Socks5,
+                    ProxyType::Socks4 => ProxyKind::Socks4,
+                    ProxyType::Http => ProxyKind::Http,
+                    ProxyType::Command(_) => ProxyKind::Command,
+                }).unwrap_or(ProxyKind::None)
+            },
+            proxy_host: conn.proxy.as_ref().map(|p| p.host.clone()).unwrap_or_default(),
+            proxy_port: conn.proxy.as_ref().map(|p| p.port.to_string()).unwrap_or_default(),
+            proxy_username: conn.proxy.as_ref().and_then(|p| p.username.clone()).unwrap_or_default(),
+            // Never pre-fill proxy_password from the encrypted vault, keep it empty
+            // and let `proxy_password_touched` decide whether to overwrite on save,
+            // mirroring the main connection-password flow.
+            proxy_password: String::new(),
+            proxy_command: conn.proxy.as_ref().and_then(|p| match &p.proxy_type {
+                ProxyType::Command(cmd) => Some(cmd.clone()),
+                _ => None,
+            }).unwrap_or_default(),
+            has_existing_proxy_password: has_proxy_pw,
+            proxy_password_touched: false,
+            // Never pre-fill the TOTP secret either; the
+            // masked placeholder signals one is stored.
+            totp_secret: String::new(),
+            has_existing_totp: has_totp,
+            totp_touched: false,
+            totp_visible: false,
+            terminal_theme: conn.terminal_theme.clone(),
+            keepalive_interval: conn
+                .keepalive_interval
+                .map(|n| n.to_string())
+                .unwrap_or_default(),
+            auto_title: conn.auto_title,
+            cloud_transport: conn
+                .cloud_ref
+                .as_ref()
+                .map(|r| r.transport_pref),
+            icon_style: conn.icon_style.clone(),
+            encoding: conn.encoding.clone(),
+            terminal_type: conn.terminal_type.clone(),
+            ciphers: conn.ciphers.clone(),
+            kex: conn.kex.clone(),
+            macs: conn.macs.clone(),
+            host_key_algorithms: conn.host_key_algorithms.clone(),
+            privacy_mode: conn.privacy_mode,
+        }
+    }
+
     pub(crate) fn handle_editor(
         &mut self,
         message: Message,
@@ -175,6 +485,7 @@ impl Oryxis {
                 self.show_session_group_panel = false;
                 self.group_edit.visible = false;
                 self.show_host_panel = true;
+                self.panel_nav_clear();
                 self.editor_form = self.new_connection_form();
                 self.editor_initial_command = iced::widget::text_editor::Content::new();
                 self.editor_startup_choice = crate::state::StartupChoice::None;
@@ -203,6 +514,10 @@ impl Oryxis {
                     self.show_session_group_panel = false;
                     self.group_edit.visible = false;
                     self.show_host_panel = true;
+                    // Inline panel_nav_clear: a method call would
+                    // borrow all of self while `conn` holds it.
+                    self.keynav.panel_selected = None;
+                    self.keynav.panel_last_row.set(None);
                     self.host_panel_error = None;
                     let has_pw = self.vault.as_ref()
                         .and_then(|v| v.get_connection_password(&conn.id).ok())
@@ -216,94 +531,8 @@ impl Oryxis {
                         .and_then(|v| v.get_connection_totp_secret(&conn.id).ok())
                         .flatten()
                         .is_some();
-                    self.editor_form = ConnectionForm {
-                        label: conn.label.clone(),
-                        hostname: conn.hostname.clone(),
-                        port: conn.port.to_string(),
-                        username: conn.username.clone().unwrap_or_default(),
-                        password: String::new(),
-                        auth_method: conn.auth_method.clone(),
-                        group_name: conn
-                            .group_id
-                            .and_then(|gid| {
-                                self.groups.iter().find(|g| g.id == gid).map(|g| g.label.clone())
-                            })
-                            .unwrap_or_default(),
-                        selected_key: conn.key_id.and_then(|kid| {
-                            self.keys.iter().find(|k| k.id == kid).map(|k| k.label.clone())
-                        }),
-                        jump_chain: conn.jump_chain.clone(),
-                        selected_identity: conn.identity_id.and_then(|iid| {
-                            self.identities.iter().find(|i| i.id == iid).map(|i| i.label.clone())
-                        }),
-                        editing_id: Some(conn.id),
-                        has_existing_password: has_pw,
-                        password_touched: false,
-                        password_visible: false,
-                        username_focused: false,
-                        port_forwards: conn.port_forwards.iter().map(|pf| PortForwardForm {
-                            local_port: pf.local_port.to_string(),
-                            remote_host: pf.remote_host.clone(),
-                            remote_port: pf.remote_port.to_string(),
-                        }).collect(),
-                        env_vars: conn.env_vars.iter().map(|e| crate::state::EnvVarForm {
-                            key: e.key.clone(),
-                            value: e.value.clone(),
-                        }).collect(),
-                        mcp_enabled: conn.mcp_enabled,
-                        agent_forwarding: conn.agent_forwarding,
-                        session_logging: conn.session_logging,
-                        // Saved-identity reference takes precedence over
-                        // an inline proxy when both are populated, mirroring
-                        // the runtime resolver in `Vault::resolve_proxy`.
-                        proxy_kind: if let Some(pid) = conn.proxy_identity_id {
-                            ProxyKind::Identity(pid)
-                        } else {
-                            conn.proxy.as_ref().map(|p| match &p.proxy_type {
-                                ProxyType::Socks5 => ProxyKind::Socks5,
-                                ProxyType::Socks4 => ProxyKind::Socks4,
-                                ProxyType::Http => ProxyKind::Http,
-                                ProxyType::Command(_) => ProxyKind::Command,
-                            }).unwrap_or(ProxyKind::None)
-                        },
-                        proxy_host: conn.proxy.as_ref().map(|p| p.host.clone()).unwrap_or_default(),
-                        proxy_port: conn.proxy.as_ref().map(|p| p.port.to_string()).unwrap_or_default(),
-                        proxy_username: conn.proxy.as_ref().and_then(|p| p.username.clone()).unwrap_or_default(),
-                        // Never pre-fill proxy_password from the encrypted vault, keep it empty
-                        // and let `proxy_password_touched` decide whether to overwrite on save,
-                        // mirroring the main connection-password flow.
-                        proxy_password: String::new(),
-                        proxy_command: conn.proxy.as_ref().and_then(|p| match &p.proxy_type {
-                            ProxyType::Command(cmd) => Some(cmd.clone()),
-                            _ => None,
-                        }).unwrap_or_default(),
-                        has_existing_proxy_password: has_proxy_pw,
-                        proxy_password_touched: false,
-                        // Never pre-fill the TOTP secret either; the
-                        // masked placeholder signals one is stored.
-                        totp_secret: String::new(),
-                        has_existing_totp: has_totp,
-                        totp_touched: false,
-                        totp_visible: false,
-                        terminal_theme: conn.terminal_theme.clone(),
-                        keepalive_interval: conn
-                            .keepalive_interval
-                            .map(|n| n.to_string())
-                            .unwrap_or_default(),
-                        auto_title: conn.auto_title,
-                        cloud_transport: conn
-                            .cloud_ref
-                            .as_ref()
-                            .map(|r| r.transport_pref),
-                        icon_style: conn.icon_style.clone(),
-                        encoding: conn.encoding.clone(),
-                        terminal_type: conn.terminal_type.clone(),
-                        ciphers: conn.ciphers.clone(),
-                        kex: conn.kex.clone(),
-                        macs: conn.macs.clone(),
-                        host_key_algorithms: conn.host_key_algorithms.clone(),
-                        privacy_mode: conn.privacy_mode,
-                    };
+                    self.editor_form =
+                        self.form_from_connection(conn, has_pw, has_proxy_pw, has_totp);
                     let cmd = conn.initial_command.as_deref().unwrap_or_default();
                     self.editor_initial_command =
                         iced::widget::text_editor::Content::with_text(cmd);
@@ -323,6 +552,58 @@ impl Oryxis {
                         "editor-hostname",
                     )));
                 }
+            }
+            Message::SaveQuickHost(id) => {
+                self.overlay = None;
+                self.card_context_menu = None;
+                let Some(entry) = self.quick_connects.get(&id).cloned() else {
+                    return Ok(Task::none());
+                };
+                // Mutually exclusive right-panel slot, and the panel lives
+                // on the dashboard (the menu was clicked from a terminal).
+                self.cloud_form.visible = false;
+                self.cloud_dynamic_form.visible = false;
+                self.cloud_discover_visible = false;
+                self.show_session_group_panel = false;
+                self.group_edit.visible = false;
+                self.show_host_panel = true;
+                self.panel_nav_clear();
+                self.host_panel_error = None;
+                self.active_view = crate::state::View::Dashboard;
+                let mut form = self.form_from_connection(&entry.conn, false, false, false);
+                // Prefill as a NEW host: saving must insert a fresh row,
+                // never overwrite; the open tab stays ephemeral until its
+                // next reconnect.
+                form.editing_id = None;
+                // Re-seed the credentials typed in the editor flow so the
+                // save persists them (touched => tri-state writes).
+                if let Some(pw) = entry.password.clone() {
+                    form.password = pw;
+                    form.password_touched = true;
+                }
+                if let Some(secret) = entry.totp_secret.clone() {
+                    form.totp_secret = secret;
+                    form.totp_touched = true;
+                }
+                if let Some(pw) = entry.proxy_password.clone() {
+                    form.proxy_password = pw;
+                    form.proxy_password_touched = true;
+                }
+                self.editor_form = form;
+                let cmd = entry.conn.initial_command.as_deref().unwrap_or_default();
+                self.editor_initial_command =
+                    iced::widget::text_editor::Content::with_text(cmd);
+                self.editor_startup_choice = match entry.conn.startup_snippet_id {
+                    Some(sid) if self.snippets.iter().any(|s| s.id == sid) => {
+                        crate::state::StartupChoice::Snippet(sid)
+                    }
+                    _ if !cmd.trim().is_empty() => crate::state::StartupChoice::Custom,
+                    _ => crate::state::StartupChoice::None,
+                };
+                self.rebuild_editor_combos();
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "editor-hostname",
+                )));
             }
             Message::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
             Message::EditorHostnameChanged(v) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
@@ -587,189 +868,13 @@ impl Oryxis {
                     self.host_panel_error = Some("Label and hostname are required".into());
                     return Ok(Task::none());
                 }
-                let port: u16 = self.editor_form.port.parse().unwrap_or(22);
-
-                // Find or create group
-                let group_id = if !self.editor_form.group_name.is_empty() {
-                    let existing = self
-                        .groups
-                        .iter()
-                        .find(|g| g.label == self.editor_form.group_name);
-                    match existing {
-                        Some(g) => Some(g.id),
-                        None => {
-                            let g = Group::new(&self.editor_form.group_name);
-                            let gid = g.id;
-                            if let Some(vault) = &self.vault {
-                                let _ = vault.save_group(&g);
-                            }
-                            self.groups.push(g);
-                            Some(gid)
-                        }
-                    }
-                } else {
-                    None
-                };
-
-                // Snapshot the pre-edit Connection (when editing an
-                // existing row) so we can diff the user's changes after
-                // all the per-field assignments below. The diff feeds
-                // `customized_fields`, which the cloud reimport flow
-                // honours to leave user-edited values alone on refresh.
-                let original: Option<Connection> = self
-                    .editor_form
-                    .editing_id
-                    .and_then(|id| self.connections.iter().find(|c| c.id == id).cloned());
-
-                let mut conn = original
-                    .clone()
-                    .unwrap_or_else(|| Connection::new("", ""));
-
-                conn.label = self.editor_form.label.clone();
-                conn.hostname = self.editor_form.hostname.clone();
-                conn.port = port;
-                conn.username = if self.editor_form.username.is_empty() {
-                    None
-                } else {
-                    Some(self.editor_form.username.clone())
-                };
-                conn.auth_method = self.editor_form.auth_method.clone();
-                conn.group_id = group_id;
-                conn.key_id = self.editor_form.selected_key.as_ref().and_then(|label| {
-                    self.keys.iter().find(|k| k.label == *label).map(|k| k.id)
-                });
-                conn.identity_id = self.editor_form.selected_identity.as_ref().and_then(|label| {
-                    self.identities.iter().find(|i| i.label == *label).map(|i| i.id)
-                });
-                // Persist the full ordered chain. Drop any hop pointing
-                // at a host that no longer exists or at this host itself
-                // (a self-reference would be a connect-time loop), so a
-                // stale form never writes a broken chain.
-                let self_id = self.editor_form.editing_id;
-                conn.jump_chain = self
-                    .editor_form
-                    .jump_chain
-                    .iter()
-                    .filter(|id| Some(**id) != self_id)
-                    .filter(|id| self.connections.iter().any(|c| c.id == **id))
-                    .copied()
-                    .collect();
-                conn.port_forwards = self.editor_form.port_forwards.iter().filter_map(|pf| {
-                    let local_port = pf.local_port.parse::<u16>().ok()?;
-                    let remote_port = pf.remote_port.parse::<u16>().ok()?;
-                    if pf.remote_host.is_empty() { return None; }
-                    Some(oryxis_core::models::connection::PortForward {
-                        local_port,
-                        remote_host: pf.remote_host.clone(),
-                        remote_port,
-                    })
-                }).collect();
-                // Env vars: keep rows with a non-empty key (value may be
-                // empty); trim the key so accidental whitespace doesn't
-                // create a bogus variable name.
-                conn.env_vars = self.editor_form.env_vars.iter().filter_map(|e| {
-                    let key = e.key.trim();
-                    if key.is_empty() { return None; }
-                    Some(oryxis_core::models::connection::EnvVar {
-                        key: key.to_string(),
-                        value: e.value.clone(),
-                    })
-                }).collect();
-                conn.mcp_enabled = self.editor_form.mcp_enabled;
-                conn.agent_forwarding = self.editor_form.agent_forwarding;
-                conn.session_logging = self.editor_form.session_logging;
-                conn.terminal_theme = self.editor_form.terminal_theme.clone();
-                conn.icon_style = self.editor_form.icon_style.clone();
-                conn.encoding = self.editor_form.encoding.clone();
-                conn.terminal_type = self.editor_form.terminal_type.clone();
-                conn.ciphers = self.editor_form.ciphers.clone();
-                conn.kex = self.editor_form.kex.clone();
-                conn.macs = self.editor_form.macs.clone();
-                conn.host_key_algorithms = self.editor_form.host_key_algorithms.clone();
-                // Startup command source. Snippet -> store the live id and
-                // clear the literal; Custom -> store the trimmed text (empty
-                // == None); None -> clear both. `.text()` appends a trailing
-                // newline, so trim before checking.
-                match &self.editor_startup_choice {
-                    crate::state::StartupChoice::Snippet(id) => {
-                        conn.startup_snippet_id = Some(*id);
-                        conn.initial_command = None;
-                    }
-                    crate::state::StartupChoice::Custom => {
-                        conn.startup_snippet_id = None;
-                        let initial_command = self.editor_initial_command.text();
-                        conn.initial_command = if initial_command.trim().is_empty() {
-                            None
-                        } else {
-                            Some(initial_command.trim_end().to_string())
-                        };
-                    }
-                    crate::state::StartupChoice::None => {
-                        conn.startup_snippet_id = None;
-                        conn.initial_command = None;
-                    }
-                }
-                // If the host is cloud-imported (carries a cloud_ref)
-                // and the user picked a transport in the editor,
-                // persist it onto the existing CloudRef. Don't touch
-                // anything else (resource_id, region, profile_id).
-                if let Some(picked) = self.editor_form.cloud_transport
-                    && let Some(cref) = conn.cloud_ref.as_mut()
-                {
-                    cref.transport_pref = picked;
-                }
-                // Empty string == inherit global; "0" == explicitly disabled
-                // on this host; positive integer == per-host override.
-                conn.keepalive_interval = if self.editor_form.keepalive_interval.is_empty() {
-                    None
-                } else {
-                    self.editor_form.keepalive_interval.parse::<u32>().ok()
-                };
-                conn.auto_title = self.editor_form.auto_title;
-                conn.privacy_mode = self.editor_form.privacy_mode;
-                // Map the editor form into either an inline ProxyConfig
-                // or a `proxy_identity_id` reference. Validates host /
-                // port / command up-front so the user gets an error
-                // instead of a silently-broken proxy entry.
-                match build_proxy_resolution(&self.editor_form) {
-                    Ok(r) => {
-                        conn.proxy = r.proxy;
-                        conn.proxy_identity_id = r.proxy_identity_id;
-                    }
+                let conn = match self.connection_from_editor_form(true) {
+                    Ok(conn) => conn,
                     Err(msg) => {
                         self.host_panel_error = Some(msg);
                         return Ok(Task::none());
                     }
-                }
-                conn.updated_at = chrono::Utc::now();
-
-                // Track user edits on cloud-imported hosts so the next
-                // refresh from AWS doesn't clobber them. Only the
-                // fields that discovery actually pushes are tracked,
-                // anything else (port, color, group_id, ...) is fully
-                // user-controlled on imported hosts already and doesn't
-                // need a flag.
-                if conn.cloud_ref.is_some()
-                    && let Some(orig) = &original
-                {
-                    let mut customized = conn.customized_fields.clone();
-                    let mark = |list: &mut Vec<String>, name: &str| {
-                        if !list.iter().any(|s| s == name) {
-                            list.push(name.to_string());
-                        }
-                    };
-                    if conn.label != orig.label {
-                        mark(&mut customized, "label");
-                    }
-                    if conn.hostname != orig.hostname {
-                        mark(&mut customized, "hostname");
-                    }
-                    if conn.username != orig.username {
-                        mark(&mut customized, "username");
-                    }
-                    conn.customized_fields = customized;
-                }
-
+                };
                 let password = if !self.editor_form.password_touched {
                     None // User didn't touch the field, preserve existing password
                 } else if self.editor_form.password.is_empty() {
@@ -777,19 +882,6 @@ impl Oryxis {
                 } else {
                     Some(self.editor_form.password.as_str())
                 };
-
-                // Validate a newly typed TOTP secret before anything is
-                // written, so a typo'd secret can't be stored and then
-                // silently fail at connect time. Cleared/untouched skip.
-                if self.editor_form.totp_touched
-                    && !self.editor_form.totp_secret.trim().is_empty()
-                    && let Err(e) =
-                        oryxis_core::totp::Totp::parse(&self.editor_form.totp_secret)
-                {
-                    self.host_panel_error =
-                        Some(format!("{}: {e}", crate::i18n::t("totp_invalid")));
-                    return Ok(Task::none());
-                }
 
                 if let Some(vault) = &self.vault {
                     match vault.save_connection(&conn, password) {
@@ -820,6 +912,7 @@ impl Oryxis {
                                 let _ = vault.set_connection_totp_secret(&conn.id, s);
                             }
                             self.show_host_panel = false;
+                            self.panel_nav_clear();
                             self.host_panel_error = None;
                             // Re-paint any open tabs of this host so a
                             // newly chosen palette takes effect without
@@ -834,8 +927,58 @@ impl Oryxis {
                     }
                 }
             }
+            Message::EditorConnectWithoutSaving => {
+                // Ad-hoc connect from the "+ Host" flow: build the full
+                // Connection from the form but persist nothing. Only the
+                // hostname is required; an empty label defaults to the
+                // canonical user@host[:port].
+                if self.editor_form.hostname.is_empty() {
+                    self.host_panel_error =
+                        Some(crate::i18n::t("quick_connect_hostname_required").into());
+                    return Ok(Task::none());
+                }
+                let mut conn = match self.connection_from_editor_form(false) {
+                    Ok(conn) => conn,
+                    Err(msg) => {
+                        self.host_panel_error = Some(msg);
+                        return Ok(Task::none());
+                    }
+                };
+                if conn.label.is_empty() {
+                    conn.label = oryxis_core::ssh_target::SshTarget {
+                        username: conn.username.clone(),
+                        host: conn.hostname.clone(),
+                        port: (conn.port != 22).then_some(conn.port),
+                    }
+                    .canonical();
+                }
+                // Typed credentials ride the ephemeral entry (there is no
+                // vault row to hydrate from at connect time). Untouched or
+                // cleared fields stay None.
+                let form = &self.editor_form;
+                let password = (form.password_touched && !form.password.is_empty())
+                    .then(|| form.password.clone());
+                let totp_secret = (form.totp_touched
+                    && !form.totp_secret.trim().is_empty())
+                .then(|| form.totp_secret.trim().to_string());
+                let proxy_password = (conn.proxy.is_some()
+                    && form.proxy_password_touched
+                    && !form.proxy_password.is_empty())
+                .then(|| form.proxy_password.clone());
+                let entry = crate::state::QuickConnectEntry {
+                    conn,
+                    password,
+                    totp_secret,
+                    proxy_password,
+                };
+                self.show_host_panel = false;
+                self.panel_nav_clear();
+                self.host_panel_error = None;
+                return Ok(self.update(Message::QuickConnect(Box::new(entry))));
+            }
             Message::EditorCancel => {
                 self.show_host_panel = false;
+                self.panel_nav_clear();
                 self.host_panel_error = None;
             }
             Message::RequestDeleteConnection(idx) => {
@@ -852,6 +995,7 @@ impl Oryxis {
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_connection(&id);
                         self.show_host_panel = false;
+                        self.panel_nav_clear();
                         self.load_data_from_vault();
                     }
                 }

@@ -43,6 +43,13 @@ pub(crate) enum Modal {
     UiThemeEditor,
     ShareDialog,
     CloudImportConfirm,
+    /// Shared error / single-action confirm dialog (`error_dialog`),
+    /// also the confirm step for known-host and session-log deletes.
+    ErrorDialog,
+    /// "Clear all history" confirmation.
+    ClearHistoryConfirm,
+    /// SSH-config import host-selection dialog.
+    SshImport,
     SftpRename,
     SftpNewEntry,
     SftpProperties,
@@ -70,6 +77,9 @@ impl Modal {
         Modal::UiThemeEditor,
         Modal::ShareDialog,
         Modal::CloudImportConfirm,
+        Modal::ErrorDialog,
+        Modal::ClearHistoryConfirm,
+        Modal::SshImport,
         Modal::SftpRename,
         Modal::SftpNewEntry,
         Modal::SftpProperties,
@@ -91,6 +101,12 @@ impl Modal {
         Modal::FolderDelete,
         Modal::TabRename,
         Modal::CarefulPaste,
+        // The error dialog can pop over another flow, so it dismisses
+        // before the heavier editors below; the two confirm dialogs
+        // follow in the same lightweight-confirm group.
+        Modal::ErrorDialog,
+        Modal::ClearHistoryConfirm,
+        Modal::SshImport,
         Modal::SessionGroupPanel,
         Modal::ThemeEditor,
         Modal::UiThemeEditor,
@@ -122,6 +138,9 @@ impl Modal {
             | Modal::UiThemeEditor
             | Modal::ShareDialog
             | Modal::CloudImportConfirm
+            | Modal::ErrorDialog
+            | Modal::ClearHistoryConfirm
+            | Modal::SshImport
             | Modal::SftpRename
             | Modal::SftpNewEntry
             | Modal::SftpProperties
@@ -157,6 +176,9 @@ mod tests {
                 | Modal::UiThemeEditor
                 | Modal::ShareDialog
                 | Modal::CloudImportConfirm
+                | Modal::ErrorDialog
+                | Modal::ClearHistoryConfirm
+                | Modal::SshImport
                 | Modal::SftpRename
                 | Modal::SftpNewEntry
                 | Modal::SftpProperties
@@ -164,7 +186,7 @@ mod tests {
                 | Modal::SftpPicker => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 21, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 24, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

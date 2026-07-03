@@ -17,6 +17,9 @@ mod connect_methods;
 mod dispatch;
 mod dispatch_ai;
 mod dispatch_editor;
+mod dispatch_keynav;
+mod dispatch_keynav_modal;
+mod dispatch_keynav_panel;
 mod dispatch_keys;
 mod dispatch_known_hosts;
 mod dispatch_tray;
@@ -43,6 +46,7 @@ mod dispatch_tabs;
 mod dispatch_terminal;
 mod fonts;
 mod i18n;
+mod keynav;
 mod logging;
 mod mcp;
 mod mcp_install;
@@ -55,6 +59,7 @@ mod os_icon;
 // re-exports) sit unused.
 #[allow(dead_code, unused_imports)]
 mod plugins;
+mod renderer_probe;
 mod root_view;
 // Locates the AWS `session-manager-plugin` system binary. Pure
 // path-finding, no SDK, relocated here from `oryxis-cloud-aws` when
@@ -113,24 +118,22 @@ fn main() -> iced::Result {
     // its compositor, so they must be set before `iced::application(..)
     // .run()`. The setting lives in the vault's `settings` table, which
     // reads without the master password, so we resolve it here at
-    // process start. Default ("auto" / missing) sets nothing.
+    // process start.
     //   - "opengl"   -> force wgpu's GL backend instead of Vulkan,
     //                   still hardware-accelerated; fixes most Vulkan-
     //                   on-Mesa corruption without the software cost.
     //   - "software" -> force iced's tiny-skia (CPU) renderer; the
     //                   terminal is a plain `canvas` widget so it renders
     //                   identically off the GPU.
+    //   - "auto" / missing -> on Windows, probe the Vulkan/DX12 adapters
+    //                   first and redirect to the software renderer when
+    //                   the default pick has no healthy hardware path
+    //                   (WARP-only setups, Haswell iGPUs whose EOL
+    //                   drivers present undecorated windows offset on
+    //                   every GPU backend). See renderer_probe.
+    let mut renderer_mode: Option<String> = None;
     if let Ok(vault) = oryxis_vault::VaultStore::open_default() {
-        if let Ok(Some(mode)) = vault.get_setting("renderer_backend") {
-            // SAFETY: still single-threaded here (tracing not yet
-            // initialized, no threads spawned), so mutating the process
-            // environment is sound under the Rust 2024 contract.
-            match mode.as_str() {
-                "opengl" => unsafe { std::env::set_var("WGPU_BACKEND", "gl") },
-                "software" => unsafe { std::env::set_var("ICED_BACKEND", "tiny-skia") },
-                _ => {}
-            }
-        }
+        renderer_mode = vault.get_setting("renderer_backend").ok().flatten();
         // Debug logging (Settings > Advanced). Armed before the tracing
         // subscriber below is built so the earliest boot lines land in
         // the file too; same unlocked settings read as the renderer knob.
@@ -139,6 +142,25 @@ fn main() -> iced::Result {
             && let Err(e) = logging::enable()
         {
             eprintln!("oryxis: failed to enable debug logging: {e}");
+        }
+    }
+    // SAFETY (both set_var sites): still single-threaded here (tracing
+    // not yet initialized, no threads spawned), so mutating the process
+    // environment is sound under the Rust 2024 contract.
+    let mut renderer_probe_note: Option<String> = None;
+    match renderer_mode.as_deref() {
+        Some("opengl") => unsafe { std::env::set_var("WGPU_BACKEND", "gl") },
+        Some("software") => unsafe { std::env::set_var("ICED_BACKEND", "tiny-skia") },
+        _ => {
+            // The probe is Windows-only: that's where the broken-DX12
+            // class of hardware lives, and where GL (WGL) is a reliable
+            // hardware fallback. It respects pre-set env overrides.
+            if cfg!(windows)
+                && let Some(redirect) = renderer_probe::auto_backend_override()
+            {
+                unsafe { std::env::set_var(redirect.env_key, redirect.env_value) };
+                renderer_probe_note = Some(redirect.reason);
+            }
         }
     }
 
@@ -206,6 +228,11 @@ fn main() -> iced::Result {
         .init();
 
     tracing::info!("Starting Oryxis");
+    if let Some(note) = renderer_probe_note {
+        // Deferred from the probe above, which runs before the
+        // subscriber exists.
+        tracing::info!("renderer auto-probe: {note}");
+    }
 
     // Single-instance + multi-window IPC roles. The first process to
     // boot grabs the mutex and owns the tray icon ("primary"); every

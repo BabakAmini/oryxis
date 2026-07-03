@@ -20,7 +20,7 @@ use alacritty_terminal::term::TermMode;
 /// that's exactly how the protocol encodes it (codes 64 / 65). `None`
 /// is the "no button" sentinel used for any-motion tracking (1003)
 /// while nothing is pressed.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MouseButton {
     Left,
     Middle,

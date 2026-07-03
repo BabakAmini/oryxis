@@ -179,6 +179,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Activer le panneau de droite",
         "hotkey_focus_pane_up" => "Activer le panneau du haut",
         "hotkey_focus_pane_down" => "Activer le panneau du bas",
+        "hotkey_vault_section_prev" => "Section précédente du coffre",
+        "hotkey_vault_section_next" => "Section suivante du coffre",
         "detecting_shells" => "Détection des shells…",
 
         "create_host" => "Créer un hôte",
@@ -700,6 +702,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Nouvel onglet",
         "tabs" => "Onglets",
         "quick_connect" => "Connexion rapide",
+        "quick_connect_hint" => "Entrée pour se connecter",
+        "quick_connect_not_saved" => "Se connecte sans enregistrer dans le coffre",
+        "quick_connect_save_host" => "Enregistrer l'hôte dans le coffre",
+        "connect_without_saving" => "Se connecter sans enregistrer",
+        "quick_connect_hostname_required" => "L'adresse est requise",
         "local_terminal" => "Terminal local",
         "search_tabs" => "Rechercher des onglets",
         "jump_to" => "Aller à",
@@ -769,6 +776,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Exécuter",
         "ai_tool_always" => "Toujours",
         "ai_tool_deny" => "Refuser",
+        "ai_mode_plan" => "Plan",
+        "ai_mode_ask" => "Demander",
+        "ai_mode_auto" => "Auto",
+        "ai_mode_plan_tip" => "Plan : investigation en lecture seule, n'applique jamais de changements",
+        "ai_mode_ask_tip" => "Demander : confirmer chaque commande avant l'exécution",
+        "ai_mode_auto_tip" => "Auto : exécute les commandes sûres, confirme les risquées",
         "retry" => "Réessayer",
 
         // SFTP view
@@ -1116,7 +1129,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "Téléchargement de la police de la langue...",
         "cjk_font_failed" => "Impossible de télécharger la police de la langue. Utilisation de la police système.",
 
-        "terminal_link_hint" => "Ctrl + Clic pour ouvrir le lien",
+        "terminal_link_hint" => "Maintenez Ctrl et cliquez pour ouvrir le lien.",
         "mouse_capture_hint" => "Mode souris actif. Maintenez Maj pour sélectionner le texte.",
         "terminal_hints" => "Astuces du terminal",
         "terminal_hints_desc" => "Quand afficher les astuces comme l'avertissement de capture de la souris et l'astuce Ctrl + Clic sur les liens.",

@@ -309,3 +309,27 @@ pub(crate) enum SettingsSection {
     Advanced,
     About,
 }
+
+impl SettingsSection {
+    /// Stable id of the section's content scrollable. Static literals
+    /// because the fork's `widget::Id::new` only takes `&'static str`.
+    /// The keyboard router snaps these to keep the selected row in
+    /// view; each section view sets the same id on its scrollable.
+    pub(crate) fn scroll_id(self) -> &'static str {
+        match self {
+            SettingsSection::Terminal => "settings-terminal-scroll",
+            SettingsSection::Connection => "settings-connection-scroll",
+            SettingsSection::Sftp => "settings-sftp-scroll",
+            SettingsSection::AI => "settings-ai-scroll",
+            SettingsSection::Interface => "settings-interface-scroll",
+            SettingsSection::Mcp => "settings-mcp-scroll",
+            SettingsSection::Shortcuts => "settings-shortcuts-scroll",
+            SettingsSection::Security => "settings-security-scroll",
+            SettingsSection::Sync => "settings-sync-scroll",
+            SettingsSection::Cloud => "settings-cloud-scroll",
+            SettingsSection::Plugins => "settings-plugins-scroll",
+            SettingsSection::Advanced => "settings-advanced-scroll",
+            SettingsSection::About => "settings-about-scroll",
+        }
+    }
+}

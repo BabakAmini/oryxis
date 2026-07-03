@@ -276,22 +276,42 @@ impl Oryxis {
                     row![
                         text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary),
                         Space::new().width(Length::Fill),
-                        button(
-                            text(if share_include_keys { "ON" } else { "OFF" }).size(12)
-                        ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
-                            button::Style {
-                                background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
-                                border: Border { radius: Radius::from(4.0), ..Default::default() },
-                                text_color: OryxisColors::t().text_primary,
-                                ..Default::default()
-                            }
-                        }),
+                        // Keyboard rows: keys toggle, then Share as the
+                        // default (Enter shares), then Cancel.
+                        {
+                            self.modal_nav_reset();
+                            self.modal_nav_slot(
+                                crate::keynav::RowAction::activate(Message::ShareToggleKeys),
+                                4.0,
+                                false,
+                                button(
+                                    text(if share_include_keys { "ON" } else { "OFF" }).size(12)
+                                ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
+                                    button::Style {
+                                        background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
+                                        border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                        text_color: OryxisColors::t().text_primary,
+                                        ..Default::default()
+                                    }
+                                }).into(),
+                            )
+                        },
                     ].align_y(iced::Alignment::Center).width(280),
                     Space::new().height(12),
                     row![
-                        styled_button(crate::i18n::t("share"), Message::ShareConfirm, OryxisColors::t().accent),
+                        self.modal_nav_slot_default(
+                            crate::keynav::RowAction::activate(Message::ShareConfirm),
+                            6.0,
+                            true,
+                            styled_button(crate::i18n::t("share"), Message::ShareConfirm, OryxisColors::t().accent),
+                        ),
                         Space::new().width(8),
-                        styled_button(crate::i18n::t("cancel"), Message::ShareDismiss, OryxisColors::t().text_muted),
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(Message::ShareDismiss),
+                            6.0,
+                            false,
+                            styled_button(crate::i18n::t("cancel"), Message::ShareDismiss, OryxisColors::t().text_muted),
+                        ),
                     ],
                     if let Some(status) = &self.share.status {
                         let (msg, color) = match status {
@@ -329,6 +349,31 @@ impl Oryxis {
             let ssh_total = self.ssh_import_hosts.len();
             let ssh_selected =
                 self.ssh_import_selected.iter().filter(|s| **s).count();
+            // Keyboard rows in visual order: select/deselect all, the
+            // per-host checkboxes, then Import (default) + Cancel.
+            // Pre-build the top buttons so the recording order matches
+            // the screen (the checkbox list is constructed next).
+            self.modal_nav_reset();
+            let select_all_btn = self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::SshImportSelectAll(true)),
+                6.0,
+                false,
+                styled_button(
+                    crate::i18n::t("select_all"),
+                    Message::SshImportSelectAll(true),
+                    OryxisColors::t().accent,
+                ),
+            );
+            let deselect_all_btn = self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::SshImportSelectAll(false)),
+                6.0,
+                false,
+                styled_button(
+                    crate::i18n::t("deselect_all"),
+                    Message::SshImportSelectAll(false),
+                    OryxisColors::t().text_muted,
+                ),
+            );
             let mut list = column![].spacing(4);
             for (i, host) in self.ssh_import_hosts.iter().enumerate() {
                 let checked =
@@ -352,13 +397,17 @@ impl Oryxis {
                     label.push_str("  · ");
                     label.push_str(crate::i18n::t("ssh_import_exists"));
                 }
-                list = list.push(
+                list = list.push(self.modal_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SshImportToggle(i)),
+                    4.0,
+                    false,
                     iced::widget::checkbox(checked)
                         .label(label)
                         .on_toggle(move |_| Message::SshImportToggle(i))
                         .size(16)
-                        .text_size(13),
-                );
+                        .text_size(13)
+                        .into(),
+                ));
             }
             let dialog_content = container(
                 column![
@@ -375,11 +424,7 @@ impl Oryxis {
                         .size(12)
                         .color(OryxisColors::t().text_muted),
                     Space::new().height(8),
-                    row![
-                        styled_button(crate::i18n::t("select_all"), Message::SshImportSelectAll(true), OryxisColors::t().accent),
-                        Space::new().width(8),
-                        styled_button(crate::i18n::t("deselect_all"), Message::SshImportSelectAll(false), OryxisColors::t().text_muted),
-                    ],
+                    row![select_all_btn, Space::new().width(8), deselect_all_btn],
                     Space::new().height(8),
                     container(
                         iced::widget::scrollable(list)
@@ -388,9 +433,19 @@ impl Oryxis {
                     .width(440),
                     Space::new().height(12),
                     row![
-                        styled_button(crate::i18n::t("import_from_file"), Message::SshImportConfirm, OryxisColors::t().success),
+                        self.modal_nav_slot_default(
+                            crate::keynav::RowAction::activate(Message::SshImportConfirm),
+                            6.0,
+                            true,
+                            styled_button(crate::i18n::t("import_from_file"), Message::SshImportConfirm, OryxisColors::t().success),
+                        ),
                         Space::new().width(8),
-                        styled_button(crate::i18n::t("cancel"), Message::SshImportDismiss, OryxisColors::t().text_muted),
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(Message::SshImportDismiss),
+                            6.0,
+                            false,
+                            styled_button(crate::i18n::t("cancel"), Message::SshImportDismiss, OryxisColors::t().text_muted),
+                        ),
                     ],
                 ]
                 .padding(24),
@@ -418,20 +473,42 @@ impl Oryxis {
         // optional "open URL" button (the URL opens in the system
         // browser via Message::OpenUrl).
         if let Some(dialog) = self.error_dialog.clone() {
-            let mut buttons = iced::widget::row![styled_button(
-                crate::i18n::t("close"),
-                Message::ErrorDialogDismiss,
-                OryxisColors::t().text_muted,
+            // Keyboard: Close and the optional link/action are recorded
+            // rows; the action button (when present) is the default so
+            // a bare Enter runs it, matching the desktop convention for
+            // a dialog that IS the confirmation step.
+            self.modal_nav_reset();
+            use crate::keynav::RowAction;
+            let mut buttons = iced::widget::row![self.modal_nav_slot(
+                RowAction::activate(Message::ErrorDialogDismiss),
+                6.0,
+                false,
+                styled_button(
+                    crate::i18n::t("close"),
+                    Message::ErrorDialogDismiss,
+                    OryxisColors::t().text_muted,
+                ),
             )]
             .spacing(8);
             if let Some(link) = dialog.link.clone() {
-                buttons = buttons.push(open_link_button(link.label, link.url));
+                let url = link.url.clone();
+                buttons = buttons.push(self.modal_nav_slot(
+                    RowAction::activate(Message::OpenUrl(url)),
+                    6.0,
+                    false,
+                    open_link_button(link.label, link.url),
+                ));
             }
             if let Some(action) = dialog.action.clone() {
                 // Recovery action, accent-styled like the link button;
                 // dispatching goes through ErrorDialogRunAction so the
                 // dialog also dismisses itself.
-                buttons = buttons.push(dialog_action_button(action.label, action.danger));
+                buttons = buttons.push(self.modal_nav_slot_default(
+                    RowAction::activate(Message::ErrorDialogRunAction),
+                    6.0,
+                    true,
+                    dialog_action_button(action.label, action.danger),
+                ));
             }
 
             // Body uses Rich text with `.selectable(true)` so the user
@@ -459,7 +536,7 @@ impl Oryxis {
                 ]
                 .padding(24),
             )
-            .max_width(520)
+            .width(Length::Shrink.max(520.0))
             .style(|_| container::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border {
@@ -498,6 +575,11 @@ impl Oryxis {
                 format!("{} ECS", n_ecs)
             };
 
+            // Keyboard rows in visual order: the group input (Enter
+            // focuses it), the transport picker (Left/Right cycle),
+            // Import (default) and Cancel.
+            self.modal_nav_reset();
+
             // Import-into field + chevron. The suggestion dropdown
             // is no longer inline; it's a floating popover rendered
             // via the global OverlayState (`CloudDiscoverGroupPicker`)
@@ -511,9 +593,19 @@ impl Oryxis {
                 &self.cloud_discover_default_group_name,
             )
             .on_input(Message::CloudDiscoverDefaultGroupNameChanged)
+            .id(iced::widget::Id::new("cloud-import-group-input"))
             .padding(8)
             .style(crate::widgets::rounded_input_style)
             .align_x(dir_align_x());
+            // Row 0: Enter focuses the group input.
+            let group_input = self.modal_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(
+                    "cloud-import-group-input",
+                )),
+                10.0,
+                false,
+                group_input.into(),
+            );
             let chevron_btn = iced::widget::button(
                 container(
                     iced_fonts::lucide::chevron_down::<iced::Theme, iced::Renderer>()
@@ -555,7 +647,7 @@ impl Oryxis {
                 ];
                 let transport_pick = iced::widget::pick_list(
                     Some(self.cloud_discover_default_transport),
-                    transport_options,
+                    transport_options.clone(),
                     |t| match t {
                         TransportKind::Ssh => "SSH".to_string(),
                         TransportKind::InstanceConnect => "EC2 Instance Connect".to_string(),
@@ -565,8 +657,23 @@ impl Oryxis {
                     },
                 )
                 .on_select(Message::CloudDiscoverDefaultTransportChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
                 .padding(10)
                 .style(crate::widgets::rounded_pick_list_style);
+                // Row 1: Left/Right cycle the transport without
+                // opening the dropdown.
+                let (t_prev, t_next) = crate::keynav::slots::cycle_pair(
+                    &transport_options,
+                    &self.cloud_discover_default_transport,
+                    Message::CloudDiscoverDefaultTransportChanged,
+                );
+                let transport_pick = self.modal_nav_slot(
+                    crate::keynav::RowAction::picker(t_prev, t_next),
+                    10.0,
+                    false,
+                    transport_pick.into(),
+                );
                 column![
                     text(crate::i18n::t("cloud_dynamic_form_transport"))
                         .size(12)
@@ -629,16 +736,30 @@ impl Oryxis {
                     Space::new().height(16),
                     transport_section,
                     crate::widgets::dir_row(vec![
-                        styled_button(
-                            crate::i18n::t("import_btn_label"),
-                            Message::CloudDiscoverImportConfirmed,
-                            OryxisColors::t().accent,
+                        self.modal_nav_slot_default(
+                            crate::keynav::RowAction::activate(
+                                Message::CloudDiscoverImportConfirmed,
+                            ),
+                            6.0,
+                            true,
+                            styled_button(
+                                crate::i18n::t("import_btn_label"),
+                                Message::CloudDiscoverImportConfirmed,
+                                OryxisColors::t().accent,
+                            ),
                         ),
                         Space::new().width(8).into(),
-                        styled_button(
-                            crate::i18n::t("cancel"),
-                            Message::CloudDiscoverImportCancelled,
-                            OryxisColors::t().text_muted,
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::CloudDiscoverImportCancelled,
+                            ),
+                            6.0,
+                            false,
+                            styled_button(
+                                crate::i18n::t("cancel"),
+                                Message::CloudDiscoverImportCancelled,
+                                OryxisColors::t().text_muted,
+                            ),
                         ),
                     ]),
                 ]
@@ -857,16 +978,33 @@ impl Oryxis {
                     newline_note,
                     Space::new().height(14),
                     dir_row(vec![
-                        styled_button(
-                            crate::i18n::t("careful_paste_confirm"),
-                            Message::ConfirmPendingPaste,
-                            c.accent,
-                        ),
+                        // Keyboard: Confirm is the default row (Enter
+                        // pastes), arrows/Tab reach Cancel.
+                        {
+                            self.modal_nav_reset();
+                            self.modal_nav_slot_default(
+                                crate::keynav::RowAction::activate(
+                                    Message::ConfirmPendingPaste,
+                                ),
+                                6.0,
+                                true,
+                                styled_button(
+                                    crate::i18n::t("careful_paste_confirm"),
+                                    Message::ConfirmPendingPaste,
+                                    c.accent,
+                                ),
+                            )
+                        },
                         Space::new().width(8).into(),
-                        styled_button(
-                            crate::i18n::t("cancel"),
-                            Message::CancelPendingPaste,
-                            c.text_muted,
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(Message::CancelPendingPaste),
+                            6.0,
+                            false,
+                            styled_button(
+                                crate::i18n::t("cancel"),
+                                Message::CancelPendingPaste,
+                                c.text_muted,
+                            ),
                         ),
                     ]),
                 ]
@@ -1052,31 +1190,49 @@ impl Oryxis {
 
             // Empty folders have no hosts to move or destroy, so the
             // three-way choice collapses to a single, honest "remove the
-            // folder" action.
+            // folder" action. Keyboard: the first (safest) choice card
+            // is the default row; Up/Down walk cards + Cancel.
+            self.modal_nav_reset();
+            use crate::keynav::RowAction;
             let actions = if host_count == 0 {
-                column![folder_choice_card(
-                    iced_fonts::lucide::trash(),
-                    crate::i18n::t("delete_folder_empty"),
-                    crate::i18n::t("delete_folder_empty_desc"),
-                    Message::DeleteFolderWithHosts,
-                    c.error,
+                column![self.modal_nav_slot_default(
+                    RowAction::activate(Message::DeleteFolderWithHosts),
+                    12.0,
+                    false,
+                    folder_choice_card(
+                        iced_fonts::lucide::trash(),
+                        crate::i18n::t("delete_folder_empty"),
+                        crate::i18n::t("delete_folder_empty_desc"),
+                        Message::DeleteFolderWithHosts,
+                        c.error,
+                    ),
                 )]
             } else {
                 column![
-                    folder_choice_card(
-                        iced_fonts::lucide::folder_open(),
-                        crate::i18n::t("delete_folder_keep_hosts"),
-                        crate::i18n::t("delete_folder_keep_hosts_desc"),
-                        Message::DeleteFolderKeepHosts,
-                        c.accent,
+                    self.modal_nav_slot_default(
+                        RowAction::activate(Message::DeleteFolderKeepHosts),
+                        12.0,
+                        false,
+                        folder_choice_card(
+                            iced_fonts::lucide::folder_open(),
+                            crate::i18n::t("delete_folder_keep_hosts"),
+                            crate::i18n::t("delete_folder_keep_hosts_desc"),
+                            Message::DeleteFolderKeepHosts,
+                            c.accent,
+                        ),
                     ),
                     Space::new().height(10),
-                    folder_choice_card(
-                        iced_fonts::lucide::trash(),
-                        crate::i18n::t("delete_folder_with_hosts"),
-                        crate::i18n::t("delete_folder_with_hosts_desc"),
-                        Message::DeleteFolderWithHosts,
-                        c.error,
+                    self.modal_nav_slot(
+                        RowAction::activate(Message::DeleteFolderWithHosts),
+                        12.0,
+                        false,
+                        folder_choice_card(
+                            iced_fonts::lucide::trash(),
+                            crate::i18n::t("delete_folder_with_hosts"),
+                            crate::i18n::t("delete_folder_with_hosts_desc"),
+                            Message::DeleteFolderWithHosts,
+                            c.error,
+                        ),
                     ),
                 ]
             }
@@ -1088,7 +1244,12 @@ impl Oryxis {
                     Space::new().height(20),
                     actions,
                     Space::new().height(14),
-                    ghost_button(crate::i18n::t("cancel"), Message::CancelFolderModal),
+                    self.modal_nav_slot(
+                        RowAction::activate(Message::CancelFolderModal),
+                        8.0,
+                        false,
+                        ghost_button(crate::i18n::t("cancel"), Message::CancelFolderModal),
+                    ),
                 ]
                 .width(Length::Fill)
                 .padding(24),
@@ -1131,16 +1292,34 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted),
                     Space::new().height(16),
                     crate::widgets::dir_row(vec![
-                        styled_button(
-                            crate::i18n::t("cancel"),
-                            Message::CancelClearHistory,
-                            OryxisColors::t().text_muted,
-                        ),
+                        // Keyboard: Clear all is the default (Enter
+                        // confirms); arrows/Tab reach Cancel; Esc
+                        // cancels via close_topmost_modal.
+                        {
+                            self.modal_nav_reset();
+                            self.modal_nav_slot(
+                                crate::keynav::RowAction::activate(
+                                    Message::CancelClearHistory,
+                                ),
+                                6.0,
+                                false,
+                                styled_button(
+                                    crate::i18n::t("cancel"),
+                                    Message::CancelClearHistory,
+                                    OryxisColors::t().text_muted,
+                                ),
+                            )
+                        },
                         Space::new().width(8).into(),
-                        styled_button(
-                            crate::i18n::t("clear_all"),
-                            Message::ClearLogs,
-                            OryxisColors::t().error,
+                        self.modal_nav_slot_default(
+                            crate::keynav::RowAction::activate(Message::ClearLogs),
+                            6.0,
+                            true,
+                            styled_button(
+                                crate::i18n::t("clear_all"),
+                                Message::ClearLogs,
+                                OryxisColors::t().error,
+                            ),
                         ),
                     ])
                     .align_y(iced::Alignment::Center),

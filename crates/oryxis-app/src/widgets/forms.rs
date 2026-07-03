@@ -125,28 +125,14 @@ pub(crate) fn panel_divider<'a>() -> Element<'a, Message> {
         .into()
 }
 
-/// An option row with a pick_list for selection.
-pub(crate) fn panel_option_pick<'a>(
+/// An option row shell: icon + label on the leading edge, a caller
+/// supplied trailing control (usually a pick_list). Keyboard-navigable
+/// callers wrap the control itself in `panel_nav_slot` before passing
+/// it in, so the focus ring hugs the pick_list rather than the row.
+pub(crate) fn panel_option_row<'a>(
     icon_widget: iced::widget::Text<'a>,
     label: &'a str,
-    options: Vec<String>,
-    selected: String,
-    on_change: impl Fn(String) -> Message + 'a,
-) -> Element<'a, Message> {
-    panel_option_pick_w(icon_widget, label, options, selected, 120.0, on_change)
-}
-
-/// Same as `panel_option_pick` but with an explicit picker width. The
-/// dropdown menu inherits the control width, so options longer than the
-/// default 120px (e.g. the "ask every time" auth mode) need a wider
-/// picker to render without truncation.
-pub(crate) fn panel_option_pick_w<'a>(
-    icon_widget: iced::widget::Text<'a>,
-    label: &'a str,
-    options: Vec<String>,
-    selected: String,
-    width: f32,
-    on_change: impl Fn(String) -> Message + 'a,
+    control: Element<'a, Message>,
 ) -> Element<'a, Message> {
     container(
         dir_row(vec![
@@ -154,7 +140,7 @@ pub(crate) fn panel_option_pick_w<'a>(
             Space::new().width(10).into(),
             text(label).size(13).color(OryxisColors::t().text_secondary).into(),
             Space::new().width(Length::Fill).into(),
-            pick_list(Some(selected), options, |s: &String| s.clone()).on_select(on_change).width(width).padding(10).style(rounded_pick_list_style).into(),
+            control,
         ])
         .align_y(iced::Alignment::Center),
     )

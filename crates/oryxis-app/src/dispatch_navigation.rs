@@ -17,20 +17,52 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
+            Message::ModalNavHover(idx) => {
+                // Pointer hover converges the modal-layer keyboard
+                // ring with the mouse; tagged with the live surface so
+                // a stale hover from a closing menu is inert.
+                if let Some((surface, _)) = self.modal_nav_surface() {
+                    self.keynav.modal.selected = Some((surface, idx));
+                }
+            }
+            Message::PickOpenChanged(open) => {
+                self.keynav.pick_open = open;
+            }
             // -- Navigation --
             Message::ChangeView(view) => {
                 // Navigating away from the Shortcuts editor cancels
                 // any pending capture so the next keystroke doesn't
                 // silently rebind an action from another screen.
                 self.editing_hotkey = None;
+                // A dropdown can't survive its view: drop the pick-open
+                // key guard in case the widget unmounted while open and
+                // never got to publish on_close.
+                self.keynav.pick_open = false;
                 // Leaving the Logs view re-arms Privacy Mode masking so a
                 // revealed timeline doesn't stay exposed on the next visit.
                 self.privacy_revealed = false;
                 self.active_view = view;
                 self.active_tab = None;
-                // Drop any keyboard host selection when leaving / changing
-                // the surface so a stale highlight doesn't linger.
-                self.selected_nav = None;
+                // Drop any keyboard selection when leaving / changing the
+                // surface so a stale highlight doesn't linger. Keynav's
+                // own dispatches (SubNav Enter, the section-cycle hotkey)
+                // set the keep flag so the pill highlight survives the
+                // switch and repeated arrows / Enter keep working.
+                let keep_keynav = self.keynav.keep_focus_through_change_view;
+                self.keynav.keep_focus_through_change_view = false;
+                if !keep_keynav {
+                    self.keynav.focus = None;
+                }
+                // The toolbar / content / sub-nav item lists belong to
+                // the view being left; the target view re-records them
+                // on its next render. Clear now so the router can never
+                // move across another view's stale items in between
+                // (the sub-nav list swaps between vault pills and the
+                // Settings sections sidebar).
+                self.keynav.toolbar_items.borrow_mut().clear();
+                self.keynav.subnav_items.borrow_mut().clear();
+                self.keynav_clear_content();
+                self.keynav.settings_row_actions.borrow_mut().clear();
                 // Navigating to the host list (Home tab / Hosts pill)
                 // returns to the root, not whichever group was last open.
                 if view == View::Dashboard {
@@ -72,7 +104,10 @@ impl Oryxis {
                 }
                 // Land on the view with its search field focused so the
                 // user can start typing immediately (same ids as Ctrl+F).
-                if let Some(id) = self.active_view_search_id() {
+                // Not when keynav drove the switch: the user is walking
+                // the pills, stealing focus back to the search would
+                // fight the roving highlight.
+                if !keep_keynav && let Some(id) = self.active_view_search_id() {
                     return Ok(iced::widget::operation::focus(id));
                 }
                 // Opening Settings directly on the (default) Interface
@@ -107,13 +142,13 @@ impl Oryxis {
                 // The filtered set just changed; drop the keyboard
                 // selection so it can't point at a now-hidden host. Enter
                 // still connects the top result while a search is active.
-                self.selected_nav = None;
+                self.keynav.focus = None;
             }
             Message::HostFilterByCloudProfile(maybe_pid) => {
                 self.host_filter_cloud_profile = maybe_pid;
                 // Filter changed the visible set; drop the keyboard
                 // selection so Enter can't connect a now-hidden host.
-                self.selected_nav = None;
+                self.keynav.focus = None;
             }
             Message::ToggleGroupPicker(target) => {
                 use crate::state::{GroupPickerTarget, OverlayContent, OverlayState};
@@ -333,6 +368,7 @@ impl Oryxis {
                         self.editor_form.group_name = g.label.clone();
                     }
                     self.show_host_panel = true;
+                    self.panel_nav_clear();
                     self.host_panel_error = None;
                 }
             }

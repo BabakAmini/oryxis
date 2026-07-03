@@ -37,10 +37,11 @@ impl Oryxis {
                     self.overlay = None;
                 } else {
                     self.snippet_context_menu = Some(idx);
+                    let anchor = self.keynav_take_menu_anchor();
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::SnippetActions(idx),
-                        x: self.mouse_position.x,
-                        y: self.mouse_position.y,
+                        x: anchor.0,
+                        y: anchor.1,
                     });
                 }
             }

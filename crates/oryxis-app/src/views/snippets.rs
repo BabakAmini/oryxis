@@ -52,20 +52,31 @@ impl Oryxis {
         };
         // Responsive collapse: search yields first, then folds to an
         // icon; when the buttons can't fit they all move into a `…` menu.
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
         let mut row_items: Vec<Element<'_, Message>> = vec![
-            self.vault_search_slot(search_collapsed),
+            if search_collapsed {
+                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+            } else {
+                search_slot
+            },
             Space::new().width(10).into(),
         ];
         if buttons_overflow {
-            row_items.push(crate::widgets::toolbar_overflow_icon(matches!(
-                self.overlay.as_ref().map(|o| &o.content),
-                Some(crate::state::OverlayContent::ToolbarOverflow)
-            )));
+            row_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ToolbarOverflow)
+                )),
+            ));
         } else {
-            row_items.push(sort_btn);
+            row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Sort, sort_btn));
             row_items.push(Space::new().width(8).into());
-            row_items.push(primary);
+            row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, primary));
         }
         let toolbar = container(dir_row(row_items).align_y(iced::Alignment::Center))
             .padding(Padding { top: 16.0, right: 24.0, bottom: 16.0, left: 24.0 })
@@ -99,6 +110,10 @@ impl Oryxis {
             // No toolbar when empty: search is hidden and the "+ New" lives
             // in the empty-state CTA (avoids an orphaned action button).
             // Side panel is hoisted to `view_main` (active_side_panel).
+            // Un-record the toolbar items; none of them render here.
+            // Same for content rows.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             let main_content = column![status, empty_state]
                 .width(Length::Fill)
                 .height(Length::Fill);
@@ -115,6 +130,9 @@ impl Oryxis {
             |&i| self.snippets[i].label.clone(),
             |&i| self.snippets[i].created_at,
         );
+        // Keyboard-navigation order, collected as the cards render so
+        // it always matches the filtered/sorted set on screen.
+        let mut snippet_nav: Vec<crate::keynav::NavItem> = Vec::new();
         for idx in snippet_order {
             let snip = &self.snippets[idx];
             if !snippet_needle.is_empty()
@@ -123,6 +141,9 @@ impl Oryxis {
             {
                 continue;
             }
+            snippet_nav.push(crate::keynav::NavItem::Snippet(idx));
+            let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::Snippet(idx));
             // Use host_icon so the snippet badge follows the global
             // `default_host_icon` shape (Circular by default in v0.7)
             // and the rest of the cards on this screen look the same.
@@ -155,7 +176,8 @@ impl Oryxis {
             // Keep the kebab mounted while its context menu is open, even
             // if the pointer drifts off the card, mirroring the host cards.
             let show_dots = self.hovered_snippet_card == Some(idx)
-                || self.snippet_context_menu == Some(idx);
+                || self.snippet_context_menu == Some(idx)
+                || kb_selected;
             let edit_btn: Element<'_, Message> = if show_dots {
                 crate::widgets::card_kebab_button(
                     OryxisColors::t().text_muted,
@@ -225,18 +247,32 @@ impl Oryxis {
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
-            cards.push(self.card_wash(card_el, OryxisColors::t().accent));
+            let card_el = self.card_wash(card_el, OryxisColors::t().accent);
+            cards.push(if kb_selected {
+                self.keynav_ring_content(card_el)
+            } else {
+                card_el
+            });
         }
 
         let nav_width = self.vault_rail_width();
         let panel_width = if self.show_snippet_panel { PANEL_WIDTH } else { 0.0 };
         let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
         let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
+        // Chunk the keyboard order to the same column count the grid
+        // renders with.
+        self.keynav_set_content_rows(
+            snippet_nav.chunks(cols.max(1)).map(|c| c.to_vec()).collect(),
+        );
         let snippets_grid = distribute_card_grid(cards, cols, 12.0, 12.0);
 
         let grid = scrollable(
             column![snippets_grid].padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }),
-        ).height(Length::Fill);
+        )
+        // Stable id so the keyboard router can keep the selected card
+        // scrolled into view.
+        .id(iced::widget::Id::new("snippets-grid-scroll"))
+        .height(Length::Fill);
 
         // Inline search bar in Classic mode (Workspace puts it on
         // the contextual sub-nav). Collapses to zero height in
@@ -253,6 +289,8 @@ impl Oryxis {
     }
 
     pub(crate) fn view_snippet_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let is_editing = self.snippet_editing_id.is_some();
         let title = if is_editing { t("edit_snippet") } else { t("new_snippet") };
 
@@ -275,24 +313,36 @@ impl Oryxis {
         let form = column![
             text(t("name")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            text_input("restart-nginx", &self.snippet_label)
-                .on_input(Message::SnippetLabelChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-name")),
+                10.0,
+                text_input("restart-nginx", &self.snippet_label)
+                    .id(iced::widget::Id::new("panel-snippet-name"))
+                    .on_input(Message::SnippetLabelChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
             Space::new().height(14),
             text(t("command_label")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
             // Multi-line, auto-grows with content; container caps the height
             // (~10 lines) and then it scrolls internally.
-            container(
-                text_editor(&self.snippet_command)
-                    .placeholder("sudo systemctl restart nginx")
-                    .on_action(Message::SnippetCommandAction)
-                    .padding(10)
-                    .height(Length::Shrink)
-                    .style(crate::widgets::rounded_editor_style),
-            )
-            .max_height(240.0),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-command")),
+                10.0,
+                container(
+                    text_editor(&self.snippet_command)
+                        .id(iced::widget::Id::new("panel-snippet-command"))
+                        .placeholder("sudo systemctl restart nginx")
+                        .on_action(Message::SnippetCommandAction)
+                        .padding(10)
+                        .height(Length::Shrink)
+                        .style(crate::widgets::rounded_editor_style),
+                )
+                .height(Length::Shrink.max(240.0))
+                .into(),
+            ),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
@@ -303,18 +353,23 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
-        let save_btn = button(
-            container(text(crate::i18n::t("save")).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                .width(Length::Fill).center_x(Length::Fill),
-        )
-        .on_press(Message::SaveSnippet)
-        .width(Length::Fill)
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().accent)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SaveSnippet),
+            8.0,
+            button(
+                container(text(crate::i18n::t("save")).size(13).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                    .width(Length::Fill).center_x(Length::Fill),
+            )
+            .on_press(Message::SaveSnippet)
+            .width(Length::Fill)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().accent)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into(),
+        );
 
         // The edit panel only saves. Deleting a snippet lives on the
         // card's ⋮ context menu (Edit / Delete), so the destructive

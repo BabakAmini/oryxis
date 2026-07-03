@@ -148,6 +148,9 @@ impl Oryxis {
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
             Modal::ShareDialog => self.show_share_dialog,
             Modal::CloudImportConfirm => self.cloud_import_confirm_visible,
+            Modal::ErrorDialog => self.error_dialog.is_some(),
+            Modal::ClearHistoryConfirm => self.clear_history_confirm,
+            Modal::SshImport => self.show_ssh_import_dialog,
             Modal::SftpRename => self.sftp.rename.is_some(),
             Modal::SftpNewEntry => self.sftp.new_entry.is_some(),
             Modal::SftpProperties => self.sftp.properties.is_some(),
@@ -199,6 +202,18 @@ impl Oryxis {
             Modal::CloudImportConfirm => {
                 self.cloud_import_confirm_visible = false;
                 self.cloud_discover_default_group_picker_open = false;
+            }
+            // Esc on the error dialog is always Dismiss, never the
+            // dialog's action (mirrors ErrorDialogDismiss).
+            Modal::ErrorDialog => self.error_dialog = None,
+            // Mirrors CancelClearHistory.
+            Modal::ClearHistoryConfirm => self.clear_history_confirm = false,
+            // Mirrors SshImportDismiss, companion state included.
+            Modal::SshImport => {
+                self.show_ssh_import_dialog = false;
+                self.ssh_import_hosts.clear();
+                self.ssh_import_selected.clear();
+                self.ssh_import_existing.clear();
             }
             Modal::SftpRename => self.sftp.rename = None,
             Modal::SftpNewEntry => self.sftp.new_entry = None,
@@ -266,6 +281,16 @@ impl Oryxis {
                 if m == crate::state::Modal::ChainEditor && self.chain_editor_adding {
                     self.chain_editor_adding = false;
                     self.chain_editor_search.clear();
+                    return true;
+                }
+                // Same two-stage rule for the new-tab picker drilled
+                // into a group: first Esc backs out to the top level
+                // (mirrors the Back header), second Esc closes.
+                if m == crate::state::Modal::NewTabPicker
+                    && self.new_tab_picker_group.is_some()
+                {
+                    self.new_tab_picker_group = None;
+                    self.new_tab_picker_search.clear();
                     return true;
                 }
                 self.close_modal(m);
@@ -415,6 +440,12 @@ impl Oryxis {
             // Skipping (not consuming) elsewhere leaves their key free
             // in other views and avoids a confusing no-op.
             if action.terminal_only() && !in_terminal {
+                continue;
+            }
+            // Vault section cycling only applies in the vault area.
+            // Skipping (not consuming) leaves Ctrl+PageUp/Down to the
+            // PTY inside a terminal tab, where TUIs use it.
+            if action.vault_only() && !self.in_vault_area() {
                 continue;
             }
             let bind_copy = self.hotkey_bindings.get(&action).copied();
@@ -585,6 +616,15 @@ impl Oryxis {
             OpenPortForwards => {
                 if let Some(idx) = self.active_tab_connection_idx() {
                     Task::done(Message::EditConnection(idx))
+                } else if let Some(qid) = self.active_tab.and_then(|i| {
+                    self.tabs.get(i).and_then(|t| match &t.active().origin {
+                        crate::state::PaneOrigin::QuickHost(qid) => Some(*qid),
+                        _ => None,
+                    })
+                }) {
+                    // Ad-hoc tab: "edit host" becomes the save-to-vault
+                    // prefill (there is no saved row to edit in place).
+                    Task::done(Message::SaveQuickHost(qid))
                 } else {
                     Task::none()
                 }
@@ -673,6 +713,34 @@ impl Oryxis {
             }
             FocusPaneDown => {
                 Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Down))
+            }
+            // Vault section cycling: neighbor of the active view in the
+            // sub-nav pill order, wrapping. The loop only reaches these
+            // in the vault area (vault_only gate above).
+            VaultSectionPrev | VaultSectionNext => {
+                let sections: Vec<View> =
+                    self.subnav_pill_defs().iter().map(|(_, v)| *v).collect();
+                let forward = matches!(action, VaultSectionNext);
+                let Some(next) = crate::keynav::movement::linear_move(
+                    &sections,
+                    Some(self.active_view),
+                    forward,
+                ) else {
+                    return Task::none();
+                };
+                // Keep an active SubNav pill highlight through the
+                // switch so arrows / Enter keep working from it.
+                if matches!(
+                    self.keynav.focus,
+                    Some((crate::keynav::FocusZone::SubNav, _))
+                ) {
+                    self.keynav.focus = Some((
+                        crate::keynav::FocusZone::SubNav,
+                        crate::keynav::NavItem::SubNav(next),
+                    ));
+                    self.keynav.keep_focus_through_change_view = true;
+                }
+                Task::done(Message::ChangeView(next))
             }
         }
     }

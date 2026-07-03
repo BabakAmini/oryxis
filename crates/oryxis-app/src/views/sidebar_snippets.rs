@@ -274,7 +274,7 @@ impl Oryxis {
                 .height(Length::Shrink)
                 .style(crate::widgets::rounded_editor_style),
         )
-        .max_height(180.0)
+        .height(Length::Shrink.max(180.0))
         .into();
 
         let error: Element<'_, Message> = if let Some(err) = &self.snippet_error {

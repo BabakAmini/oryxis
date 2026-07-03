@@ -15,7 +15,13 @@ use crate::widgets::{dir_align_x, dir_row, panel_field, panel_section};
 
 impl Oryxis {
     pub(crate) fn view_group_edit_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
+
         // ── Header ──
+        // The close (×) is not a keyboard row: Esc already owns panel
+        // close, and recording it would make the header the first Down
+        // target instead of the form.
         let panel_header = container(
             dir_row(vec![
                 text(crate::i18n::t("edit_group"))
@@ -63,17 +69,28 @@ impl Oryxis {
         let general_section = panel_section(column![
             panel_field(
                 crate::i18n::t("name"),
-                text_input(crate::i18n::t("group_placeholder"), &self.group_edit.label)
-                    .id(iced::widget::Id::new("group-edit-name"))
-                    .on_input(Message::GroupEditLabelChanged)
-                    .on_submit(Message::SaveGroupEdit)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("group-edit-name")),
+                    10.0,
+                    text_input(crate::i18n::t("group_placeholder"), &self.group_edit.label)
+                        .id(iced::widget::Id::new("group-edit-name"))
+                        .on_input(Message::GroupEditLabelChanged)
+                        .on_submit(Message::SaveGroupEdit)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
             ),
             Space::new().height(10),
-            panel_field(crate::i18n::t("group_icon_color"), icon_badge.into()),
+            panel_field(
+                crate::i18n::t("group_icon_color"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ShowGroupEditIconPicker),
+                    8.0,
+                    icon_badge.into(),
+                ),
+            ),
         ]);
 
         let form_scroll = scrollable(
@@ -84,23 +101,30 @@ impl Oryxis {
                 left: 16.0,
             }),
         )
+        // Shared id: the keyboard router keeps the selected row in view.
+        .id(iced::widget::Id::new("side-panel-scroll"))
         .height(Length::Fill);
 
         // Full-width Save, standardized with the host editor's footer
         // (the header × acts as Cancel).
-        let save_btn = button(
-            container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-        )
-        .on_press(Message::SaveGroupEdit)
-        .width(Length::Fill)
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().accent)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SaveGroupEdit),
+            8.0,
+            button(
+                container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+            )
+            .on_press(Message::SaveGroupEdit)
+            .width(Length::Fill)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().accent)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into(),
+        );
 
         let footer = container(save_btn)
             .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 });

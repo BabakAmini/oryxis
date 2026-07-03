@@ -70,7 +70,10 @@ fn walk_snapshot(
                     args: spec.args.clone(),
                     label: spec.label.clone(),
                 },
-                PaneOrigin::Ephemeral => {
+                // Quick-connect panes reference an in-memory entry that a
+                // restored group could never resolve; prune them like any
+                // other non-referenceable pane.
+                PaneOrigin::Ephemeral | PaneOrigin::QuickHost(_) => {
                     tracing::warn!(
                         target = "oryxis::session_group",
                         label = %pane.label,
@@ -321,6 +324,10 @@ mod tests {
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,
+            chat_loading: false,
+            chat_task: None,
+            chat_mode: crate::state::ChatMode::Auto,
+            chat_last_md_parse: None,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: None,

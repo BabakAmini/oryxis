@@ -29,6 +29,8 @@ fn press<'a>(content: impl Into<Element<'a, Message>>, msg: Message) -> Element<
 
 impl Oryxis {
     pub(crate) fn view_session_group_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let form = &self.editor_session_group;
         let is_editing = form.editing_id.is_some();
         let title = if is_editing {
@@ -38,6 +40,9 @@ impl Oryxis {
         };
 
         // ── Header ──
+        // The close (×) is not a keyboard row: Esc already owns panel
+        // close, and recording it would make the header the first Down
+        // target instead of the form.
         let close_btn = press(
             container(
                 text("\u{00D7}")
@@ -60,11 +65,28 @@ impl Oryxis {
         )
         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 });
 
+        // Name field, built before the folder combo so its keyboard row
+        // records first (the General section lays out name, parent group,
+        // then color).
+        let name_field: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("session-group-name")),
+            10.0,
+            text_input(t("session_group_label_placeholder"), &form.label)
+                .id(iced::widget::Id::new("session-group-name"))
+                .on_input(Message::SessionGroupFormLabelChanged)
+                .on_submit(Message::SessionGroupFormSave)
+                .padding(10)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into(),
+        );
+
         // ── Parent-group combo: typeable text input (creates a new group on
         // save) + chevron opening the shared group-picker popover. Same
         // component as the host editor's Parent Group field. ──
         const COMBO_HEIGHT: f32 = 36.0;
         let folder_input = text_input(t("group_placeholder"), &form.group_name)
+            .id(iced::widget::Id::new("panel-session-group-folder"))
             .on_input(Message::SessionGroupFormGroupChanged)
             .on_submit(Message::SessionGroupFormSave)
             .padding(10)
@@ -92,14 +114,28 @@ impl Oryxis {
         );
         let folder_combo: Element<'_, Message> = bounds_reporter(
             dir_row(vec![
-                container(folder_input)
-                    .width(Length::Fill)
-                    .height(Length::Fixed(COMBO_HEIGHT))
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-session-group-folder",
+                    )),
+                    10.0,
+                    container(folder_input)
+                        .width(Length::Fill)
+                        .height(Length::Fixed(COMBO_HEIGHT))
+                        .into(),
+                ),
                 Space::new().width(6).into(),
-                container(folder_chevron)
-                    .height(Length::Fixed(COMBO_HEIGHT))
-                    .into(),
+                // The chevron is its own keyboard row: Enter opens the
+                // group-picker popover, same as a click.
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ToggleGroupPicker(
+                        crate::state::GroupPickerTarget::SessionGroupFolder,
+                    )),
+                    6.0,
+                    container(folder_chevron)
+                        .height(Length::Fixed(COMBO_HEIGHT))
+                        .into(),
+                ),
             ])
             .align_y(iced::Alignment::Center),
             self.session_group_folder_combo_bounds.clone(),
@@ -118,33 +154,27 @@ impl Oryxis {
             .filter(|s| !s.is_empty())
             .map(crate::os_icon::custom_icon_glyph)
             .unwrap_or(BrandIcon::Glyph(iced_fonts::lucide::boxes()));
-        let icon_badge = press(
-            container(badge_glyph.view(18.0, Color::WHITE))
-                .width(Length::Fixed(36.0))
-                .height(Length::Fixed(36.0))
-                .center_x(Length::Fixed(36.0))
-                .center_y(Length::Fixed(36.0))
-                .style(move |_| container::Style {
-                    background: Some(Background::Color(badge_bg)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
-                    ..Default::default()
-                }),
-            Message::ShowSessionGroupIconPicker,
+        let icon_badge = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::ShowSessionGroupIconPicker),
+            8.0,
+            press(
+                container(badge_glyph.view(18.0, Color::WHITE))
+                    .width(Length::Fixed(36.0))
+                    .height(Length::Fixed(36.0))
+                    .center_x(Length::Fixed(36.0))
+                    .center_y(Length::Fixed(36.0))
+                    .style(move |_| container::Style {
+                        background: Some(Background::Color(badge_bg)),
+                        border: Border { radius: Radius::from(8.0), ..Default::default() },
+                        ..Default::default()
+                    }),
+                Message::ShowSessionGroupIconPicker,
+            ),
         );
 
         // ── Section: General ──
         let general_section = panel_section(column![
-            panel_field(
-                t("session_group_label"),
-                text_input(t("session_group_label_placeholder"), &form.label)
-                    .id(iced::widget::Id::new("session-group-name"))
-                    .on_input(Message::SessionGroupFormLabelChanged)
-                    .on_submit(Message::SessionGroupFormSave)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-            ),
+            panel_field(t("session_group_label"), name_field),
             Space::new().height(10),
             panel_field(t("parent_group"), folder_combo),
             Space::new().height(10),
@@ -165,6 +195,8 @@ impl Oryxis {
 
             // Chevron nav. Pressable only when there's somewhere to go; the
             // dimmed end-state is a plain container with no handler.
+            // Keyboard rows record only when pressable: a dimmed
+            // end-state has no verb for Enter to fire.
             let nav = |glyph: iced::widget::Text<'static>, enabled: bool, msg: Message| {
                 let color = if enabled {
                     OryxisColors::t().text_secondary
@@ -174,7 +206,11 @@ impl Oryxis {
                 let inner = container(glyph.size(14).color(color))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 });
                 if enabled {
-                    press(inner, msg)
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(msg.clone()),
+                        6.0,
+                        press(inner, msg),
+                    )
                 } else {
                     inner.into()
                 }
@@ -209,15 +245,23 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
             .width(Length::Fill);
 
-            let editor = container(
-                iced::widget::text_editor(&self.session_group_script_editor)
-                    .placeholder(t("session_group_pane_script_placeholder"))
-                    .on_action(Message::SessionGroupScriptAction)
-                    .padding(10)
-                    .height(Length::Shrink)
-                    .style(crate::widgets::rounded_editor_style),
-            )
-            .max_height(200.0);
+            let editor = self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(
+                    "panel-session-group-script",
+                )),
+                10.0,
+                container(
+                    iced::widget::text_editor(&self.session_group_script_editor)
+                        .id(iced::widget::Id::new("panel-session-group-script"))
+                        .placeholder(t("session_group_pane_script_placeholder"))
+                        .on_action(Message::SessionGroupScriptAction)
+                        .padding(10)
+                        .height(Length::Shrink)
+                        .style(crate::widgets::rounded_editor_style),
+                )
+                .height(Length::Shrink.max(200.0))
+                .into(),
+            );
 
             panel_section(
                 column![
@@ -255,21 +299,25 @@ impl Oryxis {
         } else {
             OryxisColors::t().accent
         };
-        let save_btn = press(
-            container(
-                text(t("save"))
-                    .size(14)
-                    .color(OryxisColors::t().text_primary),
-            )
-            .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-            .style(move |_| container::Style {
-                background: Some(Background::Color(save_btn_bg)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            }),
-            Message::SessionGroupFormSave,
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SessionGroupFormSave),
+            8.0,
+            press(
+                container(
+                    text(t("save"))
+                        .size(14)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
+                .width(Length::Fill)
+                .center_x(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(save_btn_bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                }),
+                Message::SessionGroupFormSave,
+            ),
         );
 
         let bottom = column![panel_error, save_btn].spacing(8);
@@ -278,6 +326,8 @@ impl Oryxis {
             column![general_section, Space::new().height(8), panes_section]
                 .padding(Padding { top: 0.0, right: 16.0, bottom: 16.0, left: 16.0 }),
         )
+        // Shared id: the keyboard router keeps the selected row in view.
+        .id(iced::widget::Id::new("side-panel-scroll"))
         .height(Length::Fill);
 
         let panel_content = column![

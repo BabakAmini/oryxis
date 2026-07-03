@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "오른쪽 분할 창 포커스",
         "hotkey_focus_pane_up" => "위쪽 분할 창 포커스",
         "hotkey_focus_pane_down" => "아래쪽 분할 창 포커스",
+        "hotkey_vault_section_prev" => "이전 볼트 섹션",
+        "hotkey_vault_section_next" => "다음 볼트 섹션",
         "detecting_shells" => "셸 감지 중…",
 
         // Actions
@@ -769,6 +771,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "새 탭",
         "tabs" => "탭",
         "quick_connect" => "빠른 연결",
+        "quick_connect_hint" => "Enter 키로 연결",
+        "quick_connect_not_saved" => "볼트에 저장하지 않고 연결합니다",
+        "quick_connect_save_host" => "호스트를 볼트에 저장",
+        "connect_without_saving" => "저장하지 않고 연결",
+        "quick_connect_hostname_required" => "호스트 이름은 필수입니다",
         "local_terminal" => "로컬 터미널",
         "search_tabs" => "탭 검색",
         "jump_to" => "이동",
@@ -844,6 +851,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "실행",
         "ai_tool_always" => "항상",
         "ai_tool_deny" => "거부",
+        "ai_mode_plan" => "계획",
+        "ai_mode_ask" => "확인",
+        "ai_mode_auto" => "자동",
+        "ai_mode_plan_tip" => "계획: 읽기 전용 조사, 변경은 실행하지 않음",
+        "ai_mode_ask_tip" => "확인: 모든 명령을 실행 전에 확인",
+        "ai_mode_auto_tip" => "자동: 안전한 명령은 실행, 위험한 명령은 확인",
         "retry" => "재시도",
 
         // SFTP view
@@ -1126,7 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_all" => "모두 지우기",
         "clear_history_title" => "모든 로그를 삭제할까요?",
         "clear_history_confirm" => "모든 세션 기록과 연결 이벤트가 영구적으로 삭제됩니다.",
-        "terminal_link_hint" => "Ctrl + 클릭으로 링크 열기",
+        "terminal_link_hint" => "Ctrl을 누른 채 클릭하면 링크가 열립니다.",
         "mouse_capture_hint" => "마우스 모드 활성화됨. Shift를 누른 채 텍스트를 선택하세요.",
         "terminal_hints" => "터미널 힌트",
         "terminal_hints_desc" => "마우스 캡처 알림이나 Ctrl + 클릭 링크 팁 같은 힌트를 표시할 시점.",

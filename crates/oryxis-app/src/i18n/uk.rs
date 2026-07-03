@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Фокус на панель праворуч",
         "hotkey_focus_pane_up" => "Фокус на панель вгорі",
         "hotkey_focus_pane_down" => "Фокус на панель внизу",
+        "hotkey_vault_section_prev" => "Попередній розділ сховища",
+        "hotkey_vault_section_next" => "Наступний розділ сховища",
         "detecting_shells" => "Виявлення оболонок…",
 
         // Actions
@@ -769,6 +771,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Нова вкладка",
         "tabs" => "Вкладки",
         "quick_connect" => "Швидке підключення",
+        "quick_connect_hint" => "Enter, щоб підключитися",
+        "quick_connect_not_saved" => "Підключення без збереження у сховищі",
+        "quick_connect_save_host" => "Зберегти хост у сховищі",
+        "connect_without_saving" => "Підключитися без збереження",
+        "quick_connect_hostname_required" => "Потрібне ім'я хоста",
         "local_terminal" => "Локальний термінал",
         "search_tabs" => "Пошук вкладок",
         "jump_to" => "Перейти до",
@@ -844,6 +851,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Виконати",
         "ai_tool_always" => "Завжди",
         "ai_tool_deny" => "Відмовити",
+        "ai_mode_plan" => "План",
+        "ai_mode_ask" => "Питати",
+        "ai_mode_auto" => "Авто",
+        "ai_mode_plan_tip" => "План: дослідження лише для читання, без змін",
+        "ai_mode_ask_tip" => "Питати: підтверджувати кожну команду перед запуском",
+        "ai_mode_auto_tip" => "Авто: виконувати безпечні команди, підтверджувати ризиковані",
         "retry" => "Повторити",
 
         // SFTP view
@@ -1126,7 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_history_title" => "Очистити всі журнали?",
         "clear_history_confirm" => "Це назавжди видалить усі записи сесій та події підключень.",
         "update_check_failed" => "Не вдалося перевірити оновлення",
-        "terminal_link_hint" => "Ctrl + клік, щоб відкрити посилання",
+        "terminal_link_hint" => "Утримуйте Ctrl і клацніть, щоб відкрити посилання.",
         "mouse_capture_hint" => "Режим миші увімкнено. Утримуйте Shift, щоб виділити текст.",
         "terminal_hints" => "Підказки термінала",
         "terminal_hints_desc" => "Коли показувати підказки, як-от сповіщення про захоплення миші та підказку Ctrl + клік на посиланні.",

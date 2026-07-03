@@ -24,25 +24,43 @@ impl Oryxis {
         let active = self.active_tab.is_none();
         let expanded = self.setting_nav_rail_expanded;
         let act = |view: View| active && self.active_view == view;
+        // Record the section order for the keyboard router (same
+        // logical list as the horizontal pills; only one of the two
+        // orientations renders per frame) and resolve which entry is
+        // keyboard-selected.
+        *self.keynav.subnav_items.borrow_mut() = self
+            .subnav_pill_defs()
+            .iter()
+            .map(|(_, v)| crate::keynav::NavItem::SubNav(*v))
+            .collect();
+        let kb = |view: View| {
+            matches!(
+                self.keynav.selected_in(crate::keynav::FocusZone::SubNav),
+                Some(crate::keynav::NavItem::SubNav(v)) if v == view
+            )
+        };
 
         let mut items: Vec<Element<'_, Message>> = vec![
-            rail_item(iced_fonts::lucide::server(), crate::i18n::t("hosts"), View::Dashboard, act(View::Dashboard), expanded),
-            rail_item(iced_fonts::lucide::key_round(), crate::i18n::t("keychain"), View::Keys, act(View::Keys), expanded),
-            rail_item(iced_fonts::lucide::code(), crate::i18n::t("snippets"), View::Snippets, act(View::Snippets), expanded),
-            rail_item(iced_fonts::lucide::route(), crate::i18n::t("port_forwards"), View::PortForwarding, act(View::PortForwarding), expanded),
+            rail_item(iced_fonts::lucide::server(), crate::i18n::t("hosts"), View::Dashboard, act(View::Dashboard), expanded, kb(View::Dashboard)),
+            rail_item(iced_fonts::lucide::key_round(), crate::i18n::t("keychain"), View::Keys, act(View::Keys), expanded, kb(View::Keys)),
+            rail_item(iced_fonts::lucide::code(), crate::i18n::t("snippets"), View::Snippets, act(View::Snippets), expanded, kb(View::Snippets)),
+            rail_item(iced_fonts::lucide::route(), crate::i18n::t("port_forwards"), View::PortForwarding, act(View::PortForwarding), expanded, kb(View::PortForwarding)),
         ];
         if self.logs_surface_visible() {
-            items.push(rail_item(iced_fonts::lucide::history(), crate::i18n::t("logs"), View::History, act(View::History), expanded));
+            items.push(rail_item(iced_fonts::lucide::history(), crate::i18n::t("logs"), View::History, act(View::History), expanded, kb(View::History)));
         }
-        items.push(rail_item(iced_fonts::lucide::cloud(), crate::i18n::t("cloud_accounts"), View::Cloud, act(View::Cloud), expanded));
-        items.push(rail_item(iced_fonts::lucide::router(), crate::i18n::t("proxies"), View::Proxies, act(View::Proxies), expanded));
-        items.push(rail_item(iced_fonts::lucide::shield_check(), crate::i18n::t("known_hosts"), View::KnownHosts, act(View::KnownHosts), expanded));
+        items.push(rail_item(iced_fonts::lucide::cloud(), crate::i18n::t("cloud_accounts"), View::Cloud, act(View::Cloud), expanded, kb(View::Cloud)));
+        items.push(rail_item(iced_fonts::lucide::router(), crate::i18n::t("proxies"), View::Proxies, act(View::Proxies), expanded, kb(View::Proxies)));
+        items.push(rail_item(iced_fonts::lucide::shield_check(), crate::i18n::t("known_hosts"), View::KnownHosts, act(View::KnownHosts), expanded, kb(View::KnownHosts)));
 
         let nav = scrollable(
             column(items)
                 .spacing(4)
                 .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 }),
         )
+        // Stable id so the keyboard router can keep the selected
+        // section scrolled into view on short windows.
+        .id(iced::widget::Id::new("vault-nav-rail-scroll"))
         .height(Length::Fill)
             .direction(scrollable::Direction::Vertical(
                 scrollable::Scrollbar::new().width(6.0).scroller_width(4.0),
@@ -57,6 +75,9 @@ impl Oryxis {
             View::Settings,
             active && self.active_view == View::Settings,
             expanded,
+            // Settings is not a keynav destination (not in the
+            // sub-nav defs), so it never carries the focus ring.
+            false,
         );
         let footer = container(column![settings_item, rail_toggle_item(expanded)].spacing(4))
             .padding(Padding { top: 8.0, right: 0.0, bottom: 12.0, left: 0.0 });
@@ -155,18 +176,20 @@ fn rail_scroll_style(theme: &iced::Theme, status: scrollable::Status) -> scrolla
 
 /// One rail entry. Collapsed → a centered square icon button wrapped in a
 /// tooltip showing the section label; expanded → an icon + label row.
+/// `kb_selected` renders the keyboard-navigation focus ring.
 fn rail_item<'a>(
     icon: iced::widget::Text<'a>,
     label: &'a str,
     view: View,
     is_active: bool,
     expanded: bool,
+    kb_selected: bool,
 ) -> Element<'a, Message> {
     if expanded {
-        expanded_nav_btn(icon, label, view, is_active)
+        expanded_nav_btn(icon, label, view, is_active, kb_selected)
     } else {
         tooltip(
-            collapsed_nav_btn(icon, view, is_active),
+            collapsed_nav_btn(icon, view, is_active, kb_selected),
             container(text(label).size(11).color(OryxisColors::t().text_primary))
                 .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                 .style(|_| container::Style {
@@ -213,7 +236,7 @@ fn rail_toggle_item<'a>(expanded: bool) -> Element<'a, Message> {
             .on_press(Message::ToggleNavRailExpanded)
             .padding(0)
             .width(Length::Fill)
-            .style(rail_btn_style(false)),
+            .style(rail_btn_style(false, false)),
         )
         .padding(Padding { top: 0.0, right: 8.0, bottom: 0.0, left: 8.0 })
         .into()
@@ -224,7 +247,7 @@ fn rail_toggle_item<'a>(expanded: bool) -> Element<'a, Message> {
                     .on_press(Message::ToggleNavRailExpanded)
                     .padding(0)
                     .width(Length::Fixed(40.0))
-                    .style(rail_btn_style(false)),
+                    .style(rail_btn_style(false, false)),
             )
             .width(Length::Fill)
             .center_x(Length::Fill)
@@ -247,8 +270,11 @@ fn rail_toggle_item<'a>(expanded: bool) -> Element<'a, Message> {
 }
 
 /// Shared button style for rail entries (active accent wash, hover tint).
+/// `kb_selected` draws the keyboard-navigation focus ring as a border on
+/// the button itself, so it hugs the pill exactly (no overlay needed).
 fn rail_btn_style(
     is_active: bool,
+    kb_selected: bool,
 ) -> impl Fn(&iced::Theme, BtnStatus) -> button::Style {
     let accent = OryxisColors::t().accent;
     let active_bg = Color { a: 0.15, ..accent };
@@ -256,12 +282,21 @@ fn rail_btn_style(
         let bg = match status {
             BtnStatus::Hovered if !is_active => Color::from_rgba(1.0, 1.0, 1.0, 0.08),
             BtnStatus::Pressed => Color { a: 0.25, ..accent },
+            // Keyboard selection needs to read even on the active item
+            // (whose bg is already an accent tint): brighten the fill
+            // on top of the ring border below.
+            _ if kb_selected && is_active => Color { a: 0.30, ..accent },
+            _ if kb_selected => Color::from_rgba(1.0, 1.0, 1.0, 0.10),
             _ if is_active => active_bg,
             _ => Color::TRANSPARENT,
         };
         button::Style {
             background: Some(Background::Color(bg)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            border: Border {
+                radius: Radius::from(8.0),
+                color: if kb_selected { accent } else { Color::TRANSPARENT },
+                width: if kb_selected { 2.0 } else { 0.0 },
+            },
             ..Default::default()
         }
     }
@@ -272,6 +307,7 @@ fn collapsed_nav_btn<'a>(
     icon: iced::widget::Text<'a>,
     view: View,
     is_active: bool,
+    kb_selected: bool,
 ) -> Element<'a, Message> {
     let fg = if is_active {
         OryxisColors::t().accent
@@ -285,7 +321,7 @@ fn collapsed_nav_btn<'a>(
         .on_press(Message::ChangeView(view))
         .padding(0)
         .width(Length::Fixed(40.0))
-        .style(rail_btn_style(is_active)),
+        .style(rail_btn_style(is_active, kb_selected)),
     )
     .width(Length::Fill)
     .center_x(Length::Fill)
@@ -299,6 +335,7 @@ fn expanded_nav_btn<'a>(
     label: &'a str,
     view: View,
     is_active: bool,
+    kb_selected: bool,
 ) -> Element<'a, Message> {
     let fg = if is_active {
         OryxisColors::t().accent
@@ -330,7 +367,7 @@ fn expanded_nav_btn<'a>(
         // inset is exact (matches collapsed_nav_btn, which also zeroes it).
         .padding(0)
         .width(Length::Fill)
-        .style(rail_btn_style(is_active)),
+        .style(rail_btn_style(is_active, kb_selected)),
     )
     .padding(Padding { top: 0.0, right: 8.0, bottom: 0.0, left: 8.0 })
     .into()

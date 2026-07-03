@@ -179,6 +179,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Focar painel à direita",
         "hotkey_focus_pane_up" => "Focar painel acima",
         "hotkey_focus_pane_down" => "Focar painel abaixo",
+        "hotkey_vault_section_prev" => "Seção anterior do cofre",
+        "hotkey_vault_section_next" => "Próxima seção do cofre",
         "detecting_shells" => "Detectando shells…",
 
         "create_host" => "Criar host",
@@ -736,6 +738,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Nova Aba",
         "tabs" => "Abas",
         "quick_connect" => "Conexão rápida",
+        "quick_connect_hint" => "Enter para conectar",
+        "quick_connect_not_saved" => "Conecta sem salvar no cofre",
+        "quick_connect_save_host" => "Salvar host no cofre",
+        "connect_without_saving" => "Conectar sem salvar",
+        "quick_connect_hostname_required" => "O endereço é obrigatório",
         "local_terminal" => "Terminal Local",
         "search_tabs" => "Buscar abas",
         "jump_to" => "Ir para",
@@ -805,6 +812,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Executar",
         "ai_tool_always" => "Sempre",
         "ai_tool_deny" => "Negar",
+        "ai_mode_plan" => "Planejar",
+        "ai_mode_ask" => "Perguntar",
+        "ai_mode_auto" => "Auto",
+        "ai_mode_plan_tip" => "Planejar: investigação somente leitura, nunca aplica mudanças",
+        "ai_mode_ask_tip" => "Perguntar: confirme cada comando antes de executar",
+        "ai_mode_auto_tip" => "Auto: executa comandos seguros, confirma os arriscados",
         "retry" => "Tentar novamente",
 
         // SFTP view
@@ -1118,7 +1131,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "Baixando a fonte do idioma...",
         "cjk_font_failed" => "Não foi possível baixar a fonte do idioma. Usando a fonte do sistema.",
 
-        "terminal_link_hint" => "Ctrl + Clique para abrir o link",
+        "terminal_link_hint" => "Segure Ctrl e clique para abrir o link.",
         "mouse_capture_hint" => "Modo mouse ativo. Segure Shift para selecionar texto.",
         "terminal_hints" => "Dicas do terminal",
         "terminal_hints_desc" => "Quando mostrar dicas como o aviso de captura do mouse e a dica de Ctrl + Clique no link.",

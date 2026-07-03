@@ -84,6 +84,36 @@ pub(crate) fn password_input_with_eye<'a, F>(
 where
     F: Fn(String) -> Message + 'a,
 {
+    password_input_with_eye_id(
+        placeholder,
+        value,
+        on_input,
+        on_submit,
+        visible,
+        on_toggle,
+        inner_padding,
+        None,
+    )
+}
+
+/// `password_input_with_eye` with a focus id on the inner input, so
+/// the keyboard router's input rows (Enter-to-focus) can target the
+/// field. Kept as a sibling instead of a new parameter so the many
+/// non-navigable call sites stay untouched.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn password_input_with_eye_id<'a, F>(
+    placeholder: &'a str,
+    value: &'a str,
+    on_input: F,
+    on_submit: Option<Message>,
+    visible: bool,
+    on_toggle: Message,
+    inner_padding: f32,
+    id: Option<iced::widget::Id>,
+) -> Element<'a, Message>
+where
+    F: Fn(String) -> Message + 'a,
+{
     let rtl = crate::i18n::is_rtl_layout();
     // Reserve ~32 px on the trailing edge so the eye icon doesn't overlap
     // typed text. Leading edge keeps the requested inner padding.
@@ -105,6 +135,9 @@ where
         })
         .width(Length::Fill)
         .style(rounded_input_style);
+    if let Some(id) = id {
+        field = field.id(id);
+    }
     if let Some(submit) = on_submit {
         field = field.on_submit(submit);
     }
@@ -154,6 +187,9 @@ pub fn rounded_pick_list_style(_theme: &Theme, status: pick_list::Status) -> pic
     let c = OryxisColors::t();
     let border_color = match status {
         pick_list::Status::Opened { .. } => c.accent,
+        // Keyboard focus reads like an open-ready state: full accent,
+        // matching the focused text_input border.
+        pick_list::Status::Focused { .. } => c.accent,
         pick_list::Status::Hovered => c.accent_hover,
         _ => c.border,
     };

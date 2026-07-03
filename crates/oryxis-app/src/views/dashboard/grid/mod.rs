@@ -85,6 +85,7 @@ pub(crate) fn apply_card_wash<'a>(
     cards: Vec<(Element<'a, Message>, Color, DashNavItem)>,
     glass: bool,
     selected: Option<DashNavItem>,
+    ring_bounds: crate::widgets::BoundsCell,
 ) -> Vec<Element<'a, Message>> {
     cards
         .into_iter()
@@ -95,7 +96,9 @@ pub(crate) fn apply_card_wash<'a>(
                 el
             };
             if selected == Some(nav) {
-                select_ring(el)
+                // Report the ringed card's rect so the Menu key can
+                // anchor the context menu at the card's kebab corner.
+                crate::widgets::bounds_reporter(select_ring(el), ring_bounds.clone())
             } else {
                 el
             }
@@ -103,22 +106,9 @@ pub(crate) fn apply_card_wash<'a>(
         .collect()
 }
 
-/// Overlay a 2px accent focus ring on a keyboard-selected card. Drawn as
-/// a `Stack` overlay so it doesn't change the card's footprint, with the
-/// same 10px radius as the cards.
-pub(crate) fn select_ring<'a>(card: Element<'a, Message>) -> Element<'a, Message> {
-    let ring = container(Space::new().width(Length::Fill).height(Length::Fill)).style(|_| {
-        container::Style {
-            border: Border {
-                radius: Radius::from(10.0),
-                color: OryxisColors::t().accent,
-                width: 2.0,
-            },
-            ..Default::default()
-        }
-    });
-    iced::widget::Stack::new().push(card).push(ring).into()
-}
+// The selection ring moved to `widgets::select_ring` so every vault
+// view (keychain, snippets, sub-nav pills, ...) can share it.
+pub(crate) use crate::widgets::select_ring;
 
 // Card/section view methods, split into sibling files.
 mod cloud;
@@ -281,6 +271,8 @@ impl Oryxis {
         let flatten = self.flatten_hosts && at_root;
 
         if self.connections.is_empty() && self.groups.is_empty() && self.session_groups.is_empty() {
+            // Nothing navigable; keep the keyboard order in sync.
+            self.keynav_clear_content();
             return self.dashboard_empty_state();
         }
 
@@ -288,6 +280,14 @@ impl Oryxis {
             && let Some(group) = self.groups.iter().find(|g| g.id == gid)
             && let Some(query) = group.cloud_query.as_ref()
         {
+            // Clear the grid recording first, then let the dynamic
+            // cloud-group view record its own keyboard rows (connectable
+            // tasks / pods, the failed-state retry) into the cleared
+            // lists via `content_action_slot`. States with nothing
+            // actionable (pending / loading / empty) record nothing, so
+            // the clear stands and stale grid items from the previous
+            // frame can't be activated from inside the group.
+            self.keynav_clear_content();
             return self.dashboard_cloud_group_view(gid, query);
         }
 
@@ -354,7 +354,10 @@ impl Oryxis {
         // the soft per-colour wash; off → cards stay pure (just the
         // element, no overlay).
         let glass = self.setting_card_accent_glass;
-        let selected = self.selected_nav;
+        let selected = match self.keynav.selected_in(crate::keynav::FocusZone::Content) {
+            Some(crate::keynav::NavItem::Dash(d)) => Some(d),
+            _ => None,
+        };
 
         // List mode (cols == 1) renders History-style rows: full-width
         // rounded cards with a small gap, applied uniformly to groups and
@@ -372,12 +375,28 @@ impl Oryxis {
             .map(|(_, _, n)| *n)
             .collect();
         let host_nav: Vec<DashNavItem> = host_cards.iter().map(|(_, _, n)| *n).collect();
-        let mut nav_rows: Vec<Vec<DashNavItem>> = Vec::new();
-        nav_rows.extend(group_nav.chunks(cw).map(|c| c.to_vec()));
-        nav_rows.extend(host_nav.chunks(cw).map(|c| c.to_vec()));
-        *self.dashboard_nav.borrow_mut() = nav_rows;
+        let dash_row =
+            |c: &[DashNavItem]| c.iter().map(|&n| crate::keynav::NavItem::Dash(n)).collect();
+        // Two Tab sections (Groups, then Hosts); arrows still flow
+        // continuously across both.
+        self.keynav_set_content_sections(vec![
+            group_nav.chunks(cw).map(dash_row).collect(),
+            host_nav.chunks(cw).map(dash_row).collect(),
+        ]);
 
         let mut content_rows: Vec<Element<'_, Message>> = Vec::new();
+        // Search filtered everything out but the query parses as an
+        // ad-hoc `user@host[:port]` target: offer a centered quick-connect
+        // card instead of a bare no-results gap (mirrors the picker row
+        // and the toolbar's "Enter to connect" hint).
+        if group_cards.is_empty()
+            && session_group_cards.is_empty()
+            && host_cards.is_empty()
+            && !self.host_search.trim().is_empty()
+            && let Some(conn) = self.quick_connect_target(&self.host_search)
+        {
+            content_rows.push(self.quick_connect_card(conn));
+        }
         if flatten {
             // Session groups live under the same "Groups" section as host
             // groups (they're both group-shaped entries), instead of a
@@ -388,13 +407,13 @@ impl Oryxis {
                 content_rows.push(section_header("groups_section"));
                 let mut grouped = group_cards;
                 grouped.extend(session_group_cards);
-                let grouped = apply_card_wash(grouped, glass, selected);
+                let grouped = apply_card_wash(grouped, glass, selected, self.keynav.ring_bounds.clone());
                 content_rows.push(distribute_card_grid(grouped, cols, gap, gap));
                 content_rows.push(Space::new().height(20).into());
             }
             if !host_cards.is_empty() {
                 content_rows.push(section_header("hosts_section"));
-                let host_cards = apply_card_wash(host_cards, glass, selected);
+                let host_cards = apply_card_wash(host_cards, glass, selected, self.keynav.ring_bounds.clone());
                 content_rows.push(distribute_card_grid(host_cards, cols, gap, gap));
             }
         } else {
@@ -402,7 +421,7 @@ impl Oryxis {
             let mut combined = group_cards;
             combined.extend(session_group_cards);
             combined.extend(host_cards);
-            let combined = apply_card_wash(combined, glass, selected);
+            let combined = apply_card_wash(combined, glass, selected, self.keynav.ring_bounds.clone());
             content_rows.push(distribute_card_grid(combined, cols, gap, gap));
         }
 
@@ -516,9 +535,78 @@ impl Oryxis {
         main_content.into()
     }
 
-
-
-
+    /// Centered ad-hoc quick-connect card, shown when the host search
+    /// matches nothing but parses as a `user@host[:port]` target. The
+    /// whole card is a button (hover + press feedback per convention)
+    /// dispatching `QuickConnect`; nothing is saved to the vault.
+    fn quick_connect_card(
+        &self,
+        conn: oryxis_core::models::Connection,
+    ) -> Element<'_, Message> {
+        let label = conn.label.clone();
+        let card = button(
+            iced::widget::Column::with_children(vec![
+                iced_fonts::lucide::zap()
+                    .size(28)
+                    .color(OryxisColors::t().accent)
+                    .into(),
+                Space::new().height(10).into(),
+                text(format!("{}: {}", t("quick_connect"), label))
+                    .size(15)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+                Space::new().height(4).into(),
+                text(t("quick_connect_not_saved"))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                Space::new().height(8).into(),
+                container(
+                    text(t("quick_connect_hint"))
+                        .size(11)
+                        .color(OryxisColors::t().accent),
+                )
+                .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().bg_hover)),
+                    border: Border {
+                        radius: Radius::from(4.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                })
+                .into(),
+            ])
+            .align_x(iced::alignment::Horizontal::Center),
+        )
+        .on_press(Message::QuickConnect(Box::new(
+            crate::state::QuickConnectEntry::bare(conn),
+        )))
+        .padding(Padding { top: 24.0, right: 32.0, bottom: 24.0, left: 32.0 })
+        .style(|_, status| {
+            let (bg, bc) = match status {
+                BtnStatus::Hovered => (OryxisColors::t().bg_hover, OryxisColors::t().accent),
+                BtnStatus::Pressed => {
+                    (OryxisColors::t().bg_selected, OryxisColors::t().accent)
+                }
+                _ => (OryxisColors::t().bg_surface, OryxisColors::t().border),
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(10.0),
+                    color: bc,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }
+        });
+        container(card)
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+            .padding(Padding { top: 32.0, right: 0.0, bottom: 0.0, left: 0.0 })
+            .into()
+    }
 }
 
 /// Coloured pill rendering a short status string. Background uses the

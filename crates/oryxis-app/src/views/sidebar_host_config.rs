@@ -83,6 +83,8 @@ impl Oryxis {
             |s: &String| s.clone(),
         )
         .on_select(Message::TerminalFontChanged)
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .width(Length::Fill)
         .padding(8)
         .style(crate::widgets::rounded_pick_list_style);
@@ -144,6 +146,8 @@ impl Oryxis {
         let encoding_selected = conn.encoding.clone().unwrap_or_else(|| "UTF-8".to_string());
         let encoding_pick = pick_list(Some(encoding_selected), encoding_opts, |s: &String| s.clone())
             .on_select(Message::HostConfigEncodingChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .width(Length::Fill)
             .padding(8)
             .style(pl_style);
@@ -161,6 +165,8 @@ impl Oryxis {
             .unwrap_or_else(|| "xterm-256color".to_string());
         let term_pick = pick_list(Some(term_selected), term_opts, |s: &String| s.clone())
             .on_select(Message::HostConfigTerminalTypeChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .width(Length::Fill)
             .padding(8)
             .style(pl_style);
@@ -178,6 +184,8 @@ impl Oryxis {
         .to_string();
         let title_pick = pick_list(Some(title_selected), title_opts, |s: &String| s.clone())
             .on_select(Message::HostConfigAutoTitleChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .width(Length::Fill)
             .padding(8)
             .style(pl_style);

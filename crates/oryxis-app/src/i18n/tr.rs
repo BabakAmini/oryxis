@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Sağdaki bölmeye odaklan",
         "hotkey_focus_pane_up" => "Üstteki bölmeye odaklan",
         "hotkey_focus_pane_down" => "Alttaki bölmeye odaklan",
+        "hotkey_vault_section_prev" => "Önceki kasa bölümü",
+        "hotkey_vault_section_next" => "Sonraki kasa bölümü",
         "detecting_shells" => "Shell'ler algılanıyor…",
 
         // Actions
@@ -769,6 +771,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Yeni Sekme",
         "tabs" => "Sekmeler",
         "quick_connect" => "Hızlı bağlan",
+        "quick_connect_hint" => "Bağlanmak için Enter",
+        "quick_connect_not_saved" => "Kasaya kaydetmeden bağlanır",
+        "quick_connect_save_host" => "Sunucuyu kasaya kaydet",
+        "connect_without_saving" => "Kaydetmeden bağlan",
+        "quick_connect_hostname_required" => "Sunucu adı gerekli",
         "local_terminal" => "Yerel Terminal",
         "search_tabs" => "Sekmeleri ara",
         "jump_to" => "Şuraya atla",
@@ -844,6 +851,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Çalıştır",
         "ai_tool_always" => "Her zaman",
         "ai_tool_deny" => "Reddet",
+        "ai_mode_plan" => "Plan",
+        "ai_mode_ask" => "Sor",
+        "ai_mode_auto" => "Otomatik",
+        "ai_mode_plan_tip" => "Plan: salt okunur inceleme, asla değişiklik yapmaz",
+        "ai_mode_ask_tip" => "Sor: her komutu çalıştırmadan önce onayla",
+        "ai_mode_auto_tip" => "Otomatik: güvenli komutları çalıştırır, riskli olanları onaylar",
         "retry" => "Tekrar dene",
 
         // SFTP view
@@ -1126,7 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_history_title" => "Tüm kayıtlar silinsin mi?",
         "clear_history_confirm" => "Bu, tüm oturum kayıtlarını ve bağlantı olaylarını kalıcı olarak siler.",
         "update_check_failed" => "Güncelleme denetimi başarısız",
-        "terminal_link_hint" => "Bağlantıyı açmak için Ctrl + Tık",
+        "terminal_link_hint" => "Bağlantıyı açmak için Ctrl'ye basılı tutup tıklayın.",
         "mouse_capture_hint" => "Fare modu etkin. Metni seçmek için Shift'i basılı tutun.",
         "terminal_hints" => "Terminal ipuçları",
         "terminal_hints_desc" => "Fare yakalama bildirimi ve Ctrl + Tık bağlantı ipucu gibi ipuçlarının ne zaman gösterileceği.",

@@ -134,7 +134,7 @@ impl LocalTerminalEntry {
 pub(crate) enum ChatRole {
     User,
     Assistant,
-    System, // for tool execution results
+    System, // informational notes (declines, "not connected", ...)
     /// Provider/network error, rendered as a red banner with a Retry
     /// button instead of looking like a normal assistant response.
     Error,
@@ -144,6 +144,28 @@ pub(crate) enum ChatRole {
     /// regular tool-execution flow. Safe commands skip this state and
     /// run immediately.
     PendingTool,
+    /// A tool execution: the command that ran and (once captured) its
+    /// output. The structured data lives on `ChatMessage.tool`; the
+    /// message builder turns a completed exchange into native
+    /// `tool_use` + `tool_result` blocks for the provider. While the
+    /// output is still `None` (command running) it is sent as flat text,
+    /// so an in-flight exchange can never leave a dangling `tool_use`.
+    Tool,
+}
+
+/// A completed-or-running tool execution recorded in the chat history.
+/// `id` is minted locally and pairs the `tool_use` block with its
+/// `tool_result` block when the message builder reconstructs the
+/// provider-native request.
+#[derive(Debug, Clone)]
+pub(crate) struct ToolExchange {
+    pub id: String,
+    pub command: String,
+    /// Model self-classification, "safe" | "risky".
+    pub risk: String,
+    /// Captured terminal output. `None` while the command is still
+    /// running (rendered + sent as flat text until it resolves).
+    pub output: Option<String>,
 }
 
 /// A single message in the AI chat sidebar.
@@ -155,6 +177,21 @@ pub(crate) struct ChatMessage {
     /// can borrow them across renders. Iced's `markdown::view` returns an
     /// Element borrowing the items slice, so we can't parse on the fly.
     pub parsed_md: Vec<iced::widget::markdown::Item>,
+    /// Structured tool data, `Some` only for [`ChatRole::Tool`] messages.
+    pub tool: Option<ToolExchange>,
+}
+
+impl ChatMessage {
+    /// A plain text message (any role except `Tool`); `parsed_md` starts
+    /// empty and is filled by the caller for assistant bubbles.
+    pub(crate) fn text(role: ChatRole, content: impl Into<String>) -> Self {
+        Self {
+            role,
+            content: content.into(),
+            parsed_md: Vec::new(),
+            tool: None,
+        }
+    }
 }
 
 
@@ -207,8 +244,66 @@ pub(crate) struct PendingEcsAutoConnect {
 
 
 // ---------------------------------------------------------------------------
+// Quick connect (ad-hoc hosts, never persisted)
+// ---------------------------------------------------------------------------
+
+/// One ad-hoc quick-connect host living in `Oryxis.quick_connects`.
+///
+/// `conn` is a full `Connection` that exists only in memory; the credential
+/// fields carry what the user typed in the editor's connect-without-saving
+/// flow, since there is no vault row to hydrate from (picker/search-born
+/// entries keep them `None`). They live beside `conn` rather than inside it
+/// so the `Connection` value that rides `Message` / relaunch never holds a
+/// plaintext secret; the connect path applies them just before dialing.
+/// Cleared on vault lock together with the other secret-bearing UI state.
+#[derive(Clone)]
+pub(crate) struct QuickConnectEntry {
+    pub conn: oryxis_core::models::Connection,
+    pub password: Option<String>,
+    pub totp_secret: Option<String>,
+    /// Password for an inline proxy typed in the editor flow (a saved
+    /// proxy identity hydrates from the vault instead).
+    pub proxy_password: Option<String>,
+}
+
+impl QuickConnectEntry {
+    /// Entry with no typed credentials (parser-born surfaces).
+    pub fn bare(conn: oryxis_core::models::Connection) -> Self {
+        Self {
+            conn,
+            password: None,
+            totp_secret: None,
+            proxy_password: None,
+        }
+    }
+}
+
+/// Manual impl so a Debug-formatted `Message::QuickConnect` (message
+/// tracing, debug log file) never prints the typed credentials.
+impl std::fmt::Debug for QuickConnectEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("QuickConnectEntry")
+            .field("conn", &self.conn)
+            .field("password", &self.password.as_ref().map(|_| "***"))
+            .field("totp_secret", &self.totp_secret.as_ref().map(|_| "***"))
+            .field("proxy_password", &self.proxy_password.as_ref().map(|_| "***"))
+            .finish()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Connection progress (during establishment)
 // ---------------------------------------------------------------------------
+
+/// Where the connection being established came from, so the progress
+/// screen's Retry / Edit actions resolve the right store.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProgressOrigin {
+    /// Index into `Oryxis.connections` (a saved host).
+    Saved(usize),
+    /// Key into `Oryxis.quick_connects` (an ad-hoc host).
+    Quick(Uuid),
+}
 
 /// Connection progress state for the connecting tab.
 #[derive(Clone)]
@@ -218,7 +313,7 @@ pub(crate) struct ConnectionProgress {
     pub step: ConnectionStep,
     pub logs: Vec<(ConnectionStep, String)>,
     pub failed: bool,
-    pub connection_idx: usize,
+    pub origin: ProgressOrigin,
     pub tab_idx: usize,
 }
 

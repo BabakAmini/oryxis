@@ -11,6 +11,27 @@ use crate::state::ConnectionStep;
 use crate::theme::OryxisColors;
 
 impl Oryxis {
+    /// Resolve the `Connection` a progress screen is connecting to. Saved
+    /// hosts resolve by stored index first (set at connect time), guarded
+    /// by a label check so a reordered list can't grab the wrong host,
+    /// then fall back to a label search. Quick connects resolve straight
+    /// from the ephemeral store.
+    fn progress_connection(
+        &self,
+        progress: &crate::state::ConnectionProgress,
+    ) -> Option<&oryxis_core::models::Connection> {
+        match progress.origin {
+            crate::state::ProgressOrigin::Saved(idx) => self
+                .connections
+                .get(idx)
+                .filter(|c| c.label == progress.label)
+                .or_else(|| self.connections.iter().find(|c| c.label == progress.label)),
+            crate::state::ProgressOrigin::Quick(id) => {
+                self.quick_connects.get(&id).map(|e| &e.conn)
+            }
+        }
+    }
+
     /// Redact a connection-progress string under Privacy Mode. The text is
     /// our own controlled format ("Connecting to <host>...", `SSH host:port`),
     /// so on top of the generic IP / `user@host` masking we also replace this
@@ -21,18 +42,14 @@ impl Oryxis {
         progress: &crate::state::ConnectionProgress,
         s: &str,
     ) -> String {
-        let conn = self
-            .connections
-            .get(progress.connection_idx)
-            .filter(|c| c.label == progress.label)
-            .or_else(|| self.connections.iter().find(|c| c.label == progress.label));
+        let conn = self.progress_connection(progress);
         let mask = conn
             .map(|c| self.privacy_active(c))
             .unwrap_or(self.setting_privacy_mode);
         if !mask {
             return s.to_string();
         }
-        let mut out = crate::widgets::redact_for_display(s);
+        let mut out = crate::widgets::redact_for_display(s, &self.privacy_terms());
         if let Some(c) = conn {
             if !c.hostname.is_empty() {
                 out = out.replace(&c.hostname, &crate::widgets::mask_blocks(&c.hostname));
@@ -56,16 +73,9 @@ impl Oryxis {
         // (per-host custom icon/color + shape from the icon_style setting),
         // falling back to the detected OS brand. "Edit Host" lives here on
         // the trailing edge when failed, freeing the bottom action row.
-        // Resolve by stored index first (set at connect time), guarded by a
-        // label check so a reordered list can't grab the wrong host, then
-        // fall back to a label search. The badge stayed teal before because
-        // a missing match collapsed every field to None and the brand color
-        // never resolved.
-        let conn = self
-            .connections
-            .get(progress.connection_idx)
-            .filter(|c| c.label == progress.label)
-            .or_else(|| self.connections.iter().find(|c| c.label == progress.label));
+        // The badge stayed teal before because a missing match collapsed
+        // every field to None and the brand color never resolved.
+        let conn = self.progress_connection(progress);
         let badge_style = crate::widgets::resolve_host_icon_style(
             conn.and_then(|c| c.icon_style.as_deref()),
             &self.setting_default_host_icon,
@@ -134,10 +144,15 @@ impl Oryxis {
         ) = if let Some(ref legacy) = self.pending_legacy_algo {
             // Server speaks only legacy algorithms in some category. Offer
             // to enable them (weaker) or cancel.
+            // A quick-connect host resolves from the ephemeral store; it
+            // also has nothing to persist, so the "always" button hides.
+            let is_quick = self.quick_connects.contains_key(&legacy.conn_id)
+                && !self.connections.iter().any(|c| c.id == legacy.conn_id);
             let host_label = self
                 .connections
                 .iter()
                 .find(|c| c.id == legacy.conn_id)
+                .or_else(|| self.quick_connects.get(&legacy.conn_id).map(|e| &e.conn))
                 .map(|c| c.label.clone())
                 .unwrap_or_default();
             let cat_key = match legacy.category {
@@ -167,7 +182,7 @@ impl Oryxis {
                 );
             }
             let body: Element<'_, Message> = body_col.into();
-            let btm: Element<'_, Message> = row![
+            let mut btm_row = row![
                 crate::widgets::styled_button(
                     crate::i18n::t("cancel"),
                     Message::LegacyAlgoCancel,
@@ -177,17 +192,23 @@ impl Oryxis {
                 crate::widgets::styled_button(
                     crate::i18n::t("legacy_algo_connect_once"),
                     Message::LegacyAlgoAccept { remember: false },
-                    OryxisColors::t().bg_hover,
+                    if is_quick {
+                        OryxisColors::t().accent
+                    } else {
+                        OryxisColors::t().bg_hover
+                    },
                 ),
-                Space::new().width(8),
-                crate::widgets::styled_button(
-                    crate::i18n::t("legacy_algo_always"),
-                    Message::LegacyAlgoAccept { remember: true },
-                    OryxisColors::t().accent,
-                ),
-            ]
-            .align_y(iced::Alignment::Center)
-            .into();
+            ];
+            if !is_quick {
+                btm_row = btm_row.push(Space::new().width(8)).push(
+                    crate::widgets::styled_button(
+                        crate::i18n::t("legacy_algo_always"),
+                        Message::LegacyAlgoAccept { remember: true },
+                        OryxisColors::t().accent,
+                    ),
+                );
+            }
+            let btm: Element<'_, Message> = btm_row.align_y(iced::Alignment::Center).into();
             (status, body, btm)
         } else if let Some(ref kbi) = self.pending_kbi_prompt {
             // Keyboard-interactive (2FA / OTP). `name` and the prompt labels

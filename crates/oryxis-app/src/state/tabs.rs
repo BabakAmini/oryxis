@@ -12,6 +12,11 @@ use super::*;
 pub(crate) enum PaneOrigin {
     /// Live reference to a saved Connection by id.
     Host(Uuid),
+    /// Quick-connect host: the id points into `Oryxis.quick_connects`, an
+    /// in-memory store that is never persisted. Kept apart from `Host` so
+    /// vault-backed features (edit in place, session groups, pin restore)
+    /// opt in deliberately instead of dereferencing a dangling vault id.
+    QuickHost(Uuid),
     /// A local terminal; the spec is captured so the same shell is restored.
     Local(LocalShellSpec),
     /// Cloud/SSM/ECS or otherwise non-referenceable pane.
@@ -77,8 +82,10 @@ pub(crate) struct Pane {
     /// mouse-capture toast has fired for this pane, so it retires here.
     /// In-memory only, a fresh pane (new tab / host) starts over.
     pub mouse_hint_shown: bool,
-    /// `HintMode::Once` bookkeeping: set once the user has ctrl-clicked a
-    /// link in this pane, retiring the "Ctrl + Click to open" tooltip here.
+    /// `HintMode::Once` bookkeeping: set once the "hold Ctrl and click"
+    /// link toast has fired for this pane, or once the user has
+    /// ctrl-clicked a link here (either way the gesture is known),
+    /// retiring the hint for the pane.
     pub link_hint_shown: bool,
 }
 
@@ -101,6 +108,34 @@ pub(crate) fn set_auto_title(on: bool) {
 /// Whether the tab strip shows the shell-set OSC title (the user setting).
 pub(crate) fn auto_title_enabled() -> bool {
     AUTO_TITLE.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Process-wide default AI chat mode for freshly created tabs. Mirrors the
+/// `AUTO_TITLE` pattern: set once at boot and whenever the user changes the
+/// "Default mode" setting, read in `TerminalTab::new_single` so every tab
+/// starts on the user's chosen default without threading it through every
+/// construction site. Stored as the `ChatMode` discriminant (0 = Plan,
+/// 1 = Ask, 2 = Auto).
+static DEFAULT_CHAT_MODE: std::sync::atomic::AtomicU8 =
+    std::sync::atomic::AtomicU8::new(2);
+
+/// Set the default chat mode applied to new tabs.
+pub(crate) fn set_default_chat_mode(mode: crate::state::ChatMode) {
+    let v = match mode {
+        crate::state::ChatMode::Plan => 0,
+        crate::state::ChatMode::Ask => 1,
+        crate::state::ChatMode::Auto => 2,
+    };
+    DEFAULT_CHAT_MODE.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+/// The default chat mode for a new tab (the user's "Default mode" setting).
+pub(crate) fn default_chat_mode() -> crate::state::ChatMode {
+    match DEFAULT_CHAT_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => crate::state::ChatMode::Plan,
+        1 => crate::state::ChatMode::Ask,
+        _ => crate::state::ChatMode::Auto,
+    }
 }
 
 impl Pane {
@@ -167,6 +202,28 @@ pub(crate) struct TerminalTab {
     /// command is surfaced for explicit approval. Reset alongside
     /// `chat_auto_run_history`.
     pub chat_auto_run_streak: usize,
+    /// True while a chat stream (assistant reply or a tool-followup
+    /// pipeline) is in flight for THIS tab. Per-tab, not global: a chat on
+    /// one tab keeps streaming while the user works in another, and the
+    /// "Thinking..."/Stop affordances read the active tab's flag.
+    pub chat_loading: bool,
+    /// Abort handle for this tab's in-flight chat stream (reply + any
+    /// detached tool-followup it feeds). Aborting drops the receiver so the
+    /// detached tokio task's `tx.send` fails and it stops too. Per-tab so
+    /// Stop / close / reset target the right conversation and starting a
+    /// chat on one tab never cancels another's. `None` when idle.
+    pub chat_task: Option<iced::task::Handle>,
+    /// How this tab's assistant gates tool calls: `Auto` (allow-list +
+    /// judge auto-exec safe commands), `Ask` (every command needs explicit
+    /// approval), or `Plan` (read-only investigation only, writes blocked).
+    /// Per-tab so it travels with the conversation; seeded from the global
+    /// `ai_default_mode` setting when the tab is created.
+    pub chat_mode: crate::state::ChatMode,
+    /// Last time the streaming markdown re-parse ran for this tab. Throttles
+    /// the O(content) parse to ~10/s during streaming. Per-tab (not a single
+    /// global) because two tabs can stream at once now: a shared static would
+    /// see alternating tab ids and never throttle, re-parsing every chunk.
+    pub chat_last_md_parse: Option<std::time::Instant>,
     /// True for cloud SSM / ECS-Exec tabs (a `session-manager-plugin`
     /// PTY). These talk SSM over a websocket whose idle timer kills the
     /// session after ~20 min of inactivity, so they get the
@@ -367,6 +424,10 @@ impl TerminalTab {
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,
+            chat_loading: false,
+            chat_task: None,
+            chat_mode: default_chat_mode(),
+            chat_last_md_parse: None,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: None,
@@ -399,6 +460,10 @@ impl TerminalTab {
         let base = self.label.trim_end_matches(" (disconnected)").to_string();
         match &self.active().origin {
             PaneOrigin::Host(id) => Some(PinnedTabSpec::Host { id: *id, label: base }),
+            // Quick-connect hosts have no stable reference to restore from
+            // (the entry dies with the app), so the pin is session-only,
+            // like SSM tabs.
+            PaneOrigin::QuickHost(_) => None,
             PaneOrigin::Local(spec) => Some(PinnedTabSpec::LocalShell {
                 program: spec.program.clone(),
                 args: spec.args.clone(),

@@ -16,6 +16,10 @@ use crate::widgets::{dir_align_x, dir_row};
 
 impl Oryxis {
     pub(crate) fn view_tab_jump_modal(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded by `jump_row` in visual order;
+        // Up/Down move a selection, Enter jumps to it (or to the top
+        // match while searching).
+        self.modal_nav_reset();
         let needle = self.tab_jump_search.to_lowercase();
 
         // ── Tabs section ───────────────────────────────────────────────
@@ -65,7 +69,7 @@ impl Oryxis {
                     })
                     .into();
 
-            tabs_col = tabs_col.push(jump_row(
+            tabs_col = tabs_col.push(self.jump_row(
                 badge,
                 label,
                 is_active,
@@ -85,7 +89,7 @@ impl Oryxis {
         let new_tab_label = t("new_tab").to_string();
         if new_tab_label.to_lowercase().contains(&needle) || needle.is_empty() {
             had_match = true;
-            tabs_col = tabs_col.push(jump_row(
+            tabs_col = tabs_col.push(self.jump_row(
                 new_tab_badge,
                 new_tab_label,
                 false,
@@ -111,15 +115,36 @@ impl Oryxis {
         .center_x(Length::Fixed(20.0))
         .center_y(Length::Fixed(20.0))
         .into();
+        let mut quick_col = column![self.jump_row(
+            quick_local,
+            t("local_terminal").to_string(),
+            false,
+            Message::OpenLocalShell,
+        )];
+        // Search text parsing as `user@host[:port]` offers an immediate
+        // ad-hoc connect, mirroring the new-tab picker's top row.
+        if let Some(conn) = self.quick_connect_target(&self.tab_jump_search) {
+            let quick_target: Element<'_, Message> = container(
+                iced_fonts::lucide::zap()
+                    .size(13)
+                    .color(OryxisColors::t().accent),
+            )
+            .center_x(Length::Fixed(20.0))
+            .center_y(Length::Fixed(20.0))
+            .into();
+            quick_col = quick_col.push(self.jump_row(
+                quick_target,
+                format!("{}: {}", t("quick_connect"), conn.label),
+                false,
+                Message::QuickConnect(Box::new(
+                    crate::state::QuickConnectEntry::bare(conn),
+                )),
+            ));
+        }
         let quick_section: Element<'_, Message> = column![
             section_header(t("quick_connect")),
             Space::new().height(4),
-            jump_row(
-                quick_local,
-                t("local_terminal").to_string(),
-                false,
-                Message::OpenLocalShell,
-            ),
+            quick_col,
         ]
         .into();
 
@@ -207,6 +232,8 @@ impl Oryxis {
                     left: 0.0,
                 }),
             )
+            // Stable id so the keyboard selection can be kept in view.
+            .id(iced::widget::Id::new("tab-jump-scroll"))
             .height(Length::Fixed(420.0))
             .into()
         };
@@ -244,48 +271,60 @@ fn section_header<'a>(label: &'a str) -> Element<'a, Message> {
         .into()
 }
 
-fn jump_row<'a>(
-    icon: Element<'a, Message>,
-    label: String,
-    is_active: bool,
-    on_select: Message,
-) -> Element<'a, Message> {
-    let bg = if is_active {
-        Color { a: 0.15, ..OryxisColors::t().accent }
-    } else {
-        Color::TRANSPARENT
-    };
-    let label_color = if is_active {
-        OryxisColors::t().accent
-    } else {
-        OryxisColors::t().text_primary
-    };
-    button(
-        dir_row(vec![
-            icon,
-            Space::new().width(8).into(),
-            text(label).size(13).color(label_color).into(),
-        ])
-        .align_y(iced::Alignment::Center),
-    )
-    .on_press_with(move || {
-        // Two-step dispatch: select first, then close, keeps the
-        // modal from flashing closed before the select handler runs.
-        // SequencedSelect is wired in app.rs to fire both messages.
-        Message::TabJumpSelect(Box::new(on_select.clone()))
-    })
-    .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
-    .width(Length::Fill)
-    .style(move |_, status| {
-        let hover_bg = match status {
-            BtnStatus::Hovered if !is_active => OryxisColors::t().bg_hover,
-            _ => bg,
+impl Oryxis {
+    fn jump_row<'a>(
+        &self,
+        icon: Element<'a, Message>,
+        label: String,
+        is_active: bool,
+        on_select: Message,
+    ) -> Element<'a, Message> {
+        let bg = if is_active {
+            Color { a: 0.15, ..OryxisColors::t().accent }
+        } else {
+            Color::TRANSPARENT
         };
-        button::Style {
-            background: Some(Background::Color(hover_bg)),
-            border: Border { radius: Radius::from(6.0), ..Default::default() },
-            ..Default::default()
-        }
-    })
-    .into()
+        let label_color = if is_active {
+            OryxisColors::t().accent
+        } else {
+            OryxisColors::t().text_primary
+        };
+        let select = on_select.clone();
+        let row: Element<'a, Message> = button(
+            dir_row(vec![
+                icon,
+                Space::new().width(8).into(),
+                text(label).size(13).color(label_color).into(),
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press_with(move || {
+            // Two-step dispatch: select first, then close, keeps the
+            // modal from flashing closed before the select handler runs.
+            // SequencedSelect is wired in app.rs to fire both messages.
+            Message::TabJumpSelect(Box::new(on_select.clone()))
+        })
+        .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
+        .width(Length::Fill)
+        .style(move |_, status| {
+            let hover_bg = match status {
+                BtnStatus::Hovered if !is_active => OryxisColors::t().bg_hover,
+                _ => bg,
+            };
+            button::Style {
+                background: Some(Background::Color(hover_bg)),
+                border: Border { radius: Radius::from(6.0), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .into();
+        // Keyboard row: Enter mirrors the click (same two-step
+        // TabJumpSelect dispatch).
+        self.modal_nav_slot(
+            crate::keynav::RowAction::activate(Message::TabJumpSelect(Box::new(select))),
+            6.0,
+            false,
+            row,
+        )
+    }
 }

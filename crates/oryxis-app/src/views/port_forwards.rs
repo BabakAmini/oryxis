@@ -67,18 +67,30 @@ impl Oryxis {
         };
         // Responsive collapse: search yields first, then folds to an icon;
         // at the narrowest the action moves into the `…` overflow menu.
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
-        let trailing: Element<'_, Message> = if buttons_overflow {
-            crate::widgets::toolbar_overflow_icon(matches!(
-                self.overlay.as_ref().map(|o| &o.content),
-                Some(crate::state::OverlayContent::ToolbarOverflow)
-            ))
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
+        let search_slot = if search_collapsed {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
         } else {
-            primary
+            search_slot
+        };
+        let trailing: Element<'_, Message> = if buttons_overflow {
+            self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ToolbarOverflow)
+                )),
+            )
+        } else {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, primary)
         };
         let toolbar = container(
             dir_row(vec![
-                self.vault_search_slot(search_collapsed),
+                search_slot,
                 Space::new().width(10).into(),
                 trailing,
             ]).align_y(iced::Alignment::Center),
@@ -111,6 +123,10 @@ impl Oryxis {
             // to search) and the "+ New" lives in the empty-state CTA, so a
             // toolbar would only show an orphaned action button.
             // Side panel hoisted to `view_main` (active_side_panel).
+            // Un-record the toolbar items; none of them render here.
+            // Same for content rows.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             let main_content = column![status, empty_state]
                 .width(Length::Fill)
                 .height(Length::Fill);
@@ -119,6 +135,9 @@ impl Oryxis {
 
         let needle = self.port_forward_search.to_lowercase();
         let mut cards: Vec<Element<'_, Message>> = Vec::new();
+        // Keyboard-navigation order, collected as the cards render so
+        // it always matches the filtered set on screen.
+        let mut pf_nav: Vec<crate::keynav::NavItem> = Vec::new();
         for (idx, rule) in self.port_forward_rules.iter().enumerate() {
             let host_label = self
                 .connections
@@ -133,6 +152,10 @@ impl Oryxis {
             {
                 continue;
             }
+
+            pf_nav.push(crate::keynav::NavItem::PortForward(idx));
+            let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::PortForward(idx));
 
             let active = self.active_forwards.contains_key(&rule.id);
             let starting = self.port_forward_starting.contains(&rule.id);
@@ -201,7 +224,7 @@ impl Oryxis {
 
             // Trash kebab, hover-revealed (floating-action convention).
             const TRASH_SLOT_W: f32 = 28.0;
-            let show_trash = self.hovered_port_forward_card == Some(idx);
+            let show_trash = self.hovered_port_forward_card == Some(idx) || kb_selected;
             let trash: Element<'_, Message> = if show_trash {
                 button(text("\u{1F5D1}").size(13).color(OryxisColors::t().text_muted))
                     .on_press(Message::DeletePortForwardRule(idx))
@@ -272,17 +295,32 @@ impl Oryxis {
                 .on_enter(Message::PortForwardCardHovered(idx))
                 .on_exit(Message::PortForwardCardUnhovered)
                 .into();
-            cards.push(container(wrapped).width(Length::Fill).clip(true).into());
+            let card_el: Element<'_, Message> =
+                container(wrapped).width(Length::Fill).clip(true).into();
+            cards.push(if kb_selected {
+                crate::widgets::select_ring(card_el)
+            } else {
+                card_el
+            });
         }
 
         let nav_width = self.vault_rail_width();
         let panel_width = if self.show_port_forward_panel { PANEL_WIDTH } else { 0.0 };
         let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
         let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
+        // Chunk the keyboard order to the same column count the grid
+        // renders with.
+        self.keynav_set_content_rows(
+            pf_nav.chunks(cols.max(1)).map(|c| c.to_vec()).collect(),
+        );
         let grid_widget = distribute_card_grid(cards, cols, 12.0, 12.0);
         let grid = scrollable(
             column![grid_widget].padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }),
-        ).height(Length::Fill);
+        )
+        // Stable id so the keyboard router can keep the selected card
+        // scrolled into view.
+        .id(iced::widget::Id::new("port-forwards-scroll"))
+        .height(Length::Fill);
 
         // Inline search in Classic mode (Workspace puts it on the sub-nav).
         // Search now lives in the toolbar (`vault_search_field`); the
@@ -297,6 +335,11 @@ impl Oryxis {
     }
 
     pub(crate) fn view_port_forward_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        // The pickers below are slot-wrapped at their usage point inside the
+        // form column (not at construction) so recording follows the on-screen
+        // order: name, kind, host, listen fields, target fields, toggle.
+        self.panel_nav_reset();
         let is_editing = self.port_forward_form.editing_id.is_some();
         let title = if is_editing { t("edit_port_forward") } else { t("new_port_forward") };
 
@@ -316,10 +359,15 @@ impl Oryxis {
         )
         .padding(Padding { top: 20.0, right: 20.0, bottom: 16.0, left: 20.0 });
 
-        // Kind picker. All three directions are implemented.
+        // Kind picker. All three directions are implemented. Focusable
+        // select: Tab reaches it, Enter/Space open it, the widget owns
+        // arrows/Esc while focused (fork support).
         let kind_options = ForwardKind::ALL.to_vec();
         let kind_picker = pick_list(Some(self.port_forward_form.kind), kind_options, |k: &ForwardKind| k.to_string())
             .on_select(Message::PfKindChanged)
+            .id(iced::widget::Id::new("panel-pf-kind"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
 
@@ -339,46 +387,65 @@ impl Oryxis {
             .on_select(move |label: String| {
                 Message::PfHostChanged(host_lookup.get(&label).copied().unwrap_or_default())
             })
+            .id(iced::widget::Id::new("panel-pf-host"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
 
-        let label_field = |label: &str, value: &str, placeholder: &str, on_input: fn(String) -> Message| {
+        // `id` doubles as the focus id of the keyboard row.
+        let label_field = |label: &str, value: &str, placeholder: &str, id: &'static str, on_input: fn(String) -> Message| {
             column![
                 text(label.to_string()).size(12).color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
-                text_input(placeholder, value)
-                    .on_input(on_input)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x()),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+                    10.0,
+                    text_input(placeholder, value)
+                        .id(iced::widget::Id::new(id))
+                        .on_input(on_input)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
             ]
         };
 
         let mut form = column![
-            label_field(t("name"), &self.port_forward_form.label, "my-db-tunnel", Message::PfLabelChanged),
+            label_field(t("name"), &self.port_forward_form.label, "my-db-tunnel", "panel-pf-name", Message::PfLabelChanged),
             Space::new().height(14),
             text(t("pf_kind")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            kind_picker,
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-pf-kind")),
+                10.0,
+                kind_picker.into(),
+            ),
             Space::new().height(14),
             text(t("pf_host")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            host_picker,
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-pf-host")),
+                10.0,
+                host_picker.into(),
+            ),
             Space::new().height(14),
-            label_field(t("pf_listen_host"), &self.port_forward_form.listen_host, "127.0.0.1", Message::PfListenHostChanged),
+            label_field(t("pf_listen_host"), &self.port_forward_form.listen_host, "127.0.0.1", "panel-pf-listen-host", Message::PfListenHostChanged),
             Space::new().height(14),
-            label_field(t("pf_listen_port"), &self.port_forward_form.listen_port, "8080", Message::PfListenPortChanged),
+            label_field(t("pf_listen_port"), &self.port_forward_form.listen_port, "8080", "panel-pf-listen-port", Message::PfListenPortChanged),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
 
         // Target fields hidden for Dynamic (the SOCKS client picks the dest).
+        // Their keyboard rows record here too, only when rendered.
         if self.port_forward_form.kind.has_target() {
             form = form
                 .push(Space::new().height(14))
-                .push(label_field(t("pf_target_host"), &self.port_forward_form.target_host, "10.0.0.5", Message::PfTargetHostChanged))
+                .push(label_field(t("pf_target_host"), &self.port_forward_form.target_host, "10.0.0.5", "panel-pf-target-host", Message::PfTargetHostChanged))
                 .push(Space::new().height(14))
-                .push(label_field(t("pf_target_port"), &self.port_forward_form.target_port, "5432", Message::PfTargetPortChanged));
+                .push(label_field(t("pf_target_port"), &self.port_forward_form.target_port, "5432", "panel-pf-target-port", Message::PfTargetPortChanged));
         }
 
         // Remote bind on 0.0.0.0 needs `GatewayPorts yes` on the server.
@@ -401,13 +468,18 @@ impl Oryxis {
 
         form = form
             .push(Space::new().height(14))
-            .push(
+            .push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::PfAutoStartToggled(
+                    !self.port_forward_form.auto_start,
+                )),
+                8.0,
                 checkbox(self.port_forward_form.auto_start)
                     .label(t("pf_auto_start"))
                     .on_toggle(Message::PfAutoStartToggled)
                     .size(16)
-                    .text_size(12),
-            );
+                    .text_size(12)
+                    .into(),
+            ));
 
         let panel_error: Element<'_, Message> = if let Some(err) = &self.port_forward_form.error {
             Element::from(text(err.clone()).size(11).color(OryxisColors::t().error))
@@ -415,35 +487,45 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
-        let save_btn = button(
-            container(text(t("save")).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                .width(Length::Fill).center_x(Length::Fill),
-        )
-        .on_press(Message::SavePortForwardRule)
-        .width(Length::Fill)
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().accent)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SavePortForwardRule),
+            8.0,
+            button(
+                container(text(t("save")).size(13).color(OryxisColors::t().text_primary))
+                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                    .width(Length::Fill).center_x(Length::Fill),
+            )
+            .on_press(Message::SavePortForwardRule)
+            .width(Length::Fill)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().accent)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into(),
+        );
 
         let mut bottom = column![save_btn];
         if let Some(edit_id) = self.port_forward_form.editing_id
             && let Some(idx) = self.port_forward_rules.iter().position(|r| r.id == edit_id)
         {
-            let del_btn = button(
-                container(text(t("delete")).size(13).color(OryxisColors::t().error))
-                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                    .width(Length::Fill).center_x(Length::Fill),
-            )
-            .on_press(Message::DeletePortForwardRule(idx))
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(Color::TRANSPARENT)),
-                border: Border { radius: Radius::from(8.0), color: OryxisColors::t().error, width: 1.0 },
-                ..Default::default()
-            });
+            let del_btn = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::DeletePortForwardRule(idx)),
+                8.0,
+                button(
+                    container(text(t("delete")).size(13).color(OryxisColors::t().error))
+                        .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                        .width(Length::Fill).center_x(Length::Fill),
+                )
+                .on_press(Message::DeletePortForwardRule(idx))
+                .width(Length::Fill)
+                .style(|_, _| button::Style {
+                    background: Some(Background::Color(Color::TRANSPARENT)),
+                    border: Border { radius: Radius::from(8.0), color: OryxisColors::t().error, width: 1.0 },
+                    ..Default::default()
+                })
+                .into(),
+            );
             bottom = bottom.push(Space::new().height(8));
             bottom = bottom.push(del_btn);
         }
@@ -461,7 +543,10 @@ impl Oryxis {
                     ].width(Length::Fill).align_x(dir_align_x()),
                 )
                 .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 }),
-            ).height(Length::Fill),
+            )
+            // Shared id: the keyboard router keeps the selected row in view.
+            .id(iced::widget::Id::new("side-panel-scroll"))
+            .height(Length::Fill),
         ].height(Length::Fill);
 
         container(panel_content)

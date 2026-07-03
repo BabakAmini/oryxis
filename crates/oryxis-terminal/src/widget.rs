@@ -41,6 +41,9 @@ pub use state::TerminalState;
 
 pub(crate) use clipboard::{open_url, set_clipboard_text};
 pub(crate) use highlight::*;
+// Shared with the app-side session-log redaction so both sides agree on
+// what is IPv6-shaped.
+pub use highlight::looks_like_ipv6;
 pub(crate) use perf::*;
 pub(crate) use selection::{next_click_count, union_selection, SelectGranularity};
 
@@ -65,7 +68,7 @@ pub struct TerminalWidgetState {
     modifiers: iced::keyboard::Modifiers,
     /// Currently hovered URL + the cursor pixel position. Used by the
     /// canvas to underline only the hovered URL (not all of them) and
-    /// by the parent to render the "Ctrl+Click to open" tooltip.
+    /// to show the pointer cursor over it.
     hovered_url: Option<(String, iced::Point)>,
     /// Cell extent `(visible_row, start_col, end_col)` of the OSC 8 hyperlink
     /// currently hovered, used to underline it. Regex URLs derive their extent
@@ -113,6 +116,12 @@ pub struct TerminalWidgetState {
     /// its speed is tied to wall-clock, not the (very high) mouse-move
     /// event rate, which otherwise made the buffer rocket past the edge.
     last_autoscroll: Option<std::time::Instant>,
+    /// Privacy-span values the user click-pinned visible. A plain click
+    /// on a masked span toggles its value here; every occurrence of a
+    /// pinned value renders unmasked until clicked again. Keyed by the
+    /// span text (not its cells) so the reveal survives scrolling and
+    /// re-prints of the same value.
+    pinned_privacy: std::collections::HashSet<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +153,11 @@ pub struct TerminalView<Message = ()> {
     /// when the cursor hovers their span. Runs independently of
     /// `keyword_highlight` (detection happens even when tinting is off).
     privacy: bool,
+    /// Saved-connection hostnames masked literally under Privacy Mode
+    /// (lowercase, set via [`TerminalView::with_privacy_terms`]). Plain
+    /// DNS names have no detectable shape, so the known values are
+    /// matched exactly instead of guessed.
+    privacy_terms: Vec<String>,
     /// When true, cells whose foreground and background end up
     /// perceptually too close (e.g. PowerShell's `$PSStyle.FileInfo
     /// .Directory` blue-on-blue, LS_COLORS' `ow` green-on-green) get
@@ -177,10 +191,12 @@ pub struct TerminalView<Message = ()> {
     /// "hold Shift to select" hint at the exact moment selection is being
     /// swallowed, rather than at TUI launch. Fires at most once per pane.
     on_mouse_capture_hint: Option<Box<dyn Fn() -> Message>>,
-    /// Localized "Ctrl + Click to open the link" tooltip text. `None`
-    /// disables the hover hint entirely (the app stops passing it once
-    /// the user has ctrl-clicked a link for the first time).
-    link_hint_text: Option<String>,
+    /// Optional callback fired when a plain (no Ctrl) click lands on a
+    /// URL: the user likely expected the link to open, so the app can
+    /// show a "hold Ctrl and click" toast at the exact moment the
+    /// gesture missed. Mirrors `on_mouse_capture_hint`; the app stops
+    /// wiring it once the hint has been taught for the pane.
+    on_link_click_hint: Option<Box<dyn Fn() -> Message>>,
     /// Emitted after a Ctrl+Click successfully opens a URL, so the app
     /// can persist "the user knows the gesture" and drop the hint.
     on_link_opened: Option<Message>,
@@ -374,33 +390,6 @@ fn cell_advance(font: Font, font_size: f32) -> f32 {
     advance
 }
 
-/// Measured rendered width (px) of `content` in `font` at `size`, through the
-/// same global cosmic-text font system the canvas draws with, so a label box
-/// sized from this fits the text exactly. Matches `CanvasText`'s default
-/// `Basic` shaping so the measurement equals what `fill_text` lays down.
-fn measure_text_width(content: &str, font: Font, size: f32) -> f32 {
-    use iced::advanced::text::Paragraph as _;
-    if content.is_empty() {
-        return 0.0;
-    }
-    let text = iced::advanced::text::Text {
-        content,
-        bounds: iced::Size::INFINITE,
-        size: Pixels(size),
-        line_height: iced::advanced::text::LineHeight::default(),
-        font,
-        align_x: iced::advanced::text::Alignment::Default,
-        align_y: alignment::Vertical::Top,
-        shaping: iced::advanced::text::Shaping::Basic,
-        wrapping: iced::advanced::text::Wrapping::None,
-        ellipsis: iced::advanced::text::Ellipsis::None,
-        hint_factor: None,
-    };
-    iced::advanced::graphics::text::Paragraph::with_text(text)
-        .min_bounds()
-        .width
-}
-
 impl<Message> TerminalView<Message> {
     pub fn new(state: Arc<Mutex<TerminalState>>) -> Self {
         let font_size = 14.0;
@@ -415,6 +404,7 @@ impl<Message> TerminalView<Message> {
             bold_is_bright: true,
             keyword_highlight: true,
             privacy: false,
+            privacy_terms: Vec::new(),
             smart_contrast: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
             on_font_size_increase: None,
@@ -422,7 +412,7 @@ impl<Message> TerminalView<Message> {
             on_paste_request: None,
             on_terminal_input: None,
             on_mouse_capture_hint: None,
-            link_hint_text: None,
+            on_link_click_hint: None,
             on_link_opened: None,
             focused: true,
             bell_flash: false,
@@ -479,6 +469,22 @@ impl<Message> TerminalView<Message> {
         self
     }
 
+    /// Extra strings Privacy Mode must mask wherever they appear, on top
+    /// of the shape-based IP / `user@host` / home-dir detection. The app
+    /// passes the vault's saved hostnames so plain DNS names are hidden
+    /// too. Stored lowercase (matching is case-insensitive and
+    /// token-bounded); very short terms are dropped, masking every "web"
+    /// or "db1" in sight would be noise, not privacy. No-op while
+    /// privacy is off.
+    pub fn with_privacy_terms(mut self, terms: &[String]) -> Self {
+        self.privacy_terms = terms
+            .iter()
+            .map(|t| t.trim().to_ascii_lowercase())
+            .filter(|t| t.len() >= 4)
+            .collect();
+        self
+    }
+
     pub fn with_keyword_highlight(mut self, on: bool) -> Self {
         self.keyword_highlight = on;
         self
@@ -512,10 +518,12 @@ impl<Message> TerminalView<Message> {
     /// Ctrl+Shift+V takes. Without this hook, the widget falls back to
     /// writing the clipboard text directly to the local PTY, which only
     /// works for local-shell tabs.
-    /// Localized hover-hint text for ctrl-clickable URLs; `None` hides
-    /// the hint (one-time onboarding, see `on_link_opened`).
-    pub fn with_link_hint(mut self, hint: Option<String>) -> Self {
-        self.link_hint_text = hint;
+    /// Wire the "that link needs Ctrl + Click" hint. The callback fires
+    /// when a plain click (no Ctrl, no drag) lands on a URL, so the app
+    /// can show a transient toast teaching the gesture at the moment it
+    /// missed (one-time onboarding, see `on_link_opened`).
+    pub fn on_link_click_hint(mut self, f: impl Fn() -> Message + 'static) -> Self {
+        self.on_link_click_hint = Some(Box::new(f));
         self
     }
 
@@ -728,6 +736,16 @@ impl<Message> TerminalView<Message> {
             }
             iced::Event::Mouse(mouse::Event::ButtonReleased(btn)) => {
                 let rb = Self::iced_to_report_button(*btn)?;
+                // Only report the release of a press WE reported. A release
+                // whose press never reached the app (it landed on a sibling
+                // widget) must stay local: this arm captures what it
+                // consumes, and sibling `button`s fire on release, so
+                // reporting unconditionally made every sidebar click dead
+                // while a full-screen app (mc, htop) held mouse tracking,
+                // forcing the Shift bypass for plain UI clicks.
+                if widget_state.report_button != Some(rb) {
+                    return None;
+                }
                 // A drag can end with the pointer off the canvas; fall back
                 // to the last reported cell so the release still lands.
                 let (col, row) = match cursor.position_in(bounds) {
@@ -1265,6 +1283,59 @@ where
                 if was_dragging {
                     return Some(CanvasAction::request_redraw().and_capture());
                 }
+                // Plain click (no drag, no word/line select) on a masked
+                // privacy span toggles a pinned reveal for its value: the
+                // mask is undone for every occurrence of that value until
+                // it's clicked again. Keyed by the span text, not its
+                // cells, so the reveal survives scrolling and re-prints.
+                if self.privacy
+                    && was_selecting
+                    && !was_semantic
+                    && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
+                    && let Some(pos) = cursor.position_in(bounds)
+                {
+                    let (col, vrow) = self.pixel_to_cell(pos);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                    let value = self.state.lock().ok().and_then(|state| {
+                        privacy_value_at_cell(
+                            &state.backend.term,
+                            &state.palette,
+                            &self.privacy_terms,
+                            line,
+                            col,
+                        )
+                    });
+                    if let Some(value) = value {
+                        if !widget_state.pinned_privacy.remove(&value) {
+                            widget_state.pinned_privacy.insert(value);
+                        }
+                        return Some(CanvasAction::request_redraw().and_capture());
+                    }
+                }
+                // Plain click (no Ctrl, no drag, no word/line select) on a
+                // URL: the user likely expected the link to open, but plain
+                // clicks select (Termius-style, see the press handler). Let
+                // the app surface the "hold Ctrl and click" toast at the
+                // exact moment the gesture missed. Ctrl+Click never reaches
+                // here as a click: the press handler opens the URL without
+                // starting a selection, so `was_selecting` is false.
+                if !widget_state.modifiers.control()
+                    && was_selecting
+                    && !was_semantic
+                    && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
+                    && let Some(cb) = &self.on_link_click_hint
+                    && let Some(pos) = cursor.position_in(bounds)
+                {
+                    let (col, vrow) = self.pixel_to_cell(pos);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                    let on_url = self.state.lock().is_ok_and(|state| {
+                        osc8_link_at_cell(&state.backend.term, line, col).is_some()
+                            || url_at_cell(&state.backend.term, line, col).is_some()
+                    });
+                    if on_url {
+                        return Some(CanvasAction::publish(cb()).and_capture());
+                    }
+                }
                 // Only swallow the release when it belongs to this terminal:
                 // a finishing selection, or a release physically over the
                 // canvas. A stray release that lands on a sibling widget
@@ -1402,14 +1473,7 @@ where
             // doesn't pass the current modifier mask on mouse events,
             // so we mirror it from the dedicated change event.
             iced::Event::Keyboard(keyboard::Event::ModifiersChanged(m)) => {
-                let was_ctrl = widget_state.modifiers.control();
                 widget_state.modifiers = *m;
-                let now_ctrl = m.control();
-                // Re-render to flip the cursor icon / tooltip text
-                // immediately when Ctrl is pressed/released over a URL.
-                if widget_state.hovered_url.is_some() && was_ctrl != now_ctrl {
-                    return Some(CanvasAction::request_redraw());
-                }
             }
             // Keyboard, copy (paste is handled in app.rs so it can reach the
             // SSH session; widget.state.write only targets a local PTY). The
@@ -1694,7 +1758,7 @@ where
         // the IP / user@host spans to mask even when tinting is off.
         let highlights_start = perf_on.then(std::time::Instant::now);
         let highlights = if self.keyword_highlight || self.privacy {
-            detect_highlights(&row_chars, palette, self.privacy)
+            detect_highlights(&row_chars, palette, self.privacy, &self.privacy_terms)
         } else {
             Vec::new()
         };
@@ -1712,12 +1776,26 @@ where
             None
         };
 
+        // Spans whose value the user click-pinned visible, resolved per
+        // frame against the pinned set so every occurrence of the value
+        // (including re-prints and scrolled copies) stays revealed until
+        // clicked again.
+        let pinned_extents: Vec<(u16, u16, u16)> =
+            if self.privacy && !widget_state.pinned_privacy.is_empty() {
+                privacy_spans_with_text(&highlights, &row_chars)
+                    .into_iter()
+                    .filter(|(_, text)| widget_state.pinned_privacy.contains(text))
+                    .map(|(ext, _)| ext)
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
         // Resolve which URL (if any) the cursor is over right now,
         // re-derived from the hovered cursor pixel position. We can't
         // trust the column we cached on hover because the grid may
-        // have re-flowed since (resize, scroll). Drives both the
-        // "underline only the hovered URL" rule and the tooltip
-        // anchor below.
+        // have re-flowed since (resize, scroll). Drives the
+        // "underline only the hovered URL" rule.
         let hovered_url_extent: Option<(u16, u16, u16)> = if let Some((_, pos)) =
             widget_state.hovered_url
         {
@@ -1745,38 +1823,6 @@ where
             Some(Rectangle::new(
                 Point::new(panel_x, panel_y),
                 Size::new(panel_w, panel_h),
-            ))
-        } else {
-            None
-        };
-
-        // Link-hint ("Ctrl + Click to open") tooltip rect, computed up front
-        // so the glyphs it covers can be skipped in the cell loop, the same
-        // trick the perf panel uses. iced's wgpu canvas batches *all* meshes
-        // below *all* text across the whole frame (and across geometries), so
-        // a tooltip background can never paint over the cell glyphs, no matter
-        // the alpha or a separate layer; the only way to keep the label
-        // readable is to not draw the glyphs underneath. The width is measured
-        // from the real text so the box never clips the label (the old
-        // per-char estimate undersized it).
-        let tooltip: Option<(Rectangle, String)> = if let (Some(hint), Some((_url, hover_pos))) = (
-            self.link_hint_text.as_ref(),
-            widget_state.hovered_url.as_ref(),
-        ) {
-            const TIP_PAD_X: f32 = 10.0;
-            let text_w = measure_text_width(hint, self.font, 11.0);
-            let tip_w = text_w + TIP_PAD_X * 2.0;
-            // Snap the box to exactly one cell row. Cells are skipped per whole
-            // row, so a box taller than a row would blank an extra row the
-            // border doesn't reach (the "opaque overflows the border" bug); a
-            // row-aligned box makes the skipped region and the drawn box match.
-            let row = ((hover_pos.y - 28.0 - TERM_PAD_TOP) / cell_h).floor().max(0.0);
-            let tip_y = TERM_PAD_TOP + row * cell_h;
-            let tip_h = cell_h;
-            let tip_x = (hover_pos.x + 6.0).min(bounds.width - tip_w - 4.0).max(4.0);
-            Some((
-                Rectangle::new(Point::new(tip_x, tip_y), Size::new(tip_w, tip_h)),
-                hint.clone(),
             ))
         } else {
             None
@@ -1835,16 +1881,6 @@ where
             {
                 continue;
             }
-            // Skip glyphs under the link tooltip so its (opaque) box reads.
-            if let Some((rect, _)) = &tooltip
-                && x + cell_w > rect.x
-                && x < rect.x + rect.width
-                && y + cell_h > rect.y
-                && y < rect.y + rect.height
-            {
-                continue;
-            }
-
             let mut fg = cd.fg;
             let mut bg = cd.bg;
             // The glyph actually drawn for this cell. Privacy Mode swaps it
@@ -1922,19 +1958,23 @@ where
                 }
             }
 
-            // Privacy Mode masking: cells inside an IP / user@host span get a
-            // muted redaction mark. Alphanumerics draw an inset filled bar
-            // (drawn after the background, below) instead of a full-block
-            // glyph: the bar is shorter than the cell, so adjacent masked
-            // lines keep a gap rather than merging into a solid wall. The
-            // separators (`.` / `@` / `-`) keep their real glyph in the same
-            // muted tone, so the value still reads as `▮▮▮.▮.▮`. The span the
-            // cursor hovers is revealed, the same hover-reveal as links.
+            // Privacy Mode masking: cells inside a privacy span (IP,
+            // user@host, home-dir username, saved hostname) draw an inset
+            // filled bar (after the background, below) instead of their
+            // glyph. Every cell of the span is masked, separators
+            // included: a visible `.` / `@` / `:` would reveal the
+            // value's shape (octet count, username length), so the whole
+            // token reads as one solid block. The vertical inset keeps
+            // stacked masked lines from merging into a wall. The span the
+            // cursor hovers is revealed (same hover-reveal as links), and
+            // click-pinned values stay revealed.
             let mut mask_bar = false;
             if self.privacy && is_privacy_cell(&highlights, cd.row, cd.col) {
-                let revealed = hovered_privacy_extent.is_some_and(|(r, sc, ec)| {
+                let in_extent = |&(r, sc, ec): &(u16, u16, u16)| {
                     cd.row == r && cd.col >= sc && cd.col <= ec
-                });
+                };
+                let revealed = hovered_privacy_extent.as_ref().is_some_and(in_extent)
+                    || pinned_extents.iter().any(in_extent);
                 if !revealed {
                     // Opaque tone blended toward the background so it reads as
                     // a flat redaction mark (no alpha bleed tinting it teal).
@@ -1944,10 +1984,8 @@ where
                         b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
                         a: 1.0,
                     };
-                    if glyph.is_alphanumeric() {
-                        mask_bar = true;
-                        glyph = ' ';
-                    }
+                    mask_bar = true;
+                    glyph = ' ';
                 }
             }
 
@@ -2052,7 +2090,7 @@ where
 
             // Underline, from explicit ANSI SGR flags, or for URL
             // cells that the cursor is currently hovering over (the
-            // visual cue paired with the Pointer cursor + tooltip).
+            // visual cue paired with the Pointer cursor).
             // Other URLs in the viewport stay un-underlined to avoid
             // looking like every link is independently clickable.
             let is_hovered_url = hovered_url_extent.is_some_and(|(r, sc, ec)| {
@@ -2147,45 +2185,6 @@ where
                 Size::new(sb.track_w, sb.thumb_h),
                 Color { a: thumb_alpha, ..palette.foreground },
             );
-        }
-
-        // "Ctrl + Click to open the link" tooltip, painted near the
-        // hovered URL with a small offset so it doesn't sit directly
-        // under the cursor. Stays put once anchored to the URL row;
-        // we don't follow per-pixel mouse moves to avoid jitter.
-        // The text comes localized from the app; `None` means the user
-        // already knows the gesture and the hint stays hidden.
-        //
-        // Drawn into the main `frame` over the cells that were skipped above,
-        // with an opaque background. Width comes from the measured text so the
-        // label is never clipped (see the `tooltip` computation).
-        if let Some((rect, hint)) = &tooltip {
-            let bg = Color { a: 1.0, ..palette.background };
-            let border = Color { a: 0.6, ..palette.foreground };
-            frame.fill_rectangle(rect.position(), rect.size(), bg);
-            // Lightweight 1px border (4 edges).
-            frame.fill_rectangle(rect.position(), Size::new(rect.width, 1.0), border);
-            frame.fill_rectangle(
-                Point::new(rect.x, rect.y + rect.height - 1.0),
-                Size::new(rect.width, 1.0),
-                border,
-            );
-            frame.fill_rectangle(rect.position(), Size::new(1.0, rect.height), border);
-            frame.fill_rectangle(
-                Point::new(rect.x + rect.width - 1.0, rect.y),
-                Size::new(1.0, rect.height),
-                border,
-            );
-            frame.fill_text(CanvasText {
-                content: hint.clone(),
-                position: Point::new(rect.x + 10.0, rect.y + rect.height / 2.0),
-                color: palette.foreground,
-                size: Pixels(11.0),
-                font: self.font,
-                align_x: alignment::Horizontal::Left.into(),
-                align_y: alignment::Vertical::Center,
-                ..Default::default()
-            });
         }
 
         if let (Some(start), true) = (draw_start, perf_on) {
@@ -2288,8 +2287,6 @@ where
             }
         }
 
-        // The link tooltip (when present) is a second layer composited above
-        // the cell geometry so its background covers the glyphs underneath.
         let mut geometries = vec![frame.into_geometry()];
         // Visual bell: a brief translucent wash over the whole pane, its own
         // top layer so it sits above every glyph. A short timer in the app
@@ -2328,5 +2325,61 @@ fn brighten_named(color: &alacritty_terminal::vte::ansi::Color) -> alacritty_ter
         }
         AnsiColor::Indexed(idx) if *idx < 8 => AnsiColor::Indexed(idx + 8),
         other => *other,
+    }
+}
+
+#[cfg(test)]
+mod mouse_report_tests {
+    use super::*;
+
+    fn view_and_state() -> (TerminalView<()>, TerminalWidgetState) {
+        let term = TerminalState::new_no_pty(80, 24).unwrap();
+        let view = TerminalView::new(Arc::new(Mutex::new(term)));
+        (view, TerminalWidgetState::default())
+    }
+
+    fn bounds() -> Rectangle {
+        Rectangle::new(Point::ORIGIN, iced::Size::new(800.0, 480.0))
+    }
+
+    /// SGR click tracking (mc, htop). Regression for the "must hold
+    /// Shift to click the sidebar" report: a release whose press was
+    /// never reported (it landed on a sibling widget, so the cursor is
+    /// outside the canvas and no press is tracked) must NOT be consumed
+    /// by the report path; capturing it starves sibling `button`s,
+    /// which fire on release.
+    #[test]
+    fn untracked_release_is_not_reported() {
+        use alacritty_terminal::term::TermMode;
+        let (view, mut ws) = view_and_state();
+        let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
+        let ev = iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        // Cursor over the sidebar (outside the canvas), no tracked press.
+        let cursor = mouse::Cursor::Available(Point::new(2000.0, 100.0));
+        assert!(ws.report_button.is_none());
+        let action = view.handle_mouse_report(&mut ws, &ev, bounds(), cursor, mode, 80, 24);
+        assert!(action.is_none(), "sidebar release must stay local");
+    }
+
+    /// The canvas-originated press → drag off-canvas → release flow must
+    /// still report the release (apps need the button-up to end a drag),
+    /// falling back to the last reported cell.
+    #[test]
+    fn tracked_release_still_reports_after_leaving_canvas() {
+        use alacritty_terminal::term::TermMode;
+        let (view, mut ws) = view_and_state();
+        let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
+
+        let press = iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let inside = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        let action = view.handle_mouse_report(&mut ws, &press, bounds(), inside, mode, 80, 24);
+        assert!(action.is_some(), "on-canvas press must be reported");
+        assert_eq!(ws.report_button, Some(ReportButton::Left));
+
+        let release = iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        let outside = mouse::Cursor::Available(Point::new(2000.0, 100.0));
+        let action = view.handle_mouse_report(&mut ws, &release, bounds(), outside, mode, 80, 24);
+        assert!(action.is_some(), "release of a reported press must land");
+        assert!(ws.report_button.is_none(), "press tracking cleared on release");
     }
 }

@@ -378,10 +378,11 @@ impl Oryxis {
                 }
             }
             Message::ShowCloudCardMenu(id) => {
+                let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::CloudProfileActions(id),
-                    x: self.mouse_position.x,
-                    y: self.mouse_position.y,
+                    x: anchor.0,
+                    y: anchor.1,
                 });
             }
             Message::CloudCardHovered(id) => {

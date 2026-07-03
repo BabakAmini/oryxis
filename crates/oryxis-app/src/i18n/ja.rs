@@ -179,6 +179,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "右のペインにフォーカス",
         "hotkey_focus_pane_up" => "上のペインにフォーカス",
         "hotkey_focus_pane_down" => "下のペインにフォーカス",
+        "hotkey_vault_section_prev" => "前のボールトセクション",
+        "hotkey_vault_section_next" => "次のボールトセクション",
         "detecting_shells" => "シェルを検出中…",
 
         "create_host" => "ホストを作成",
@@ -700,6 +702,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "新しいタブ",
         "tabs" => "タブ",
         "quick_connect" => "クイック接続",
+        "quick_connect_hint" => "Enter で接続",
+        "quick_connect_not_saved" => "ボールトに保存せずに接続します",
+        "quick_connect_save_host" => "ホストをボールトに保存",
+        "connect_without_saving" => "保存せずに接続",
+        "quick_connect_hostname_required" => "ホスト名は必須です",
         "local_terminal" => "ローカルターミナル",
         "search_tabs" => "タブを検索",
         "jump_to" => "ジャンプ",
@@ -769,6 +776,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "実行",
         "ai_tool_always" => "常に",
         "ai_tool_deny" => "拒否",
+        "ai_mode_plan" => "計画",
+        "ai_mode_ask" => "確認",
+        "ai_mode_auto" => "自動",
+        "ai_mode_plan_tip" => "計画：読み取り専用の調査、変更は実行しません",
+        "ai_mode_ask_tip" => "確認：すべてのコマンドを実行前に確認",
+        "ai_mode_auto_tip" => "自動：安全なコマンドを実行し、危険なものは確認",
         "retry" => "再試行",
 
         // SFTP view
@@ -1100,7 +1113,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "言語フォントをダウンロード中...",
         "cjk_font_failed" => "言語フォントをダウンロードできませんでした。システムフォントを使用します。",
 
-        "terminal_link_hint" => "Ctrl + クリックでリンクを開く",
+        "terminal_link_hint" => "Ctrl を押しながらクリックするとリンクを開きます。",
         "mouse_capture_hint" => "マウスモードが有効です。Shift を押しながらテキストを選択。",
         "terminal_hints" => "ターミナルのヒント",
         "terminal_hints_desc" => "マウスキャプチャの通知や Ctrl + クリックのリンクヒントなどを表示するタイミング。",

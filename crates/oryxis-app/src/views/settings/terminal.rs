@@ -5,8 +5,13 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn view_settings_terminal(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order: the sections below
+        // are deliberately CONSTRUCTED in the same order they render
+        // (recording happens at construction), so keep any new section
+        // in its on-screen position.
+        self.keynav_settings_reset();
         let mut toggles_col: iced::widget::Column<'_, Message> = column![
-            toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::ToggleCopyOnSelect),
+            self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::ToggleCopyOnSelect),
         ];
         // Sub-option, only meaningful while copy-on-select is on.
         // Indent it on the leading edge so it reads as nested.
@@ -19,7 +24,7 @@ impl Oryxis {
             toggles_col = toggles_col
                 .push(Space::new().height(8))
                 .push(
-                    container(toggle_row(
+                    container(self.nav_toggle_row(
                         crate::i18n::t("copy_requires_right_click"),
                         self.setting_right_click_copy,
                         Message::ToggleRightClickCopy,
@@ -32,7 +37,7 @@ impl Oryxis {
         // the power-user opt-out.
         toggles_col = toggles_col
             .push(Space::new().height(10))
-            .push(toggle_row(
+            .push(self.nav_toggle_row(
                 crate::i18n::t("careful_paste_label"),
                 self.setting_careful_paste,
                 Message::ToggleCarefulPaste,
@@ -46,74 +51,118 @@ impl Oryxis {
         // Selection / clipboard behaviour.
         let toggles_section = panel_section(toggles_col);
 
-        // Text rendering toggles (their own card so they sit under
-        // the Appearance group, not mixed with clipboard behaviour).
-        let text_render_section = panel_section(column![
-            toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::ToggleBoldIsBright),
-            Space::new().height(10),
-            toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
-            Space::new().height(10),
-            toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
-            Space::new().height(10),
-            toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::ToggleTerminalAutoTitle),
-            Space::new().height(10),
+        // Word delimiters + scrollback are constructed here (they render
+        // right after the toggles card) so their keyboard rows record in
+        // visual order.
+        let word_delimiters_section = panel_section(column![
+            text(crate::i18n::t("word_delimiters")).size(13).color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_word_delimiters_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
             dir_row(vec![
-                text(crate::i18n::t("terminal_bell")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                pick_list(
-                    Some(crate::i18n::t(self.setting_bell_mode.label_key()).to_string()),
-                    crate::util::BellMode::ALL
-                        .iter()
-                        .map(|m| crate::i18n::t(m.label_key()).to_string())
-                        .collect::<Vec<_>>(),
-                    |s: &String| s.clone(),
-                )
-                .on_select(Message::BellModeChanged)
-                .width(200)
-                .padding(10)
-                .style(crate::widgets::rounded_pick_list_style)
-                .into(),
-            ]).align_y(iced::Alignment::Center),
-            Space::new().height(10),
-            dir_row(vec![
-                text(crate::i18n::t("terminal_clipboard")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                pick_list(
-                    Some(crate::i18n::t(self.setting_clipboard_access.label_key()).to_string()),
-                    crate::util::ClipboardAccess::ALL
-                        .iter()
-                        .map(|m| crate::i18n::t(m.label_key()).to_string())
-                        .collect::<Vec<_>>(),
-                    |s: &String| s.clone(),
-                )
-                .on_select(Message::ClipboardAccessChanged)
-                .width(200)
-                .padding(10)
-                .style(crate::widgets::rounded_pick_list_style)
-                .into(),
-            ]).align_y(iced::Alignment::Center),
-            Space::new().height(10),
-            dir_row(vec![
-                text(crate::i18n::t("terminal_notification")).size(13).color(OryxisColors::t().text_secondary).into(),
-                Space::new().width(Length::Fill).into(),
-                pick_list(
-                    Some(crate::i18n::t(self.setting_notification_mode.label_key()).to_string()),
-                    crate::util::NotificationMode::ALL
-                        .iter()
-                        .map(|m| crate::i18n::t(m.label_key()).to_string())
-                        .collect::<Vec<_>>(),
-                    |s: &String| s.clone(),
-                )
-                .on_select(Message::NotificationModeChanged)
-                .width(200)
-                .padding(10)
-                .style(crate::widgets::rounded_pick_list_style)
-                .into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-word-delimiters")),
+                    10.0,
+                    text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.setting_word_delimiters)
+                        .id(iced::widget::Id::new("set-terminal-word-delimiters"))
+                        .on_input(Message::SettingWordDelimitersChanged)
+                        .padding(10)
+                        .width(240)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().width(8).into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SettingResetWordDelimiters),
+                    6.0,
+                    styled_button(
+                        crate::i18n::t("word_delimiters_reset"),
+                        Message::SettingResetWordDelimiters,
+                        OryxisColors::t().bg_selected,
+                    ),
+                ),
             ]).align_y(iced::Alignment::Center),
         ]);
 
+        let scrollback_section = panel_section(column![
+            text(crate::i18n::t("scrollback")).size(13).color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_scrollback_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-scrollback")),
+                10.0,
+                text_input("10000", &self.setting_scrollback_rows)
+                    .id(iced::widget::Id::new("set-terminal-scrollback"))
+                    .on_input(Message::SettingScrollbackChanged)
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
+        ]);
+
+        // Text rendering toggles (their own card so they sit under
+        // the Appearance group, not mixed with clipboard behaviour).
+        let text_render_section = panel_section(column![
+            self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::ToggleBoldIsBright),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::ToggleTerminalAutoTitle),
+            Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("terminal_bell"),
+                crate::util::BellMode::ALL
+                    .iter()
+                    .map(|m| crate::i18n::t(m.label_key()).to_string())
+                    .collect::<Vec<_>>(),
+                crate::i18n::t(self.setting_bell_mode.label_key()).to_string(),
+                |s: &String| s.clone(),
+                200.0,
+                Message::BellModeChanged,
+            ),
+            Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("terminal_clipboard"),
+                crate::util::ClipboardAccess::ALL
+                    .iter()
+                    .map(|m| crate::i18n::t(m.label_key()).to_string())
+                    .collect::<Vec<_>>(),
+                crate::i18n::t(self.setting_clipboard_access.label_key()).to_string(),
+                |s: &String| s.clone(),
+                200.0,
+                Message::ClipboardAccessChanged,
+            ),
+            Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("terminal_notification"),
+                crate::util::NotificationMode::ALL
+                    .iter()
+                    .map(|m| crate::i18n::t(m.label_key()).to_string())
+                    .collect::<Vec<_>>(),
+                crate::i18n::t(self.setting_notification_mode.label_key()).to_string(),
+                |s: &String| s.clone(),
+                200.0,
+                Message::NotificationModeChanged,
+            ),
+        ]);
+
+        // The +/- stepper maps naturally onto the picker action:
+        // Left decreases, Right increases the font size.
         let font_size_section = panel_section(column![
-            dir_row(vec![
+            self.settings_nav_slot(
+                crate::keynav::RowAction::picker(
+                    Some(Message::TerminalFontSizeDecrease),
+                    Some(Message::TerminalFontSizeIncrease),
+                ),
+                8.0,
+                dir_row(vec![
                 text(crate::i18n::t("terminal_font_size")).size(13).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(
@@ -151,116 +200,8 @@ impl Oryxis {
                         ..Default::default()
                     }
                 }).into(),
-            ]).align_y(iced::Alignment::Center),
-        ]);
-
-        let scrollback_section = panel_section(column![
-            text(crate::i18n::t("scrollback")).size(13).color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("setting_scrollback_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            text_input("10000", &self.setting_scrollback_rows)
-                .on_input(Message::SettingScrollbackChanged)
-                .padding(10)
-                .width(240)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-        ]);
-
-        let word_delimiters_section = panel_section(column![
-            text(crate::i18n::t("word_delimiters")).size(13).color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("setting_word_delimiters_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            dir_row(vec![
-                text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.setting_word_delimiters)
-                    .on_input(Message::SettingWordDelimitersChanged)
-                    .padding(10)
-                    .width(240)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-                Space::new().width(8).into(),
-                styled_button(
-                    crate::i18n::t("word_delimiters_reset"),
-                    Message::SettingResetWordDelimiters,
-                    OryxisColors::t().bg_selected,
-                ),
-            ]).align_y(iced::Alignment::Center),
-        ]);
-
-        // Terminal theme picker. First card is the "follow
-        // app theme" sentinel (terminal_theme_override = None);
-        // the rest are explicit palette previews so the user
-        // can compare colours without applying each one. Per-host
-        // overrides configured via the icon picker still win
-        // over this global pick.
-        let mut theme_cards: Vec<Element<'_, Message>> = Vec::new();
-        // The sentinel renders as a real palette card previewing
-        // the app-theme-derived palette (every app theme has a
-        // same-named terminal palette), instead of the old
-        // input-looking box that read as a text field.
-        let app_theme_name = crate::theme::AppTheme::active().name();
-        let follow_palette = self
-            .terminal_palette_for_name(app_theme_name)
-            .unwrap_or_default();
-        let follow_label =
-            format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
-        theme_cards.push(crate::widgets::terminal_theme_card(
-            follow_palette,
-            &follow_label,
-            self.terminal_theme_override.is_none(),
-            Message::TerminalThemeChanged(String::new()),
-        ));
-        for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
-            let is_selected = self
-                .terminal_theme_override
-                .as_deref()
-                == Some(theme.name());
-            theme_cards.push(crate::widgets::terminal_theme_card(
-                theme.palette(),
-                theme.name(),
-                is_selected,
-                Message::TerminalThemeChanged(theme.name().to_string()),
-            ));
-        }
-        // User-defined themes after the built-ins, each with the
-        // hover edit / delete affordances.
-        for (idx, ct) in self.custom_terminal_themes.iter().enumerate() {
-            let is_selected =
-                self.terminal_theme_override.as_deref() == Some(ct.name.as_str());
-            let palette = self
-                .terminal_palette_for_name(&ct.name)
-                .unwrap_or_default();
-            theme_cards.push(self.terminal_custom_theme_card(
-                idx,
-                &ct.name,
-                palette,
-                is_selected,
-            ));
-        }
-        // "+ New custom theme" + "Import" cards last.
-        theme_cards.push(crate::views::settings_themes::terminal_theme_add_card());
-        theme_cards.push(crate::views::settings_themes::terminal_theme_import_card());
-        // 2-column responsive grid for theme cards. Cards still
-        // use the existing swatch-+-name layout (the "bolinhas"
-        // style); only the row arrangement changes from a single
-        // tall column to a side-by-side pair so the picker
-        // doesn't dominate the settings panel vertically.
-        let theme_grid = crate::widgets::distribute_card_grid(
-            theme_cards,
-            2,
-            8.0,
-            8.0,
-        );
-        let theme_picker_section = panel_section(column![
-            text(t("terminal_theme")).size(13).color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("terminal_theme_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(10),
-            theme_grid,
+                ]).align_y(iced::Alignment::Center).into(),
+            ),
         ]);
 
         // Font picker. The list comes from a fontdb scan of
@@ -327,21 +268,137 @@ impl Oryxis {
             },
             ..Default::default()
         });
+        // Left/Right cycle the installed fonts without opening the
+        // dropdown; `fonts` is a `'static` slice so cycle_pair borrows
+        // it directly.
+        let (font_prev, font_next) = crate::keynav::slots::cycle_pair(
+            fonts,
+            &self.terminal_font_name,
+            Message::TerminalFontChanged,
+        );
         let font_picker_section = panel_section(column![
             text(crate::i18n::t("terminal_font")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_font_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            pick_list(
-                Some(self.terminal_font_name.clone()),
-                fonts,
-                |s: &String| s.clone(),
-            )
-            .on_select(Message::TerminalFontChanged)
-            .width(260).padding(10).style(crate::widgets::rounded_pick_list_style),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::picker(font_prev, font_next),
+                8.0,
+                pick_list(
+                    Some(self.terminal_font_name.clone()),
+                    fonts,
+                    |s: &String| s.clone(),
+                )
+                .on_select(Message::TerminalFontChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ),
             Space::new().height(12),
             font_preview,
+        ]);
+
+        // Terminal theme picker. First card is the "follow
+        // app theme" sentinel (terminal_theme_override = None);
+        // the rest are explicit palette previews so the user
+        // can compare colours without applying each one. Per-host
+        // overrides configured via the icon picker still win
+        // over this global pick. Each card is a keyboard row (Enter
+        // applies / opens it); built after the font picker so the
+        // recording matches the render order.
+        let mut theme_cards: Vec<Element<'_, Message>> = Vec::new();
+        // The sentinel renders as a real palette card previewing
+        // the app-theme-derived palette (every app theme has a
+        // same-named terminal palette), instead of the old
+        // input-looking box that read as a text field.
+        let app_theme_name = crate::theme::AppTheme::active().name();
+        let follow_palette = self
+            .terminal_palette_for_name(app_theme_name)
+            .unwrap_or_default();
+        let follow_label =
+            format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
+        theme_cards.push(self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::TerminalThemeChanged(String::new())),
+            10.0,
+            crate::widgets::terminal_theme_card(
+                follow_palette,
+                &follow_label,
+                self.terminal_theme_override.is_none(),
+                Message::TerminalThemeChanged(String::new()),
+            ),
+        ));
+        for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
+            let is_selected = self
+                .terminal_theme_override
+                .as_deref()
+                == Some(theme.name());
+            theme_cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::TerminalThemeChanged(
+                    theme.name().to_string(),
+                )),
+                10.0,
+                crate::widgets::terminal_theme_card(
+                    theme.palette(),
+                    theme.name(),
+                    is_selected,
+                    Message::TerminalThemeChanged(theme.name().to_string()),
+                ),
+            ));
+        }
+        // User-defined themes after the built-ins, each with the
+        // hover edit / delete affordances. Enter applies the theme
+        // (the card's own click action); edit / delete stay
+        // hover-only.
+        for (idx, ct) in self.custom_terminal_themes.iter().enumerate() {
+            let is_selected =
+                self.terminal_theme_override.as_deref() == Some(ct.name.as_str());
+            let palette = self
+                .terminal_palette_for_name(&ct.name)
+                .unwrap_or_default();
+            theme_cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::TerminalThemeChanged(
+                    ct.name.clone(),
+                )),
+                10.0,
+                self.terminal_custom_theme_card(
+                    idx,
+                    &ct.name,
+                    palette,
+                    is_selected,
+                ),
+            ));
+        }
+        // "+ New custom theme" + "Import" cards last.
+        theme_cards.push(self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ThemeEditorNew),
+            10.0,
+            crate::views::settings_themes::terminal_theme_add_card(),
+        ));
+        theme_cards.push(self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ThemeImportOpen),
+            10.0,
+            crate::views::settings_themes::terminal_theme_import_card(),
+        ));
+        // 2-column responsive grid for theme cards. Cards still
+        // use the existing swatch-+-name layout (the "bolinhas"
+        // style); only the row arrangement changes from a single
+        // tall column to a side-by-side pair so the picker
+        // doesn't dominate the settings panel vertically.
+        let theme_grid = crate::widgets::distribute_card_grid(
+            theme_cards,
+            2,
+            8.0,
+            8.0,
+        );
+        let theme_picker_section = panel_section(column![
+            text(t("terminal_theme")).size(13).color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("terminal_theme_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+            theme_grid,
         ]);
 
         // Grouped under "h2" headers, same pattern as Interface:
@@ -380,6 +437,9 @@ impl Oryxis {
             )
             .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-terminal-scroll"))
         .height(Length::Fill)
         .into()
     }

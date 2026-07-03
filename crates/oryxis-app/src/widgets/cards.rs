@@ -17,6 +17,41 @@ pub(crate) fn accent_gradient(glow: Color, base: Color) -> Background {
             .add_stop(1.0, base),
     ))
 }
+/// Overlay a 2px accent focus ring on a keyboard-selected card. Drawn as
+/// a `Stack` overlay so it doesn't change the element's footprint, with
+/// the same 10px radius as the cards. Sub-nav pills and other tighter
+/// controls use `select_ring_radius` to match their own corner radius.
+pub(crate) fn select_ring<'a>(el: Element<'a, Message>) -> Element<'a, Message> {
+    select_ring_radius(el, 10.0)
+}
+
+/// `select_ring` with an explicit corner radius.
+pub(crate) fn select_ring_radius<'a>(el: Element<'a, Message>, radius: f32) -> Element<'a, Message> {
+    select_ring_colored(el, radius, OryxisColors::t().accent)
+}
+
+/// `select_ring` with an explicit corner radius AND color. Accent is
+/// the default selection language, but accent-filled controls (the
+/// toolbar buttons) need a contrasting ring or it disappears into
+/// their own background; those pass `text_primary`.
+pub(crate) fn select_ring_colored<'a>(
+    el: Element<'a, Message>,
+    radius: f32,
+    color: Color,
+) -> Element<'a, Message> {
+    let ring = container(Space::new().width(Length::Fill).height(Length::Fill)).style(move |_| {
+        container::Style {
+            border: Border {
+                radius: Radius::from(radius),
+                color,
+                width: 2.0,
+            },
+            ..Default::default()
+        }
+    });
+    Stack::new().push(el).push(ring).into()
+}
+
 /// Soft left-to-right accent wash on a card: the card's own colour
 /// (host brand / group / key / snippet colour) at low alpha on the left
 /// edge fading to transparent across the card. The colour is first toned

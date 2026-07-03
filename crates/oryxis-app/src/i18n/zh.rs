@@ -179,6 +179,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "聚焦右侧窗格",
         "hotkey_focus_pane_up" => "聚焦上方窗格",
         "hotkey_focus_pane_down" => "聚焦下方窗格",
+        "hotkey_vault_section_prev" => "上一个保险库区域",
+        "hotkey_vault_section_next" => "下一个保险库区域",
         "detecting_shells" => "正在检测终端…",
 
         "create_host" => "创建主机",
@@ -700,6 +702,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "新标签",
         "tabs" => "标签",
         "quick_connect" => "快速连接",
+        "quick_connect_hint" => "按 Enter 连接",
+        "quick_connect_not_saved" => "连接后不会保存到保险库",
+        "quick_connect_save_host" => "保存主机到保险库",
+        "connect_without_saving" => "连接但不保存",
+        "quick_connect_hostname_required" => "主机名为必填项",
         "local_terminal" => "本地终端",
         "search_tabs" => "搜索标签",
         "jump_to" => "跳转到",
@@ -769,6 +776,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "运行",
         "ai_tool_always" => "始终",
         "ai_tool_deny" => "拒绝",
+        "ai_mode_plan" => "计划",
+        "ai_mode_ask" => "询问",
+        "ai_mode_auto" => "自动",
+        "ai_mode_plan_tip" => "计划：只读调查，绝不执行更改",
+        "ai_mode_ask_tip" => "询问：每个命令执行前都确认",
+        "ai_mode_auto_tip" => "自动：执行安全命令，确认有风险的命令",
         "retry" => "重试",
 
         // SFTP view
@@ -1098,7 +1111,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "正在下载语言字体...",
         "cjk_font_failed" => "无法下载语言字体，将使用系统字体。",
 
-        "terminal_link_hint" => "Ctrl + 点击打开链接",
+        "terminal_link_hint" => "按住 Ctrl 并点击以打开链接。",
         "mouse_capture_hint" => "鼠标模式已启用。按住 Shift 选择文本。",
         "terminal_hints" => "终端提示",
         "terminal_hints_desc" => "何时显示提示，例如鼠标捕获提示和 Ctrl + 点击链接提示。",

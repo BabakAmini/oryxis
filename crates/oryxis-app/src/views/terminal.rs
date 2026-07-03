@@ -176,23 +176,22 @@ impl Oryxis {
             .with_bold_is_bright(self.setting_bold_is_bright)
             .with_keyword_highlight(self.setting_keyword_highlight)
             .with_privacy(self.privacy_active_for_label(&pane.label))
+            .with_privacy_terms(&self.privacy_terms())
             .with_smart_contrast(self.setting_smart_contrast)
             .with_word_delimiters(&self.setting_word_delimiters)
             .on_font_size_increase(Message::TerminalFontSizeIncrease)
             .on_font_size_decrease(Message::TerminalFontSizeDecrease)
             .on_paste_request(Message::TerminalPasteFromClipboard)
             .on_terminal_input(Message::TerminalInput)
-            .with_link_hint(
-                self.setting_hint_mode
-                    .should_show(pane.link_hint_shown)
-                    .then(|| crate::i18n::t("terminal_link_hint").to_string()),
-            )
             .on_link_opened(Message::TerminalLinkOpened);
-        // Wire the mouse-capture hint only while it should still show for
+        // Wire the teaching hints only while they should still show for
         // this pane, so the widget stops emitting once HintMode::Once has
-        // retired it (and never emits under Never).
+        // retired them (and never emits under Never).
         if self.setting_hint_mode.should_show(pane.mouse_hint_shown) {
             term_view = term_view.on_mouse_capture_hint(|| Message::TerminalMouseCaptureHint);
+        }
+        if self.setting_hint_mode.should_show(pane.link_hint_shown) {
+            term_view = term_view.on_link_click_hint(|| Message::TerminalLinkClickHint);
         }
         // Wrap the canvas so the focused pane asks the OS to enable its IME.
         // The terminal is a canvas (not a text_input), so without this winit
@@ -317,7 +316,7 @@ impl Oryxis {
             .last()
             .map(|m| m.role == crate::state::ChatRole::Assistant && !m.content.is_empty())
             .unwrap_or(false);
-        if self.chat_loading && !actively_streaming {
+        if tab.chat_loading && !actively_streaming {
             messages_col = messages_col.push(
                 container(
                     text(t("thinking")).size(12).color(OryxisColors::t().text_muted),
@@ -383,7 +382,7 @@ impl Oryxis {
             });
 
         let input_row = container(
-            container(chat_editor).max_height(150.0),
+            container(chat_editor).height(Length::Shrink.max(150.0)),
         )
         .padding(Padding { top: 8.0, right: 12.0, bottom: 12.0, left: 12.0 })
         .width(Length::Fill);
@@ -416,56 +415,89 @@ impl Oryxis {
         .align_x(crate::widgets::dir_align_x());
 
         // While a chat task is in flight (streaming a reply or auto-running
-        // a tool chain) offer an explicit Stop. It aborts the live task so a
-        // runaway tool loop can be halted by hand, without closing the panel.
-        let stop_control: Element<'_, Message> = if self.chat_task.is_some() {
-            container(
-                button(
-                    dir_row(vec![
-                        iced_fonts::lucide::circle_stop()
-                            .size(12)
-                            .color(OryxisColors::t().text_primary)
-                            .into(),
-                        text(t("chat_stop"))
-                            .size(11)
-                            .color(OryxisColors::t().text_primary)
-                            .into(),
-                    ])
-                    .spacing(6)
-                    .align_y(iced::Alignment::Center),
-                )
-                .padding(Padding { top: 4.0, right: 12.0, bottom: 4.0, left: 12.0 })
-                .on_press(Message::ChatStop)
-                .style(|_, status| {
-                    let c = OryxisColors::t();
-                    let bg = match status {
-                        BtnStatus::Hovered => c.button_bg_hover,
-                        _ => c.button_bg,
-                    };
-                    button::Style {
-                        background: Some(Background::Color(bg)),
-                        text_color: c.text_primary,
-                        border: Border {
-                            radius: Radius::from(8.0),
-                            width: 1.0,
-                            color: c.border,
-                        },
-                        ..Default::default()
-                    }
-                }),
+        // a tool chain) offer an explicit Stop, floating over the bottom of
+        // the message list (not inline) so it stays reachable without pushing
+        // the conversation around. It aborts the live task so a runaway tool
+        // loop can be halted by hand, without closing the panel. Per-tab:
+        // shown only when THIS tab has work in flight.
+        let stop_overlay: Option<Element<'_, Message>> = tab.chat_task.is_some().then(|| {
+            let pill = button(
+                dir_row(vec![
+                    iced_fonts::lucide::circle_stop()
+                        .size(12)
+                        .color(OryxisColors::t().text_primary)
+                        .into(),
+                    text(t("chat_stop"))
+                        .size(11)
+                        .color(OryxisColors::t().text_primary)
+                        .into(),
+                ])
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
             )
-            .center_x(Length::Fill)
-            .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
-            .into()
-        } else {
-            Space::new().into()
+            .padding(Padding { top: 5.0, right: 14.0, bottom: 5.0, left: 14.0 })
+            .on_press(Message::ChatStop)
+            .style(|_, status| {
+                let c = OryxisColors::t();
+                let bg = match status {
+                    BtnStatus::Hovered => c.button_bg_hover,
+                    _ => c.button_bg,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: c.text_primary,
+                    border: Border {
+                        radius: Radius::from(16.0),
+                        width: 1.0,
+                        color: c.border,
+                    },
+                    // A soft shadow lifts the pill off the messages behind it.
+                    shadow: iced::Shadow {
+                        color: Color { a: 0.25, ..Color::BLACK },
+                        offset: iced::Vector::new(0.0, 2.0),
+                        blur_radius: 8.0,
+                    },
+                    ..Default::default()
+                }
+            });
+            // Pin to bottom-center of the message area, floating above the
+            // separator/input.
+            container(pill)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center)
+                .align_y(iced::alignment::Vertical::Bottom)
+                .padding(Padding { top: 0.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                .into()
+        });
+
+        // Base is the scrollable message list; the Stop pill (when present)
+        // floats over its bottom edge via a Stack.
+        let messages_area: Element<'_, Message> = match stop_overlay {
+            Some(overlay) => iced::widget::Stack::new()
+                .push(messages_scroll)
+                .push(overlay)
+                .into(),
+            None => messages_scroll.into(),
         };
+
+        // Plan / Ask / Auto picker, sitting just above the input so the
+        // active mode is visible while typing. Reflects (and sets) THIS
+        // tab's mode.
+        let mode_row = container(
+            dir_row(vec![crate::views::sidebar_chat::chat_mode_picker(tab.chat_mode)])
+                .width(Length::Fill)
+                .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
+        .width(Length::Fill)
+        .align_x(crate::widgets::dir_align_x());
 
         // ── Assemble sidebar ──
         // Chat body (messages + input) is the content for the Chat tab;
         // the other tabs swap their own content in below the strip.
         let chat_body: Element<'_, Message> =
-            column![messages_scroll, input_separator, stop_control, chat_disclaimer, input_row]
+            column![messages_area, input_separator, mode_row, chat_disclaimer, input_row]
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into();
@@ -538,7 +570,7 @@ fn sidebar_tab_btn<'a>(
 
 /// Wrap an icon control in a small bottom-anchored tooltip, the shared
 /// affordance for the sidebar tab strip and close affordances.
-fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Element<'a, Message> {
+pub(crate) fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Element<'a, Message> {
     iced::widget::tooltip(
         inner,
         container(text(tip).size(11).color(OryxisColors::t().text_primary))

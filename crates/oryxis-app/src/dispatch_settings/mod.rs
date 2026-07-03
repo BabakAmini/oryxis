@@ -207,6 +207,25 @@ impl Oryxis {
         conn.privacy_mode.unwrap_or(self.setting_privacy_mode)
     }
 
+    /// Strings Privacy Mode masks literally wherever they appear (live
+    /// terminal + session-log viewer): every saved connection's host
+    /// address, lowercased and deduped. Plain DNS names have no
+    /// detectable shape (file extensions collide with ccTLDs: `main.rs`,
+    /// `install.sh` are FQDN-shaped), so the known values are matched
+    /// exactly instead of guessed. Very short hosts are dropped, masking
+    /// every "web" in sight would be noise, not privacy.
+    pub(crate) fn privacy_terms(&self) -> Vec<String> {
+        let mut terms: Vec<String> = self
+            .connections
+            .iter()
+            .map(|c| c.hostname.trim().to_ascii_lowercase())
+            .filter(|h| h.len() >= 4)
+            .collect();
+        terms.sort_unstable();
+        terms.dedup();
+        terms
+    }
+
     /// Privacy Mode for a terminal pane, resolved from its label. Host
     /// panes match a saved connection (so the per-host override applies);
     /// local shells / WSL / PowerShell fall back to the global default.
@@ -711,6 +730,17 @@ impl Oryxis {
                     self.editing_hotkey = None;
                 }
                 self.settings_section = section;
+                // Keyboard navigation: the old section's rows are gone;
+                // keep a sidebar (SubNav) selection alive through the
+                // switch (keynav's own Enter path sets the flag) so
+                // repeated Up/Down + Enter keep walking sections.
+                let keep = self.keynav.keep_focus_through_change_view;
+                self.keynav.keep_focus_through_change_view = false;
+                if !keep {
+                    self.keynav.focus = None;
+                }
+                self.keynav_clear_content();
+                self.keynav.settings_row_actions.borrow_mut().clear();
                 return Ok(self.renderer_info_task());
             }
             Message::RendererInfoLoaded(backend, adapter) => {
@@ -1363,6 +1393,16 @@ impl Oryxis {
                             let _ = tx.try_send(None);
                         }
                     }
+                    // Quick-connect entries hold typed plaintext credentials;
+                    // sweep the secrets but keep the connections themselves,
+                    // matching the soft-lock promise that live tabs survive.
+                    // A post-unlock reconnect of a password-based quick host
+                    // falls back to the interactive prompt.
+                    for entry in self.quick_connects.values_mut() {
+                        entry.password = None;
+                        entry.totp_secret = None;
+                        entry.proxy_password = None;
+                    }
                 }
             }
             Message::ConnectAnimTick => {
@@ -1415,7 +1455,10 @@ impl Oryxis {
                             return false;
                         }
                         let base = tab.label.trim_end_matches(" (disconnected)");
-                        let Some(conn) = self.connections.iter().find(|c| c.label == base) else {
+                        // Quick-connect hosts resolve via the same label
+                        // lookup; their counters key on the ephemeral id,
+                        // which is stable for the life of the entry.
+                        let Some(conn) = self.any_connection_by_label(base) else {
                             return false;
                         };
                         let attempts = self.reconnect_counters.get(&conn.id).copied().unwrap_or(0);
@@ -1426,8 +1469,8 @@ impl Oryxis {
                             .label
                             .trim_end_matches(" (disconnected)")
                             .to_string();
-                        if let Some(conn) = self.connections.iter().find(|c| c.label == base) {
-                            let entry = self.reconnect_counters.entry(conn.id).or_insert(0);
+                        if let Some(cid) = self.any_connection_by_label(&base).map(|c| c.id) {
+                            let entry = self.reconnect_counters.entry(cid).or_insert(0);
                             *entry += 1;
                         }
                         return Ok(Task::done(Message::ReconnectTab(tab_idx)));
@@ -1440,6 +1483,7 @@ impl Oryxis {
                     if self.vault_ui.has_user_password {
                         self.vault_ui.state = VaultState::Locked;
                         self.connections.clear();
+                        self.quick_connects.clear();
                         self.keys.clear();
                         self.snippets.clear();
                         self.groups.clear();

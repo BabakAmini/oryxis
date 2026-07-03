@@ -72,6 +72,20 @@ impl Oryxis {
                 .width(Length::Fixed(w))
                 .into();
         }
+        // Keyboard rows are recorded by `menu_item` / `sort_row` / the
+        // picker rows below, in render order. Plain row menus open
+        // with their first row selected (one Enter fires it); the
+        // search-driven group pickers start with no selection so
+        // typing stays primary; the split popover is hover-only.
+        self.modal_nav_reset();
+        if !matches!(
+            overlay.content,
+            OverlayContent::GroupPicker(_)
+                | OverlayContent::CloudDiscoverGroupPicker
+                | OverlayContent::SplitMenu
+        ) {
+            self.keynav.modal.default.set(Some(0));
+        }
         // Per-variant width. Group pickers track the live combo width
         // measured by their `bounds_reporter` so the popover always
         // matches the input it dropdowns from; sort menu gets a wider
@@ -90,15 +104,15 @@ impl Oryxis {
                     .and_then(|r| r.orphaned_at)
                     .is_some();
                 let mut items = column![
-                    context_menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::ConnectSsh(idx), OryxisColors::t().success),
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("copy_password"), Message::CopyHostPassword(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::ConnectSsh(idx), OryxisColors::t().success),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("copy_password"), Message::CopyHostPassword(idx), OryxisColors::t().text_secondary),
                 ];
                 if let Some(pid) = cloud_profile_id {
-                    items = items.push(context_menu_item(
+                    items = items.push(self.menu_item(
                         iced_fonts::lucide::funnel(),
                         crate::i18n::t("host_filter_by_profile"),
                         Message::HostFilterByCloudProfile(Some(pid)),
@@ -115,44 +129,44 @@ impl Oryxis {
                     (crate::i18n::t("remove"), iced_fonts::lucide::trash())
                 };
                 items
-                    .push(context_menu_item(remove_icon, remove_label, Message::RequestDeleteConnection(idx), OryxisColors::t().error))
+                    .push(self.menu_item(remove_icon, remove_label, Message::RequestDeleteConnection(idx), OryxisColors::t().error))
                     .into()
             }
             OverlayContent::SessionGroupActions(idx) => {
                 let idx = *idx;
                 column![
-                    context_menu_item(iced_fonts::lucide::play(), crate::i18n::t("open_session_group"), Message::OpenSessionGroup(idx), OryxisColors::t().success),
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSessionGroup(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateSessionGroup(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteSessionGroup(idx), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("open_session_group"), Message::OpenSessionGroup(idx), OryxisColors::t().success),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSessionGroup(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateSessionGroup(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteSessionGroup(idx), OryxisColors::t().error),
                 ]
                 .into()
             }
             OverlayContent::KeyActions(idx) => {
                 let idx = *idx;
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditKey(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditKey(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::IdentityActions(idx) => {
                 let idx = *idx;
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditIdentity(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteIdentity(idx), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditIdentity(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteIdentity(idx), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::SnippetActions(idx) => {
                 let idx = *idx;
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSnippet(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::RequestDeleteSnippet(idx), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSnippet(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::RequestDeleteSnippet(idx), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::KeychainAdd => {
                 column![
-                    context_menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::ShowKeyPanel, OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::ShowIdentityPanel, OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::ShowKeyPanel, OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::ShowIdentityPanel, OryxisColors::t().text_secondary),
                 ].into()
             }
             OverlayContent::FolderActions(gid) => {
@@ -165,29 +179,29 @@ impl Oryxis {
                 // anything (worst case the next Auto import creates a
                 // sibling). Surface the standard actions instead.
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditGroup(gid), OryxisColors::t().accent),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::StartDeleteFolder(gid), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditGroup(gid), OryxisColors::t().accent),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::StartDeleteFolder(gid), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::DynamicGroupActions(id) => {
                 let id = *id;
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditDynamicGroup(id), OryxisColors::t().accent),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditDynamicGroup(id), OryxisColors::t().accent),
                     // Rename = friendly display label only. The
                     // cloud_query (cluster/service/container) and the
                     // import-dedupe key never look at it, so renaming
                     // is safe and the subtitle keeps surfacing the
                     // original ECS path.
-                    context_menu_item(iced_fonts::lucide::text_cursor_input(), crate::i18n::t("rename"), Message::StartRenameFolder(id), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteDynamicGroup(id), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::text_cursor_input(), crate::i18n::t("rename"), Message::StartRenameFolder(id), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteDynamicGroup(id), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::CloudProfileActions(id) => {
                 let id = *id;
                 column![
-                    context_menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::ShowCloudForm(Some(id)), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::refresh_cw(), crate::i18n::t("cloud_profile_sync"), Message::CloudProfileSync(id), OryxisColors::t().accent),
-                    context_menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteCloudProfile(id), OryxisColors::t().error),
+                    self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::ShowCloudForm(Some(id)), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::refresh_cw(), crate::i18n::t("cloud_profile_sync"), Message::CloudProfileSync(id), OryxisColors::t().accent),
+                    self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteCloudProfile(id), OryxisColors::t().error),
                 ].into()
             }
             OverlayContent::CloudProviderPicker => {
@@ -199,13 +213,13 @@ impl Oryxis {
                 // they're reachable from where hosts are managed
                 // instead of being buried in Settings.
                 let mut items = column![
-                    context_menu_item(
+                    self.menu_item(
                         iced_fonts::lucide::download(),
                         crate::i18n::t("import_from_file"),
                         Message::ImportVault,
                         OryxisColors::t().text_secondary,
                     ),
-                    context_menu_item(
+                    self.menu_item(
                         iced_fonts::lucide::file_code(),
                         crate::i18n::t("import_ssh_config_btn"),
                         Message::ImportSshConfig,
@@ -217,7 +231,7 @@ impl Oryxis {
                 // the full-vault export in Settings. Pre-scoped to the
                 // active folder when one is open.
                 if !self.connections.is_empty() {
-                    items = items.push(context_menu_item(
+                    items = items.push(self.menu_item(
                         iced_fonts::lucide::upload(),
                         crate::i18n::t("export_hosts"),
                         Message::ShowExportHosts(self.active_group),
@@ -236,7 +250,7 @@ impl Oryxis {
                         &cp.provider,
                         OryxisColors::t().accent,
                     );
-                    items = items.push(context_menu_item(
+                    items = items.push(self.menu_item(
                         glyph,
                         cp.label.as_str(),
                         Message::ShowCloudDiscover(cp.id),
@@ -248,10 +262,10 @@ impl Oryxis {
             OverlayContent::TabActions(idx) => {
                 let idx = *idx;
                 let mut items = column![
-                    context_menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameTab(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameTab(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
                 ];
                 // Open an SFTP tab for this host: offered when the tab has a
                 // live SSH session to reuse or matches a saved connection (so
@@ -266,7 +280,14 @@ impl Oryxis {
                     })
                     .unwrap_or(false);
                 if can_sftp {
-                    items = items.push(context_menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForTab(idx), OryxisColors::t().text_secondary));
+                    items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForTab(idx), OryxisColors::t().text_secondary));
+                }
+                // Quick-connect tab: offer to persist the ad-hoc host into
+                // the vault (opens the editor prefilled as a new host).
+                if let Some(crate::state::PaneOrigin::QuickHost(qid)) =
+                    self.tabs.get(idx).map(|t| &t.active().origin)
+                {
+                    items = items.push(self.menu_item(iced_fonts::lucide::save(), crate::i18n::t("quick_connect_save_host"), Message::SaveQuickHost(*qid), OryxisColors::t().accent));
                 }
                 // Save the whole arrangement (panes + splits + per-pane
                 // scripts) as a reusable session group, or edit it if this
@@ -283,7 +304,7 @@ impl Oryxis {
                     } else {
                         crate::i18n::t("save_session_group")
                     };
-                    items = items.push(context_menu_item(iced_fonts::lucide::boxes(), sg_label, Message::ShowSaveSessionGroup(idx), OryxisColors::t().text_secondary));
+                    items = items.push(self.menu_item(iced_fonts::lucide::boxes(), sg_label, Message::ShowSaveSessionGroup(idx), OryxisColors::t().text_secondary));
                 }
                 // Pin / unpin: pinned tabs render first and restore on launch.
                 // The restore spec captures only a single pane's origin, so
@@ -297,7 +318,7 @@ impl Oryxis {
                     } else {
                         (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
                     };
-                    items = items.push(context_menu_item(pin_icon, pin_label, Message::ToggleTabPin(idx), OryxisColors::t().text_secondary));
+                    items = items.push(self.menu_item(pin_icon, pin_label, Message::ToggleTabPin(idx), OryxisColors::t().text_secondary));
                 }
                 // "Duplicate in New Window" spawns a fresh process that
                 // can only re-open hosts saved in the vault. ECS Exec /
@@ -311,12 +332,12 @@ impl Oryxis {
                     .map(|t| t.relaunch.is_none())
                     .unwrap_or(true);
                 if new_window_ok {
-                    items = items.push(context_menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("duplicate_new_window"), Message::DuplicateInNewWindow(idx), OryxisColors::t().text_secondary));
+                    items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("duplicate_new_window"), Message::DuplicateInNewWindow(idx), OryxisColors::t().text_secondary));
                 }
-                items = items.push(context_menu_item(iced_fonts::lucide::rotate_cw(), crate::i18n::t("reconnect"), Message::ReconnectTab(idx), OryxisColors::t().accent));
-                items = items.push(context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseTab(idx), OryxisColors::t().text_secondary));
-                items = items.push(context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::CloseOtherTabs(idx), OryxisColors::t().text_secondary));
-                items = items.push(context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_all_tabs"), Message::CloseAllTabs, OryxisColors::t().error));
+                items = items.push(self.menu_item(iced_fonts::lucide::rotate_cw(), crate::i18n::t("reconnect"), Message::ReconnectTab(idx), OryxisColors::t().accent));
+                items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseTab(idx), OryxisColors::t().text_secondary));
+                items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::CloseOtherTabs(idx), OryxisColors::t().text_secondary));
+                items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_all_tabs"), Message::CloseAllTabs, OryxisColors::t().error));
                 items.into()
             }
             OverlayContent::SftpTabActions(idx) => {
@@ -328,13 +349,13 @@ impl Oryxis {
                     (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
                 };
                 let mut items = column![
-                    context_menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::NewSftpTab, OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameSftpTab(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(pin_icon, pin_label, Message::ToggleSftpTabPin(idx), OryxisColors::t().text_secondary),
-                    context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseSftpTab(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::NewSftpTab, OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameSftpTab(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(pin_icon, pin_label, Message::ToggleSftpTabPin(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseSftpTab(idx), OryxisColors::t().text_secondary),
                 ];
                 if self.sftp_tabs.len() > 1 {
-                    items = items.push(context_menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::CloseOtherSftpTabs(idx), OryxisColors::t().text_secondary));
+                    items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::CloseOtherSftpTabs(idx), OryxisColors::t().text_secondary));
                 }
                 items.into()
             }
@@ -386,14 +407,14 @@ impl Oryxis {
                 })
                 .into();
                 column![
-                    crate::widgets::sort_menu_row(
+                    self.sort_row(
                         kind,
                         ListSort::LabelAsc,
                         iced_fonts::lucide::arrow_down_a_z::<iced::Theme, iced::Renderer>(),
                         "sort_label_asc",
                         current == ListSort::LabelAsc,
                     ),
-                    crate::widgets::sort_menu_row(
+                    self.sort_row(
                         kind,
                         ListSort::LabelDesc,
                         iced_fonts::lucide::arrow_down_z_a::<iced::Theme, iced::Renderer>(),
@@ -401,14 +422,14 @@ impl Oryxis {
                         current == ListSort::LabelDesc,
                     ),
                     divider,
-                    crate::widgets::sort_menu_row(
+                    self.sort_row(
                         kind,
                         ListSort::NewestFirst,
                         iced_fonts::lucide::calendar_arrow_down::<iced::Theme, iced::Renderer>(),
                         "sort_newest_first",
                         current == ListSort::NewestFirst,
                     ),
-                    crate::widgets::sort_menu_row(
+                    self.sort_row(
                         kind,
                         ListSort::OldestFirst,
                         iced_fonts::lucide::calendar_arrow_up::<iced::Theme, iced::Renderer>(),
@@ -506,42 +527,48 @@ impl Oryxis {
                     let mut items = column![].spacing(2);
                     for label in all_groups {
                         let display = label.clone();
-                        items = items.push(
-                            iced::widget::button(
-                                container(
-                                    text(display)
-                                        .size(12)
-                                        .color(OryxisColors::t().text_primary),
-                                )
-                                .padding(Padding {
-                                    top: 6.0,
-                                    right: 10.0,
-                                    bottom: 6.0,
-                                    left: 10.0,
-                                })
-                                .width(Length::Fill),
+                        let row = iced::widget::button(
+                            container(
+                                text(display)
+                                    .size(12)
+                                    .color(OryxisColors::t().text_primary),
                             )
-                            .on_press(
-                                Message::CloudDiscoverDefaultGroupPick(label),
-                            )
-                            .width(Length::Fill)
-                            .style(|_, status| {
-                                let bg = match status {
-                                    iced::widget::button::Status::Hovered => {
-                                        OryxisColors::t().bg_hover
-                                    }
-                                    _ => Color::TRANSPARENT,
-                                };
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(bg)),
-                                    border: Border {
-                                        radius: Radius::from(4.0),
-                                        ..Default::default()
-                                    },
-                                    ..Default::default()
+                            .padding(Padding {
+                                top: 6.0,
+                                right: 10.0,
+                                bottom: 6.0,
+                                left: 10.0,
+                            })
+                            .width(Length::Fill),
+                        )
+                        .on_press(
+                            Message::CloudDiscoverDefaultGroupPick(label.clone()),
+                        )
+                        .width(Length::Fill)
+                        .style(|_, status| {
+                            let bg = match status {
+                                iced::widget::button::Status::Hovered => {
+                                    OryxisColors::t().bg_hover
                                 }
-                            }),
-                        );
+                                _ => Color::TRANSPARENT,
+                            };
+                            iced::widget::button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border {
+                                    radius: Radius::from(4.0),
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            }
+                        });
+                        items = items.push(self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::CloudDiscoverDefaultGroupPick(label),
+                            ),
+                            4.0,
+                            false,
+                            row.into(),
+                        ));
                     }
                     iced::widget::scrollable(items)
                         .height(Length::Fixed(220.0))
@@ -623,40 +650,46 @@ impl Oryxis {
                     let mut items = column![].spacing(2);
                     for label in all_groups {
                         let display = label.clone();
-                        items = items.push(
-                            iced::widget::button(
-                                container(
-                                    text(display)
-                                        .size(12)
-                                        .color(OryxisColors::t().text_primary),
-                                )
-                                .padding(Padding {
-                                    top: 6.0,
-                                    right: 10.0,
-                                    bottom: 6.0,
-                                    left: 10.0,
-                                })
-                                .width(Length::Fill),
+                        let row = iced::widget::button(
+                            container(
+                                text(display)
+                                    .size(12)
+                                    .color(OryxisColors::t().text_primary),
                             )
-                            .on_press(Message::GroupPickerPick(target, label))
-                            .width(Length::Fill)
-                            .style(|_, status| {
-                                let bg = match status {
-                                    iced::widget::button::Status::Hovered => {
-                                        OryxisColors::t().bg_hover
-                                    }
-                                    _ => Color::TRANSPARENT,
-                                };
-                                iced::widget::button::Style {
-                                    background: Some(Background::Color(bg)),
-                                    border: Border {
-                                        radius: Radius::from(4.0),
-                                        ..Default::default()
-                                    },
-                                    ..Default::default()
+                            .padding(Padding {
+                                top: 6.0,
+                                right: 10.0,
+                                bottom: 6.0,
+                                left: 10.0,
+                            })
+                            .width(Length::Fill),
+                        )
+                        .on_press(Message::GroupPickerPick(target, label.clone()))
+                        .width(Length::Fill)
+                        .style(|_, status| {
+                            let bg = match status {
+                                iced::widget::button::Status::Hovered => {
+                                    OryxisColors::t().bg_hover
                                 }
-                            }),
-                        );
+                                _ => Color::TRANSPARENT,
+                            };
+                            iced::widget::button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border {
+                                    radius: Radius::from(4.0),
+                                    ..Default::default()
+                                },
+                                ..Default::default()
+                            }
+                        });
+                        items = items.push(self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::GroupPickerPick(target, label),
+                            ),
+                            4.0,
+                            false,
+                            row.into(),
+                        ));
                     }
                     iced::widget::scrollable(items)
                         .height(Length::Fixed(220.0))
@@ -704,20 +737,20 @@ impl Oryxis {
                                             })
                                     });
                                 if let Some(pid) = linked {
-                                    col = col.push(context_menu_item(
+                                    col = col.push(self.menu_item(
                                         iced_fonts::lucide::download(),
                                         crate::i18n::t("cloud_discover"),
                                         Message::ShowCloudDiscover(pid),
                                         secondary,
                                     ));
                                 } else {
-                                    col = col.push(context_menu_item(
+                                    col = col.push(self.menu_item(
                                         iced_fonts::lucide::plus(),
                                         crate::i18n::t("new_host"),
                                         Message::ShowNewConnection,
                                         secondary,
                                     ));
-                                    col = col.push(context_menu_item(
+                                    col = col.push(self.menu_item(
                                         iced_fonts::lucide::ellipsis(),
                                         crate::i18n::t("toolbar_more"),
                                         Message::ShowCloudProviderPicker,
@@ -726,13 +759,13 @@ impl Oryxis {
                                 }
                             }
                             None => {
-                                col = col.push(context_menu_item(
+                                col = col.push(self.menu_item(
                                     iced_fonts::lucide::plus(),
                                     crate::i18n::t("new_host"),
                                     Message::ShowNewConnection,
                                     secondary,
                                 ));
-                                col = col.push(context_menu_item(
+                                col = col.push(self.menu_item(
                                     iced_fonts::lucide::ellipsis(),
                                     crate::i18n::t("toolbar_more"),
                                     Message::ShowCloudProviderPicker,
@@ -750,13 +783,13 @@ impl Oryxis {
                         } else {
                             (iced_fonts::lucide::list(), crate::i18n::t("toolbar_view_list"))
                         };
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             icon,
                             label,
                             Message::ToggleHostListView,
                             secondary,
                         ));
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::arrow_down_a_z(),
                             crate::i18n::t("toolbar_sort"),
                             Message::ToggleSortMenu(SortMenuKind::Hosts),
@@ -764,13 +797,13 @@ impl Oryxis {
                         ));
                     }
                     View::Keys => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("add_btn"),
                             Message::ToggleKeychainAddMenu,
                             secondary,
                         ));
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::arrow_down_a_z(),
                             crate::i18n::t("toolbar_sort"),
                             Message::ToggleSortMenu(SortMenuKind::Keys),
@@ -778,13 +811,13 @@ impl Oryxis {
                         ));
                     }
                     View::Snippets => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("new_snippet"),
                             Message::ShowSnippetPanel,
                             secondary,
                         ));
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::arrow_down_a_z(),
                             crate::i18n::t("toolbar_sort"),
                             Message::ToggleSortMenu(SortMenuKind::Snippets),
@@ -792,7 +825,7 @@ impl Oryxis {
                         ));
                     }
                     View::Cloud => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("cloud_new_account"),
                             Message::ShowCloudForm(None),
@@ -800,7 +833,7 @@ impl Oryxis {
                         ));
                     }
                     View::PortForwarding => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("new_port_forward"),
                             Message::ShowPortForwardPanel,
@@ -808,7 +841,7 @@ impl Oryxis {
                         ));
                     }
                     View::Proxies => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("new_proxy_identity"),
                             Message::ShowProxyIdentityForm(None),
@@ -816,20 +849,20 @@ impl Oryxis {
                         ));
                     }
                     View::History => {
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::chevron_left(),
                             crate::i18n::t("toolbar_prev"),
                             Message::LogsPagePrev,
                             secondary,
                         ));
-                        col = col.push(context_menu_item(
+                        col = col.push(self.menu_item(
                             iced_fonts::lucide::chevron_right(),
                             crate::i18n::t("toolbar_next"),
                             Message::LogsPageNext,
                             secondary,
                         ));
                         if !self.logs.is_empty() || !self.session_logs.is_empty() {
-                            col = col.push(context_menu_item(
+                            col = col.push(self.menu_item(
                                 iced_fonts::lucide::trash(),
                                 crate::i18n::t("clear_all"),
                                 Message::RequestClearHistory,
@@ -883,9 +916,17 @@ impl Oryxis {
     /// menu; anchored under the "…" trigger via an estimated x offset.
     pub(crate) fn view_subnav_overflow_menu(&self) -> Element<'_, Message> {
         let (inline, overflow) = self.subnav_pill_split();
+        // The keyboard router auto-opens this menu when the sub-nav
+        // highlight walks into an overflowed destination; render that
+        // row with the hover background so the selection stays visible.
+        let kb_sel = match self.keynav.selected_in(crate::keynav::FocusZone::SubNav) {
+            Some(crate::keynav::NavItem::SubNav(v)) => Some(v),
+            _ => None,
+        };
         let mut col = iced::widget::Column::new().width(Length::Fill).spacing(1);
         for (k, v) in overflow {
             let active = self.active_view == v;
+            let kb = kb_sel == Some(v);
             let fg = if active {
                 OryxisColors::t().accent
             } else {
@@ -900,7 +941,7 @@ impl Oryxis {
             .width(Length::Fill)
             .on_press(Message::ChangeView(v))
             .style(move |_, status| {
-                let bg = if matches!(status, iced::widget::button::Status::Hovered) {
+                let bg = if kb || matches!(status, iced::widget::button::Status::Hovered) {
                     OryxisColors::t().bg_hover
                 } else if active {
                     Color { a: 0.12, ..OryxisColors::t().accent }
@@ -971,6 +1012,10 @@ impl Oryxis {
     /// menu items themselves stop propagation by living inside their
     /// own button widgets.
     pub(crate) fn view_burger_menu(&self) -> Element<'_, Message> {
+        // Keyboard rows recorded in render order; the menu opens with
+        // its first row selected (Up/Down move, Enter/Space fire).
+        self.modal_nav_reset();
+        self.keynav.modal.default.set(Some(0));
         // Menu row: label on the leading edge, optional muted hotkey
         // hint on the trailing edge (Termius-style "Ctrl+1" tail).
         // Items dispatch the same Messages the existing sidebar /
@@ -995,7 +1040,7 @@ impl Oryxis {
             } else {
                 label_el
             };
-            button(
+            let btn: Element<'_, Message> = button(
                 container(inner)
                     .padding(Padding {
                         top: 8.0,
@@ -1006,7 +1051,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .align_x(dir_align_x()),
             )
-            .on_press(msg)
+            .on_press(msg.clone())
             .width(Length::Fill)
             .style(|_, status| {
                 let bg = match status {
@@ -1020,7 +1065,8 @@ impl Oryxis {
                     ..Default::default()
                 }
             })
-            .into()
+            .into();
+            self.modal_nav_slot(crate::keynav::RowAction::activate(msg), 6.0, false, btn)
         };
         // Resolve hotkey hints from the live bindings so user
         // overrides flow through to the menu without rebuilds.

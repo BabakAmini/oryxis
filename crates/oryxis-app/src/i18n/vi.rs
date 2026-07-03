@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "Chuyển tiêu điểm sang khung phải",
         "hotkey_focus_pane_up" => "Chuyển tiêu điểm sang khung trên",
         "hotkey_focus_pane_down" => "Chuyển tiêu điểm sang khung dưới",
+        "hotkey_vault_section_prev" => "Phần trước của kho",
+        "hotkey_vault_section_next" => "Phần tiếp theo của kho",
         "detecting_shells" => "Đang dò shell…",
 
         // Actions
@@ -769,6 +771,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "Tab mới",
         "tabs" => "Tab",
         "quick_connect" => "Kết nối nhanh",
+        "quick_connect_hint" => "Nhấn Enter để kết nối",
+        "quick_connect_not_saved" => "Kết nối mà không lưu vào kho",
+        "quick_connect_save_host" => "Lưu máy chủ vào kho",
+        "connect_without_saving" => "Kết nối không lưu",
+        "quick_connect_hostname_required" => "Cần nhập tên máy chủ",
         "local_terminal" => "Terminal cục bộ",
         "search_tabs" => "Tìm tab",
         "jump_to" => "Nhảy tới",
@@ -844,6 +851,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "Chạy",
         "ai_tool_always" => "Luôn luôn",
         "ai_tool_deny" => "Từ chối",
+        "ai_mode_plan" => "Kế hoạch",
+        "ai_mode_ask" => "Hỏi",
+        "ai_mode_auto" => "Tự động",
+        "ai_mode_plan_tip" => "Kế hoạch: chỉ khảo sát, không bao giờ thực hiện thay đổi",
+        "ai_mode_ask_tip" => "Hỏi: xác nhận mọi lệnh trước khi chạy",
+        "ai_mode_auto_tip" => "Tự động: chạy lệnh an toàn, xác nhận lệnh rủi ro",
         "retry" => "Thử lại",
 
         // SFTP view
@@ -1126,7 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_history_title" => "Xóa tất cả nhật ký?",
         "clear_history_confirm" => "Việc này sẽ xóa vĩnh viễn mọi bản ghi phiên và sự kiện kết nối.",
         "update_check_failed" => "Kiểm tra cập nhật thất bại",
-        "terminal_link_hint" => "Ctrl + Nhấp chuột để mở liên kết",
+        "terminal_link_hint" => "Giữ Ctrl và nhấp chuột để mở liên kết.",
         "mouse_capture_hint" => "Chế độ chuột đang bật. Giữ Shift để chọn văn bản.",
         "terminal_hints" => "Gợi ý terminal",
         "terminal_hints_desc" => "Khi nào hiển thị gợi ý như thông báo bắt chuột và mẹo Ctrl + Nhấp vào liên kết.",

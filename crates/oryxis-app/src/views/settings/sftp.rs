@@ -5,7 +5,13 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn view_settings_sftp(&self) -> Element<'_, Message> {
-        let concurrency_section = panel_section(column![
+        // Keyboard rows are recorded in visual order; each input row
+        // focuses its field on Enter (ids are static, the fork's
+        // widget::Id only takes &'static str). Recording happens at
+        // construction, so everything below is built only when it
+        // actually renders (`sftp_enabled`).
+        self.keynav_settings_reset();
+        let build_concurrency_section = || panel_section(column![
             text(t("transfer_parallelism"))
                 .size(13)
                 .color(OryxisColors::t().text_primary),
@@ -14,14 +20,25 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            text_input("2", &self.setting_sftp_concurrency)
-                .on_input(Message::SettingSftpConcurrencyChanged)
-                .padding(10)
-                .width(240)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-sftp-concurrency")),
+                10.0,
+                text_input("2", &self.setting_sftp_concurrency)
+                    .id(iced::widget::Id::new("set-sftp-concurrency"))
+                    .on_input(Message::SettingSftpConcurrencyChanged)
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ),
         ]);
 
-        let timeout_input = |label: &str, hint: &str, value: &str, on_input: fn(String) -> Message| {
+        let timeout_input = |label: &str,
+                             hint: &str,
+                             value: &str,
+                             id: &'static str,
+                             on_input: fn(String) -> Message| {
             panel_section(column![
                 text(label.to_string())
                     .size(13)
@@ -31,38 +48,20 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
                 Space::new().height(8),
-                text_input("0", value)
-                    .on_input(on_input)
-                    .padding(10)
-                    .width(240)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+                    10.0,
+                    text_input("0", value)
+                        .id(iced::widget::Id::new(id))
+                        .on_input(on_input)
+                        .padding(10)
+                        .width(240)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
             ])
         };
-
-        let connect_section = timeout_input(
-            t("connect_timeout"),
-            t("connect_timeout_desc"),
-            &self.setting_sftp_connect_timeout,
-            Message::SettingSftpConnectTimeoutChanged,
-        );
-        let auth_section = timeout_input(
-            t("auth_timeout"),
-            t("auth_timeout_desc"),
-            &self.setting_sftp_auth_timeout,
-            Message::SettingSftpAuthTimeoutChanged,
-        );
-        let session_section = timeout_input(
-            t("channel_open_timeout"),
-            t("channel_open_timeout_desc"),
-            &self.setting_sftp_session_timeout,
-            Message::SettingSftpSessionTimeoutChanged,
-        );
-        let op_section = timeout_input(
-            t("operation_timeout"),
-            t("operation_timeout_desc"),
-            &self.setting_sftp_op_timeout,
-            Message::SettingSftpOpTimeoutChanged,
-        );
 
         // Enable/disable lives on the Plugins screen now; this
         // section only renders while SFTP is enabled, showing its
@@ -73,15 +72,39 @@ impl Oryxis {
 
         if self.sftp_enabled {
             content_col = content_col
-                .push(concurrency_section)
+                .push(build_concurrency_section())
                 .push(Space::new().height(12))
-                .push(connect_section)
+                .push(timeout_input(
+                    t("connect_timeout"),
+                    t("connect_timeout_desc"),
+                    &self.setting_sftp_connect_timeout,
+                    "set-sftp-connect-timeout",
+                    Message::SettingSftpConnectTimeoutChanged,
+                ))
                 .push(Space::new().height(12))
-                .push(auth_section)
+                .push(timeout_input(
+                    t("auth_timeout"),
+                    t("auth_timeout_desc"),
+                    &self.setting_sftp_auth_timeout,
+                    "set-sftp-auth-timeout",
+                    Message::SettingSftpAuthTimeoutChanged,
+                ))
                 .push(Space::new().height(12))
-                .push(session_section)
+                .push(timeout_input(
+                    t("channel_open_timeout"),
+                    t("channel_open_timeout_desc"),
+                    &self.setting_sftp_session_timeout,
+                    "set-sftp-session-timeout",
+                    Message::SettingSftpSessionTimeoutChanged,
+                ))
                 .push(Space::new().height(12))
-                .push(op_section);
+                .push(timeout_input(
+                    t("operation_timeout"),
+                    t("operation_timeout_desc"),
+                    &self.setting_sftp_op_timeout,
+                    "set-sftp-op-timeout",
+                    Message::SettingSftpOpTimeoutChanged,
+                ));
         }
         content_col = content_col.push(Space::new().height(24));
 
@@ -89,6 +112,9 @@ impl Oryxis {
             container(content_col)
                 .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-sftp-scroll"))
         .height(Length::Fill)
         .into()
     }

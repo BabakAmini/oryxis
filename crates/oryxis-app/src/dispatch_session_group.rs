@@ -239,10 +239,11 @@ impl Oryxis {
                 ) {
                     self.overlay = None;
                 } else {
+                    let anchor = self.keynav_take_menu_anchor();
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::SessionGroupActions(idx),
-                        x: self.mouse_position.x,
-                        y: self.mouse_position.y,
+                        x: anchor.0,
+                        y: anchor.1,
                     });
                 }
                 Ok(Task::none())
@@ -271,6 +272,7 @@ impl Oryxis {
     fn open_session_group_editor(&mut self, mut form: SessionGroupForm) -> Task<Message> {
         // Mutually exclusive right-panel slot, close other panels first.
         self.show_host_panel = false;
+        self.panel_nav_clear();
         self.cloud_form.visible = false;
         self.cloud_dynamic_form.visible = false;
         self.cloud_discover_visible = false;
@@ -414,6 +416,10 @@ impl Oryxis {
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,
+            chat_loading: false,
+            chat_task: None,
+            chat_mode: crate::state::default_chat_mode(),
+            chat_last_md_parse: None,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: Some(group.id),

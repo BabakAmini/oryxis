@@ -43,17 +43,11 @@ pub(crate) fn bounds_reporter<'a, Message: 'a>(
         fn state(&self) -> tree::State {
             self.content.as_widget().state()
         }
-        fn children(&self) -> Vec<Tree> {
-            self.content.as_widget().children()
-        }
-        fn diff(&self, tree: &mut Tree) {
-            self.content.as_widget().diff(tree);
+        fn diff(&mut self, tree: &mut Tree) {
+            self.content.as_widget_mut().diff(tree);
         }
         fn size(&self) -> Size<L> {
             self.content.as_widget().size()
-        }
-        fn size_hint(&self) -> Size<L> {
-            self.content.as_widget().size_hint()
         }
         fn layout(
             &mut self,
@@ -188,17 +182,11 @@ pub(crate) fn ime_host<'a, Message: 'a>(
         fn state(&self) -> tree::State {
             self.content.as_widget().state()
         }
-        fn children(&self) -> Vec<Tree> {
-            self.content.as_widget().children()
-        }
-        fn diff(&self, tree: &mut Tree) {
-            self.content.as_widget().diff(tree);
+        fn diff(&mut self, tree: &mut Tree) {
+            self.content.as_widget_mut().diff(tree);
         }
         fn size(&self) -> Size<L> {
             self.content.as_widget().size()
-        }
-        fn size_hint(&self) -> Size<L> {
-            self.content.as_widget().size_hint()
         }
         fn layout(
             &mut self,

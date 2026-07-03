@@ -16,7 +16,7 @@ pub(crate) use crate::state::SettingsSection;
 pub(crate) use crate::theme::OryxisColors;
 pub(crate) use crate::widgets::{
     dir_align_x, dir_row, key_badge, panel_field, panel_section, settings_row, shortcut_row,
-    styled_button, styled_button_opt, toggle_row,
+    styled_button, styled_button_opt,
 };
 
 // Per-section view methods, split into sibling files.
@@ -54,9 +54,17 @@ impl Oryxis {
             .align_x(dir_align_x())
             .into(),
             dir_row(vec![
-                styled_button(t("rescan_terminals"), Message::RescanLocalTerminals, c.bg_selected),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::RescanLocalTerminals),
+                    6.0,
+                    styled_button(t("rescan_terminals"), Message::RescanLocalTerminals, c.bg_selected),
+                ),
                 Space::new().width(8).into(),
-                styled_button(t("add_terminal"), Message::OpenLocalTerminalAddModal, c.accent),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::OpenLocalTerminalAddModal),
+                    6.0,
+                    styled_button(t("add_terminal"), Message::OpenLocalTerminalAddModal, c.accent),
+                ),
             ])
             .align_y(iced::Alignment::Center)
             .into(),
@@ -73,6 +81,13 @@ impl Oryxis {
             entries.iter().map(|e| (e.id, e.label.clone())).collect();
         let picker_label = t("always_ask_picker").to_string();
         let selected = Some(self.local_terminal_default);
+        // Left/Right cycle "always ask" + every entry; the options vec
+        // is consumed by pick_list, so cycle_pair reads a clone.
+        let (def_prev, def_next) = crate::keynav::slots::cycle_pair(
+            &options.clone(),
+            &self.local_terminal_default,
+            Message::SetDefaultLocalTerminal,
+        );
         let default_picker = pick_list(selected, options, move |o: &Option<uuid::Uuid>| match o {
             None => picker_label.clone(),
             Some(id) => label_map
@@ -82,18 +97,31 @@ impl Oryxis {
                 .unwrap_or_else(|| id.to_string()),
         })
         .on_select(Message::SetDefaultLocalTerminal)
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .width(280)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
+        let default_picker = self.settings_nav_slot(
+            crate::keynav::RowAction::picker(def_prev, def_next),
+            8.0,
+            default_picker.into(),
+        );
 
         // One card per curated terminal, with a hover-revealed remove
-        // action in the corner (card-action-icon convention).
+        // action in the corner (card-action-icon convention). Enter
+        // opens the edit modal (the card's primary action); the remove
+        // button stays hover-only.
         let mut cards = column![].spacing(8);
         if entries.is_empty() {
             cards = cards.push(text(t("local_terminals_empty")).size(12).color(c.text_muted));
         }
         for (idx, entry) in entries.iter().enumerate() {
-            cards = cards.push(self.local_terminal_item_card(idx, entry));
+            cards = cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::OpenLocalTerminalEditModal(entry.id)),
+                8.0,
+                self.local_terminal_item_card(idx, entry),
+            ));
         }
 
         panel_section(column![
@@ -528,12 +556,25 @@ impl Oryxis {
             }
             items.push((crate::i18n::t("settings_advanced"), SettingsSection::Advanced));
             items.push((crate::i18n::t("about"), SettingsSection::About));
+            // Record the visible section list for the keyboard router
+            // (the SubNav zone here): the set is dynamic (feature
+            // toggles hide sections), so it must come from this exact
+            // list, not the enum.
+            *self.keynav.subnav_items.borrow_mut() = items
+                .iter()
+                .map(|(_, s)| crate::keynav::NavItem::SettingsSection(*s))
+                .collect();
+            let kb_sel = match self.keynav.selected_in(crate::keynav::FocusZone::SubNav) {
+                Some(crate::keynav::NavItem::SettingsSection(s)) => Some(s),
+                _ => None,
+            };
             let mut col = column![]
                 .spacing(4)
                 .padding(Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 8.0 });
 
             for (label, section) in items {
                 let is_active = self.settings_section == section;
+                let kb_selected = kb_sel == Some(section);
                 let bg = if is_active {
                     Color { a: 0.15, ..OryxisColors::t().accent }
                 } else {
@@ -559,11 +600,23 @@ impl Oryxis {
                     let hover_bg = match status {
                         BtnStatus::Hovered if !is_active => Color::from_rgba(1.0, 1.0, 1.0, 0.08),
                         BtnStatus::Pressed => Color { a: 0.25, ..OryxisColors::t().accent },
+                        // Keyboard selection reads on active rows too
+                        // (border alone vanishes on the accent tint).
+                        _ if kb_selected && is_active => Color { a: 0.30, ..OryxisColors::t().accent },
+                        _ if kb_selected => Color::from_rgba(1.0, 1.0, 1.0, 0.10),
                         _ => bg,
                     };
                     button::Style {
                         background: Some(Background::Color(hover_bg)),
-                        border: Border { radius: Radius::from(10.0), ..Default::default() },
+                        border: Border {
+                            radius: Radius::from(10.0),
+                            color: if kb_selected {
+                                OryxisColors::t().accent
+                            } else {
+                                Color::TRANSPARENT
+                            },
+                            width: if kb_selected { 2.0 } else { 0.0 },
+                        },
                         ..Default::default()
                     }
                 })
@@ -576,13 +629,19 @@ impl Oryxis {
             // disappearing when the height dropped below ~520 px).
             // Width matches the main vertical nav rail; no side hairline
             // so it reads as the same sidebar surface.
-            container(scrollable(col).height(Length::Fill))
-                .width(NAV_RAIL_WIDTH_EXPANDED)
-                .height(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
-                    ..Default::default()
-                })
+            container(
+                scrollable(col)
+                    // Stable id so the keyboard router can keep the
+                    // selected section in view on short windows.
+                    .id(iced::widget::Id::new("settings-sidebar-scroll"))
+                    .height(Length::Fill),
+            )
+            .width(NAV_RAIL_WIDTH_EXPANDED)
+            .height(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
+                ..Default::default()
+            })
         };
 
         // ── Settings content ──
@@ -647,6 +706,9 @@ impl Oryxis {
         // ── List rows ──
         let needle = self.proxy_search.trim().to_lowercase();
         let mut list = column![].spacing(8);
+        // Keyboard-navigation order (one row each), collected as the
+        // rows render so it always matches the filtered set on screen.
+        let mut proxy_nav: Vec<Vec<crate::keynav::NavItem>> = Vec::new();
         for pi in self.proxy_identities.iter().filter(|pi| {
             needle.is_empty()
                 || pi.label.to_lowercase().contains(&needle)
@@ -660,6 +722,9 @@ impl Oryxis {
             };
             let summary = format!("{}, {}:{}", kind_label, pi.host, pi.port);
             let id = pi.id;
+            proxy_nav.push(vec![crate::keynav::NavItem::Proxy(id)]);
+            let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == Some(crate::keynav::NavItem::Proxy(id));
             let edit_btn = button(text(crate::i18n::t("edit")).size(12))
                 .on_press(Message::ShowProxyIdentityForm(Some(id)))
                 .padding(Padding {
@@ -767,8 +832,14 @@ impl Oryxis {
                 ..Default::default()
             })
             .width(Length::Fill);
-            list = list.push(self.card_wash(row_el.into(), OryxisColors::t().accent));
+            let row_el = self.card_wash(row_el.into(), OryxisColors::t().accent);
+            list = list.push(if kb_selected {
+                crate::widgets::select_ring(row_el)
+            } else {
+                row_el
+            });
         }
+        self.keynav_set_content_rows(proxy_nav);
 
         // "+ Proxy" button, same Cloud-Accounts pattern: bold plus
         // glyph + bold label in the accent fill. Lives on the
@@ -829,6 +900,10 @@ impl Oryxis {
                     Message::ShowProxyIdentityForm(None),
                 )),
             );
+            // No toolbar / rows on this path; drop anything recorded
+            // by the previous frame so the keyboard router matches.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             return column![empty]
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -841,20 +916,32 @@ impl Oryxis {
         // Responsive collapse: search yields first, then folds to an icon;
         // at the narrowest the action moves into the `…` overflow menu.
         // (The action is gone while the form panel is open.)
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
+        let search_slot = if search_collapsed {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+        } else {
+            search_slot
+        };
         let trailing: Element<'_, Message> = if self.proxy_identity_form.visible {
             Space::new().width(0).height(Length::Fixed(32.0)).into()
         } else if buttons_overflow {
-            crate::widgets::toolbar_overflow_icon(matches!(
-                self.overlay.as_ref().map(|o| &o.content),
-                Some(crate::state::OverlayContent::ToolbarOverflow)
-            ))
+            self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ToolbarOverflow)
+                )),
+            )
         } else {
-            add_btn
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, add_btn)
         };
         let toolbar = container(
             dir_row(vec![
-                self.vault_search_slot(search_collapsed),
+                search_slot,
                 Space::new().width(10).into(),
                 trailing,
             ]).align_y(iced::Alignment::Center),
@@ -868,6 +955,9 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 0.0, left: 24.0 })
                 .align_x(dir_align_x()),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // scrolled into view.
+        .id(iced::widget::Id::new("proxies-list-scroll"))
         .height(Length::Fill);
 
         // The editor is a right-hand side panel hoisted to `view_main`
@@ -884,6 +974,10 @@ impl Oryxis {
     /// plugin distribution + setup-guide affordances deserve room
     /// without competing with the Security toggles.
     fn view_settings_mcp(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order: the guide button
+        // is defined here but only recorded (slot-wrapped) at its use
+        // site below, after the server toggle.
+        self.keynav_settings_reset();
         // The MCP plugin is managed (installed / updated) from the
         // Plugins screen; the server's own on/off lives here.
         let mcp_guide_btn = button(
@@ -903,7 +997,7 @@ impl Oryxis {
             }
         });
         let mut mcp_col = column![
-            toggle_row(
+            self.nav_toggle_row(
                 crate::i18n::t("mcp_server"),
                 self.mcp.server_enabled,
                 Message::ToggleMcpServer,
@@ -912,7 +1006,15 @@ impl Oryxis {
             dir_row(vec![
                 text(crate::i18n::t("mcp_server_desc")).size(11).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(Length::Fill).into(),
-                mcp_guide_btn.into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(if self.mcp.show_info {
+                        Message::HideMcpInfo
+                    } else {
+                        Message::ShowMcpInfo
+                    }),
+                    6.0,
+                    mcp_guide_btn.into(),
+                ),
             ]).align_y(iced::Alignment::Center),
         ];
         if self.mcp.show_info {
@@ -938,6 +1040,9 @@ impl Oryxis {
             )
             .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-mcp-scroll"))
         .height(Length::Fill)
         .into()
     }
@@ -946,6 +1051,9 @@ impl Oryxis {
     /// `view_settings_proxies` when `proxy_identity_form.visible` is on.
     pub(crate) fn view_proxy_identity_form(&self) -> Element<'_, Message> {
         use crate::state::ProxyKind;
+
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
 
         // The picker only offers the four wire types, None / Identity
         // are not valid for a saved identity itself.
@@ -956,12 +1064,17 @@ impl Oryxis {
             ProxyKind::Command,
         ];
 
+        // Focusable select: Tab reaches it, Enter/Space open it, the
+        // widget owns arrows/Esc while focused (fork support).
         let kind_picker = pick_list(
             Some(self.proxy_identity_form.kind),
             wire_kinds,
             |k: &ProxyKind| k.to_string(),
         )
         .on_select(Message::ProxyIdentityFormKindChanged)
+        .id(iced::widget::Id::new("panel-proxy-identity-kind"))
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -973,7 +1086,10 @@ impl Oryxis {
             crate::i18n::t("proxy_password_placeholder")
         };
 
+        // A plain secure text_input (not password_input_with_eye), so
+        // it can carry a focus id and be a keyboard row.
         let pw_input = text_input(pw_placeholder, &self.proxy_identity_form.password)
+            .id(iced::widget::Id::new("panel-proxy-identity-password"))
             .on_input(Message::ProxyIdentityFormPasswordChanged)
             .secure(!self.proxy_identity_form.password_visible)
             .padding(10)
@@ -1004,54 +1120,101 @@ impl Oryxis {
         let col = column![
             panel_field(
                 crate::i18n::t("proxy_identity_label"),
-                text_input("home-bastion", &self.proxy_identity_form.label)
-                    .on_input(Message::ProxyIdentityFormLabelChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-label",
+                    )),
+                    10.0,
+                    text_input("home-bastion", &self.proxy_identity_form.label)
+                        .id(iced::widget::Id::new("panel-proxy-identity-label"))
+                        .on_input(Message::ProxyIdentityFormLabelChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
             ),
             Space::new().height(12),
-            panel_field(crate::i18n::t("proxy_type"), kind_picker.into()),
+            panel_field(
+                crate::i18n::t("proxy_type"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-kind",
+                    )),
+                    10.0,
+                    kind_picker.into(),
+                ),
+            ),
             Space::new().height(12),
             panel_field(
                 crate::i18n::t("proxy_host"),
-                text_input(
-                    crate::i18n::t("proxy_host_placeholder"),
-                    &self.proxy_identity_form.host,
-                )
-                .on_input(Message::ProxyIdentityFormHostChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-host",
+                    )),
+                    10.0,
+                    text_input(
+                        crate::i18n::t("proxy_host_placeholder"),
+                        &self.proxy_identity_form.host,
+                    )
+                    .id(iced::widget::Id::new("panel-proxy-identity-host"))
+                    .on_input(Message::ProxyIdentityFormHostChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+                ),
             ),
             Space::new().height(12),
             panel_field(
                 crate::i18n::t("proxy_port"),
-                text_input("1080", &self.proxy_identity_form.port)
-                    .on_input(Message::ProxyIdentityFormPortChanged)
-                    .padding(6)
-                    .width(70)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-port",
+                    )),
+                    10.0,
+                    text_input("1080", &self.proxy_identity_form.port)
+                        .id(iced::widget::Id::new("panel-proxy-identity-port"))
+                        .on_input(Message::ProxyIdentityFormPortChanged)
+                        .padding(6)
+                        .width(70)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
             ),
             Space::new().height(12),
             panel_field(
                 crate::i18n::t("proxy_username"),
-                text_input(
-                    crate::i18n::t("proxy_username_placeholder"),
-                    &self.proxy_identity_form.username,
-                )
-                .on_input(Message::ProxyIdentityFormUsernameChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                .into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-username",
+                    )),
+                    10.0,
+                    text_input(
+                        crate::i18n::t("proxy_username_placeholder"),
+                        &self.proxy_identity_form.username,
+                    )
+                    .id(iced::widget::Id::new("panel-proxy-identity-username"))
+                    .on_input(Message::ProxyIdentityFormUsernameChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+                ),
             ),
             Space::new().height(12),
-            panel_field(crate::i18n::t("proxy_password"), pw_input.into()),
+            panel_field(
+                crate::i18n::t("proxy_password"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-proxy-identity-password",
+                    )),
+                    10.0,
+                    pw_input.into(),
+                ),
+            ),
         ];
 
         // ── Header (title + close), matching the host / session-group
-        // side panels so every editor reads the same. ──
+        // side panels so every editor reads the same. The close (×) is
+        // not a keyboard row: Esc already owns panel close. ──
         let title = if self.proxy_identity_form.editing_id.is_some() {
             crate::i18n::t("edit_proxy_identity")
         } else {
@@ -1086,6 +1249,8 @@ impl Oryxis {
                 left: 16.0,
             }),
         )
+        // Shared id: the keyboard router keeps the selected row in view.
+        .id(iced::widget::Id::new("side-panel-scroll"))
         .height(Length::Fill);
 
         // Inline error sits OUTSIDE the scrollable, just above the footer,
@@ -1098,9 +1263,23 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
+        // Footer rows are recorded here (not where the buttons are
+        // built above) so they land after the form fields.
         let footer = container(
-            dir_row(vec![cancel_btn, Space::new().width(8).into(), save_btn])
-                .align_y(iced::Alignment::Center),
+            dir_row(vec![
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::HideProxyIdentityForm),
+                    6.0,
+                    cancel_btn,
+                ),
+                Space::new().width(8).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SaveProxyIdentity),
+                    6.0,
+                    save_btn,
+                ),
+            ])
+            .align_y(iced::Alignment::Center),
         )
         .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 });
 

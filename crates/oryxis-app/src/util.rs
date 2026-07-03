@@ -195,7 +195,7 @@ impl NotificationMode {
 }
 
 /// How terminal teaching hints (the "hold Shift to select" mouse-capture
-/// toast, the "Ctrl + Click to open" link tooltip) are surfaced. Default
+/// toast, the "hold Ctrl and click" link toast) are surfaced. Default
 /// `Once`: each hint shows a single time per terminal pane, enough to teach
 /// without nagging, and returns on a fresh pane (new tab / host). `Always`
 /// shows it on every trigger; `Never` silences them. Replaces the old

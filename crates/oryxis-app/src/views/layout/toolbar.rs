@@ -250,17 +250,62 @@ impl Oryxis {
             View::Proxies => "search-proxies",
             _ => "search-vault-subnav",
         };
+        // Dashboard only: when the query parses as a quick-connect target
+        // (`user@host[:port]`), surface an "Enter to connect" chip inside
+        // the field. Enter itself is consumed by the keyboard router
+        // (`keynav_activate`), which already owns plain Enter in the vault
+        // area; wiring `.on_submit` here too would double-dispatch.
+        let quick_hint = self.active_view == View::Dashboard
+            && self.quick_connect_target(&self.host_search).is_some();
+
         // Vertical padding tuned so the field's height matches the
         // toolbar action buttons beside it (24px content + 5px default
         // button padding top/bottom = 34px).
-        iced::widget::text_input(crate::i18n::t(ph_key), value)
+        let field = iced::widget::text_input(crate::i18n::t(ph_key), value)
             .id(iced::widget::Id::new(id))
             .on_input(on_input)
-            .padding(Padding { top: 9.0, right: 12.0, bottom: 9.0, left: 12.0 })
+            .padding(Padding {
+                top: 9.0,
+                // Leave room for the floating hint chip so the typed
+                // value never slides under it.
+                right: if quick_hint { 120.0 } else { 12.0 },
+                bottom: 9.0,
+                left: 12.0,
+            })
             .size(13)
             .width(Length::Fill)
             .style(crate::widgets::rounded_input_style)
-            .align_x(dir_align_x())
+            .align_x(dir_align_x());
+        if !quick_hint {
+            return field.into();
+        }
+        // Same floating-chip pattern as the picker's Ctrl+K affordance:
+        // a Stack overlay, so the chip takes no clicks and focus-on-click
+        // keeps working on the input below it.
+        let chip = iced::widget::container(
+            iced::widget::text(crate::i18n::t("quick_connect_hint"))
+                .size(11)
+                .color(OryxisColors::t().accent),
+        )
+        .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
+        .style(|_| iced::widget::container::Style {
+            background: Some(iced::Background::Color(OryxisColors::t().bg_hover)),
+            border: iced::Border {
+                radius: iced::border::Radius::from(4.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        });
+        let chip_overlay = iced::widget::container(chip)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Center)
+            .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
+        iced::widget::Stack::new()
+            .push(field)
+            .push(chip_overlay)
+            .width(Length::Fill)
             .into()
     }
 
@@ -269,7 +314,19 @@ impl Oryxis {
     /// toolbar (see `vault_search_field`); this row is just the vault
     /// chip, the section pills, the "…" overflow and the settings gear.
     pub(crate) fn view_vault_sub_nav(&self) -> Element<'_, Message> {
-        let pill = |label_key: &'static str, view: View| -> Element<'_, Message> {
+        // Record the full logical pill order (inline + overflow) for
+        // the keyboard router: arrows walk the complete list; landing
+        // on an overflowed destination auto-opens the "…" menu.
+        *self.keynav.subnav_items.borrow_mut() = self
+            .subnav_pill_defs()
+            .iter()
+            .map(|(_, v)| crate::keynav::NavItem::SubNav(*v))
+            .collect();
+        let kb_sel = match self.keynav.selected_in(crate::keynav::FocusZone::SubNav) {
+            Some(crate::keynav::NavItem::SubNav(v)) => Some(v),
+            _ => None,
+        };
+        let pill = move |label_key: &'static str, view: View| -> Element<'_, Message> {
             let is_active = self.active_view == view;
             let fg = if is_active {
                 OryxisColors::t().accent
@@ -284,7 +341,7 @@ impl Oryxis {
             // Fixed-height inner container (28px) so every sub-nav
             // control lines up; button padding zeroed so its default
             // doesn't stack on top.
-            button(
+            let btn: Element<'_, Message> = button(
                 container(
                     text(crate::i18n::t(label_key))
                         .size(12)
@@ -308,7 +365,13 @@ impl Oryxis {
                     ..Default::default()
                 }
             })
-            .into()
+            .into();
+            // Keyboard focus ring (matches the pill's 6px radius).
+            if kb_sel == Some(view) {
+                crate::widgets::select_ring_radius(btn, 6.0)
+            } else {
+                btn
+            }
         };
         // Priority+ overflow: the pills that fit render inline; the rest
         // live behind the "…" menu (see `subnav_pill_split`). No

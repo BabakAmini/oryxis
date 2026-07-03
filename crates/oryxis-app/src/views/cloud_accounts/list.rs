@@ -13,7 +13,7 @@ use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
     card_grid_columns, dir_align_x, dir_row, distribute_card_grid, panel_section,
-    rounded_input_style, toggle_row,
+    rounded_input_style,
 };
 
 impl Oryxis {
@@ -70,20 +70,32 @@ impl Oryxis {
         };
         // Responsive collapse: search yields first, then folds to an icon;
         // at the narrowest the action moves into the `…` overflow menu.
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
-        let trailing: Element<'_, Message> = if buttons_overflow {
-            crate::widgets::toolbar_overflow_icon(matches!(
-                self.overlay.as_ref().map(|o| &o.content),
-                Some(crate::state::OverlayContent::ToolbarOverflow)
-            ))
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
+        let search_slot = if search_collapsed {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
         } else {
-            primary
+            search_slot
+        };
+        let trailing: Element<'_, Message> = if buttons_overflow {
+            self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ToolbarOverflow)
+                )),
+            )
+        } else {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, primary)
         };
         let toolbar = container(
             dir_row(vec![
                 // Search fills the leading space (hidden + Fill spacer when
                 // there are no accounts, so the action stays trailing).
-                self.vault_search_slot(search_collapsed),
+                search_slot,
                 Space::new().width(10).into(),
                 trailing,
             ])
@@ -139,6 +151,10 @@ impl Oryxis {
             )
             .center(Length::Fill);
 
+            // The explainer replaces the toolbar entirely; un-record
+            // the items registered above. Same for content rows.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             column![explainer]
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -166,11 +182,18 @@ impl Oryxis {
 
             // No toolbar when empty: search is hidden and the "+ Account"
             // lives in the empty-state CTA (avoids an orphaned button).
+            // Un-record the toolbar items; none of them render here.
+            // Same for content rows.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             column![empty_state]
                 .width(Length::Fill)
                 .height(Length::Fill)
         } else {
             let mut cards: Vec<Element<'_, Message>> = Vec::new();
+            // Keyboard-navigation order, collected as the cards render
+            // so it always matches the filtered set on screen.
+            let mut cloud_nav: Vec<crate::keynav::NavItem> = Vec::new();
             let needle = self.cloud_search.trim().to_lowercase();
             // Hide accounts whose provider plugin isn't installed; they
             // stay in the vault and reappear when the plugin is back.
@@ -213,12 +236,15 @@ impl Oryxis {
                 };
 
                 let cp_id = cp.id;
+                cloud_nav.push(crate::keynav::NavItem::CloudAccount(cp_id));
+                let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                    == Some(crate::keynav::NavItem::CloudAccount(cp_id));
                 // Floating ⋮ kebab in a Stack overlay (trailing corner)
                 // so it doesn't take inline width inside the dir_row.
                 // Always-mounted with a transparent glyph + no-hover bg
                 // when not active so the surrounding MouseArea sees
                 // stable child bounds (avoids hover event loop).
-                let show_dots = self.hovered_cloud_card == Some(cp_id);
+                let show_dots = self.hovered_cloud_card == Some(cp_id) || kb_selected;
                 let rtl = crate::i18n::is_rtl_layout();
                 let pad_trailing = 30.0_f32;
                 let card_padding = if rtl {
@@ -304,7 +330,12 @@ impl Oryxis {
 
                 let card_el: Element<'_, Message> =
                     container(wrapped).width(Length::Fill).clip(true).into();
-                cards.push(self.card_wash(card_el, brand_color));
+                let card_el = self.card_wash(card_el, brand_color);
+                cards.push(if kb_selected {
+                    self.keynav_ring_content(card_el)
+                } else {
+                    card_el
+                });
             }
 
             let nav_width = self.vault_rail_width();
@@ -312,6 +343,11 @@ impl Oryxis {
             let available =
                 (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
             let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
+            // Chunk the keyboard order to the same column count the
+            // grid renders with.
+            self.keynav_set_content_rows(
+                cloud_nav.chunks(cols.max(1)).map(|c| c.to_vec()).collect(),
+            );
             let cloud_grid = distribute_card_grid(cards, cols, 12.0, 12.0);
 
             // Cloud Sync settings (auto-refresh / orphan archive) moved
@@ -325,6 +361,9 @@ impl Oryxis {
                     left: 24.0,
                 }),
             )
+            // Stable id so the keyboard router can keep the selected
+            // card scrolled into view.
+            .id(iced::widget::Id::new("cloud-accounts-scroll"))
             .height(Length::Fill);
 
             column![toolbar, grid]
@@ -343,10 +382,17 @@ impl Oryxis {
     /// days inputs accept partial typed input and clamp on commit via
     /// the sanitize helper in the dispatcher.
     pub(crate) fn view_cloud_sync_settings(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order. The raw inputs
+        // below carry no recording; the slot wraps happen inside the
+        // panel column so construction order equals on-screen order.
+        // Input ids are static, the fork's widget::Id only takes
+        // &'static str.
+        self.keynav_settings_reset();
         let refresh_interval_input = text_input(
             "30",
             &self.setting_cloud_auto_refresh_interval_minutes,
         )
+        .id(iced::widget::Id::new("set-cloud-refresh-interval"))
         .on_input(Message::SettingCloudAutoRefreshIntervalChanged)
         .padding(8)
         .width(120)
@@ -356,6 +402,7 @@ impl Oryxis {
             "7",
             &self.setting_cloud_orphan_archive_days,
         )
+        .id(iced::widget::Id::new("set-cloud-orphan-days"))
         .on_input(Message::SettingCloudOrphanArchiveDaysChanged)
         .padding(8)
         .width(120)
@@ -363,7 +410,7 @@ impl Oryxis {
         .align_x(dir_align_x());
         let cloud_sync_settings = panel_section(column![
             // Title dropped (redundant with the settings nav label).
-            toggle_row(
+            self.nav_toggle_row(
                 t("settings_cloud_auto_refresh"),
                 self.setting_cloud_auto_refresh_enabled,
                 Message::SettingCloudAutoRefreshToggle,
@@ -375,11 +422,17 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                refresh_interval_input.into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "set-cloud-refresh-interval",
+                    )),
+                    10.0,
+                    refresh_interval_input.into(),
+                ),
             ])
             .align_y(iced::Alignment::Center),
             Space::new().height(14),
-            toggle_row(
+            self.nav_toggle_row(
                 t("settings_cloud_auto_archive"),
                 self.setting_cloud_auto_archive_orphans,
                 Message::SettingCloudAutoArchiveToggle,
@@ -391,7 +444,13 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                orphan_days_input.into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "set-cloud-orphan-days",
+                    )),
+                    10.0,
+                    orphan_days_input.into(),
+                ),
             ])
             .align_y(iced::Alignment::Center),
         ]);
@@ -401,6 +460,9 @@ impl Oryxis {
                 .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 })
                 .width(Length::Fill),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-cloud-scroll"))
         .height(Length::Fill)
         .into()
     }

@@ -609,13 +609,27 @@ impl Oryxis {
         .width(Length::Fill)
         .height(Length::Fixed(BAR_HEIGHT));
 
+        // Top mode: no leading padding (the burger already carries its own
+        // right padding, an extra strip margin just read as a gap before
+        // the first tab). Bottom mode: nothing claims the leading edge, so
+        // the strip gets its own small gutter before the Home tab, and one
+        // extra px on top so the tabs don't hug the accent hairline that
+        // now sits directly above them.
+        let strip_padding = if bottom {
+            // The gutter hugs the leading edge, which flips under RTL
+            // (dir_row renders the Home tab on the right there).
+            if crate::i18n::is_rtl_layout() {
+                Padding { top: 5.0, right: 8.0, bottom: 4.0, left: 0.0 }
+            } else {
+                Padding { top: 5.0, right: 0.0, bottom: 4.0, left: 8.0 }
+            }
+        } else {
+            Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 0.0 }
+        };
         let tab_strip: Element<'_, Message> = MouseArea::new(
             container(tab_strip_inner)
                 .width(Length::Fill)
-                // No left padding: the burger already carries its own right
-                // padding, so an extra strip margin just read as a gap before
-                // the first tab.
-                .padding(Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 0.0 }),
+                .padding(strip_padding),
         )
         .on_press(Message::WindowDrag)
         // Native title-bar convention: double-click the drag area to
@@ -812,9 +826,9 @@ impl Oryxis {
     }
 
     pub(crate) fn tab_detected_os(&self, base_label: &str) -> Option<String> {
-        self.connections
-            .iter()
-            .find(|c| c.label == base_label)
+        // Saved hosts first, then quick-connect entries (their detection
+        // result lives in memory only), then the local/cloud hints.
+        self.any_connection_by_label(base_label)
             .and_then(|c| c.detected_os.clone())
             .or_else(|| crate::os_icon::local_shell_os_hint(base_label))
             .or_else(|| {

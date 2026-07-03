@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "تمرکز روی پنل راست",
         "hotkey_focus_pane_up" => "تمرکز روی پنل بالا",
         "hotkey_focus_pane_down" => "تمرکز روی پنل پایین",
+        "hotkey_vault_section_prev" => "بخش قبلی صندوقچه",
+        "hotkey_vault_section_next" => "بخش بعدی صندوقچه",
         "detecting_shells" => "در حال شناسایی شل‌ها…",
 
         // Actions
@@ -764,6 +766,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "برگه جدید",
         "tabs" => "برگه‌ها",
         "quick_connect" => "اتصال سریع",
+        "quick_connect_hint" => "برای اتصال Enter را بزنید",
+        "quick_connect_not_saved" => "بدون ذخیره در صندوقچه متصل می‌شود",
+        "quick_connect_save_host" => "ذخیره میزبان در صندوقچه",
+        "connect_without_saving" => "اتصال بدون ذخیره",
+        "quick_connect_hostname_required" => "نام میزبان الزامی است",
         "local_terminal" => "ترمینال محلی",
         "search_tabs" => "جستجوی برگه‌ها",
         "jump_to" => "پرش به",
@@ -833,6 +840,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "اجرا",
         "ai_tool_always" => "همیشه",
         "ai_tool_deny" => "رد",
+        "ai_mode_plan" => "برنامه",
+        "ai_mode_ask" => "پرسش",
+        "ai_mode_auto" => "خودکار",
+        "ai_mode_plan_tip" => "برنامه: بررسی فقط‌خواندنی، هرگز تغییری اجرا نمی‌کند",
+        "ai_mode_ask_tip" => "پرسش: تأیید هر فرمان پیش از اجرا",
+        "ai_mode_auto_tip" => "خودکار: اجرای فرمان‌های ایمن، تأیید موارد پرخطر",
         "retry" => "تلاش مجدد",
 
         // SFTP view
@@ -1115,7 +1128,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_all" => "پاک کردن همه",
         "clear_history_title" => "همه گزارش‌ها پاک شوند؟",
         "clear_history_confirm" => "این عمل تمام ضبط‌های نشست و رویدادهای اتصال را برای همیشه حذف می‌کند.",
-        "terminal_link_hint" => "برای باز کردن پیوند Ctrl + کلیک کنید",
+        "terminal_link_hint" => "برای باز کردن پیوند، Ctrl را نگه دارید و کلیک کنید.",
         "mouse_capture_hint" => "حالت ماوس فعال است. برای انتخاب متن، Shift را نگه دارید.",
         "terminal_hints" => "راهنمایی‌های ترمینال",
         "terminal_hints_desc" => "زمان نمایش راهنمایی‌هایی مانند اعلان گرفتن ماوس و راهنمای Ctrl + کلیک روی پیوند.",

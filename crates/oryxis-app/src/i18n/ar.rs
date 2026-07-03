@@ -180,6 +180,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_right" => "التركيز على اللوحة اليمنى",
         "hotkey_focus_pane_up" => "التركيز على اللوحة العلوية",
         "hotkey_focus_pane_down" => "التركيز على اللوحة السفلية",
+        "hotkey_vault_section_prev" => "قسم الخزنة السابق",
+        "hotkey_vault_section_next" => "قسم الخزنة التالي",
         "detecting_shells" => "جارٍ اكتشاف الصدفات…",
 
         // Actions
@@ -419,7 +421,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_zoom_out" => "تصغير حجم الخط",
         "font_zoom_reset" => "إعادة ضبط حجم الخط",
         "font_zoom_wheel" => "تعديل حجم الخط",
-        "terminal_link_hint" => "Ctrl + نقرة لفتح الرابط",
+        "terminal_link_hint" => "اضغط مع الاستمرار على Ctrl وانقر لفتح الرابط.",
         "mouse_capture_hint" => "وضع الماوس مفعّل. اضغط مع الاستمرار على Shift لتحديد النص.",
         "terminal_hints" => "تلميحات الطرفية",
         "terminal_hints_desc" => "متى تُعرض التلميحات مثل تنبيه التقاط الماوس وتلميح Ctrl + النقر على الرابط.",
@@ -780,6 +782,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_tab" => "تبويب جديد",
         "tabs" => "التبويبات",
         "quick_connect" => "اتصال سريع",
+        "quick_connect_hint" => "اضغط Enter للاتصال",
+        "quick_connect_not_saved" => "يتصل دون الحفظ في الخزنة",
+        "quick_connect_save_host" => "حفظ المضيف في الخزنة",
+        "connect_without_saving" => "الاتصال دون حفظ",
+        "quick_connect_hostname_required" => "اسم المضيف مطلوب",
         "local_terminal" => "طرفية محلية",
         "search_tabs" => "البحث في التبويبات",
         "jump_to" => "الانتقال إلى",
@@ -849,6 +856,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_tool_run" => "تشغيل",
         "ai_tool_always" => "دائمًا",
         "ai_tool_deny" => "رفض",
+        "ai_mode_plan" => "تخطيط",
+        "ai_mode_ask" => "سؤال",
+        "ai_mode_auto" => "تلقائي",
+        "ai_mode_plan_tip" => "تخطيط: فحص للقراءة فقط، لا ينفّذ أي تغييرات",
+        "ai_mode_ask_tip" => "سؤال: تأكيد كل أمر قبل تشغيله",
+        "ai_mode_auto_tip" => "تلقائي: تشغيل الأوامر الآمنة وتأكيد الخطرة",
         "retry" => "إعادة المحاولة",
 
         // SFTP view

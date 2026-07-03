@@ -52,6 +52,9 @@ pub enum Message {
     ShowNewTabPicker,
     HideNewTabPicker,
     NewTabPickerSearchChanged(String),
+    /// Enter pressed in the picker search: quick-connect when the input
+    /// parses as `user@host[:port]`, otherwise a no-op.
+    NewTabPickerSubmit,
     /// Drill into a group in the new-tab picker. For a cloud-query group
     /// this also kicks off (or refreshes) the resolve so the ECS tasks /
     /// K8s pods load. `Uuid` is the group id.
@@ -494,6 +497,10 @@ pub enum Message {
     EditorTotpChanged(String),
     EditorToggleTotpVisibility,
     EditorSave,
+    /// Connect using the current editor form WITHOUT persisting anything:
+    /// builds an ephemeral quick-connect entry (typed credentials ride in
+    /// memory) and dispatches `QuickConnect`. New-host flow only.
+    EditorConnectWithoutSaving,
     EditorCancel,
     /// Ask for confirmation before removing a host. Confirming dispatches
     /// `DeleteConnection`. Destructive removals are routed through a confirm
@@ -531,6 +538,14 @@ pub enum Message {
 
     // SSH
     ConnectSsh(usize),
+    /// Connect an ad-hoc quick-connect host (never persisted). The entry
+    /// is inserted into `quick_connects` keyed by its connection id; a
+    /// retry for an id already present reuses the stored entry so
+    /// in-place mutations (expanded legacy algorithms) survive.
+    QuickConnect(Box<crate::state::QuickConnectEntry>),
+    /// Open the host editor prefilled from the quick-connect entry so the
+    /// user can persist it as a regular host.
+    SaveQuickHost(Uuid),
     SshProgress(ConnectionStep, String),
     SshConnected(Uuid, Arc<SshSession>),  // (pane_id, session)
     SshDisconnected(Uuid),  // (pane_id)
@@ -775,8 +790,12 @@ pub enum Message {
     /// on, so the drag is being reported instead of selecting text. Shows
     /// the "hold Shift to select" toast. Fires at most once per pane.
     TerminalMouseCaptureHint,
-    /// The user ctrl-clicked a link in the terminal: under `HintMode::Once`,
-    /// retire the "Ctrl + Click to open" tooltip for the focused pane.
+    /// The user plain-clicked (no Ctrl) a link in the terminal, so it
+    /// selected instead of opening. Shows the "hold Ctrl and click to
+    /// open" toast; under `HintMode::Once` it fires at most once per pane.
+    TerminalLinkClickHint,
+    /// The user ctrl-clicked a link in the terminal: the gesture landed,
+    /// so under `HintMode::Once` retire the link toast for the focused pane.
     TerminalLinkOpened,
     /// Settings: terminal hint mode picker changed. Carries the localized
     /// option label; the dispatch handler maps it back to a `HintMode`.
@@ -1052,6 +1071,15 @@ pub enum Message {
     // `…` menu folding the view's secondary toolbar actions.
     ToggleToolbarSearch,
     ToggleToolbarOverflow,
+
+    // Keyboard navigation, modal layer: pointer hover moved onto a
+    // recorded row, so the keyboard ring follows it (index into the
+    // per-frame `keynav.modal.items` recording).
+    ModalNavHover(usize),
+    // A pick_list dropdown opened (true) or closed (false); keeps
+    // `keynav.pick_open` in sync so app-side key routing yields to
+    // the widget while its menu is up.
+    PickOpenChanged(bool),
 
     // Proxy Identities (Settings → Proxies)
     ShowProxyIdentityForm(Option<Uuid>),
@@ -1336,15 +1364,22 @@ pub enum Message {
     ChatResetConversation,
     ChatSidebarResizeStart,
     ChatSidebarResizeStop,
+    /// User picked a Plan / Ask / Auto mode from the chat sidebar. Applies to
+    /// the active tab's conversation and is persisted as the default for new
+    /// tabs (`ai_default_mode`).
+    ChatModeChanged(crate::state::ChatMode),
     SendChat,
     /// Incremental text delta from the streaming AI response. Appended
-    /// to the active assistant bubble so the user sees tokens land as
-    /// they're generated.
-    ChatStreamChunk(String),
+    /// to the origin tab's active assistant bubble so the user sees tokens
+    /// land as they're generated. `tab_id` routes the delta to the tab that
+    /// started the stream, not `active_tab`, so switching tabs mid-stream
+    /// can't corrupt another conversation or run a command on the wrong host.
+    ChatStreamChunk { tab_id: Uuid, delta: String },
     /// Terminal sentinel for `ChatStreamChunk`, clears the loading
-    /// state and finalises the message (markdown re-parse, scroll snap).
-    ChatStreamDone,
-    ChatError(String),
+    /// state and finalises the message (markdown re-parse, scroll snap)
+    /// on the origin tab.
+    ChatStreamDone { tab_id: Uuid },
+    ChatError { tab_id: Uuid, error: String },
     /// User clicked Stop while the assistant was streaming or
     /// auto-running tools. Aborts the in-flight chat task (and the
     /// detached tool-followup pipeline it feeds) so a runaway
@@ -1353,26 +1388,34 @@ pub enum Message {
     /// Re-send the last user message, used by the Retry button on an
     /// error bubble. Pops the most recent error and replays.
     ChatRetry,
-    ChatToolExec(String),
+    /// Run a command in the origin tab's terminal, recording a running `Tool`
+    /// exchange. `tab_id` pins it to the tab that owns the conversation so a
+    /// tool call never lands in the wrong session; `risk` is carried so the
+    /// reconstructed `tool_use` block reports the model's classification.
+    ChatToolExec { tab_id: Uuid, command: String, risk: String },
+    /// The terminal poll for a running tool exchange finished. Persists the
+    /// captured `output` onto the exchange with id `tool_id` (pairing it with
+    /// its `tool_use`), then fires the analysis followup. Re-introduced as the
+    /// hook that makes tool results durable in history for real tool blocks.
+    ChatToolResult { tab_id: Uuid, tool_id: String, output: String },
     /// AI proposed a tool call. Carries the command + `risk` it
-    /// self-classified ("safe" / "risky"). Safe commands still have to
-    /// clear the independent auto-exec judge before running unattended;
-    /// risky ones (and ones the model failed to classify) are queued as
-    /// a `PendingTool` bubble with RUN / ALWAYS RUN / DENY buttons.
-    ChatToolProposed { command: String, risk: String },
-    /// The independent safety judge declined to auto-run a model-claimed
-    /// `safe` command. Surface it for explicit approval like a risky one.
-    ChatToolGuardBlocked { command: String },
+    /// self-classified ("safe" / "risky") plus the origin `tab_id`. Safe
+    /// commands still have to clear the independent auto-exec judge before
+    /// running unattended; risky ones (and ones the model failed to
+    /// classify) are queued as a `PendingTool` bubble with RUN / ALWAYS RUN
+    /// / DENY buttons.
+    ChatToolProposed { tab_id: Uuid, command: String, risk: String },
+    /// The independent safety judge (or a mode/loop guard) declined to
+    /// auto-run a command. Surface it for explicit approval like a risky one.
+    ChatToolGuardBlocked { tab_id: Uuid, command: String },
     /// User clicked RUN on a pending tool prompt, execute once.
     ChatToolApprove(String),
     /// User clicked ALWAYS RUN, add this command's first token to the
     /// tab's allow-list and execute now.
     ChatToolApproveAlways(String),
-    /// User clicked DENY on a pending tool prompt, drop the bubble,
-    /// don't run anything, don't notify the model.
+    /// User clicked DENY on a pending tool prompt, drop the bubble and
+    /// record the refusal so the next turn tells the model it was declined.
     ChatToolDeny(String),
-    #[allow(dead_code)]
-    ChatToolResult(String),
 
     // Port forwarding
     EditorAddPortForward,

@@ -143,6 +143,16 @@ pub struct KbiQuery {
 pub type KbiAskSender =
     tokio::sync::mpsc::Sender<(KbiQuery, tokio::sync::oneshot::Sender<Option<Vec<String>>>)>;
 
+/// How a keyboard-interactive exchange ended. `Rejected` (server said no,
+/// or no answer source was available) and `Cancelled` (the user dismissed
+/// the prompt) are kept apart so callers can fall back to another method
+/// after a refusal without ever re-prompting after an explicit cancel.
+enum KbiOutcome {
+    Success,
+    Rejected,
+    Cancelled,
+}
+
 /// True when a keyboard-interactive prompt is asking for a one-time
 /// code. Matched against the lowercased prompt; the list covers the
 /// stock PAM modules (google-authenticator "Verification code:",
@@ -1239,6 +1249,12 @@ pub struct SshEngine {
     /// (used by boot auto-started port forwards). See
     /// `ClientHandler::strict_host_key`.
     strict_host_key: bool,
+    /// Quick-connect auth mode: when `AuthMethod::Auto` exhausts its
+    /// silent methods (publickey, agent, stored password), surface the
+    /// interactive prompt instead of failing, the way OpenSSH does.
+    /// Off by default so saved Auto hosts keep the documented
+    /// never-prompts behavior; only ad-hoc quick connects opt in.
+    auto_interactive_fallback: bool,
     /// Set only for remote (`-R`) forwards. Propagated to the handler so
     /// inbound `forwarded-tcpip` channels reach the drain task. See
     /// `ClientHandler::forwarded_channel_sink`.
@@ -1274,6 +1290,7 @@ impl SshEngine {
             algo_macs: None,
             algo_host_keys: None,
             strict_host_key: false,
+            auto_interactive_fallback: false,
             forwarded_channel_sink: None,
         }
     }
@@ -1347,6 +1364,15 @@ impl SshEngine {
     /// where there is no terminal to surface a host-key prompt.
     pub fn with_strict_host_key(mut self, enabled: bool) -> Self {
         self.strict_host_key = enabled;
+        self
+    }
+
+    /// Quick-connect auth mode: let `AuthMethod::Auto` fall back to the
+    /// interactive prompt (keyboard-interactive modal, then a single
+    /// prompted password) once every silent method has failed. Needs a
+    /// `with_kbi_ask` channel to have any effect.
+    pub fn with_auto_interactive_fallback(mut self, enabled: bool) -> Self {
+        self.auto_interactive_fallback = enabled;
         self
     }
 
@@ -1610,11 +1636,15 @@ impl SshEngine {
         // Interactive and PasswordPrompt both park on human input, which
         // routinely exceeds any network bound. Their network round-trips
         // are capped individually inside the auth path instead, so the
-        // blanket `auth_timeout` is skipped here for both.
+        // blanket `auth_timeout` is skipped here for both. Auto joins them
+        // when the quick-connect interactive fallback can prompt: its tail
+        // may park on the same modal.
+        let may_prompt = self.auto_interactive_fallback && self.kbi_ask_tx.is_some();
         if matches!(
             connection.auth_method,
             AuthMethod::Interactive | AuthMethod::PasswordPrompt
-        ) {
+        ) || (connection.auth_method == AuthMethod::Auto && may_prompt)
+        {
             return self
                 .authenticate_handle(handle, connection, password, private_key_pem)
                 .await;
@@ -2158,15 +2188,65 @@ impl SshEngine {
                         Err(e) => tracing::info!("Auto: password error: {}", e),
                     }
 
-                    // 4. Try keyboard-interactive with password. Auto never
-                    // surfaces a modal (use_callback = false): it only reaches
-                    // here after password already failed, so a prompt at the
-                    // tail of Auto would be surprising. The user picks
-                    // AuthMethod::Interactive when they want the modal.
+                    // 4. Try keyboard-interactive with password. Silent
+                    // (use_callback = false): it only reaches here after
+                    // password already failed, so a prompt at the tail of a
+                    // saved Auto host would be surprising. The user picks
+                    // AuthMethod::Interactive when they want the modal; the
+                    // quick-connect opt-in below is the one exception.
                     tried.push("keyboard-interactive");
                     tracing::info!("Auto: trying keyboard-interactive auth for {}", username);
-                    if self.try_keyboard_interactive(handle, username, Some(pw), false).await? {
+                    if matches!(
+                        self.try_keyboard_interactive(handle, username, Some(pw), false).await?,
+                        KbiOutcome::Success
+                    ) {
                         return Ok(true);
+                    }
+                }
+
+                // 5. Quick-connect fallback (`with_auto_interactive_fallback`):
+                // surface the interactive prompt the way OpenSSH would once
+                // every silent method has failed, instead of erroring out.
+                if self.auto_interactive_fallback && self.kbi_ask_tx.is_some() {
+                    tried.push("keyboard-interactive (prompt)");
+                    tracing::info!("Auto: trying prompted keyboard-interactive auth for {}", username);
+                    match self.try_keyboard_interactive(handle, username, password, true).await? {
+                        KbiOutcome::Success => return Ok(true),
+                        // An explicit cancel ends the attempt; chaining a
+                        // second modal after it would fight the user.
+                        KbiOutcome::Cancelled => {
+                            return Err(SshError::Key("Authentication cancelled".into()));
+                        }
+                        // The server may not offer keyboard-interactive at
+                        // all (password-only sshd): one prompted password
+                        // attempt before giving up.
+                        KbiOutcome::Rejected => {
+                            tried.push("password (prompt)");
+                            tracing::info!("Auto: trying prompted password auth for {}", username);
+                            match self.prompt_password_once(None).await {
+                                Some(pw) => {
+                                    let res = tokio::time::timeout(
+                                        self.auth_timeout,
+                                        handle.authenticate_password(username, &pw),
+                                    )
+                                    .await
+                                    .map_err(|_| {
+                                        SshError::ConnectionFailed(format!(
+                                            "auth timed out after {}s",
+                                            self.auth_timeout.as_secs()
+                                        ))
+                                    })??;
+                                    if res.success() {
+                                        return Ok(true);
+                                    }
+                                }
+                                None => {
+                                    return Err(SshError::Key(
+                                        "Authentication cancelled".into(),
+                                    ));
+                                }
+                            }
+                        }
                     }
                 }
 
@@ -2234,10 +2314,13 @@ impl SshEngine {
             }
             AuthMethod::Interactive => {
                 tracing::info!("Trying keyboard-interactive auth for {}", username);
-                if self.try_keyboard_interactive(handle, username, password, true).await? {
-                    Ok(true)
-                } else {
-                    Err(SshError::Key("Keyboard-interactive auth rejected".into()))
+                match self.try_keyboard_interactive(handle, username, password, true).await? {
+                    KbiOutcome::Success => Ok(true),
+                    // Rejection and cancel both surfaced the same error
+                    // before the outcome split; keep that behavior.
+                    KbiOutcome::Rejected | KbiOutcome::Cancelled => {
+                        Err(SshError::Key("Keyboard-interactive auth rejected".into()))
+                    }
                 }
             }
             AuthMethod::PasswordPrompt => {
@@ -2336,20 +2419,25 @@ impl SshEngine {
     /// Each round's answers come from one of three sources, in order:
     /// - `use_callback` + a `kbi_ask_tx` channel: surface the prompts to the
     ///   UI and wait for typed answers. The user cancelling (`None`) aborts
-    ///   the auth cleanly (`Ok(false)`).
+    ///   the auth cleanly (`Cancelled`).
     /// - otherwise `fallback_pw`: answer every prompt with the stored
     ///   password (the Auto path, and the headless degrade path).
-    /// - neither available: fail cleanly (`Ok(false)`).
+    /// - neither available: fail cleanly (`Rejected`).
     ///
     /// A round carrying zero prompts is answered with an empty response, so
     /// servers that send an informational-only `InfoRequest` keep advancing.
+    ///
+    /// The `Rejected` / `Cancelled` split matters to the quick-connect Auto
+    /// fallback: a server refusal may still fall through to a prompted
+    /// password attempt, while an explicit user cancel must never chain a
+    /// second modal.
     async fn try_keyboard_interactive(
         &self,
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
         fallback_pw: Option<&str>,
         use_callback: bool,
-    ) -> Result<bool, SshError> {
+    ) -> Result<KbiOutcome, SshError> {
         // Cap on the number of challenge rounds. Real flows use 1-2; this is
         // just a backstop against a server that loops InfoRequest forever.
         const MAX_ROUNDS: usize = 16;
@@ -2381,8 +2469,12 @@ impl SshEngine {
 
         for _ in 0..MAX_ROUNDS {
             let (name, instructions, prompts) = match resp {
-                client::KeyboardInteractiveAuthResponse::Success => return Ok(true),
-                client::KeyboardInteractiveAuthResponse::Failure { .. } => return Ok(false),
+                client::KeyboardInteractiveAuthResponse::Success => {
+                    return Ok(KbiOutcome::Success);
+                }
+                client::KeyboardInteractiveAuthResponse::Failure { .. } => {
+                    return Ok(KbiOutcome::Rejected);
+                }
                 client::KeyboardInteractiveAuthResponse::InfoRequest {
                     name,
                     instructions,
@@ -2420,17 +2512,17 @@ impl SshEngine {
                 let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
                 if tx.send((query, resp_tx)).await.is_err() {
                     // UI bridge is gone; treat as cancellation.
-                    return Ok(false);
+                    return Ok(KbiOutcome::Cancelled);
                 }
                 match resp_rx.await {
                     Ok(Some(answers)) => answers,
                     // User cancelled, or the responder dropped: abort cleanly.
-                    Ok(None) | Err(_) => return Ok(false),
+                    Ok(None) | Err(_) => return Ok(KbiOutcome::Cancelled),
                 }
             } else if let Some(pw) = fallback_pw {
                 prompts.iter().map(|_| pw.to_string()).collect()
             } else {
-                return Ok(false);
+                return Ok(KbiOutcome::Rejected);
             };
 
             resp = tokio::time::timeout(
@@ -2442,7 +2534,7 @@ impl SshEngine {
         }
 
         tracing::warn!("keyboard-interactive exceeded {} rounds, giving up", MAX_ROUNDS);
-        Ok(false)
+        Ok(KbiOutcome::Rejected)
     }
 
     /// Authenticate and open a PTY session on the handle.

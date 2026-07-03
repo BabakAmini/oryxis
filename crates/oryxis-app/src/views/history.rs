@@ -55,6 +55,10 @@ impl Oryxis {
                 .iter()
                 .any(|e| matches!(e.event, LogEvent::AuthFailed | LogEvent::Error));
         if !has_timeline {
+            // No toolbar / rows on this path; drop anything recorded
+            // by a previous frame so the keyboard router matches.
+            self.keynav_toolbar_reset();
+            self.keynav_clear_content();
             return column![crate::widgets::empty_state(
                 iced_fonts::lucide::history()
                     .size(32)
@@ -209,30 +213,62 @@ impl Oryxis {
             self.overlay.as_ref().map(|o| &o.content),
             Some(crate::state::OverlayContent::ToolbarOverflow)
         );
+        // `keynav_toolbar_slot` records each rendered action for the
+        // keyboard router (push order == visual order here). Disabled
+        // controls (dead pager edge, empty "Clear all") are skipped so
+        // the keyboard never lands on a button that does nothing.
+        self.keynav_toolbar_reset();
+        let search_slot = self.vault_search_slot(search_collapsed);
+        let search_slot = if search_collapsed {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+        } else {
+            search_slot
+        };
         let mut row_items: Vec<Element<'_, Message>> =
-            vec![self.vault_search_slot(search_collapsed), Space::new().width(10).into()];
+            vec![search_slot, Space::new().width(10).into()];
         // Privacy reveal toggle, shown whenever Privacy Mode could mask
         // something in this view (global on, or any host forces it on).
         let privacy_applies = self.setting_privacy_mode
             || self.connections.iter().any(|c| c.privacy_mode == Some(true));
         if privacy_applies {
-            row_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+            row_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::PrivacyReveal,
+                crate::widgets::privacy_reveal_btn(self.privacy_revealed),
+            ));
             row_items.push(Space::new().width(8).into());
         }
         if buttons_overflow {
-            row_items.push(crate::widgets::toolbar_overflow_icon(overflow_open));
+            row_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::Overflow,
+                crate::widgets::toolbar_overflow_icon(overflow_open),
+            ));
         } else {
+            let prev_slot = if can_prev {
+                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::PagerPrev, prev_btn)
+            } else {
+                prev_btn
+            };
+            let next_slot = if can_next {
+                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::PagerNext, next_btn)
+            } else {
+                next_btn
+            };
+            let clear_slot: Element<'_, Message> = if has_entries {
+                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, clear_btn.into())
+            } else {
+                clear_btn.into()
+            };
             row_items.extend([
                 text(range_label)
                     .size(11)
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(8).into(),
-                prev_btn,
+                prev_slot,
                 Space::new().width(4).into(),
-                next_btn,
+                next_slot,
                 Space::new().width(12).into(),
-                clear_btn.into(),
+                clear_slot,
             ]);
         }
         let toolbar = container(
@@ -243,6 +279,9 @@ impl Oryxis {
 
         // ── Rows ──
         let list: Element<'_, Message> = if rows.is_empty() {
+            // Nothing navigable (e.g. search with no match); keep the
+            // keyboard order in sync with the screen.
+            self.keynav_clear_content();
             crate::widgets::empty_state(
                 iced_fonts::lucide::history()
                     .size(32)
@@ -254,13 +293,21 @@ impl Oryxis {
             )
         } else {
             let mut row_elements: Vec<Element<'_, Message>> = Vec::new();
+            // Keyboard-navigation order for the current page: one row
+            // per session entry. Failure rows have no click action, so
+            // the keyboard skips them too (nothing to activate).
+            let mut nav_rows: Vec<Vec<crate::keynav::NavItem>> = Vec::new();
             let start = page * per_page;
             let end = ((page + 1) * per_page).min(total);
             for row_data in &rows[start..end] {
+                if let TimelineKind::Session { entry, .. } = &row_data.kind {
+                    nav_rows.push(vec![crate::keynav::NavItem::HistoryLog(entry.id)]);
+                }
                 let conn = conn_by_label.get(row_data.label).copied();
                 row_elements.push(self.render_timeline_row(row_data, conn));
                 row_elements.push(Space::new().height(4).into());
             }
+            self.keynav_set_content_rows(nav_rows);
             scrollable(
                 column(row_elements).padding(Padding {
                     top: 0.0,
@@ -269,6 +316,9 @@ impl Oryxis {
                     left: 24.0,
                 }),
             )
+            // Stable id so the keyboard router can keep the selected
+            // row scrolled into view.
+            .id(iced::widget::Id::new("history-list-scroll"))
             .height(Length::Fill)
             .into()
         };
@@ -291,11 +341,12 @@ impl Oryxis {
                 .map(|c| self.privacy_active(c))
                 .unwrap_or(self.setting_privacy_mode);
             let mask = privacy_applies && !self.privacy_revealed;
+            let privacy_terms = if mask { self.privacy_terms() } else { Vec::new() };
             let rich_spans: Vec<iced::widget::text::Span<'_, ()>> = spans
                 .iter()
                 .map(|s| {
                     let txt = if mask {
-                        crate::widgets::redact_for_display(&s.text)
+                        crate::widgets::redact_for_display(&s.text, &privacy_terms)
                     } else {
                         s.text.clone()
                     };
@@ -494,7 +545,7 @@ impl Oryxis {
         let subtitle = match &row.kind {
             TimelineKind::Failure(e) => {
                 let msg = if mask {
-                    crate::widgets::redact_for_display(&e.message)
+                    crate::widgets::redact_for_display(&e.message, &self.privacy_terms())
                 } else {
                     e.message.clone()
                 };
@@ -586,7 +637,12 @@ impl Oryxis {
             TimelineKind::Session { entry, .. } => Some(entry.id),
             TimelineKind::Failure(_) => None,
         };
-        let hovered = viewable.is_some() && viewable == self.hovered_log_row;
+        let kb_selected = viewable.is_some()
+            && self.keynav.selected_in(crate::keynav::FocusZone::Content)
+                == viewable.map(crate::keynav::NavItem::HistoryLog);
+        // Keyboard selection reuses the hover treatment (bg tint) plus
+        // the shared ring below.
+        let hovered = (viewable.is_some() && viewable == self.hovered_log_row) || kb_selected;
 
         let card = container(
             crate::widgets::dir_row(vec![
@@ -631,12 +687,19 @@ impl Oryxis {
         });
 
         match viewable {
-            Some(log_id) => iced::widget::MouseArea::new(card)
-                .on_press(Message::ViewSessionLog(log_id))
-                .on_enter(Message::LogRowHovered(log_id))
-                .on_exit(Message::LogRowUnhovered)
-                .interaction(iced::mouse::Interaction::Pointer)
-                .into(),
+            Some(log_id) => {
+                let row_el: Element<'_, Message> = iced::widget::MouseArea::new(card)
+                    .on_press(Message::ViewSessionLog(log_id))
+                    .on_enter(Message::LogRowHovered(log_id))
+                    .on_exit(Message::LogRowUnhovered)
+                    .interaction(iced::mouse::Interaction::Pointer)
+                    .into();
+                if kb_selected {
+                    crate::widgets::select_ring_radius(row_el, 8.0)
+                } else {
+                    row_el
+                }
+            }
             None => card.into(),
         }
     }

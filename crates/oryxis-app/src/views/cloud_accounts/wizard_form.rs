@@ -15,6 +15,8 @@ use crate::widgets::{dir_align_x, dir_row};
 
 impl Oryxis {
     pub(crate) fn view_cloud_form_panel(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
+        self.panel_nav_reset();
         let is_editing = self.cloud_form.editing_id.is_some();
         let title = if is_editing {
             t("cloud_edit_account")
@@ -22,6 +24,9 @@ impl Oryxis {
             t("cloud_new_account")
         };
 
+        // The close (×) is not a keyboard row: Esc already owns panel
+        // close, and recording it would make the header the first Down
+        // target instead of the form.
         let panel_header = container(
             dir_row(vec![
                 text(title)
@@ -56,275 +61,15 @@ impl Oryxis {
             left: 20.0,
         });
 
-        // ── Provider picker ── AWS + Kubernetes.
-        let provider_options = vec![CloudProviderChoice::Aws, CloudProviderChoice::K8s];
-        let provider_pick = pick_list(
-            Some(self.cloud_form.provider),
-            provider_options,
-            |c| match c {
-                CloudProviderChoice::Aws => "AWS".to_string(),
-                CloudProviderChoice::K8s => "Kubernetes".to_string(),
-            },
-        )
-        .on_select(Message::CloudFormProviderChanged)
-        .padding(10)
-        .style(crate::widgets::rounded_pick_list_style);
-
-        // ── Auth picker ── (only Profile is implemented today.)
-        let auth_options = match self.cloud_form.provider {
-            CloudProviderChoice::Aws => vec![
-                CloudAuthChoice::Profile,
-                CloudAuthChoice::AccessKey,
-                CloudAuthChoice::Sso,
-            ],
-            CloudProviderChoice::K8s => vec![CloudAuthChoice::Kubeconfig],
-        };
-        let auth_pick = pick_list(
-            Some(self.cloud_form.auth_kind),
-            auth_options,
-            |a| match a {
-                CloudAuthChoice::Profile => t("cloud_auth_profile").to_string(),
-                CloudAuthChoice::AccessKey => t("cloud_auth_access_key").to_string(),
-                CloudAuthChoice::Sso => t("cloud_auth_sso").to_string(),
-                CloudAuthChoice::Kubeconfig => t("cloud_auth_kubeconfig").to_string(),
-            },
-        )
-        .on_select(Message::CloudFormAuthKindChanged)
-        .padding(10)
-        .style(crate::widgets::rounded_pick_list_style);
-
-        // Workload regions, chip list shared across all AWS auth kinds.
-        // First chip = default region for single-region API calls; the
-        // full list drives discovery fan-out. SSO has its own
-        // `sso_region` separately (the IdC endpoint, not workload).
-        let chips: Vec<Element<'_, Message>> = self
-            .cloud_form.aws_regions
-            .iter()
-            .enumerate()
-            .map(|(i, r)| region_chip(r.as_str(), i))
-            .collect();
-        let chips_block: Element<'_, Message> = if chips.is_empty() {
-            Space::new().height(0).into()
-        } else {
-            // Plain Row, not dir_row, the chips are content-flow not
-            // structural layout and don't need to mirror under RTL.
-            container(Row::with_children(chips).spacing(6))
-                .padding(Padding {
-                    top: 0.0,
-                    right: 0.0,
-                    bottom: 6.0,
-                    left: 0.0,
-                })
-                .into()
-        };
-        let region_field = column![
-            text(t("cloud_aws_regions"))
-                .size(12)
-                .color(OryxisColors::t().text_secondary),
-            Space::new().height(4),
-            chips_block,
-            text_input("us-east-1", &self.cloud_form.aws_region_draft)
-                .on_input(Message::CloudFormAwsRegionDraftChanged)
-                .on_submit(Message::CloudFormAwsRegionAdd)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style)
-                .align_x(dir_align_x()),
-            Space::new().height(4),
-            text(t("cloud_aws_regions_hint"))
-                .size(10)
-                .color(OryxisColors::t().text_muted),
-        ];
-
-        // Auth-kind-specific fields. We render only the ones that
-        // apply to the current pick so the form doesn't sprawl with
-        // irrelevant inputs.
-        let aws_fields: Element<'_, Message> = match self.cloud_form.auth_kind {
-            CloudAuthChoice::Profile => column![
-                text(t("cloud_aws_profile_name"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input("default", &self.cloud_form.aws_profile_name)
-                    .on_input(Message::CloudFormAwsProfileNameChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                Space::new().height(14),
-                region_field,
-            ]
-            .into(),
-            CloudAuthChoice::AccessKey => {
-                let secret_placeholder = if self.cloud_form.aws_has_existing_secret {
-                    t("cloud_aws_access_key_secret_kept")
-                } else {
-                    t("cloud_aws_access_key_secret_ph")
-                };
-                column![
-                    text(t("cloud_aws_access_key_id"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    text_input("AKIAIOSFODNN7EXAMPLE", &self.cloud_form.aws_access_key_id)
-                        .on_input(Message::CloudFormAwsAccessKeyIdChanged)
-                        .padding(10)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                    Space::new().height(14),
-                    text(t("cloud_aws_access_key_secret"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    text_input(secret_placeholder, &self.cloud_form.aws_access_key_secret)
-                        .on_input(Message::CloudFormAwsAccessKeySecretChanged)
-                        .secure(!self.cloud_form.aws_access_key_secret_visible)
-                        .padding(10)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                    Space::new().height(14),
-                    text(t("cloud_aws_access_key_session_token"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    text_input(t("cloud_aws_access_key_session_token_ph"), &self.cloud_form.aws_access_key_session_token)
-                        .on_input(Message::CloudFormAwsAccessKeySessionTokenChanged)
-                        .padding(10)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                    Space::new().height(14),
-                    region_field,
-                ]
-                .into()
-            }
-            CloudAuthChoice::Sso => column![
-                text(t("cloud_aws_sso_start_url"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input("https://acme.awsapps.com/start", &self.cloud_form.aws_sso_start_url)
-                    .on_input(Message::CloudFormAwsSsoStartUrlChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                Space::new().height(14),
-                text(t("cloud_aws_sso_region"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input("us-east-1", &self.cloud_form.aws_sso_region)
-                    .on_input(Message::CloudFormAwsSsoRegionChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                Space::new().height(14),
-                text(t("cloud_aws_sso_account_id"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input("123456789012", &self.cloud_form.aws_sso_account_id)
-                    .on_input(Message::CloudFormAwsSsoAccountIdChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                Space::new().height(14),
-                text(t("cloud_aws_sso_role_name"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input("AdministratorAccess", &self.cloud_form.aws_sso_role_name)
-                    .on_input(Message::CloudFormAwsSsoRoleNameChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                Space::new().height(14),
-                region_field,
-                Space::new().height(8),
-                text(t("cloud_aws_sso_hint"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted),
-            ]
-            .into(),
-            CloudAuthChoice::Kubeconfig => column![
-                text(t("cloud_k8s_kubeconfig_path"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input(t("cloud_k8s_kubeconfig_ph"), &self.cloud_form.kubeconfig_path)
-                    .on_input(Message::CloudFormKubeconfigPathChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x()),
-                Space::new().height(4),
-                text(t("cloud_k8s_kubeconfig_hint"))
-                    .size(10)
-                    .color(OryxisColors::t().text_muted),
-                Space::new().height(14),
-                text(t("cloud_k8s_context"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary),
-                Space::new().height(4),
-                text_input(t("cloud_k8s_context_ph"), &self.cloud_form.context)
-                    .on_input(Message::CloudFormContextChanged)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x()),
-                Space::new().height(4),
-                text(t("cloud_k8s_context_hint"))
-                    .size(10)
-                    .color(OryxisColors::t().text_muted),
-            ]
-            .into(),
-        };
-
-        // ── Test credentials button + result line ──
-        let test_status: Element<'_, Message> = match &self.cloud_form.test_state {
-            CloudTestState::Idle => Space::new().height(0).into(),
-            CloudTestState::Running => text(t("cloud_test_running"))
-                .size(11)
-                .color(OryxisColors::t().text_muted)
-                .into(),
-            CloudTestState::Ok => text(t("cloud_test_ok"))
-                .size(11)
-                .color(OryxisColors::t().success)
-                .into(),
-            CloudTestState::Failed(msg) => {
-                text(format!("{}: {msg}", t("cloud_test_failed")))
-                    .size(11)
-                    .color(OryxisColors::t().error)
-                    .into()
-            }
-        };
-
         // Test Credentials shells out to the provider plugin; if it's
         // not installed, the call would fail with a cryptic
         // `BinaryNotFound` error, so block it at the button level and
-        // surface the install banner above.
+        // surface the install banner above. Computed before the form
+        // widgets because the banner renders (and records its keyboard
+        // row) above them.
         let plugin_missing = !self.is_plugin_ready(self.cloud_form.provider);
         let test_button_disabled =
             matches!(self.cloud_form.test_state, CloudTestState::Running) || plugin_missing;
-
-        let test_btn = {
-            let mut btn = button(
-                container(
-                    text(t("cloud_test_credentials"))
-                        .size(13)
-                        .color(OryxisColors::t().text_primary),
-                )
-                .padding(Padding {
-                    top: 8.0,
-                    right: 0.0,
-                    bottom: 8.0,
-                    left: 0.0,
-                })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-            )
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    radius: Radius::from(8.0),
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                },
-                ..Default::default()
-            });
-            if !test_button_disabled {
-                btn = btn.on_press(Message::CloudFormTestCredentials);
-            }
-            btn
-        };
 
         // Plugin-missing banner: pinned *above* the scrollable form
         // when the provider chosen above has no installed plugin, so
@@ -332,6 +77,8 @@ impl Oryxis {
         // "binary not found" wall on Test Credentials. Every cloud
         // provider (AWS and Kubernetes alike) runs as a subprocess
         // plugin, so both surface this when their plugin is missing.
+        // Built before the form fields so the Install button's keyboard
+        // row records first, matching its on-screen position.
         let plugin_banner: Element<'_, Message> = if plugin_missing {
             let provider_id_str = self.cloud_form.provider.id();
             // Brand name (not translated) for the title prefix, so the
@@ -369,6 +116,13 @@ impl Oryxis {
                 },
                 ..Default::default()
             });
+            let install_btn = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(
+                    provider_id_str.to_string(),
+                )),
+                6.0,
+                install_btn.into(),
+            );
             let banner: Element<'_, Message> = container(
                 column![
                     dir_row(vec![
@@ -414,15 +168,421 @@ impl Oryxis {
             Space::new().into()
         };
 
+        // Name field, built before the pickers so its keyboard row
+        // records first (it's the top field of the form).
+        let name_field: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("panel-cloud-name")),
+            10.0,
+            text_input("prod-aws", &self.cloud_form.label)
+                .id(iced::widget::Id::new("panel-cloud-name"))
+                .on_input(Message::CloudFormLabelChanged)
+                .padding(10)
+                .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                .into(),
+        );
+
+        // ── Provider picker ── AWS + Kubernetes. Keyboard row:
+        // Focusable select: Tab reaches it, Enter/Space open it, the
+        // widget owns arrows/Esc while focused (fork support).
+        let provider_options = vec![CloudProviderChoice::Aws, CloudProviderChoice::K8s];
+        let provider_pick: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-provider")),
+            10.0,
+            pick_list(
+                Some(self.cloud_form.provider),
+                provider_options,
+                |c| match c {
+                    CloudProviderChoice::Aws => "AWS".to_string(),
+                    CloudProviderChoice::K8s => "Kubernetes".to_string(),
+                },
+            )
+            .on_select(Message::CloudFormProviderChanged)
+            .id(iced::widget::Id::new("cloud-pick-provider"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
+            .padding(10)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+
+        // ── Auth picker ── (only Profile is implemented today.)
+        let auth_options = match self.cloud_form.provider {
+            CloudProviderChoice::Aws => vec![
+                CloudAuthChoice::Profile,
+                CloudAuthChoice::AccessKey,
+                CloudAuthChoice::Sso,
+            ],
+            CloudProviderChoice::K8s => vec![CloudAuthChoice::Kubeconfig],
+        };
+        let auth_pick: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-auth")),
+            10.0,
+            pick_list(
+                Some(self.cloud_form.auth_kind),
+                auth_options,
+                |a| match a {
+                    CloudAuthChoice::Profile => t("cloud_auth_profile").to_string(),
+                    CloudAuthChoice::AccessKey => t("cloud_auth_access_key").to_string(),
+                    CloudAuthChoice::Sso => t("cloud_auth_sso").to_string(),
+                    CloudAuthChoice::Kubeconfig => t("cloud_auth_kubeconfig").to_string(),
+                },
+            )
+            .on_select(Message::CloudFormAuthKindChanged)
+            .id(iced::widget::Id::new("cloud-pick-auth"))
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
+            .padding(10)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+
+        // Workload regions, chip list shared across all AWS auth kinds.
+        // First chip = default region for single-region API calls; the
+        // full list drives discovery fan-out. SSO has its own
+        // `sso_region` separately (the IdC endpoint, not workload).
+        // Deferred to a closure so its keyboard rows (chip removals +
+        // the draft input) record at the arm's position inside the
+        // auth fields, keeping recording order equal to visual order.
+        let region_field = || {
+            let chips: Vec<Element<'_, Message>> = self
+                .cloud_form.aws_regions
+                .iter()
+                .enumerate()
+                .map(|(i, r)| {
+                    // Chips are a dynamic list: the whole chip records
+                    // with its remove action (there is no per-chip
+                    // input to focus).
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::CloudFormAwsRegionRemove(i)),
+                        12.0,
+                        region_chip(r.as_str(), i),
+                    )
+                })
+                .collect();
+            let chips_block: Element<'_, Message> = if chips.is_empty() {
+                Space::new().height(0).into()
+            } else {
+                // Plain Row, not dir_row, the chips are content-flow not
+                // structural layout and don't need to mirror under RTL.
+                container(Row::with_children(chips).spacing(6))
+                    .padding(Padding {
+                        top: 0.0,
+                        right: 0.0,
+                        bottom: 6.0,
+                        left: 0.0,
+                    })
+                    .into()
+            };
+            column![
+                text(t("cloud_aws_regions"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                chips_block,
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-region-draft",
+                    )),
+                    10.0,
+                    text_input("us-east-1", &self.cloud_form.aws_region_draft)
+                        .id(iced::widget::Id::new("panel-cloud-region-draft"))
+                        .on_input(Message::CloudFormAwsRegionDraftChanged)
+                        .on_submit(Message::CloudFormAwsRegionAdd)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(4),
+                text(t("cloud_aws_regions_hint"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted),
+            ]
+        };
+
+        // Auth-kind-specific fields. We render only the ones that
+        // apply to the current pick so the form doesn't sprawl with
+        // irrelevant inputs.
+        let aws_fields: Element<'_, Message> = match self.cloud_form.auth_kind {
+            CloudAuthChoice::Profile => column![
+                text(t("cloud_aws_profile_name"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-aws-profile",
+                    )),
+                    10.0,
+                    text_input("default", &self.cloud_form.aws_profile_name)
+                        .id(iced::widget::Id::new("panel-cloud-aws-profile"))
+                        .on_input(Message::CloudFormAwsProfileNameChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(14),
+                region_field(),
+            ]
+            .into(),
+            CloudAuthChoice::AccessKey => {
+                let secret_placeholder = if self.cloud_form.aws_has_existing_secret {
+                    t("cloud_aws_access_key_secret_kept")
+                } else {
+                    t("cloud_aws_access_key_secret_ph")
+                };
+                column![
+                    text(t("cloud_aws_access_key_id"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                    Space::new().height(4),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new(
+                            "panel-cloud-aws-key-id",
+                        )),
+                        10.0,
+                        text_input("AKIAIOSFODNN7EXAMPLE", &self.cloud_form.aws_access_key_id)
+                            .id(iced::widget::Id::new("panel-cloud-aws-key-id"))
+                            .on_input(Message::CloudFormAwsAccessKeyIdChanged)
+                            .padding(10)
+                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                            .into(),
+                    ),
+                    Space::new().height(14),
+                    text(t("cloud_aws_access_key_secret"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                    Space::new().height(4),
+                    // A plain secure text_input (not password_input_with_eye),
+                    // so it can carry a focus id and be a keyboard row.
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new(
+                            "panel-cloud-aws-key-secret",
+                        )),
+                        10.0,
+                        text_input(secret_placeholder, &self.cloud_form.aws_access_key_secret)
+                            .id(iced::widget::Id::new("panel-cloud-aws-key-secret"))
+                            .on_input(Message::CloudFormAwsAccessKeySecretChanged)
+                            .secure(!self.cloud_form.aws_access_key_secret_visible)
+                            .padding(10)
+                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                            .into(),
+                    ),
+                    Space::new().height(14),
+                    text(t("cloud_aws_access_key_session_token"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                    Space::new().height(4),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new(
+                            "panel-cloud-aws-session-token",
+                        )),
+                        10.0,
+                        text_input(t("cloud_aws_access_key_session_token_ph"), &self.cloud_form.aws_access_key_session_token)
+                            .id(iced::widget::Id::new("panel-cloud-aws-session-token"))
+                            .on_input(Message::CloudFormAwsAccessKeySessionTokenChanged)
+                            .padding(10)
+                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                            .into(),
+                    ),
+                    Space::new().height(14),
+                    region_field(),
+                ]
+                .into()
+            }
+            CloudAuthChoice::Sso => column![
+                text(t("cloud_aws_sso_start_url"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-sso-start-url",
+                    )),
+                    10.0,
+                    text_input("https://acme.awsapps.com/start", &self.cloud_form.aws_sso_start_url)
+                        .id(iced::widget::Id::new("panel-cloud-sso-start-url"))
+                        .on_input(Message::CloudFormAwsSsoStartUrlChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(14),
+                text(t("cloud_aws_sso_region"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-sso-region",
+                    )),
+                    10.0,
+                    text_input("us-east-1", &self.cloud_form.aws_sso_region)
+                        .id(iced::widget::Id::new("panel-cloud-sso-region"))
+                        .on_input(Message::CloudFormAwsSsoRegionChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(14),
+                text(t("cloud_aws_sso_account_id"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-sso-account",
+                    )),
+                    10.0,
+                    text_input("123456789012", &self.cloud_form.aws_sso_account_id)
+                        .id(iced::widget::Id::new("panel-cloud-sso-account"))
+                        .on_input(Message::CloudFormAwsSsoAccountIdChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(14),
+                text(t("cloud_aws_sso_role_name"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-sso-role",
+                    )),
+                    10.0,
+                    text_input("AdministratorAccess", &self.cloud_form.aws_sso_role_name)
+                        .id(iced::widget::Id::new("panel-cloud-sso-role"))
+                        .on_input(Message::CloudFormAwsSsoRoleNameChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(14),
+                region_field(),
+                Space::new().height(8),
+                text(t("cloud_aws_sso_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            ]
+            .into(),
+            CloudAuthChoice::Kubeconfig => column![
+                text(t("cloud_k8s_kubeconfig_path"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-kubeconfig-path",
+                    )),
+                    10.0,
+                    text_input(t("cloud_k8s_kubeconfig_ph"), &self.cloud_form.kubeconfig_path)
+                        .id(iced::widget::Id::new("panel-cloud-kubeconfig-path"))
+                        .on_input(Message::CloudFormKubeconfigPathChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(4),
+                text(t("cloud_k8s_kubeconfig_hint"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(14),
+                text(t("cloud_k8s_context"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-k8s-context",
+                    )),
+                    10.0,
+                    text_input(t("cloud_k8s_context_ph"), &self.cloud_form.context)
+                        .id(iced::widget::Id::new("panel-cloud-k8s-context"))
+                        .on_input(Message::CloudFormContextChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(4),
+                text(t("cloud_k8s_context_hint"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted),
+            ]
+            .into(),
+        };
+
+        // ── Test credentials button + result line ──
+        let test_status: Element<'_, Message> = match &self.cloud_form.test_state {
+            CloudTestState::Idle => Space::new().height(0).into(),
+            CloudTestState::Running => text(t("cloud_test_running"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+            CloudTestState::Ok => text(t("cloud_test_ok"))
+                .size(11)
+                .color(OryxisColors::t().success)
+                .into(),
+            CloudTestState::Failed(msg) => {
+                text(format!("{}: {msg}", t("cloud_test_failed")))
+                    .size(11)
+                    .color(OryxisColors::t().error)
+                    .into()
+            }
+        };
+
+        let test_btn = {
+            let mut btn = button(
+                container(
+                    text(t("cloud_test_credentials"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .padding(Padding {
+                    top: 8.0,
+                    right: 0.0,
+                    bottom: 8.0,
+                    left: 0.0,
+                })
+                .width(Length::Fill)
+                .center_x(Length::Fill),
+            )
+            .width(Length::Fill)
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+            if !test_button_disabled {
+                btn = btn.on_press(Message::CloudFormTestCredentials);
+            }
+            btn
+        };
+        // Recorded only when pressable: while a test runs (or the
+        // plugin is missing) the button has no on_press, so there is
+        // nothing for Enter to fire.
+        let test_btn: Element<'_, Message> = if test_button_disabled {
+            test_btn.into()
+        } else {
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::CloudFormTestCredentials),
+                8.0,
+                test_btn.into(),
+            )
+        };
+
         let form = column![
             text(t("name"))
                 .size(12)
                 .color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            text_input("prod-aws", &self.cloud_form.label)
-                .on_input(Message::CloudFormLabelChanged)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
+            name_field,
             Space::new().height(14),
             text(t("cloud_provider"))
                 .size(12)
@@ -454,39 +614,14 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
-        let save_btn = button(
-            container(
-                text(t("save"))
-                    .size(13)
-                    .color(OryxisColors::t().text_primary),
-            )
-            .padding(Padding {
-                top: 10.0,
-                right: 0.0,
-                bottom: 10.0,
-                left: 0.0,
-            })
-            .width(Length::Fill)
-            .center_x(Length::Fill),
-        )
-        .on_press(Message::SaveCloudProfile)
-        .width(Length::Fill)
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().accent)),
-            border: Border {
-                radius: Radius::from(8.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-
-        let mut bottom = column![save_btn];
-        if let Some(edit_id) = self.cloud_form.editing_id {
-            let del_btn = button(
+        let save_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::SaveCloudProfile),
+            8.0,
+            button(
                 container(
-                    text(t("delete"))
+                    text(t("save"))
                         .size(13)
-                        .color(OryxisColors::t().error),
+                        .color(OryxisColors::t().text_primary),
                 )
                 .padding(Padding {
                     top: 10.0,
@@ -497,17 +632,52 @@ impl Oryxis {
                 .width(Length::Fill)
                 .center_x(Length::Fill),
             )
-            .on_press(Message::DeleteCloudProfile(edit_id))
+            .on_press(Message::SaveCloudProfile)
             .width(Length::Fill)
             .style(|_, _| button::Style {
-                background: Some(Background::Color(Color::TRANSPARENT)),
+                background: Some(Background::Color(OryxisColors::t().accent)),
                 border: Border {
                     radius: Radius::from(8.0),
-                    color: OryxisColors::t().error,
-                    width: 1.0,
+                    ..Default::default()
                 },
                 ..Default::default()
-            });
+            })
+            .into(),
+        );
+
+        let mut bottom = column![save_btn];
+        if let Some(edit_id) = self.cloud_form.editing_id {
+            let del_btn = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::DeleteCloudProfile(edit_id)),
+                8.0,
+                button(
+                    container(
+                        text(t("delete"))
+                            .size(13)
+                            .color(OryxisColors::t().error),
+                    )
+                    .padding(Padding {
+                        top: 10.0,
+                        right: 0.0,
+                        bottom: 10.0,
+                        left: 0.0,
+                    })
+                    .width(Length::Fill)
+                    .center_x(Length::Fill),
+                )
+                .on_press(Message::DeleteCloudProfile(edit_id))
+                .width(Length::Fill)
+                .style(|_, _| button::Style {
+                    background: Some(Background::Color(Color::TRANSPARENT)),
+                    border: Border {
+                        radius: Radius::from(8.0),
+                        color: OryxisColors::t().error,
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                })
+                .into(),
+            );
             bottom = bottom.push(Space::new().height(8));
             bottom = bottom.push(del_btn);
         }
@@ -519,7 +689,11 @@ impl Oryxis {
                     // Pinned above the scroll so the install affordance
                     // stays visible while the user scrolls the fields.
                     plugin_banner,
-                    scrollable(form).height(Length::Fill),
+                    scrollable(form)
+                        // Shared id: the keyboard router keeps the
+                        // selected row in view.
+                        .id(iced::widget::Id::new("side-panel-scroll"))
+                        .height(Length::Fill),
                     Space::new().height(12),
                     panel_error,
                     Space::new().height(8),

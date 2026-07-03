@@ -1,0 +1,294 @@
+//! Unified keyboard navigation ("focus zones") for the vault area.
+//!
+//! The vault surface is modeled as four zones cycled with Tab /
+//! Shift+Tab: Search (iced's real text_input focus), the sub-nav
+//! pills (or the vertical rail), the per-view toolbar cluster and
+//! the content grid/list. Arrow keys move within a zone, Enter
+//! activates, Esc returns to idle.
+//!
+//! Search is "zone zero" and is represented by `focus == None`: iced
+//! gives no way to observe a text_input's focus from app state, so
+//! idle and search-focused are deliberately the same state (the same
+//! trick the old dashboard-only model used). Entering the search zone
+//! focuses the view's search input; leaving it blurs via the
+//! nonexistent-id trick (`"__keynav_blur__"`).
+//!
+//! Views record their navigable items into `KeyNavState`'s RefCells
+//! during `view()` (render order, post filter/sort), so the key
+//! router always moves across exactly what is on screen. Items are
+//! semantic ids (not positions): a re-render can't strand the
+//! selection on the wrong element because each keypress re-finds the
+//! item in the freshly recorded lists. The router lives in
+//! `dispatch_keynav.rs`; this module holds the types and the pure
+//! movement math (`movement.rs`).
+
+pub(crate) mod movement;
+pub(crate) mod slots;
+#[cfg(test)]
+mod tests;
+
+use std::cell::RefCell;
+
+pub(crate) use slots::{ModalNavState, ModalSurface, RowAction};
+
+/// The vault-area focus zones, in Tab-cycle order. Search is "zone
+/// zero" and is represented by `KeyNavState::focus == None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FocusZone {
+    SubNav,
+    Toolbar,
+    Content,
+}
+
+/// A keyboard-navigable item on the dashboard. Groups (host folders +
+/// session groups) come first, then hosts, mirroring the on-screen
+/// order. Enter opens a group / connects a host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DashNavItem {
+    /// Host folder; Enter → `OpenGroup`.
+    Group(uuid::Uuid),
+    /// Saved session group (index into `session_groups`); Enter → `OpenSessionGroup`.
+    SessionGroup(usize),
+    /// Host (index into `connections`); Enter → `ConnectSsh`.
+    Host(usize),
+}
+
+/// Position-independent ids for the per-view toolbar action cluster.
+/// Views record only the buttons they actually render, so the folded
+/// (narrow-window) state naturally exposes just the remnants.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolbarItem {
+    /// Grid/list layout toggle (dashboard only).
+    ViewToggle,
+    /// Sort-menu trigger.
+    Sort,
+    /// The primary action button ("+ HOST", "+ ADD", "Clear all", ...).
+    Primary,
+    /// The chevron half of a split primary button.
+    PrimaryChevron,
+    /// History pager: previous page.
+    PagerPrev,
+    /// History pager: next page.
+    PagerNext,
+    /// Privacy-mode reveal eye (History / Known Hosts).
+    PrivacyReveal,
+    /// The "⋯" button when the cluster is folded at narrow widths.
+    Overflow,
+    /// The search icon when the search field is collapsed.
+    SearchIcon,
+    /// Context-aware dashboard primary inside a provider folder:
+    /// "+ DISCOVER" for the linked cloud profile. Carries the profile
+    /// id so activation needs no re-derivation of the folder link.
+    CloudDiscover(uuid::Uuid),
+}
+
+/// A keyboard-selectable item, recorded by the views during render.
+/// Semantic ids, not positions, so a re-render (filter change, resize
+/// re-chunking) can't strand the selection on the wrong element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum NavItem {
+    /// Sub-nav zone: one pill / rail entry per vault view.
+    SubNav(crate::state::View),
+    /// Toolbar zone.
+    Toolbar(ToolbarItem),
+    /// Hosts grid (groups + session groups + hosts).
+    Dash(DashNavItem),
+    /// Keychain: index into the sorted/filtered keys as rendered.
+    Key(usize),
+    /// Keychain: index into the identities as rendered.
+    Identity(usize),
+    /// Snippet card (vault index).
+    Snippet(usize),
+    /// Port-forward rule card (vault index).
+    PortForward(usize),
+    /// History row (session-log id, current page only).
+    HistoryLog(uuid::Uuid),
+    /// Cloud-account card (profile id).
+    CloudAccount(uuid::Uuid),
+    /// Proxy-identity row.
+    Proxy(uuid::Uuid),
+    /// Known-host row (index into the rendered list).
+    KnownHost(usize),
+    /// Settings: one sidebar section entry (the SubNav zone there).
+    SettingsSection(crate::state::SettingsSection),
+    /// Settings: one actionable content row, index into the
+    /// per-frame `settings_row_actions` recording (rows are long and
+    /// heterogeneous; index + clamp beats a giant semantic enum).
+    SettingsRow(usize),
+    /// Generic content row carrying its own recorded `RowAction`
+    /// (index into `content_actions`). Used by content surfaces whose
+    /// rows fire arbitrary messages (the dynamic cloud-group task
+    /// list); same index+clamp model as `SettingsRow`.
+    ContentAction(usize),
+}
+
+/// Grouped keyboard-navigation state, one field on `Oryxis`.
+///
+/// The item lists are RefCells because they are recorded during
+/// `view()` (which takes `&self`), mirroring the old `dashboard_nav`
+/// pattern. Each owning builder clears its list at the top of its
+/// render pass so items from a previous view never linger.
+#[derive(Default)]
+pub(crate) struct KeyNavState {
+    /// Active zone + selected item. `None` = idle, which also covers
+    /// "the search field holds iced's real focus" (indistinguishable
+    /// from app state, by design).
+    pub(crate) focus: Option<(FocusZone, NavItem)>,
+    /// Sub-nav destinations in full logical order (inline + overflow).
+    pub(crate) subnav_items: RefCell<Vec<NavItem>>,
+    /// Toolbar cluster items actually rendered, in render order.
+    pub(crate) toolbar_items: RefCell<Vec<NavItem>>,
+    /// Content as visual rows: chunked to the column count for card
+    /// grids, one item per row for 1-D lists.
+    pub(crate) content_rows: RefCell<Vec<Vec<NavItem>>>,
+    /// Row indices where each content SECTION starts (Groups then
+    /// Hosts on the dashboard, Keys then Identities on the keychain).
+    /// Tab steps between sections before leaving the content zone;
+    /// arrows still move continuously across all rows. Single-section
+    /// views record `[0]`.
+    pub(crate) content_section_starts: RefCell<Vec<usize>>,
+    /// Set by keynav's own ChangeView dispatches (SubNav Enter,
+    /// Ctrl+PageUp/Down section cycling) so the ChangeView handler
+    /// keeps the zone focus instead of clearing it.
+    pub(crate) keep_focus_through_change_view: bool,
+    /// Modal / overlay-menu layer (iteration 2): index-based row
+    /// selection over per-frame recorded `RowAction`s. See `slots.rs`.
+    pub(crate) modal: ModalNavState,
+    /// Settings content: the `RowAction` behind each recorded
+    /// `NavItem::SettingsRow`, parallel to `content_rows`.
+    pub(crate) settings_row_actions: RefCell<Vec<RowAction>>,
+    /// Generic content actions: the `RowAction` behind each recorded
+    /// `NavItem::ContentAction` (dynamic cloud-group task list).
+    pub(crate) content_actions: RefCell<Vec<RowAction>>,
+    /// Side-panel row mode (host editor first): selected row index
+    /// into `panel_items`, or `None` while iced's input focus owns
+    /// the keyboard ("form mode"). The XOR invariant: entering row
+    /// mode blurs, entering an input clears the selection.
+    pub(crate) panel_selected: Option<usize>,
+    /// Actionable panel rows recorded during view(), render order.
+    pub(crate) panel_items: RefCell<Vec<RowAction>>,
+    /// Last row-mode position, restored when Up/Down re-enter row
+    /// mode after an input excursion (clamped against the fresh
+    /// recording).
+    pub(crate) panel_last_row: std::cell::Cell<Option<usize>>,
+    /// On-screen rect of the currently ringed content card, written
+    /// every draw by `keynav_ring_content` (a `bounds_reporter`
+    /// wrap). Lets the Menu key anchor the context menu at the card
+    /// instead of wherever the mouse happens to be.
+    pub(crate) ring_bounds: crate::widgets::BoundsCell,
+    /// One-shot anchor override for the next kebab-menu open, set by
+    /// the Menu key from `ring_bounds` and consumed (take) by the
+    /// Show*Menu handlers; mouse opens are unaffected (None).
+    pub(crate) menu_anchor: Option<(f32, f32)>,
+    /// True while a pick_list dropdown is open (fed by the widgets'
+    /// on_open / on_close). The global key subscription still sees
+    /// every key the focused pick_list handles itself, so this flag
+    /// gates the app-side routers: while a dropdown is open,
+    /// Enter/Space/Esc/Up/Down belong to the widget alone (Esc must
+    /// close the dropdown, not the panel behind it).
+    pub(crate) pick_open: bool,
+}
+
+impl KeyNavState {
+    /// The selected item when `zone` is the active zone. Views use
+    /// this to decide which element gets the selection ring.
+    pub(crate) fn selected_in(&self, zone: FocusZone) -> Option<NavItem> {
+        match self.focus {
+            Some((z, item)) if z == zone => Some(item),
+            _ => None,
+        }
+    }
+}
+
+impl crate::app::Oryxis {
+    /// Clear the recorded toolbar items. Each view's toolbar builder
+    /// calls this once at the top of its render pass, then records
+    /// its buttons through `keynav_toolbar_slot` in render order.
+    pub(crate) fn keynav_toolbar_reset(&self) {
+        self.keynav.toolbar_items.borrow_mut().clear();
+    }
+
+    /// Record a single-section content zone (every view except the
+    /// dashboard and the keychain). Rows are visual: chunked for card
+    /// grids, one item per row for 1-D lists.
+    pub(crate) fn keynav_set_content_rows(&self, rows: Vec<Vec<NavItem>>) {
+        *self.keynav.content_section_starts.borrow_mut() = vec![0];
+        *self.keynav.content_rows.borrow_mut() = rows;
+    }
+
+    /// Record a multi-section content zone (dashboard Groups/Hosts,
+    /// keychain Keys/Identities). Empty sections are dropped so Tab
+    /// never lands on a heading with nothing under it.
+    pub(crate) fn keynav_set_content_sections(&self, sections: Vec<Vec<Vec<NavItem>>>) {
+        let mut rows: Vec<Vec<NavItem>> = Vec::new();
+        let mut starts: Vec<usize> = Vec::new();
+        for section in sections {
+            let non_empty: Vec<Vec<NavItem>> =
+                section.into_iter().filter(|r| !r.is_empty()).collect();
+            if non_empty.is_empty() {
+                continue;
+            }
+            starts.push(rows.len());
+            rows.extend(non_empty);
+        }
+        if starts.is_empty() {
+            starts.push(0);
+        }
+        *self.keynav.content_section_starts.borrow_mut() = starts;
+        *self.keynav.content_rows.borrow_mut() = rows;
+    }
+
+    /// Clear the content zone (empty states, surfaces that aren't
+    /// keyboard-navigable yet).
+    pub(crate) fn keynav_clear_content(&self) {
+        self.keynav.content_rows.borrow_mut().clear();
+        self.keynav.content_section_starts.borrow_mut().clear();
+        self.keynav.content_actions.borrow_mut().clear();
+    }
+
+    /// Record one rendered toolbar action for the keyboard router and
+    /// wrap it in the focus ring when it is the selected item. Views
+    /// call this only for the buttons they actually build, so the
+    /// folded (narrow-window) toolbar naturally exposes just the
+    /// remnants ("…" + search icon). Toolbars whose build order does
+    /// not match the visual order use the split `keynav_toolbar_ring`
+    /// + `keynav_toolbar_record` halves instead.
+    pub(crate) fn keynav_toolbar_slot<'a>(
+        &self,
+        item: ToolbarItem,
+        el: iced::Element<'a, crate::app::Message>,
+    ) -> iced::Element<'a, crate::app::Message> {
+        self.keynav_toolbar_record(item);
+        self.keynav_toolbar_ring(item, el)
+    }
+
+    /// Recording half of `keynav_toolbar_slot`: append to the
+    /// keyboard order without touching the element. Call in VISUAL
+    /// order (logical leading-to-trailing; the router mirrors arrows
+    /// under RTL).
+    pub(crate) fn keynav_toolbar_record(&self, item: ToolbarItem) {
+        self.keynav.toolbar_items.borrow_mut().push(NavItem::Toolbar(item));
+    }
+
+    /// Ring half of `keynav_toolbar_slot`: wrap `el` in the focus
+    /// ring when it is the selected toolbar item. Safe to call on
+    /// elements that end up unrecorded (they can never be selected).
+    pub(crate) fn keynav_toolbar_ring<'a>(
+        &self,
+        item: ToolbarItem,
+        el: iced::Element<'a, crate::app::Message>,
+    ) -> iced::Element<'a, crate::app::Message> {
+        if self.keynav.focus == Some((FocusZone::Toolbar, NavItem::Toolbar(item))) {
+            // 6px matches the shared 24px toolbar-button radius.
+            // Contrast color, not accent: most toolbar buttons are
+            // accent-filled, an accent ring vanishes into them.
+            crate::widgets::select_ring_colored(
+                el,
+                6.0,
+                crate::theme::OryxisColors::t().text_primary,
+            )
+        } else {
+            el
+        }
+    }
+}

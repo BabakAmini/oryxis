@@ -91,13 +91,57 @@ impl Oryxis {
             )
             .center(Length::Fill)
             .into(),
-            Some(crate::state::DynamicGroupState::Failed(msg)) => container(
-                text(format!("{}: {msg}", t("cloud_test_failed")))
-                    .size(12)
-                    .color(OryxisColors::t().error),
-            )
-            .center(Length::Fill)
-            .into(),
+            Some(crate::state::DynamicGroupState::Failed(msg)) => {
+                // Retry is a recorded keyboard row (Enter re-resolves
+                // the group), mirroring the new-tab picker's
+                // retry-on-failure row.
+                let retry: Element<'_, Message> = self.content_action_slot(
+                    crate::keynav::RowAction::activate(Message::DynamicGroupResolve(gid)),
+                    6.0,
+                    button(
+                        container(
+                            text(t("cloud_discover_refresh"))
+                                .size(12)
+                                .color(OryxisColors::t().text_primary),
+                        )
+                        .padding(Padding {
+                            top: 6.0,
+                            right: 12.0,
+                            bottom: 6.0,
+                            left: 12.0,
+                        }),
+                    )
+                    .on_press(Message::DynamicGroupResolve(gid))
+                    .style(|_, status| {
+                        let bg = match status {
+                            BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                            _ => OryxisColors::t().bg_surface,
+                        };
+                        button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border {
+                                radius: Radius::from(6.0),
+                                color: OryxisColors::t().border,
+                                width: 1.0,
+                            },
+                            ..Default::default()
+                        }
+                    })
+                    .into(),
+                );
+                container(
+                    column![
+                        text(format!("{}: {msg}", t("cloud_test_failed")))
+                            .size(12)
+                            .color(OryxisColors::t().error),
+                        Space::new().height(12),
+                        retry,
+                    ]
+                    .align_x(iced::Alignment::Center),
+                )
+                .center(Length::Fill)
+                .into()
+            }
             Some(crate::state::DynamicGroupState::Loaded { hosts, .. }) => {
                 if hosts.is_empty() {
                     container(
@@ -283,7 +327,40 @@ impl Oryxis {
                             );
                         }
 
-                        items.push(
+                        // Connect message, built once: the row's
+                        // on_press and its recorded keyboard action
+                        // must dispatch the exact same thing.
+                        let connect_msg = match &k8s_namespace {
+                            // K8s pod row: open `kubectl exec`.
+                            Some(ns) => Message::ConnectKubectlExecPod {
+                                group_id: gid,
+                                namespace: ns.clone(),
+                                pod: task_id.clone(),
+                                container: h
+                                    .container_name
+                                    .clone()
+                                    .unwrap_or_default(),
+                            },
+                            // ECS task row: SSM-backed Exec.
+                            None => Message::ConnectEcsExecTask {
+                                group_id: gid,
+                                task_id: task_id.clone(),
+                                task_label,
+                                // Specific container the user
+                                // clicked. Under wildcard mode
+                                // each row is one container; the
+                                // connect path needs the name to
+                                // target the right one in the
+                                // task. Falls back to the query
+                                // container when the row didn't
+                                // populate (legacy hosts).
+                                container: h
+                                    .container_name
+                                    .clone()
+                                    .unwrap_or_else(|| ecs_container.clone()),
+                            },
+                        };
+                        let mut row_el: Element<'_, Message> =
                             button(
                                 dir_row(vec![
                                     iced_fonts::lucide::container()
@@ -301,38 +378,9 @@ impl Oryxis {
                                 ])
                                 .align_y(iced::Alignment::Center),
                             )
-                            .on_press_maybe(connectable.then_some(
-                                match &k8s_namespace {
-                                    // K8s pod row: open `kubectl exec`.
-                                    Some(ns) => Message::ConnectKubectlExecPod {
-                                        group_id: gid,
-                                        namespace: ns.clone(),
-                                        pod: task_id.clone(),
-                                        container: h
-                                            .container_name
-                                            .clone()
-                                            .unwrap_or_default(),
-                                    },
-                                    // ECS task row: SSM-backed Exec.
-                                    None => Message::ConnectEcsExecTask {
-                                        group_id: gid,
-                                        task_id: task_id.clone(),
-                                        task_label,
-                                        // Specific container the user
-                                        // clicked. Under wildcard mode
-                                        // each row is one container; the
-                                        // connect path needs the name to
-                                        // target the right one in the
-                                        // task. Falls back to the query
-                                        // container when the row didn't
-                                        // populate (legacy hosts).
-                                        container: h
-                                            .container_name
-                                            .clone()
-                                            .unwrap_or_else(|| ecs_container.clone()),
-                                    },
-                                },
-                            ))
+                            .on_press_maybe(
+                                connectable.then(|| connect_msg.clone()),
+                            )
                             .padding(Padding {
                                 top: 10.0,
                                 right: 12.0,
@@ -373,8 +421,7 @@ impl Oryxis {
                                     ..Default::default()
                                 }
                             })
-                            .into(),
-                        );
+                            .into();
                         // Copy CLI overlay: small button on the
                         // trailing edge of the row that copies
                         // the matching `aws ecs execute-command`
@@ -384,11 +431,6 @@ impl Oryxis {
                         // when we have enough context to build a
                         // valid command (ECS path, region known).
                         if let Some(cmd) = cli_command {
-                            let last_idx = items.len() - 1;
-                            let row_el = std::mem::replace(
-                                &mut items[last_idx],
-                                Space::new().height(0).into(),
-                            );
                             let copy_btn: Element<'_, Message> = button(
                                 iced_fonts::lucide::clipboard_copy()
                                     .size(13)
@@ -429,13 +471,26 @@ impl Oryxis {
                                     bottom: 0.0,
                                     left: 0.0,
                                 });
-                            let stacked: Element<'_, Message> =
-                                iced::widget::Stack::new()
-                                    .push(row_el)
-                                    .push(overlay)
-                                    .into();
-                            items[last_idx] = stacked;
+                            row_el = iced::widget::Stack::new()
+                                .push(row_el)
+                                .push(overlay)
+                                .into();
                         }
+                        // Record connectable rows for the Content-zone
+                        // keyboard (arrows move, Enter connects). The
+                        // caller cleared the recording before
+                        // delegating here; non-connectable rows stay
+                        // unrecorded so the keyboard never lands on a
+                        // dead row.
+                        items.push(if connectable {
+                            self.content_action_slot(
+                                crate::keynav::RowAction::activate(connect_msg),
+                                6.0,
+                                row_el,
+                            )
+                        } else {
+                            row_el
+                        });
                         items.push(Space::new().height(6).into());
                     }
                     items.push(Space::new().height(8).into());

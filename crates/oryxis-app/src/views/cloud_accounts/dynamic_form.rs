@@ -78,6 +78,8 @@ impl Oryxis {
             },
         )
         .on_select(Message::DynamicGroupFormTransportChanged)
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -97,6 +99,8 @@ impl Oryxis {
             |s: &String| s.clone(),
         )
         .on_select(Message::DynamicGroupFormKeyChanged)
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -116,6 +120,8 @@ impl Oryxis {
             |s: &String| s.clone(),
         )
         .on_select(Message::DynamicGroupFormIdentityChanged)
+        .on_open(Message::PickOpenChanged(true))
+        .on_close(Message::PickOpenChanged(false))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -267,6 +273,8 @@ impl Oryxis {
                 |k| k.to_string(),
             )
             .on_select(Message::DynamicGroupFormK8sSelectorKindChanged)
+            .on_open(Message::PickOpenChanged(true))
+            .on_close(Message::PickOpenChanged(false))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
             // The value field's placeholder + hint adapt to the kind: a

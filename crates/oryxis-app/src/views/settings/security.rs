@@ -115,10 +115,15 @@ impl Oryxis {
     }
 
     pub(crate) fn view_settings_security(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order. The set-password
+        // and change-password forms are deliberately NOT recorded:
+        // they carry their own Tab-walk and the keyboard router is
+        // disabled while they are open.
+        self.keynav_settings_reset();
         // The switch reflects either a committed password or an open
         // set-password form, so toggling it before a password exists
         // visibly moves the control (and reveals / hides the form).
-        let password_toggle = toggle_row(
+        let password_toggle = self.nav_toggle_row(
             crate::i18n::t("vault_password"),
             self.vault_ui.has_user_password || self.vault_ui.show_password_form,
             Message::ToggleVaultPassword,
@@ -214,15 +219,23 @@ impl Oryxis {
                     t("vault_remove_confirm_desc"),
                     OryxisColors::t().warning,
                 );
-                let remove_btn = styled_button(
-                    crate::i18n::t("remove_password"),
-                    Message::ConfirmRemoveVaultPassword,
-                    OryxisColors::t().error,
+                let remove_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ConfirmRemoveVaultPassword),
+                    6.0,
+                    styled_button(
+                        crate::i18n::t("remove_password"),
+                        Message::ConfirmRemoveVaultPassword,
+                        OryxisColors::t().error,
+                    ),
                 );
-                let cancel_btn = styled_button(
-                    crate::i18n::t("cancel"),
-                    Message::CancelRemoveVaultPassword,
-                    OryxisColors::t().text_muted,
+                let cancel_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::CancelRemoveVaultPassword),
+                    6.0,
+                    styled_button(
+                        crate::i18n::t("cancel"),
+                        Message::CancelRemoveVaultPassword,
+                        OryxisColors::t().text_muted,
+                    ),
                 );
                 column![
                     Space::new().height(8),
@@ -260,29 +273,33 @@ impl Oryxis {
         // button when a password exists; otherwise replace with
         // a muted note telling the user how to enable locking.
         let lock_btn: Element<'_, Message> = if self.vault_ui.has_user_password {
-            button(
-                container(
-                    dir_row(vec![
-                        iced_fonts::lucide::lock().size(14).color(OryxisColors::t().warning).into(),
-                        Space::new().width(10).into(),
-                        text(crate::i18n::t("lock_vault")).size(13).color(OryxisColors::t().warning).into(),
-                    ]).align_y(iced::Alignment::Center),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::LockVault),
+                8.0,
+                button(
+                    container(
+                        dir_row(vec![
+                            iced_fonts::lucide::lock().size(14).color(OryxisColors::t().warning).into(),
+                            Space::new().width(10).into(),
+                            text(crate::i18n::t("lock_vault")).size(13).color(OryxisColors::t().warning).into(),
+                        ]).align_y(iced::Alignment::Center),
+                    )
+                    .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
                 )
-                .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
+                .on_press(Message::LockVault)
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().warning },
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(8.0), color: OryxisColors::t().warning, width: 1.0 },
+                        ..Default::default()
+                    }
+                })
+                .into(),
             )
-            .on_press(Message::LockVault)
-            .style(|_, status| {
-                let bg = match status {
-                    BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().warning },
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(8.0), color: OryxisColors::t().warning, width: 1.0 },
-                    ..Default::default()
-                }
-            })
-            .into()
         } else {
             text(crate::i18n::t("lock_vault_requires_password"))
                 .size(11)
@@ -295,29 +312,33 @@ impl Oryxis {
         // controls only apply once a password exists; when it does, the
         // change form drops in below the button row when opened.
         let lock_row: Element<'_, Message> = if self.vault_ui.has_user_password {
-            let update_btn = button(
-                container(
-                    dir_row(vec![
-                        iced_fonts::lucide::key_round().size(14).color(OryxisColors::t().accent).into(),
-                        Space::new().width(10).into(),
-                        text(crate::i18n::t("update_password")).size(13).color(OryxisColors::t().accent).into(),
-                    ]).align_y(iced::Alignment::Center),
+            let update_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::OpenChangeVaultPassword),
+                8.0,
+                button(
+                    container(
+                        dir_row(vec![
+                            iced_fonts::lucide::key_round().size(14).color(OryxisColors::t().accent).into(),
+                            Space::new().width(10).into(),
+                            text(crate::i18n::t("update_password")).size(13).color(OryxisColors::t().accent).into(),
+                        ]).align_y(iced::Alignment::Center),
+                    )
+                    .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
                 )
-                .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
-            )
-            .on_press(Message::OpenChangeVaultPassword)
-            .style(|_, status| {
-                let bg = match status {
-                    BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().accent },
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(8.0), color: OryxisColors::t().accent, width: 1.0 },
-                    ..Default::default()
-                }
-            })
-            .into();
+                .on_press(Message::OpenChangeVaultPassword)
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().accent },
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(8.0), color: OryxisColors::t().accent, width: 1.0 },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+            );
             let buttons = dir_row(vec![lock_btn, Space::new().width(10).into(), update_btn]);
             if self.vault_ui.change_password_open {
                 column![buttons, Space::new().height(12), self.change_password_form()].into()
@@ -332,12 +353,176 @@ impl Oryxis {
         // in v0.7 (see `view_settings_mcp`). Keeping it here
         // was crowding the Security panel.
 
+        // Auto-lock + clipboard hygiene. Both are numeric fields with
+        // 0 = off; the idle lock only applies once a master password
+        // exists (without one, locking has nothing to protect), so the
+        // field is replaced by the same muted note as the Lock button.
+        // Built here, before the export/import card, so the keyboard
+        // recording order matches the on-screen order.
+        let auto_lock_field: Element<'_, Message> = if self.vault_ui.has_user_password {
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-security-auto-lock")),
+                10.0,
+                text_input("0", &self.setting_auto_lock_minutes)
+                    .id(iced::widget::Id::new("set-security-auto-lock"))
+                    .on_input(Message::SettingAutoLockChanged)
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            )
+        } else {
+            text(crate::i18n::t("lock_vault_requires_password"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into()
+        };
+        let auto_lock_section = panel_section(column![
+            text(crate::i18n::t("auto_lock_minutes"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_auto_lock_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            auto_lock_field,
+        ]);
+
+        let clipboard_clear_section = panel_section(column![
+            text(crate::i18n::t("clipboard_clear_seconds"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_clipboard_clear_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(
+                    "set-security-clipboard-clear",
+                )),
+                10.0,
+                text_input("30", &self.setting_clipboard_clear_seconds)
+                    .id(iced::widget::Id::new("set-security-clipboard-clear"))
+                    .on_input(Message::SettingClipboardClearChanged)
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ),
+        ]);
+
+        // Privacy & logging: session recordings, connection
+        // history and the retention window. Moved here from the
+        // Terminal section, recordings are scrubbed for secrets
+        // and sealed at rest, so they belong with the vault.
+        let privacy_mode_section = panel_section(column![
+            self.nav_toggle_row(
+                crate::i18n::t("privacy_mode_label"),
+                self.setting_privacy_mode,
+                Message::TogglePrivacyMode,
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("privacy_mode_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+        ]);
+
+        let session_logging_enabled = self.setting_session_logging;
+        let session_logging_section = panel_section(column![
+            self.nav_toggle_row(
+                crate::i18n::t("session_logging"),
+                session_logging_enabled,
+                Message::SettingToggleSessionLogging,
+            ),
+            Space::new().height(4),
+            text(t("setting_session_logging_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+        ]);
+
+        let connection_history_enabled = self.setting_connection_history;
+        let connection_history_section = panel_section(column![
+            self.nav_toggle_row(
+                crate::i18n::t("connection_history"),
+                connection_history_enabled,
+                Message::SettingToggleConnectionHistory,
+            ),
+            Space::new().height(4),
+            text(t("setting_connection_history_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+        ]);
+
+        // Retention: auto-delete connection events + finished
+        // recordings past the picked age. Codes are stable
+        // setting values; the mapper localizes per code.
+        const RETENTION_CODES: [&str; 7] =
+            ["off", "1d", "3d", "7d", "14d", "30d", "90d"];
+        let retention_selected = RETENTION_CODES
+            .iter()
+            .copied()
+            .find(|c| *c == self.setting_logs_retention)
+            .unwrap_or("off");
+        // Left/Right cycle the retention codes without opening the
+        // dropdown (non-standard picker layout: label above, list
+        // below, so nav_pick_row does not apply).
+        let (retention_prev, retention_next) = crate::keynav::slots::cycle_pair(
+            &RETENTION_CODES,
+            &retention_selected,
+            Message::LogsRetentionChanged,
+        );
+        let logs_retention_section = panel_section(column![
+            text(crate::i18n::t("log_retention_label"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_log_retention_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::picker(retention_prev, retention_next),
+                8.0,
+                pick_list(
+                    Some(retention_selected),
+                    &RETENTION_CODES[..],
+                    |code: &&str| {
+                        crate::i18n::t(match *code {
+                            "1d" => "log_retention_1d",
+                            "3d" => "log_retention_3d",
+                            "7d" => "log_retention_7d",
+                            "14d" => "log_retention_14d",
+                            "30d" => "log_retention_30d",
+                            "90d" => "log_retention_90d",
+                            _ => "log_retention_off",
+                        })
+                        .to_string()
+                    },
+                )
+                .on_select(Message::LogsRetentionChanged)
+                .on_open(Message::PickOpenChanged(true))
+                .on_close(Message::PickOpenChanged(false))
+                .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ),
+        ]);
+
         // Export/Import section
-        let export_btn = styled_button(crate::i18n::t("export_vault"), Message::ExportVault, OryxisColors::t().accent);
-        let import_btn = styled_button(crate::i18n::t("import_vault"), Message::ImportVault, OryxisColors::t().text_muted);
+        let export_btn = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ExportVault),
+            6.0,
+            styled_button(crate::i18n::t("export_vault"), Message::ExportVault, OryxisColors::t().accent),
+        );
+        let import_btn = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ImportVault),
+            6.0,
+            styled_button(crate::i18n::t("import_vault"), Message::ImportVault, OryxisColors::t().text_muted),
+        );
         // Restore from a remote host. Export-to-SFTP is reached from
         // inside the export dialog (it needs the password first).
-        let import_sftp_btn = styled_button(crate::i18n::t("import_from_sftp"), Message::ImportFromSftp, OryxisColors::t().text_muted);
+        let import_sftp_btn = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ImportFromSftp),
+            6.0,
+            styled_button(crate::i18n::t("import_from_sftp"), Message::ImportFromSftp, OryxisColors::t().text_muted),
+        );
 
         let mut export_import_section: iced::widget::Column<'_, Message> = column![
             text(crate::i18n::t("export_import")).size(14).color(OryxisColors::t().text_muted),
@@ -367,37 +552,58 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)]
                 .spacing(6);
             for cat in oryxis_vault::ExportCategory::ALL {
-                categories = categories.push(
+                // Enter/Space flips the checkbox from the keyboard,
+                // same message the mouse toggle produces.
+                categories = categories.push(self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ExportToggleCategory(cat)),
+                    4.0,
                     checkbox(self.export_selection.get(cat))
                         .label(crate::i18n::t(category_label_key(cat)))
                         .on_toggle(move |_| Message::ExportToggleCategory(cat))
                         .size(16)
-                        .text_size(13),
-                );
+                        .text_size(13)
+                        .into(),
+                ));
             }
             // Private-key material is a sub-option of the Keys
             // category, only meaningful when Keys is being exported.
             let keys_toggle: Element<'_, Message> = if self.export_selection.keys {
-                dir_row(vec![
-                    text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary).into(),
-                    Space::new().width(Length::Fill).into(),
-                    button(
-                        text(if self.export_include_keys { "ON" } else { "OFF" }).size(12)
-                    ).on_press(Message::ExportToggleKeys).style(move |_theme, _status| {
-                        button::Style {
-                            background: Some(Background::Color(if self.export_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
-                            border: Border { radius: Radius::from(4.0), ..Default::default() },
-                            text_color: OryxisColors::t().text_primary,
-                            ..Default::default()
-                        }
-                    }).into(),
-                ]).align_y(iced::Alignment::Center).into()
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ExportToggleKeys),
+                    8.0,
+                    dir_row(vec![
+                        text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        button(
+                            text(if self.export_include_keys { "ON" } else { "OFF" }).size(12)
+                        ).on_press(Message::ExportToggleKeys).style(move |_theme, _status| {
+                            button::Style {
+                                background: Some(Background::Color(if self.export_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: OryxisColors::t().text_primary,
+                                ..Default::default()
+                            }
+                        }).into(),
+                    ]).align_y(iced::Alignment::Center).into(),
+                )
             } else {
                 Space::new().height(0).into()
             };
-            let confirm_btn = styled_button(crate::i18n::t("export_confirm"), Message::ExportConfirm, OryxisColors::t().success);
-            let sftp_btn = styled_button(crate::i18n::t("export_to_sftp"), Message::ExportToSftp, OryxisColors::t().accent);
-            let cancel_btn = styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted);
+            let confirm_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ExportConfirm),
+                6.0,
+                styled_button(crate::i18n::t("export_confirm"), Message::ExportConfirm, OryxisColors::t().success),
+            );
+            let sftp_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ExportToSftp),
+                6.0,
+                styled_button(crate::i18n::t("export_to_sftp"), Message::ExportToSftp, OryxisColors::t().accent),
+            );
+            let cancel_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                6.0,
+                styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+            );
             export_import_section = export_import_section
                 .push(Space::new().height(12))
                 .push(pw_input)
@@ -429,7 +635,6 @@ impl Oryxis {
                 10.0,
             ))
             .width(300);
-            let cancel_btn = styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted);
             export_import_section = export_import_section
                 .push(Space::new().height(12))
                 .push(text(crate::i18n::t("import_password_hint")).size(12).color(OryxisColors::t().text_muted))
@@ -449,13 +654,19 @@ impl Oryxis {
                     let count = summary.count(cat);
                     let label = crate::i18n::t(category_label_key(cat));
                     if count > 0 {
-                        categories = categories.push(
+                        // Enter/Space flips the checkbox from the
+                        // keyboard, same message the mouse toggle
+                        // produces. Absent categories stay read-only.
+                        categories = categories.push(self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(Message::ImportToggleCategory(cat)),
+                            4.0,
                             checkbox(self.import_selection.get(cat))
                                 .label(format!("{label} ({count})"))
                                 .on_toggle(move |_| Message::ImportToggleCategory(cat))
                                 .size(16)
-                                .text_size(13),
-                        );
+                                .text_size(13)
+                                .into(),
+                        ));
                     } else {
                         categories = categories.push(
                             text(format!("{label} ({})", crate::i18n::t("import_not_in_file")))
@@ -464,7 +675,19 @@ impl Oryxis {
                         );
                     }
                 }
-                let confirm_btn = styled_button(crate::i18n::t("import_confirm"), Message::ImportConfirm, OryxisColors::t().success);
+                // The Cancel button is built per phase (not shared
+                // above) so the recording order follows the on-screen
+                // order: checkboxes first, then Confirm, then Cancel.
+                let confirm_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ImportConfirm),
+                    6.0,
+                    styled_button(crate::i18n::t("import_confirm"), Message::ImportConfirm, OryxisColors::t().success),
+                );
+                let cancel_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                    6.0,
+                    styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+                );
                 export_import_section = export_import_section
                     .push(Space::new().height(10))
                     .push(categories)
@@ -472,7 +695,16 @@ impl Oryxis {
                     .push(dir_row(vec![confirm_btn, Space::new().width(8).into(), cancel_btn]));
             } else {
                 // Phase 1: enter the password, then inspect.
-                let inspect_btn = styled_button(crate::i18n::t("import_inspect"), Message::ImportInspect, OryxisColors::t().accent);
+                let inspect_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ImportInspect),
+                    6.0,
+                    styled_button(crate::i18n::t("import_inspect"), Message::ImportInspect, OryxisColors::t().accent),
+                );
+                let cancel_btn = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                    6.0,
+                    styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+                );
                 export_import_section = export_import_section
                     .push(Space::new().height(8))
                     .push(dir_row(vec![inspect_btn, Space::new().width(8).into(), cancel_btn]));
@@ -496,21 +728,47 @@ impl Oryxis {
                 .enumerate()
                 .map(|(i, c)| (c.label.clone(), i))
                 .collect();
-            let host_picker = pick_list(selected_host, host_options, |s: &String| s.clone())
-                .on_select(move |label: String| {
+            // Left/Right cycle the saved hosts without opening the
+            // dropdown (non-standard picker: label sits above it).
+            let current_host_label = selected_host.clone().unwrap_or_default();
+            let cycle_lookup = host_lookup.clone();
+            let (host_prev, host_next) = crate::keynav::slots::cycle_pair(
+                &host_options,
+                &current_host_label,
+                move |label: String| {
                     Message::SftpBackupHostSelected(
-                        host_lookup.get(&label).copied().unwrap_or(0),
+                        cycle_lookup.get(&label).copied().unwrap_or(0),
                     )
-                })
-                .width(300)
-                .padding(10)
-                .style(crate::widgets::rounded_pick_list_style);
-            let path_field = text_input("vault.oryxis", &self.sftp_backup.path)
-                .on_input(Message::SftpBackupPathChanged)
-                .on_submit(Message::SftpBackupConfirm)
-                .width(300)
-                .padding(10)
-                .style(crate::widgets::rounded_input_style);
+                },
+            );
+            let host_picker = self.settings_nav_slot(
+                crate::keynav::RowAction::picker(host_prev, host_next),
+                8.0,
+                pick_list(selected_host, host_options, |s: &String| s.clone())
+                    .on_select(move |label: String| {
+                        Message::SftpBackupHostSelected(
+                            host_lookup.get(&label).copied().unwrap_or(0),
+                        )
+                    })
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(300)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            );
+            let path_field = self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-security-sftp-path")),
+                10.0,
+                text_input("vault.oryxis", &self.sftp_backup.path)
+                    .id(iced::widget::Id::new("set-security-sftp-path"))
+                    .on_input(Message::SftpBackupPathChanged)
+                    .on_submit(Message::SftpBackupConfirm)
+                    .width(300)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .into(),
+            );
             // Restore collects the decrypt password here (export
             // already has it in the dialog above), so both flows ask
             // for the password before the confirm button.
@@ -547,12 +805,27 @@ impl Oryxis {
             } else {
                 crate::i18n::t("sftp_backup_confirm")
             };
+            // The confirm button is recorded only while it is enabled
+            // (a busy round disables it, so Enter must not re-fire).
             let confirm_btn =
-                styled_button_opt(confirm_label, confirm_msg, OryxisColors::t().success);
-            let cancel_btn = styled_button(
-                crate::i18n::t("cancel"),
-                Message::SftpBackupCancel,
-                OryxisColors::t().text_muted,
+                styled_button_opt(confirm_label, confirm_msg.clone(), OryxisColors::t().success);
+            let confirm_btn: Element<'_, Message> = if let Some(msg) = confirm_msg {
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(msg),
+                    6.0,
+                    confirm_btn,
+                )
+            } else {
+                confirm_btn
+            };
+            let cancel_btn = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::SftpBackupCancel),
+                6.0,
+                styled_button(
+                    crate::i18n::t("cancel"),
+                    Message::SftpBackupCancel,
+                    OryxisColors::t().text_muted,
+                ),
             );
             let mut sftp_section: iced::widget::Column<'_, Message> = column![
                 text(crate::i18n::t(title_key)).size(13).color(OryxisColors::t().text_primary),
@@ -612,10 +885,14 @@ impl Oryxis {
         // SSH config import, separate card, sits below the
         // vault export/import. One-shot batch importer; no
         // preview yet.
-        let ssh_config_btn = styled_button(
-            t("import_ssh_config_btn"),
-            Message::ImportSshConfig,
-            OryxisColors::t().accent,
+        let ssh_config_btn = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ImportSshConfig),
+            6.0,
+            styled_button(
+                t("import_ssh_config_btn"),
+                Message::ImportSshConfig,
+                OryxisColors::t().accent,
+            ),
         );
         let mut ssh_config_section: iced::widget::Column<'_, Message> = column![
             text(t("ssh_config_import"))
@@ -637,128 +914,6 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(text(msg).size(12).color(color));
         }
-
-        // Auto-lock + clipboard hygiene. Both are numeric fields with
-        // 0 = off; the idle lock only applies once a master password
-        // exists (without one, locking has nothing to protect), so the
-        // field is replaced by the same muted note as the Lock button.
-        let auto_lock_field: Element<'_, Message> = if self.vault_ui.has_user_password {
-            text_input("0", &self.setting_auto_lock_minutes)
-                .on_input(Message::SettingAutoLockChanged)
-                .padding(10)
-                .width(240)
-                .style(crate::widgets::rounded_input_style)
-                .align_x(dir_align_x())
-                .into()
-        } else {
-            text(crate::i18n::t("lock_vault_requires_password"))
-                .size(11)
-                .color(OryxisColors::t().text_muted)
-                .into()
-        };
-        let auto_lock_section = panel_section(column![
-            text(crate::i18n::t("auto_lock_minutes"))
-                .size(13)
-                .color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("setting_auto_lock_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            auto_lock_field,
-        ]);
-
-        let clipboard_clear_section = panel_section(column![
-            text(crate::i18n::t("clipboard_clear_seconds"))
-                .size(13)
-                .color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("setting_clipboard_clear_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            text_input("30", &self.setting_clipboard_clear_seconds)
-                .on_input(Message::SettingClipboardClearChanged)
-                .padding(10)
-                .width(240)
-                .style(crate::widgets::rounded_input_style)
-                .align_x(dir_align_x()),
-        ]);
-
-        // Privacy & logging: session recordings, connection
-        // history and the retention window. Moved here from the
-        // Terminal section, recordings are scrubbed for secrets
-        // and sealed at rest, so they belong with the vault.
-        let privacy_mode_section = panel_section(column![
-            toggle_row(
-                crate::i18n::t("privacy_mode_label"),
-                self.setting_privacy_mode,
-                Message::TogglePrivacyMode,
-            ),
-            Space::new().height(4),
-            text(crate::i18n::t("privacy_mode_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-        ]);
-
-        let session_logging_enabled = self.setting_session_logging;
-        let session_logging_section = panel_section(column![
-            toggle_row(
-                crate::i18n::t("session_logging"),
-                session_logging_enabled,
-                Message::SettingToggleSessionLogging,
-            ),
-            Space::new().height(4),
-            text(t("setting_session_logging_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-        ]);
-
-        let connection_history_enabled = self.setting_connection_history;
-        let connection_history_section = panel_section(column![
-            toggle_row(
-                crate::i18n::t("connection_history"),
-                connection_history_enabled,
-                Message::SettingToggleConnectionHistory,
-            ),
-            Space::new().height(4),
-            text(t("setting_connection_history_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-        ]);
-
-        // Retention: auto-delete connection events + finished
-        // recordings past the picked age. Codes are stable
-        // setting values; the mapper localizes per code.
-        const RETENTION_CODES: [&str; 7] =
-            ["off", "1d", "3d", "7d", "14d", "30d", "90d"];
-        let retention_selected = RETENTION_CODES
-            .iter()
-            .copied()
-            .find(|c| *c == self.setting_logs_retention)
-            .unwrap_or("off");
-        let logs_retention_section = panel_section(column![
-            text(crate::i18n::t("log_retention_label"))
-                .size(13)
-                .color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("setting_log_retention_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            pick_list(
-                Some(retention_selected),
-                &RETENTION_CODES[..],
-                |code: &&str| {
-                    crate::i18n::t(match *code {
-                        "1d" => "log_retention_1d",
-                        "3d" => "log_retention_3d",
-                        "7d" => "log_retention_7d",
-                        "14d" => "log_retention_14d",
-                        "30d" => "log_retention_30d",
-                        "90d" => "log_retention_90d",
-                        _ => "log_retention_off",
-                    })
-                    .to_string()
-                },
-            )
-            .on_select(Message::LogsRetentionChanged)
-            .width(260).padding(10).style(crate::widgets::rounded_pick_list_style),
-        ]);
 
         scrollable(
             container(
@@ -790,6 +945,9 @@ impl Oryxis {
             )
             .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
         )
+        // Stable id so the keyboard router can keep the selected row
+        // in view.
+        .id(iced::widget::Id::new("settings-security-scroll"))
         .height(Length::Fill)
         .into()
     }

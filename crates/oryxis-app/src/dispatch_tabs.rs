@@ -487,6 +487,9 @@ impl Oryxis {
                 }
             }
             Message::FocusViewSearch => {
+                // Ctrl+F always returns keynav to the canonical idle
+                // state (search = "zone zero", `focus == None`).
+                self.keynav.focus = None;
                 if let Some(id) = self.active_view_search_id() {
                     return Ok(iced::widget::operation::focus(id));
                 }
@@ -505,10 +508,11 @@ impl Oryxis {
                     self.overlay = None;
                 } else {
                     self.card_context_menu = Some(idx);
+                    let anchor = self.keynav_take_menu_anchor();
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::HostActions(idx),
-                        x: self.mouse_position.x,
-                        y: self.mouse_position.y,
+                        x: anchor.0,
+                        y: anchor.1,
                     });
                 }
             }
@@ -640,6 +644,32 @@ impl Oryxis {
             Message::NoOp => {}
             Message::NewTabPickerSearchChanged(v) => {
                 self.new_tab_picker_search = v;
+            }
+            Message::NewTabPickerSubmit => {
+                // Enter in the picker. Owned by the search input's
+                // on_submit (the modal key router declines Enter here
+                // so the two paths can never double-fire). Priority:
+                // the explicit keyboard selection, then the ad-hoc
+                // quick-connect target, then the top row of the
+                // filtered list.
+                if let Some((surface, _)) = self.modal_nav_surface()
+                    && let Some(idx) = self.modal_nav_effective(surface)
+                {
+                    let action = self.keynav.modal.items.borrow().get(idx).cloned();
+                    if let Some(msg) = action.and_then(|a| a.activate) {
+                        return Ok(self.update(msg));
+                    }
+                }
+                if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search)
+                {
+                    return Ok(self.update(Message::QuickConnect(Box::new(
+                        crate::state::QuickConnectEntry::bare(conn),
+                    ))));
+                }
+                let top = self.keynav.modal.items.borrow().first().cloned();
+                if let Some(msg) = top.and_then(|a| a.activate) {
+                    return Ok(self.update(msg));
+                }
             }
             Message::ShowIconPicker(conn_id) => {
                 // Pre-fill the picker with the icon the user is
@@ -795,14 +825,14 @@ impl Oryxis {
                     // connect streams hold their own Arcs, so dropping
                     // the panes alone would leak the live sessions.
                     Self::close_tab_ssh_sessions(&self.tabs[idx]);
-                    // Closing the tab that owns the live AI chat stream
-                    // must cancel it, otherwise the detached tool-followup
+                    // Closing a tab that owns a live AI chat stream must
+                    // cancel it (per-tab now, so any tab, not just the
+                    // active one): otherwise the detached tool-followup
                     // pipeline keeps polling a terminal that's being torn
-                    // down and keeps calling the model.
-                    if self.active_tab == Some(idx) {
-                        self.abort_chat_task();
-                        self.chat_loading = false;
-                    }
+                    // down and keeps calling the model. The handle lives on
+                    // the tab (dropped with it), but abort first so the
+                    // detached task stops promptly rather than on next poll.
+                    self.abort_chat_task_for(self.tabs[idx]._id);
                     // A pending placeholder replacement aimed at this tab
                     // would otherwise go stale and hijack the next
                     // unrelated cloud spawn.
@@ -831,6 +861,9 @@ impl Oryxis {
                         }
                     }
                     self.adjust_last_terminal_tab_after_remove(idx);
+                    // Drop quick-connect entries (and their in-memory
+                    // credentials) that no pane references anymore.
+                    self.prune_quick_connects();
                     if self.tabs.is_empty() {
                         self.active_tab = None;
                         self.active_view = View::Dashboard;
@@ -852,10 +885,11 @@ impl Oryxis {
                 }
             }
             Message::ShowTabMenu(idx) => {
+                let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::TabActions(idx),
-                    x: self.mouse_position.x,
-                    y: self.mouse_position.y,
+                    x: anchor.0,
+                    y: anchor.1,
                 });
             }
             Message::ShowSplitMenu => {
@@ -922,6 +956,12 @@ impl Oryxis {
                 // own PTY path, and a split tab's live sibling panes must not be
                 // torn down. Everything else falls back to the legacy
                 // remove-and-rebuild below.
+                // What the in-place reconnect should respawn: a saved host
+                // (by index) or a quick-connect entry (by id).
+                enum ReuseTarget {
+                    Saved(usize),
+                    Quick(uuid::Uuid),
+                }
                 let reuse = self.tabs.get(idx).and_then(|tab| {
                     if tab.pane_grid.panes.len() != 1 {
                         return None;
@@ -934,15 +974,23 @@ impl Oryxis {
                     let base_label =
                         tab.label.trim_end_matches(" (disconnected)").to_string();
                     let pane_id = tab.active().id;
+                    // The pane origin is authoritative for ad-hoc hosts: they
+                    // have no row in `connections`, so resolve them straight
+                    // from the quick-connect store (always plain SSH).
+                    if let crate::state::PaneOrigin::QuickHost(qid) = &tab.active().origin
+                        && self.quick_connects.contains_key(qid)
+                    {
+                        return Some((ReuseTarget::Quick(*qid), pane_id, base_label));
+                    }
                     let conn_idx =
                         self.connections.iter().position(|c| c.label == base_label)?;
                     let plain_ssh = self.connections[conn_idx]
                         .cloud_ref
                         .as_ref()
                         .is_none_or(|c| c.transport_pref == TransportKind::Ssh);
-                    plain_ssh.then_some((conn_idx, pane_id, base_label))
+                    plain_ssh.then_some((ReuseTarget::Saved(conn_idx), pane_id, base_label))
                 });
-                if let Some((conn_idx, pane_id, base_label)) = reuse {
+                if let Some((target, pane_id, base_label)) = reuse {
                     // Persist whatever this pane recorded before we tear its
                     // session down, so the log tail isn't truncated.
                     self.flush_session_logs_final();
@@ -1000,8 +1048,16 @@ impl Oryxis {
                     // and a background auto-reconnect shouldn't yank the user away.
                     self.toast =
                         Some(crate::i18n::t("disconnected_reconnecting").to_string());
+                    let spawn = match target {
+                        ReuseTarget::Saved(conn_idx) => {
+                            self.spawn_ssh_for_pane(conn_idx, idx, new_pane_id)
+                        }
+                        ReuseTarget::Quick(qid) => {
+                            self.spawn_ssh_for_pane_quick(qid, idx, new_pane_id)
+                        }
+                    };
                     return Ok(Task::batch(vec![
-                        self.spawn_ssh_for_pane(conn_idx, idx, new_pane_id),
+                        spawn,
                         Task::perform(
                             async {
                                 tokio::time::sleep(std::time::Duration::from_millis(2500))
@@ -1013,10 +1069,23 @@ impl Oryxis {
                 }
                 // Legacy fallback (multi-pane, cloud transport, or a dead tab
                 // with no matching connection): remove the tab and rebuild via
-                // ConnectSsh. Dead tabs (no matching connection) are just closed.
+                // ConnectSsh / QuickConnect. Dead tabs (no matching connection
+                // or a pruned quick entry) are just closed.
                 if let Some(tab) = self.tabs.get(idx) {
                     let base_label = tab.label.trim_end_matches(" (disconnected)").to_string();
                     let conn_idx = self.connections.iter().position(|c| c.label == base_label);
+                    // A quick-connect tab has no saved connection; rebuild it
+                    // from its stored entry instead of silently closing.
+                    let quick_entry = if conn_idx.is_none() {
+                        tab.pane_grid.panes.values().find_map(|p| match &p.origin {
+                            crate::state::PaneOrigin::QuickHost(qid) => {
+                                self.quick_connects.get(qid).cloned()
+                            }
+                            _ => None,
+                        })
+                    } else {
+                        None
+                    };
                     self.tabs.remove(idx);
                     self.adjust_last_terminal_tab_after_remove(idx);
                     if self.tabs.is_empty() {
@@ -1027,13 +1096,20 @@ impl Oryxis {
                         self.active_tab = Some(i);
                         self.remember_terminal_tab_focus(i);
                     }
-                    if let Some(ci) = conn_idx {
+                    let rebuild = match (conn_idx, quick_entry) {
+                        (Some(ci), _) => Some(Message::ConnectSsh(ci)),
+                        (None, Some(entry)) => {
+                            Some(Message::QuickConnect(Box::new(entry)))
+                        }
+                        (None, None) => None,
+                    };
+                    if let Some(msg) = rebuild {
                         // Toast "Reconnecting..." so the user sees feedback the
                         // moment the attempt actually starts (not when the
                         // disconnect was first detected, up to 30s earlier).
                         self.toast = Some(crate::i18n::t("disconnected_reconnecting").to_string());
                         return Ok(Task::batch(vec![
-                            Task::done(Message::ConnectSsh(ci)),
+                            Task::done(msg),
                             Task::perform(
                                 async {
                                     tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
@@ -1086,10 +1162,11 @@ impl Oryxis {
                 // Anchor the menu to the cursor, matches the host-card
                 // "..." pattern. The global MouseMoved subscription keeps
                 // `mouse_position` fresh.
+                let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::FolderActions(gid),
-                    x: self.mouse_position.x,
-                    y: self.mouse_position.y,
+                    x: anchor.0,
+                    y: anchor.1,
                 });
             }
             Message::StartRenameFolder(gid) => {
@@ -1199,6 +1276,7 @@ impl Oryxis {
                     self.group_edit.visible = true;
                     // Mutually exclusive with the other right-hand panels.
                     self.show_host_panel = false;
+                    self.panel_nav_clear();
                     self.show_session_group_panel = false;
                     self.cloud_form.visible = false;
                     self.cloud_dynamic_form.visible = false;
