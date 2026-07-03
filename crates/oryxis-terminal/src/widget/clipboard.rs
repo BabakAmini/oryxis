@@ -5,20 +5,27 @@ const PASTE_END: &[u8] = b"\x1b[201~";
 
 /// Prepare clipboard text for writing to a terminal session.
 ///
+/// Line endings are normalized to bare CR (`\r`), the byte the Enter key
+/// sends, in both modes. A CRLF clipboard (Windows editors, files with DOS
+/// endings) would otherwise deliver BOTH bytes per line break, and every
+/// consumer treats each one as its own break (readline's accept-line binds
+/// `\r` and `\n`, vim insert mode breaks on both, a cooked tty maps `\r` to
+/// `\n` via ICRNL and keeps the `\n`), so every pasted line gained a blank
+/// line (issue #60). kitty / Windows Terminal / PuTTY / xterm all send `\r`
+/// for pasted newlines, inside and outside the bracket.
+///
 /// When `bracketed` is true (the focused app enabled DECSET 2004), wrap the
 /// payload in `ESC [ 200 ~` ... `ESC [ 201 ~` so readline / TUI programs
 /// (bash, zsh, Codex CLI, ...) treat the whole block as one paste and only
 /// submit when the user presses Enter, instead of one submit per embedded
 /// newline. Any marker already present in the clipboard is stripped first so
 /// the payload can't prematurely close (or reopen) the bracket.
-///
-/// When `bracketed` is false the text is returned unchanged, so plain shells
-/// that never requested the mode are unaffected.
 pub fn wrap_paste(text: &str, bracketed: bool) -> Vec<u8> {
+    let normalized = text.replace("\r\n", "\r").replace('\n', "\r");
     if !bracketed {
-        return text.as_bytes().to_vec();
+        return normalized.into_bytes();
     }
-    let sanitized = text.replace("\x1b[200~", "").replace("\x1b[201~", "");
+    let sanitized = normalized.replace("\x1b[200~", "").replace("\x1b[201~", "");
     let mut out = Vec::with_capacity(sanitized.len() + PASTE_START.len() + PASTE_END.len());
     out.extend_from_slice(PASTE_START);
     out.extend_from_slice(sanitized.as_bytes());
@@ -66,15 +73,31 @@ mod paste_tests {
     use super::wrap_paste;
 
     #[test]
-    fn raw_when_mode_disabled() {
-        let text = "line one\nline two\n";
-        assert_eq!(wrap_paste(text, false), text.as_bytes());
+    fn unwrapped_when_mode_disabled_with_cr_line_endings() {
+        let out = wrap_paste("line one\nline two\n", false);
+        assert_eq!(out, b"line one\rline two\r");
     }
 
     #[test]
     fn wraps_when_mode_enabled() {
         let out = wrap_paste("hello\nworld", true);
-        assert_eq!(out, b"\x1b[200~hello\nworld\x1b[201~");
+        assert_eq!(out, b"\x1b[200~hello\rworld\x1b[201~");
+    }
+
+    /// A CRLF pair is ONE line break and must collapse to a single CR;
+    /// forwarding both bytes doubles every pasted line on the receiving
+    /// side (readline, vim, cooked ttys all break on each byte).
+    #[test]
+    fn crlf_collapses_to_single_cr() {
+        assert_eq!(wrap_paste("a\r\nb\r\n", false), b"a\rb\r");
+        assert_eq!(wrap_paste("a\r\nb", true), b"\x1b[200~a\rb\x1b[201~");
+    }
+
+    /// A bare CR already matches what Enter sends and passes through as-is
+    /// (it must not merge with a following normalized `\n`-turned-CR).
+    #[test]
+    fn mixed_endings_normalize_per_break() {
+        assert_eq!(wrap_paste("a\rb\nc\r\nd", false), b"a\rb\rc\rd");
     }
 
     #[test]
