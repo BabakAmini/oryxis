@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Zaznacz tekst, aby skopiować, kliknij prawym, aby wkleić",
         "renderer_backend" => "Renderer graficzny",
-        "renderer_backend_desc" => "Zmień ścieżkę renderowania, jeśli widzisz usterki graficzne. OpenGL pozostaje akcelerowany przez GPU; Software (CPU) jest najbardziej zgodny. Uruchom ponownie, aby zastosować.",
+        "renderer_backend_desc" => "Automatyczny wybiera najlepszą ścieżkę GPU (najpierw Vulkan). OpenGL to opcja zgodności dla GPU z uszkodzonymi sterownikami Vulkan/DX12; Software (CPU) zawsze renderuje poprawnie. Uruchom ponownie, aby zastosować.",
         "renderer_active" => "Aktywny renderer",
-        "renderer_auto" => "Automatyczny",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Automatyczny (GPU)",
+        "renderer_opengl" => "OpenGL (zgodność)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Uruchom ponownie, aby zmienić renderer",
         "renderer_restart_body" => "Renderer graficzny zmienia się dopiero po ponownym uruchomieniu aplikacji. Uruchomić ponownie teraz, aby go zastosować (zamknie to otwarte sesje terminala), albo zamknij to i pracuj dalej, a zostanie zastosowany przy następnym otwarciu Oryxis.",

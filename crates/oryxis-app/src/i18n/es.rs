@@ -297,10 +297,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Seleccionar texto para copiar y clic derecho para pegar",
         "renderer_backend" => "Renderizador gráfico",
-        "renderer_backend_desc" => "Cambia el modo de renderizado si ves fallos gráficos. OpenGL mantiene la aceleración por GPU; Software (CPU) es el más compatible. Reinicia para aplicar.",
+        "renderer_backend_desc" => "Automático elige la mejor ruta de GPU (Vulkan primero). OpenGL es una opción de compatibilidad para GPU con controladores Vulkan/DX12 defectuosos; Software (CPU) siempre renderiza correctamente. Reinicia para aplicar.",
         "renderer_active" => "Renderizador activo",
-        "renderer_auto" => "Automático",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Automático (GPU)",
+        "renderer_opengl" => "OpenGL (compatibilidad)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Reiniciar para cambiar el renderizador",
         "renderer_restart_body" => "El renderizador gráfico solo cambia cuando la app se reinicia. ¿Reiniciar ahora para aplicarlo (esto cierra tus sesiones de terminal abiertas), o cierra esto y sigue trabajando, y se aplicará la próxima vez que abras Oryxis.",

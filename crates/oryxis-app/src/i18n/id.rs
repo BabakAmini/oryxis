@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Pilih teks untuk menyalin & klik kanan untuk menempel",
         "renderer_backend" => "Perender grafis",
-        "renderer_backend_desc" => "Ganti jalur render jika Anda melihat gangguan grafis. OpenGL tetap akselerasi GPU; Software (CPU) paling kompatibel. Mulai ulang untuk menerapkan.",
+        "renderer_backend_desc" => "Otomatis memilih jalur GPU terbaik (Vulkan lebih dulu). OpenGL adalah opsi kompatibilitas untuk GPU dengan driver Vulkan/DX12 yang rusak; Perangkat lunak (CPU) selalu merender dengan benar. Mulai ulang untuk menerapkan.",
         "renderer_active" => "Penyaji aktif",
-        "renderer_auto" => "Otomatis",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Otomatis (GPU)",
+        "renderer_opengl" => "OpenGL (kompatibilitas)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Mulai ulang untuk mengganti perender",
         "renderer_restart_body" => "Perender grafis hanya berubah saat aplikasi dimulai ulang. Mulai ulang sekarang untuk menerapkannya (ini menutup sesi terminal yang terbuka), atau tutup ini dan lanjutkan bekerja, dan akan diterapkan saat Anda membuka Oryxis berikutnya.",

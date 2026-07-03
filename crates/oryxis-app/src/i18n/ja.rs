@@ -297,10 +297,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "テキスト選択でコピー、右クリックでペースト",
         "renderer_backend" => "グラフィックレンダラー",
-        "renderer_backend_desc" => "表示崩れが出る場合は描画方式を切り替えます。OpenGL は GPU 描画のまま、ソフトウェア (CPU) は最も互換性が高いです。再起動で適用。",
+        "renderer_backend_desc" => "自動は最適なGPUパスを選択します（Vulkan優先）。OpenGLはVulkan/DX12ドライバーが壊れたGPU向けの互換オプションです。ソフトウェア（CPU）は常に正しく描画します。再起動後に適用されます。",
         "renderer_active" => "使用中のレンダラー",
-        "renderer_auto" => "自動",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "自動（GPU）",
+        "renderer_opengl" => "OpenGL（互換）",
         "renderer_software" => "ソフトウェア (CPU)",
         "renderer_restart_title" => "レンダラーを変更するには再起動",
         "renderer_restart_body" => "グラフィックスレンダラーはアプリの再起動時にのみ変更されます。今すぐ再起動して適用しますか（開いているターミナルセッションは閉じます）。または、これを閉じて作業を続けると、次に Oryxis を開いたときに適用されます。",

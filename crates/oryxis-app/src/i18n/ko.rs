@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "텍스트를 선택하여 복사하고 우클릭하여 붙여넣기",
         "renderer_backend" => "그래픽 렌더러",
-        "renderer_backend_desc" => "그래픽 결함이 보이면 렌더 경로를 전환하세요. OpenGL은 GPU 가속을 유지합니다. 소프트웨어(CPU)가 가장 호환성이 좋습니다. 적용하려면 다시 시작하세요.",
+        "renderer_backend_desc" => "자동은 최적의 GPU 경로를 선택합니다(Vulkan 우선). OpenGL은 Vulkan/DX12 드라이버가 손상된 GPU를 위한 호환 옵션입니다. 소프트웨어(CPU)는 항상 올바르게 렌더링합니다. 재시작 후 적용됩니다.",
         "renderer_active" => "활성 렌더러",
-        "renderer_auto" => "자동",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "자동 (GPU)",
+        "renderer_opengl" => "OpenGL (호환)",
         "renderer_software" => "소프트웨어 (CPU)",
         "renderer_restart_title" => "렌더러를 바꾸려면 재시작",
         "renderer_restart_body" => "그래픽 렌더러는 앱을 재시작할 때만 변경됩니다. 지금 재시작하여 적용하시겠어요(열려 있는 터미널 세션이 닫힙니다). 또는 이 창을 닫고 계속 작업하면 다음에 Oryxis를 열 때 적용됩니다.",

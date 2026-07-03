@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Kopyalamak için metin seçin ve yapıştırmak için sağ tıklayın",
         "renderer_backend" => "Grafik işleyici",
-        "renderer_backend_desc" => "Grafik bozulmaları görüyorsanız işleme yolunu değiştirin. OpenGL GPU hızlandırmalı kalır; Software (CPU) en uyumlusudur. Uygulamak için yeniden başlatın.",
+        "renderer_backend_desc" => "Otomatik en iyi GPU yolunu seçer (önce Vulkan). OpenGL, Vulkan/DX12 sürücüleri bozuk GPU'lar için bir uyumluluk seçeneğidir; Yazılım (CPU) her zaman doğru işler. Uygulamak için yeniden başlatın.",
         "renderer_active" => "Etkin işleyici",
-        "renderer_auto" => "Otomatik",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Otomatik (GPU)",
+        "renderer_opengl" => "OpenGL (uyumluluk)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "İşleyiciyi değiştirmek için yeniden başlat",
         "renderer_restart_body" => "Grafik işleyicisi yalnızca uygulama yeniden başlatıldığında değişir. Uygulamak için şimdi yeniden başlatılsın mı (bu, açık terminal oturumlarınızı kapatır) veya bunu kapatıp çalışmaya devam edin, Oryxis'i bir sonraki açışınızda uygulanacaktır.",

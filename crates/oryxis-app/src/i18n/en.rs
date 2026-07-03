@@ -317,10 +317,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Settings toggles
         "copy_on_select" => "Select text to copy & Right click to paste",
         "renderer_backend" => "Graphics renderer",
-        "renderer_backend_desc" => "Switch render path if you see graphical glitches. OpenGL stays GPU-accelerated; Software (CPU) is the most compatible. Restart to apply.",
+        "renderer_backend_desc" => "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply.",
         "renderer_active" => "Active renderer",
-        "renderer_auto" => "Automatic",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Automatic (GPU)",
+        "renderer_opengl" => "OpenGL (compatibility)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Restart to change renderer",
         "renderer_restart_body" => "The graphics renderer only changes when the app restarts. Restart now to apply it (this closes your open terminal sessions), or close this and keep working, and it will apply the next time you open Oryxis.",

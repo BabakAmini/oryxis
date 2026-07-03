@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Chọn văn bản để chép và nhấp chuột phải để dán",
         "renderer_backend" => "Trình kết xuất đồ họa",
-        "renderer_backend_desc" => "Đổi đường kết xuất nếu thấy lỗi đồ họa. OpenGL vẫn dùng tăng tốc GPU; Phần mềm (CPU) tương thích nhất. Khởi động lại để áp dụng.",
+        "renderer_backend_desc" => "Tự động chọn đường dẫn GPU tốt nhất (ưu tiên Vulkan). OpenGL là tùy chọn tương thích cho GPU có driver Vulkan/DX12 bị lỗi; Phần mềm (CPU) luôn hiển thị đúng. Khởi động lại để áp dụng.",
         "renderer_active" => "Trình kết xuất đang dùng",
-        "renderer_auto" => "Tự động",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Tự động (GPU)",
+        "renderer_opengl" => "OpenGL (tương thích)",
         "renderer_software" => "Phần mềm (CPU)",
         "renderer_restart_title" => "Khởi động lại để đổi trình kết xuất",
         "renderer_restart_body" => "Trình kết xuất đồ họa chỉ thay đổi khi khởi động lại ứng dụng. Khởi động lại ngay để áp dụng (thao tác này đóng các phiên terminal đang mở), hoặc đóng cái này và tiếp tục làm việc, nó sẽ được áp dụng vào lần tiếp theo bạn mở Oryxis.",

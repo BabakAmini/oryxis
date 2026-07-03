@@ -297,10 +297,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "选中文本自动复制，右键粘贴",
         "renderer_backend" => "图形渲染器",
-        "renderer_backend_desc" => "出现画面错乱时切换渲染方式。OpenGL 仍由 GPU 加速；软件 (CPU) 兼容性最好。重启后生效。",
+        "renderer_backend_desc" => "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。",
         "renderer_active" => "当前渲染器",
-        "renderer_auto" => "自动",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "自动（GPU）",
+        "renderer_opengl" => "OpenGL（兼容）",
         "renderer_software" => "软件 (CPU)",
         "renderer_restart_title" => "重启以更换渲染器",
         "renderer_restart_body" => "图形渲染器仅在应用重启时更改。现在重启以应用（这会关闭已打开的终端会话），或关闭此提示继续工作，它将在下次打开 Oryxis 时生效。",

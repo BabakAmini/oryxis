@@ -297,10 +297,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Text auswählen zum Kopieren & Rechtsklick zum Einfügen",
         "renderer_backend" => "Grafik-Renderer",
-        "renderer_backend_desc" => "Render-Pfad wechseln bei Grafikfehlern. OpenGL bleibt GPU-beschleunigt; Software (CPU) ist am kompatibelsten. Neustart zum Übernehmen.",
+        "renderer_backend_desc" => "Automatisch wählt den besten GPU-Pfad (Vulkan zuerst). OpenGL ist eine Kompatibilitätsoption für GPUs mit defekten Vulkan/DX12-Treibern; Software (CPU) rendert immer korrekt. Neustart erforderlich.",
         "renderer_active" => "Aktiver Renderer",
-        "renderer_auto" => "Automatisch",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Automatisch (GPU)",
+        "renderer_opengl" => "OpenGL (Kompatibilität)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Zum Wechsel des Renderers neu starten",
         "renderer_restart_body" => "Der Grafik-Renderer wechselt erst beim Neustart der App. Jetzt neu starten, um ihn anzuwenden (dabei werden Ihre offenen Terminal-Sitzungen geschlossen), oder schließen Sie dies und arbeiten Sie weiter, dann wird er beim nächsten Öffnen von Oryxis angewendet.",

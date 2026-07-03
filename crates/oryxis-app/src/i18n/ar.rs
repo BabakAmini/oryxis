@@ -298,10 +298,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "تحديد النص للنسخ والنقر بالزر الأيمن للصق",
         "renderer_backend" => "محرّك العرض الرسومي",
-        "renderer_backend_desc" => "بدّل مسار العرض إذا ظهرت أعطال رسومية. OpenGL يبقى بتسريع GPU؛ البرمجي (CPU) هو الأكثر توافقًا. أعد التشغيل للتطبيق.",
+        "renderer_backend_desc" => "يختار الوضع التلقائي أفضل مسار GPU (Vulkan أولاً). OpenGL خيار توافق لوحدات GPU ذات برامج تشغيل Vulkan/DX12 المعطلة؛ البرمجي (CPU) يعرض دائمًا بشكل صحيح. أعد التشغيل للتطبيق.",
         "renderer_active" => "المُصيّر النشط",
-        "renderer_auto" => "تلقائي",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "تلقائي (GPU)",
+        "renderer_opengl" => "OpenGL (التوافق)",
         "renderer_software" => "البرمجي (CPU)",
         "renderer_restart_title" => "أعد التشغيل لتغيير محرّك العرض",
         "renderer_restart_body" => "لا يتغيّر محرّك العرض الرسومي إلا عند إعادة تشغيل التطبيق. أعد التشغيل الآن لتطبيقه (سيؤدي هذا إلى إغلاق جلسات الطرفية المفتوحة)، أو أغلق هذا وتابع عملك، وسيُطبَّق في المرة القادمة التي تفتح فيها Oryxis.",

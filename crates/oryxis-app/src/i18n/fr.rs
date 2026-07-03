@@ -297,10 +297,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Sélectionner pour copier et clic droit pour coller",
         "renderer_backend" => "Moteur de rendu",
-        "renderer_backend_desc" => "Changez de moteur de rendu en cas d'artefacts graphiques. OpenGL reste accéléré par le GPU ; Logiciel (CPU) est le plus compatible. Redémarrez pour appliquer.",
+        "renderer_backend_desc" => "Automatique choisit le meilleur chemin GPU (Vulkan d'abord). OpenGL est une option de compatibilité pour les GPU aux pilotes Vulkan/DX12 défectueux ; Software (CPU) rend toujours correctement. Redémarrez pour appliquer.",
         "renderer_active" => "Moteur de rendu actif",
-        "renderer_auto" => "Automatique",
-        "renderer_opengl" => "OpenGL (GPU)",
+        "renderer_auto" => "Automatique (GPU)",
+        "renderer_opengl" => "OpenGL (compatibilité)",
         "renderer_software" => "Logiciel (CPU)",
         "renderer_restart_title" => "Redémarrer pour changer le moteur de rendu",
         "renderer_restart_body" => "Le moteur de rendu ne change qu'au redémarrage de l'application. Redémarrer maintenant pour l'appliquer (cela ferme vos sessions de terminal ouvertes), ou fermez ceci et continuez à travailler, il s'appliquera à la prochaine ouverture d'Oryxis.",
