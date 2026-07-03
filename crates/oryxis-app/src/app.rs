@@ -1333,6 +1333,13 @@ impl Oryxis {
         if idx < self.tabs.len() {
             self.last_terminal_tab = Some(idx);
         }
+        // Every terminal-tab activation funnels through here (tab strip
+        // click, Ctrl+Tab MRU, new tabs, session groups), and a tab switch
+        // is a context switch: a sidebar keynav ring engaged on the old
+        // tab must not survive to silently consume Enter on the new one
+        // (the sibling rule to the PTY-write disengage; both halves of
+        // the same live-QA bug).
+        self.keynav.sidebar_selected = None;
     }
 
     pub(crate) fn adjust_last_terminal_tab_after_remove(&mut self, removed_idx: usize) {
