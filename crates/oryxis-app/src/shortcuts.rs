@@ -377,6 +377,10 @@ impl Oryxis {
     /// returns so the caller stays running rather than stranding the user
     /// with no window.
     pub(crate) fn relaunch_self(&self) {
+        // The replacement process should come back with today's window
+        // geometry, and this one exits without passing through the
+        // normal close path.
+        self.persist_window_geometry();
         let exe = match std::env::current_exe() {
             Ok(p) => p,
             Err(e) => {

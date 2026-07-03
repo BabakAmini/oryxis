@@ -115,6 +115,14 @@ impl Oryxis {
                 iced::event::Event::Window(iced::window::Event::Resized(size)) => {
                     Some(Message::WindowResized(size))
                 }
+                // Outer position in logical desktop coordinates; feeds
+                // the persisted geometry so the next launch reopens on
+                // the same monitor. Wayland never emits this (positions
+                // aren't a thing there), which is fine: the handler just
+                // never records one.
+                iced::event::Event::Window(iced::window::Event::Moved(pos)) => {
+                    Some(Message::WindowMoved(pos))
+                }
                 iced::event::Event::Window(iced::window::Event::Focused) => {
                     Some(Message::WindowFocusChanged(true))
                 }

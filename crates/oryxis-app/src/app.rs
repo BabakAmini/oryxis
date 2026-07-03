@@ -428,6 +428,22 @@ pub struct Oryxis {
     pub(crate) pending_sftp_close: Option<crate::state::PendingSftpClose>,
     pub(crate) mouse_position: Point,
     pub(crate) window_size: iced::Size,
+    /// The last size the window had while plain-windowed (not maximized,
+    /// not fullscreen). This is what `persist_window_geometry` writes to
+    /// the settings table so the next launch restores the floating size
+    /// rather than whatever monitor-sized rectangle the window occupied
+    /// at close. Updated by `WindowResized` only while both optimistic
+    /// state flags below are off.
+    pub(crate) window_windowed_size: iced::Size,
+    /// The last outer position the window had while plain-windowed, in
+    /// logical desktop coordinates (negative on monitors left of / above
+    /// the primary, which is how a multi-monitor placement round-trips).
+    /// Same skip rules as `window_windowed_size`, plus a filter for the
+    /// bogus (-32000, -32000) position Windows parks minimized windows
+    /// at. `None` until the first `Moved` event; stays `None` for the
+    /// whole session on Wayland, where window positions don't exist, so
+    /// nothing is persisted and the next launch uses the WM's placement.
+    pub(crate) window_windowed_pos: Option<Point>,
     /// Whether the OS window currently has focus. Driven by the
     /// `Focused` / `Unfocused` window events. The cloud SSM/ECS
     /// keepalive only ticks while this is `false` (the user alt-tabbed

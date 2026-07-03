@@ -564,6 +564,9 @@ impl Oryxis {
                             // exit so the old binary is released. Graceful
                             // quit via window close.
                             self.pending_update = None;
+                            // The updated binary should reopen with
+                            // today's geometry.
+                            self.persist_window_geometry();
                             return Ok(iced::window::latest().then(|id_opt| match id_opt {
                                 Some(id) => iced::window::close(id),
                                 None => Task::none(),

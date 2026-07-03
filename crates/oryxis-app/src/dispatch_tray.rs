@@ -287,6 +287,10 @@ impl Oryxis {
             }
             Message::TrayQuit => {
                 tracing::info!("tray: quit requested");
+                // The window may have been shown and resized/maximized
+                // since the hide-to-tray persisted geometry; write the
+                // final state before exiting.
+                self.persist_window_geometry();
                 return Ok(iced::exit());
             }
             Message::TrayActivateSession(idx) => {

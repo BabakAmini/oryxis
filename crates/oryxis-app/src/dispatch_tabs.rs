@@ -212,6 +212,15 @@ impl Oryxis {
                     || (snapped.height - self.window_size.height).abs() > 0.5
                 {
                     self.window_size = snapped;
+                    // Track the last plain-windowed size separately: it is
+                    // what `persist_window_geometry` restores on the next
+                    // launch. The maximize / fullscreen flags flip
+                    // optimistically *before* the OS resize arrives, so the
+                    // monitor-sized events those transitions emit are
+                    // correctly skipped here.
+                    if !self.window_maximized && !self.window_fullscreen {
+                        self.window_windowed_size = snapped;
+                    }
                     // The floating toolbar search / overflow popovers are
                     // anchored to a width that just changed, and the inline
                     // field may now fit again. Dismiss them so they re-pop
@@ -225,6 +234,79 @@ impl Oryxis {
                         self.overlay = None;
                     }
                 }
+            }
+            Message::WindowMoved(pos) => {
+                // Same skip rule as the windowed-size tracking above:
+                // maximize / fullscreen park the window at the monitor
+                // origin, and the optimistic flags flip before that
+                // Moved event arrives. The second filter drops the
+                // (-32000, -32000) sentinel Windows reports for
+                // minimized windows (scaled by DPI when converted to
+                // logical, hence the generous threshold: no real
+                // monitor layout puts a window beyond -8000 on both
+                // axes at once).
+                let minimized_sentinel = pos.x <= -8000.0 && pos.y <= -8000.0;
+                if !self.window_maximized
+                    && !self.window_fullscreen
+                    && !minimized_sentinel
+                {
+                    self.window_windowed_pos = Some(pos);
+                }
+            }
+            Message::WindowEnsureOnScreen => {
+                // Runs once shortly after boot when a saved position was
+                // restored. If that position is on a monitor that no
+                // longer exists (undocked laptop, unplugged display),
+                // the window would be stranded off-screen with no way to
+                // grab its title bar, so pull it back onto the monitor
+                // the OS considers nearest. All values are logical
+                // coordinates; `monitor_*` return `None` where the
+                // platform can't say (Wayland), in which case the WM
+                // already placed us somewhere visible and we skip.
+                let win_size = self.window_size;
+                return Ok(iced::window::latest().then(move |id_opt| {
+                    let Some(id) = id_opt else { return Task::none(); };
+                    iced::window::position(id).then(move |pos_opt| {
+                        let Some(pos) = pos_opt else { return Task::none(); };
+                        iced::window::monitor_position(id).then(move |origin_opt| {
+                            let Some(origin) = origin_opt else {
+                                return Task::none();
+                            };
+                            iced::window::monitor_size(id).then(move |size_opt| {
+                                let Some(monitor) = size_opt else {
+                                    return Task::none();
+                                };
+                                // Visible enough = at least 60 px of
+                                // horizontal overlap with the nearest
+                                // monitor AND the title strip (top
+                                // 40 px) vertically inside it. The
+                                // nearest monitor is the only one we
+                                // can query, but a window that fails
+                                // this against its *nearest* monitor
+                                // fails it against every other one by
+                                // definition.
+                                let overlap_x = (pos.x + win_size.width)
+                                    .min(origin.x + monitor.width)
+                                    - pos.x.max(origin.x);
+                                let title_visible = pos.y >= origin.y - 4.0
+                                    && pos.y + 40.0 <= origin.y + monitor.height;
+                                if overlap_x >= 60.0 && title_visible {
+                                    return Task::none();
+                                }
+                                tracing::info!(
+                                    "restored window position ({}, {}) is off-screen, \
+                                     recentering on the nearest monitor",
+                                    pos.x,
+                                    pos.y
+                                );
+                                iced::window::move_to(
+                                    id,
+                                    Point::new(origin.x + 48.0, origin.y + 48.0),
+                                )
+                            })
+                        })
+                    })
+                }));
             }
             Message::WindowFocusChanged(focused) => {
                 self.window_focused = focused;
@@ -254,6 +336,12 @@ impl Oryxis {
                         ));
                     }
                 } else {
+                    // Crash-safe geometry checkpoint: the exit paths all
+                    // persist, but an OS shutdown or a kill never reaches
+                    // them. Focus loss is infrequent enough that four tiny
+                    // row upserts don't matter, and recent enough that the
+                    // restored geometry stays accurate.
+                    self.persist_window_geometry();
                     // Commit any in-progress Ctrl+Tab run: losing focus with
                     // Ctrl held may swallow the release event, and the OS may
                     // not deliver a modifier change on blur, so end the run
@@ -380,6 +468,10 @@ impl Oryxis {
             }
             Message::WindowMaximizeToggle => {
                 self.window_maximized = !self.window_maximized;
+                // Cheap write, and it keeps the restored state accurate
+                // even when the process later dies without reaching an
+                // exit path (OS shutdown, kill).
+                self.persist_window_geometry();
                 return Ok(iced::window::latest().then(|id_opt| match id_opt {
                     Some(id) => iced::window::toggle_maximize(id),
                     None => Task::none(),
@@ -389,6 +481,10 @@ impl Oryxis {
                 // Persist any buffered session-log output before the
                 // window goes away (real close or hide-to-tray both).
                 self.flush_session_logs_final();
+                // Remember size + maximized/fullscreen for the next
+                // launch (also on hide-to-tray: a later tray Quit exits
+                // without passing through here again).
+                self.persist_window_geometry();
                 // Honour the close-to-tray setting: when on, the
                 // user's "close" verb (custom title bar X, Alt+F4
                 // via CloseRequested subscription, etc.) hides the
@@ -440,6 +536,8 @@ impl Oryxis {
                 // the only way fullscreen changes today is through this
                 // handler so the cached bool stays in sync.
                 self.window_fullscreen = !self.window_fullscreen;
+                // Same crash-safe checkpoint as the maximize toggle.
+                self.persist_window_geometry();
                 let entering = self.window_fullscreen;
                 let next = if entering {
                     iced::window::Mode::Fullscreen

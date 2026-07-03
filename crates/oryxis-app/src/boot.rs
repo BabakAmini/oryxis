@@ -25,6 +25,14 @@ impl Oryxis {
         let mut vault = VaultStore::open_default().ok();
         let mut vault_state = VaultState::Loading;
         let mut vault_has_user_password = false;
+        // Window geometry persisted by `persist_window_geometry`. main()
+        // already applied these to the OS window before iced booted; the
+        // state fields must agree so the custom chrome renders the right
+        // maximize/restore glyph and border width from the first frame.
+        let mut restored_window_size = iced::Size::new(1200.0, 750.0);
+        let mut restored_window_pos: Option<iced::Point> = None;
+        let mut restored_maximized = false;
+        let mut restored_fullscreen = false;
 
         if let Some(v) = &mut vault {
             if !v.is_initialized() {
@@ -103,6 +111,36 @@ impl Oryxis {
                 use crate::i18n::LayoutDirection;
                 LayoutDirection::set_active(LayoutDirection::from_code(&code));
             }
+            // Same clamp as main(): a corrupt row must not produce a
+            // degenerate size (it feeds terminal layout math via
+            // `window_size` before the first Resized event lands).
+            if let (Ok(Some(w)), Ok(Some(h))) = (
+                v.get_setting("window_width"),
+                v.get_setting("window_height"),
+            ) && let (Ok(w), Ok(h)) = (w.parse::<f32>(), h.parse::<f32>())
+                && w.is_finite()
+                && h.is_finite()
+            {
+                restored_window_size =
+                    iced::Size::new(w.clamp(800.0, 16384.0), h.clamp(500.0, 16384.0));
+            }
+            if let (Ok(Some(x)), Ok(Some(y))) = (
+                v.get_setting("window_pos_x"),
+                v.get_setting("window_pos_y"),
+            ) && let (Ok(x), Ok(y)) = (x.parse::<f32>(), y.parse::<f32>())
+                && x.is_finite()
+                && y.is_finite()
+            {
+                restored_window_pos = Some(iced::Point::new(x, y));
+            }
+            restored_maximized = matches!(
+                v.get_setting("window_maximized").ok().flatten().as_deref(),
+                Some("true")
+            );
+            restored_fullscreen = matches!(
+                v.get_setting("window_fullscreen").ok().flatten().as_deref(),
+                Some("true")
+            );
         }
 
         // Plugin providers are kept twice: once as `Arc<dyn CloudProvider>`
@@ -246,12 +284,17 @@ impl Oryxis {
                 hovered_sftp_tab: None,
                 pending_sftp_close: None,
                 mouse_position: Point::ORIGIN,
-                window_size: iced::Size::new(1200.0, 750.0),
+                window_size: restored_window_size,
+                window_windowed_size: restored_window_size,
+                window_windowed_pos: restored_window_pos,
                 window_focused: true,
                 ssm_keepalive_base: None,
-                window_maximized: false,
-                window_fullscreen: false,
-                fullscreen_hint_visible: false,
+                window_maximized: restored_maximized,
+                window_fullscreen: restored_fullscreen,
+                // Restoring straight into fullscreen re-shows the
+                // "Press F11 to exit" hint (auto-hide task below), so
+                // the user is never trapped in a chromeless window.
+                fullscreen_hint_visible: restored_fullscreen,
                 hotkey_bindings: crate::hotkeys::default_bindings(),
                 editing_hotkey: None,
                 modifiers: keyboard::Modifiers::default(),
@@ -573,6 +616,38 @@ impl Oryxis {
                 app.loaded_cjk_fonts.insert(code.to_string());
                 tasks.push(crate::fonts::ensure_task(lang));
             }
+        }
+
+        // A restored position may reference a monitor that is gone
+        // (undocked laptop, unplugged display). Verify shortly after the
+        // window is up and pull it back on-screen if so. The delay lets
+        // the WM finish placing the window first; skipped entirely when
+        // nothing was restored (Default position is always visible).
+        // Not needed while maximized / fullscreen: the OS resolves those
+        // against a real monitor on its own, and the check would compare
+        // the *windowed* rectangle nobody is looking at.
+        if app.window_windowed_pos.is_some()
+            && !app.window_maximized
+            && !app.window_fullscreen
+        {
+            tasks.push(Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+                },
+                |_| Message::WindowEnsureOnScreen,
+            ));
+        }
+
+        // The boot constructor set the F11 hint visible when restoring
+        // into fullscreen; schedule the same 3 s auto-hide the F11
+        // toggle handler uses.
+        if app.window_fullscreen {
+            tasks.push(Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                },
+                |_| Message::FullscreenHintHide,
+            ));
         }
 
         // Populate the unified strip order from the restored (dormant pinned)
@@ -1238,6 +1313,37 @@ impl Oryxis {
         {
             tracing::warn!("failed to persist setting {key}: {e}");
         }
+    }
+
+    /// Persist the window geometry (last windowed size + outer position +
+    /// the maximized / fullscreen flags) so the next launch reopens the
+    /// window exactly as the user left it, on the same monitor. Called
+    /// from every exit path (window close, tray quit, update restart,
+    /// renderer relaunch), on the maximize / fullscreen toggles and on
+    /// focus loss as a crash-safe checkpoint. Plaintext settings rows,
+    /// so this works while the vault is locked.
+    pub(crate) fn persist_window_geometry(&self) {
+        let w = self.window_windowed_size.width.round() as u32;
+        let h = self.window_windowed_size.height.round() as u32;
+        self.persist_setting("window_width", &w.to_string());
+        self.persist_setting("window_height", &h.to_string());
+        // No Moved event ever fired (fresh session on Wayland, or the
+        // window was never dragged after a restore): keep whatever the
+        // previous run stored rather than overwriting it with nothing.
+        if let Some(pos) = self.window_windowed_pos {
+            let x = pos.x.round() as i32;
+            let y = pos.y.round() as i32;
+            self.persist_setting("window_pos_x", &x.to_string());
+            self.persist_setting("window_pos_y", &y.to_string());
+        }
+        self.persist_setting(
+            "window_maximized",
+            if self.window_maximized { "true" } else { "false" },
+        );
+        self.persist_setting(
+            "window_fullscreen",
+            if self.window_fullscreen { "true" } else { "false" },
+        );
     }
 
     /// Persist the current column template (visibility + order + widths) so

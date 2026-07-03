@@ -132,8 +132,60 @@ fn main() -> iced::Result {
     //                   drivers present undecorated windows offset on
     //                   every GPU backend). See renderer_probe.
     let mut renderer_mode: Option<String> = None;
+    // Window geometry persisted by `persist_window_geometry` on every
+    // exit path. Same unlocked settings read as the renderer knob: the
+    // values must be known before `iced::application(..).run()` builds
+    // the window, so they're resolved here rather than in boot().
+    let mut window_size = Size::new(WINDOW_WIDTH, WINDOW_HEIGHT);
+    let mut window_position = window::Position::Default;
+    let mut window_maximized = false;
+    let mut window_fullscreen = false;
     if let Ok(vault) = oryxis_vault::VaultStore::open_default() {
         renderer_mode = vault.get_setting("renderer_backend").ok().flatten();
+        if let (Some(w), Some(h)) = (
+            vault.get_setting("window_width").ok().flatten(),
+            vault.get_setting("window_height").ok().flatten(),
+        ) && let (Ok(w), Ok(h)) = (w.parse::<f32>(), h.parse::<f32>())
+            && w.is_finite()
+            && h.is_finite()
+        {
+            // Clamp so a hand-edited vault (or a corrupt row) can't
+            // restore an unusably small window; oversized values are
+            // capped by the window manager against the actual desktop.
+            window_size = Size::new(
+                w.clamp(MIN_WIDTH, 16384.0),
+                h.clamp(MIN_HEIGHT, 16384.0),
+            );
+        }
+        // Outer position in logical desktop coordinates. Legitimately
+        // negative on monitors left of / above the primary, which is
+        // exactly how the "same monitor" part round-trips; a stale
+        // position (that monitor unplugged since) is rescued after boot
+        // by `WindowEnsureOnScreen`. Absent rows (fresh install, or a
+        // Wayland session where positions don't exist) fall through to
+        // the platform default placement.
+        if let (Some(x), Some(y)) = (
+            vault.get_setting("window_pos_x").ok().flatten(),
+            vault.get_setting("window_pos_y").ok().flatten(),
+        ) && let (Ok(x), Ok(y)) = (x.parse::<f32>(), y.parse::<f32>())
+            && x.is_finite()
+            && y.is_finite()
+        {
+            window_position =
+                window::Position::Specific(iced::Point::new(x, y));
+        }
+        window_maximized = vault
+            .get_setting("window_maximized")
+            .ok()
+            .flatten()
+            .as_deref()
+            == Some("true");
+        window_fullscreen = vault
+            .get_setting("window_fullscreen")
+            .ok()
+            .flatten()
+            .as_deref()
+            == Some("true");
         // Debug logging (Settings > Advanced). Armed before the tracing
         // subscriber below is built so the earliest boot lines land in
         // the file too; same unlocked settings read as the renderer knob.
@@ -354,7 +406,17 @@ fn main() -> iced::Result {
         // font being installed.
         .default_font(theme::SYSTEM_UI)
         .window(window::Settings {
-            size: Size::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+            size: window_size,
+            // The saved outer position also selects the monitor: winit
+            // maximizes / fullscreens onto the monitor containing the
+            // window's position, so a maximized restore lands on the
+            // same display it was closed on.
+            position: window_position,
+            // Reopen maximized / fullscreen when the user left it that
+            // way; `size` still carries the floating size underneath so
+            // un-maximizing lands where the user last had the window.
+            maximized: window_maximized,
+            fullscreen: window_fullscreen,
             min_size: Some(Size::new(MIN_WIDTH, MIN_HEIGHT)),
             icon,
             decorations: false, // native title bar off, our own chrome in the tab bar

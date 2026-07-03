@@ -397,6 +397,15 @@ pub enum Message {
     TerminalImeCommit(String),
     MouseMoved(Point),
     WindowResized(iced::Size),
+    /// OS window moved; carries the new outer position in logical
+    /// desktop coordinates (negative on monitors left of / above the
+    /// primary). Feeds the persisted window geometry so the next launch
+    /// reopens on the same monitor at the same spot.
+    WindowMoved(Point),
+    /// Post-boot sanity check for the restored window position: if the
+    /// saved coordinates landed on a monitor that is no longer there,
+    /// move the window back onto the current monitor.
+    WindowEnsureOnScreen,
     /// OS window gained (`true`) or lost (`false`) focus. Gates the
     /// cloud SSM/ECS keepalive ticker: it only runs while unfocused.
     WindowFocusChanged(bool),
