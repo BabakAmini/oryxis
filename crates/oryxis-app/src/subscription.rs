@@ -145,15 +145,33 @@ impl Oryxis {
         // its own thread that pushes menu / icon events into a pair
         // of crossbeam channels; the dispatcher's `TrayPoll` handler
         // calls `tray::poll_*` to drain them. 100 ms is the same
-        // cadence Tauri uses internally for the same job. Windows
-        // only: on other targets the polls are no-ops, and mounting
-        // the ticker anyway would force an update+view pass 10x/s on
-        // an otherwise idle app.
+        // cadence Tauri uses internally for the same job. Windows only.
+        //
+        // Split into two: a slow heartbeat and an event-driven click
+        // path. The old design was a single 100 ms timer, but every tick
+        // is a Message through `update()`, which forces a full
+        // view()+layout+redraw of the entire app, 10x/s, forever, even
+        // idle. On weak GPUs / slow CPUs that constant churn makes the
+        // whole UI feel sluggish (scrolling especially).
+        //
+        // - Heartbeat (500 ms): the multi-window IPC housekeeping that
+        //   genuinely needs a timer (rebuild the dynamic submenu when
+        //   state changed, poll the primary's IPC commands from a child,
+        //   promotion when the primary dies). 500 ms is plenty for those
+        //   and cuts the idle re-render rate 5x.
+        // - Clicks (event-driven): `tray_event_stream` polls the
+        //   tray-icon crate's channels inside its own async task and only
+        //   yields a Message when a real click arrives, so a menu / icon
+        //   click still wakes the UI instantly while an idle tray never
+        //   re-renders anything.
         #[cfg(target_os = "windows")]
-        subs.push(
-            iced::time::every(std::time::Duration::from_millis(100))
-                .map(|_| Message::TrayPoll),
-        );
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(500))
+                    .map(|_| Message::TrayPoll),
+            );
+            subs.push(Subscription::run(tray_event_stream));
+        }
 
         // Port forward liveness sweep. Only mounts while at least one
         // forward is active; a 5 s tick is enough to flip a row's toggle
@@ -252,4 +270,32 @@ impl Oryxis {
 
         Subscription::batch(subs)
     }
+}
+
+/// Event-driven tray click source (Windows only). Polls the tray-icon
+/// crate's menu / icon channels inside this async task and yields a
+/// `Message` only when a real event arrives, so an idle tray never
+/// forces a UI re-render. The internal `try_recv` poll is cheap and,
+/// crucially, does NOT go through `update()`, so it costs nothing on
+/// the render side; only a yielded event wakes the app. Replaces the
+/// old 100 ms `TrayPoll` timer that re-rendered the whole app 10x/s.
+#[cfg(target_os = "windows")]
+fn tray_event_stream() -> impl iced::futures::Stream<Item = Message> {
+    iced::futures::stream::unfold((), |()| async {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            if let Some(id) = crate::tray::poll_menu_event() {
+                return Some((Message::TrayMenuEvent(id), ()));
+            }
+            // Left-click / double-click on the icon body restores the
+            // window; other icon events (move, right-click, which
+            // Windows handles by popping the menu itself) are ignored
+            // and the loop keeps waiting.
+            if let Some(ev) = crate::tray::poll_icon_event()
+                && matches!(ev, tray_icon::TrayIconEvent::DoubleClick { .. })
+            {
+                return Some((Message::TrayIconDoubleClick, ()));
+            }
+        }
+    })
 }

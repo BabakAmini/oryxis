@@ -155,16 +155,26 @@ impl crate::app::Oryxis {
         // when the keyboard made it (`modal.kbd`); a hover-driven one
         // stays invisible, the row's own hover background is the mouse
         // feedback. The default-row fallback (no explicit selection)
-        // is exempt so a confirm dialog always shows which button
-        // Enter fires.
-        let surface = self.modal_nav_surface().map(|(s, _)| s);
+        // follows the same gate on menus/pickers, so the click that
+        // clears the hover selection on PRESS can't flash the ring on
+        // row 0 while the release (which closes the menu) is still in
+        // flight. Confirm dialogs are exempt: their default ring is
+        // the "Enter confirms" affordance and stays visible.
+        let surface_family = self.modal_nav_surface();
+        let surface = surface_family.map(|(s, _)| s);
+        let kbd = self.keynav.modal.kbd.get();
+        let default_visible = kbd
+            || matches!(
+                surface_family,
+                Some((_, crate::dispatch_keynav_modal::SurfaceFamily::Confirm))
+            );
         let explicit = match self.keynav.modal.selected {
             Some((tag, i)) if Some(tag) == surface => Some(i),
             _ => None,
         };
         let selected = match explicit {
-            Some(i) => self.keynav.modal.kbd.get() && i == idx,
-            None => self.keynav.modal.default.get() == Some(idx),
+            Some(i) => kbd && i == idx,
+            None => default_visible && self.keynav.modal.default.get() == Some(idx),
         };
         // Always wrapped (transparent when unselected): a ring that
         // appears/disappears between press and release would reset the

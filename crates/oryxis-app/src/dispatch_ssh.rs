@@ -1510,7 +1510,7 @@ impl Oryxis {
         else {
             return Task::none();
         };
-        state.palette = self.terminal_palette.clone();
+        state.set_palette(self.terminal_palette.clone());
         let terminal = Arc::new(Mutex::new(state));
         let label = crate::i18n::t("local_shell").to_string();
         // Default OS shell (empty program). Restored verbatim by the
@@ -1585,7 +1585,7 @@ impl Oryxis {
         else {
             return Task::none();
         };
-        term.palette = self.resolve_terminal_palette_for_connection(&conn);
+        term.set_palette(self.resolve_terminal_palette_for_connection(&conn));
         term.process(
             format!("Connecting to {} ({}:{})...\r\n", conn.label, conn.hostname, conn.port)
                 .as_bytes(),
@@ -1623,7 +1623,7 @@ impl Oryxis {
         else {
             return Task::none();
         };
-        term.palette = self.resolve_terminal_palette_for_connection(&conn);
+        term.set_palette(self.resolve_terminal_palette_for_connection(&conn));
         term.process(
             format!("Connecting to {} ({}:{})...\r\n", conn.label, conn.hostname, conn.port)
                 .as_bytes(),

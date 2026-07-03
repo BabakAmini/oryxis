@@ -66,6 +66,17 @@ impl Oryxis {
                 y: Some(idx as f32 / denom as f32),
             },
         )
+        // snap_to stores a RELATIVE offset that scrollable keeps as a
+        // fraction; any later content-height change (a picker value
+        // revealing/hiding form rows) remaps the fraction to a new
+        // pixel position and the panel visibly jumps without any
+        // scroll input. A zero scroll_by right after materializes the
+        // offset into an absolute pixel value, which height changes
+        // leave alone.
+        .chain(iced::widget::operation::scroll_by(
+            iced::widget::Id::new("side-panel-scroll"),
+            iced::widget::operation::AbsoluteOffset { x: 0.0, y: 0.0 },
+        ))
     }
 
     /// Tab / Shift+Tab over the recorded rows. Returns `None` when

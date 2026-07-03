@@ -275,7 +275,7 @@ impl Oryxis {
             let palette = self.resolve_terminal_palette_for_label(&tab.label);
             for pane in tab.pane_grid.panes.values() {
                 if let Ok(mut state) = pane.terminal.lock() {
-                    state.palette = palette.clone();
+                    state.set_palette(palette.clone());
                 }
             }
         }
@@ -297,7 +297,7 @@ impl Oryxis {
                     continue;
                 }
                 if let Ok(mut state) = pane.terminal.lock() {
-                    state.palette = palette.clone();
+                    state.set_palette(palette.clone());
                 }
             }
         }
@@ -315,7 +315,7 @@ impl Oryxis {
             }
             for pane in tab.pane_grid.panes.values() {
                 if let Ok(mut state) = pane.terminal.lock() {
-                    state.palette = palette.clone();
+                    state.set_palette(palette.clone());
                 }
             }
         }
@@ -766,8 +766,32 @@ impl Oryxis {
                 }
             }
             Message::SettingRendererBackendChanged(mode) => {
+                // No-op if the pick didn't change (re-selecting the same
+                // option shouldn't nag about a restart).
+                if mode == self.setting_renderer_backend {
+                    return Ok(Task::none());
+                }
                 self.setting_renderer_backend = mode.clone();
                 self.persist_setting("renderer_backend", &mode);
+                // The backend is read once at process start, so the change
+                // only takes effect on the next launch. Offer to restart
+                // now (applies immediately) or later (applies on next open).
+                self.error_dialog = Some(crate::state::ErrorDialog {
+                    title: crate::i18n::t("renderer_restart_title").to_string(),
+                    body: crate::i18n::t("renderer_restart_body").to_string(),
+                    link: None,
+                    action: Some(crate::state::ErrorDialogAction {
+                        label: crate::i18n::t("renderer_restart_now").to_string(),
+                        message: Box::new(Message::RelaunchApp),
+                        danger: false,
+                    }),
+                });
+            }
+            Message::RelaunchApp => {
+                // Spawns a fresh process and exits this one; never returns
+                // on success. If the spawn fails it falls through and the
+                // app keeps running.
+                self.relaunch_self();
             }
             Message::ToggleCopyOnSelect => {
                 self.setting_copy_on_select = !self.setting_copy_on_select;

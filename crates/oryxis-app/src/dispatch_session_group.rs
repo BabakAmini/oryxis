@@ -482,7 +482,7 @@ impl Oryxis {
                         let conn = &self.connections[conn_idx];
                         let mut term = TerminalState::new_no_pty(cols, rows)
                             .expect("display-only terminal");
-                        term.palette = self.resolve_terminal_palette_for_connection(conn);
+                        term.set_palette(self.resolve_terminal_palette_for_connection(conn));
                         term.process(
                             format!(
                                 "Connecting to {} ({}:{})...\r\n",
@@ -514,7 +514,7 @@ impl Oryxis {
                         };
                         match spawned {
                             Ok((mut state, rx)) => {
-                                state.palette = self.terminal_palette.clone();
+                                state.set_palette(self.terminal_palette.clone());
                                 let mut pane =
                                     Pane::new(label.clone(), Arc::new(Mutex::new(state)));
                                 pane.origin = PaneOrigin::Local(LocalShellSpec {

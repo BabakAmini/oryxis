@@ -15,20 +15,18 @@ impl Oryxis {
         match message {
             // -- System tray --
             Message::TrayPoll => {
-                // Rebuild the dynamic submenu (Active sessions +
-                // Recent hosts) when the state behind it changed.
-                // Signature is a hash of the tab count + connection
-                // last_used times. The hash itself is cheap, but the
-                // IPC registry scan behind it stats files, so the
-                // signature pass runs every 5th tick (500 ms) while
-                // the event drain below keeps the 100 ms cadence for
-                // click responsiveness.
-                static TRAY_SIG_TICK: std::sync::atomic::AtomicU32 =
-                    std::sync::atomic::AtomicU32::new(0);
-                let run_signature_pass = TRAY_SIG_TICK
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-                    .is_multiple_of(5);
-                if run_signature_pass {
+                // 500 ms multi-window IPC heartbeat. Rebuild the dynamic
+                // submenu (Active sessions + Recent hosts) when the state
+                // behind it changed, plus the child IPC command drain and
+                // promotion below. Menu / icon clicks no longer come
+                // through here, they arrive event-driven via
+                // `TrayMenuEvent` / `TrayIconDoubleClick`, so this timer
+                // only carries the housekeeping that genuinely needs a
+                // tick. The signature is a hash of the tab count +
+                // connection last_used times; the hash is cheap but the
+                // IPC registry scan behind it stats files, which the
+                // 500 ms cadence keeps infrequent.
+                {
                     use std::collections::hash_map::DefaultHasher;
                     use std::hash::{Hash, Hasher};
 
@@ -190,81 +188,73 @@ impl Oryxis {
                     }
                 }
 
-                while let Some(id) = crate::tray::poll_menu_event() {
-                    let msg = match id.as_str() {
-                        crate::tray::MENU_ID_SHOW => Some(Message::TrayShow),
-                        crate::tray::MENU_ID_HIDE => Some(Message::TrayHide),
-                        crate::tray::MENU_ID_QUIT => Some(Message::TrayQuit),
-                        s if s.starts_with(crate::tray::MENU_PREFIX_SESSION) => {
-                            // "oryxis-tray-session:<idx>" -> activate
-                            // that open tab. The dispatcher already
-                            // has TabSelect plumbed through every code
-                            // path that switches the active terminal.
-                            let suffix = &s[crate::tray::MENU_PREFIX_SESSION.len()..];
-                            suffix.parse::<usize>().ok().and_then(|idx| {
-                                if idx < self.tabs.len() {
-                                    Some(Message::TrayActivateSession(idx))
-                                } else {
-                                    None
-                                }
-                            })
-                        }
-                        s if s.starts_with(crate::tray::MENU_PREFIX_HOST) => {
-                            // "oryxis-tray-host:<uuid>" -> open a new
-                            // tab against that saved connection.
-                            let suffix = &s[crate::tray::MENU_PREFIX_HOST.len()..];
-                            uuid::Uuid::parse_str(suffix)
-                                .ok()
-                                .map(Message::TrayOpenHost)
-                        }
-                        s if s.starts_with(crate::tray::MENU_PREFIX_HIDDEN) => {
-                            // "oryxis-tray-hidden:<pid>". If pid is
-                            // our own, the menu item refers to the
-                            // primary's own hidden window: fire
-                            // TrayShow locally. Otherwise queue an
-                            // IPC Show command for the child whose
-                            // TrayPoll routes it back into TrayShow
-                            // on its side.
-                            let suffix = &s[crate::tray::MENU_PREFIX_HIDDEN.len()..];
-                            if let Ok(pid) = suffix.parse::<u32>() {
-                                if pid == std::process::id() {
-                                    Some(Message::TrayShow)
-                                } else {
-                                    crate::tray_ipc::Primary::send_command(
-                                        pid,
-                                        crate::tray_ipc::Command::Show,
-                                    );
-                                    None
-                                }
-                            } else {
-                                None
-                            }
-                        }
-                        _ => None,
-                    };
-                    if let Some(m) = msg {
-                        follow_ups.push(Task::done(m));
-                    }
-                }
-                // Left-click on the tray icon body (not the menu)
-                // counts as "Show". We drain but ignore the right-
-                // click event; Windows already pops the menu on its
-                // own for right-clicks via the registered Menu.
-                #[cfg(target_os = "windows")]
-                while let Some(ev) = crate::tray::poll_icon_event() {
-                    if matches!(
-                        ev,
-                        tray_icon::TrayIconEvent::DoubleClick { .. }
-                    ) {
-                        follow_ups.push(Task::done(Message::TrayShow));
-                    }
-                }
-                #[cfg(not(target_os = "windows"))]
-                while crate::tray::poll_icon_event().is_some() {}
-
+                // Menu / icon clicks are NOT drained here anymore: they
+                // arrive event-driven as `TrayMenuEvent` /
+                // `TrayIconDoubleClick` (see `subscription::tray_event_stream`),
+                // so a click wakes the UI on its own instead of this
+                // timer polling for one 10x/s. Only the child IPC
+                // commands collected above remain.
                 if !follow_ups.is_empty() {
                     return Ok(Task::batch(follow_ups));
                 }
+            }
+            Message::TrayMenuEvent(id) => {
+                // A tray menu item was clicked (delivered event-driven).
+                // Resolve its id to a concrete action; unknown ids and
+                // the cross-process "show that PID's window" case (which
+                // only sends an IPC command) resolve to no local Message.
+                let msg = match id.as_str() {
+                    crate::tray::MENU_ID_SHOW => Some(Message::TrayShow),
+                    crate::tray::MENU_ID_HIDE => Some(Message::TrayHide),
+                    crate::tray::MENU_ID_QUIT => Some(Message::TrayQuit),
+                    s if s.starts_with(crate::tray::MENU_PREFIX_SESSION) => {
+                        // "oryxis-tray-session:<idx>" -> activate that open
+                        // tab. The dispatcher already has TabSelect plumbed
+                        // through every path that switches the active pane.
+                        let suffix = &s[crate::tray::MENU_PREFIX_SESSION.len()..];
+                        suffix.parse::<usize>().ok().and_then(|idx| {
+                            if idx < self.tabs.len() {
+                                Some(Message::TrayActivateSession(idx))
+                            } else {
+                                None
+                            }
+                        })
+                    }
+                    s if s.starts_with(crate::tray::MENU_PREFIX_HOST) => {
+                        // "oryxis-tray-host:<uuid>" -> open a new tab
+                        // against that saved connection.
+                        let suffix = &s[crate::tray::MENU_PREFIX_HOST.len()..];
+                        uuid::Uuid::parse_str(suffix).ok().map(Message::TrayOpenHost)
+                    }
+                    s if s.starts_with(crate::tray::MENU_PREFIX_HIDDEN) => {
+                        // "oryxis-tray-hidden:<pid>". Our own pid -> show
+                        // the primary's hidden window locally. Otherwise
+                        // queue an IPC Show command for that child, whose
+                        // own heartbeat routes it into TrayShow.
+                        let suffix = &s[crate::tray::MENU_PREFIX_HIDDEN.len()..];
+                        if let Ok(pid) = suffix.parse::<u32>() {
+                            if pid == std::process::id() {
+                                Some(Message::TrayShow)
+                            } else {
+                                crate::tray_ipc::Primary::send_command(
+                                    pid,
+                                    crate::tray_ipc::Command::Show,
+                                );
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(m) = msg {
+                    return Ok(Task::done(m));
+                }
+            }
+            Message::TrayIconDoubleClick => {
+                // Double-click on the icon body restores the window.
+                return Ok(Task::done(Message::TrayShow));
             }
             Message::TrayShow => {
                 // Hop through iced::window::oldest -> window::run so

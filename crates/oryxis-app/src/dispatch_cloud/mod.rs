@@ -138,7 +138,7 @@ impl Oryxis {
             None,
         ) {
             Ok((mut state, rx)) => {
-                state.palette = self.terminal_palette.clone();
+                state.set_palette(self.terminal_palette.clone());
                 let tab_idx = self.tabs.len();
                 let label = tab_label.to_string();
                 let mut plugin_tab = TerminalTab::new_single(

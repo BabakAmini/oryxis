@@ -490,6 +490,10 @@ impl Oryxis {
         if zone != FocusZone::Content {
             return None;
         }
+        // Keyboard-opened menu: arm the modality gate so the default
+        // row shows its ring right away (a mouse-opened kebab starts
+        // ringless until the first arrow key, focus-visible).
+        self.keynav.modal.kbd.set(true);
         // Anchor the menu at the ringed card's kebab corner (trailing
         // edge, vertical center), reported by `keynav_ring_content`;
         // zero-width means no ring was drawn yet, fall back to the

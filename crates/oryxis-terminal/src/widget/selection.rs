@@ -3,7 +3,7 @@
 /// in line-space means the selection follows the content as the user
 /// scrolls, at draw time we translate line → visible row using the
 /// current scroll_offset.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Selection {
     pub start: (u16, i32), // (col, line)
     pub end: (u16, i32),

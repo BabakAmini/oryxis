@@ -8,6 +8,15 @@ pub struct TerminalState {
     /// forwarded here so the remote shell sees `window-change` and apps
     /// like `top`/`vim` re-layout instead of wrapping into our local grid.
     remote_resize_tx: Option<mpsc::UnboundedSender<(u16, u16)>>,
+    /// Monotonic revision of anything that changes what the terminal would
+    /// render (PTY output applied, synchronized-update flush, palette
+    /// swap). The canvas widget folds this into its `RenderKey` so a draw
+    /// triggered by unrelated UI churn (a hover elsewhere, a tab-title
+    /// update, a toast) hits the geometry cache instead of re-tessellating
+    /// the whole grid. Resizes are intentionally NOT counted here: a grid
+    /// resize only happens on a bounds or font change, both of which the
+    /// canvas cache already invalidates on directly.
+    render_epoch: u64,
 }
 
 impl TerminalState {
@@ -21,7 +30,7 @@ impl TerminalState {
         let (pty, rx) =
             PtyHandle::spawn_command(cols, rows, None, &[], cwd, &backend.event_proxy)?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0 }, rx))
     }
 
     /// Like `new` but spawns an explicit program (e.g. PowerShell or
@@ -40,7 +49,7 @@ impl TerminalState {
             cols, rows, Some(program), args, cwd, &backend.event_proxy,
         )?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0 }, rx))
     }
 
     pub fn new_no_pty(
@@ -49,7 +58,7 @@ impl TerminalState {
     ) -> TerminalResult<Self> {
         let backend = TerminalBackend::new(cols, rows);
         let palette = TerminalPalette::default();
-        Ok(Self { backend, pty: None, palette, remote_resize_tx: None })
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0 })
     }
 
     /// Wire a remote resize sender, called from the app once an SSH
@@ -79,6 +88,27 @@ impl TerminalState {
 
     pub fn process(&mut self, bytes: &[u8]) {
         self.backend.process(bytes);
+        // A batch reached the emulator: even a pure cursor move or a
+        // query-only sequence can change what a frame would draw, so bump
+        // unconditionally. The cost of an occasional needless rebuild is
+        // negligible next to the win of skipping the rebuild entirely when
+        // no output arrived at all.
+        self.render_epoch = self.render_epoch.wrapping_add(1);
+    }
+
+    /// Current render revision. See [`TerminalState::render_epoch`] (field).
+    pub fn render_epoch(&self) -> u64 {
+        self.render_epoch
+    }
+
+    /// Swap the palette and bump the render epoch so the canvas cache
+    /// re-tessellates with the new colors. Callers that mutate `palette`
+    /// through this method (theme switch, per-connection palette resolve)
+    /// keep the cache correct; a raw field assignment would leave a stale
+    /// cached frame in the old theme.
+    pub fn set_palette(&mut self, palette: TerminalPalette) {
+        self.palette = palette;
+        self.render_epoch = self.render_epoch.wrapping_add(1);
     }
 
     /// Deadline of a buffering DEC `?2026` synchronized update, if any.
@@ -91,6 +121,9 @@ impl TerminalState {
     /// See `TerminalBackend::flush_sync`.
     pub fn flush_sync(&mut self) {
         self.backend.flush_sync();
+        // Buffered bytes from a stalled synchronized update were just
+        // applied to the grid, so the next frame's content differs.
+        self.render_epoch = self.render_epoch.wrapping_add(1);
     }
 
     pub fn write(&mut self, data: &[u8]) {
@@ -320,5 +353,29 @@ impl TerminalState {
         }
         let start = (end - (n_lines as i32 - 1)).max(top);
         (start..=end).map(line_text).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The canvas geometry cache keys off `render_epoch`: a stale epoch
+    /// after real output or a palette swap would leave the terminal showing
+    /// last frame's grid. Guard both bumps structurally.
+    #[test]
+    fn render_epoch_advances_on_output_and_palette() {
+        let mut state = TerminalState::new_no_pty(24, 80).expect("headless state");
+
+        let e0 = state.render_epoch();
+        state.process(b"hello");
+        let e1 = state.render_epoch();
+        assert!(e1 > e0, "process() must advance the render epoch");
+
+        state.set_palette(TerminalPalette::default());
+        assert!(
+            state.render_epoch() > e1,
+            "set_palette() must advance the render epoch"
+        );
     }
 }

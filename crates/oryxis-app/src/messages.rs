@@ -869,6 +869,20 @@ pub enum Message {
     SettingToggleTabAccentWash,
     SettingTogglePerformanceMode,
     SettingTogglePerfOverlay,
+    /// Relaunch the app in place to apply a start-time-only setting (the
+    /// graphics renderer). Fired from the renderer-change restart modal.
+    RelaunchApp,
+    /// A tray menu item was clicked (carries the raw menu id). Delivered
+    /// by the event-driven tray subscription so a click wakes the UI
+    /// only when it happens, instead of the old 100 ms poll that
+    /// re-rendered the whole app 10x/s on Windows. Only constructed on
+    /// Windows (the subscription is only mounted there).
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    TrayMenuEvent(String),
+    /// The tray icon was double-clicked (restore the window). Same
+    /// event-driven delivery as [`TrayMenuEvent`].
+    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    TrayIconDoubleClick,
     SettingTabCloseButtonSideChanged(String),
     SettingPinnedTabStyleChanged(String),
     SettingTabFillStyleChanged(String),

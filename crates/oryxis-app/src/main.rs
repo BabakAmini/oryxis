@@ -178,8 +178,13 @@ fn main() -> iced::Result {
     //   --connect <uuid>     : auto-open this saved connection
     //   --inherit-vault      : read the master password from stdin and
     //                          use it to unlock the vault on boot
+    //   --relaunch           : this process replaces a prior one (e.g. a
+    //                          renderer-change restart); wait briefly for
+    //                          the old single-instance mutex to release so
+    //                          we boot as primary, not as a tray-less child
     let mut args = std::env::args().skip(1);
     let mut inherit_vault = false;
+    let mut relaunching = false;
     while let Some(flag) = args.next() {
         match flag.as_str() {
             "--connect" => {
@@ -191,6 +196,9 @@ fn main() -> iced::Result {
             }
             "--inherit-vault" => {
                 inherit_vault = true;
+            }
+            "--relaunch" => {
+                relaunching = true;
             }
             _ => {}
         }
@@ -242,7 +250,23 @@ fn main() -> iced::Result {
     // tray installation entirely. The primary's tray menu aggregates
     // all known windows into a single "Hidden windows" section so
     // the user sees one tray ruling them all instead of N duplicates.
-    let is_primary = !tray::another_instance_running();
+    // On a relaunch the old process may not have released the
+    // single-instance mutex yet, which would demote us to a tray-less
+    // child. Retry for up to ~2 s so the intended in-place restart
+    // comes back as primary. No-op where there is no mutex (Linux/macOS
+    // report not-running immediately).
+    let is_primary = if relaunching {
+        let mut primary = !tray::another_instance_running();
+        let mut waited = 0;
+        while !primary && waited < 2000 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            waited += 100;
+            primary = !tray::another_instance_running();
+        }
+        primary
+    } else {
+        !tray::another_instance_running()
+    };
     app::APP_IS_PRIMARY.store(is_primary, std::sync::atomic::Ordering::Relaxed);
     tray_ipc::init_runtime_dirs();
 

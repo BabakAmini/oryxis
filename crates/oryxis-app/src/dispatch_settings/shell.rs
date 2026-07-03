@@ -56,7 +56,7 @@ pub(crate) fn spawn_local_shell(
                 "Spawned local shell: program={} args={:?}",
                 program_label, args_label
             );
-            state.palette = app.terminal_palette.clone();
+            state.set_palette(app.terminal_palette.clone());
             let tab_idx = app.tabs.len();
             let label = pick
                 .as_ref()

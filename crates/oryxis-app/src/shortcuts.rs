@@ -365,6 +365,50 @@ impl Oryxis {
         }
     }
 
+    /// Relaunch the app in place: spawn a fresh process that inherits
+    /// the unlocked vault, then exit the current one. Used to apply a
+    /// setting that is only read at process start (the graphics
+    /// renderer). The child carries `--relaunch` so it waits for this
+    /// process's single-instance mutex to release and comes back as
+    /// primary. Live SSH sessions and tabs do not survive a process
+    /// restart, the caller warns the user before invoking this.
+    ///
+    /// Never returns on success (`process::exit`). On a spawn failure it
+    /// returns so the caller stays running rather than stranding the user
+    /// with no window.
+    pub(crate) fn relaunch_self(&self) {
+        let exe = match std::env::current_exe() {
+            Ok(p) => p,
+            Err(e) => {
+                tracing::error!("relaunch: current_exe unavailable: {e}");
+                return;
+            }
+        };
+        let mut cmd = std::process::Command::new(exe);
+        cmd.arg("--relaunch");
+        let inherit = self.master_password.is_some();
+        if inherit {
+            cmd.arg("--inherit-vault");
+            cmd.stdin(std::process::Stdio::piped());
+        }
+        match cmd.spawn() {
+            Ok(mut child) => {
+                if inherit
+                    && let Some(mut stdin) = child.stdin.take()
+                    && let Some(pw) = self.master_password.as_ref()
+                {
+                    use std::io::Write as _;
+                    let _ = writeln!(stdin, "{}", pw);
+                    drop(stdin);
+                }
+                // Hand off cleanly: the child is up, drop this process so
+                // the mutex releases and the child promotes to primary.
+                std::process::exit(0);
+            }
+            Err(e) => tracing::error!("relaunch: spawn failed: {e}"),
+        }
+    }
+
     /// Pretty-printed binding for the given action (`"Ctrl + K"`),
     /// or `None` when the action has no binding (conflict-unbound).
     /// Used by the burger menu / context menus to surface the
