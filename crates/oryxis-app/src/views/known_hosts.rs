@@ -189,11 +189,11 @@ impl Oryxis {
                 ..Default::default()
             });
 
-            rows.push(if kb_selected {
-                crate::widgets::select_ring_radius(entry.into(), 8.0)
-            } else {
-                entry.into()
-            });
+            rows.push(crate::widgets::select_ring_opt(
+                entry.into(),
+                8.0,
+                kb_selected.then(|| OryxisColors::t().accent),
+            ));
             rows.push(Space::new().height(6).into());
         }
 

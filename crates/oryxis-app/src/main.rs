@@ -159,6 +159,7 @@ fn main() -> iced::Result {
                 && let Some(redirect) = renderer_probe::auto_backend_override()
             {
                 unsafe { std::env::set_var(redirect.env_key, redirect.env_value) };
+                renderer_probe::mark_redirected();
                 renderer_probe_note = Some(redirect.reason);
             }
         }

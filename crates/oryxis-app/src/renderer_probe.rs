@@ -29,8 +29,28 @@
 
 use std::future::Future;
 use std::pin::pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::task::{Context, Poll, Wake, Waker};
+
+/// Set to `true` at boot when [`auto_backend_override`] decided this GPU
+/// stack is unhealthy and redirected the renderer. Read later (post
+/// unlock) to auto-enable performance mode once on this hardware. A
+/// process global rather than threaded state so both the locked and
+/// auto-unlocked boot paths see the same signal. Defaults to `false`
+/// (never set on healthy stacks or non-probed platforms).
+static PROBE_REDIRECTED: OnceLock<bool> = OnceLock::new();
+
+/// Records that the boot probe redirected the renderer away from the
+/// default GPU path. Idempotent; only the first call sticks.
+pub fn mark_redirected() {
+    let _ = PROBE_REDIRECTED.set(true);
+}
+
+/// Whether the boot probe redirected the renderer to a safer backend on
+/// this hardware. Drives the one-time performance-mode auto-enable.
+pub fn probe_redirected() -> bool {
+    *PROBE_REDIRECTED.get_or_init(|| false)
+}
 
 /// A backend redirect decided by the probe: the environment variable
 /// iced/wgpu read while building the compositor, plus a human-readable

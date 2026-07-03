@@ -371,6 +371,9 @@ impl Oryxis {
                 setting_right_click_copy: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
+                setting_performance_mode: false,
+                setting_perf_overlay: false,
+                pending_perf_mode_toast: false,
                 setting_smart_contrast: true,
                 setting_bell_mode: crate::util::BellMode::default(),
                 setting_clipboard_access: crate::util::ClipboardAccess::default(),
@@ -439,10 +442,7 @@ impl Oryxis {
                 setting_auto_reconnect: true,
                 setting_max_reconnect_attempts: "5".into(),
                 setting_auto_lock_minutes: "0".into(),
-                setting_clipboard_clear_seconds: "30".into(),
                 last_user_activity: std::time::Instant::now(),
-                pending_clipboard_clear: None,
-                clipboard_clear_gen: 0,
                 setting_os_detection: true,
                 setting_session_logging: false,
                 setting_connection_history: false,
@@ -557,6 +557,10 @@ impl Oryxis {
         if app.vault_ui.state == VaultState::Unlocked {
             tasks.extend(app.spawn_plugin_unlock_tasks());
         }
+        // One-time performance-mode auto-enable notice, for the
+        // auto-unlocked (no-password) vault. The password path shows it
+        // from the `VaultUnlock` handler instead.
+        tasks.push(app.take_perf_mode_toast_task());
 
         // If the saved language uses a CJK script (Korean / Chinese /
         // Japanese), fetch + load its on-demand font now so the lock
@@ -577,6 +581,24 @@ impl Oryxis {
         app.reconcile_tab_order();
         let boot_task = Task::batch(tasks);
         (app, boot_task)
+    }
+
+    /// If [`load_data_from_vault`](Self::load_data_from_vault) just
+    /// auto-enabled performance mode for this GPU stack, raise the
+    /// one-time explaining toast and return its auto-clear task.
+    /// Returns [`Task::none`] otherwise. Called from every unlock path
+    /// so whichever one the user hits shows the notice once.
+    pub(crate) fn take_perf_mode_toast_task(&mut self) -> Task<Message> {
+        if !std::mem::take(&mut self.pending_perf_mode_toast) {
+            return Task::none();
+        }
+        self.toast = Some(crate::i18n::t("perf_mode_auto_toast").to_string());
+        Task::perform(
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(4000)).await;
+            },
+            |_| Message::ToastClear,
+        )
     }
 
     pub(crate) fn load_data_from_vault(&mut self) {
@@ -834,6 +856,25 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.setting_keyword_highlight = v == "true";
+            }
+            // Performance mode. An explicit stored choice always wins. When
+            // the key is absent (first boot on this machine) and the render
+            // probe redirected this GPU stack to software, auto-enable it
+            // once, persist the decision so it is a stable default the user
+            // can later turn off, and arm the explaining toast. Guarded so
+            // it fires exactly once and never overrides a user who set it.
+            match vault.get_setting("performance_mode") {
+                Ok(Some(v)) => self.setting_performance_mode = v == "true",
+                _ => {
+                    if crate::renderer_probe::probe_redirected() {
+                        self.setting_performance_mode = true;
+                        self.pending_perf_mode_toast = true;
+                        let _ = vault.set_setting("performance_mode", "true");
+                    }
+                }
+            }
+            if let Ok(Some(v)) = vault.get_setting("perf_overlay") {
+                self.setting_perf_overlay = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("smart_contrast") {
                 self.setting_smart_contrast = v == "true";
@@ -1106,9 +1147,6 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("auto_lock_minutes") {
                 self.setting_auto_lock_minutes = v;
-            }
-            if let Ok(Some(v)) = vault.get_setting("clipboard_clear_seconds") {
-                self.setting_clipboard_clear_seconds = v;
             }
             if let Ok(Some(v)) = vault.get_setting("os_detection") {
                 self.setting_os_detection = v == "true";

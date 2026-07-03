@@ -278,17 +278,16 @@ impl crate::app::Oryxis {
         item: ToolbarItem,
         el: iced::Element<'a, crate::app::Message>,
     ) -> iced::Element<'a, crate::app::Message> {
-        if self.keynav.focus == Some((FocusZone::Toolbar, NavItem::Toolbar(item))) {
-            // 6px matches the shared 24px toolbar-button radius.
-            // Contrast color, not accent: most toolbar buttons are
-            // accent-filled, an accent ring vanishes into them.
-            crate::widgets::select_ring_colored(
-                el,
-                6.0,
-                crate::theme::OryxisColors::t().text_primary,
-            )
-        } else {
-            el
-        }
+        // Always wrapped (transparent when unringed): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        // 6px matches the shared 24px toolbar-button radius. Contrast
+        // color, not accent: most toolbar buttons are accent-filled,
+        // an accent ring vanishes into them.
+        let ringed = self.keynav.focus == Some((FocusZone::Toolbar, NavItem::Toolbar(item)));
+        crate::widgets::select_ring_opt(
+            el,
+            6.0,
+            ringed.then(|| crate::theme::OryxisColors::t().text_primary),
+        )
     }
 }

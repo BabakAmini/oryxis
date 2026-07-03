@@ -46,6 +46,17 @@ impl Oryxis {
             ]),
         ]);
 
+        // ── Performance HUD ──
+        let perf_section = panel_section(column![
+            self.nav_toggle_row(
+                t("perf_overlay"),
+                self.setting_perf_overlay,
+                Message::SettingTogglePerfOverlay,
+            ),
+            Space::new().height(4),
+            text(t("perf_overlay_desc")).size(11).color(OryxisColors::t().text_muted),
+        ]);
+
         // ── Environment information ──
         // The report is rendered verbatim so the user sees exactly what
         // the Copy button puts on the clipboard, nothing hidden.
@@ -87,6 +98,8 @@ impl Oryxis {
             container(
                 column![
                     debug_section,
+                    Space::new().height(12),
+                    perf_section,
                     Space::new().height(12),
                     env_section,
                     Space::new().height(24),

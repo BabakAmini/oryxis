@@ -18,11 +18,16 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             Message::ModalNavHover(idx) => {
-                // Pointer hover converges the modal-layer keyboard
-                // ring with the mouse; tagged with the live surface so
-                // a stale hover from a closing menu is inert.
+                // Pointer hover converges the modal-layer SELECTION
+                // with the mouse (Enter activates the hovered row,
+                // arrows continue from it), tagged with the live
+                // surface so a stale hover from a closing menu is
+                // inert. It does NOT show the ring: `modal.kbd` goes
+                // false, so the hover-driven selection stays invisible
+                // until the keyboard takes over (focus-visible).
                 if let Some((surface, _)) = self.modal_nav_surface() {
                     self.keynav.modal.selected = Some((surface, idx));
+                    self.keynav.modal.kbd.set(false);
                 }
             }
             Message::PickOpenChanged(open) => {

@@ -95,20 +95,24 @@ pub(crate) fn apply_card_wash<'a>(
             } else {
                 el
             };
-            if selected == Some(nav) {
-                // Report the ringed card's rect so the Menu key can
-                // anchor the context menu at the card's kebab corner.
-                crate::widgets::bounds_reporter(select_ring(el), ring_bounds.clone())
+            // Ring wrapper on EVERY card (transparent when unringed,
+            // see select_ring_opt); the bounds_reporter, invisible to
+            // the widget tree, wraps only the ringed card so the Menu
+            // key can anchor the context menu at its kebab corner.
+            let ringed = selected == Some(nav);
+            let el = crate::widgets::select_ring_opt(
+                el,
+                10.0,
+                ringed.then(|| crate::theme::OryxisColors::t().accent),
+            );
+            if ringed {
+                crate::widgets::bounds_reporter(el, ring_bounds.clone())
             } else {
                 el
             }
         })
         .collect()
 }
-
-// The selection ring moved to `widgets::select_ring` so every vault
-// view (keychain, snippets, sub-nav pills, ...) can share it.
-pub(crate) use crate::widgets::select_ring;
 
 // Card/section view methods, split into sibling files.
 mod cloud;

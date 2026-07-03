@@ -1206,78 +1206,109 @@ impl Oryxis {
         };
 
         // ── Bottom actions ──
+        // "Connect" (without saving) sits BEFORE Save both visually
+        // (leading side of the row) and in the panel-nav recording, so
+        // the keyboard walk matches the layout. Built lazily below;
+        // `save_btn` is a closure so the nav slot records the two
+        // buttons in visual order.
         let save_btn_bg = if has_address { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-        let save_btn: Element<'_, Message> = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::EditorSave),
-            8.0,
-            button(
-                container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
+        let make_save_btn = |app: &Self| -> Element<'_, Message> {
+            app.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorSave),
+                8.0,
+                button(
+                    container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
+                        .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
+                        .width(Length::Fill)
+                        .center_x(Length::Fill),
+                )
+                .on_press(Message::EditorSave)
+                .width(Length::Fill)
+                .style(move |_, _| button::Style {
+                    background: Some(Background::Color(save_btn_bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                })
+                .into(),
+            )
+        };
+
+        // "Connect" (without saving): quick-connect straight from the form,
+        // new-host flow only (an existing host already has a card to
+        // connect from, and its stored secrets would not ride along).
+        // Sits beside Save; the short label gets a tooltip spelling out
+        // that nothing is written to the vault.
+        let actions_row: Element<'_, Message> = if self.editor_form.editing_id.is_none() {
+            let connect_btn = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorConnectWithoutSaving),
+                8.0,
+                button(
+                    container(
+                        text(crate::i18n::t("connect"))
+                            .size(14)
+                            .color(if has_address {
+                                OryxisColors::t().text_primary
+                            } else {
+                                OryxisColors::t().text_muted
+                            }),
+                    )
                     .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
                     .width(Length::Fill)
                     .center_x(Length::Fill),
-            )
-            .on_press(Message::EditorSave)
-            .width(Length::Fill)
-            .style(move |_, _| button::Style {
-                background: Some(Background::Color(save_btn_bg)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            })
-            .into(),
-        );
-
-        // "Connect without saving": quick-connect straight from the form,
-        // new-host flow only (an existing host already has a card to
-        // connect from, and its stored secrets would not ride along).
-        let quick_connect_btn: Element<'_, Message> =
-            if self.editor_form.editing_id.is_none() {
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::EditorConnectWithoutSaving),
-                    8.0,
-                    button(
-                        container(
-                            text(crate::i18n::t("connect_without_saving"))
-                                .size(13)
-                                .color(if has_address {
-                                    OryxisColors::t().text_primary
-                                } else {
-                                    OryxisColors::t().text_muted
-                                }),
-                        )
-                        .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                        .width(Length::Fill)
-                        .center_x(Length::Fill),
-                    )
-                    .on_press(Message::EditorConnectWithoutSaving)
-                    .width(Length::Fill)
-                    .style(move |_, status| {
-                        let bg = match status {
-                            button::Status::Hovered | button::Status::Pressed => {
-                                OryxisColors::t().bg_hover
-                            }
-                            _ => OryxisColors::t().bg_surface,
-                        };
-                        button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border {
-                                radius: Radius::from(8.0),
-                                width: 1.0,
-                                color: OryxisColors::t().border,
-                            },
-                            ..Default::default()
-                        }
-                    })
-                    .into(),
                 )
-            } else {
-                Space::new().height(0).into()
-            };
+                .on_press(Message::EditorConnectWithoutSaving)
+                .width(Length::Fill)
+                .style(move |_, status| {
+                    let bg = match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            OryxisColors::t().bg_hover
+                        }
+                        _ => OryxisColors::t().bg_surface,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border {
+                            radius: Radius::from(8.0),
+                            width: 1.0,
+                            color: OryxisColors::t().border,
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+            );
+            let connect_btn: Element<'_, Message> = iced::widget::tooltip(
+                connect_btn,
+                container(
+                    text(crate::i18n::t("quick_connect_not_saved"))
+                        .size(11)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        color: OryxisColors::t().border,
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }),
+                iced::widget::tooltip::Position::Top,
+            )
+            .into();
+            dir_row(vec![connect_btn, Space::new().width(8).into(), make_save_btn(self)])
+                .width(Length::Fill)
+                .into()
+        } else {
+            make_save_btn(self)
+        };
 
         // The error must live OUTSIDE the scrollable so it sits above
         // the Save button at the bottom of the panel, otherwise long
         // forms hide it below the fold and the user clicks Save again
         // wondering why nothing happens.
-        let bottom = column![panel_error, save_btn, quick_connect_btn].spacing(8);
+        let bottom = column![panel_error, actions_row].spacing(8);
 
         // ── Compose one card per semantic group ──
         // Host (label / parent / connection target), SSH (everything

@@ -204,7 +204,10 @@ impl Oryxis {
         let (ph_key, value, on_input): (&'static str, &str, fn(String) -> Message) =
             match self.active_view {
                 View::Dashboard => (
-                    "search_hosts",
+                    // Advertises the ad-hoc connect: this field doubles as
+                    // the quick-connect entry point (Enter on a parseable
+                    // user@host target connects it).
+                    "search_hosts_quick_connect",
                     self.host_search.as_str(),
                     Message::HostSearchChanged,
                 ),
@@ -366,12 +369,13 @@ impl Oryxis {
                 }
             })
             .into();
-            // Keyboard focus ring (matches the pill's 6px radius).
-            if kb_sel == Some(view) {
-                crate::widgets::select_ring_radius(btn, 6.0)
-            } else {
-                btn
-            }
+            // Keyboard focus ring (matches the pill's 6px radius;
+            // always wrapped, see select_ring_opt).
+            crate::widgets::select_ring_opt(
+                btn,
+                6.0,
+                (kb_sel == Some(view)).then(|| OryxisColors::t().accent),
+            )
         };
         // Priority+ overflow: the pills that fit render inline; the rest
         // live behind the "…" menu (see `subnav_pill_split`). No

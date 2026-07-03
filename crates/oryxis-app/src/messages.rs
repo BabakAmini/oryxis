@@ -867,6 +867,8 @@ pub enum Message {
     SettingToggleMinimizeToTray,
     SettingToggleTabAccentLine,
     SettingToggleTabAccentWash,
+    SettingTogglePerformanceMode,
+    SettingTogglePerfOverlay,
     SettingTabCloseButtonSideChanged(String),
     SettingPinnedTabStyleChanged(String),
     SettingTabFillStyleChanged(String),
@@ -919,8 +921,6 @@ pub enum Message {
     SettingMaxReconnectChanged(String),
     /// Vault auto-lock idle threshold, minutes as typed ("0" = off).
     SettingAutoLockChanged(String),
-    /// Clipboard-clear delay for copied credentials, seconds ("0" = off).
-    SettingClipboardClearChanged(String),
     /// Periodic idle check while the vault is unlocked and auto-lock is
     /// enabled; locks when the idle threshold is crossed.
     AutoLockTick,
@@ -928,12 +928,9 @@ pub enum Message {
     /// screen but keep live SSH sessions and tabs (unlike the manual
     /// `LockVault`, which tears sessions down).
     AutoLockVault,
-    /// Copy the stored password of the host at this index (identity
-    /// password wins over the connection's own, mirroring connect).
-    CopyHostPassword(usize),
-    /// A credential-copy clear timer fired; the payload is the
-    /// generation it was armed for (stale generations are ignored).
-    ClipboardClearDue(u64),
+    /// Copy the canonical ssh:// URL of the host at this index (card
+    /// context-menu action).
+    CopyHostSshUrl(usize),
     SettingToggleOsDetection,
     /// Toggle the global "record terminal sessions" setting.
     SettingToggleSessionLogging,

@@ -69,6 +69,14 @@ pub(crate) struct ModalNavState {
     /// Row the surface marked as its default (confirm dialogs mark
     /// the action button; menus mark their first row).
     pub(crate) default: std::cell::Cell<Option<usize>>,
+    /// Input-modality gate for the ring, focus-visible semantics:
+    /// mouse hover still moves the selection (so Enter activates the
+    /// row under the cursor and arrows continue from there), but the
+    /// ring is DRAWN only when the last interaction was the keyboard.
+    /// Set by the modal key router, cleared by hover. The default-row
+    /// ring is exempt: on a confirm dialog it is the "Enter confirms"
+    /// affordance and stays visible regardless of modality.
+    pub(crate) kbd: std::cell::Cell<bool>,
 }
 
 /// prev/next messages for a picker row: the on_select message the
@@ -142,21 +150,33 @@ impl crate::app::Oryxis {
         // e.g. 3 against a 1-long list would ring EVERY row on its
         // way in (each row briefly "is" the last one). The router
         // clamps when it acts; the ring only matches exact indices.
+        //
+        // Focus-visible: an explicit selection draws its ring only
+        // when the keyboard made it (`modal.kbd`); a hover-driven one
+        // stays invisible, the row's own hover background is the mouse
+        // feedback. The default-row fallback (no explicit selection)
+        // is exempt so a confirm dialog always shows which button
+        // Enter fires.
         let surface = self.modal_nav_surface().map(|(s, _)| s);
-        let selected = match self.keynav.modal.selected {
+        let explicit = match self.keynav.modal.selected {
             Some((tag, i)) if Some(tag) == surface => Some(i),
-            _ => self.keynav.modal.default.get(),
-        } == Some(idx);
-        if selected {
-            let color = if contrast {
+            _ => None,
+        };
+        let selected = match explicit {
+            Some(i) => self.keynav.modal.kbd.get() && i == idx,
+            None => self.keynav.modal.default.get() == Some(idx),
+        };
+        // Always wrapped (transparent when unselected): a ring that
+        // appears/disappears between press and release would reset the
+        // row's button state and eat the click. See select_ring_opt.
+        let color = selected.then(|| {
+            if contrast {
                 crate::theme::OryxisColors::t().text_primary
             } else {
                 crate::theme::OryxisColors::t().accent
-            };
-            crate::widgets::select_ring_colored(el, radius, color)
-        } else {
-            el
-        }
+            }
+        });
+        crate::widgets::select_ring_opt(el, radius, color)
     }
 
     /// `modal_nav_slot` that also marks this row as the surface
@@ -209,11 +229,14 @@ impl crate::app::Oryxis {
             items.push(action);
             items.len() - 1
         };
-        if !is_input && self.keynav.panel_selected == Some(idx) {
-            crate::widgets::select_ring_radius(el, radius)
-        } else {
-            el
-        }
+        // Always wrapped (transparent when unringed): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        let ringed = !is_input && self.keynav.panel_selected == Some(idx);
+        crate::widgets::select_ring_opt(
+            el,
+            radius,
+            ringed.then(|| crate::theme::OryxisColors::t().accent),
+        )
     }
 
     /// Recording wrapper over `widgets::context_menu_item`: same row,
@@ -260,26 +283,39 @@ impl crate::app::Oryxis {
         };
         let item = super::NavItem::SettingsRow(idx);
         self.keynav.content_rows.borrow_mut().push(vec![item]);
-        if self.keynav.selected_in(super::FocusZone::Content) == Some(item) {
-            crate::widgets::select_ring_radius(el, radius)
-        } else {
-            el
-        }
+        // Always wrapped (transparent when unringed): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        let ringed = self.keynav.selected_in(super::FocusZone::Content) == Some(item);
+        crate::widgets::select_ring_opt(
+            el,
+            radius,
+            ringed.then(|| crate::theme::OryxisColors::t().accent),
+        )
     }
 
     /// Ring a keyboard-selected content CARD and report its on-screen
     /// rect into `keynav.ring_bounds`, so the Menu key can anchor the
     /// card's context menu at the card (kebab corner) instead of the
     /// mouse position. Only the single ringed element writes the cell
-    /// per frame.
+    /// per frame. Call it for EVERY card, passing `ringed`: the ring
+    /// Stack must stay in the tree either way (shape-stable, see
+    /// select_ring_opt) while the bounds_reporter, which is invisible
+    /// to the widget tree, wraps only the ringed card.
     pub(crate) fn keynav_ring_content<'a>(
         &self,
+        ringed: bool,
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
-        crate::widgets::bounds_reporter(
-            crate::widgets::select_ring(el),
-            self.keynav.ring_bounds.clone(),
-        )
+        let el = crate::widgets::select_ring_opt(
+            el,
+            10.0,
+            ringed.then(|| crate::theme::OryxisColors::t().accent),
+        );
+        if ringed {
+            crate::widgets::bounds_reporter(el, self.keynav.ring_bounds.clone())
+        } else {
+            el
+        }
     }
 
     /// The anchor for the next kebab-menu open: the Menu key's ring
@@ -308,11 +344,14 @@ impl crate::app::Oryxis {
         };
         let item = super::NavItem::ContentAction(idx);
         self.keynav.content_rows.borrow_mut().push(vec![item]);
-        if self.keynav.selected_in(super::FocusZone::Content) == Some(item) {
-            crate::widgets::select_ring_radius(el, radius)
-        } else {
-            el
-        }
+        // Always wrapped (transparent when unringed): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        let ringed = self.keynav.selected_in(super::FocusZone::Content) == Some(item);
+        crate::widgets::select_ring_opt(
+            el,
+            radius,
+            ringed.then(|| crate::theme::OryxisColors::t().accent),
+        )
     }
 
     /// Recording toggle row for Settings content: same visual as

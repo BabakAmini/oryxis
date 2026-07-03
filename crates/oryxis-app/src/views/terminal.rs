@@ -175,6 +175,8 @@ impl Oryxis {
             .with_right_click_copy(self.setting_right_click_copy)
             .with_bold_is_bright(self.setting_bold_is_bright)
             .with_keyword_highlight(self.setting_keyword_highlight)
+            .with_performance(self.setting_performance_mode)
+            .with_perf_overlay(self.setting_perf_overlay)
             .with_privacy(self.privacy_active_for_label(&pane.label))
             .with_privacy_terms(&self.privacy_terms())
             .with_smart_contrast(self.setting_smart_contrast)

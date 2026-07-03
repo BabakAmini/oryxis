@@ -109,7 +109,7 @@ impl Oryxis {
                     self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary),
-                    self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("copy_password"), Message::CopyHostPassword(idx), OryxisColors::t().text_secondary),
+                    self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary),
                 ];
                 if let Some(pid) = cloud_profile_id {
                     items = items.push(self.menu_item(

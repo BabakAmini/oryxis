@@ -374,11 +374,7 @@ impl Oryxis {
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
             let card_el = self.card_wash(card_el, OryxisColors::t().accent);
-            cards.push(if key_kb_selected {
-                self.keynav_ring_content(card_el)
-            } else {
-                card_el
-            });
+            cards.push(self.keynav_ring_content(key_kb_selected, card_el));
         }
 
         // Responsive grid: column count derived from the current window
@@ -569,11 +565,7 @@ impl Oryxis {
             let id_card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
             let id_card_el = self.card_wash(id_card_el, OryxisColors::t().accent);
-            identity_cards.push(if id_kb_selected {
-                self.keynav_ring_content(id_card_el)
-            } else {
-                id_card_el
-            });
+            identity_cards.push(self.keynav_ring_content(id_kb_selected, id_card_el));
         }
 
         let identity_grid_elem = distribute_card_grid(identity_cards, cols, 12.0, 12.0);

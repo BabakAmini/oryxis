@@ -375,6 +375,16 @@ impl Oryxis {
             // and confirms an opengl/software override or a
             // runtime fallback actually took effect.
             renderer_active_line,
+            Space::new().height(12),
+            self.nav_toggle_row(
+                crate::i18n::t("performance_mode"),
+                self.setting_performance_mode,
+                Message::SettingTogglePerformanceMode,
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("performance_mode_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ]);
 
         // Terminal teaching hints (the mouse-capture toast, the

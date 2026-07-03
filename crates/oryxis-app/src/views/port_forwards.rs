@@ -297,11 +297,11 @@ impl Oryxis {
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
-            cards.push(if kb_selected {
-                crate::widgets::select_ring(card_el)
-            } else {
-                card_el
-            });
+            cards.push(crate::widgets::select_ring_opt(
+                card_el,
+                10.0,
+                kb_selected.then(|| OryxisColors::t().accent),
+            ));
         }
 
         let nav_width = self.vault_rail_width();

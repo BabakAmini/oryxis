@@ -789,6 +789,22 @@ pub struct Oryxis {
     pub(crate) setting_right_click_copy: bool,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
+    /// Performance mode: trade visual niceties for CPU on weak / software
+    /// render paths. When on, the terminal skips the per-frame keyword /
+    /// URL / IP / path highlight scan (kept only when Privacy Mode needs
+    /// its spans) and the active tab uses a flat accent tint instead of
+    /// the per-pixel gradient. Auto-enabled once on GPU stacks the boot
+    /// probe redirects to software (see `renderer_probe`); the user can
+    /// still toggle it. `"performance_mode"` setting.
+    pub(crate) setting_performance_mode: bool,
+    /// Renders the terminal perf HUD (per-phase frame timing + fps) in
+    /// the top-right of every pane. Off by default; the `ORYXIS_TERM_PERF`
+    /// env var forces it on too. `"perf_overlay"` setting.
+    pub(crate) setting_perf_overlay: bool,
+    /// Set once at boot when [`setting_performance_mode`] was auto-enabled
+    /// by the render probe, so the unlock path can raise a one-time toast
+    /// explaining why. Cleared when the toast is emitted.
+    pub(crate) pending_perf_mode_toast: bool,
     /// When the foreground and background of a cell render too close
     /// to each other (LS_COLORS' `ow` over a green palette,
     /// PowerShell's `$PSStyle.FileInfo.Directory` blue-on-blue, …),
@@ -1008,18 +1024,9 @@ pub struct Oryxis {
     /// fires (`AutoLockVault`): key zeroized + lock screen, but live
     /// sessions and tabs survive, unlike the manual Lock teardown.
     pub(crate) setting_auto_lock_minutes: String,
-    /// Seconds until a credential copied to the clipboard is cleared
-    /// again ("0" = off). Only credential copies arm the timer; ordinary
-    /// terminal-selection copies are never touched.
-    pub(crate) setting_clipboard_clear_seconds: String,
     /// Instant of the last user input event (keyboard / mouse / IME),
     /// the idle anchor for `setting_auto_lock_minutes`. Not persisted.
     pub(crate) last_user_activity: std::time::Instant,
-    /// Pending clipboard-clear: the credential value that was copied and
-    /// the generation counter guarding against a stale timer clearing a
-    /// newer copy. Cleared once the timer fires or is superseded.
-    pub(crate) pending_clipboard_clear: Option<String>,
-    pub(crate) clipboard_clear_gen: u64,
     pub(crate) setting_os_detection: bool,
     /// Global default for recording terminal sessions to the vault. A
     /// per-host `Connection.session_logging` override wins over this.

@@ -19,26 +19,23 @@ pub(crate) fn accent_gradient(glow: Color, base: Color) -> Background {
 }
 /// Overlay a 2px accent focus ring on a keyboard-selected card. Drawn as
 /// a `Stack` overlay so it doesn't change the element's footprint, with
-/// the same 10px radius as the cards. Sub-nav pills and other tighter
-/// controls use `select_ring_radius` to match their own corner radius.
-pub(crate) fn select_ring<'a>(el: Element<'a, Message>) -> Element<'a, Message> {
-    select_ring_radius(el, 10.0)
-}
-
-/// `select_ring` with an explicit corner radius.
-pub(crate) fn select_ring_radius<'a>(el: Element<'a, Message>, radius: f32) -> Element<'a, Message> {
-    select_ring_colored(el, radius, OryxisColors::t().accent)
-}
-
-/// `select_ring` with an explicit corner radius AND color. Accent is
-/// the default selection language, but accent-filled controls (the
-/// toolbar buttons) need a contrasting ring or it disappears into
-/// their own background; those pass `text_primary`.
-pub(crate) fn select_ring_colored<'a>(
+/// the same 10px radius as the cards.
+///
+/// Shape-stable ring: ALWAYS wraps `el` in the ring Stack and toggles
+/// only the border color (transparent when `color` is `None`). Every
+/// conditional ring call site must route through this: adding or
+/// removing the Stack layer between a button's press and its release
+/// rebuilds the subtree and resets the button's internal state, so the
+/// release lands on a widget that forgot the press and the click never
+/// fires. That is exactly what happens when clicking a ringed row (the
+/// press clears the keyboard selection). With a constant wrapper the
+/// ring change is pure style, which the tree diff preserves across.
+pub(crate) fn select_ring_opt<'a>(
     el: Element<'a, Message>,
     radius: f32,
-    color: Color,
+    color: Option<Color>,
 ) -> Element<'a, Message> {
+    let color = color.unwrap_or(Color::TRANSPARENT);
     let ring = container(Space::new().width(Length::Fill).height(Length::Fill)).style(move |_| {
         container::Style {
             border: Border {

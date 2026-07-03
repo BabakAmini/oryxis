@@ -298,7 +298,10 @@ impl Oryxis {
         // Active-tab fill style: gradient (default) or a flat accent tint.
         // Computed once and threaded into every tab/chip renderer so the
         // choice applies uniformly across session, SFTP and area tabs.
-        let solid_fill = self.setting_tab_fill_style == "solid";
+        // Performance mode forces the flat tint: the gradient is a
+        // per-pixel shader in the software renderer, the flat tint a
+        // single solid fill.
+        let solid_fill = self.setting_tab_fill_style == "solid" || self.setting_performance_mode;
 
         // The navigation areas (Hosts and SFTP) live as top-level tabs
         // before the connection tabs. Settings stays out of the strip on

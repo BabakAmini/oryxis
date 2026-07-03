@@ -159,6 +159,27 @@ impl Oryxis {
         self.quick_connects.retain(|id, _| live.contains(id));
     }
 
+    /// Canonical `ssh://` URL for a saved host ("Copy SSH URL" card
+    /// action). Mirrors connect-time username resolution (the linked
+    /// identity's username fills an empty field); the default port 22 is
+    /// omitted and IPv6 hosts take brackets, both via `SshTarget`.
+    pub(crate) fn host_ssh_url(&self, conn: &Connection) -> String {
+        let username = conn.username.clone().or_else(|| {
+            conn.identity_id.and_then(|iid| {
+                self.identities
+                    .iter()
+                    .find(|i| i.id == iid)
+                    .and_then(|i| i.username.clone())
+            })
+        });
+        let target = oryxis_core::ssh_target::SshTarget {
+            username,
+            host: conn.hostname.clone(),
+            port: (conn.port != 22).then_some(conn.port),
+        };
+        format!("ssh://{}", target.canonical())
+    }
+
     /// Overlay a quick-connect entry's typed credentials on top of the
     /// vault hydration (which always misses for ephemeral ids): password,
     /// TOTP secret, and the inline-proxy password `resolve_proxy` cannot

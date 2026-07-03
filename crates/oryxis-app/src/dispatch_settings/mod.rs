@@ -811,6 +811,20 @@ impl Oryxis {
                     if self.setting_keyword_highlight { "true" } else { "false" },
                 );
             }
+            Message::SettingTogglePerformanceMode => {
+                self.setting_performance_mode = !self.setting_performance_mode;
+                self.persist_setting(
+                    "performance_mode",
+                    if self.setting_performance_mode { "true" } else { "false" },
+                );
+            }
+            Message::SettingTogglePerfOverlay => {
+                self.setting_perf_overlay = !self.setting_perf_overlay;
+                self.persist_setting(
+                    "perf_overlay",
+                    if self.setting_perf_overlay { "true" } else { "false" },
+                );
+            }
             Message::TerminalLinkOpened => {
                 // First successful ctrl-click on a link in this pane: the
                 // hint did its job, retire it for the pane (HintMode::Once).
@@ -1330,13 +1344,6 @@ impl Oryxis {
             Message::SettingAutoLockChanged(val) => {
                 self.setting_auto_lock_minutes = sanitize_uint(&val, 1440);
                 self.persist_setting("auto_lock_minutes", &self.setting_auto_lock_minutes);
-            }
-            Message::SettingClipboardClearChanged(val) => {
-                self.setting_clipboard_clear_seconds = sanitize_uint(&val, 3600);
-                self.persist_setting(
-                    "clipboard_clear_seconds",
-                    &self.setting_clipboard_clear_seconds,
-                );
             }
             Message::AutoLockTick => {
                 // Idle check. Guarded on Unlocked so a tick racing the

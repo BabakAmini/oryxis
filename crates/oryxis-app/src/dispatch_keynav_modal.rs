@@ -130,6 +130,10 @@ impl Oryxis {
         if modifiers.control() || modifiers.alt() || modifiers.logo() {
             return None;
         }
+        // Any key reaching the modal router flips the modality gate:
+        // from here on the (possibly hover-made) selection shows its
+        // ring, until the next hover hides it again (focus-visible).
+        self.keynav.modal.kbd.set(true);
         let has_input = Self::modal_surface_has_input(surface);
         let len = self.keynav.modal.items.borrow().len();
 

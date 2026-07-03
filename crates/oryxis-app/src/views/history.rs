@@ -694,11 +694,11 @@ impl Oryxis {
                     .on_exit(Message::LogRowUnhovered)
                     .interaction(iced::mouse::Interaction::Pointer)
                     .into();
-                if kb_selected {
-                    crate::widgets::select_ring_radius(row_el, 8.0)
-                } else {
-                    row_el
-                }
+                crate::widgets::select_ring_opt(
+                    row_el,
+                    8.0,
+                    kb_selected.then(|| OryxisColors::t().accent),
+                )
             }
             None => card.into(),
         }

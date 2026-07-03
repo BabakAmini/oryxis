@@ -40,9 +40,12 @@ impl Oryxis {
                             self.vault_ui.password_input.clear();
                             self.vault_ui.password_visible = false;
                             self.load_data_from_vault();
-                            return Ok(iced::widget::operation::focus(iced::widget::Id::new(
-                                "search-dashboard",
-                            )));
+                            return Ok(Task::batch([
+                                self.take_perf_mode_toast_task(),
+                                iced::widget::operation::focus(iced::widget::Id::new(
+                                    "search-dashboard",
+                                )),
+                            ]));
                         }
                         Err(e) => {
                             self.vault_ui.error = Some(e.to_string());
@@ -57,9 +60,12 @@ impl Oryxis {
                             self.vault_ui.state = VaultState::Unlocked;
                             self.vault_ui.error = None;
                             self.load_data_from_vault();
-                            return Ok(iced::widget::operation::focus(iced::widget::Id::new(
-                                "search-dashboard",
-                            )));
+                            return Ok(Task::batch([
+                                self.take_perf_mode_toast_task(),
+                                iced::widget::operation::focus(iced::widget::Id::new(
+                                    "search-dashboard",
+                                )),
+                            ]));
                         }
                         Err(VaultError::InvalidPassword) => {
                             self.vault_ui.error = Some(
@@ -129,6 +135,8 @@ impl Oryxis {
                             // to here, now that the plugin rows are loaded
                             // (boot saw a locked vault with no rows).
                             unlock_tasks.extend(self.spawn_plugin_unlock_tasks());
+                            // One-time performance-mode auto-enable notice.
+                            unlock_tasks.push(self.take_perf_mode_toast_task());
                             // After a manual unlock, fire any deferred
                             // `--connect <uuid>` from the launch CLI args.
                             if let Some(connect_id) = self.pending_auto_connect.take()

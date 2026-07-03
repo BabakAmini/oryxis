@@ -833,11 +833,11 @@ impl Oryxis {
             })
             .width(Length::Fill);
             let row_el = self.card_wash(row_el.into(), OryxisColors::t().accent);
-            list = list.push(if kb_selected {
-                crate::widgets::select_ring(row_el)
-            } else {
-                row_el
-            });
+            list = list.push(crate::widgets::select_ring_opt(
+                row_el,
+                10.0,
+                kb_selected.then(|| OryxisColors::t().accent),
+            ));
         }
         self.keynav_set_content_rows(proxy_nav);
 

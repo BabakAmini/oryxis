@@ -148,6 +148,15 @@ pub struct TerminalView<Message = ()> {
     /// When true, the terminal scans visible rows for URLs / IPs / paths
     /// and tints them. Disable to recover frame time in dense UIs.
     keyword_highlight: bool,
+    /// Performance mode: skip the per-frame highlight scan (keyword
+    /// tinting plus URL / IP / path detection) to save CPU on weak or
+    /// software render paths. The scan still runs when
+    /// [`privacy`](Self::privacy) is on, because Privacy Mode masks the
+    /// spans that same scan produces.
+    performance: bool,
+    /// Draws the per-phase timing / fps HUD in the top-right of the pane.
+    /// ORed with the `ORYXIS_TERM_PERF` env var at draw time.
+    perf_overlay: bool,
     /// Privacy Mode: when true, detected IP addresses and `user@host`
     /// prompt tokens are masked with muted block glyphs and revealed only
     /// when the cursor hovers their span. Runs independently of
@@ -403,6 +412,8 @@ impl<Message> TerminalView<Message> {
             right_click_copy: false,
             bold_is_bright: true,
             keyword_highlight: true,
+            performance: false,
+            perf_overlay: false,
             privacy: false,
             privacy_terms: Vec::new(),
             smart_contrast: true,
@@ -487,6 +498,18 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_keyword_highlight(mut self, on: bool) -> Self {
         self.keyword_highlight = on;
+        self
+    }
+
+    /// Performance mode. See [`TerminalView::performance`].
+    pub fn with_performance(mut self, on: bool) -> Self {
+        self.performance = on;
+        self
+    }
+
+    /// Show the per-pane perf HUD (also forced by `ORYXIS_TERM_PERF`).
+    pub fn with_perf_overlay(mut self, on: bool) -> Self {
+        self.perf_overlay = on;
         self
     }
 
@@ -1583,7 +1606,7 @@ where
     ) -> Vec<Geometry> {
         use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 
-        let perf_on = perf_overlay_enabled();
+        let perf_on = self.perf_overlay || perf_overlay_enabled();
         let draw_start = perf_on.then(std::time::Instant::now);
 
         let cell_w = self.cell_width;
@@ -1756,8 +1779,12 @@ where
         // --- Detect syntax highlights ---
         // Runs when keyword tinting OR Privacy Mode is on; the latter needs
         // the IP / user@host spans to mask even when tinting is off.
+        // Performance mode suppresses the tinting scan, but NOT when
+        // privacy is active: killing the scan there would unmask every
+        // IP / user@host, so privacy always wins over the perf skip.
         let highlights_start = perf_on.then(std::time::Instant::now);
-        let highlights = if self.keyword_highlight || self.privacy {
+        let scan_for_tint = self.keyword_highlight && !self.performance;
+        let highlights = if scan_for_tint || self.privacy {
             detect_highlights(&row_chars, palette, self.privacy, &self.privacy_terms)
         } else {
             Vec::new()

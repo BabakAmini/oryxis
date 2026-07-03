@@ -331,11 +331,7 @@ impl Oryxis {
                 let card_el: Element<'_, Message> =
                     container(wrapped).width(Length::Fill).clip(true).into();
                 let card_el = self.card_wash(card_el, brand_color);
-                cards.push(if kb_selected {
-                    self.keynav_ring_content(card_el)
-                } else {
-                    card_el
-                });
+                cards.push(self.keynav_ring_content(kb_selected, card_el));
             }
 
             let nav_width = self.vault_rail_width();
