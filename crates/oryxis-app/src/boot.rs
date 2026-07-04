@@ -352,7 +352,7 @@ impl Oryxis {
                 session_group_folder_combo_bounds: crate::widgets::new_bounds_cell(),
                 plus_btn_bounds: crate::widgets::new_bounds_cell(),
                 host_filter_cloud_profile: None,
-                host_filter_tag: None,
+                host_filter_tags: Vec::new(),
                 cloud_import_confirm_visible: false,
                 cloud_dynamic_group_state: std::collections::HashMap::new(),
                 cloud_dynamic_form: crate::state::CloudDynamicForm::default(),

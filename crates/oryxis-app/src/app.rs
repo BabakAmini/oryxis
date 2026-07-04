@@ -190,10 +190,11 @@ pub struct Oryxis {
     /// cleared from the chip at the top of the grid. None means no
     /// cloud filter.
     pub(crate) host_filter_cloud_profile: Option<Uuid>,
-    /// Dashboard tag filter: only hosts carrying this tag (case-
-    /// insensitive) are listed. In-memory like the search needle, not
-    /// persisted; `None` = no filter.
-    pub(crate) host_filter_tag: Option<String>,
+    /// Dashboard tag filter: only hosts carrying AT LEAST ONE of these
+    /// tags (case-insensitive) are listed, and only groups whose
+    /// subtree contains such a host render. In-memory like the search
+    /// needle, not persisted; empty = no filter.
+    pub(crate) host_filter_tags: Vec<String>,
     pub(crate) quick_host_input: String,
 
     // Tabs

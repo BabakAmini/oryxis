@@ -123,6 +123,11 @@ impl Oryxis {
             let cloud_filter_groups: Option<std::collections::HashSet<Uuid>> =
                 self.host_filter_cloud_profile
                     .map(|pid| self.groups_containing_cloud_profile(pid));
+            // Same subtree treatment for the tag filter: a folder stays
+            // visible only while some descendant host carries one of
+            // the selected tags.
+            let tag_filter_groups: Option<std::collections::HashSet<Uuid>> =
+                self.groups_containing_filtered_tags();
 
             // Apply the toolbar sort to folder cards. Hidden groups (no
             // direct match) just fall through the search filter below.
@@ -155,6 +160,14 @@ impl Oryxis {
                 // non-cloud folder at root, the chip is the user's
                 // explicit "show me only this provider" lens.
                 if let Some(visible) = cloud_filter_groups.as_ref()
+                    && !visible.contains(&gid)
+                {
+                    continue;
+                }
+                // Tag filter: hide folders whose subtree holds no host
+                // with a selected tag (owner QA: the filter must narrow
+                // the Groups section too, not only the loose hosts).
+                if let Some(visible) = tag_filter_groups.as_ref()
                     && !visible.contains(&gid)
                 {
                     continue;

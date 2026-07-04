@@ -175,10 +175,25 @@ impl Oryxis {
                     });
                 }
             }
-            Message::SetHostTagFilter(tag) => {
-                self.host_filter_tag = tag;
-                self.overlay = None;
+            Message::ToggleHostTagFilterTag(tag) => {
+                // Multi-select: the dropdown stays open so several tags
+                // can be picked in one visit; the backdrop closes it.
+                match self
+                    .host_filter_tags
+                    .iter()
+                    .position(|t| t.eq_ignore_ascii_case(&tag))
+                {
+                    Some(i) => {
+                        self.host_filter_tags.remove(i);
+                    }
+                    None => self.host_filter_tags.push(tag),
+                }
                 // Same reasoning as the cloud-profile filter above.
+                self.keynav.focus = None;
+            }
+            Message::ClearHostTagFilter => {
+                self.host_filter_tags.clear();
+                self.overlay = None;
                 self.keynav.focus = None;
             }
             Message::ToggleGroupPicker(target) => {
@@ -430,7 +445,7 @@ impl Oryxis {
     /// least one host is tagged, or a (now possibly dangling) filter
     /// is active and needs a way to be cleared.
     pub(crate) fn host_tag_filter_available(&self) -> bool {
-        self.host_filter_tag.is_some()
+        !self.host_filter_tags.is_empty()
             || self.connections.iter().any(|c| !c.tags.is_empty())
     }
 }

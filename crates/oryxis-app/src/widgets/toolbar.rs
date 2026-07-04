@@ -269,17 +269,35 @@ pub(crate) fn context_menu_item<'a>(
 }
 
 /// Tag-filter trigger for the host dashboard toolbar, styled like the
-/// sort button. Accent-filled while a tag filter is active so the
-/// narrowed list is visibly narrowed.
-pub(crate) fn host_tag_filter_button(active: bool) -> Element<'static, Message> {
+/// sort button. While tags are selected the button fills accent and
+/// shows the selection count next to the glyph, so a narrowed list is
+/// visibly narrowed and the "how many" question answers itself.
+pub(crate) fn host_tag_filter_button(selected: usize) -> Element<'static, Message> {
+    let active = selected > 0;
+    let mut inner: Vec<Element<'static, Message>> = vec![
+        iced_fonts::lucide::tag()
+            .size(15)
+            .color(OryxisColors::t().button_text)
+            .into(),
+    ];
+    if active {
+        inner.push(Space::new().width(4).into());
+        inner.push(
+            text(selected.to_string())
+                .size(11)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                })
+                .color(OryxisColors::t().button_text)
+                .into(),
+        );
+    }
     button(
-        container(
-            iced_fonts::lucide::tag()
-                .size(15)
-                .color(OryxisColors::t().button_text),
-        )
-        .center_y(Length::Fixed(24.0))
-        .center_x(Length::Fixed(24.0)),
+        container(dir_row(inner).align_y(iced::Alignment::Center))
+            .center_y(Length::Fixed(24.0))
+            .center_x(Length::Shrink)
+            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 4.0 }),
     )
     .on_press(Message::ShowHostTagFilterMenu)
     .style(move |_, status| {

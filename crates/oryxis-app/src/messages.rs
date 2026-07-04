@@ -612,8 +612,11 @@ pub enum Message {
     ToggleSnippetTagFilter,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
-    /// Dashboard: filter hosts by this tag (`None` clears).
-    SetHostTagFilter(Option<String>),
+    /// Dashboard: toggle one tag in the multi-select filter (the
+    /// dropdown stays open so several can be picked in one visit).
+    ToggleHostTagFilterTag(String),
+    /// Dashboard: clear the tag filter entirely.
+    ClearHostTagFilter,
     SnippetCommandAction(text_editor::Action),
     SaveSnippet,
     /// Open the kebab (⋮) context menu on a snippet card (Edit / Delete).

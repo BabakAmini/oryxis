@@ -332,7 +332,7 @@ impl Oryxis {
             dir_row(vec![
                 self.keynav_toolbar_ring(
                     crate::keynav::ToolbarItem::TagFilter,
-                    crate::widgets::host_tag_filter_button(self.host_filter_tag.is_some()),
+                    crate::widgets::host_tag_filter_button(self.host_filter_tags.len()),
                 ),
                 Space::new().width(6).into(),
             ])

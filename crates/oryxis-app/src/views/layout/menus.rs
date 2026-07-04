@@ -95,10 +95,13 @@ impl Oryxis {
         let menu_width = self.overlay_menu_width(overlay);
         let items: Element<'_, Message> = match &overlay.content {
             OverlayContent::HostTagFilter => {
-                // "All tags" then every distinct tag; the active choice
-                // reads in accent. Labels are user data (owned Strings),
-                // so the rows are built inline instead of via menu_item.
-                let active_filter = self.host_filter_tag.clone();
+                // "All tags" then every distinct tag, multi-select:
+                // picking a tag TOGGLES it and the menu stays open (the
+                // backdrop closes it), so several tags land in one
+                // visit. Active rows read in accent with a check glyph.
+                // Labels are user data (owned Strings), so the rows are
+                // built inline instead of via menu_item.
+                let active_filter = self.host_filter_tags.clone();
                 let tag_row = |label: String,
                                active: bool,
                                msg: Message|
@@ -106,14 +109,17 @@ impl Oryxis {
                     let row = button(
                         container(
                             dir_row(vec![
-                                iced_fonts::lucide::tag()
-                                    .size(14)
-                                    .color(if active {
-                                        OryxisColors::t().accent
-                                    } else {
-                                        OryxisColors::t().text_secondary
-                                    })
-                                    .into(),
+                                if active {
+                                    iced_fonts::lucide::check()
+                                        .size(14)
+                                        .color(OryxisColors::t().accent)
+                                        .into()
+                                } else {
+                                    iced_fonts::lucide::tag()
+                                        .size(14)
+                                        .color(OryxisColors::t().text_secondary)
+                                        .into()
+                                },
                                 Space::new().width(8).into(),
                                 text(label)
                                     .size(12)
@@ -148,18 +154,18 @@ impl Oryxis {
                 };
                 let mut col = column![tag_row(
                     crate::i18n::t("all_tags").to_string(),
-                    active_filter.is_none(),
-                    Message::SetHostTagFilter(None),
+                    active_filter.is_empty(),
+                    Message::ClearHostTagFilter,
                 )]
                 .spacing(2);
                 for tg in self.distinct_host_tags() {
                     let active = active_filter
-                        .as_deref()
-                        .is_some_and(|f| f.eq_ignore_ascii_case(&tg));
+                        .iter()
+                        .any(|f| f.eq_ignore_ascii_case(&tg));
                     col = col.push(tag_row(
                         tg.clone(),
                         active,
-                        Message::SetHostTagFilter(Some(tg)),
+                        Message::ToggleHostTagFilterTag(tg),
                     ));
                 }
                 col.into()

@@ -165,6 +165,38 @@ impl Oryxis {
         set
     }
 
+    /// Subtree-match set for the dashboard tag filter: every group
+    /// whose descendants include a host carrying at least one selected
+    /// tag (ancestors marked in one upward walk, same approach as
+    /// `groups_containing_cloud_profile`). `None` while the filter is
+    /// off so callers can skip the check entirely.
+    pub(crate) fn groups_containing_filtered_tags(
+        &self,
+    ) -> Option<std::collections::HashSet<Uuid>> {
+        if self.host_filter_tags.is_empty() {
+            return None;
+        }
+        let parent_of: std::collections::HashMap<Uuid, Option<Uuid>> =
+            self.groups.iter().map(|g| (g.id, g.parent_id)).collect();
+        let mut set = std::collections::HashSet::new();
+        for conn in &self.connections {
+            let matches = conn.tags.iter().any(|tg| {
+                self.host_filter_tags.iter().any(|f| f.eq_ignore_ascii_case(tg))
+            });
+            if !matches {
+                continue;
+            }
+            let mut cur = conn.group_id;
+            while let Some(g) = cur {
+                if !set.insert(g) {
+                    break;
+                }
+                cur = parent_of.get(&g).copied().flatten();
+            }
+        }
+        Some(set)
+    }
+
     /// Group ids whose subtree holds at least one visible host or
     /// dynamic child, the same predicate the dashboard uses to decide
     /// which folder cards to draw (`group_has_visible_content` +
@@ -250,8 +282,10 @@ impl Oryxis {
                 {
                     return false;
                 }
-                if let Some(ftag) = &self.host_filter_tag
-                    && !conn.tags.iter().any(|tg| tg.eq_ignore_ascii_case(ftag))
+                if !self.host_filter_tags.is_empty()
+                    && !conn.tags.iter().any(|tg| {
+                        self.host_filter_tags.iter().any(|f| f.eq_ignore_ascii_case(tg))
+                    })
                 {
                     return false;
                 }
