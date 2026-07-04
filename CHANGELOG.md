@@ -4,7 +4,7 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.0] - 2026-07-04
+## [Unreleased]
 
 ### Added
 - **Ad-hoc quick connect.** Type `user@host` in the new-tab picker
@@ -29,8 +29,7 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 - **Vault auto-lock.** An optional idle timer soft-locks the vault:
   the master key is zeroized and the lock screen shown, while live SSH
   sessions and tabs survive and are back after unlock. The manual Lock
-  Vault button remains a full teardown. The lock screen auto-focuses
-  its password field on every arrival (boot, manual lock, idle lock).
+  Vault button remains a full teardown.
 - **Unified keyboard navigation** (#52). Focus zones across the vault
   area (Tab cycles search / toolbar / content / sub-nav, arrows move,
   Enter activates), the modals / menus / Settings / side panels
@@ -40,14 +39,8 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   Host config, Tab walks every control (header buttons, searches,
   selects, toggles, theme cards, chat mode chips), Enter runs the
   selected snippet or history command, Shift+Enter pastes it without
-  the newline, Delete removes it, Ctrl+F opens the tab's search,
-  Ctrl+Shift+B toggles the sidebar and Esc hands the keyboard back to
-  the terminal. Entering History focuses its search field.
-- **Vault section shortcuts.** Ctrl+Shift+1..8 (Cmd+Shift on macOS)
-  jump straight to Hosts, Keychain, Snippets, Port Forwarding, Logs,
-  Cloud Accounts, Proxies or Known Hosts from anywhere, including a
-  terminal tab; the burger menu shows every hint, with Ctrl+1 still
-  opening the vault area itself. Rebindable like the tab-slot family.
+  the newline, Delete removes it, and Ctrl+Shift+B toggles the sidebar.
+  Entering History focuses its search field.
 - **Careful paste.** Multi-line pastes show a confirmation with a
   line-count preview so a hidden trailing newline can't auto-execute;
   bracketed paste honours the remote app's mode; opt-out available.
