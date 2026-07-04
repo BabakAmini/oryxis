@@ -834,7 +834,11 @@ impl Drop for SshSession {
 /// removing it from the registry tears the tunnel down cleanly.
 pub struct ForwardSession {
     handle: SharedHandle,
-    cancel_tx: tokio::sync::watch::Sender<bool>,
+    // `Arc` so an internal watcher (the RDP/VNC auto-close task) can hold a
+    // second handle able to fire cancellation, alongside the owner's
+    // `cancel()`. A `watch::Sender` is single-producer and not `Clone`, so
+    // the shared reference is the Arc.
+    cancel_tx: Arc<tokio::sync::watch::Sender<bool>>,
     _tasks: Vec<tokio::task::JoinHandle<()>>,
     /// For `-R` only: the server-side bind that must be released with
     /// `cancel_tcpip_forward` on stop. `None` for `-L` / `-D`.
@@ -860,6 +864,14 @@ impl ForwardSession {
             let handle = self.handle.lock().await;
             let _ = handle.cancel_tcpip_forward(host.clone(), *port as u32).await;
         }
+    }
+
+    /// A receiver that flips to `true` when the forward is cancelled, whether
+    /// by an explicit `cancel()` / drop or by an internal auto-close watcher.
+    /// The RDP/VNC launcher awaits this to learn the tunnel closed on its own
+    /// (client window shut) and drop its bookkeeping entry.
+    pub fn subscribe_cancel(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.cancel_tx.subscribe()
     }
 }
 
@@ -927,6 +939,115 @@ fn spawn_local_forward_task(
                     shared, stream, target_host, target_port, listen_port, child_cancel,
                 )
                 .await;
+            });
+        }
+        tracing::debug!("forward accept loop on {} stopped", listen_port);
+    })
+}
+
+/// Grace after the last connection drops before an auto-close `-L` tunnel
+/// tears itself down. Long enough to ride out an RDP/VNC renegotiation blip,
+/// short enough that a closed desktop window doesn't leave the tunnel idle.
+const RD_TUNNEL_IDLE_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// A `-L` accept loop like `spawn_local_forward_task`, but it counts live
+/// connections and fires `cancel_tx` once the tunnel has served at least one
+/// connection and then sat idle for `idle_grace`. The RDP/VNC launcher uses
+/// this so its ephemeral tunnel self-destructs when the desktop client
+/// disconnects, with no dependency on the client's process lifetime (works
+/// the same for blocking viewers and handoff launchers).
+#[allow(clippy::too_many_arguments)]
+fn spawn_autoclose_local_forward_task(
+    listener: tokio::net::TcpListener,
+    handle: SharedHandle,
+    target_host: String,
+    target_port: u16,
+    listen_port: u16,
+    cancel: tokio::sync::watch::Receiver<bool>,
+    cancel_tx: Arc<tokio::sync::watch::Sender<bool>>,
+    idle_grace: std::time::Duration,
+) -> tokio::task::JoinHandle<()> {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    let active = Arc::new(AtomicUsize::new(0));
+    let ever_used = Arc::new(AtomicBool::new(false));
+    // Bumped on every connection open/close so the idle watcher re-evaluates
+    // promptly instead of polling.
+    let (wake_tx, wake_rx) = tokio::sync::watch::channel(0u64);
+    let wake_tx = Arc::new(wake_tx);
+
+    // Idle watcher: once the tunnel has been used and drops to zero live
+    // connections, cancel after `idle_grace` of continued silence. A new
+    // connection arriving inside the grace aborts the teardown.
+    {
+        let active = Arc::clone(&active);
+        let ever_used = Arc::clone(&ever_used);
+        let cancel_tx = Arc::clone(&cancel_tx);
+        let mut wake_rx = wake_rx;
+        let mut cancel_watch = cancel.clone();
+        tokio::spawn(async move {
+            loop {
+                if *cancel_watch.borrow() {
+                    return; // already cancelled by the owner (Stop / drop)
+                }
+                let idle =
+                    ever_used.load(Ordering::SeqCst) && active.load(Ordering::SeqCst) == 0;
+                if idle {
+                    tokio::select! {
+                        _ = cancel_watch.changed() => return,
+                        _ = wake_rx.changed() => continue,
+                        _ = tokio::time::sleep(idle_grace) => {
+                            if active.load(Ordering::SeqCst) == 0 {
+                                tracing::info!(
+                                    "forward(-L ephemeral) {} idle {:?}, auto-closing",
+                                    listen_port, idle_grace
+                                );
+                                let _ = cancel_tx.send(true);
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    tokio::select! {
+                        _ = cancel_watch.changed() => return,
+                        _ = wake_rx.changed() => {}
+                    }
+                }
+            }
+        });
+    }
+
+    tokio::spawn(async move {
+        let mut cancel = cancel;
+        loop {
+            let (stream, addr) = tokio::select! {
+                _ = cancel.changed() => break,
+                res = listener.accept() => match res {
+                    Ok(v) => v,
+                    Err(e) => {
+                        tracing::error!("forward accept error on {}: {}", listen_port, e);
+                        break;
+                    }
+                },
+            };
+            tracing::debug!("forward {} accepted from {}", listen_port, addr);
+
+            active.fetch_add(1, Ordering::SeqCst);
+            ever_used.store(true, Ordering::SeqCst);
+            let _ = wake_tx.send(0);
+
+            let shared = Arc::clone(&handle);
+            let target_host = target_host.clone();
+            let child_cancel = cancel.clone();
+            let active = Arc::clone(&active);
+            let wake_tx = Arc::clone(&wake_tx);
+            tokio::spawn(async move {
+                bridge_direct_tcpip(
+                    shared, stream, target_host, target_port, listen_port, child_cancel,
+                )
+                .await;
+                active.fetch_sub(1, Ordering::SeqCst);
+                let _ = wake_tx.send(0);
             });
         }
         tracing::debug!("forward accept loop on {} stopped", listen_port);
@@ -1718,6 +1839,7 @@ impl SshEngine {
         resolver: Option<&ConnectionResolver>,
     ) -> Result<(ForwardSession, u16), SshError> {
         let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let cancel_tx = Arc::new(cancel_tx);
         let mut handle = self.establish_transport(connection, resolver).await?;
         self.do_authenticate(&mut handle, connection, password, private_key_pem)
             .await?;
@@ -1730,13 +1852,21 @@ impl SshEngine {
             .local_addr()
             .map_err(|e| SshError::Channel(format!("forward local_addr: {e}")))?
             .port();
-        let task = spawn_local_forward_task(
+        // Auto-close: unlike a saved `-L` rule, this tunnel exists only to
+        // carry one desktop session. Once it has served a connection and then
+        // sits idle (client window closed), tear it down so the SSH handle
+        // doesn't linger. Independent of any client process, so it works
+        // uniformly for blocking viewers (xfreerdp) and handoff launchers
+        // (`open rdp://`, remmina) alike.
+        let task = spawn_autoclose_local_forward_task(
             listener,
             Arc::clone(&shared),
             target_host.to_string(),
             target_port,
             local_port,
             cancel_rx,
+            Arc::clone(&cancel_tx),
+            RD_TUNNEL_IDLE_GRACE,
         );
         tracing::info!(
             "forward(-L ephemeral) 127.0.0.1:{} -> {}:{} up",
@@ -1762,6 +1892,7 @@ impl SshEngine {
         resolver: Option<&ConnectionResolver>,
     ) -> Result<ForwardSession, SshError> {
         let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let cancel_tx = Arc::new(cancel_tx);
 
         // Remote forwards need the handler to route inbound `forwarded-tcpip`
         // channels, so wire the sink before `establish_transport` builds it.
