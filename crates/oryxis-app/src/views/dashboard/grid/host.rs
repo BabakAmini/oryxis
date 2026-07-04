@@ -21,17 +21,31 @@ impl Oryxis {
             // so addresses stay out of screenshots / screen shares by
             // default. Port 22 is the SSH default, so it's always omitted.
             let subtitle = if self.setting_show_host_address {
-                let port_part = if conn.port == 22 {
-                    String::new()
-                } else {
-                    format!(":{}", conn.port)
+                use oryxis_core::models::connection::ConnectionProtocol;
+                let address = match conn.protocol {
+                    // Serial: the "address" is the port path + baud, no
+                    // user / TCP port (which are SSH concepts).
+                    ConnectionProtocol::Serial => {
+                        let baud = conn.serial.map(|s| s.baud).unwrap_or(9600);
+                        format!("{} @ {}", conn.hostname, baud)
+                    }
+                    // SSH / Telnet: user@host[:port], omitting each
+                    // protocol's default port.
+                    _ => {
+                        let default_port = conn.protocol.default_port().unwrap_or(22);
+                        let port_part = if conn.port == default_port {
+                            String::new()
+                        } else {
+                            format!(":{}", conn.port)
+                        };
+                        format!(
+                            "{}@{}{}",
+                            conn.username.as_deref().unwrap_or("root"),
+                            conn.hostname,
+                            port_part
+                        )
+                    }
                 };
-                let address = format!(
-                    "{}@{}{}",
-                    conn.username.as_deref().unwrap_or("root"),
-                    conn.hostname,
-                    port_part
-                );
                 // Privacy Mode masks the address behind muted blocks,
                 // revealed when the card is hovered. The auth method label
                 // is not sensitive, so it stays readable.
@@ -40,7 +54,13 @@ impl Oryxis {
                 } else {
                     address
                 };
-                format!("{} · {}", address, auth_label)
+                // Serial has no auth method to append; the line params
+                // shown in `address` are the whole subtitle.
+                if conn.protocol == ConnectionProtocol::Serial {
+                    address
+                } else {
+                    format!("{} · {}", address, auth_label)
+                }
             } else {
                 auth_label.to_string()
             };

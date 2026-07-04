@@ -1080,6 +1080,13 @@ impl Oryxis {
                         format!("{} (copy)", conn.label),
                         &conn.hostname,
                     );
+                    // Protocol + its params must carry, or a Telnet/Serial
+                    // host silently duplicates as SSH. Encoding / terminal
+                    // type are host config that applies to all protocols.
+                    dup.protocol = conn.protocol;
+                    dup.serial = conn.serial;
+                    dup.encoding = conn.encoding.clone();
+                    dup.terminal_type = conn.terminal_type.clone();
                     dup.port = conn.port;
                     dup.username = conn.username.clone();
                     dup.auth_method = conn.auth_method.clone();
