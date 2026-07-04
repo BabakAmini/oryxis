@@ -52,6 +52,7 @@ impl Oryxis {
         const ITEM_H: f32 = 30.0;
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
+            OverlayContent::HostTagFilter => (self.distinct_host_tags().len() + 1) as f32,
             OverlayContent::SftpTabActions(_) => 5.0,
             OverlayContent::HostActions(_) => 8.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
@@ -93,6 +94,76 @@ impl Oryxis {
         // back to the default kebab width.
         let menu_width = self.overlay_menu_width(overlay);
         let items: Element<'_, Message> = match &overlay.content {
+            OverlayContent::HostTagFilter => {
+                // "All tags" then every distinct tag; the active choice
+                // reads in accent. Labels are user data (owned Strings),
+                // so the rows are built inline instead of via menu_item.
+                let active_filter = self.host_filter_tag.clone();
+                let tag_row = |label: String,
+                               active: bool,
+                               msg: Message|
+                 -> Element<'_, Message> {
+                    let row = button(
+                        container(
+                            dir_row(vec![
+                                iced_fonts::lucide::tag()
+                                    .size(14)
+                                    .color(if active {
+                                        OryxisColors::t().accent
+                                    } else {
+                                        OryxisColors::t().text_secondary
+                                    })
+                                    .into(),
+                                Space::new().width(8).into(),
+                                text(label)
+                                    .size(12)
+                                    .color(if active {
+                                        OryxisColors::t().accent
+                                    } else {
+                                        OryxisColors::t().text_primary
+                                    })
+                                    .into(),
+                            ])
+                            .align_y(iced::Alignment::Center),
+                        )
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
+                    )
+                    .on_press(msg.clone())
+                    .width(Length::Fill)
+                    .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
+                    .style(|_, status| {
+                        let bg = match status {
+                            iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
+                            _ => Color::TRANSPARENT,
+                        };
+                        button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border { radius: Radius::from(4.0), ..Default::default() },
+                            ..Default::default()
+                        }
+                    })
+                    .into();
+                    self.modal_nav_slot(crate::keynav::RowAction::activate(msg), 4.0, false, row)
+                };
+                let mut col = column![tag_row(
+                    crate::i18n::t("all_tags").to_string(),
+                    active_filter.is_none(),
+                    Message::SetHostTagFilter(None),
+                )]
+                .spacing(2);
+                for tg in self.distinct_host_tags() {
+                    let active = active_filter
+                        .as_deref()
+                        .is_some_and(|f| f.eq_ignore_ascii_case(&tg));
+                    col = col.push(tag_row(
+                        tg.clone(),
+                        active,
+                        Message::SetHostTagFilter(Some(tg)),
+                    ));
+                }
+                col.into()
+            }
             OverlayContent::HostActions(idx) => {
                 let idx = *idx;
                 let conn = self.connections.get(idx);
@@ -795,6 +866,14 @@ impl Oryxis {
                             Message::ToggleSortMenu(SortMenuKind::Hosts),
                             secondary,
                         ));
+                        if self.host_tag_filter_available() {
+                            col = col.push(self.menu_item(
+                                iced_fonts::lucide::tag(),
+                                crate::i18n::t("host_tag_filter"),
+                                Message::ShowHostTagFilterMenu,
+                                secondary,
+                            ));
+                        }
                     }
                     View::Keys => {
                         col = col.push(self.menu_item(

@@ -324,6 +324,24 @@ impl Oryxis {
             crate::widgets::sort_toolbar_button(crate::state::SortMenuKind::Hosts, self.hosts_sort),
         );
 
+        // Tag filter, only rendered once at least one host is tagged
+        // (or a filter is active and needs clearing). Accent-filled
+        // while active so a narrowed list is visibly narrowed.
+        let show_tag_filter = self.host_tag_filter_available();
+        let tag_filter_btn: Element<'_, Message> = if show_tag_filter {
+            dir_row(vec![
+                self.keynav_toolbar_ring(
+                    crate::keynav::ToolbarItem::TagFilter,
+                    crate::widgets::host_tag_filter_button(self.host_filter_tag.is_some()),
+                ),
+                Space::new().width(6).into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
+        } else {
+            Space::new().width(0).into()
+        };
+
         // Grid/List toggle, hidden once the window is so narrow that the
         // grid already renders as a single column (list == grid there).
         let nav_width = self.vault_rail_width();
@@ -410,6 +428,9 @@ impl Oryxis {
             if show_view_toggle {
                 self.keynav_toolbar_record(crate::keynav::ToolbarItem::ViewToggle);
             }
+            if show_tag_filter {
+                self.keynav_toolbar_record(crate::keynav::ToolbarItem::TagFilter);
+            }
             self.keynav_toolbar_record(crate::keynav::ToolbarItem::Sort);
             for it in &resolved_items {
                 self.keynav_toolbar_record(*it);
@@ -435,6 +456,7 @@ impl Oryxis {
             ));
         } else {
             row_items.push(view_toggle);
+            row_items.push(tag_filter_btn);
             row_items.push(sort_btn);
             row_items.push(Space::new().width(8).into());
             row_items.push(resolved_action);

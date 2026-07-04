@@ -155,6 +155,32 @@ impl Oryxis {
                 // selection so Enter can't connect a now-hidden host.
                 self.keynav.focus = None;
             }
+            // (helpers for the tag filter live below the handler impl)
+            Message::ShowHostTagFilterMenu => {
+                use crate::state::{OverlayContent, OverlayState};
+                let already_open = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::HostTagFilter)
+                );
+                if already_open {
+                    self.overlay = None;
+                } else {
+                    // Ring anchor when opened from the keyboard, mouse
+                    // position otherwise (same pattern as the kebabs).
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::HostTagFilter,
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+            }
+            Message::SetHostTagFilter(tag) => {
+                self.host_filter_tag = tag;
+                self.overlay = None;
+                // Same reasoning as the cloud-profile filter above.
+                self.keynav.focus = None;
+            }
             Message::ToggleGroupPicker(target) => {
                 use crate::state::{GroupPickerTarget, OverlayContent, OverlayState};
                 let already_open = matches!(
@@ -381,5 +407,30 @@ impl Oryxis {
             m => return Err(m),
         }
         Ok(Task::none())
+    }
+}
+
+impl Oryxis {
+    /// Every distinct host tag, case-insensitive dedup keeping the
+    /// first spelling, sorted for the filter dropdown.
+    pub(crate) fn distinct_host_tags(&self) -> Vec<String> {
+        let mut tags: Vec<String> = Vec::new();
+        for conn in &self.connections {
+            for tg in &conn.tags {
+                if !tags.iter().any(|x| x.eq_ignore_ascii_case(tg)) {
+                    tags.push(tg.clone());
+                }
+            }
+        }
+        tags.sort_by_key(|t| t.to_lowercase());
+        tags
+    }
+
+    /// Whether the dashboard tag-filter affordance should render: at
+    /// least one host is tagged, or a (now possibly dangling) filter
+    /// is active and needs a way to be cleared.
+    pub(crate) fn host_tag_filter_available(&self) -> bool {
+        self.host_filter_tag.is_some()
+            || self.connections.iter().any(|c| !c.tags.is_empty())
     }
 }

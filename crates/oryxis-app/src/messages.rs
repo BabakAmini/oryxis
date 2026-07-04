@@ -474,6 +474,8 @@ pub enum Message {
     ShowNewConnection,
     EditConnection(usize),
     EditorLabelChanged(String),
+    /// Host editor: comma-separated tags field.
+    EditorTagsChanged(String),
     EditorHostnameChanged(String),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
@@ -602,6 +604,16 @@ pub enum Message {
     ShowSnippetPanel,
     HideSnippetPanel,
     SnippetLabelChanged(String),
+    /// Snippet editor: free-form group name field.
+    SnippetGroupChanged(String),
+    /// Snippet editor: comma-separated tags field.
+    SnippetTagsChanged(String),
+    /// Snippets sidebar: toggle "only snippets tagged like this host".
+    ToggleSnippetTagFilter,
+    /// Dashboard: open/close the host tag-filter dropdown.
+    ShowHostTagFilterMenu,
+    /// Dashboard: filter hosts by this tag (`None` clears).
+    SetHostTagFilter(Option<String>),
     SnippetCommandAction(text_editor::Action),
     SaveSnippet,
     /// Open the kebab (⋮) context menu on a snippet card (Edit / Delete).

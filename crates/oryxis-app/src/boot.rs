@@ -352,6 +352,7 @@ impl Oryxis {
                 session_group_folder_combo_bounds: crate::widgets::new_bounds_cell(),
                 plus_btn_bounds: crate::widgets::new_bounds_cell(),
                 host_filter_cloud_profile: None,
+                host_filter_tag: None,
                 cloud_import_confirm_visible: false,
                 cloud_dynamic_group_state: std::collections::HashMap::new(),
                 cloud_dynamic_form: crate::state::CloudDynamicForm::default(),
@@ -396,6 +397,8 @@ impl Oryxis {
                 show_snippet_panel: false,
                 snippet_label: String::new(),
                 snippet_command: text_editor::Content::new(),
+                snippet_group: String::new(),
+                snippet_tags_input: String::new(),
                 snippet_editing_id: None,
                 snippet_error: None,
                 port_forward_rules: Vec::new(),
@@ -422,6 +425,7 @@ impl Oryxis {
                 setting_keyword_highlight: true,
                 setting_command_history: true,
                 setting_command_history_file: false,
+                setting_snippet_tag_filter: false,
                 setting_command_history_file_dir: None,
                 setting_performance_mode: false,
                 setting_perf_overlay: false,
@@ -954,6 +958,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("command_history_file") {
                 self.setting_command_history_file = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("snippet_tag_filter") {
+                self.setting_snippet_tag_filter = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("command_history_file_dir") {
                 self.setting_command_history_file_dir =

@@ -68,6 +68,10 @@ pub(crate) struct ConnectionForm {
     pub password: String,
     pub auth_method: AuthMethod,
     pub group_name: String,
+    /// Comma-separated tags as typed; parsed (trim/dedup/drop-empty)
+    /// into `Connection.tags` on save. Feeds the snippet sidebar's
+    /// filter-by-host-tags toggle.
+    pub tags_text: String,
     pub selected_key: Option<String>,
     /// Ordered jump-host chain (connection ids). The session tunnels
     /// through each hop in order before reaching this host. Mirrors
@@ -686,6 +690,7 @@ impl Default for ConnectionForm {
             password: String::new(),
             auth_method: AuthMethod::Auto,
             group_name: String::new(),
+            tags_text: String::new(),
             selected_key: None,
             jump_chain: Vec::new(),
             selected_identity: None,

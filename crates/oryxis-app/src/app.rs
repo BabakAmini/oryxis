@@ -190,6 +190,10 @@ pub struct Oryxis {
     /// cleared from the chip at the top of the grid. None means no
     /// cloud filter.
     pub(crate) host_filter_cloud_profile: Option<Uuid>,
+    /// Dashboard tag filter: only hosts carrying this tag (case-
+    /// insensitive) are listed. In-memory like the search needle, not
+    /// persisted; `None` = no filter.
+    pub(crate) host_filter_tag: Option<String>,
     pub(crate) quick_host_input: String,
 
     // Tabs
@@ -730,6 +734,12 @@ pub struct Oryxis {
     pub(crate) show_snippet_panel: bool,
     pub(crate) snippet_label: String,
     pub(crate) snippet_command: text_editor::Content,
+    /// Snippet editor: free-form group name (empty = ungrouped).
+    pub(crate) snippet_group: String,
+    /// Snippet editor: comma-separated tags as typed; parsed
+    /// (trim/dedup/drop-empty) on save. Chips are display-only, so
+    /// the field stays fully keyboard-editable.
+    pub(crate) snippet_tags_input: String,
     pub(crate) snippet_editing_id: Option<Uuid>,
     pub(crate) snippet_error: Option<String>,
 
@@ -835,6 +845,9 @@ pub struct Oryxis {
     /// `~/.oryxis/command-history/`. Persisted as
     /// `command_history_file_dir` (empty string = default).
     pub(crate) setting_command_history_file_dir: Option<String>,
+    /// Snippets sidebar: only show snippets sharing at least one tag
+    /// with the focused host's tags. Persisted as `snippet_tag_filter`.
+    pub(crate) setting_snippet_tag_filter: bool,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software

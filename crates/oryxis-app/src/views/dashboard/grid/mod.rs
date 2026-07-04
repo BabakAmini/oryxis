@@ -238,11 +238,20 @@ impl Oryxis {
                 if !search_lower.is_empty()
                     && !conn.label.to_lowercase().contains(&search_lower)
                     && !conn.hostname.to_lowercase().contains(&search_lower)
+                    && !conn
+                        .tags
+                        .iter()
+                        .any(|tg| tg.to_lowercase().contains(&search_lower))
                 {
                     return false;
                 }
                 if let Some(filter_pid) = self.host_filter_cloud_profile
                     && conn.cloud_ref.as_ref().map(|r| r.profile_id) != Some(filter_pid)
+                {
+                    return false;
+                }
+                if let Some(ftag) = &self.host_filter_tag
+                    && !conn.tags.iter().any(|tg| tg.eq_ignore_ascii_case(ftag))
                 {
                     return false;
                 }

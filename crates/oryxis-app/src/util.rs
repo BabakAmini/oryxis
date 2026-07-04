@@ -17,6 +17,23 @@ pub(crate) fn sanitize_file_stem(label: &str) -> String {
     s
 }
 
+/// Parse a comma-separated tag field: trim, drop empties, dedup
+/// case-insensitively while keeping the first spelling and the typed
+/// order. Shared by the snippet and host editors.
+pub(crate) fn parse_tags(input: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for raw in input.split(',') {
+        let tag = raw.trim();
+        if tag.is_empty() {
+            continue;
+        }
+        if !out.iter().any(|t| t.eq_ignore_ascii_case(tag)) {
+            out.push(tag.to_string());
+        }
+    }
+    out
+}
+
 /// Format byte size for display (e.g. "12.3 KB").
 pub(crate) fn format_data_size(bytes: usize) -> String {
     if bytes < 1024 {
@@ -675,6 +692,15 @@ mod tests {
 
     fn nb(named: Named, mods: Modifiers, app_cursor: bool) -> Vec<u8> {
         key_to_named_bytes(&Key::Named(named), &mods, app_cursor).unwrap()
+    }
+
+    #[test]
+    fn parse_tags_trims_dedups_and_keeps_order() {
+        assert_eq!(
+            parse_tags(" prod, web ,PROD,, db "),
+            vec!["prod", "web", "db"]
+        );
+        assert!(parse_tags("  ,, ").is_empty());
     }
 
     #[test]

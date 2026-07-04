@@ -284,6 +284,9 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE known_hosts ADD COLUMN updated_at TEXT;");
+        // Snippet group ("folder") name; free-form, NULL = ungrouped.
+        // "group" is an SQL keyword, hence group_name.
+        let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN group_name TEXT;");
         // Session-recording timing (asciicast export): milliseconds since
         // the log's started_at, stamped at capture time. NULL on chunks
         // recorded before this column existed (exported with a fixed

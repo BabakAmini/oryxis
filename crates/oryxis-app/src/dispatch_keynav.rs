@@ -609,6 +609,7 @@ impl Oryxis {
         use crate::state::SortMenuKind;
         Some(match (self.active_view, item) {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::ToggleHostListView,
+            (View::Dashboard, ToolbarItem::TagFilter) => Message::ShowHostTagFilterMenu,
             (View::Dashboard, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Hosts),
             (View::Dashboard, ToolbarItem::Primary) => Message::ShowNewConnection,
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::ShowCloudProviderPicker,

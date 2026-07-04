@@ -267,3 +267,35 @@ pub(crate) fn context_menu_item<'a>(
     })
     .into()
 }
+
+/// Tag-filter trigger for the host dashboard toolbar, styled like the
+/// sort button. Accent-filled while a tag filter is active so the
+/// narrowed list is visibly narrowed.
+pub(crate) fn host_tag_filter_button(active: bool) -> Element<'static, Message> {
+    button(
+        container(
+            iced_fonts::lucide::tag()
+                .size(15)
+                .color(OryxisColors::t().button_text),
+        )
+        .center_y(Length::Fixed(24.0))
+        .center_x(Length::Fixed(24.0)),
+    )
+    .on_press(Message::ShowHostTagFilterMenu)
+    .style(move |_, status| {
+        let bg = if active {
+            OryxisColors::t().accent
+        } else {
+            match status {
+                BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
+                _ => OryxisColors::t().button_bg,
+            }
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}

@@ -26,6 +26,18 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   commands to a `.txt` of your choosing, and an optional setting
   live-appends every captured command to a per-host log file under a
   configurable folder (default `~/.oryxis/command-history/`).
+- **Snippet groups, snippet tags, host tags, and tag filters.**
+  Snippets can carry a free-form group and comma-separated tags; both
+  editors (vault panel and terminal sidebar) expose the fields, the
+  lists render grouped sections (ungrouped first, then each group),
+  cards show the tags, and search matches label, command, tags and
+  group. Hosts gained a Tags field in the editor (the model always
+  had them, now they are editable), the dashboard search matches
+  them, and a new tag-filter dropdown next to the sort button narrows
+  the host grid to one tag. In the terminal sidebar's Snippets tab a
+  toggle shows only snippets sharing a tag with the focused host, so
+  a `db`-tagged host surfaces the `db` runbook. Groups and tags ride
+  sync and portable export as plain snippet data.
 - **Session recording export (asciinema-compatible).** The encrypted
   session logs the vault already keeps now record real timing (chunk
   offsets stamped at capture, per-line replay steps, terminal resizes)

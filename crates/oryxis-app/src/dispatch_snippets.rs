@@ -8,6 +8,22 @@ use iced::Task;
 use crate::app::{Message, Oryxis};
 
 impl Oryxis {
+    /// Lowercased tags of the focused pane's saved host; `None` when
+    /// the focused pane isn't a saved host or the host has no tags.
+    /// Drives the snippet sidebar's filter-by-host-tags toggle.
+    pub(crate) fn focused_host_tags_lower(&self) -> Option<Vec<String>> {
+        let tab = self.active_tab.and_then(|i| self.tabs.get(i))?;
+        let id = match &tab.active().origin {
+            crate::state::PaneOrigin::Host(id) => *id,
+            _ => return None,
+        };
+        let conn = self.connections.iter().find(|c| c.id == id)?;
+        if conn.tags.is_empty() {
+            return None;
+        }
+        Some(conn.tags.iter().map(|t| t.to_lowercase()).collect())
+    }
+
     pub(crate) fn handle_snippets(
         &mut self,
         message: Message,
@@ -20,6 +36,8 @@ impl Oryxis {
                 self.show_snippet_panel = true;
                 self.snippet_label.clear();
                 self.snippet_command = iced::widget::text_editor::Content::new();
+                self.snippet_group.clear();
+                self.snippet_tags_input.clear();
                 self.snippet_editing_id = None;
                 self.snippet_error = None;
             }
@@ -27,7 +45,16 @@ impl Oryxis {
                 self.show_snippet_panel = false;
             }
             Message::SnippetLabelChanged(v) => self.snippet_label = v,
+            Message::SnippetGroupChanged(v) => self.snippet_group = v,
+            Message::SnippetTagsChanged(v) => self.snippet_tags_input = v,
             Message::SnippetCommandAction(action) => self.snippet_command.perform(action),
+            Message::ToggleSnippetTagFilter => {
+                self.setting_snippet_tag_filter = !self.setting_snippet_tag_filter;
+                self.persist_setting(
+                    "snippet_tag_filter",
+                    if self.setting_snippet_tag_filter { "true" } else { "false" },
+                );
+            }
             Message::ShowSnippetMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle: clicking the kebab again (or on the same card)
@@ -54,6 +81,8 @@ impl Oryxis {
                     self.snippet_label = snip.label.clone();
                     self.snippet_command =
                         iced::widget::text_editor::Content::with_text(&snip.command);
+                    self.snippet_group = snip.group.clone().unwrap_or_default();
+                    self.snippet_tags_input = snip.tags.join(", ");
                     self.snippet_editing_id = Some(snip.id);
                     self.snippet_error = None;
                 }
@@ -71,6 +100,11 @@ impl Oryxis {
                 };
                 snip.label = self.snippet_label.clone();
                 snip.command = self.snippet_command.text().trim_end().to_string();
+                snip.group = {
+                    let g = self.snippet_group.trim();
+                    (!g.is_empty()).then(|| g.to_string())
+                };
+                snip.tags = crate::util::parse_tags(&self.snippet_tags_input);
                 if let Some(vault) = &self.vault {
                     match vault.save_snippet(&snip) {
                         Ok(()) => {

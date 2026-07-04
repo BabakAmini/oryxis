@@ -96,6 +96,21 @@ impl Oryxis {
             .into(),
         );
 
+        // Tags: comma-separated free text, parsed on save. Feeds the
+        // snippet sidebar's filter-by-host-tags toggle.
+        let tags_field: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-tags")),
+            10.0,
+            text_input(t("tags_placeholder"), &self.editor_form.tags_text)
+                .id(iced::widget::Id::new("editor-tags"))
+                .on_input(Message::EditorTagsChanged)
+                .on_submit(Message::EditorSave)
+                .padding(10)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into(),
+        );
+
         // ── Section: Address ──
         // Icon + color reflect the detected OS (once the silent probe has
         // run) or a user-picked override.
@@ -1338,6 +1353,8 @@ impl Oryxis {
             panel_field(t("label"), label_field),
             Space::new().height(ROW_GAP),
             panel_field(t("parent_group"), parent_combo),
+            Space::new().height(ROW_GAP),
+            panel_field(t("tags"), tags_field),
         ];
         host_col = host_col
             .push(group_sep())

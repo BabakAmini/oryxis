@@ -47,6 +47,12 @@ impl Oryxis {
                     12.0,
                 );
                 let toggle = if cols > 1 { Self::TB_ICON + 6.0 } else { 0.0 };
+                // Tag-filter icon, present once any host is tagged.
+                let tag_filter = if self.host_tag_filter_available() {
+                    Self::TB_ICON + 6.0
+                } else {
+                    0.0
+                };
                 // Action button: none inside a dynamic group, "Discover"
                 // inside a cloud-linked folder, else the "+ Host" split.
                 let action = match self.active_group {
@@ -65,7 +71,7 @@ impl Oryxis {
                     }
                     None => 113.0,
                 };
-                toggle + Self::TB_ICON + 8.0 + action
+                toggle + tag_filter + Self::TB_ICON + 8.0 + action
             }
             // sort(44) + gap(8) + the "+ Add" split(~113).
             View::Keys => Self::TB_ICON + 8.0 + 113.0,

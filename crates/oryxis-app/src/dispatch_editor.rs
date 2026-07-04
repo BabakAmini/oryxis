@@ -310,6 +310,7 @@ impl Oryxis {
             self.editor_form.keepalive_interval.parse::<u32>().ok()
         };
         conn.auto_title = self.editor_form.auto_title;
+        conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
         // Map the editor form into either an inline ProxyConfig
         // or a `proxy_identity_id` reference. Validates host /
@@ -453,6 +454,7 @@ impl Oryxis {
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
             auto_title: conn.auto_title,
+            tags_text: conn.tags.join(", "),
             cloud_transport: conn
                 .cloud_ref
                 .as_ref()
@@ -606,6 +608,7 @@ impl Oryxis {
                 )));
             }
             Message::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
+            Message::EditorTagsChanged(v) => { self.editor_form.tags_text = v; }
             Message::EditorHostnameChanged(v) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {

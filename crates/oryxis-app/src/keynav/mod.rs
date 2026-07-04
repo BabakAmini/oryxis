@@ -60,6 +60,8 @@ pub(crate) enum DashNavItem {
 pub(crate) enum ToolbarItem {
     /// Grid/list layout toggle (dashboard only).
     ViewToggle,
+    /// Host tag-filter dropdown trigger (dashboard only).
+    TagFilter,
     /// Sort-menu trigger.
     Sort,
     /// The primary action button ("+ HOST", "+ ADD", "Clear all", ...).

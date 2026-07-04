@@ -30,6 +30,9 @@ pub(crate) enum OverlayContent {
     /// directly from the Hosts view. Only opened when at least one
     /// profile is configured (otherwise the chevron is hidden).
     CloudProviderPicker,
+    /// Dropdown next to the dashboard sort button: pick a host tag to
+    /// filter the grid by (or clear the filter).
+    HostTagFilter,
     /// Floating context menu for the Discover import modal's
     /// "Import into" combo. Carries a search input + the full list
     /// of user groups. Rendered through the modal's local Stack

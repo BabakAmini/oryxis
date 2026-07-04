@@ -88,6 +88,41 @@ impl Oryxis {
                 ),
             ])
         } else {
+            // Tag filter: only snippets sharing a tag with the focused
+            // host. Accent-lit while active (chat_header_btn pins the
+            // muted color, so the active state gets its own chrome).
+            let filter_active = self.setting_snippet_tag_filter;
+            let filter_btn: Element<'_, Message> = button(
+                container(iced_fonts::lucide::tag().size(13).color(if filter_active {
+                    c.accent
+                } else {
+                    c.text_muted
+                }))
+                .center_x(Length::Fixed(28.0))
+                .center_y(Length::Fixed(24.0)),
+            )
+            .padding(0)
+            .on_press(Message::ToggleSnippetTagFilter)
+            .style(move |_, status| {
+                let bg = if filter_active {
+                    Color { a: 0.15, ..OryxisColors::t().accent }
+                } else {
+                    match status {
+                        BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                        _ => Color::TRANSPARENT,
+                    }
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into();
+            let filter_btn = crate::views::terminal::icon_tooltip(
+                filter_btn,
+                t("snippet_tag_filter_tip"),
+            );
             dir_row(vec![
                 // Contrast ring: the button is accent-filled, an
                 // accent ring would vanish into it.
@@ -98,6 +133,13 @@ impl Oryxis {
                     new_btn.into(),
                 ),
                 Space::new().width(Length::Fill).into(),
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::ToggleSnippetTagFilter),
+                    stab,
+                    6.0,
+                    filter_btn,
+                ),
+                Space::new().width(2).into(),
                 self.sidebar_nav_slot(
                     crate::keynav::SidebarRow::button(Message::ToggleSidebarSort),
                     stab,
@@ -175,52 +217,103 @@ impl Oryxis {
 
         // Sort then filter, carrying original indices so Run/Paste/Edit
         // address the right snippet (the list reorders, `self.snippets`
-        // does not).
+        // does not). The search needle also matches tags and the group
+        // name; the tag filter (when on and a tagged saved host is
+        // focused) keeps only snippets sharing at least one tag.
         let needle = self.sidebar_snippet_search.to_lowercase();
+        let host_tags = self.focused_host_tags_lower();
         let mut order: Vec<usize> = (0..self.snippets.len()).collect();
         self.snippets_sort.sort_items(
             &mut order,
             |&i| self.snippets[i].label.clone(),
             |&i| self.snippets[i].created_at,
         );
+        let visible: Vec<usize> = order
+            .into_iter()
+            .filter(|&idx| {
+                let snip = &self.snippets[idx];
+                let needle_ok = needle.is_empty()
+                    || snip.label.to_lowercase().contains(&needle)
+                    || snip.command.to_lowercase().contains(&needle)
+                    || snip.tags.iter().any(|tg| tg.to_lowercase().contains(&needle))
+                    || snip
+                        .group
+                        .as_ref()
+                        .is_some_and(|g| g.to_lowercase().contains(&needle));
+                let tags_ok = !self.setting_snippet_tag_filter
+                    || match &host_tags {
+                        Some(ht) => snip
+                            .tags
+                            .iter()
+                            .any(|tg| ht.contains(&tg.to_lowercase())),
+                        // No focused saved host (or an untagged one):
+                        // the filter has nothing to compare, show all.
+                        None => true,
+                    };
+                needle_ok && tags_ok
+            })
+            .collect();
+
         let mut list = column![]
             .spacing(6)
             .padding(Padding { top: 0.0, right: 12.0, bottom: 12.0, left: 12.0 });
-        let mut any = false;
-        for idx in order {
-            let snip = &self.snippets[idx];
-            if !needle.is_empty()
-                && !snip.label.to_lowercase().contains(&needle)
-                && !snip.command.to_lowercase().contains(&needle)
-            {
+        // Rows are recorded into the sidebar keynav layer; the
+        // recording index is the display position within the
+        // sorted/filtered/grouped list. Enter RUNS the snippet (owner
+        // call: there is no keyboard path to the terminal's own Enter
+        // afterwards), Shift+Enter pastes without the newline.
+        // Floating actions stay hover-only (owner call); the ring
+        // border alone marks the keyboard selection.
+        // Groups: ungrouped snippets first (no header), then each
+        // group alphabetically under a muted section caption, same
+        // treatment as the History tab's Frequent/Recent.
+        let mut sections: Vec<(Option<String>, Vec<usize>)> = vec![(
+            None,
+            visible
+                .iter()
+                .copied()
+                .filter(|&i| self.snippets[i].group.is_none())
+                .collect(),
+        )];
+        let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
+        for &i in &visible {
+            if let Some(g) = &self.snippets[i].group {
+                match groups.iter_mut().find(|(name, _)| name.eq_ignore_ascii_case(g)) {
+                    Some((_, items)) => items.push(i),
+                    None => groups.push((g.clone(), vec![i])),
+                }
+            }
+        }
+        groups.sort_by_key(|g| g.0.to_lowercase());
+        sections.extend(groups.into_iter().map(|(n, v)| (Some(n), v)));
+        for (name, items) in sections {
+            if items.is_empty() {
                 continue;
             }
-            any = true;
-            // Recorded into the sidebar keynav layer; the recording
-            // index is the display position within the sorted/filtered
-            // list. Enter RUNS the snippet (owner call: there is no
-            // keyboard path to the terminal's own Enter afterwards),
-            // Shift+Enter pastes without the newline. Floating actions
-            // stay hover-only (owner call); the ring border alone
-            // marks the keyboard selection.
-            let row = snippet_row(
-                idx,
-                &snip.label,
-                &snip.command,
-                self.hovered_snippet_card == Some(idx),
-            );
-            list = list.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::item(
-                    Message::RunSnippet(idx),
-                    Message::PasteSnippet(idx),
-                    Message::RequestDeleteSnippet(idx),
-                ),
-                stab,
-                8.0,
-                row,
-            ));
+            if let Some(name) = name {
+                list = list.push(group_label(name));
+            }
+            for idx in items {
+                let snip = &self.snippets[idx];
+                let row = snippet_row(
+                    idx,
+                    &snip.label,
+                    &snip.command,
+                    self.hovered_snippet_card == Some(idx),
+                );
+                list = list.push(self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::item(
+                        Message::RunSnippet(idx),
+                        Message::PasteSnippet(idx),
+                        Message::RequestDeleteSnippet(idx),
+                    ),
+                    stab,
+                    8.0,
+                    row,
+                ));
+            }
         }
-        if !any {
+        if visible.is_empty() {
             list = list.push(sidebar_placeholder(t("no_matches")));
         }
 
@@ -331,6 +424,20 @@ impl Oryxis {
                 .size(13)
                 .style(crate::widgets::rounded_input_style)
                 .into();
+        let group_input: Element<'_, Message> =
+            iced::widget::text_input(t("group_optional_placeholder"), &self.snippet_group)
+                .on_input(Message::SnippetGroupChanged)
+                .padding(8)
+                .size(13)
+                .style(crate::widgets::rounded_input_style)
+                .into();
+        let tags_input: Element<'_, Message> =
+            iced::widget::text_input(t("tags_placeholder"), &self.snippet_tags_input)
+                .on_input(Message::SnippetTagsChanged)
+                .padding(8)
+                .size(13)
+                .style(crate::widgets::rounded_input_style)
+                .into();
         // Multi-line, auto-grows with content; container caps the height
         // (~8 lines) and then it scrolls internally.
         let command_input: Element<'_, Message> = container(
@@ -370,6 +477,14 @@ impl Oryxis {
             text(t("name")).size(12).color(c.text_secondary),
             Space::new().height(4),
             label_input,
+            Space::new().height(12),
+            text(t("group")).size(12).color(c.text_secondary),
+            Space::new().height(4),
+            group_input,
+            Space::new().height(12),
+            text(t("tags")).size(12).color(c.text_secondary),
+            Space::new().height(4),
+            tags_input,
             Space::new().height(12),
             text(t("command_label")).size(12).color(c.text_secondary),
             Space::new().height(4),
@@ -418,6 +533,23 @@ fn sort_glyph<'a>(sort: crate::state::ListSort) -> iced::widget::Text<'a> {
         ListSort::NewestFirst => iced_fonts::lucide::calendar_arrow_down(),
         ListSort::OldestFirst => iced_fonts::lucide::calendar_arrow_up(),
     }
+}
+
+/// Muted section caption for a snippet group (same chrome as the
+/// History tab's Frequent/Recent labels). Owned name: group names are
+/// user data, not i18n keys.
+fn group_label(label: String) -> Element<'static, Message> {
+    container(
+        text(label)
+            .size(11)
+            .font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            })
+            .color(OryxisColors::t().text_muted),
+    )
+    .padding(Padding { top: 4.0, right: 0.0, bottom: 2.0, left: 2.0 })
+    .into()
 }
 
 /// Centered muted text for an empty / not-yet-built sidebar tab.

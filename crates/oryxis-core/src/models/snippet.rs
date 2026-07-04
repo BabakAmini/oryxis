@@ -8,6 +8,12 @@ pub struct Snippet {
     pub command: String,
     pub description: Option<String>,
     pub tags: Vec<String>,
+    /// Optional free-form group name (snippet "folder"). Name-based on
+    /// purpose: it rides sync and portable export as plain data with
+    /// no new entity type, and the UIs derive the section list from
+    /// the snippets themselves.
+    #[serde(default)]
+    pub group: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -21,6 +27,7 @@ impl Snippet {
             command: command.into(),
             description: None,
             tags: Vec::new(),
+            group: None,
             created_at: now,
             updated_at: now,
         }
