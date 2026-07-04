@@ -43,11 +43,13 @@ fn snippet_group_and_tags_roundtrip() {
     let mut s = Snippet::new("deploy", "make deploy");
     s.group = Some("devops".to_string());
     s.tags = vec!["prod".to_string(), "web".to_string()];
+    s.hotkey = Some("ctrl+shift+k".to_string());
     vault.save_snippet(&s).unwrap();
 
     let back = &vault.list_snippets().unwrap()[0];
     assert_eq!(back.group.as_deref(), Some("devops"));
     assert_eq!(back.tags, vec!["prod", "web"]);
+    assert_eq!(back.hotkey.as_deref(), Some("ctrl+shift+k"));
 
     // Clearing the group persists as NULL, not an empty string.
     let mut s2 = back.clone();

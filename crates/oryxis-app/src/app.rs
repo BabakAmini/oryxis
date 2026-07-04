@@ -750,6 +750,12 @@ pub struct Oryxis {
     /// Snippet run/paste waiting on its `{placeholders}` (modal open
     /// while `Some`).
     pub(crate) pending_snippet_vars: Option<crate::state::PendingSnippetVars>,
+    /// Snippet editor: the custom run hotkey being edited (parsed form
+    /// of `Snippet.hotkey`).
+    pub(crate) snippet_hotkey: Option<crate::hotkeys::HotkeyBinding>,
+    /// True while the snippet editor's shortcut recorder waits for a
+    /// key combo (next chord becomes the binding, Esc cancels).
+    pub(crate) snippet_hotkey_capturing: bool,
     pub(crate) snippet_error: Option<String>,
 
     // Port forwards (standalone entity, independent of any terminal)

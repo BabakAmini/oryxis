@@ -158,12 +158,15 @@ impl Oryxis {
                 self.snippet_command = iced::widget::text_editor::Content::new();
                 self.snippet_group.clear();
                 self.snippet_tags_input.clear();
+                self.snippet_hotkey = None;
+                self.snippet_hotkey_capturing = false;
                 self.snippet_editing_id = None;
                 self.snippet_error = None;
                 self.reset_snippet_group_combo();
             }
             Message::HideSnippetPanel => {
                 self.show_snippet_panel = false;
+                self.snippet_hotkey_capturing = false;
             }
             Message::SnippetLabelChanged(v) => self.snippet_label = v,
             Message::SnippetGroupChanged(v) => self.snippet_group = v,
@@ -259,6 +262,11 @@ impl Oryxis {
                         iced::widget::text_editor::Content::with_text(&snip.command);
                     self.snippet_group = snip.group.clone().unwrap_or_default();
                     self.snippet_tags_input = snip.tags.join(", ");
+                    self.snippet_hotkey = snip
+                        .hotkey
+                        .as_deref()
+                        .and_then(crate::hotkeys::HotkeyBinding::parse);
+                    self.snippet_hotkey_capturing = false;
                     self.snippet_editing_id = Some(snip.id);
                     self.snippet_error = None;
                     self.reset_snippet_group_combo();
@@ -282,6 +290,7 @@ impl Oryxis {
                     (!g.is_empty()).then(|| g.to_string())
                 };
                 snip.tags = crate::util::parse_tags(&self.snippet_tags_input);
+                snip.hotkey = self.snippet_hotkey.map(|b| b.serialize());
                 if let Some(vault) = &self.vault {
                     match vault.save_snippet(&snip) {
                         Ok(()) => {
@@ -375,6 +384,13 @@ impl Oryxis {
             }
             Message::CancelSnippetVars => {
                 self.pending_snippet_vars = None;
+            }
+            Message::SnippetHotkeyCaptureStart => {
+                self.snippet_hotkey_capturing = true;
+            }
+            Message::SnippetHotkeyClear => {
+                self.snippet_hotkey = None;
+                self.snippet_hotkey_capturing = false;
             }
 
 

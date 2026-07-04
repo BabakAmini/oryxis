@@ -630,6 +630,10 @@ pub enum Message {
     ConfirmSnippetVars,
     /// Drop the parked snippet without sending.
     CancelSnippetVars,
+    /// Snippet editor: arm the shortcut recorder (next chord binds).
+    SnippetHotkeyCaptureStart,
+    /// Snippet editor: remove the custom shortcut.
+    SnippetHotkeyClear,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the

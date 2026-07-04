@@ -339,6 +339,92 @@ impl Oryxis {
             .into()
     }
 
+    /// Shortcut recorder row shared by both snippet editors: the
+    /// current binding (or a dash), a Record button (shows "press a
+    /// key" while armed) and a Clear button when set. `panel` records
+    /// the buttons into the side-panel keyboard walk.
+    pub(crate) fn snippet_hotkey_row(&self, panel: bool) -> Element<'_, Message> {
+        let c = OryxisColors::t();
+        let current: Element<'_, Message> = match &self.snippet_hotkey {
+            Some(b) => text(b.badges().join(" + "))
+                .size(12)
+                .color(c.text_primary)
+                .into(),
+            None => text("\u{2014}").size(12).color(c.text_muted).into(),
+        };
+        let record_label = if self.snippet_hotkey_capturing {
+            t("hotkey_press_a_key")
+        } else {
+            t("snippet_hotkey_record")
+        };
+        let record_btn: Element<'_, Message> = button(
+            container(text(record_label).size(11).color(c.text_primary))
+                .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 }),
+        )
+        .on_press(Message::SnippetHotkeyCaptureStart)
+        .style(move |_, status| {
+            let bg = if self.snippet_hotkey_capturing {
+                Color { a: 0.15, ..OryxisColors::t().accent }
+            } else {
+                match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                    _ => OryxisColors::t().bg_selected,
+                }
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(6.0), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .into();
+        let record_btn = if panel {
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SnippetHotkeyCaptureStart),
+                6.0,
+                record_btn,
+            )
+        } else {
+            record_btn
+        };
+        let mut items: Vec<Element<'_, Message>> = vec![
+            current,
+            Space::new().width(Length::Fill).into(),
+            record_btn,
+        ];
+        if self.snippet_hotkey.is_some() {
+            let clear: Element<'_, Message> = button(
+                container(iced_fonts::lucide::x().size(11).color(c.text_muted))
+                    .padding(Padding { top: 5.0, right: 7.0, bottom: 5.0, left: 7.0 }),
+            )
+            .on_press(Message::SnippetHotkeyClear)
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(6.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into();
+            let clear = if panel {
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SnippetHotkeyClear),
+                    6.0,
+                    clear,
+                )
+            } else {
+                clear
+            };
+            items.push(Space::new().width(4).into());
+            items.push(clear);
+        }
+        dir_row(items).align_y(iced::Alignment::Center).into()
+    }
+
     /// One snippet card for the vault grid (badge + label + preview +
     /// hashtag line + hover kebab + selection ring). Extracted so the
     /// root and in-group layouts share it.
@@ -425,6 +511,18 @@ impl Oryxis {
                     text(hashtags)
                         .size(10)
                         .color(Color { a: 0.8, ..OryxisColors::t().accent })
+                        .wrapping(iced::widget::text::Wrapping::None),
+                );
+            }
+            if let Some(binding) = snip
+                .hotkey
+                .as_deref()
+                .and_then(crate::hotkeys::HotkeyBinding::parse)
+            {
+                info_col = info_col.push(Space::new().height(2)).push(
+                    text(binding.badges().join(" + "))
+                        .size(10)
+                        .color(OryxisColors::t().text_muted)
                         .wrapping(iced::widget::text::Wrapping::None),
                 );
             }
@@ -621,6 +719,10 @@ self.keynav_ring_content(kb_selected, card_el)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
             ),
+            Space::new().height(14),
+            text(t("snippet_hotkey")).size(12).color(OryxisColors::t().text_secondary),
+            Space::new().height(4),
+            self.snippet_hotkey_row(true),
             Space::new().height(14),
             text(t("command_label")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),

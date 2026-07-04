@@ -14,6 +14,12 @@ pub struct Snippet {
     /// the snippets themselves.
     #[serde(default)]
     pub group: Option<String>,
+    /// Optional custom hotkey that runs this snippet in a focused
+    /// terminal, stored in the app's serialized binding format
+    /// ("ctrl+shift+k"). Lives on the snippet itself so deleting the
+    /// snippet deletes the shortcut with it, by construction.
+    #[serde(default)]
+    pub hotkey: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -28,6 +34,7 @@ impl Snippet {
             description: None,
             tags: Vec::new(),
             group: None,
+            hotkey: None,
             created_at: now,
             updated_at: now,
         }

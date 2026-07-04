@@ -496,6 +496,59 @@ impl Oryxis {
             }
         }
 
+        // 1.5. Snippet-shortcut recorder (armed from either snippet
+        //      editor). The next chord becomes the snippet's custom
+        //      run hotkey; Esc cancels. Guarded on the editor being
+        //      open so a stale flag can't eat keys elsewhere.
+        if self.snippet_hotkey_capturing {
+            if !self.show_snippet_panel {
+                self.snippet_hotkey_capturing = false;
+            } else {
+                if matches!(key, Key::Named(Named::Escape)) {
+                    self.snippet_hotkey_capturing = false;
+                    return Some(Task::none());
+                }
+                if matches!(
+                    key,
+                    Key::Named(
+                        Named::Control | Named::Shift | Named::Alt | Named::Super | Named::Meta
+                    )
+                ) {
+                    // Mid-chord modifier press; keep waiting.
+                    return Some(Task::none());
+                }
+                let Some(binding) = crate::hotkeys::binding_from_event(key, modifiers, true)
+                else {
+                    self.toast =
+                        Some(crate::i18n::t("hotkey_must_have_modifier").to_string());
+                    return Some(toast_clear_after_secs(2));
+                };
+                // Plain Ctrl+letter belongs to the shell; a snippet
+                // hotkey only ever fires inside a terminal, so binding
+                // one would shadow readline/SIGINT keys.
+                if binding.is_terminal_control_sequence() {
+                    self.toast =
+                        Some(crate::i18n::t("snippet_hotkey_reserved").to_string());
+                    return Some(toast_clear_after_secs(2));
+                }
+                // Conflicts: the static table and other snippets.
+                let in_table = self.hotkey_bindings.values().any(|b| *b == binding);
+                let in_snippets = self.snippets.iter().any(|sn| {
+                    self.snippet_editing_id != Some(sn.id)
+                        && sn.hotkey.as_deref()
+                            == Some(binding.serialize()).as_deref()
+                });
+                if in_table || in_snippets {
+                    self.toast =
+                        Some(crate::i18n::t("snippet_hotkey_in_use").to_string());
+                    return Some(toast_clear_after_secs(2));
+                }
+                self.snippet_hotkey = Some(binding);
+                self.snippet_hotkey_capturing = false;
+                return Some(Task::none());
+            }
+        }
+
         // 2. Binding-table dispatch. First match wins. When the
         //    terminal view is focused, any binding shaped like a
         //    shell control sequence (Ctrl+letter with no other
@@ -545,6 +598,22 @@ impl Oryxis {
             if let Some(family) = b.match_event(key, modifiers) {
                 tracing::debug!(action = action.id(), "hotkey matched");
                 return Some(self.dispatch_hotkey_action(action, family));
+            }
+        }
+
+        // 2.5. Per-snippet custom hotkeys, derived LIVE from the vault
+        //      list (no side registry: deleting a snippet deletes its
+        //      shortcut by construction). Terminal-focused only, since
+        //      the action types into the focused session.
+        if in_terminal && !self.show_snippet_panel {
+            let hit = self.snippets.iter().position(|sn| {
+                sn.hotkey
+                    .as_deref()
+                    .and_then(crate::hotkeys::HotkeyBinding::parse)
+                    .is_some_and(|b| b.match_event(key, modifiers).is_some())
+            });
+            if let Some(idx) = hit {
+                return Some(self.update(Message::RunSnippet(idx)));
             }
         }
 

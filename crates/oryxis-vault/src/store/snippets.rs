@@ -7,8 +7,8 @@ impl VaultStore {
 
     pub fn save_snippet(&self, snippet: &Snippet) -> Result<(), VaultError> {
         self.db.execute(
-            "INSERT OR REPLACE INTO snippets (id, label, command, description, tags, group_name, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+            "INSERT OR REPLACE INTO snippets (id, label, command, description, tags, group_name, hotkey, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
             params![
                 snippet.id.to_string(),
                 snippet.label,
@@ -16,6 +16,7 @@ impl VaultStore {
                 snippet.description,
                 serde_json::to_string(&snippet.tags).unwrap_or_default(),
                 snippet.group,
+                snippet.hotkey,
                 snippet.created_at.to_rfc3339(),
                 snippet.updated_at.to_rfc3339(),
             ],
@@ -26,7 +27,7 @@ impl VaultStore {
 
     pub fn list_snippets(&self) -> Result<Vec<Snippet>, VaultError> {
         let mut stmt = self.db.prepare(
-            "SELECT id, label, command, description, tags, group_name, created_at, updated_at FROM snippets ORDER BY label",
+            "SELECT id, label, command, description, tags, group_name, hotkey, created_at, updated_at FROM snippets ORDER BY label",
         )?;
         let snippets = stmt
             .query_map([], |row| {
@@ -42,14 +43,17 @@ impl VaultStore {
                     group: row
                         .get::<_, Option<String>>(5)?
                         .filter(|g| !g.trim().is_empty()),
+                    hotkey: row
+                        .get::<_, Option<String>>(6)?
+                        .filter(|h| !h.trim().is_empty()),
                     created_at: row
-                        .get::<_, String>(6)
+                        .get::<_, String>(7)
                         .ok()
                         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                         .map(|d| d.with_timezone(&chrono::Utc))
                         .unwrap_or_else(chrono::Utc::now),
                     updated_at: row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>(8)?
                         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                         .map(|d| d.with_timezone(&chrono::Utc))
                         .unwrap_or_else(chrono::Utc::now),

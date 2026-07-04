@@ -402,6 +402,8 @@ impl Oryxis {
                 snippet_tags_input: String::new(),
                 snippet_editing_id: None,
                 pending_snippet_vars: None,
+                snippet_hotkey: None,
+                snippet_hotkey_capturing: false,
                 snippet_error: None,
                 port_forward_rules: Vec::new(),
                 active_forwards: std::collections::HashMap::new(),
