@@ -5,6 +5,7 @@ members = [
     "crates/oryxis-ssh",
     "crates/oryxis-telnet",
     "crates/oryxis-serial",
+    "crates/oryxis-zmodem",
     "crates/oryxis-terminal",
     "crates/oryxis-vault",
     "crates/oryxis-sync",
@@ -95,6 +96,7 @@ oryxis-core = { path = "crates/oryxis-core" }
 oryxis-ssh = { path = "crates/oryxis-ssh" }
 oryxis-telnet = { path = "crates/oryxis-telnet" }
 oryxis-serial = { path = "crates/oryxis-serial" }
+oryxis-zmodem = { path = "crates/oryxis-zmodem" }
 oryxis-terminal = { path = "crates/oryxis-terminal" }
 oryxis-vault = { path = "crates/oryxis-vault" }
 oryxis-sync = { path = "crates/oryxis-sync" }

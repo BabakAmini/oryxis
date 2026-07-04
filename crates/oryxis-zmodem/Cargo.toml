@@ -1,0 +1,13 @@
+[package]
+name = "oryxis-zmodem"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+# The protocol state machine: no_std / heapless, poll/submit API. We
+# own only the terminal-side glue (auto-detection + the async driver
+# that maps its Actions onto our transport / file I/O).
+zmodem2 = "0.7"
