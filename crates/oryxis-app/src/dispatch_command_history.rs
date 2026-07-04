@@ -149,6 +149,13 @@ impl Oryxis {
     pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             let pane = tab.active_mut();
+            // A ZMODEM transfer owns the byte channel: user keystrokes
+            // would interleave with the protocol and corrupt it, so
+            // input is suppressed until the transfer ends. Cancelling is
+            // done from the overlay's Cancel button (`ZmodemCancel`).
+            if pane.zmodem.is_some() {
+                return;
+            }
             if let Some(ref session) = pane.session {
                 let _ = session.write(bytes);
             } else if let Ok(mut state) = pane.terminal.lock() {

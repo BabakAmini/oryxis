@@ -380,6 +380,12 @@ pub enum Message {
 
     // Terminal I/O
     PtyOutput(Uuid, Vec<u8>),  // (pane_id, bytes)
+    /// A ZMODEM transfer streamed a progress / outcome event for a pane.
+    /// Terminal states (Completed / Aborted / Error) clear the pane's
+    /// transfer and resume the terminal.
+    ZmodemProgress(Uuid, oryxis_zmodem::Progress),  // (pane_id, progress)
+    /// User asked to cancel the pane's in-flight ZMODEM transfer.
+    ZmodemCancel(Uuid),  // (pane_id)
     /// One-shot wake-up that force-flushes a stalled DEC `?2026`
     /// synchronized update on the given pane (`pane_id`). Armed by the
     /// `PtyOutput` handler when output stops mid-update; without it an app
@@ -701,6 +707,12 @@ pub enum Message {
     PickCommandHistoryDir,
     /// Folder chosen (or dialog dismissed with `None`).
     CommandHistoryDirPicked(Option<String>),
+    /// Pick the folder ZMODEM downloads are saved into.
+    PickZmodemDownloadDir,
+    /// ZMODEM download folder chosen (or dialog dismissed with `None`).
+    ZmodemDownloadDirPicked(Option<String>),
+    /// Reset the ZMODEM download folder to the OS default.
+    ClearZmodemDownloadDir,
 
     // Split panes
     /// Focus a pane (click). Routes keyboard / snippets / paste to it.

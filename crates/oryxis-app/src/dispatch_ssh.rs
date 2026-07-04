@@ -665,6 +665,12 @@ impl Oryxis {
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
                         p.session = None;
+                        // A transfer in flight loses its transport here.
+                        // Dropping the `ZmodemPane` drops its `wire_tx`, so
+                        // the driver's `wire_in` closes, it returns an error,
+                        // and the pane resumes (typable) instead of being
+                        // stranded as a dead sink behind a frozen card.
+                        p.zmodem = None;
                         p.session_log_id
                     });
                     if let Some(log_id) = log_id

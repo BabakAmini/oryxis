@@ -104,12 +104,107 @@ impl Oryxis {
                 background: Some(Background::Color(OryxisColors::t().terminal_bg)),
                 ..Default::default()
             });
-        // Toast (copy feedback, OSC 9 notifications, …) floats over the whole
-        // terminal area so it shows whether or not the chat sidebar is open.
-        match self.toast_overlay() {
-            Some(overlay) => iced::widget::Stack::new().push(base).push(overlay).into(),
-            None => base.into(),
+        // Floating overlays over the terminal area (shown whether or not
+        // the chat sidebar is open): the ZMODEM transfer card first, then
+        // the toast on top (copy feedback, OSC 9 notifications, …).
+        let mut stack = iced::widget::Stack::new().push(base);
+        if let Some(zm) = self.zmodem_overlay() {
+            stack = stack.push(zm);
         }
+        if let Some(overlay) = self.toast_overlay() {
+            stack = stack.push(overlay);
+        }
+        stack.into()
+    }
+
+    /// Bottom-center transfer card over the terminal while the active
+    /// pane is running a ZMODEM transfer: direction, file name, byte
+    /// progress, a bar (when the size is known) and a Cancel button.
+    /// `None` when no transfer is active.
+    fn zmodem_overlay(&self) -> Option<Element<'_, Message>> {
+        let pane = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active())?;
+        let zm = pane.zmodem.as_ref()?;
+        let pane_id = pane.id;
+
+        let verb = match zm.direction {
+            oryxis_zmodem::Direction::Download => t("zmodem_downloading"),
+            oryxis_zmodem::Direction::Upload => t("zmodem_uploading"),
+        };
+        let name = zm.file_name.as_deref().unwrap_or("…");
+        let bytes_line = match zm.total {
+            Some(total) => format!("{} / {}", fmt_bytes(zm.transferred), fmt_bytes(total)),
+            None => fmt_bytes(zm.transferred),
+        };
+        let header = dir_row(vec![
+            text(format!("{verb} {name}"))
+                .size(12)
+                .color(OryxisColors::t().text_primary)
+                .into(),
+            Space::new().width(Length::Fill).into(),
+            text(bytes_line).size(11).color(OryxisColors::t().text_muted).into(),
+        ])
+        .align_y(iced::Alignment::Center);
+
+        let mut body = column![header].spacing(6).width(Length::Fixed(320.0));
+        if let Some(total) = zm.total.filter(|t| *t > 0) {
+            let frac = (zm.transferred as f32 / total as f32).clamp(0.0, 1.0);
+            body = body.push(iced::widget::progress_bar(0.0..=1.0, frac));
+        }
+        let cancel = button(text(t("cancel")).size(11).color(OryxisColors::t().text_primary))
+            .on_press(Message::ZmodemCancel(pane_id))
+            .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
+            .style(|_, status| {
+                let bg = match status {
+                    iced::widget::button::Status::Hovered
+                    | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
+                    _ => OryxisColors::t().bg_surface,
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        color: OryxisColors::t().border,
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }
+            });
+        body = body.push(
+            container(cancel)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right),
+        );
+
+        let card = container(body)
+            .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(Color {
+                    a: 0.97,
+                    ..OryxisColors::t().bg_selected
+                })),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: OryxisColors::t().accent,
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+        Some(
+            container(
+                column![
+                    Space::new().height(Length::Fill),
+                    container(card)
+                        .width(Length::Fill)
+                        .align_x(iced::alignment::Horizontal::Center),
+                    Space::new().height(Length::Fixed(84.0)),
+                ]
+                .width(Length::Fill)
+                .height(Length::Fill),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into(),
+        )
     }
 
     /// Bottom-center toast chip over the terminal, or `None` when no toast is
@@ -651,6 +746,23 @@ pub(crate) fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Ele
     .into()
 }
 
+
+/// Compact human-readable byte count for the transfer overlay
+/// (1 decimal past KB; integers stay integers).
+fn fmt_bytes(n: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "KB", "MB", "GB", "TB"];
+    let mut v = n as f64;
+    let mut u = 0;
+    while v >= 1024.0 && u < UNITS.len() - 1 {
+        v /= 1024.0;
+        u += 1;
+    }
+    if u == 0 {
+        format!("{n} {}", UNITS[0])
+    } else {
+        format!("{v:.1} {}", UNITS[u])
+    }
+}
 
 pub(crate) fn chat_header_btn<'a>(
     icon: iced::widget::Text<'a>,

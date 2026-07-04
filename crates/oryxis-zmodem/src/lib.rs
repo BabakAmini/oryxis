@@ -20,5 +20,14 @@ pub mod driver;
 pub use detector::{Direction, Scan, ZmodemDetector};
 pub use driver::{Progress, TransferIo, TransferSpec, run};
 
+/// The canonical ZMODEM cancel sequence: eight `CAN` (ZDLE) bytes then
+/// eight backspaces, which lrzsz recognizes as an abort and which also
+/// erases the CANs from the remote's line. Written to the transport when
+/// the user declines an upload's file picker so the remote `rz` exits
+/// cleanly instead of waiting out its timeout.
+pub const CANCEL: &[u8] = &[
+    0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08, 0x08,
+];
+
 // Re-export the protocol primitives so the app drives one dependency.
 pub use zmodem2::{Action, Event, FileInfo, Position, Receiver, Sender};

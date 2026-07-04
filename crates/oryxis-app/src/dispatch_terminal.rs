@@ -384,7 +384,33 @@ impl Oryxis {
                 }
             }
             // -- Terminal I/O --
-            Message::PtyOutput(pane_id, bytes) => {
+            Message::PtyOutput(pane_id, mut bytes) => {
+                // ── ZMODEM interception (before any emulator processing) ──
+                // While a transfer owns the pane, output is protocol wire:
+                // hand it to the driver and stop. Otherwise the initiation
+                // detector runs; a detected `sz`/`rz` starts a transfer and
+                // the clean prefix still flows to the emulator below.
+                let mut zmodem_start: Option<(oryxis_zmodem::Direction, Vec<u8>)> = None;
+                if let Some(pane) = self.pane_by_id_mut(pane_id) {
+                    if let Some(zm) = pane.zmodem.as_ref() {
+                        let _ = zm.wire_tx.send(std::mem::take(&mut bytes));
+                        return Ok(Task::none());
+                    }
+                    let scan = pane.zmodem_detector.feed(&bytes);
+                    // Only divert when the pane has a transport to run the
+                    // protocol on; a local shell keeps the bytes on screen.
+                    if let Some(direction) = scan.detection
+                        && pane.session.is_some()
+                    {
+                        zmodem_start = Some((direction, scan.wire));
+                        bytes = scan.clean;
+                    } else if scan.detection.is_some() {
+                        bytes = scan.clean;
+                        bytes.extend(scan.wire);
+                    } else {
+                        bytes = scan.clean;
+                    }
+                }
                 // Route to the specific pane (a tab may have several, each
                 // with its own PTY). Scan is trivial at these counts.
                 let mut over_threshold = false;
@@ -572,6 +598,11 @@ impl Oryxis {
                 // 150 ms deadline so a never-closed `?2026` can't leave the
                 // screen frozen (see `TerminalSyncFlush`).
                 let mut tasks: Vec<iced::Task<Message>> = Vec::new();
+                // A detected ZMODEM transfer starts after the clean prefix
+                // has been drawn: it seizes the pane and streams progress.
+                if let Some((direction, wire)) = zmodem_start {
+                    tasks.push(self.begin_zmodem_transfer(pane_id, direction, wire));
+                }
                 if let Some(remaining) = schedule_flush {
                     tasks.push(Task::perform(
                         async move {
@@ -1101,6 +1132,22 @@ impl Oryxis {
         self.tabs
             .iter()
             .position(|t| t.pane_grid.panes.values().any(|p| p.id == pane_id))
+    }
+
+    /// Find a pane by its stable id across every tab (shared read).
+    pub(crate) fn pane_by_id(&self, pane_id: uuid::Uuid) -> Option<&crate::state::Pane> {
+        self.tabs
+            .iter()
+            .flat_map(|t| t.pane_grid.panes.values())
+            .find(|p| p.id == pane_id)
+    }
+
+    /// Find a pane by its stable id across every tab (mutable).
+    pub(crate) fn pane_by_id_mut(&mut self, pane_id: uuid::Uuid) -> Option<&mut crate::state::Pane> {
+        self.tabs
+            .iter_mut()
+            .flat_map(|t| t.pane_grid.panes.values_mut())
+            .find(|p| p.id == pane_id)
     }
 }
 

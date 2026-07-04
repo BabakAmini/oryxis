@@ -44,6 +44,61 @@ impl Oryxis {
         .into()
     }
 
+    /// Row for the ZMODEM download folder: the resolved path (default or
+    /// configured) plus a Browse button, and a Reset when a custom folder
+    /// is set. Always shown (transfers work regardless of other toggles).
+    fn zmodem_download_dir_row(&self) -> Element<'_, Message> {
+        let configured = self.setting_zmodem_download_dir.trim();
+        let shown = if configured.is_empty() {
+            dirs::download_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "~/.oryxis/downloads".to_string())
+        } else {
+            configured.to_string()
+        };
+        let browse = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::PickZmodemDownloadDir),
+            8.0,
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("browse"),
+                Some(Message::PickZmodemDownloadDir),
+                crate::theme::OryxisColors::t().accent,
+            ),
+        );
+        let mut row = crate::widgets::dir_row(vec![
+            column![
+                text(crate::i18n::t("zmodem_download_dir"))
+                    .size(13)
+                    .color(crate::theme::OryxisColors::t().text_secondary),
+                Space::new().height(2),
+                text(shown)
+                    .size(11)
+                    .color(crate::theme::OryxisColors::t().text_muted),
+            ]
+            .width(Length::Fill)
+            .into(),
+            Space::new().width(10).into(),
+            browse,
+        ]);
+        // Reset-to-default only when a custom folder is set.
+        if !configured.is_empty() {
+            let reset = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ClearZmodemDownloadDir),
+                8.0,
+                crate::widgets::styled_button_opt(
+                    crate::i18n::t("reset"),
+                    Some(Message::ClearZmodemDownloadDir),
+                    crate::theme::OryxisColors::t().text_muted,
+                ),
+            );
+            row = row.push(Space::new().width(8)).push(reset);
+        }
+        container(row.align_y(iced::Alignment::Center))
+            .padding(Padding { top: 8.0, ..Padding::ZERO })
+            .width(Length::Fill)
+            .into()
+    }
+
     pub(crate) fn view_settings_terminal(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order: the sections below
         // are deliberately CONSTRUCTED in the same order they render
@@ -172,6 +227,8 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::ToggleCommandHistoryFile),
             self.command_history_dir_row(),
+            Space::new().height(10),
+            self.zmodem_download_dir_row(),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
             Space::new().height(10),

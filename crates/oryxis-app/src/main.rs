@@ -49,6 +49,7 @@ mod dispatch_ssh;
 mod dispatch_tabs;
 mod dispatch_telnet;
 mod dispatch_terminal;
+mod dispatch_zmodem;
 mod fonts;
 mod i18n;
 mod keynav;

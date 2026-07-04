@@ -5467,6 +5467,7 @@ dependencies = [
  "oryxis-telnet",
  "oryxis-terminal",
  "oryxis-vault",
+ "oryxis-zmodem",
  "os_info",
  "proptest",
  "rand 0.8.6",

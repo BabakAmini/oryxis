@@ -435,6 +435,7 @@ impl Oryxis {
                 active_snippet_group: None,
                 sidebar_snippet_group: None,
                 setting_command_history_file_dir: None,
+                setting_zmodem_download_dir: String::new(),
                 setting_performance_mode: false,
                 setting_perf_overlay: false,
                 pending_perf_mode_toast: false,
@@ -978,6 +979,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("command_history_file_dir") {
                 self.setting_command_history_file_dir =
                     (!v.trim().is_empty()).then(|| v.trim().to_string());
+            }
+            if let Ok(Some(v)) = vault.get_setting("zmodem_download_dir") {
+                self.setting_zmodem_download_dir = v.trim().to_string();
             }
             // Performance mode. An explicit stored choice always wins. When
             // the key is absent (first boot on this machine) and the render

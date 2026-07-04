@@ -865,6 +865,9 @@ pub struct Oryxis {
     /// `~/.oryxis/command-history/`. Persisted as
     /// `command_history_file_dir` (empty string = default).
     pub(crate) setting_command_history_file_dir: Option<String>,
+    /// Destination folder for ZMODEM downloads. Empty = the OS Downloads
+    /// dir (or `~/.oryxis/downloads`). Persisted as `zmodem_download_dir`.
+    pub(crate) setting_zmodem_download_dir: String,
     /// Snippets sidebar: only show snippets sharing at least one tag
     /// with the focused host's tags. Persisted as `snippet_tag_filter`.
     pub(crate) setting_snippet_tag_filter: bool,

@@ -201,6 +201,14 @@ pub(crate) struct Pane {
     /// Latest OSC 9;4 progress the shell reported, drawn as a growing border
     /// around the tab. `None` (or state 0) means no active progress.
     pub progress: Option<oryxis_terminal::Progress>,
+    /// ZMODEM initiation sniffer, fed every output batch while NOT already
+    /// transferring. Cheap (a few bytes of held-back state); it flags a
+    /// `sz` / `rz` on the remote and hands over the byte stream.
+    pub zmodem_detector: oryxis_zmodem::ZmodemDetector,
+    /// `Some` while a ZMODEM transfer owns this pane's byte stream: output
+    /// is diverted to the driver (not the emulator) and input is frozen.
+    /// Cleared when the transfer ends, which resumes the terminal.
+    pub zmodem: Option<ZmodemPane>,
     /// `HintMode::Once` bookkeeping: set once the "hold Shift to select"
     /// mouse-capture toast has fired for this pane, so it retires here.
     /// In-memory only, a fresh pane (new tab / host) starts over.
@@ -282,10 +290,29 @@ impl Pane {
             input_tracker: oryxis_terminal::InputTracker::new(),
             pending_capture: None,
             progress: None,
+            zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
+            zmodem: None,
             mouse_hint_shown: false,
             link_hint_shown: false,
         }
     }
+}
+
+/// Live state of a ZMODEM transfer that has seized a pane's byte stream.
+/// While present, `PtyOutput` for the pane is routed into `wire_tx`
+/// (the driver's input) instead of the emulator, and keyboard input is
+/// suppressed; the fields below drive the progress overlay.
+pub(crate) struct ZmodemPane {
+    pub direction: oryxis_zmodem::Direction,
+    /// Feeds diverted terminal output into the transfer driver.
+    pub wire_tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
+    /// Set to request a cooperative cancel (drives a ZCAN).
+    pub abort: Arc<std::sync::atomic::AtomicBool>,
+    /// Current file name (once the peer advertises it).
+    pub file_name: Option<String>,
+    /// Bytes moved so far, and the advertised total when known.
+    pub transferred: u64,
+    pub total: Option<u64>,
 }
 
 /// A terminal tab. Its panes live in an iced `pane_grid::State`, which owns
