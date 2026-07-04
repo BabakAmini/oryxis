@@ -1478,13 +1478,13 @@ impl Oryxis {
                 // `is_alive`, so without this such a pane stays a dead
                 // input sink forever. Surface it as a real disconnect so the
                 // UI updates and, when enabled, reconnect kicks in. Panes
-                // already torn down have `ssh_session == None` and are
+                // already torn down have `session == None` and are
                 // skipped, so this can't loop.
                 let dead: Vec<_> = self
                     .tabs
                     .iter()
                     .flat_map(|t| t.pane_grid.panes.values())
-                    .filter(|p| p.ssh_session.as_ref().is_some_and(|s| !s.is_alive()))
+                    .filter(|p| p.session.as_ref().is_some_and(|s| !s.is_alive()))
                     .map(|p| p.id)
                     .collect();
                 if !dead.is_empty() {
@@ -1547,11 +1547,11 @@ impl Oryxis {
                         self.keys.clear();
                         self.snippets.clear();
                         self.groups.clear();
-                        // Close live SSH sessions, not just the panes
+                        // Close live remote sessions, not just the panes
                         // referencing them, so locking the vault really
                         // severs the remote connections.
                         for tab in &self.tabs {
-                            Self::close_tab_ssh_sessions(tab);
+                            Self::close_tab_sessions(tab);
                         }
                         self.tabs.clear();
                         self.active_tab = None;

@@ -209,7 +209,9 @@ impl Oryxis {
                 let existing = self.tabs.iter().find_map(|t| {
                     let base = t.label.trim_end_matches(" (disconnected)");
                     if base == conn.label {
-                        t.active().ssh_session.clone()
+                        // SFTP multiplexes on the SSH handle; a Telnet
+                        // tab to the same label can't be reused.
+                        t.active().session.as_ref().and_then(|s| s.ssh()).cloned()
                     } else {
                         None
                     }
@@ -886,13 +888,20 @@ impl Oryxis {
                 };
                 let base = tab.label.trim_end_matches(" (disconnected)").to_string();
                 // Prefer a saved connection by label so the SFTP tab can
-                // reconnect on its own.
-                if let Some(conn_idx) = self.connections.iter().position(|c| c.label == base) {
+                // reconnect on its own. Telnet hosts are excluded: SFTP
+                // is an SSH subsystem, dialing one would just fail.
+                if let Some(conn_idx) = self.connections.iter().position(|c| {
+                    c.label == base
+                        && c.protocol
+                            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                }) {
                     return self.handle_sftp(Message::OpenSftpForConnection(conn_idx));
                 }
                 // No saved host (ad-hoc / cloud tab): mount the tab's live
-                // SSH session directly. Nothing to do if it has no session.
-                let Some(session) = tab.active().ssh_session.clone() else {
+                // SSH session directly. Nothing to do if it has no session
+                // (or a Telnet one, which has no SSH handle to multiplex).
+                let Some(session) = tab.active().session.as_ref().and_then(|s| s.ssh()).cloned()
+                else {
                     return Ok(Task::none());
                 };
                 let label = base;

@@ -754,7 +754,8 @@ impl Oryxis {
         let existing = self.tabs.iter().find_map(|t| {
             let base = t.label.trim_end_matches(" (disconnected)");
             if base == conn.label {
-                t.active().ssh_session.clone()
+                // SSH handles only: the export upload rides SFTP.
+                t.active().session.as_ref().and_then(|s| s.ssh()).cloned()
             } else {
                 None
             }

@@ -159,17 +159,18 @@ impl Oryxis {
             .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 });
 
         // Built-in "global snippet": type the host's stored password +
-        // Enter (e.g. to answer a sudo prompt). Shown only for a live SSH
-        // session; the click no-ops with a toast if no password is stored.
+        // Enter (e.g. to answer a sudo prompt). Shown only for a live
+        // remote session (SSH or Telnet); the click no-ops with a toast
+        // if no password is stored.
         // Keynav-recorded by owner request (2026-07-03): reaching it takes
         // a deliberate Tab/arrow walk plus Enter, the same intent bar as a
         // click, and it carries no paste/delete verbs.
-        let ssh_active = self
+        let remote_active = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
-            .map(|t| t.active().ssh_session.is_some())
+            .map(|t| t.active().session.is_some())
             .unwrap_or(false);
-        let sudo_row: Element<'_, Message> = if ssh_active {
+        let sudo_row: Element<'_, Message> = if remote_active {
             // The ring wraps the button itself, INSIDE the padded
             // container, so it hugs the visible border instead of
             // floating 12 px away (owner QA).

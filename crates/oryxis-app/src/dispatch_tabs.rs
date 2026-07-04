@@ -925,10 +925,10 @@ impl Oryxis {
                     // Persist recorded output before the tab (and its
                     // panes' buffers) are dropped.
                     self.flush_session_logs_final();
-                    // Actively tear down the tab's SSH sessions; the
+                    // Actively tear down the tab's remote sessions; the
                     // connect streams hold their own Arcs, so dropping
                     // the panes alone would leak the live sessions.
-                    Self::close_tab_ssh_sessions(&self.tabs[idx]);
+                    Self::close_tab_sessions(&self.tabs[idx]);
                     // Closing a tab that owns a live AI chat stream must
                     // cancel it (per-tab now, so any tab, not just the
                     // active one): otherwise the detached tool-followup
@@ -1120,7 +1120,7 @@ impl Oryxis {
                         // tasks, the SSH connection, and any per-connection
                         // port-forward listeners leak (the "connection not
                         // properly closed" the user saw).
-                        if let Some(session) = pane.ssh_session.take() {
+                        if let Some(session) = pane.session.take() {
                             session.close();
                         }
                         pane.id = new_pane_id;
@@ -1233,7 +1233,7 @@ impl Oryxis {
                 // (ECS Exec / kubectl) re-open via the relaunch message
                 // stashed on the tab at spawn time.
                 if let Some(tab) = self.tabs.get(idx) {
-                    let is_local_shell = tab.active().ssh_session.is_none()
+                    let is_local_shell = tab.active().session.is_none()
                         && tab.label == "Local Shell";
                     if is_local_shell {
                         return Ok(Task::done(Message::OpenLocalShell));

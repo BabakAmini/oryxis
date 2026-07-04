@@ -41,6 +41,7 @@ assets = [
 notify-rust = "4"
 oryxis-core = { workspace = true }
 oryxis-ssh = { workspace = true }
+oryxis-telnet = { workspace = true }
 oryxis-terminal = { workspace = true }
 oryxis-vault = { workspace = true }
 oryxis-sync = { workspace = true }

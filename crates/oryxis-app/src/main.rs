@@ -46,6 +46,7 @@ mod dispatch_sftp_transfers;
 mod dispatch_share;
 mod dispatch_ssh;
 mod dispatch_tabs;
+mod dispatch_telnet;
 mod dispatch_terminal;
 mod fonts;
 mod i18n;

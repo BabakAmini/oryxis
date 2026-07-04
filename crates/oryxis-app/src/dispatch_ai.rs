@@ -1038,8 +1038,8 @@ impl Oryxis {
                 bytes.push(b'\n');
                 let write_ok = {
                     let pane = self.tabs[idx].active();
-                    if let Some(ref ssh) = pane.ssh_session {
-                        ssh.write(&bytes).is_ok()
+                    if let Some(ref session) = pane.session {
+                        session.write(&bytes).is_ok()
                     } else if let Ok(mut state) = pane.terminal.lock() {
                         state.write(&bytes);
                         true

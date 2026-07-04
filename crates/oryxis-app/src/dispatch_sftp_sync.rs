@@ -133,7 +133,8 @@ impl Oryxis {
         let existing = self.tabs.iter().find_map(|tb| {
             let base = tb.label.trim_end_matches(" (disconnected)");
             if base == conn.label {
-                tb.active().ssh_session.clone()
+                // SSH handles only: a Telnet tab can't carry SFTP.
+                tb.active().session.as_ref().and_then(|s| s.ssh()).cloned()
             } else {
                 None
             }

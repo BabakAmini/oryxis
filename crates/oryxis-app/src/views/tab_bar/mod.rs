@@ -477,12 +477,12 @@ impl Oryxis {
             let status_dot: Option<Color> = if self.setting_show_tab_status_dot {
                 let is_connecting = self.connecting.as_ref().map(|cp| cp.tab_idx) == Some(idx);
                 let is_disconnected = tab.label.ends_with(" (disconnected)");
-                let is_ssh = tab.active().ssh_session.is_some();
+                let is_remote = tab.active().session.is_some();
                 if is_connecting {
                     Some(OryxisColors::t().warning)
                 } else if is_disconnected {
                     Some(OryxisColors::t().error)
-                } else if is_ssh {
+                } else if is_remote {
                     Some(OryxisColors::t().success)
                 } else {
                     None

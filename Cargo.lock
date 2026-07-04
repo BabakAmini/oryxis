@@ -5407,6 +5407,7 @@ dependencies = [
  "oryxis-plugin-protocol",
  "oryxis-ssh",
  "oryxis-sync",
+ "oryxis-telnet",
  "oryxis-terminal",
  "oryxis-vault",
  "os_info",

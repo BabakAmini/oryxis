@@ -345,8 +345,8 @@ impl Oryxis {
                         .filter(|p| !p.is_empty())?;
                     let data = format!("{pw}\n");
                     if let Some(tab) = self.tabs.get(tab_idx) {
-                        if let Some(ref ssh) = tab.active().ssh_session {
-                            let _ = ssh.write(data.as_bytes());
+                        if let Some(ref session) = tab.active().session {
+                            let _ = session.write(data.as_bytes());
                         } else if let Ok(mut state) = tab.active().terminal.lock() {
                             state.write(data.as_bytes());
                         }

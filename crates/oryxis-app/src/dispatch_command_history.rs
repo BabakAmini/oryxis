@@ -149,8 +149,8 @@ impl Oryxis {
     pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             let pane = tab.active_mut();
-            if let Some(ref ssh) = pane.ssh_session {
-                let _ = ssh.write(bytes);
+            if let Some(ref session) = pane.session {
+                let _ = session.write(bytes);
             } else if let Ok(mut state) = pane.terminal.lock() {
                 state.write(bytes);
             }

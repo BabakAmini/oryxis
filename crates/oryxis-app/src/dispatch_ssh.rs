@@ -235,7 +235,7 @@ impl Oryxis {
                     // and forward future viewport resizes to the server so
                     // remote `top`/`vim` re-layout instead of overflowing.
                     if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id) {
-                        pane.ssh_session = Some(session.clone());
+                        pane.session = Some(session.clone());
                         if let Ok(mut state) = pane.terminal.lock() {
                             state.set_remote_resize_sender(session.resize_sender());
                             // Query replies (cursor position, DECRQM, ...) must
@@ -318,8 +318,14 @@ impl Oryxis {
                         //   - the feature is enabled,
                         //   - we haven't detected this host before (runs once),
                         //   - and the user hasn't set a custom icon override.
-                        if self.setting_os_detection && os_unknown && !has_custom {
-                            detect_for = Some((conn_id, session));
+                        // OS detection execs over SSH; Telnet panes skip it
+                        // (their icon stays the generic server glyph).
+                        if self.setting_os_detection
+                            && os_unknown
+                            && !has_custom
+                            && let Some(ssh) = session.ssh()
+                        {
+                            detect_for = Some((conn_id, ssh.clone()));
                         }
                     }
                 }
@@ -654,7 +660,7 @@ impl Oryxis {
                     let label = self.tabs[tab_idx].label.replace(" (disconnected)", "");
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
-                        p.ssh_session = None;
+                        p.session = None;
                         p.session_log_id
                     });
                     if let Some(log_id) = log_id
@@ -987,6 +993,11 @@ impl Oryxis {
             && cref.transport_pref == TransportKind::Ssm
         {
             return self.start_ssm_session_for_connection(&conn);
+        }
+        // Telnet hosts branch to their own (much thinner) connect path:
+        // no SSH engine, no host keys, no jump chains.
+        if conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Telnet {
+            return self.start_telnet_tab(conn, origin);
         }
         // Resolve the effective proxy (saved identity OR inline)
         // and hydrate its password from the encrypted vault column,
@@ -1559,9 +1570,10 @@ impl Oryxis {
                         SshStreamMsg::Progress(step, log) => {
                             Message::SshProgress(step, log)
                         }
-                        SshStreamMsg::Connected(session) => {
-                            Message::SshConnected(pane_id, session)
-                        }
+                        SshStreamMsg::Connected(session) => Message::SshConnected(
+                            pane_id,
+                            crate::state::TerminalTransport::Ssh(session),
+                        ),
                         SshStreamMsg::HostKeyVerify(query) => {
                             Message::SshHostKeyVerify(query)
                         }
@@ -1799,6 +1811,11 @@ impl Oryxis {
         tab_idx: usize,
         pane_id: Uuid,
     ) -> Task<Message> {
+        // Telnet hosts take their own thin connect path (raw TCP dial,
+        // no SSH engine); split panes and in-place reconnects included.
+        if conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Telnet {
+            return self.spawn_telnet_for_pane_conn(conn, quick_id, tab_idx, pane_id);
+        }
         if let Some(vault) = self.vault.as_ref() {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
         }
@@ -1948,7 +1965,9 @@ impl Oryxis {
         Task::stream(stream).map(move |m| match m {
             PaneConnMsg::HostKey(q) => Message::SshHostKeyVerify(q),
             PaneConnMsg::Kbi(q) => Message::SshKbiPrompt(quick_id, q),
-            PaneConnMsg::Connected(s) => Message::SshConnected(pane_id, s),
+            PaneConnMsg::Connected(s) => {
+                Message::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s))
+            }
             PaneConnMsg::Data(d) => Message::PtyOutput(pane_id, d),
             PaneConnMsg::Disconnected => Message::SshDisconnected(pane_id),
             PaneConnMsg::Error(e) => Message::PaneConnectError(pane_id, e),

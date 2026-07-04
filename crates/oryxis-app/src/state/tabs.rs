@@ -47,9 +47,80 @@ pub(crate) struct PendingCapture {
     pub b_col: u16,
 }
 
-/// One terminal pane, owns its alacritty grid and (optionally) the SSH
-/// session feeding it. A `TerminalTab` holds one or more panes in a
-/// `pane_grid::State`, which owns their split layout.
+/// The live remote transport feeding a terminal pane. SSH and Telnet
+/// expose the same session surface (write / resize / senders /
+/// is_alive / close), so every generic pane path calls through this
+/// enum; features that need the SSH machinery underneath (SFTP mounts,
+/// OS detection, exec channels) reach it via [`TerminalTransport::ssh`]
+/// and simply don't exist for Telnet panes. An enum rather than a
+/// trait object because only the pane path branches, and the SSH arm
+/// must keep handing out its concrete `Arc<SshSession>`.
+#[derive(Debug, Clone)]
+pub(crate) enum TerminalTransport {
+    Ssh(Arc<SshSession>),
+    Telnet(Arc<oryxis_telnet::TelnetSession>),
+}
+
+impl TerminalTransport {
+    /// The inner SSH session, for the SSH-only feature paths.
+    pub fn ssh(&self) -> Option<&Arc<SshSession>> {
+        match self {
+            TerminalTransport::Ssh(s) => Some(s),
+            TerminalTransport::Telnet(_) => None,
+        }
+    }
+
+    pub fn write(&self, data: &[u8]) -> Result<(), String> {
+        match self {
+            TerminalTransport::Ssh(s) => s.write(data).map_err(|e| e.to_string()),
+            TerminalTransport::Telnet(s) => s.write(data).map_err(|e| e.to_string()),
+        }
+    }
+
+    pub fn resize(&self, cols: u16, rows: u16) {
+        match self {
+            TerminalTransport::Ssh(s) => s.resize(cols, rows),
+            TerminalTransport::Telnet(s) => s.resize(cols, rows),
+        }
+    }
+
+    /// Clone of the resize sender (SSH window-change / Telnet NAWS) so
+    /// the terminal state forwards viewport changes directly.
+    pub fn resize_sender(&self) -> tokio::sync::mpsc::UnboundedSender<(u16, u16)> {
+        match self {
+            TerminalTransport::Ssh(s) => s.resize_sender(),
+            TerminalTransport::Telnet(s) => s.resize_sender(),
+        }
+    }
+
+    /// Clone of the input sender for in-band query replies (cursor
+    /// position report, DECRQM, ...), which remote programs block on.
+    pub fn write_sender(&self) -> tokio::sync::mpsc::UnboundedSender<Vec<u8>> {
+        match self {
+            TerminalTransport::Ssh(s) => s.write_sender(),
+            TerminalTransport::Telnet(s) => s.write_sender(),
+        }
+    }
+
+    pub fn is_alive(&self) -> bool {
+        match self {
+            TerminalTransport::Ssh(s) => s.is_alive(),
+            TerminalTransport::Telnet(s) => s.is_alive(),
+        }
+    }
+
+    /// Tear the session down (idempotent on both arms).
+    pub fn close(&self) {
+        match self {
+            TerminalTransport::Ssh(s) => s.close(),
+            TerminalTransport::Telnet(s) => s.close(),
+        }
+    }
+}
+
+/// One terminal pane, owns its alacritty grid and (optionally) the
+/// remote session feeding it. A `TerminalTab` holds one or more panes
+/// in a `pane_grid::State`, which owns their split layout.
 pub(crate) struct Pane {
     /// Stable identity used to route PTY output / session events to the
     /// right pane (the `pane_grid::Pane` handle is only unique within a
@@ -60,8 +131,8 @@ pub(crate) struct Pane {
     /// across two hosts reads as whichever pane you're in.
     pub label: String,
     pub terminal: Arc<Mutex<TerminalState>>,
-    /// SSH session handle (None for local shell).
-    pub ssh_session: Option<Arc<SshSession>>,
+    /// Remote transport handle (SSH or Telnet; None for local shell).
+    pub session: Option<TerminalTransport>,
     /// Session log ID for terminal recording.
     pub session_log_id: Option<Uuid>,
     /// Recorded bytes not yet flushed to the vault. PTY output appends
@@ -187,7 +258,7 @@ impl Pane {
             id: Uuid::new_v4(),
             label,
             terminal,
-            ssh_session: None,
+            session: None,
             session_log_id: None,
             session_log_buf: Vec::new(),
             session_log_t0: None,

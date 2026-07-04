@@ -560,7 +560,7 @@ pub enum Message {
     /// user can persist it as a regular host.
     SaveQuickHost(Uuid),
     SshProgress(ConnectionStep, String),
-    SshConnected(Uuid, Arc<SshSession>),  // (pane_id, session)
+    SshConnected(Uuid, crate::state::TerminalTransport),  // (pane_id, transport)
     SshDisconnected(Uuid),  // (pane_id)
     SshError(String),
     /// Handshake hit "no common algorithm". Prompts the legacy-fallback

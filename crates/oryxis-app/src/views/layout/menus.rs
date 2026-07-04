@@ -411,8 +411,14 @@ impl Oryxis {
                     .get(idx)
                     .map(|t| {
                         let base = t.label.trim_end_matches(" (disconnected)");
-                        t.active().ssh_session.is_some()
-                            || self.connections.iter().any(|c| c.label == base)
+                        // Telnet transports (and Telnet-protocol saved
+                        // hosts) carry no SSH handle to mount SFTP on.
+                        t.active().session.as_ref().is_some_and(|s| s.ssh().is_some())
+                            || self.connections.iter().any(|c| {
+                                c.label == base
+                                    && c.protocol
+                                        == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                            })
                     })
                     .unwrap_or(false);
                 if can_sftp {
