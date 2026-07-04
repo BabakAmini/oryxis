@@ -7,6 +7,18 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Telnet protocol.** A per-host protocol selector (SSH / Telnet) in
+  the host editor. Telnet hosts connect over a new native Rust engine
+  (`oryxis-telnet`): RFC 854/855 option negotiation with the full RFC
+  1143 loop-proof state machine, RFC 1073 NAWS window size, RFC 1091
+  TERMINAL-TYPE, RFC 1572 NEW-ENVIRON, per-host charset transcoding,
+  and prompt-driven credential autofill (once per session, time-boxed,
+  never a retry loop). The editor swaps to a reduced form for Telnet
+  (host / port / username / password / encoding / terminal theme, plus
+  an honest cleartext-credentials note) and hides every SSH-only field.
+  Telnet hosts ride sync and portable export like any host; SFTP and OS
+  detection stay SSH-only. Password sent in cleartext by design, the
+  protocol has no secure option.
 - **Ad-hoc quick connect.** Type `user@host` in the new-tab picker
   (Ctrl+K), the toolbar search or the tab-jump (Ctrl+J) and connect
   without saving a host; the host editor gains a "Connect without
