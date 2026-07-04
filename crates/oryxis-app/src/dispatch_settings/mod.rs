@@ -1673,6 +1673,7 @@ impl Oryxis {
                         args: entry.args.join(" "),
                         color: entry.color.clone(),
                         icon: entry.icon.clone(),
+                        tags: entry.tags.join(", "),
                         error: None,
                     };
                     self.local_terminal_add_open = true;
@@ -1720,6 +1721,10 @@ impl Oryxis {
                 self.local_terminal_form.args = v;
                 self.local_terminal_form.error = None;
             }
+            Message::LocalTerminalFormTagsChanged(v) => {
+                self.local_terminal_form.tags = v;
+                self.local_terminal_form.error = None;
+            }
             Message::AddLocalTerminalSubmit => {
                 let label = self.local_terminal_form.label.trim().to_string();
                 let program = self.local_terminal_form.program.trim().to_string();
@@ -1734,6 +1739,7 @@ impl Oryxis {
                         .collect();
                     let color = self.local_terminal_form.color.clone();
                     let icon = self.local_terminal_form.icon.clone();
+                    let tags = crate::util::parse_tags(&self.local_terminal_form.tags);
                     let mut list = self.local_terminals.take().unwrap_or_default();
                     match self.local_terminal_form.editing_id {
                         // Edit in place: program/args/label/appearance all
@@ -1745,6 +1751,7 @@ impl Oryxis {
                                 e.args = args;
                                 e.color = color;
                                 e.icon = icon;
+                                e.tags = tags;
                             }
                         }
                         // Add a new manual entry, skipping an exact command
@@ -1758,6 +1765,7 @@ impl Oryxis {
                                 manual: true,
                                 color,
                                 icon,
+                                tags,
                             };
                             if !list.iter().any(|e| e.cmd_key() == entry.cmd_key()) {
                                 list.push(entry);

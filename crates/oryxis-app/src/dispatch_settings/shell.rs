@@ -13,6 +13,7 @@ pub(crate) fn detected_entry(s: crate::state::LocalShellSpec) -> crate::state::L
         manual: false,
         color: None,
         icon: None,
+        tags: Vec::new(),
     }
 }
 

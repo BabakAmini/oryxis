@@ -17,6 +17,8 @@ pub(crate) struct LocalTerminalForm {
     pub color: Option<String>,
     /// Icon id chosen via the icon picker.
     pub icon: Option<String>,
+    /// Comma-separated tags as typed; parsed on save (host-tag rules).
+    pub tags: String,
     /// Inline validation error (i18n key), shown under the form on a bad submit.
     pub error: Option<&'static str>,
 }

@@ -13,15 +13,40 @@ impl Oryxis {
     /// Drives the snippet sidebar's filter-by-host-tags toggle.
     pub(crate) fn focused_host_tags_lower(&self) -> Option<Vec<String>> {
         let tab = self.active_tab.and_then(|i| self.tabs.get(i))?;
-        let id = match &tab.active().origin {
-            crate::state::PaneOrigin::Host(id) => *id,
+        let tags: Vec<String> = match &tab.active().origin {
+            crate::state::PaneOrigin::Host(id) => self
+                .connections
+                .iter()
+                .find(|c| c.id == *id)?
+                .tags
+                .clone(),
+            // Local panes resolve through the curated terminal list by
+            // command identity (program + args), the same key the
+            // re-scan dedup uses; the pane itself only carries the
+            // spawn spec.
+            crate::state::PaneOrigin::Local(spec) => {
+                let key = {
+                    let mut k = spec.program.clone();
+                    for a in &spec.args {
+                        k.push('\u{1f}');
+                        k.push_str(a);
+                    }
+                    k
+                };
+                self.local_terminals
+                    .as_deref()
+                    .unwrap_or(&[])
+                    .iter()
+                    .find(|e| e.cmd_key() == key)?
+                    .tags
+                    .clone()
+            }
             _ => return None,
         };
-        let conn = self.connections.iter().find(|c| c.id == id)?;
-        if conn.tags.is_empty() {
+        if tags.is_empty() {
             return None;
         }
-        Some(conn.tags.iter().map(|t| t.to_lowercase()).collect())
+        Some(tags.iter().map(|t| t.to_lowercase()).collect())
     }
 
     /// Distinct snippet group names in display order (first spelling

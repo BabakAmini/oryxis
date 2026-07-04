@@ -36,8 +36,14 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   them, and a new tag-filter dropdown next to the sort button narrows
   the host grid to one tag. In the terminal sidebar's Snippets tab a
   toggle shows only snippets sharing a tag with the focused host, so
-  a `db`-tagged host surfaces the `db` runbook. Groups and tags ride
-  sync and portable export as plain snippet data.
+  a `db`-tagged host surfaces the `db` runbook. Local terminals carry
+  tags too (Settings > Local terminals), so a local pane surfaces its
+  own runbook the same way. Snippet groups render as dashboard-style
+  folder cards (click or Enter to drill in, breadcrumb back), the
+  Snippets toolbar has its own multi-select tag filter, and both tag
+  dropdowns are multi-select with a selection count on the toolbar
+  button; the host filter narrows the Groups section by subtree.
+  Groups and tags ride sync and portable export as plain snippet data.
 - **Session recording export (asciinema-compatible).** The encrypted
   session logs the vault already keeps now record real timing (chunk
   offsets stamped at capture, per-line replay steps, terminal resizes)

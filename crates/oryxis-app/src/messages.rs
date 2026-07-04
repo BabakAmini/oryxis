@@ -1103,6 +1103,7 @@ pub enum Message {
     LocalTerminalFormLabelChanged(String),
     LocalTerminalFormProgramChanged(String),
     LocalTerminalFormArgsChanged(String),
+    LocalTerminalFormTagsChanged(String),
     /// Commit the add / edit form into the curated list.
     AddLocalTerminalSubmit,
     /// Hover tracking for the per-card remove action.

@@ -98,6 +98,12 @@ pub(crate) struct LocalTerminalEntry {
     /// derived from the label, then a generic terminal glyph.
     #[serde(default)]
     pub icon: Option<String>,
+    /// Free-form tags, same semantics as host tags: they feed the
+    /// snippet sidebar's filter-by-tags toggle so a local pane can
+    /// surface its own runbook. Machine-local like the rest of the
+    /// entry (never synced or exported).
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 impl LocalTerminalEntry {

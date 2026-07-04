@@ -335,6 +335,16 @@ impl Oryxis {
                     .align_x(dir_align_x())
                     .into(),
             ),
+            Space::new().height(10),
+            panel_field(
+                t("tags"),
+                text_input(t("tags_placeholder"), &self.local_terminal_form.tags)
+                    .on_input(Message::LocalTerminalFormTagsChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ),
             Space::new().height(12),
             panel_field(t("terminal_icon_color"), appearance.into()),
         ]
