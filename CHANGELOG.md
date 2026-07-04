@@ -44,6 +44,11 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   dropdowns are multi-select with a selection count on the toolbar
   button; the host filter narrows the Groups section by subtree.
   Groups and tags ride sync and portable export as plain snippet data.
+- **Per-snippet shortcuts.** A snippet can carry its own key combo
+  (recorded right in the editor, with conflict and shell-key
+  protection): with a terminal focused, the chord runs the snippet,
+  variables prompt included. The shortcut is stored on the snippet
+  itself, so deleting the snippet removes it with no leftovers.
 - **Snippet variables.** `{name}` and `{name:default}` placeholders
   in a snippet body prompt for values in a small dialog before the
   send (run and paste alike), with defaults pre-filled and the first
