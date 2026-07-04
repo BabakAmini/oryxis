@@ -69,6 +69,18 @@ pub(crate) struct Pane {
     /// periodic tick, disconnect, or window close). Batching keeps the
     /// vault from taking one write per SSH chunk.
     pub session_log_buf: Vec<u8>,
+    /// Recording clock zero: set on the first recorded output batch, so
+    /// chunk offsets (asciicast timing) count from the session's first
+    /// byte rather than the connect handshake.
+    pub session_log_t0: Option<std::time::Instant>,
+    /// Arrival marks into `session_log_buf`: (byte position, ms since
+    /// `session_log_t0`), one per PTY output batch. The flush splits
+    /// the drained bytes at newline-aligned marks so the stored chunks
+    /// carry real replay timing without extra writes mid-session.
+    pub session_log_marks: Vec<(usize, i64)>,
+    /// Last terminal geometry written to the recording; a change at
+    /// flush time appends a resize event (`kind='r'`).
+    pub session_log_last_size: Option<(u16, u16)>,
     /// What this pane reconnects to when restored from a saved session group.
     /// Defaults to `Ephemeral`; the creating site overrides it to `Host` or
     /// `Local` when the pane is referenceable.
@@ -178,6 +190,9 @@ impl Pane {
             ssh_session: None,
             session_log_id: None,
             session_log_buf: Vec::new(),
+            session_log_t0: None,
+            session_log_marks: Vec::new(),
+            session_log_last_size: None,
             origin: PaneOrigin::Ephemeral,
             sync_flush_scheduled: false,
             osc_title: None,

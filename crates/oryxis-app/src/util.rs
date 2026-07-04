@@ -2,6 +2,21 @@
 
 use iced::keyboard;
 
+/// File-name-safe version of a label (ASCII alphanumerics, `-`, `_`;
+/// everything else collapses to `_`, capped at 48 chars). Used by the
+/// command-history and session-recording exports.
+pub(crate) fn sanitize_file_stem(label: &str) -> String {
+    let mut s: String = label
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    s.truncate(48);
+    if s.is_empty() {
+        s.push('_');
+    }
+    s
+}
+
 /// Format byte size for display (e.g. "12.3 KB").
 pub(crate) fn format_data_size(bytes: usize) -> String {
     if bytes < 1024 {

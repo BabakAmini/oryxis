@@ -790,6 +790,12 @@ pub enum Message {
 
     // Session logs
     ViewSessionLog(Uuid),
+    /// Export a recorded session as an asciicast v2 `.cast` file
+    /// (replayable in the asciinema player). Output-only by design.
+    ExportSessionCast(Uuid),
+    /// Export a recorded session as a plain-text transcript (ANSI
+    /// resolved and stripped by the same renderer the viewer uses).
+    ExportSessionTranscript(Uuid),
     CloseSessionLogView,
     /// Ask for confirmation before deleting one recording; the
     /// dialog's action carries `DeleteSessionLog`.

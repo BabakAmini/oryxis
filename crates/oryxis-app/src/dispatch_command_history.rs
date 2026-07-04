@@ -40,7 +40,7 @@ impl Oryxis {
                     .map(|c| c.label.clone())
                     .unwrap_or_else(|| host.to_string());
                 let body = render_history_txt(&label, &self.command_history);
-                let default_name = format!("oryxis-history-{}.txt", sanitize_file_stem(&label));
+                let default_name = format!("oryxis-history-{}.txt", crate::util::sanitize_file_stem(&label));
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(move || {
                         let path = rfd::FileDialog::new()
@@ -238,7 +238,7 @@ impl Oryxis {
         let dir = self.command_history_dir();
         std::fs::create_dir_all(&dir)?;
         let short: String = host.to_string().chars().take(8).collect();
-        let path = dir.join(format!("{}-{}.txt", sanitize_file_stem(label), short));
+        let path = dir.join(format!("{}-{}.txt", crate::util::sanitize_file_stem(label), short));
         let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
         // Multi-line commands (bracketed paste) stay one log line each:
         // continuation lines are indented so the file remains greppable
@@ -278,19 +278,6 @@ fn render_history_txt(
     out
 }
 
-/// File-name-safe version of a host label (ASCII alphanumerics, `-`,
-/// `_`; everything else collapses to `_`).
-fn sanitize_file_stem(label: &str) -> String {
-    let mut s: String = label
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-        .collect();
-    s.truncate(48);
-    if s.is_empty() {
-        s.push('_');
-    }
-    s
-}
 
 impl Oryxis {
     /// Reload the sidebar list for the focused pane's host. Called when the

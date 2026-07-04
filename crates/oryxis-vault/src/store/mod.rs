@@ -90,6 +90,18 @@ pub struct SessionLogEntry {
     pub data_size: usize,
 }
 
+/// One timed event of a recorded session, for the asciicast export:
+/// output bytes (`kind = 'o'`) or a terminal resize (`kind = 'r'`,
+/// data `"<cols>x<rows>"`). `offset_ms` is capture time relative to
+/// the log's `started_at`; `None` on chunks recorded before timing
+/// existed (replayed with a fixed small delta).
+#[derive(Debug, Clone)]
+pub struct SessionLogEvent {
+    pub offset_ms: Option<i64>,
+    pub kind: char,
+    pub data: Vec<u8>,
+}
+
 // ---------------------------------------------------------------------------
 // Command history entry (terminal sidebar History tab)
 // ---------------------------------------------------------------------------

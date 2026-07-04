@@ -284,6 +284,14 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE known_hosts ADD COLUMN updated_at TEXT;");
+        // Session-recording timing (asciicast export): milliseconds since
+        // the log's started_at, stamped at capture time. NULL on chunks
+        // recorded before this column existed (exported with a fixed
+        // small delta so old logs still replay, just without real
+        // timing). `kind` distinguishes output ('o', the default) from
+        // terminal resizes ('r', whose data is "<cols>x<rows>").
+        let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN offset_ms INTEGER;");
+        let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN kind TEXT NOT NULL DEFAULT 'o';");
 
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");

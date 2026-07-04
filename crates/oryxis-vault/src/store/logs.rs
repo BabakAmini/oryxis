@@ -164,15 +164,44 @@ impl VaultStore {
     /// Append recorded terminal bytes to a session log. One INSERT of just
     /// the new bytes, no read-modify-write of the growing stream. Callers
     /// should batch (see the app's per-pane buffer) so this fires at a
-    /// human cadence rather than once per SSH chunk.
-    pub fn append_session_data(&self, id: &Uuid, data: &[u8]) -> Result<(), VaultError> {
+    /// human cadence rather than once per SSH chunk. `offset_ms` is the
+    /// chunk's capture time in milliseconds since the log's `started_at`
+    /// (asciicast timing); `None` records without timing, like the
+    /// pre-migration rows.
+    pub fn append_session_data(
+        &self,
+        id: &Uuid,
+        data: &[u8],
+        offset_ms: Option<i64>,
+    ) -> Result<(), VaultError> {
         if data.is_empty() {
             return Ok(());
         }
         let sealed = self.seal_chunk(data)?;
         self.db.execute(
-            "INSERT INTO session_log_chunks (log_id, data) VALUES (?1, ?2)",
-            params![id.to_string(), sealed],
+            "INSERT INTO session_log_chunks (log_id, data, offset_ms, kind)
+             VALUES (?1, ?2, ?3, 'o')",
+            params![id.to_string(), sealed, offset_ms],
+        )?;
+        Ok(())
+    }
+
+    /// Record a terminal resize in a session log (`kind = 'r'`, data
+    /// `"<cols>x<rows>"`, sealed like output so nothing about the
+    /// session leaks in plaintext). Replayers use it to keep the
+    /// asciicast geometry in step with the live pane.
+    pub fn append_session_resize(
+        &self,
+        id: &Uuid,
+        offset_ms: i64,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(), VaultError> {
+        let sealed = self.seal_chunk(format!("{cols}x{rows}").as_bytes())?;
+        self.db.execute(
+            "INSERT INTO session_log_chunks (log_id, data, offset_ms, kind)
+             VALUES (?1, ?2, ?3, 'r')",
+            params![id.to_string(), sealed, offset_ms],
         )?;
         Ok(())
     }
@@ -317,8 +346,11 @@ impl VaultStore {
             .map_err(|_| VaultError::NotFound(format!("Session log {}", id)))?;
         let key = self.session_log_key().ok();
         let mut buf = legacy.unwrap_or_default();
+        // Output chunks only: resize events ('r') are timing metadata
+        // for the asciicast export, not part of the byte stream.
         let mut stmt = self.db.prepare(
-            "SELECT data FROM session_log_chunks WHERE log_id = ?1 ORDER BY id",
+            "SELECT data FROM session_log_chunks
+             WHERE log_id = ?1 AND kind = 'o' ORDER BY id",
         )?;
         let rows = stmt.query_map(params![id_str], |row| row.get::<_, Vec<u8>>(0))?;
         for chunk in rows {
@@ -329,6 +361,54 @@ impl VaultStore {
             }
         }
         Ok(Some(buf))
+    }
+
+    /// Timed event stream for the asciicast export: the legacy inline
+    /// blob first (no timing), then every chunk in append order with
+    /// its capture offset and kind ('o' output / 'r' resize).
+    /// Pre-migration chunks come back with `offset_ms = None`.
+    pub fn get_session_events(
+        &self,
+        id: &Uuid,
+    ) -> Result<Vec<SessionLogEvent>, VaultError> {
+        let id_str = id.to_string();
+        let legacy: Option<Vec<u8>> = self
+            .db
+            .query_row(
+                "SELECT data FROM session_logs WHERE id = ?1",
+                params![id_str],
+                |row| row.get(0),
+            )
+            .map_err(|_| VaultError::NotFound(format!("Session log {}", id)))?;
+        let key = self.session_log_key().ok();
+        let mut events: Vec<SessionLogEvent> = Vec::new();
+        if let Some(data) = legacy.filter(|d| !d.is_empty()) {
+            events.push(SessionLogEvent { offset_ms: None, kind: 'o', data });
+        }
+        let mut stmt = self.db.prepare(
+            "SELECT data, offset_ms, kind FROM session_log_chunks
+             WHERE log_id = ?1 ORDER BY id",
+        )?;
+        let rows = stmt.query_map(params![id_str], |row| {
+            Ok((
+                row.get::<_, Vec<u8>>(0)?,
+                row.get::<_, Option<i64>>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        for row in rows {
+            let (chunk, offset_ms, kind) = row?;
+            let data = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
+                Some(plain) => plain,
+                None => chunk,
+            };
+            events.push(SessionLogEvent {
+                offset_ms,
+                kind: if kind == "r" { 'r' } else { 'o' },
+                data,
+            });
+        }
+        Ok(events)
     }
 
     /// Delete a session log and its recorded chunks.

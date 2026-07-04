@@ -15,6 +15,12 @@ use crate::util::{ctrl_key_bytes, key_to_named_bytes};
 /// RAM unbounded between the periodic flush ticks.
 const SESSION_LOG_FLUSH_BYTES: usize = 64 * 1024;
 
+/// Minimum gap between arrival marks for the flush to cut a separate
+/// timed chunk (asciicast replay step). Bursty output (a compile, a
+/// `find /`) coalesces into a few chunks per second instead of one
+/// vault row per PTY read; interactive pauses stay visible.
+const SESSION_LOG_SEGMENT_MS: i64 = 250;
+
 impl Oryxis {
     /// Drain every pane's recorded-output buffer into the vault, one
     /// append per pane. Driven by the size threshold, the flush tick,
@@ -52,7 +58,9 @@ impl Oryxis {
     }
 
     fn flush_session_logs_inner(&mut self, final_flush: bool) {
-        let mut pending: Vec<(uuid::Uuid, Vec<u8>)> = Vec::new();
+        // (log id, offset_ms, bytes) output chunks + pending resizes.
+        let mut pending: Vec<(uuid::Uuid, Option<i64>, Vec<u8>)> = Vec::new();
+        let mut resizes: Vec<(uuid::Uuid, i64, u16, u16)> = Vec::new();
         for tab in &mut self.tabs {
             for pane in tab.pane_grid.panes.values_mut() {
                 if let Some(log_id) = pane.session_log_id
@@ -74,18 +82,89 @@ impl Oryxis {
                     }
                     let tail = buf.split_off(take);
                     let head = std::mem::replace(buf, tail);
-                    pending.push((log_id, head));
+                    // Partition the arrival marks: the head's marks
+                    // drive the timed segments below; the tail's are
+                    // rebased, keeping a mark at 0 so carried-over
+                    // bytes don't lose their arrival time.
+                    let mut head_marks: Vec<(usize, i64)> = Vec::new();
+                    let mut tail_marks: Vec<(usize, i64)> = Vec::new();
+                    for (pos, ms) in pane.session_log_marks.drain(..) {
+                        if pos < take {
+                            head_marks.push((pos, ms));
+                        } else {
+                            tail_marks.push((pos - take, ms));
+                        }
+                    }
+                    if !pane.session_log_buf.is_empty()
+                        && tail_marks.first().is_none_or(|m| m.0 > 0)
+                    {
+                        let carry_ms = head_marks.last().map(|m| m.1).unwrap_or(0);
+                        tail_marks.insert(0, (0, carry_ms));
+                    }
+                    pane.session_log_marks = tail_marks;
+                    // Timed segments: cut ONLY at newline-aligned mark
+                    // positions (redaction patterns never span a chunk,
+                    // and today's chunks are newline-bounded; smaller
+                    // newline-bounded chunks keep that guarantee) and
+                    // only when the gap is worth a replay step.
+                    let mut segs: Vec<(usize, i64)> = Vec::new();
+                    for (pos, ms) in head_marks {
+                        match segs.last() {
+                            None => segs.push((0, ms)),
+                            Some(&(_, prev_ms)) => {
+                                if pos > 0
+                                    && pos < head.len()
+                                    && head[pos - 1] == b'\n'
+                                    && ms - prev_ms >= SESSION_LOG_SEGMENT_MS
+                                {
+                                    segs.push((pos, ms));
+                                }
+                            }
+                        }
+                    }
+                    if segs.is_empty() {
+                        segs.push((0, 0));
+                    }
+                    for (i, &(start, ms)) in segs.iter().enumerate() {
+                        let end = segs.get(i + 1).map(|s| s.0).unwrap_or(head.len());
+                        pending.push((log_id, Some(ms), head[start..end].to_vec()));
+                    }
+                    // Geometry check rides the flush cadence: cheap, and
+                    // a resize between flushes still lands close enough
+                    // for replay. The first flush records the initial
+                    // size (the asciicast header reads it back).
+                    let size = pane
+                        .terminal
+                        .lock()
+                        .ok()
+                        .map(|s| (s.cols(), s.rows()))
+                        .filter(|&(c, r)| c > 0 && r > 0);
+                    if let Some((cols, rows)) = size
+                        && pane.session_log_last_size != Some((cols, rows))
+                    {
+                        pane.session_log_last_size = Some((cols, rows));
+                        let now_ms = pane
+                            .session_log_t0
+                            .map(|t| t.elapsed().as_millis() as i64)
+                            .unwrap_or(0);
+                        resizes.push((log_id, now_ms, cols, rows));
+                    }
                 }
             }
         }
-        if pending.is_empty() {
+        if pending.is_empty() && resizes.is_empty() {
             return;
         }
         if let Some(vault) = &self.vault {
-            for (log_id, bytes) in pending {
+            for (log_id, offset_ms, bytes) in pending {
                 let scrubbed = crate::session_redact::redact_secrets(&bytes);
-                if let Err(e) = vault.append_session_data(&log_id, &scrubbed) {
+                if let Err(e) = vault.append_session_data(&log_id, &scrubbed, offset_ms) {
                     tracing::warn!("session log append failed for {log_id}: {e}");
+                }
+            }
+            for (log_id, offset_ms, cols, rows) in resizes {
+                if let Err(e) = vault.append_session_resize(&log_id, offset_ms, cols, rows) {
+                    tracing::warn!("session resize append failed for {log_id}: {e}");
                 }
             }
         }
@@ -339,7 +418,16 @@ impl Oryxis {
                     // Buffer the bytes; the vault write is batched (see
                     // `flush_session_logs`). Flush early once the buffer
                     // grows large so a burst doesn't balloon in RAM.
+                    // Each batch leaves an arrival mark so the flush can
+                    // stamp real replay timing onto the stored chunks.
                     if pane.session_log_id.is_some() {
+                        let t0 = *pane
+                            .session_log_t0
+                            .get_or_insert_with(std::time::Instant::now);
+                        pane.session_log_marks.push((
+                            pane.session_log_buf.len(),
+                            t0.elapsed().as_millis() as i64,
+                        ));
                         pane.session_log_buf.extend_from_slice(&bytes);
                         over_threshold =
                             pane.session_log_buf.len() >= SESSION_LOG_FLUSH_BYTES;

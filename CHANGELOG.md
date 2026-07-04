@@ -26,6 +26,17 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   commands to a `.txt` of your choosing, and an optional setting
   live-appends every captured command to a per-host log file under a
   configurable folder (default `~/.oryxis/command-history/`).
+- **Session recording export (asciinema-compatible).** The encrypted
+  session logs the vault already keeps now record real timing (chunk
+  offsets stamped at capture, per-line replay steps, terminal resizes)
+  and any session exports from the History screen as a standard
+  asciicast v2 `.cast` file, replayable in the asciinema player, or as
+  a plain-text transcript (ANSI resolved by the same renderer the
+  in-app viewer uses). Output-only by design: keystrokes are never
+  recorded, so the input-leak class doesn't exist. Sessions recorded
+  before this release still export, replayed with a small fixed delta
+  instead of real pacing. Note: exports carry the raw recording;
+  Privacy Mode masking is display-only.
 - **TOTP 2FA in the vault.** Store a per-host TOTP secret (bare base32
   or a full `otpauth://` URI) encrypted like every other credential;
   keyboard-interactive verification-code prompts are answered

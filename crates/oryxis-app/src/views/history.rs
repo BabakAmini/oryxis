@@ -581,12 +581,82 @@ impl Oryxis {
             }
         };
 
-        // Trailing controls. Session rows: timestamp then Delete in
+        // Trailing controls. Session rows: timestamp, the two export
+        // actions (.cast replay / plain transcript), then Delete in
         // the last column; opening the recording is the row click
         // itself (no View button). Failure rows: timestamp only.
         let trailing: Element<'_, Message> = match &row.kind {
-            TimelineKind::Session { idx, .. } => {
+            TimelineKind::Session { idx, entry } => {
                 let idx = *idx;
+                let log_id = entry.id;
+                // Neutral outline icon buttons, same chrome family as
+                // Delete. The tooltips carry the privacy caveat: the
+                // recording holds the raw session bytes, Privacy Mode
+                // masking is display-only.
+                let export_btn = |icon: iced::widget::Text<'static>,
+                                  msg: Message,
+                                  tip: String|
+                 -> Element<'static, Message> {
+                    iced::widget::tooltip(
+                        button(
+                            container(icon.size(12).color(OryxisColors::t().text_secondary))
+                                .padding(Padding {
+                                    top: 4.0, right: 8.0, bottom: 4.0, left: 8.0,
+                                }),
+                        )
+                        .on_press(msg)
+                        .style(|_, status| {
+                            let bg = match status {
+                                BtnStatus::Hovered | BtnStatus::Pressed => {
+                                    OryxisColors::t().bg_hover
+                                }
+                                _ => Color::TRANSPARENT,
+                            };
+                            button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border {
+                                    radius: Radius::from(6.0),
+                                    color: OryxisColors::t().border,
+                                    width: 1.0,
+                                },
+                                ..Default::default()
+                            }
+                        }),
+                        container(
+                            text(tip).size(11).color(OryxisColors::t().text_primary),
+                        )
+                        .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+                        .style(|_| container::Style {
+                            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                            border: Border {
+                                radius: Radius::from(6.0),
+                                color: OryxisColors::t().border,
+                                width: 1.0,
+                            },
+                            ..Default::default()
+                        }),
+                        iced::widget::tooltip::Position::Top,
+                    )
+                    .into()
+                };
+                let cast_btn = export_btn(
+                    iced_fonts::lucide::film(),
+                    Message::ExportSessionCast(log_id),
+                    format!(
+                        "{}\n{}",
+                        crate::i18n::t("export_cast_tip"),
+                        crate::i18n::t("session_export_privacy_note")
+                    ),
+                );
+                let transcript_btn = export_btn(
+                    iced_fonts::lucide::file_text(),
+                    Message::ExportSessionTranscript(log_id),
+                    format!(
+                        "{}\n{}",
+                        crate::i18n::t("export_transcript_tip"),
+                        crate::i18n::t("session_export_privacy_note")
+                    ),
+                );
                 let delete_btn = button(
                     container(
                         text(crate::i18n::t("delete"))
@@ -619,6 +689,10 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted)
                         .into(),
                     Space::new().width(12).into(),
+                    cast_btn,
+                    Space::new().width(4).into(),
+                    transcript_btn,
+                    Space::new().width(8).into(),
                     delete_btn.into(),
                 ])
                 .align_y(iced::Alignment::Center)

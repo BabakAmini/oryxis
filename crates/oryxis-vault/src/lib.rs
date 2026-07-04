@@ -5,6 +5,7 @@ pub mod store;
 pub use keygen::{generate_ed25519, import_key, is_key_encrypted, GeneratedKey};
 pub use portable::{export_vault, import_vault, inspect_export, is_valid_export, export_includes_keys, ExportCategory, ExportFilter, ExportOptions, ExportSelection, ExportSummary, ImportResult};
 pub use store::{
-    derive_sync_secret, CommandHistoryEntry, SessionLogEntry, SyncPeerRow, Tombstone,
+    derive_sync_secret, CommandHistoryEntry, SessionLogEntry, SessionLogEvent, SyncPeerRow,
+    Tombstone,
     VaultError, VaultStore,
 };

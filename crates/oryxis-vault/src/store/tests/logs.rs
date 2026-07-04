@@ -6,8 +6,8 @@ fn session_log_roundtrips_appended_chunks() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"first chunk\n").unwrap();
-    vault.append_session_data(&log_id, b"second chunk\n").unwrap();
+    vault.append_session_data(&log_id, b"first chunk\n", None).unwrap();
+    vault.append_session_data(&log_id, b"second chunk\n", None).unwrap();
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"first chunk\nsecond chunk\n");
 }
@@ -20,7 +20,7 @@ fn session_log_chunks_are_not_stored_in_the_clear() {
     let conn_id = Uuid::new_v4();
     let marker = b"TOP-SECRET-OUTPUT-MARKER";
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, marker).unwrap();
+    vault.append_session_data(&log_id, marker, None).unwrap();
     // Structural check straight against the column: the stored blob
     // must not contain the recorded bytes.
     let raw: Vec<u8> = vault
@@ -47,12 +47,12 @@ fn session_log_chunks_survive_master_password_change() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"before change\n").unwrap();
+    vault.append_session_data(&log_id, b"before change\n", None).unwrap();
     vault.set_user_password("brand-new-password").unwrap();
     // Drop the cached content key to force a re-unwrap with the new
     // master key, as a fresh process would.
     *vault.session_log_key.lock().unwrap() = None;
-    vault.append_session_data(&log_id, b"after change\n").unwrap();
+    vault.append_session_data(&log_id, b"after change\n", None).unwrap();
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"before change\nafter change\n");
 }
@@ -69,11 +69,11 @@ fn session_log_chunks_concatenate_in_append_order() {
 
     // Append in three writes; the recorded stream must read back as
     // the exact byte-for-byte concatenation, in order.
-    vault.append_session_data(&log_id, b"$ apt update\n").unwrap();
-    vault.append_session_data(&log_id, b"Hit:1 http://deb\n").unwrap();
-    vault.append_session_data(&log_id, b"Reading package lists\n").unwrap();
+    vault.append_session_data(&log_id, b"$ apt update\n", None).unwrap();
+    vault.append_session_data(&log_id, b"Hit:1 http://deb\n", None).unwrap();
+    vault.append_session_data(&log_id, b"Reading package lists\n", None).unwrap();
     // Empty appends are no-ops, never a stray zero-length chunk.
-    vault.append_session_data(&log_id, b"").unwrap();
+    vault.append_session_data(&log_id, b"", None).unwrap();
 
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(
@@ -111,7 +111,7 @@ fn session_log_reads_legacy_inline_blob_then_chunks() {
             params![b"OLD".to_vec(), log_id.to_string()],
         )
         .unwrap();
-    vault.append_session_data(&log_id, b"NEW").unwrap();
+    vault.append_session_data(&log_id, b"NEW", None).unwrap();
 
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"OLDNEW");
@@ -134,7 +134,7 @@ fn deleting_session_log_drops_its_chunks() {
     vault
         .create_session_log(&log_id, &Uuid::new_v4(), "doomed")
         .unwrap();
-    vault.append_session_data(&log_id, b"transient").unwrap();
+    vault.append_session_data(&log_id, b"transient", None).unwrap();
 
     vault.delete_session_log(&log_id).unwrap();
 
@@ -198,3 +198,56 @@ fn logs_limit_works() {
 
 // ── MCP enabled field ──
 
+
+#[test]
+fn session_events_carry_offsets_and_kinds() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_resize(&log_id, 0, 120, 30).unwrap();
+    vault.append_session_data(&log_id, b"$ ls\n", Some(150)).unwrap();
+    vault.append_session_data(&log_id, b"README\n", Some(400)).unwrap();
+    vault.append_session_resize(&log_id, 900, 100, 40).unwrap();
+
+    let events = vault.get_session_events(&log_id).unwrap();
+    assert_eq!(events.len(), 4);
+    assert_eq!(events[0].kind, 'r');
+    assert_eq!(events[0].offset_ms, Some(0));
+    assert_eq!(events[0].data, b"120x30");
+    assert_eq!(events[1].kind, 'o');
+    assert_eq!(events[1].offset_ms, Some(150));
+    assert_eq!(events[1].data, b"$ ls\n");
+    assert_eq!(events[3].kind, 'r');
+    assert_eq!(events[3].data, b"100x40");
+}
+
+#[test]
+fn resize_events_stay_out_of_the_byte_stream() {
+    // `get_session_data` reconstructs what the terminal received;
+    // resize rows are replay metadata and must never leak into it.
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_data(&log_id, b"before ", Some(10)).unwrap();
+    vault.append_session_resize(&log_id, 20, 90, 25).unwrap();
+    vault.append_session_data(&log_id, b"after\n", Some(30)).unwrap();
+    let data = vault.get_session_data(&log_id).unwrap().unwrap();
+    assert_eq!(data, b"before after\n");
+}
+
+#[test]
+fn untimed_chunks_read_back_with_no_offset() {
+    // Pre-migration rows have NULL offsets; the export layer gives
+    // them a fixed replay delta, the store must not invent timing.
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_data(&log_id, b"legacy\n", None).unwrap();
+    let events = vault.get_session_events(&log_id).unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].offset_ms, None);
+    assert_eq!(events[0].kind, 'o');
+}
