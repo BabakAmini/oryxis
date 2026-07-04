@@ -35,14 +35,13 @@ impl Oryxis {
         if !configured.is_empty() {
             return std::path::PathBuf::from(configured);
         }
-        dirs::download_dir()
-            .or_else(dirs::home_dir)
+        if let Some(dir) = dirs::download_dir() {
+            return dir;
+        }
+        dirs::home_dir()
             .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join(if dirs::download_dir().is_some() {
-                ""
-            } else {
-                ".oryxis/downloads"
-            })
+            .join(".oryxis")
+            .join("downloads")
     }
 
     /// Begin a ZMODEM transfer on `pane_id` after the detector fired.
@@ -100,7 +99,25 @@ impl Oryxis {
             64,
             move |mut out: iced::futures::channel::mpsc::Sender<Message>| async move {
                 let spec = match direction {
-                    Direction::Download => Some(TransferSpec::Download { dest_dir }),
+                    Direction::Download => {
+                        // The destination (a configured folder or the
+                        // default `~/Downloads` / `~/.oryxis/downloads`)
+                        // may not exist yet; the driver's `File::create`
+                        // would fail without its parent. Make it first.
+                        if let Err(e) = tokio::fs::create_dir_all(&dest_dir).await {
+                            let _ = out
+                                .send(Message::ZmodemProgress(
+                                    pane_id,
+                                    Progress::Error(format!(
+                                        "download folder {}: {e}",
+                                        dest_dir.display()
+                                    )),
+                                ))
+                                .await;
+                            return;
+                        }
+                        Some(TransferSpec::Download { dest_dir })
+                    }
                     Direction::Upload => {
                         match rfd::AsyncFileDialog::new().pick_file().await {
                             Some(handle) => Some(TransferSpec::Upload {
