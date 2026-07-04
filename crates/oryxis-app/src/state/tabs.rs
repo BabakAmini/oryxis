@@ -59,6 +59,7 @@ pub(crate) struct PendingCapture {
 pub(crate) enum TerminalTransport {
     Ssh(Arc<SshSession>),
     Telnet(Arc<oryxis_telnet::TelnetSession>),
+    Serial(Arc<oryxis_serial::SerialSession>),
 }
 
 impl TerminalTransport {
@@ -66,7 +67,7 @@ impl TerminalTransport {
     pub fn ssh(&self) -> Option<&Arc<SshSession>> {
         match self {
             TerminalTransport::Ssh(s) => Some(s),
-            TerminalTransport::Telnet(_) => None,
+            TerminalTransport::Telnet(_) | TerminalTransport::Serial(_) => None,
         }
     }
 
@@ -74,6 +75,7 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => s.write(data).map_err(|e| e.to_string()),
             TerminalTransport::Telnet(s) => s.write(data).map_err(|e| e.to_string()),
+            TerminalTransport::Serial(s) => s.write(data).map_err(|e| e.to_string()),
         }
     }
 
@@ -81,15 +83,19 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => s.resize(cols, rows),
             TerminalTransport::Telnet(s) => s.resize(cols, rows),
+            // A serial line has no window size; resize is a no-op.
+            TerminalTransport::Serial(_) => {}
         }
     }
 
     /// Clone of the resize sender (SSH window-change / Telnet NAWS) so
-    /// the terminal state forwards viewport changes directly.
-    pub fn resize_sender(&self) -> tokio::sync::mpsc::UnboundedSender<(u16, u16)> {
+    /// the terminal state forwards viewport changes directly. `None`
+    /// for serial, which has no viewport concept.
+    pub fn resize_sender(&self) -> Option<tokio::sync::mpsc::UnboundedSender<(u16, u16)>> {
         match self {
-            TerminalTransport::Ssh(s) => s.resize_sender(),
-            TerminalTransport::Telnet(s) => s.resize_sender(),
+            TerminalTransport::Ssh(s) => Some(s.resize_sender()),
+            TerminalTransport::Telnet(s) => Some(s.resize_sender()),
+            TerminalTransport::Serial(_) => None,
         }
     }
 
@@ -99,6 +105,7 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => s.write_sender(),
             TerminalTransport::Telnet(s) => s.write_sender(),
+            TerminalTransport::Serial(s) => s.write_sender(),
         }
     }
 
@@ -106,14 +113,16 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => s.is_alive(),
             TerminalTransport::Telnet(s) => s.is_alive(),
+            TerminalTransport::Serial(s) => s.is_alive(),
         }
     }
 
-    /// Tear the session down (idempotent on both arms).
+    /// Tear the session down (idempotent on every arm).
     pub fn close(&self) {
         match self {
             TerminalTransport::Ssh(s) => s.close(),
             TerminalTransport::Telnet(s) => s.close(),
+            TerminalTransport::Serial(s) => s.close(),
         }
     }
 }

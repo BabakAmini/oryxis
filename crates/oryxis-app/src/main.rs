@@ -44,6 +44,7 @@ mod dispatch_sftp_files;
 mod dispatch_sftp_sync;
 mod dispatch_sftp_transfers;
 mod dispatch_share;
+mod dispatch_serial;
 mod dispatch_ssh;
 mod dispatch_tabs;
 mod dispatch_telnet;

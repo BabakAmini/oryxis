@@ -30,14 +30,19 @@ impl Oryxis {
         // algorithms, initial command); the reduced form keeps only
         // label/parent/tags, host/port, username/password, encoding and
         // the terminal theme. `is_ssh` gates every SSH-only piece below.
-        let is_ssh = self.editor_form.protocol
-            == oryxis_core::models::connection::ConnectionProtocol::Ssh;
+        use oryxis_core::models::connection::ConnectionProtocol as Proto;
+        let is_ssh = self.editor_form.protocol == Proto::Ssh;
+        // Serial is even more reduced than Telnet: no auth (no
+        // username/password), no numeric port, and its own line-param
+        // block instead. `is_serial` additionally gates the shared
+        // credentials + numeric-port widgets off.
+        let is_serial = self.editor_form.protocol == Proto::Serial;
         // SSH-only rows (Authentication / Network / Integration) are
-        // GATED on `is_ssh`: the reduced Telnet form drops them, and
-        // because `panel_nav_slot` records at build time, an ungated
-        // build would record invisible Tab targets. Each SSH-only local
-        // resolves to this empty element on Telnet so the keyboard walk
-        // only ever sees visible rows.
+        // GATED on `is_ssh`: the reduced Telnet / Serial forms drop
+        // them, and because `panel_nav_slot` records at build time, an
+        // ungated build would record invisible Tab targets. Each gated
+        // local resolves to this empty element so the keyboard walk only
+        // ever sees visible rows.
         let empty = || -> Element<'_, Message> { Space::new().height(0).into() };
 
         // ── Header ──
@@ -189,7 +194,10 @@ impl Oryxis {
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-hostname")),
                 10.0,
-                text_input(t("ip_or_hostname"), &self.editor_form.hostname)
+                text_input(
+                    if is_serial { t("serial_port_path_ph") } else { t("ip_or_hostname") },
+                    &self.editor_form.hostname,
+                )
                     .id(iced::widget::Id::new("editor-hostname"))
                     .on_input(Message::EditorHostnameChanged)
                     .on_submit(Message::EditorSave)
@@ -201,13 +209,12 @@ impl Oryxis {
         // Protocol picker (Connection). A cloud-imported host has its own
         // transport picker below and is always SSH-family, so the two are
         // mutually exclusive: hide the protocol picker on cloud hosts.
-        use oryxis_core::models::connection::ConnectionProtocol;
         let protocol_row: Option<Element<'_, Message>> = if self.editor_form.cloud_transport
             .is_some()
         {
             None
         } else {
-            let options = vec![ConnectionProtocol::Ssh, ConnectionProtocol::Telnet];
+            let options = vec![Proto::Ssh, Proto::Telnet, Proto::Serial];
             let picker = self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-protocol")),
                 crate::widgets::INPUT_RADIUS,
@@ -285,23 +292,33 @@ impl Oryxis {
         // the assembly lays them out so keyboard rows record in visual
         // order.
 
-        // Port input, dropped inline into the SSH card header
-        // ("SSH ........ [22] port").
-        let port_input: Element<'_, Message> = self.panel_nav_slot(
-            crate::keynav::RowAction::input(iced::widget::Id::new("editor-port")),
-            10.0,
-            text_input("22", &self.editor_form.port)
-                .id(iced::widget::Id::new("editor-port"))
-                .on_input(Message::EditorPortChanged)
-                .on_submit(Message::EditorSave)
-                .padding(6)
-                .width(56)
-                .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
-        );
+        // Numeric port, dropped inline into the SSH/Telnet card header
+        // ("SSH ........ [22] port"). Serial has no TCP port, so it is
+        // gated off (empty) and the serial header omits it.
+        let port_input: Element<'_, Message> = if is_serial {
+            empty()
+        } else {
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-port")),
+                10.0,
+                text_input("22", &self.editor_form.port)
+                    .id(iced::widget::Id::new("editor-port"))
+                    .on_input(Message::EditorPortChanged)
+                    .on_submit(Message::EditorSave)
+                    .padding(6)
+                    .width(56)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+            )
+        };
 
         // Credentials column: username, then identity suggestions, then
         // either the "managed by identity" banner is hoisted to the SSH
         // Authentication group, or the password row is appended below.
+        // Gated off for Serial, which has no auth (and whose param block
+        // replaces it); building it there would record dead Tab targets.
+        let cred_items: Element<'_, Message> = if is_serial {
+            empty()
+        } else {
         let mut cred_items = column![
             dir_row(vec![
                 iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
@@ -512,6 +529,197 @@ impl Oryxis {
                 ]).align_y(iced::Alignment::Center).into(),
             ));
         }
+        cred_items.into()
+        };
+
+        // Serial line parameters (reduced Serial form). Built here, after
+        // the credentials region and before the terminal card, so the
+        // keynav walk records them right after the protocol picker.
+        // Gated off (empty) for non-serial protocols so they never
+        // record invisible Tab targets.
+        let serial_params_block: Element<'_, Message> = if is_serial {
+            use oryxis_core::models::serial::{
+                SerialFlowControl, SerialLineEnding, SerialParity, SerialStopBits,
+                COMMON_BAUD_RATES,
+            };
+            let p = self.editor_form.serial.unwrap_or_default();
+            let radius = crate::widgets::INPUT_RADIUS;
+            // Baud: common rates (the model still accepts any u32).
+            let baud_row = panel_option_row(
+                iced_fonts::lucide::gauge(),
+                t("serial_baud"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-baud")),
+                    radius,
+                    pick_list(Some(p.baud), COMMON_BAUD_RATES.to_vec(), |b: &u32| b.to_string())
+                        .on_select(Message::EditorSerialBaudChanged)
+                        .id(iced::widget::Id::new("editor-serial-baud"))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                ),
+            );
+            let data_bits_row = panel_option_row(
+                iced_fonts::lucide::binary(),
+                t("serial_data_bits"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-data")),
+                    radius,
+                    pick_list(Some(p.data_bits), vec![8u8, 7, 6, 5], |n: &u8| n.to_string())
+                        .on_select(Message::EditorSerialDataBitsChanged)
+                        .id(iced::widget::Id::new("editor-serial-data"))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                ),
+            );
+            let parity_row = panel_option_row(
+                iced_fonts::lucide::sigma(),
+                t("serial_parity"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-parity")),
+                    radius,
+                    pick_list(
+                        Some(p.parity),
+                        vec![SerialParity::None, SerialParity::Odd, SerialParity::Even],
+                        |v: &SerialParity| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialParityChanged)
+                    .id(iced::widget::Id::new("editor-serial-parity"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let stop_row = panel_option_row(
+                iced_fonts::lucide::octagon_pause(),
+                t("serial_stop_bits"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-stop")),
+                    radius,
+                    pick_list(
+                        Some(p.stop_bits),
+                        vec![SerialStopBits::One, SerialStopBits::Two],
+                        |v: &SerialStopBits| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialStopBitsChanged)
+                    .id(iced::widget::Id::new("editor-serial-stop"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let flow_row = panel_option_row(
+                iced_fonts::lucide::waves(),
+                t("serial_flow_control"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-flow")),
+                    radius,
+                    pick_list(
+                        Some(p.flow_control),
+                        vec![
+                            SerialFlowControl::None,
+                            SerialFlowControl::Software,
+                            SerialFlowControl::Hardware,
+                        ],
+                        |v: &SerialFlowControl| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialFlowChanged)
+                    .id(iced::widget::Id::new("editor-serial-flow"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(140)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let line_ending_row = panel_option_row(
+                iced_fonts::lucide::corner_down_left(),
+                t("serial_line_ending"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-eol")),
+                    radius,
+                    pick_list(
+                        Some(p.line_ending),
+                        vec![
+                            SerialLineEnding::Cr,
+                            SerialLineEnding::Lf,
+                            SerialLineEnding::CrLf,
+                        ],
+                        |v: &SerialLineEnding| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialLineEndingChanged)
+                    .id(iced::widget::Id::new("editor-serial-eol"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            // Local echo: ON/OFF toggle (raw serial has no ECHO
+            // negotiation, so a non-echoing device shows nothing typed
+            // until this is on).
+            let echo_row = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorSerialLocalEchoToggled),
+                8.0,
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::eye().size(13).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        text(t("serial_local_echo")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        {
+                            let on = p.local_echo;
+                            let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                            let fg = crate::theme::contrast_text_for(bg);
+                            button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                                .on_press(Message::EditorSerialLocalEchoToggled)
+                                .style(move |_theme, _status| button::Style {
+                                    background: Some(Background::Color(bg)),
+                                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                    text_color: fg,
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    ]).align_y(iced::Alignment::Center)
+                )
+                .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+            );
+            column![
+                baud_row,
+                Space::new().height(ROW_GAP),
+                data_bits_row,
+                Space::new().height(ROW_GAP),
+                parity_row,
+                Space::new().height(ROW_GAP),
+                stop_row,
+                Space::new().height(ROW_GAP),
+                flow_row,
+                Space::new().height(ROW_GAP),
+                line_ending_row,
+                Space::new().height(ROW_GAP),
+                echo_row,
+            ]
+            .into()
+        } else {
+            empty()
+        };
 
         // ── Section: Advanced Options ──
         // Chain summary for the "Host Chaining" row: the hop labels
@@ -1476,14 +1684,31 @@ impl Oryxis {
         // accent label names the active protocol so the card reads the
         // same whether it holds the full SSH block or the reduced
         // Telnet one.
-        let proto_label = if is_ssh { t("ssh") } else { t("telnet") };
-        let proto_header = dir_row(vec![
-            text(proto_label).size(14).color(OryxisColors::t().accent).into(),
-            Space::new().width(Length::Fill).into(),
-            port_input,
-            Space::new().width(8).into(),
-            text(t("port")).size(12).color(OryxisColors::t().text_muted).into(),
-        ]).align_y(iced::Alignment::Center);
+        let proto_label = if is_ssh {
+            t("ssh")
+        } else if is_serial {
+            t("serial")
+        } else {
+            t("telnet")
+        };
+        // Serial has no numeric port, so its header is just the label;
+        // SSH/Telnet append the "[22] port" field.
+        let proto_header = if is_serial {
+            dir_row(vec![
+                text(proto_label).size(14).color(OryxisColors::t().accent).into(),
+                Space::new().width(Length::Fill).into(),
+            ])
+            .align_y(iced::Alignment::Center)
+        } else {
+            dir_row(vec![
+                text(proto_label).size(14).color(OryxisColors::t().accent).into(),
+                Space::new().width(Length::Fill).into(),
+                port_input,
+                Space::new().width(8).into(),
+                text(t("port")).size(12).color(OryxisColors::t().text_muted).into(),
+            ])
+            .align_y(iced::Alignment::Center)
+        };
 
         // Protocol card. SSH holds the full block (Credentials,
         // Authentication, Network, Integration, initial command); Telnet
@@ -1533,6 +1758,16 @@ impl Oryxis {
                 .push(group_sep())
                 .push(startup_block);
             panel_section(ssh_col)
+        } else if is_serial {
+            // Serial card: the line-parameter block under the header.
+            // No credentials (serial has no auth); the port path lives
+            // in the Host card's connection target above.
+            let serial_col = column![proto_header]
+                .push(group_sep())
+                .push(section_header(t("serial_line")))
+                .push(Space::new().height(ROW_GAP))
+                .push(serial_params_block);
+            panel_section(serial_col)
         } else {
             // Telnet cleartext note: honest UX, not a lecture. The user
             // is the only party on the path without a secure option.

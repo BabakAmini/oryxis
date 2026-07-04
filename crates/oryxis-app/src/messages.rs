@@ -481,6 +481,15 @@ pub enum Message {
     /// swaps the reduced form and, when the port still holds the old
     /// protocol's default, retargets it (22 <-> 23).
     EditorProtocolChanged(oryxis_core::models::connection::ConnectionProtocol),
+    // Serial line params (reduced Serial form). Each carries the typed
+    // value; the handler materializes `SerialParams` defaults first.
+    EditorSerialBaudChanged(u32),
+    EditorSerialDataBitsChanged(u8),
+    EditorSerialParityChanged(oryxis_core::models::serial::SerialParity),
+    EditorSerialStopBitsChanged(oryxis_core::models::serial::SerialStopBits),
+    EditorSerialFlowChanged(oryxis_core::models::serial::SerialFlowControl),
+    EditorSerialLineEndingChanged(oryxis_core::models::serial::SerialLineEnding),
+    EditorSerialLocalEchoToggled,
     EditorPortChanged(String),
     EditorUsernameChanged(String),
     EditorPasswordChanged(String),

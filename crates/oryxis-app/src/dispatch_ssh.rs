@@ -237,7 +237,11 @@ impl Oryxis {
                     if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id) {
                         pane.session = Some(session.clone());
                         if let Ok(mut state) = pane.terminal.lock() {
-                            state.set_remote_resize_sender(session.resize_sender());
+                            // Serial has no viewport, so no resize sender;
+                            // SSH/Telnet forward window changes to the peer.
+                            if let Some(rtx) = session.resize_sender() {
+                                state.set_remote_resize_sender(rtx);
+                            }
                             // Query replies (cursor position, DECRQM, ...) must
                             // reach the remote: programs block waiting for them
                             // (issue #48, docker compose's raw-mode prompt).
@@ -994,10 +998,16 @@ impl Oryxis {
         {
             return self.start_ssm_session_for_connection(&conn);
         }
-        // Telnet hosts branch to their own (much thinner) connect path:
-        // no SSH engine, no host keys, no jump chains.
-        if conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Telnet {
-            return self.start_telnet_tab(conn, origin);
+        // Telnet / Serial hosts branch to their own (much thinner)
+        // connect paths: no SSH engine, no host keys, no jump chains.
+        match conn.protocol {
+            oryxis_core::models::connection::ConnectionProtocol::Telnet => {
+                return self.start_telnet_tab(conn, origin);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Serial => {
+                return self.start_serial_tab(conn, origin);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
         // Resolve the effective proxy (saved identity OR inline)
         // and hydrate its password from the encrypted vault column,
@@ -1811,10 +1821,16 @@ impl Oryxis {
         tab_idx: usize,
         pane_id: Uuid,
     ) -> Task<Message> {
-        // Telnet hosts take their own thin connect path (raw TCP dial,
-        // no SSH engine); split panes and in-place reconnects included.
-        if conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Telnet {
-            return self.spawn_telnet_for_pane_conn(conn, quick_id, tab_idx, pane_id);
+        // Telnet / Serial hosts take their own thin connect paths (no
+        // SSH engine); split panes and in-place reconnects included.
+        match conn.protocol {
+            oryxis_core::models::connection::ConnectionProtocol::Telnet => {
+                return self.spawn_telnet_for_pane_conn(conn, quick_id, tab_idx, pane_id);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Serial => {
+                return self.spawn_serial_for_pane_conn(conn, tab_idx, pane_id);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
         if let Some(vault) = self.vault.as_ref() {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();

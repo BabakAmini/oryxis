@@ -211,6 +211,16 @@ impl Oryxis {
 
         conn.label = self.editor_form.label.clone();
         conn.protocol = self.editor_form.protocol;
+        // Serial params are only meaningful on a Serial host; clear them
+        // otherwise so a host switched away from Serial doesn't carry a
+        // stale config.
+        conn.serial = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Serial
+        {
+            Some(self.editor_form.serial.unwrap_or_default())
+        } else {
+            None
+        };
         conn.hostname = self.editor_form.hostname.clone();
         conn.port = port;
         conn.username = if self.editor_form.username.is_empty() {
@@ -383,6 +393,7 @@ impl Oryxis {
         ConnectionForm {
             label: conn.label.clone(),
             protocol: conn.protocol,
+            serial: conn.serial,
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
@@ -615,15 +626,51 @@ impl Oryxis {
             Message::EditorProtocolChanged(protocol) => {
                 let prev = self.editor_form.protocol;
                 if prev != protocol {
-                    // Retarget the port only when it still holds the old
-                    // protocol's default, so a user-typed port survives
-                    // the switch untouched.
-                    if self.editor_form.port.trim() == prev.default_port().to_string() {
-                        self.editor_form.port = protocol.default_port().to_string();
+                    // Retarget the numeric port only when both protocols
+                    // use one AND the field still holds the old default,
+                    // so a user-typed port survives the switch untouched.
+                    // Serial has no numeric port (`None`), so switching
+                    // to/from it leaves the field alone (it's hidden).
+                    if let (Some(prev_port), Some(new_port)) =
+                        (prev.default_port(), protocol.default_port())
+                        && self.editor_form.port.trim() == prev_port.to_string()
+                    {
+                        self.editor_form.port = new_port.to_string();
+                    }
+                    // Materialize serial defaults the first time a host
+                    // becomes Serial so the reduced form has values to
+                    // show (9600 8N1).
+                    if protocol == oryxis_core::models::connection::ConnectionProtocol::Serial
+                        && self.editor_form.serial.is_none()
+                    {
+                        self.editor_form.serial =
+                            Some(oryxis_core::models::serial::SerialParams::default());
                     }
                     self.editor_form.protocol = protocol;
                 }
                 self.editor_form.username_focused = false;
+            }
+            Message::EditorSerialBaudChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).baud = v;
+            }
+            Message::EditorSerialDataBitsChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).data_bits = v;
+            }
+            Message::EditorSerialParityChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).parity = v;
+            }
+            Message::EditorSerialStopBitsChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).stop_bits = v;
+            }
+            Message::EditorSerialFlowChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).flow_control = v;
+            }
+            Message::EditorSerialLineEndingChanged(v) => {
+                self.editor_form.serial.get_or_insert_with(Default::default).line_ending = v;
+            }
+            Message::EditorSerialLocalEchoToggled => {
+                let s = self.editor_form.serial.get_or_insert_with(Default::default);
+                s.local_echo = !s.local_echo;
             }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {
