@@ -28,6 +28,7 @@
 use std::sync::Arc;
 
 use iced::Task;
+use oryxis_core::models::Connection;
 use oryxis_ssh::SshEngine;
 
 use crate::app::{Message, Oryxis};
@@ -39,7 +40,6 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::OpenRemoteDesktop(idx) => Ok(self.open_remote_desktop(idx)),
             Message::RemoteDesktopReady(conn_id, seq, res) => {
                 match res {
                     Ok((session, port)) => {
@@ -84,53 +84,103 @@ impl Oryxis {
         }
     }
 
-    /// Build and fire the launch: resolve credentials like every other SSH
-    /// connect, open the ephemeral `-L` forward (prompting for the host key
-    /// if unknown), then spawn the client (or surface a "nothing installed"
-    /// hint).
-    fn open_remote_desktop(&mut self, idx: usize) -> Task<Message> {
+    /// Launch the remote desktop for a `RemoteDesktop` host: tunnel to the
+    /// desktop endpoint (`conn.hostname:conn.port`) through its gateway SSH
+    /// host when `rd_gateway_id` is set (prompting for the gateway's host
+    /// key if unknown), or connect directly when it isn't, then spawn the
+    /// OS-native client. The desktop login (`conn.username`) prefills the
+    /// client; it is NOT the gateway's SSH credential.
+    pub(crate) fn launch_remote_desktop(&mut self, conn: Connection) -> Task<Message> {
         self.card_context_menu = None;
         self.overlay = None;
-        let Some(mut conn) = self.connections.get(idx).cloned() else {
-            return Task::none();
-        };
         use oryxis_core::models::connection::ConnectionProtocol;
-        let Some(rd) = conn.remote_desktop.clone() else {
-            return Task::none();
-        };
-        if conn.protocol != ConnectionProtocol::Ssh {
+        if conn.protocol != ConnectionProtocol::RemoteDesktop {
             return Task::none();
         }
 
+        let kind = conn.rd_kind;
+        let desktop_host = conn.hostname.clone();
+        let desktop_port = conn.port;
+        // The desktop login prefills the client (FreeRDP `/u:`). Empty ->
+        // the client prompts for it.
+        let rd_username = conn.username.clone().filter(|u| !u.trim().is_empty());
+
+        // Resolve the gateway SSH host to tunnel through. A missing / non-SSH
+        // id degrades to a direct connection with a warning (never an error),
+        // mirroring `resolve_proxy`'s dangling-identity handling.
+        let gateway = conn.rd_gateway_id.and_then(|gid| {
+            let g = self
+                .connections
+                .iter()
+                .find(|c| c.id == gid && c.protocol == ConnectionProtocol::Ssh)
+                .cloned();
+            if g.is_none() {
+                tracing::warn!(
+                    "remote-desktop gateway {gid} missing or not SSH; connecting directly"
+                );
+            }
+            g
+        });
+
+        // Direct connection (no SSH gateway): point the client straight at
+        // the desktop endpoint, no tunnel, no managed forward.
+        let Some(mut gw) = gateway else {
+            return match resolve_command(
+                kind,
+                std::env::consts::OS,
+                &desktop_host,
+                desktop_port,
+                rd_username.as_deref(),
+                &program_on_path,
+            ) {
+                Ok(cmd) => match std::process::Command::new(&cmd.program)
+                    .args(&cmd.args)
+                    .spawn()
+                {
+                    Ok(_child) => {
+                        self.toast = Some(
+                            crate::i18n::t("remote_desktop_opening")
+                                .replace("{port}", &desktop_port.to_string()),
+                        );
+                        Task::none()
+                    }
+                    Err(e) => {
+                        self.toast = Some(format!("{}: {e}", cmd.program));
+                        Task::none()
+                    }
+                },
+                Err(no) => {
+                    self.toast = Some(format!(
+                        "{} ({})",
+                        crate::i18n::t("remote_desktop_no_client"),
+                        no.looked_for.join(", ")
+                    ));
+                    Task::none()
+                }
+            };
+        };
+
+        // Gateway path: resolve the GATEWAY's SSH credentials for the tunnel
+        // (distinct from the desktop login above).
         if let Some(vault) = self.vault.as_ref() {
-            conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
+            gw.proxy = vault.resolve_proxy(&gw).ok().flatten();
         }
-        let (password, private_key) = self.resolve_forward_credentials(&conn);
+        let (password, private_key) = self.resolve_forward_credentials(&gw);
         let totp_secret = self
             .vault
             .as_ref()
-            .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
-        let resolver = self.build_jump_resolver(&conn);
+            .and_then(|v| v.get_connection_totp_secret(&gw.id).ok().flatten());
+        let resolver = self.build_jump_resolver(&gw);
         let host_key_check = self.build_host_key_check();
-        let keepalive = self.effective_keepalive(&conn);
-        // The RDP username can prefill the client (FreeRDP `/u:`); reuse
-        // the connect-time resolution (linked identity fills an empty).
-        let username = conn.username.clone().or_else(|| {
-            conn.identity_id.and_then(|iid| {
-                self.identities
-                    .iter()
-                    .find(|i| i.id == iid)
-                    .and_then(|i| i.username.clone())
-            })
-        });
+        let keepalive = self.effective_keepalive(&gw);
+        let username = rd_username;
         let conn_id = conn.id;
-        let kind = rd.kind;
-        let target_host = rd.target_host.clone();
-        let target_port = rd.target_port;
-        let algo_ciphers = conn.ciphers.clone();
-        let algo_kex = conn.kex.clone();
-        let algo_macs = conn.macs.clone();
-        let algo_host_keys = conn.host_key_algorithms.clone();
+        let target_host = desktop_host;
+        let target_port = desktop_port;
+        let algo_ciphers = gw.ciphers.clone();
+        let algo_kex = gw.kex.clone();
+        let algo_macs = gw.macs.clone();
+        let algo_host_keys = gw.host_key_algorithms.clone();
 
         // Launch generation, so a stale result / self-close from a
         // superseded launch can't clobber a newer tunnel for this host.
@@ -202,7 +252,7 @@ impl Oryxis {
                 let outcome: Result<(Arc<oryxis_ssh::ForwardSession>, u16), String> = async {
                     let (session, port) = engine
                         .connect_local_forward_ephemeral(
-                            &conn,
+                            &gw,
                             password.as_deref(),
                             private_key.as_deref(),
                             &target_host,
@@ -218,6 +268,7 @@ impl Oryxis {
                     match resolve_command(
                         kind,
                         std::env::consts::OS,
+                        "127.0.0.1",
                         port,
                         username.as_deref(),
                         &program_on_path,

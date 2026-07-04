@@ -1,15 +1,10 @@
-//! Per-host remote-desktop launch config (RDP / VNC over SSH).
+//! Remote-desktop kind (RDP vs VNC) for a `RemoteDesktop` connection.
 //!
-//! Not a protocol Oryxis speaks: it's a launcher. When set, the host
-//! offers a one-click action that opens a `-L` tunnel through its SSH
-//! connection to `target_host:target_port` and spawns the OS-native
-//! desktop client (mstsc / FreeRDP / Remmina / Microsoft Remote
-//! Desktop / a VNC viewer) pointed at the local end of the tunnel.
-//!
-//! `target_host` is resolved on the SSH *server* side, so the default
-//! `localhost` means "the RDP/VNC service running on the box you SSH
-//! into", the common case (tunnel to a machine's own desktop). A
-//! different value reaches another host on the server's network.
+//! A remote-desktop host is a first-class `Connection` whose `protocol`
+//! is `RemoteDesktop`: `hostname`/`port` are the desktop endpoint,
+//! `username`/`password` its login, and `rd_gateway_id` optionally
+//! routes it through an SSH host (an ephemeral `-L` tunnel). This enum
+//! only picks which client family to launch and the conventional port.
 
 use serde::{Deserialize, Serialize};
 
@@ -37,25 +32,5 @@ impl std::fmt::Display for RemoteDesktopKind {
             RemoteDesktopKind::Rdp => "RDP",
             RemoteDesktopKind::Vnc => "VNC",
         })
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RemoteDesktopConfig {
-    pub kind: RemoteDesktopKind,
-    /// Destination reachable from the SSH server. `localhost` (default)
-    /// targets the SSH host's own desktop service.
-    pub target_host: String,
-    /// Service port on `target_host` (3389 RDP / 5900 VNC by default).
-    pub target_port: u16,
-}
-
-impl Default for RemoteDesktopConfig {
-    fn default() -> Self {
-        RemoteDesktopConfig {
-            kind: RemoteDesktopKind::Rdp,
-            target_host: "localhost".to_string(),
-            target_port: RemoteDesktopKind::Rdp.default_port(),
-        }
     }
 }

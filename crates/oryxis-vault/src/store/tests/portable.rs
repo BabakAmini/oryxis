@@ -95,14 +95,13 @@ fn export_import_protocol_and_serial_round_trip() {
     serial.serial = Some(params);
     vault.save_connection(&serial, None).unwrap();
 
-    // Remote-desktop config rides the same flatten.
-    let rd = oryxis_core::models::remote_desktop::RemoteDesktopConfig {
-        kind: oryxis_core::models::remote_desktop::RemoteDesktopKind::Vnc,
-        target_host: "10.0.0.9".into(),
-        target_port: 5901,
-    };
-    let mut desktop = Connection::new("desk", "box");
-    desktop.remote_desktop = Some(rd.clone());
+    // Remote-desktop host rides the same flatten (kind + gateway).
+    let gateway_id = uuid::Uuid::new_v4();
+    let mut desktop = Connection::new("desk", "10.0.0.9");
+    desktop.protocol = ConnectionProtocol::RemoteDesktop;
+    desktop.port = 5901;
+    desktop.rd_kind = oryxis_core::models::remote_desktop::RemoteDesktopKind::Vnc;
+    desktop.rd_gateway_id = Some(gateway_id);
     vault.save_connection(&desktop, None).unwrap();
 
     let data = export_vault(
@@ -126,7 +125,9 @@ fn export_import_protocol_and_serial_round_trip() {
     assert_eq!(s.protocol, ConnectionProtocol::Serial);
     assert_eq!(s.serial, Some(params));
     let d = conns.iter().find(|c| c.label == "desk").expect("desktop host");
-    assert_eq!(d.remote_desktop, Some(rd));
+    assert_eq!(d.protocol, ConnectionProtocol::RemoteDesktop);
+    assert_eq!(d.rd_kind, oryxis_core::models::remote_desktop::RemoteDesktopKind::Vnc);
+    assert_eq!(d.rd_gateway_id, Some(gateway_id));
 }
 
 /// Round-trip a connection that uses both an inline proxy (with

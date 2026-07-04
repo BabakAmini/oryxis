@@ -1013,6 +1013,11 @@ impl Oryxis {
             oryxis_core::models::connection::ConnectionProtocol::Serial => {
                 return self.start_serial_tab(conn, origin);
             }
+            oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop => {
+                // Not a terminal: launch the OS-native desktop client
+                // (tunnelling through the gateway SSH host if set).
+                return self.launch_remote_desktop(conn);
+            }
             oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
         // Resolve the effective proxy (saved identity OR inline)
@@ -1835,6 +1840,11 @@ impl Oryxis {
             }
             oryxis_core::models::connection::ConnectionProtocol::Serial => {
                 return self.spawn_serial_for_pane_conn(conn, tab_idx, pane_id);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop => {
+                // A remote desktop can't live in a split pane; just launch
+                // the external client (the pane keeps its current content).
+                return self.launch_remote_desktop(conn);
             }
             oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }

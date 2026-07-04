@@ -869,6 +869,13 @@ impl Oryxis {
                     if self.setting_perf_overlay { "true" } else { "false" },
                 );
             }
+            Message::SettingToggleRemoteDesktop => {
+                self.remote_desktop_enabled = !self.remote_desktop_enabled;
+                self.persist_setting(
+                    "remote_desktop_enabled",
+                    if self.remote_desktop_enabled { "true" } else { "false" },
+                );
+            }
             Message::TerminalLinkOpened => {
                 // First successful ctrl-click on a link in this pane: the
                 // hint did its job, retire it for the pane (HintMode::Once).

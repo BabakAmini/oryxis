@@ -72,10 +72,13 @@ pub(crate) struct ConnectionForm {
     /// until the host becomes Serial, then materialized to defaults.
     /// Saved onto `Connection.serial` only when `protocol` is Serial.
     pub serial: Option<oryxis_core::models::serial::SerialParams>,
-    /// RDP/VNC-over-SSH launch config. `Some` when the host has remote
-    /// desktop enabled; drives the editor's remote-desktop rows. Saved
-    /// to `Connection.remote_desktop` (SSH hosts only).
-    pub remote_desktop: Option<oryxis_core::models::remote_desktop::RemoteDesktopConfig>,
+    /// Remote-desktop kind (RDP/VNC), shown by the reduced RemoteDesktop
+    /// form. Saved to `Connection.rd_kind` when `protocol` is
+    /// RemoteDesktop.
+    pub rd_kind: oryxis_core::models::remote_desktop::RemoteDesktopKind,
+    /// SSH host to tunnel the remote-desktop connection through, or
+    /// `None` for a direct connection. Saved to `Connection.rd_gateway_id`.
+    pub rd_gateway_id: Option<uuid::Uuid>,
     pub hostname: String,
     pub port: String,
     pub username: String,
@@ -700,7 +703,8 @@ impl Default for ConnectionForm {
             label: String::new(),
             protocol: oryxis_core::models::connection::ConnectionProtocol::Ssh,
             serial: None,
-            remote_desktop: None,
+            rd_kind: oryxis_core::models::remote_desktop::RemoteDesktopKind::default(),
+            rd_gateway_id: None,
             hostname: String::new(),
             port: "22".into(),
             username: String::new(),

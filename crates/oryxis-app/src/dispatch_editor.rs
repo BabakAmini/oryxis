@@ -16,6 +16,44 @@ impl Oryxis {
     /// A blank connection form pre-filled with the user's new-connection
     /// defaults (agent forwarding, port, keepalive, TERM), so they don't
     /// re-set the same fields on every new host.
+    /// Open the host editor for a brand-new host of the given protocol.
+    /// Shared by "New host" (SSH) and "Add remote desktop" (RemoteDesktop),
+    /// which differ only in the seeded protocol + default port.
+    pub(crate) fn open_new_host_editor(
+        &mut self,
+        protocol: oryxis_core::models::connection::ConnectionProtocol,
+    ) -> iced::Task<crate::app::Message> {
+        // Dismiss the `…` overflow menu if it launched this.
+        self.overlay = None;
+        // Mutually exclusive right-panel slot, close any other panel
+        // before opening the host editor.
+        self.cloud_form.visible = false;
+        self.cloud_dynamic_form.visible = false;
+        self.cloud_discover_visible = false;
+        self.show_session_group_panel = false;
+        self.group_edit.visible = false;
+        self.show_host_panel = true;
+        self.panel_nav_clear();
+        self.editor_form = self.new_connection_form();
+        self.editor_form.protocol = protocol;
+        if let Some(p) = protocol.default_port() {
+            self.editor_form.port = p.to_string();
+        }
+        self.editor_initial_command = iced::widget::text_editor::Content::new();
+        self.editor_startup_choice = crate::state::StartupChoice::None;
+        if let Some(gid) = self.active_group
+            && let Some(g) = self.groups.iter().find(|g| g.id == gid)
+        {
+            self.editor_form.group_name = g.label.clone();
+        }
+        self.host_panel_error = None;
+        self.rebuild_editor_combos();
+        // Land the cursor in the first field so the very first Tab keypress
+        // walks the form (focus_next with nothing focused would otherwise
+        // grab the grid search input).
+        iced::widget::operation::focus(iced::widget::Id::new("editor-hostname"))
+    }
+
     pub(crate) fn new_connection_form(&self) -> crate::state::ConnectionForm {
         let term = &self.setting_default_terminal_type;
         // Resolve the entity-reference defaults (identity / key / group /
@@ -221,12 +259,14 @@ impl Oryxis {
         } else {
             None
         };
-        // Remote desktop is SSH-only (tunnels through the SSH session);
-        // clear it on any non-SSH protocol.
-        conn.remote_desktop = if self.editor_form.protocol
-            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+        // Remote-desktop fields: kind rides on every host (harmless
+        // scalar); the SSH gateway is meaningful only for a RemoteDesktop
+        // host, cleared on any other protocol.
+        conn.rd_kind = self.editor_form.rd_kind;
+        conn.rd_gateway_id = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop
         {
-            self.editor_form.remote_desktop.clone()
+            self.editor_form.rd_gateway_id
         } else {
             None
         };
@@ -410,7 +450,8 @@ impl Oryxis {
             label: conn.label.clone(),
             protocol: conn.protocol,
             serial: conn.serial,
-            remote_desktop: conn.remote_desktop.clone(),
+            rd_kind: conn.rd_kind,
+            rd_gateway_id: conn.rd_gateway_id,
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
@@ -507,33 +548,14 @@ impl Oryxis {
         match message {
             // -- Connection editor --
             Message::ShowNewConnection => {
-                // Dismiss the `…` overflow menu if it launched this.
-                self.overlay = None;
-                // Mutually exclusive right-panel slot, close any
-                // other panel before opening the host editor.
-                self.cloud_form.visible = false;
-                self.cloud_dynamic_form.visible = false;
-                self.cloud_discover_visible = false;
-                self.show_session_group_panel = false;
-                self.group_edit.visible = false;
-                self.show_host_panel = true;
-                self.panel_nav_clear();
-                self.editor_form = self.new_connection_form();
-                self.editor_initial_command = iced::widget::text_editor::Content::new();
-                self.editor_startup_choice = crate::state::StartupChoice::None;
-                if let Some(gid) = self.active_group
-                    && let Some(g) = self.groups.iter().find(|g| g.id == gid)
-                {
-                    self.editor_form.group_name = g.label.clone();
-                }
-                self.host_panel_error = None;
-                self.rebuild_editor_combos();
-                // Land the cursor in the first field so the very first
-                // Tab keypress walks the form (focus_next with nothing
-                // focused would otherwise grab the grid search input).
-                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
-                    "editor-hostname",
-                )));
+                return Ok(self.open_new_host_editor(
+                    oryxis_core::models::connection::ConnectionProtocol::Ssh,
+                ));
+            }
+            Message::ShowNewRemoteDesktop => {
+                return Ok(self.open_new_host_editor(
+                    oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop,
+                ));
             }
             Message::EditConnection(idx) => {
                 self.card_context_menu = None;
@@ -689,30 +711,18 @@ impl Oryxis {
                 let s = self.editor_form.serial.get_or_insert_with(Default::default);
                 s.local_echo = !s.local_echo;
             }
-            Message::EditorRemoteDesktopToggled => {
-                self.editor_form.remote_desktop = match self.editor_form.remote_desktop {
-                    Some(_) => None,
-                    None => Some(Default::default()),
-                };
-            }
             Message::EditorRdKindChanged(kind) => {
-                let rd = self.editor_form.remote_desktop.get_or_insert_with(Default::default);
-                // Retarget the port when it still holds the other kind's
-                // default, so a typed port survives the switch.
-                if rd.target_port == rd.kind.default_port() {
-                    rd.target_port = kind.default_port();
+                // Retarget the port field when it still holds the other
+                // kind's default, so a typed port survives the RDP<->VNC
+                // switch (the endpoint port reuses the normal port field).
+                let old_default = self.editor_form.rd_kind.default_port().to_string();
+                if self.editor_form.port.trim() == old_default {
+                    self.editor_form.port = kind.default_port().to_string();
                 }
-                rd.kind = kind;
+                self.editor_form.rd_kind = kind;
             }
-            Message::EditorRdTargetHostChanged(v) => {
-                self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_host = v;
-            }
-            Message::EditorRdTargetPortChanged(v) => {
-                if let Ok(port) = v.trim().parse::<u16>() {
-                    self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_port = port;
-                } else if v.trim().is_empty() {
-                    self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_port = 0;
-                }
+            Message::EditorRdGatewayChanged(id) => {
+                self.editor_form.rd_gateway_id = id;
             }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {
@@ -1120,7 +1130,8 @@ impl Oryxis {
                     // type are host config that applies to all protocols.
                     dup.protocol = conn.protocol;
                     dup.serial = conn.serial;
-                    dup.remote_desktop = conn.remote_desktop.clone();
+                    dup.rd_kind = conn.rd_kind;
+                    dup.rd_gateway_id = conn.rd_gateway_id;
                     dup.encoding = conn.encoding.clone();
                     dup.terminal_type = conn.terminal_type.clone();
                     dup.port = conn.port;

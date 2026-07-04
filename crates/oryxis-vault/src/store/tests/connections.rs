@@ -78,15 +78,15 @@ fn mcp_list_excludes_non_ssh_hosts() {
 
 #[test]
 fn connection_remote_desktop_round_trip() {
-    use oryxis_core::models::remote_desktop::{RemoteDesktopConfig, RemoteDesktopKind};
+    use oryxis_core::models::connection::ConnectionProtocol;
+    use oryxis_core::models::remote_desktop::RemoteDesktopKind;
     let vault = unlocked_vault();
-    let rd = RemoteDesktopConfig {
-        kind: RemoteDesktopKind::Vnc,
-        target_host: "10.0.0.9".to_string(),
-        target_port: 5901,
-    };
-    let mut conn = Connection::new("desktop", "box.example.com");
-    conn.remote_desktop = Some(rd.clone());
+    let gateway_id = uuid::Uuid::new_v4();
+    let mut conn = Connection::new("desktop", "10.0.0.9");
+    conn.protocol = ConnectionProtocol::RemoteDesktop;
+    conn.port = 5901;
+    conn.rd_kind = RemoteDesktopKind::Vnc;
+    conn.rd_gateway_id = Some(gateway_id);
     vault.save_connection(&conn, None).unwrap();
     let loaded = vault
         .list_connections()
@@ -94,9 +94,11 @@ fn connection_remote_desktop_round_trip() {
         .into_iter()
         .find(|c| c.id == conn.id)
         .expect("connection listed");
-    assert_eq!(loaded.remote_desktop, Some(rd));
+    assert_eq!(loaded.protocol, ConnectionProtocol::RemoteDesktop);
+    assert_eq!(loaded.rd_kind, RemoteDesktopKind::Vnc);
+    assert_eq!(loaded.rd_gateway_id, Some(gateway_id));
 
-    // A host without it stores NULL -> None.
+    // A plain SSH host defaults: RDP kind, no gateway.
     let plain = Connection::new("plain", "x");
     vault.save_connection(&plain, None).unwrap();
     let loaded = vault
@@ -105,7 +107,9 @@ fn connection_remote_desktop_round_trip() {
         .into_iter()
         .find(|c| c.id == plain.id)
         .unwrap();
-    assert_eq!(loaded.remote_desktop, None);
+    assert_eq!(loaded.protocol, ConnectionProtocol::Ssh);
+    assert_eq!(loaded.rd_kind, RemoteDesktopKind::Rdp);
+    assert_eq!(loaded.rd_gateway_id, None);
 }
 
 #[test]

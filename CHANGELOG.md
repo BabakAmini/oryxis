@@ -7,20 +7,21 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
-- **RDP / VNC over SSH (one click).** An SSH host can carry a
-  remote-desktop config (RDP or VNC + target host/port); a card action
-  opens a `-L` tunnel through the SSH connection to that service and
-  launches the OS-native client (mstsc / Microsoft Remote Desktop /
-  FreeRDP / Remmina / a VNC viewer) pointed at the local end. The
-  tunnel is a managed forward (Stop from the same menu; cleared on vault
-  lock), independent of the client process so it survives clients that
-  return immediately, and it self-closes once the desktop client
-  disconnects and it goes idle (no lingering SSH handle, uniform across
-  blocking viewers and handoff launchers). A first-time host prompts for
-  host-key verification on launch, exactly like a normal connect, instead
-  of being refused until connected in a terminal. If no client is
-  installed, a message names what to get. Editor: an enable toggle +
-  kind/target rows in the host's Integration section.
+- **Remote desktop (RDP / VNC), optionally through an SSH gateway.** A
+  first-class remote-desktop host: its address/port are the desktop
+  endpoint and its username/password the desktop login. It reaches the
+  machine directly or tunnels through an SSH host you pick as a gateway
+  (an ephemeral `-L` forward), then launches the OS-native client (mstsc
+  / Microsoft Remote Desktop / FreeRDP / Remmina / a VNC viewer).
+  Clicking the card opens the desktop; no separate menu. The gateway
+  tunnel is managed (Stop from the card menu; cleared on vault lock),
+  independent of the client process so it survives clients that return
+  immediately, and it self-closes once the desktop client disconnects
+  and goes idle (uniform across blocking viewers and handoff launchers).
+  A first-time gateway prompts for host-key verification like any
+  connect. Created via "Add remote desktop" in the + Host menu. Opt-in:
+  off by default (Settings > Advanced), so the feature stays hidden until
+  enabled. If no client is installed, a message names what to get.
 - **ZMODEM file transfer in the terminal.** Run `sz file` or `rz` on
   the remote and Oryxis auto-detects the transfer, takes over the byte
   stream, and moves the file: downloads land in a configurable folder

@@ -12,10 +12,6 @@
 
 use oryxis_core::models::remote_desktop::RemoteDesktopKind;
 
-/// The address the client connects to: always the local end of the
-/// SSH tunnel.
-const LOCAL: &str = "127.0.0.1";
-
 /// A resolved client invocation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LaunchCommand {
@@ -35,8 +31,8 @@ pub(crate) struct NoClient {
 /// any host. URL-scheme launchers (`open`, `mstsc`) are effectively
 /// always present, so they're a single candidate; Linux lists several
 /// real viewers and the first installed one wins.
-fn candidates(kind: RemoteDesktopKind, os: &str, port: u16, username: Option<&str>) -> Vec<LaunchCommand> {
-    let endpoint = format!("{LOCAL}:{port}");
+fn candidates(kind: RemoteDesktopKind, os: &str, host: &str, port: u16, username: Option<&str>) -> Vec<LaunchCommand> {
+    let endpoint = format!("{host}:{port}");
     let cmd = |program: &str, args: Vec<String>| LaunchCommand {
         program: program.to_string(),
         args,
@@ -84,11 +80,12 @@ fn candidates(kind: RemoteDesktopKind, os: &str, port: u16, username: Option<&st
 pub(crate) fn resolve_command(
     kind: RemoteDesktopKind,
     os: &str,
+    host: &str,
     port: u16,
     username: Option<&str>,
     is_available: &dyn Fn(&str) -> bool,
 ) -> Result<LaunchCommand, NoClient> {
-    let cands = candidates(kind, os, port, username);
+    let cands = candidates(kind, os, host, port, username);
     for c in &cands {
         if is_available(&c.program) {
             return Ok(c.clone());
@@ -135,17 +132,17 @@ mod tests {
 
     #[test]
     fn windows_rdp_uses_mstsc() {
-        let c = resolve_command(RemoteDesktopKind::Rdp, "windows", 55001, None, &all).unwrap();
+        let c = resolve_command(RemoteDesktopKind::Rdp, "windows", "127.0.0.1", 55001, None, &all).unwrap();
         assert_eq!(c.program, "mstsc");
         assert_eq!(c.args, vec!["/v:127.0.0.1:55001"]);
     }
 
     #[test]
     fn macos_uses_url_schemes() {
-        let rdp = resolve_command(RemoteDesktopKind::Rdp, "macos", 5001, None, &all).unwrap();
+        let rdp = resolve_command(RemoteDesktopKind::Rdp, "macos", "127.0.0.1", 5001, None, &all).unwrap();
         assert_eq!(rdp.program, "open");
         assert_eq!(rdp.args, vec!["rdp://127.0.0.1:5001"]);
-        let vnc = resolve_command(RemoteDesktopKind::Vnc, "macos", 5002, None, &all).unwrap();
+        let vnc = resolve_command(RemoteDesktopKind::Vnc, "macos", "127.0.0.1", 5002, None, &all).unwrap();
         assert_eq!(vnc.args, vec!["vnc://127.0.0.1:5002"]);
     }
 
@@ -154,6 +151,7 @@ mod tests {
         let c = resolve_command(
             RemoteDesktopKind::Rdp,
             "linux",
+            "127.0.0.1",
             3390,
             Some("admin"),
             &all,
@@ -169,6 +167,7 @@ mod tests {
         let c = resolve_command(
             RemoteDesktopKind::Rdp,
             "linux",
+            "127.0.0.1",
             3390,
             None,
             &only_remmina,
@@ -181,21 +180,21 @@ mod tests {
     #[test]
     fn linux_vnc_walks_the_viewer_list() {
         let only_vinagre = |p: &str| p == "vinagre";
-        let c = resolve_command(RemoteDesktopKind::Vnc, "linux", 5901, None, &only_vinagre).unwrap();
+        let c = resolve_command(RemoteDesktopKind::Vnc, "linux", "127.0.0.1", 5901, None, &only_vinagre).unwrap();
         assert_eq!(c.program, "vinagre");
     }
 
     #[test]
     fn nothing_installed_reports_what_to_get() {
         let none = |_: &str| false;
-        let err = resolve_command(RemoteDesktopKind::Rdp, "linux", 3389, None, &none).unwrap_err();
+        let err = resolve_command(RemoteDesktopKind::Rdp, "linux", "127.0.0.1", 3389, None, &none).unwrap_err();
         assert!(err.looked_for.contains(&"xfreerdp".to_string()));
         assert!(err.looked_for.contains(&"remmina".to_string()));
     }
 
     #[test]
     fn empty_username_is_omitted() {
-        let c = resolve_command(RemoteDesktopKind::Rdp, "linux", 3389, Some("  "), &all).unwrap();
+        let c = resolve_command(RemoteDesktopKind::Rdp, "linux", "127.0.0.1", 3389, Some("  "), &all).unwrap();
         assert_eq!(c.args, vec!["/v:127.0.0.1:3389"]);
     }
 }

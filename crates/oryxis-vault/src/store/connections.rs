@@ -43,17 +43,20 @@ impl VaultStore {
             ConnectionProtocol::Ssh => "ssh",
             ConnectionProtocol::Telnet => "telnet",
             ConnectionProtocol::Serial => "serial",
+            ConnectionProtocol::RemoteDesktop => "remote_desktop",
         };
         // Serial line parameters as JSON (NULL on non-serial hosts).
         let serial_json = conn
             .serial
             .as_ref()
             .map(|s| serde_json::to_string(s).unwrap_or_default());
-        // Remote-desktop launch config as JSON (NULL when unset).
-        let rd_json = conn
-            .remote_desktop
-            .as_ref()
-            .map(|r| serde_json::to_string(r).unwrap_or_default());
+        // Remote-desktop fields: kind + optional SSH gateway. Written on
+        // every host (cheap scalars); only meaningful for RemoteDesktop.
+        let rd_kind_str = match conn.rd_kind {
+            RemoteDesktopKind::Rdp => "rdp",
+            RemoteDesktopKind::Vnc => "vnc",
+        };
+        let rd_gateway_str = conn.rd_gateway_id.map(|u| u.to_string());
 
         // The proxy password and TOTP secret live in their own encrypted
         // columns, written only by their dedicated setters. INSERT OR
@@ -73,8 +76,8 @@ impl VaultStore {
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, remote_desktop)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -129,7 +132,8 @@ impl VaultStore {
                 existing_totp,
                 protocol_str,
                 serial_json,
-                rd_json,
+                rd_kind_str,
+                rd_gateway_str,
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -152,12 +156,12 @@ impl VaultStore {
         let query = match mcp_filter {
             Some(true) => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, remote_desktop
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id
                  FROM connections WHERE mcp_enabled = 1 AND (protocol IS NULL OR protocol = 'ssh') ORDER BY label"
             }
             _ => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, remote_desktop
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id
                  FROM connections ORDER BY label"
             }
         };
@@ -180,6 +184,7 @@ impl VaultStore {
                 let protocol = match row.get::<_, Option<String>>(41).ok().flatten().as_deref() {
                     Some("telnet") => ConnectionProtocol::Telnet,
                     Some("serial") => ConnectionProtocol::Serial,
+                    Some("remote_desktop") => ConnectionProtocol::RemoteDesktop,
                     _ => ConnectionProtocol::Ssh,
                 };
                 // Serial params JSON (NULL / malformed -> None; the
@@ -189,11 +194,17 @@ impl VaultStore {
                     .ok()
                     .flatten()
                     .and_then(|s| serde_json::from_str(&s).ok());
-                let remote_desktop = row
-                    .get::<_, Option<String>>(43)
+                // Remote-desktop kind (NULL / unknown -> RDP) + optional
+                // SSH gateway id.
+                let rd_kind = match row.get::<_, Option<String>>(43).ok().flatten().as_deref() {
+                    Some("vnc") => RemoteDesktopKind::Vnc,
+                    _ => RemoteDesktopKind::Rdp,
+                };
+                let rd_gateway_id = row
+                    .get::<_, Option<String>>(44)
                     .ok()
                     .flatten()
-                    .and_then(|s| serde_json::from_str(&s).ok());
+                    .and_then(|s| Uuid::parse_str(&s).ok());
 
                 Ok(Connection {
                     id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
@@ -202,7 +213,8 @@ impl VaultStore {
                     port: row.get(3)?,
                     protocol,
                     serial,
-                    remote_desktop,
+                    rd_kind,
+                    rd_gateway_id,
                     username: row.get(4)?,
                     auth_method,
                     key_id: row

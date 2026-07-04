@@ -282,9 +282,15 @@ impl VaultStore {
         // Serial-line parameters as JSON (SerialParams). NULL on every
         // non-serial host.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN serial_config TEXT;");
-        // Remote-desktop (RDP/VNC over SSH) launch config as JSON. NULL
-        // when the host offers no remote-desktop action.
+        // Remote-desktop connection fields (protocol = RemoteDesktop):
+        // `rd_kind` = 'rdp' | 'vnc'; `rd_gateway_id` = the SSH host to
+        // tunnel through (NULL = direct). The desktop endpoint + login
+        // reuse hostname/port/username/password. The earlier
+        // `remote_desktop` JSON column (unreleased 0.9 bolt-on) is left
+        // dead, superseded by these.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN remote_desktop TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rd_kind TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rd_gateway_id TEXT;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");

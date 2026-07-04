@@ -23,11 +23,19 @@ pub struct Connection {
     /// falls back to `SerialParams::default()` (9600 8N1).
     #[serde(default)]
     pub serial: Option<super::serial::SerialParams>,
-    /// Remote-desktop (RDP/VNC over SSH) launch config. `None` = the
-    /// host offers no remote-desktop action. Meaningful only on SSH
-    /// hosts (the launcher tunnels through the SSH connection).
+    /// Remote-desktop kind (RDP vs VNC). Meaningful only when `protocol`
+    /// is `RemoteDesktop`; ignored otherwise. `#[serde(default)]` -> RDP
+    /// on legacy payloads.
     #[serde(default)]
-    pub remote_desktop: Option<super::remote_desktop::RemoteDesktopConfig>,
+    pub rd_kind: super::remote_desktop::RemoteDesktopKind,
+    /// Optional SSH host to tunnel the remote-desktop connection through.
+    /// `Some(id)` routes through that connection's SSH session (the
+    /// launcher opens an ephemeral `-L` forward to `hostname:port`);
+    /// `None` connects the desktop endpoint directly. A dangling id
+    /// resolves to direct with a warning, never an error (mirrors
+    /// `proxy_identity_id`). Meaningful only for `RemoteDesktop`.
+    #[serde(default)]
+    pub rd_gateway_id: Option<Uuid>,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -194,7 +202,8 @@ impl Connection {
             port: 22,
             protocol: ConnectionProtocol::Ssh,
             serial: None,
-            remote_desktop: None,
+            rd_kind: super::remote_desktop::RemoteDesktopKind::default(),
+            rd_gateway_id: None,
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,
@@ -250,19 +259,35 @@ pub enum ConnectionProtocol {
     /// Local serial line (no network). The port path lives in
     /// `hostname`; line parameters live in `Connection.serial`.
     Serial,
+    /// Remote desktop (RDP/VNC). Unlike the others this is NOT a terminal
+    /// transport: it opens no pane. `hostname`/`port` are the desktop
+    /// endpoint and `username`/`password` its login; `rd_kind` picks
+    /// RDP vs VNC and `rd_gateway_id` optionally routes the connection
+    /// through an SSH host (the tunnel). The connect action launches the
+    /// OS-native client instead of opening a terminal.
+    RemoteDesktop,
 }
 
 impl ConnectionProtocol {
     /// Conventional TCP port, used by the host editor to swap the
     /// numeric-port default when the picker changes (22 <-> 23).
     /// `None` for `Serial`, which has no network port (the editor
-    /// hides the numeric field entirely).
+    /// hides the numeric field entirely). `RemoteDesktop` reports the
+    /// RDP default (3389); the kind picker refines it to VNC's 5900.
     pub fn default_port(self) -> Option<u16> {
         match self {
             ConnectionProtocol::Ssh => Some(22),
             ConnectionProtocol::Telnet => Some(23),
             ConnectionProtocol::Serial => None,
+            ConnectionProtocol::RemoteDesktop => Some(3389),
         }
+    }
+
+    /// Whether this protocol drives a terminal pane (SSH/Telnet/Serial).
+    /// `RemoteDesktop` does not, it launches an external client, so the
+    /// terminal / SFTP / MCP paths must exclude it.
+    pub fn is_terminal(self) -> bool {
+        !matches!(self, ConnectionProtocol::RemoteDesktop)
     }
 }
 
@@ -274,6 +299,7 @@ impl std::fmt::Display for ConnectionProtocol {
             ConnectionProtocol::Ssh => write!(f, "SSH"),
             ConnectionProtocol::Telnet => write!(f, "Telnet"),
             ConnectionProtocol::Serial => write!(f, "Serial"),
+            ConnectionProtocol::RemoteDesktop => write!(f, "Remote Desktop"),
         }
     }
 }

@@ -55,11 +55,15 @@ impl Oryxis {
                     address
                 };
                 // Serial has no auth method to append; the line params
-                // shown in `address` are the whole subtitle.
-                if conn.protocol == ConnectionProtocol::Serial {
-                    address
-                } else {
-                    format!("{} · {}", address, auth_label)
+                // shown in `address` are the whole subtitle. A remote
+                // desktop shows its kind (RDP/VNC) instead of an SSH auth
+                // method.
+                match conn.protocol {
+                    ConnectionProtocol::Serial => address,
+                    ConnectionProtocol::RemoteDesktop => {
+                        format!("{} · {}", address, conn.rd_kind)
+                    }
+                    _ => format!("{} · {}", address, auth_label),
                 }
             } else {
                 auth_label.to_string()

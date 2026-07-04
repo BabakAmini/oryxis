@@ -244,7 +244,11 @@ impl Oryxis {
                 use oryxis_core::models::connection::ConnectionProtocol;
                 let protocol = conn.map(|c| c.protocol).unwrap_or(ConnectionProtocol::Ssh);
                 let is_ssh_host = protocol == ConnectionProtocol::Ssh;
-                let has_url = protocol != ConnectionProtocol::Serial;
+                let is_rd_host = protocol == ConnectionProtocol::RemoteDesktop;
+                let has_url = matches!(
+                    protocol,
+                    ConnectionProtocol::Ssh | ConnectionProtocol::Telnet
+                );
                 let mut items = column![
                     self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::ConnectSsh(idx), OryxisColors::t().success),
                     self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
@@ -258,26 +262,18 @@ impl Oryxis {
                 if has_url {
                     items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary));
                 }
-                // RDP/VNC over SSH: one-click launch when the SSH host
-                // carries a remote-desktop config; a Stop item appears
-                // while its tunnel is live.
-                if is_ssh_host && conn.is_some_and(|c| c.remote_desktop.is_some()) {
-                    let active = conn
-                        .is_some_and(|c| self.remote_desktop_forwards.contains_key(&c.id));
+                // Remote-desktop host: Connect (above) already launches the
+                // desktop; add an explicit Stop while its tunnel is live.
+                if is_rd_host
+                    && let Some(cid) = conn.map(|c| c.id)
+                    && self.remote_desktop_forwards.contains_key(&cid)
+                {
                     items = items.push(self.menu_item(
-                        iced_fonts::lucide::monitor(),
-                        crate::i18n::t("open_remote_desktop"),
-                        Message::OpenRemoteDesktop(idx),
-                        OryxisColors::t().text_secondary,
+                        iced_fonts::lucide::monitor_x(),
+                        crate::i18n::t("stop_remote_desktop"),
+                        Message::StopRemoteDesktop(cid),
+                        OryxisColors::t().error,
                     ));
-                    if active && let Some(cid) = conn.map(|c| c.id) {
-                        items = items.push(self.menu_item(
-                            iced_fonts::lucide::monitor_x(),
-                            crate::i18n::t("stop_remote_desktop"),
-                            Message::StopRemoteDesktop(cid),
-                            OryxisColors::t().error,
-                        ));
-                    }
                 }
                 if let Some(pid) = cloud_profile_id {
                     items = items.push(self.menu_item(
@@ -394,6 +390,16 @@ impl Oryxis {
                         OryxisColors::t().text_secondary,
                     ),
                 ];
+                // Add a remote-desktop host (RDP/VNC), only when the opt-in
+                // feature is enabled so it stays out of the light-user menu.
+                if self.remote_desktop_enabled {
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::monitor(),
+                        crate::i18n::t("add_remote_desktop"),
+                        Message::ShowNewRemoteDesktop,
+                        OryxisColors::t().text_secondary,
+                    ));
+                }
                 // Export hosts: opens the share dialog with a per-folder
                 // include/exclude checklist (keys-off by default), unlike
                 // the full-vault export in Settings. Pre-scoped to the

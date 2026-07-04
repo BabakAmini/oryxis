@@ -478,6 +478,9 @@ pub enum Message {
 
     // Connection editor
     ShowNewConnection,
+    /// Open the host editor seeded as a RemoteDesktop host ("Add remote
+    /// desktop" in the + Host menu; only shown when the feature toggle is on).
+    ShowNewRemoteDesktop,
     EditConnection(usize),
     EditorLabelChanged(String),
     /// Host editor: comma-separated tags field.
@@ -496,11 +499,11 @@ pub enum Message {
     EditorSerialFlowChanged(oryxis_core::models::serial::SerialFlowControl),
     EditorSerialLineEndingChanged(oryxis_core::models::serial::SerialLineEnding),
     EditorSerialLocalEchoToggled,
-    // Remote desktop (RDP/VNC over SSH) editor rows.
-    EditorRemoteDesktopToggled,
+    // Remote desktop (RDP/VNC) editor rows: kind picker + the SSH host
+    // to tunnel through (`None` = direct). The desktop endpoint + login
+    // reuse the normal hostname/port/username/password fields.
     EditorRdKindChanged(oryxis_core::models::remote_desktop::RemoteDesktopKind),
-    EditorRdTargetHostChanged(String),
-    EditorRdTargetPortChanged(String),
+    EditorRdGatewayChanged(Option<uuid::Uuid>),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
     EditorPasswordChanged(String),
@@ -995,6 +998,8 @@ pub enum Message {
     SettingToggleTabAccentWash,
     SettingTogglePerformanceMode,
     SettingTogglePerfOverlay,
+    /// Toggle the opt-in "remote desktop" feature (`remote_desktop_enabled`).
+    SettingToggleRemoteDesktop,
     /// Relaunch the app in place to apply a start-time-only setting (the
     /// graphics renderer). Fired from the renderer-change restart modal.
     RelaunchApp,
@@ -1068,9 +1073,6 @@ pub enum Message {
     /// screen but keep live SSH sessions and tabs (unlike the manual
     /// `LockVault`, which tears sessions down).
     AutoLockVault,
-    /// Launch RDP/VNC over SSH for the host at this index: open an
-    /// ephemeral `-L` tunnel and spawn the OS-native desktop client.
-    OpenRemoteDesktop(usize),
     /// Tunnel + client-spawn result: `Ok((session, local_port))` keeps
     /// the managed forward alive; `Err` is a ready-to-toast message. The
     /// `u64` is the launch generation, so a stale result from a superseded

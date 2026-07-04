@@ -180,9 +180,15 @@ impl Oryxis {
             })
         });
         // Telnet's default port is 23, SSH's is 22: omit the port only
-        // when it matches the scheme's default.
+        // when it matches the scheme's default. RemoteDesktop hosts carry
+        // an rdp/vnc endpoint; use the kind's scheme (the copy action is
+        // only offered on SSH/Telnet, but stay honest if reached).
         let (scheme, default_port) = match conn.protocol {
             ConnectionProtocol::Telnet => ("telnet", 23),
+            ConnectionProtocol::RemoteDesktop => match conn.rd_kind {
+                oryxis_core::models::remote_desktop::RemoteDesktopKind::Rdp => ("rdp", 3389),
+                oryxis_core::models::remote_desktop::RemoteDesktopKind::Vnc => ("vnc", 5900),
+            },
             ConnectionProtocol::Ssh | ConnectionProtocol::Serial => ("ssh", 22),
         };
         let target = oryxis_core::ssh_target::SshTarget {

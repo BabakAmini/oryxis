@@ -20,6 +20,7 @@ pub(crate) use oryxis_core::models::custom_ui_theme::CustomUiTheme;
 pub(crate) use oryxis_core::models::connection::{
     AuthMethod, Connection, ConnectionProtocol, ProxyType,
 };
+pub(crate) use oryxis_core::models::remote_desktop::RemoteDesktopKind;
 pub(crate) use oryxis_core::models::group::Group;
 pub(crate) use oryxis_core::models::identity::Identity;
 pub(crate) use oryxis_core::models::proxy_identity::ProxyIdentity;

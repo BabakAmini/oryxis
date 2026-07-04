@@ -409,6 +409,7 @@ impl Oryxis {
                 active_forwards: std::collections::HashMap::new(),
                 remote_desktop_forwards: std::collections::HashMap::new(),
                 remote_desktop_seq: 0,
+                remote_desktop_enabled: false,
                 port_forward_starting: std::collections::HashSet::new(),
                 show_port_forward_panel: false,
                 port_forward_form: crate::state::PortForwardRuleForm::default(),
@@ -854,6 +855,9 @@ impl Oryxis {
             self.ai.api_key_set = vault.get_ai_api_key().ok().flatten().is_some();
             if let Ok(Some(v)) = vault.get_setting("mcp_server_enabled") {
                 self.mcp.server_enabled = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("remote_desktop_enabled") {
+                self.remote_desktop_enabled = v == "true";
             }
             // Token MCP clients must present; empty means auth is off
             // (server allows any caller as long as the global toggle is on).

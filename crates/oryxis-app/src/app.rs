@@ -780,6 +780,11 @@ pub struct Oryxis {
     /// Monotonic launch counter feeding the generation in
     /// `remote_desktop_forwards`; bumped once per Open.
     pub(crate) remote_desktop_seq: u64,
+    /// Opt-in toggle (`remote_desktop_enabled` setting, off by default):
+    /// when off, all remote-desktop UI (the "Add remote desktop" entry,
+    /// the settings row) is hidden so it doesn't clutter the light-user
+    /// interface. Existing RemoteDesktop hosts stay visible and usable.
+    pub(crate) remote_desktop_enabled: bool,
     /// Rules whose connect is in flight (drives the per-row spinner and
     /// prevents a double-start).
     pub(crate) port_forward_starting: std::collections::HashSet<Uuid>,
