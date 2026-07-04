@@ -7,6 +7,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Serial port protocol.** The per-host protocol selector adds Serial
+  (alongside SSH and Telnet). Serial hosts open a local COM /
+  `/dev/tty*` line over a new native engine (`oryxis-serial`, built on
+  `tokio-serial`) with configurable baud, data bits, parity, stop
+  bits, flow control, a line-ending choice (CR / LF / CR LF for Enter)
+  and an optional local-echo toggle (raw serial has no ECHO
+  negotiation, so a non-echoing device shows nothing typed until it is
+  on). The editor swaps to a further-reduced form (port path + line
+  parameters, no auth, no numeric port). Serial hosts ride sync and
+  portable export like any host.
 - **Telnet protocol.** A per-host protocol selector (SSH / Telnet) in
   the host editor. Telnet hosts connect over a new native Rust engine
   (`oryxis-telnet`): RFC 854/855 option negotiation with the full RFC
