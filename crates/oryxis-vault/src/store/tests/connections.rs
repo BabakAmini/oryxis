@@ -77,6 +77,38 @@ fn mcp_list_excludes_non_ssh_hosts() {
 }
 
 #[test]
+fn connection_remote_desktop_round_trip() {
+    use oryxis_core::models::remote_desktop::{RemoteDesktopConfig, RemoteDesktopKind};
+    let vault = unlocked_vault();
+    let rd = RemoteDesktopConfig {
+        kind: RemoteDesktopKind::Vnc,
+        target_host: "10.0.0.9".to_string(),
+        target_port: 5901,
+    };
+    let mut conn = Connection::new("desktop", "box.example.com");
+    conn.remote_desktop = Some(rd.clone());
+    vault.save_connection(&conn, None).unwrap();
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("connection listed");
+    assert_eq!(loaded.remote_desktop, Some(rd));
+
+    // A host without it stores NULL -> None.
+    let plain = Connection::new("plain", "x");
+    vault.save_connection(&plain, None).unwrap();
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == plain.id)
+        .unwrap();
+    assert_eq!(loaded.remote_desktop, None);
+}
+
+#[test]
 fn connection_serial_params_round_trip() {
     use oryxis_core::models::connection::ConnectionProtocol;
     use oryxis_core::models::serial::{

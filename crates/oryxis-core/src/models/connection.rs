@@ -23,6 +23,11 @@ pub struct Connection {
     /// falls back to `SerialParams::default()` (9600 8N1).
     #[serde(default)]
     pub serial: Option<super::serial::SerialParams>,
+    /// Remote-desktop (RDP/VNC over SSH) launch config. `None` = the
+    /// host offers no remote-desktop action. Meaningful only on SSH
+    /// hosts (the launcher tunnels through the SSH connection).
+    #[serde(default)]
+    pub remote_desktop: Option<super::remote_desktop::RemoteDesktopConfig>,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -189,6 +194,7 @@ impl Connection {
             port: 22,
             protocol: ConnectionProtocol::Ssh,
             serial: None,
+            remote_desktop: None,
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,

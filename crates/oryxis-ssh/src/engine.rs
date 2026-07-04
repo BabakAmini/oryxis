@@ -1702,6 +1702,57 @@ impl SshEngine {
     /// Consumes `self` because a remote (`-R`) forward must install the
     /// inbound-channel sink on the handler *before* the transport (and thus
     /// the handler) is created.
+    /// Open a `-L` forward on an OS-assigned ephemeral local port and
+    /// report the port back, so a caller (the RDP/VNC launcher) can
+    /// point a client at `127.0.0.1:<port>` with no bind race: the
+    /// listener owns the port before we return it. The returned
+    /// `ForwardSession` keeps the tunnel up until dropped / cancelled;
+    /// its lifetime is deliberately independent of any client process.
+    pub async fn connect_local_forward_ephemeral(
+        self,
+        connection: &Connection,
+        password: Option<&str>,
+        private_key_pem: Option<&str>,
+        target_host: &str,
+        target_port: u16,
+        resolver: Option<&ConnectionResolver>,
+    ) -> Result<(ForwardSession, u16), SshError> {
+        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let mut handle = self.establish_transport(connection, resolver).await?;
+        self.do_authenticate(&mut handle, connection, password, private_key_pem)
+            .await?;
+        let shared = Arc::new(tokio::sync::Mutex::new(handle.0));
+
+        // Port 0 -> the OS picks a free port; read it back from the bound
+        // listener before spawning, so what we return is what's bound.
+        let listener = bind_forward_listener("127.0.0.1", 0).await?;
+        let local_port = listener
+            .local_addr()
+            .map_err(|e| SshError::Channel(format!("forward local_addr: {e}")))?
+            .port();
+        let task = spawn_local_forward_task(
+            listener,
+            Arc::clone(&shared),
+            target_host.to_string(),
+            target_port,
+            local_port,
+            cancel_rx,
+        );
+        tracing::info!(
+            "forward(-L ephemeral) 127.0.0.1:{} -> {}:{} up",
+            local_port, target_host, target_port
+        );
+        Ok((
+            ForwardSession {
+                handle: shared,
+                cancel_tx,
+                _tasks: vec![task],
+                remote_bind: None,
+            },
+            local_port,
+        ))
+    }
+
     pub async fn connect_forward(
         mut self,
         connection: &Connection,

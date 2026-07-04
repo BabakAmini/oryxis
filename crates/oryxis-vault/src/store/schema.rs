@@ -282,6 +282,9 @@ impl VaultStore {
         // Serial-line parameters as JSON (SerialParams). NULL on every
         // non-serial host.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN serial_config TEXT;");
+        // Remote-desktop (RDP/VNC over SSH) launch config as JSON. NULL
+        // when the host offers no remote-desktop action.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN remote_desktop TEXT;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");

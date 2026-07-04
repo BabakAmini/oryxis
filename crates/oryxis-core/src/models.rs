@@ -1,5 +1,6 @@
 pub mod connection;
 pub mod serial;
+pub mod remote_desktop;
 pub mod key;
 pub mod group;
 pub mod snippet;
@@ -16,6 +17,7 @@ pub mod custom_ui_theme;
 
 pub use connection::*;
 pub use serial::*;
+pub use remote_desktop::*;
 pub use key::*;
 pub use group::*;
 pub use snippet::*;

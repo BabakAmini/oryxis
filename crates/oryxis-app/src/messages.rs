@@ -496,6 +496,11 @@ pub enum Message {
     EditorSerialFlowChanged(oryxis_core::models::serial::SerialFlowControl),
     EditorSerialLineEndingChanged(oryxis_core::models::serial::SerialLineEnding),
     EditorSerialLocalEchoToggled,
+    // Remote desktop (RDP/VNC over SSH) editor rows.
+    EditorRemoteDesktopToggled,
+    EditorRdKindChanged(oryxis_core::models::remote_desktop::RemoteDesktopKind),
+    EditorRdTargetHostChanged(String),
+    EditorRdTargetPortChanged(String),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
     EditorPasswordChanged(String),
@@ -1063,6 +1068,17 @@ pub enum Message {
     /// screen but keep live SSH sessions and tabs (unlike the manual
     /// `LockVault`, which tears sessions down).
     AutoLockVault,
+    /// Launch RDP/VNC over SSH for the host at this index: open an
+    /// ephemeral `-L` tunnel and spawn the OS-native desktop client.
+    OpenRemoteDesktop(usize),
+    /// Tunnel + client-spawn result: `Ok((session, local_port))` keeps
+    /// the managed forward alive; `Err` is a ready-to-toast message.
+    RemoteDesktopReady(
+        Uuid,
+        Result<(std::sync::Arc<oryxis_ssh::ForwardSession>, u16), String>,
+    ),
+    /// Tear down the RDP/VNC tunnel for this host connection id.
+    StopRemoteDesktop(Uuid),
     /// Copy the canonical ssh:// URL of the host at this index (card
     /// context-menu action).
     CopyHostSshUrl(usize),

@@ -1143,6 +1143,109 @@ impl Oryxis {
             empty()
         };
 
+        // Remote desktop (RDP/VNC over SSH), SSH > Integration. A toggle
+        // reveals the kind picker + target host/port. SSH-only (the
+        // launcher tunnels through the SSH session).
+        let rd_block: Element<'_, Message> = if is_ssh {
+            use oryxis_core::models::remote_desktop::RemoteDesktopKind;
+            let enabled = self.editor_form.remote_desktop.is_some();
+            let toggle = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorRemoteDesktopToggled),
+                8.0,
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::monitor().size(14).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        text(t("remote_desktop")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        {
+                            let bg = if enabled { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                            let fg = crate::theme::contrast_text_for(bg);
+                            button(text(if enabled { "ON" } else { "OFF" }).size(12).color(fg))
+                                .on_press(Message::EditorRemoteDesktopToggled)
+                                .style(move |_t, _s| button::Style {
+                                    background: Some(Background::Color(bg)),
+                                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                    text_color: fg,
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    ]).align_y(iced::Alignment::Center)
+                )
+                .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+            );
+            let mut col = column![toggle];
+            if let Some(rd) = self.editor_form.remote_desktop.clone() {
+                let radius = crate::widgets::INPUT_RADIUS;
+                let kind_row = panel_option_row(
+                    iced_fonts::lucide::monitor_smartphone(),
+                    t("remote_desktop_kind"),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-rd-kind")),
+                        radius,
+                        pick_list(
+                            Some(rd.kind),
+                            vec![RemoteDesktopKind::Rdp, RemoteDesktopKind::Vnc],
+                            |k: &RemoteDesktopKind| k.to_string(),
+                        )
+                        .on_select(Message::EditorRdKindChanged)
+                        .id(iced::widget::Id::new("editor-pick-rd-kind"))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                    ),
+                );
+                let host_row = panel_option_row(
+                    iced_fonts::lucide::server(),
+                    t("remote_desktop_target_host"),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-rd-host")),
+                        10.0,
+                        text_input("localhost", &rd.target_host)
+                            .id(iced::widget::Id::new("editor-rd-host"))
+                            .on_input(Message::EditorRdTargetHostChanged)
+                            .on_submit(Message::EditorSave)
+                            .padding(8)
+                            .width(160)
+                            .style(crate::widgets::rounded_input_style)
+                            .align_x(dir_align_x())
+                            .into(),
+                    ),
+                );
+                let port_row = panel_option_row(
+                    iced_fonts::lucide::plug(),
+                    t("remote_desktop_target_port"),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-rd-port")),
+                        10.0,
+                        text_input("3389", &rd.target_port.to_string())
+                            .id(iced::widget::Id::new("editor-rd-port"))
+                            .on_input(Message::EditorRdTargetPortChanged)
+                            .on_submit(Message::EditorSave)
+                            .padding(8)
+                            .width(80)
+                            .style(crate::widgets::rounded_input_style)
+                            .align_x(dir_align_x())
+                            .into(),
+                    ),
+                );
+                col = col
+                    .push(Space::new().height(ROW_GAP))
+                    .push(kind_row)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(host_row)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(port_row);
+            }
+            col.into()
+        } else {
+            empty()
+        };
+
         // ── Section: Environment Variables ──
         let env_items: Element<'_, Message> = if is_ssh {
         let mut env_items = column![
@@ -1753,6 +1856,8 @@ impl Oryxis {
                 .push(section_header(t("integration")))
                 .push(Space::new().height(ROW_GAP))
                 .push(row_mcp)
+                .push(Space::new().height(ROW_GAP))
+                .push(rd_block)
                 .push(Space::new().height(ROW_GAP))
                 .push(env_items)
                 .push(group_sep())

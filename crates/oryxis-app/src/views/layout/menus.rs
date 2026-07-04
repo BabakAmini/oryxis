@@ -258,6 +258,27 @@ impl Oryxis {
                 if has_url {
                     items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary));
                 }
+                // RDP/VNC over SSH: one-click launch when the SSH host
+                // carries a remote-desktop config; a Stop item appears
+                // while its tunnel is live.
+                if is_ssh_host && conn.is_some_and(|c| c.remote_desktop.is_some()) {
+                    let active = conn
+                        .is_some_and(|c| self.remote_desktop_forwards.contains_key(&c.id));
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::monitor(),
+                        crate::i18n::t("open_remote_desktop"),
+                        Message::OpenRemoteDesktop(idx),
+                        OryxisColors::t().text_secondary,
+                    ));
+                    if active && let Some(cid) = conn.map(|c| c.id) {
+                        items = items.push(self.menu_item(
+                            iced_fonts::lucide::monitor_x(),
+                            crate::i18n::t("stop_remote_desktop"),
+                            Message::StopRemoteDesktop(cid),
+                            OryxisColors::t().error,
+                        ));
+                    }
+                }
                 if let Some(pid) = cloud_profile_id {
                     items = items.push(self.menu_item(
                         iced_fonts::lucide::funnel(),

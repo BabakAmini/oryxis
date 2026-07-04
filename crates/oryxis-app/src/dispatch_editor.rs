@@ -221,6 +221,15 @@ impl Oryxis {
         } else {
             None
         };
+        // Remote desktop is SSH-only (tunnels through the SSH session);
+        // clear it on any non-SSH protocol.
+        conn.remote_desktop = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+        {
+            self.editor_form.remote_desktop.clone()
+        } else {
+            None
+        };
         conn.hostname = self.editor_form.hostname.clone();
         conn.port = port;
         conn.username = if self.editor_form.username.is_empty() {
@@ -401,6 +410,7 @@ impl Oryxis {
             label: conn.label.clone(),
             protocol: conn.protocol,
             serial: conn.serial,
+            remote_desktop: conn.remote_desktop.clone(),
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
@@ -678,6 +688,31 @@ impl Oryxis {
             Message::EditorSerialLocalEchoToggled => {
                 let s = self.editor_form.serial.get_or_insert_with(Default::default);
                 s.local_echo = !s.local_echo;
+            }
+            Message::EditorRemoteDesktopToggled => {
+                self.editor_form.remote_desktop = match self.editor_form.remote_desktop {
+                    Some(_) => None,
+                    None => Some(Default::default()),
+                };
+            }
+            Message::EditorRdKindChanged(kind) => {
+                let rd = self.editor_form.remote_desktop.get_or_insert_with(Default::default);
+                // Retarget the port when it still holds the other kind's
+                // default, so a typed port survives the switch.
+                if rd.target_port == rd.kind.default_port() {
+                    rd.target_port = kind.default_port();
+                }
+                rd.kind = kind;
+            }
+            Message::EditorRdTargetHostChanged(v) => {
+                self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_host = v;
+            }
+            Message::EditorRdTargetPortChanged(v) => {
+                if let Ok(port) = v.trim().parse::<u16>() {
+                    self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_port = port;
+                } else if v.trim().is_empty() {
+                    self.editor_form.remote_desktop.get_or_insert_with(Default::default).target_port = 0;
+                }
             }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {
@@ -1085,6 +1120,7 @@ impl Oryxis {
                     // type are host config that applies to all protocols.
                     dup.protocol = conn.protocol;
                     dup.serial = conn.serial;
+                    dup.remote_desktop = conn.remote_desktop.clone();
                     dup.encoding = conn.encoding.clone();
                     dup.terminal_type = conn.terminal_type.clone();
                     dup.port = conn.port;

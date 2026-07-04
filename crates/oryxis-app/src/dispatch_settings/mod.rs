@@ -1553,6 +1553,9 @@ impl Oryxis {
                         for tab in &self.tabs {
                             Self::close_tab_sessions(tab);
                         }
+                        // Drop RDP/VNC tunnels too (each Arc drop cancels
+                        // the -L forward); locking severs everything.
+                        self.remote_desktop_forwards.clear();
                         self.tabs.clear();
                         self.active_tab = None;
                         self.clear_terminal_tab_memory();

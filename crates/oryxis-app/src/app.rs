@@ -766,6 +766,13 @@ pub struct Oryxis {
     /// `ForwardSession` cancels its tasks.
     pub(crate) active_forwards:
         std::collections::HashMap<Uuid, std::sync::Arc<oryxis_ssh::ForwardSession>>,
+    /// Live RDP/VNC-over-SSH tunnels, keyed by the host's connection id.
+    /// A managed `-L` forward that outlives the spawned desktop client
+    /// (which may return immediately); relaunching a host replaces its
+    /// entry (dropping the old `ForwardSession` cancels it), and vault
+    /// lock / app close clears the map.
+    pub(crate) remote_desktop_forwards:
+        std::collections::HashMap<Uuid, std::sync::Arc<oryxis_ssh::ForwardSession>>,
     /// Rules whose connect is in flight (drives the per-row spinner and
     /// prevents a double-start).
     pub(crate) port_forward_starting: std::collections::HashSet<Uuid>,
