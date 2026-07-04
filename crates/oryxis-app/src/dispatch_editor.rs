@@ -210,6 +210,7 @@ impl Oryxis {
             .unwrap_or_else(|| Connection::new("", ""));
 
         conn.label = self.editor_form.label.clone();
+        conn.protocol = self.editor_form.protocol;
         conn.hostname = self.editor_form.hostname.clone();
         conn.port = port;
         conn.username = if self.editor_form.username.is_empty() {
@@ -381,6 +382,7 @@ impl Oryxis {
     ) -> ConnectionForm {
         ConnectionForm {
             label: conn.label.clone(),
+            protocol: conn.protocol,
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
@@ -610,6 +612,19 @@ impl Oryxis {
             Message::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
             Message::EditorTagsChanged(v) => { self.editor_form.tags_text = v; }
             Message::EditorHostnameChanged(v) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
+            Message::EditorProtocolChanged(protocol) => {
+                let prev = self.editor_form.protocol;
+                if prev != protocol {
+                    // Retarget the port only when it still holds the old
+                    // protocol's default, so a user-typed port survives
+                    // the switch untouched.
+                    if self.editor_form.port.trim() == prev.default_port().to_string() {
+                        self.editor_form.port = protocol.default_port().to_string();
+                    }
+                    self.editor_form.protocol = protocol;
+                }
+                self.editor_form.username_focused = false;
+            }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {
                 self.editor_form.username = v;

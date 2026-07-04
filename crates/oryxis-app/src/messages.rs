@@ -477,6 +477,10 @@ pub enum Message {
     /// Host editor: comma-separated tags field.
     EditorTagsChanged(String),
     EditorHostnameChanged(String),
+    /// Host editor: the wire-protocol picker (SSH / Telnet). Switching
+    /// swaps the reduced form and, when the port still holds the old
+    /// protocol's default, retargets it (22 <-> 23).
+    EditorProtocolChanged(oryxis_core::models::connection::ConnectionProtocol),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
     EditorPasswordChanged(String),

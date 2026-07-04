@@ -64,6 +64,9 @@ pub(crate) struct SessionGroupForm {
 #[derive(Debug, Clone)]
 pub(crate) struct ConnectionForm {
     pub label: String,
+    /// Wire protocol picked in the editor. Drives the reduced Telnet
+    /// form (hides every SSH-only field) and, on save, `Connection.protocol`.
+    pub protocol: oryxis_core::models::connection::ConnectionProtocol,
     pub hostname: String,
     pub port: String,
     pub username: String,
@@ -686,6 +689,7 @@ impl Default for ConnectionForm {
     fn default() -> Self {
         Self {
             label: String::new(),
+            protocol: oryxis_core::models::connection::ConnectionProtocol::Ssh,
             hostname: String::new(),
             port: "22".into(),
             username: String::new(),

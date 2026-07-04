@@ -25,6 +25,20 @@ impl Oryxis {
         let is_editing = self.editor_form.editing_id.is_some();
         let title = if is_editing { crate::i18n::t("edit_host") } else { crate::i18n::t("new_host") };
         let has_address = !self.editor_form.hostname.is_empty();
+        // Telnet hosts hide the whole SSH block (keys, identities,
+        // agent-fwd, jump chain, proxy, port-forwards, TOTP, MCP,
+        // algorithms, initial command); the reduced form keeps only
+        // label/parent/tags, host/port, username/password, encoding and
+        // the terminal theme. `is_ssh` gates every SSH-only piece below.
+        let is_ssh = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh;
+        // SSH-only rows (Authentication / Network / Integration) are
+        // GATED on `is_ssh`: the reduced Telnet form drops them, and
+        // because `panel_nav_slot` records at build time, an ungated
+        // build would record invisible Tab targets. Each SSH-only local
+        // resolves to this empty element on Telnet so the keyboard walk
+        // only ever sees visible rows.
+        let empty = || -> Element<'_, Message> { Space::new().height(0).into() };
 
         // ── Header ──
         // The close (×) is intentionally not a keyboard row: Esc already
@@ -184,6 +198,39 @@ impl Oryxis {
             ),
         ]).align_y(iced::Alignment::Center).into();
 
+        // Protocol picker (Connection). A cloud-imported host has its own
+        // transport picker below and is always SSH-family, so the two are
+        // mutually exclusive: hide the protocol picker on cloud hosts.
+        use oryxis_core::models::connection::ConnectionProtocol;
+        let protocol_row: Option<Element<'_, Message>> = if self.editor_form.cloud_transport
+            .is_some()
+        {
+            None
+        } else {
+            let options = vec![ConnectionProtocol::Ssh, ConnectionProtocol::Telnet];
+            let picker = self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-protocol")),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(self.editor_form.protocol), options, |p| p.to_string())
+                    .on_select(Message::EditorProtocolChanged)
+                    .id(iced::widget::Id::new("editor-pick-protocol"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            );
+            Some(
+                column![
+                    text(t("protocol")).size(12).color(OryxisColors::t().text_muted),
+                    Space::new().height(8),
+                    picker,
+                ]
+                .into(),
+            )
+        };
+
         // Cloud-managed transport picker (Connection), only when the
         // connection being edited carries a `cloud_ref` (i.e. it was
         // imported from a cloud provider). Lets the user flip between
@@ -272,8 +319,10 @@ impl Oryxis {
             ]).align_y(iced::Alignment::Center)
         ];
 
-        // Identity suggestion dropdown (only when username field is focused)
-        if self.editor_form.username_focused && self.editor_form.selected_identity.is_none() && !self.identities.is_empty() {
+        // Identity suggestion dropdown (only when username field is
+        // focused). Identities are an SSH-auth concept, so the reduced
+        // Telnet form never offers them.
+        if is_ssh && self.editor_form.username_focused && self.editor_form.selected_identity.is_none() && !self.identities.is_empty() {
             let search = self.editor_form.username.to_lowercase();
             let matching: Vec<&Identity> = if search.is_empty() {
                 self.identities.iter().collect()
@@ -344,8 +393,12 @@ impl Oryxis {
         // both the password (Credentials) and the key (SSH Authentication).
         // We compute the banner / key / password as separate optionals so
         // each lands in its own section below.
-        let ssh_identity_banner: Option<Element<'_, Message>> =
-            self.editor_form.selected_identity.as_ref().map(|ident_label| {
+        let ssh_identity_banner: Option<Element<'_, Message>> = self
+            .editor_form
+            .selected_identity
+            .as_ref()
+            .filter(|_| is_ssh)
+            .map(|ident_label| {
                 container(
                     dir_row(vec![
                         iced_fonts::lucide::user().size(14).color(OryxisColors::t().accent).into(),
@@ -382,9 +435,11 @@ impl Oryxis {
                 8.0,
                 banner,
             ));
-        } else if self.editor_form.auth_method == AuthMethod::PasswordPrompt {
+        } else if is_ssh && self.editor_form.auth_method == AuthMethod::PasswordPrompt {
             // "Ask every time": no password is stored, so there is no field
             // to fill. A one-line note explains the prompt-on-connect flow.
+            // SSH-only (the auth-method picker that sets it is hidden on
+            // Telnet, which always shows a stored-password field).
             cred_items = cred_items.push(
                 dir_row(vec![
                     iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
@@ -427,8 +482,9 @@ impl Oryxis {
         // TOTP secret (2FA autofill). Shown for every auth method: a
         // keyboard-interactive second factor can follow any first factor
         // (password, key, agent). Same masked-placeholder tri-state as
-        // the password field above.
-        {
+        // the password field above. Telnet has no keyboard-interactive
+        // second factor, so the reduced form hides it.
+        if is_ssh {
             let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
                 && !self.editor_form.totp_touched
             {
@@ -501,7 +557,8 @@ impl Oryxis {
         let auth_selected = auth_value.to_string();
         // Focusable select: Tab reaches it, Enter/Space open it, the
         // widget owns arrows/Esc while focused (fork support).
-        let row_auth_method: Element<'_, Message> = panel_option_row(
+        let row_auth_method: Element<'_, Message> = if is_ssh {
+            panel_option_row(
             iced_fonts::lucide::shield(),
             t("auth_method"),
             self.panel_nav_slot(
@@ -519,14 +576,18 @@ impl Oryxis {
                     .style(crate::widgets::rounded_pick_list_style)
                     .into(),
             ),
-        );
+            )
+        } else {
+            empty()
+        };
 
         // Key row (SSH > Authentication): only when Auth Method is `Key`
         // (the chosen-method's field) and no identity is set (an identity
         // provides its own key). Layout is [key icon] [combo] [+ Key].
         // Built after the auth-method row so its keyboard rows record
         // right below it, matching the layout.
-        let ssh_key_row: Option<Element<'_, Message>> = if self.editor_form.selected_identity.is_none()
+        let ssh_key_row: Option<Element<'_, Message>> = if is_ssh
+            && self.editor_form.selected_identity.is_none()
             && self.editor_form.auth_method == AuthMethod::Key
         {
             // "+ Key" is clickable, opens the existing key import panel.
@@ -600,7 +661,8 @@ impl Oryxis {
 
         // Agent forwarding (SSH > Authentication). `share` (not the key
         // glyph) so it doesn't read as a duplicate of the Key row above.
-        let row_agent_fwd: Element<'_, Message> = self.panel_nav_slot(
+        let row_agent_fwd: Element<'_, Message> = if is_ssh {
+            self.panel_nav_slot(
             crate::keynav::RowAction::activate(Message::EditorToggleAgentForwarding),
             8.0,
             container(
@@ -626,12 +688,16 @@ impl Oryxis {
                 ]).align_y(iced::Alignment::Center)
             )
             .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
-        );
+            )
+        } else {
+            empty()
+        };
 
         // Single "Host Chaining" entry point (SSH > Network). Clicking
         // opens the chain editor (Termius-style multi-hop). Replaces the
         // old read-only row + separate single-host "Jump Host" picker.
-        let row_chaining: Element<'_, Message> = self.panel_nav_slot(
+        let row_chaining: Element<'_, Message> = if is_ssh {
+            self.panel_nav_slot(
             crate::keynav::RowAction::activate(Message::OpenChainEditor),
             6.0,
             container(
@@ -664,12 +730,20 @@ impl Oryxis {
                     }
                 })
             ).into(),
-        );
+            )
+        } else {
+            empty()
+        };
 
         // Proxy rows (SSH > Network), nested inline (no card wrapper).
-        let proxy_rows = self.build_proxy_rows();
+        let proxy_rows: Element<'_, Message> = if is_ssh {
+            self.build_proxy_rows().into()
+        } else {
+            empty()
+        };
 
         // ── Section: Port Forwarding ──
+        let pf_items: Element<'_, Message> = if is_ssh {
         let mut pf_items = column![
             dir_row(vec![
                 iced_fonts::lucide::arrow_right_left().size(14).color(OryxisColors::t().text_muted).into(),
@@ -738,6 +812,10 @@ impl Oryxis {
                 ]).align_y(iced::Alignment::Center).spacing(4),
             );
         }
+        pf_items.into()
+        } else {
+            empty()
+        };
 
         // pf_items (the port-forwarding column) is nested into SSH >
         // Network in the assembly below.
@@ -745,7 +823,8 @@ impl Oryxis {
         // Per-host keepalive override (SSH > Network). Empty placeholder
         // reflects the global default so the user sees what "inherit"
         // means; "0" disables keepalive on this host.
-        let row_keepalive: Element<'_, Message> = container(
+        let row_keepalive: Element<'_, Message> = if is_ssh {
+            container(
             dir_row(vec![
                 iced_fonts::lucide::activity().size(14).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(10).into(),
@@ -771,8 +850,11 @@ impl Oryxis {
                         .into(),
                 ),
             ]).align_y(iced::Alignment::Center)
-        )
-        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into();
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into()
+        } else {
+            empty()
+        };
 
         // Per-host auto-title (OSC 0/2) override: Default (inherit global) /
         // Show (always use the shell title) / Hide (always keep this host's
@@ -789,7 +871,8 @@ impl Oryxis {
             t("host_auto_title_hide").to_string(),
         ];
         // Focusable select (Tab + Enter/Space, widget-owned keys).
-        let row_auto_title: Element<'_, Message> = panel_option_row(
+        let row_auto_title: Element<'_, Message> = if is_ssh {
+            panel_option_row(
             iced_fonts::lucide::file_text(),
             t("host_auto_title"),
             self.panel_nav_slot(
@@ -805,15 +888,23 @@ impl Oryxis {
                     .style(crate::widgets::rounded_pick_list_style)
                     .into(),
             ),
-        );
+            )
+        } else {
+            empty()
+        };
 
         // Algorithm overrides (SSH > Network). Called here (not at the
         // assembly) so its keyboard rows record between the Network and
         // Integration rows, matching the layout.
-        let algo_overrides = self.algo_overrides_section();
+        let algo_overrides: Element<'_, Message> = if is_ssh {
+            self.algo_overrides_section()
+        } else {
+            empty()
+        };
 
         // Expose to MCP / AI (SSH > Integration).
-        let row_mcp: Element<'_, Message> = self.panel_nav_slot(
+        let row_mcp: Element<'_, Message> = if is_ssh {
+            self.panel_nav_slot(
             crate::keynav::RowAction::activate(Message::EditorToggleMcpEnabled),
             8.0,
             container(
@@ -839,9 +930,13 @@ impl Oryxis {
                 ]).align_y(iced::Alignment::Center)
             )
             .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
-        );
+            )
+        } else {
+            empty()
+        };
 
         // ── Section: Environment Variables ──
+        let env_items: Element<'_, Message> = if is_ssh {
         let mut env_items = column![
             dir_row(vec![
                 iced_fonts::lucide::variable().size(14).color(OryxisColors::t().text_muted).into(),
@@ -907,6 +1002,10 @@ impl Oryxis {
                 ]).align_y(iced::Alignment::Center).spacing(4),
             );
         }
+        env_items.into()
+        } else {
+            empty()
+        };
 
         // env_items (the environment-variables column) is nested into
         // SSH > Integration in the assembly below.
@@ -920,6 +1019,7 @@ impl Oryxis {
         // EditorStartupChoiceChanged; typing only filters (no on_input,
         // so there is no free-text path). The current choice's label
         // seeds the selection (and doubles as the focused placeholder).
+        let startup_block: Element<'_, Message> = if is_ssh {
         let startup_selected = self.editor_startup_label();
         // Keyboard row: Left/Right cycle None / Custom / snippet labels.
         let (startup_prev, startup_next) = crate::keynav::slots::cycle_pair(
@@ -973,7 +1073,10 @@ impl Oryxis {
                 ),
             );
         }
-        let startup_block: Element<'_, Message> = startup_block.into();
+        startup_block.into()
+        } else {
+            empty()
+        };
 
         // ── Section: Terminal appearance ──
         // A single "click to open picker" tile that mirrors the
@@ -1361,64 +1464,99 @@ impl Oryxis {
             .push(section_header(t("connection")))
             .push(Space::new().height(ROW_GAP))
             .push(hostname_row);
+        if let Some(pr) = protocol_row {
+            host_col = host_col.push(Space::new().height(ROW_GAP)).push(pr);
+        }
         if let Some(ct) = cloud_transport_row {
             host_col = host_col.push(Space::new().height(ROW_GAP)).push(ct);
         }
         let host_section = panel_section(host_col);
 
-        // SSH card header: "SSH .......... [22] port".
-        let ssh_header = dir_row(vec![
-            text(t("ssh")).size(14).color(OryxisColors::t().accent).into(),
+        // Protocol card header: "<PROTO> .......... [port] port". The
+        // accent label names the active protocol so the card reads the
+        // same whether it holds the full SSH block or the reduced
+        // Telnet one.
+        let proto_label = if is_ssh { t("ssh") } else { t("telnet") };
+        let proto_header = dir_row(vec![
+            text(proto_label).size(14).color(OryxisColors::t().accent).into(),
             Space::new().width(Length::Fill).into(),
             port_input,
             Space::new().width(8).into(),
             text(t("port")).size(12).color(OryxisColors::t().text_muted).into(),
         ]).align_y(iced::Alignment::Center);
 
-        // SSH card: port (header), then Credentials, Authentication,
-        // Network, Integration, and the initial command, all in one card.
-        let mut ssh_col = column![ssh_header]
-            .push(group_sep())
-            .push(section_header(t("credentials")))
-            .push(Space::new().height(ROW_GAP))
-            .push(cred_items)
-            .push(group_sep())
-            .push(section_header(t("authentication")))
-            .push(Space::new().height(ROW_GAP))
-            .push(row_auth_method);
-        // The chosen method's field: Key shows a key picker; the other
-        // methods need no extra input here (password lives in Credentials).
-        if let Some(k) = ssh_key_row {
-            ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(k);
-        }
-        ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_agent_fwd);
-        // Network subgroup.
-        ssh_col = ssh_col
-            .push(group_sep())
-            .push(section_header(t("network")))
-            .push(Space::new().height(ROW_GAP))
-            .push(row_chaining)
-            .push(Space::new().height(ROW_GAP))
-            .push(proxy_rows)
-            .push(Space::new().height(ROW_GAP))
-            .push(pf_items)
-            .push(Space::new().height(ROW_GAP))
-            .push(row_keepalive)
-            .push(Space::new().height(ROW_GAP))
-            .push(row_auto_title)
-            .push(Space::new().height(ROW_GAP))
-            .push(algo_overrides);
-        // Integration subgroup + initial command.
-        ssh_col = ssh_col
-            .push(group_sep())
-            .push(section_header(t("integration")))
-            .push(Space::new().height(ROW_GAP))
-            .push(row_mcp)
-            .push(Space::new().height(ROW_GAP))
-            .push(env_items)
-            .push(group_sep())
-            .push(startup_block);
-        let ssh_section = panel_section(ssh_col);
+        // Protocol card. SSH holds the full block (Credentials,
+        // Authentication, Network, Integration, initial command); Telnet
+        // holds only the port header, username/password credentials and
+        // an honest one-line cleartext note. Everything else is SSH-only
+        // and is dropped from the reduced form, not disabled.
+        let protocol_section: Element<'_, Message> = if is_ssh {
+            let mut ssh_col = column![proto_header]
+                .push(group_sep())
+                .push(section_header(t("credentials")))
+                .push(Space::new().height(ROW_GAP))
+                .push(cred_items)
+                .push(group_sep())
+                .push(section_header(t("authentication")))
+                .push(Space::new().height(ROW_GAP))
+                .push(row_auth_method);
+            // The chosen method's field: Key shows a key picker; the other
+            // methods need no extra input here (password lives in Credentials).
+            if let Some(k) = ssh_key_row {
+                ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(k);
+            }
+            ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_agent_fwd);
+            // Network subgroup.
+            ssh_col = ssh_col
+                .push(group_sep())
+                .push(section_header(t("network")))
+                .push(Space::new().height(ROW_GAP))
+                .push(row_chaining)
+                .push(Space::new().height(ROW_GAP))
+                .push(proxy_rows)
+                .push(Space::new().height(ROW_GAP))
+                .push(pf_items)
+                .push(Space::new().height(ROW_GAP))
+                .push(row_keepalive)
+                .push(Space::new().height(ROW_GAP))
+                .push(row_auto_title)
+                .push(Space::new().height(ROW_GAP))
+                .push(algo_overrides);
+            // Integration subgroup + initial command.
+            ssh_col = ssh_col
+                .push(group_sep())
+                .push(section_header(t("integration")))
+                .push(Space::new().height(ROW_GAP))
+                .push(row_mcp)
+                .push(Space::new().height(ROW_GAP))
+                .push(env_items)
+                .push(group_sep())
+                .push(startup_block);
+            panel_section(ssh_col)
+        } else {
+            // Telnet cleartext note: honest UX, not a lecture. The user
+            // is the only party on the path without a secure option.
+            let cleartext_note = dir_row(vec![
+                iced_fonts::lucide::triangle_alert()
+                    .size(13)
+                    .color(OryxisColors::t().warning)
+                    .into(),
+                Space::new().width(8).into(),
+                text(t("telnet_cleartext_note"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center);
+            let telnet_col = column![proto_header]
+                .push(group_sep())
+                .push(section_header(t("credentials")))
+                .push(Space::new().height(ROW_GAP))
+                .push(cred_items)
+                .push(Space::new().height(GROUP_GAP))
+                .push(cleartext_note);
+            panel_section(telnet_col)
+        };
 
         // Terminal card: appearance + session logging.
         let terminal_section = panel_section(
@@ -1435,7 +1573,7 @@ impl Oryxis {
             column![
                 host_section,
                 Space::new().height(10),
-                ssh_section,
+                protocol_section,
                 Space::new().height(10),
                 terminal_section,
             ]
