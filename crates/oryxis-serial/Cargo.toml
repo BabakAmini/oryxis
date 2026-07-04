@@ -14,3 +14,10 @@ thiserror = { workspace = true }
 # Oryxis takes the path as free text (Connection.hostname), so
 # enumeration is not needed.
 tokio-serial = { version = "5", default-features = false }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }
+# Real PTY pair for the interop test (a genuine OS tty, not an
+# in-memory duplex). Unix-only; the test is cfg(unix)-gated.
+[target.'cfg(unix)'.dev-dependencies]
+nix = { version = "0.29", features = ["term", "fs"] }

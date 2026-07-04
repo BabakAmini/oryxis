@@ -5639,6 +5639,7 @@ dependencies = [
 name = "oryxis-serial"
 version = "0.1.0"
 dependencies = [
+ "nix 0.29.0",
  "oryxis-core",
  "thiserror 2.0.18",
  "tokio",
