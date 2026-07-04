@@ -50,8 +50,8 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   bidirectional characters, raw terminal control sequences, `curl |
   sh` style fetch-and-execute one-liners (detected even when hidden
   behind invisible characters), and words mixing look-alike letters
-  from different alphabets. One master toggle: disabling careful
-  paste opts out of the guard too.
+  from different alphabets. Its own toggle in Settings > Terminal,
+  independent of the multi-line careful-paste switch.
 - **Per-snippet shortcuts.** A snippet can carry its own key combo
   (recorded right in the editor, with conflict and shell-key
   protection): with a terminal focused, the chord runs the snippet,
