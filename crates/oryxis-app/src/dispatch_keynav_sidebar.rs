@@ -134,9 +134,6 @@ impl Oryxis {
         let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
             return None;
         };
-        if modifiers.control() || modifiers.alt() || modifiers.logo() {
-            return None;
-        }
         let len = self.keynav.sidebar_items.borrow().len();
         // Selection engaged on the visible tab, clamped against this
         // frame's recording (a search filter can shrink it).
@@ -144,6 +141,45 @@ impl Oryxis {
             Some((tag, idx)) if tag == tab && len > 0 => Some(idx.min(len - 1)),
             _ => None,
         };
+        // Ctrl+F with the keyboard in the sidebar (owner ask): open /
+        // focus the active tab's search field instead of sending the
+        // readline forward-char to the PTY. Same ownership gate as the
+        // Tab walk; tabs without a search decline so nothing surprising
+        // gets consumed.
+        if modifiers.control()
+            && !modifiers.alt()
+            && !modifiers.logo()
+            && !modifiers.shift()
+            && matches!(key, keyboard::Key::Character(c) if c.as_str().eq_ignore_ascii_case("f"))
+            && (selected.is_some() || self.cursor_over_sidebar())
+        {
+            match tab {
+                TerminalSidebarTab::Snippets => {
+                    // The input's focused border takes over as the
+                    // keyboard affordance; a ring left behind on some
+                    // other row would read as stuck.
+                    self.keynav.sidebar_selected = None;
+                    if self.sidebar_search_open {
+                        return Some(iced::widget::operation::focus(iced::widget::Id::new(
+                            "sidebar-snippet-search",
+                        )));
+                    }
+                    // Opens the field and focuses it (the handler does).
+                    return Some(self.update(Message::ToggleSidebarSearch));
+                }
+                TerminalSidebarTab::History => {
+                    self.keynav.sidebar_selected = None;
+                    return Some(iced::widget::operation::focus(iced::widget::Id::new(
+                        "sidebar-history-search",
+                    )));
+                }
+                // No search on Chat / Host config.
+                _ => return None,
+            }
+        }
+        if modifiers.control() || modifiers.alt() || modifiers.logo() {
+            return None;
+        }
         // The ring is "active" only on non-input rows; while the
         // selection points at an input row the real focus owns the
         // keys (typing, caret, the chat editor's own Enter binding).
@@ -297,9 +333,16 @@ impl Oryxis {
                 Some(self.update(msg))
             }
             Named::Escape => {
-                if selected.is_some() {
+                // Esc is the "give me the terminal back" key: drop the
+                // ring AND blur whatever sidebar input the walk focused
+                // (the terminal never holds iced focus, so no focused
+                // input means keys route to the PTY again). Also fires
+                // with the cursor over the sidebar, where Esc was
+                // previously swallowed by the hover gate and did
+                // nothing at all.
+                if selected.is_some() || self.cursor_over_sidebar() {
                     self.keynav.sidebar_selected = None;
-                    return Some(Task::none());
+                    return Some(blur_task());
                 }
                 None
             }
