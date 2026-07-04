@@ -4,6 +4,101 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Ad-hoc quick connect.** Type `user@host` in the new-tab picker
+  (Ctrl+K), the toolbar search or the tab-jump (Ctrl+J) and connect
+  without saving a host; the host editor gains a "Connect without
+  saving" action. If the first auth attempt fails, the prompt and the
+  failure screen offer switching to any saved identity or key and
+  reconnect in place.
+- **Per-host command history.** Commands executed on saved hosts are
+  captured into the vault (shell-integration OSC 133 marks with a
+  raw-input heuristic fallback; prompts in password state are never
+  recorded, and a leading space skips capture) and surfaced in a new
+  History tab in the terminal sidebar: a most-frequent shortlist over
+  a recent list, with search, run, paste and delete (confirmed).
+  Local-only by design: never synced, never exported, wiped with the
+  host. Toggleable in Settings -> Terminal.
+- **TOTP 2FA in the vault.** Store a per-host TOTP secret (bare base32
+  or a full `otpauth://` URI) encrypted like every other credential;
+  keyboard-interactive verification-code prompts are answered
+  automatically, once per auth attempt, with a manual fallback if the
+  server rejects the code.
+- **Vault auto-lock.** An optional idle timer soft-locks the vault:
+  the master key is zeroized and the lock screen shown, while live SSH
+  sessions and tabs survive and are back after unlock. The manual Lock
+  Vault button remains a full teardown.
+- **Unified keyboard navigation** (#52). Focus zones across the vault
+  area (Tab cycles search / toolbar / content / sub-nav, arrows move,
+  Enter activates), the modals / menus / Settings / side panels
+  (per-frame recorded rows; selects are Tab-focusable with real
+  keyboard handling in the pick_list widget), and the entire terminal
+  sidebar: Ctrl+Shift+H opens it and cycles Chat / Snippets / History /
+  Host config, Tab walks every control (header buttons, searches,
+  selects, toggles, theme cards, chat mode chips), Enter runs the
+  selected snippet or history command, Shift+Enter pastes it without
+  the newline, Delete removes it, and Ctrl+Shift+B toggles the sidebar.
+  Entering History focuses its search field.
+- **Careful paste.** Multi-line pastes show a confirmation with a
+  line-count preview so a hidden trailing newline can't auto-execute;
+  bracketed paste honours the remote app's mode; opt-out available.
+- **Tab rename and bottom tab bar.** Transient per-tab rename (not
+  persisted to the host) and an opt-in setting to dock the tab strip
+  at the bottom of the window.
+- **Ctrl+Tab tab switching by recency.** A single press toggles the two
+  most recent tabs; holding Ctrl and pressing Tab again walks deeper
+  through the most-recently-used stack, like the OS Alt+Tab.
+- **Never-stored password auth + legacy RSA.** A new "Password prompt"
+  auth method asks for the password at every connection and never
+  writes it to the vault; RSA keys negotiate rsa-sha2-512/256 with a
+  SHA-1 fallback so old servers keep working.
+- **Window geometry persistence.** Size, position (and monitor) and
+  the maximized / fullscreen state are remembered across launches.
+- **Debug logging + environment info.** Settings -> Advanced gains an
+  opt-in debug log written to `~/.oryxis/oryxis-debug.log` and a
+  "Copy environment info" button for bug reports.
+- **Renderer auto-probe with software fallback.** At boot the GPU
+  stack is probed; when the advertised backend is actually a software
+  rasterizer (the WSL / llvmpipe class that misrenders), the app drops
+  to the built-in software renderer instead. The explicit OpenGL
+  choice does the same check, the Settings labels now describe the
+  real backend ladder, and changing the renderer offers an in-app
+  restart to apply.
+- **Performance mode** plus terminal render polish: terminal geometry
+  cache, event-driven tray updates, and cursor-move forwarding gated
+  behind an interest flag so idle mouse movement stops burning CPU.
+
+### Changed
+- **AI chat harness.** Replies and tool calls now route to the tab
+  that asked (a stream could previously land commands on another
+  host's tab), each tab carries a Plan / Ask / Auto mode, a floating
+  Stop button aborts a runaway tool loop, privacy-mode redaction is
+  applied to captured terminal context before it reaches the model,
+  and provider requests carry timeouts and retry handling.
+- **Privacy mode expanded.** Terminal masking now covers IPv6
+  addresses, `user@host` pairs, home-directory usernames and vault
+  hostnames; the mask renders in neutral grey; the connection-progress
+  panel no longer leaks the address and gains an in-place reveal eye.
+- **Split-pane shortcuts are rebindable** like every other binding,
+  and Ctrl+Shift+E was freed up for SFTP.
+- The lock screen adopts the onboarding's accent-gradient look.
+
+### Fixed
+- Pasted text with CRLF line endings no longer doubles newlines; all
+  line endings are normalized to CR on paste (#60).
+- Full-screen and raw-mode prompts over SSH no longer freeze: in-band
+  terminal queries (device attributes, cursor position) are answered
+  (#48).
+- A renamed ECS dynamic group could vanish yet still block its own
+  re-import.
+- A `pick_list` dropdown unmounted while open (section switch, tab
+  switch, sidebar close) could permanently swallow Enter / Space /
+  Esc / arrows app-wide.
+- Focus rings no longer accumulate across the host editor's inputs,
+  and context-menu / picker rows click reliably again.
+
 ## [0.8.3] - 2026-06-30
 
 ### Added
