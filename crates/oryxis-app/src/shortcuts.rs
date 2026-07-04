@@ -452,6 +452,22 @@ impl Oryxis {
         Some(parts.join(" + "))
     }
 
+    /// Pretty-printed binding for the Nth vault section (1-indexed
+    /// digit), e.g. `"Ctrl + Shift + 2"` for Keychain. Same concrete
+    /// digit treatment as the strip-slot label; `None` when the
+    /// `VaultSectionSlot` family is unbound. Used by the burger
+    /// menu's VAULT entries.
+    pub(crate) fn hotkey_label_for_vault_slot(
+        &self,
+        digit: usize,
+    ) -> Option<String> {
+        let binding = self.hotkey_bindings.get(&HotkeyAction::VaultSectionSlot)?;
+        let mut parts = binding.badges();
+        parts.pop();
+        parts.push(digit.to_string());
+        Some(parts.join(" + "))
+    }
+
     /// Main entry point for `dispatch_terminal::Message::KeyboardEvent`.
     /// Returns `Some(task)` when the event was consumed (by capture
     /// mode, a binding match, or the Esc-closes-modal fallback), or
@@ -712,6 +728,31 @@ impl Oryxis {
             SwitchToTabSlot => match family {
                 FamilyMatch::Digit(d) => {
                     Task::done(Message::ActivateStripSlot(d as usize - 1))
+                }
+                _ => Task::none(),
+            },
+            // Ctrl+Shift+digit: jump straight to a vault section, in
+            // the burger menu's VAULT order. Works from anywhere
+            // (ChangeView handles leaving a terminal tab); digit 9 is
+            // spare, and the Logs slot respects its visibility gate
+            // like the menu entry does.
+            VaultSectionSlot => match family {
+                FamilyMatch::Digit(d) => {
+                    let view = match d {
+                        1 => Some(View::Dashboard),
+                        2 => Some(View::Keys),
+                        3 => Some(View::Snippets),
+                        4 => Some(View::PortForwarding),
+                        5 => self.logs_surface_visible().then_some(View::History),
+                        6 => Some(View::Cloud),
+                        7 => Some(View::Proxies),
+                        8 => Some(View::KnownHosts),
+                        _ => None,
+                    };
+                    match view {
+                        Some(v) => Task::done(Message::ChangeView(v)),
+                        None => Task::none(),
+                    }
                 }
                 _ => Task::none(),
             },

@@ -1073,8 +1073,9 @@ impl Oryxis {
         let hk_settings = self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::OpenSettings);
         let hk_local_shell = self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::OpenLocalShell);
         let hk_new_window = self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::NewWindow);
-        // Hosts / SFTP carry the Ctrl+1 / Ctrl+2 hints since the strip
-        // always renders them as area tabs.
+        // The VAULT section header carries the strip-slot hint (Ctrl+1
+        // opens the vault area, which the strip always renders as its
+        // first tab); each entry shows its own Ctrl+Shift+digit jump.
         let hk_hosts = self.hotkey_label_for_strip_slot(0);
         // SFTP is no longer a fixed strip slot; the menu item opens a new SFTP
         // tab, so show the dedicated OpenSftp shortcut instead.
@@ -1123,43 +1124,84 @@ impl Oryxis {
         // read as if Hosts/Keychain/... sat outside the Vault (issue
         // #38 review feedback); mirroring the top strip's Vault tab
         // here keeps one mental model. Indentation goes through
-        // dir_row so it flips under RTL.
-        let section = |label: &'static str| -> Element<'_, Message> {
-            container(
-                text(crate::i18n::t(label).to_uppercase())
-                    .size(10)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Semibold,
-                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                    })
-                    .color(OryxisColors::t().text_muted),
-            )
-            .padding(Padding { top: 8.0, right: 16.0, bottom: 2.0, left: 16.0 })
-            .width(Length::Fill)
-            .align_x(dir_align_x())
-            .into()
+        // dir_row so it flips under RTL. The header carries the
+        // strip-slot hint (Ctrl+1 opens the vault area itself; the
+        // per-section Ctrl+Shift+digit hints live on the entries).
+        let section = |label: &'static str, hint: Option<String>| -> Element<'_, Message> {
+            let label_el: Element<'_, Message> = text(crate::i18n::t(label).to_uppercase())
+                .size(10)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Semibold,
+                    ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                })
+                .color(OryxisColors::t().text_muted)
+                .into();
+            let inner: Element<'_, Message> = if let Some(hint) = hint {
+                dir_row(vec![
+                    label_el,
+                    Space::new().width(Length::Fill).into(),
+                    text(hint).size(10).color(OryxisColors::t().text_muted).into(),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            } else {
+                label_el
+            };
+            container(inner)
+                .padding(Padding { top: 8.0, right: 16.0, bottom: 2.0, left: 16.0 })
+                .width(Length::Fill)
+                .align_x(dir_align_x())
+                .into()
         };
         pub(crate) fn indent(inner: Element<'_, Message>) -> Element<'_, Message> {
             dir_row(vec![Space::new().width(10).into(), inner]).into()
         }
         let menu_col = column![
-            section("vault"),
-            indent(item("hosts", Message::ChangeView(View::Dashboard), hk_hosts)),
-            indent(item("keychain", Message::ChangeView(View::Keys), None)),
-            indent(item("snippets", Message::ChangeView(View::Snippets), None)),
+            section("vault", hk_hosts),
+            indent(item(
+                "hosts",
+                Message::ChangeView(View::Dashboard),
+                self.hotkey_label_for_vault_slot(1)
+            )),
+            indent(item(
+                "keychain",
+                Message::ChangeView(View::Keys),
+                self.hotkey_label_for_vault_slot(2)
+            )),
+            indent(item(
+                "snippets",
+                Message::ChangeView(View::Snippets),
+                self.hotkey_label_for_vault_slot(3)
+            )),
             indent(item(
                 "port_forwards",
                 Message::ChangeView(View::PortForwarding),
-                None
+                self.hotkey_label_for_vault_slot(4)
             )),
             if self.logs_surface_visible() {
-                indent(item("logs", Message::ChangeView(View::History), None))
+                indent(item(
+                    "logs",
+                    Message::ChangeView(View::History),
+                    self.hotkey_label_for_vault_slot(5)
+                ))
             } else {
                 Space::new().height(0).into()
             },
-            indent(item("cloud_accounts", Message::ChangeView(View::Cloud), None)),
-            indent(item("proxies", Message::ChangeView(View::Proxies), None)),
-            indent(item("known_hosts", Message::ChangeView(View::KnownHosts), None)),
+            indent(item(
+                "cloud_accounts",
+                Message::ChangeView(View::Cloud),
+                self.hotkey_label_for_vault_slot(6)
+            )),
+            indent(item(
+                "proxies",
+                Message::ChangeView(View::Proxies),
+                self.hotkey_label_for_vault_slot(7)
+            )),
+            indent(item(
+                "known_hosts",
+                Message::ChangeView(View::KnownHosts),
+                self.hotkey_label_for_vault_slot(8)
+            )),
             Space::new().height(4),
             sftp_item,
             item("settings", Message::ChangeView(View::Settings), hk_settings),
