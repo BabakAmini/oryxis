@@ -1212,8 +1212,11 @@ impl Oryxis {
             lock_item,
         ]
         .width(Length::Fill);
+        // 300 px: wide enough that the longest label + the longest
+        // hotkey hint ("Port Forwarding" + "Ctrl + Shift + 4") share
+        // a row without the hint wrapping onto a second line.
         let menu_panel = container(menu_col)
-            .width(Length::Fixed(240.0))
+            .width(Length::Fixed(300.0))
             .padding(Padding { top: 6.0, right: 6.0, bottom: 6.0, left: 6.0 })
             .style(|_| container::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_sidebar)),

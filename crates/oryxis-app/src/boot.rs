@@ -661,6 +661,14 @@ impl Oryxis {
         // tabs before the first render; subsequent messages keep it in sync via
         // `reconcile_tab_order` at the end of `update`.
         app.reconcile_tab_order();
+        // Booting straight onto the lock screen: put the keyboard in
+        // the master-password field (same auto-focus as LockVault /
+        // AutoLockVault, so the password is typeable without a click).
+        if app.vault_ui.state == crate::state::VaultState::Locked {
+            tasks.push(iced::widget::operation::focus(iced::widget::Id::new(
+                "vault-unlock-password",
+            )));
+        }
         let boot_task = Task::batch(tasks);
         (app, boot_task)
     }

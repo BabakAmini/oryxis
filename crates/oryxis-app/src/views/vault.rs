@@ -7,7 +7,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 use crate::app::{Message, Oryxis};
 use crate::theme::{mix, OryxisColors};
 use crate::views::chrome::window_chrome_bar;
-use crate::widgets::{accent_gradient, password_input_with_eye, styled_button};
+use crate::widgets::{accent_gradient, styled_button};
 
 /// Wrap a vault screen body with the top window chrome so the user can still
 /// drag / minimize / maximize / close before unlocking the vault. Also adds
@@ -39,7 +39,10 @@ impl Oryxis {
         placeholder: &'a str,
         on_submit: Message,
     ) -> Element<'a, Message> {
-        container(password_input_with_eye(
+        // Carries a focus id so the lock screen can auto-focus it on
+        // arrival (boot, manual lock, idle auto-lock): the master
+        // password should be typeable without a click.
+        container(crate::widgets::password_input_with_eye_id(
             placeholder,
             &self.vault_ui.password_input,
             Message::VaultPasswordChanged,
@@ -47,6 +50,7 @@ impl Oryxis {
             self.vault_ui.password_visible,
             Message::VaultTogglePasswordVisibility,
             12.0,
+            Some(iced::widget::Id::new("vault-unlock-password")),
         ))
         .width(300)
         .into()

@@ -1451,6 +1451,11 @@ impl Oryxis {
                         entry.totp_secret = None;
                         entry.proxy_password = None;
                     }
+                    // Land the keyboard in the unlock field so the user
+                    // returning to the machine just types the password.
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        "vault-unlock-password",
+                    )));
                 }
             }
             Message::ConnectAnimTick => {
@@ -1545,6 +1550,11 @@ impl Oryxis {
                         self.active_tab = None;
                         self.clear_terminal_tab_memory();
                         self.active_view = View::Dashboard;
+                        // Same auto-focus as the soft lock: the unlock
+                        // field is the only thing to interact with.
+                        return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                            "vault-unlock-password",
+                        )));
                     } else {
                         // No user password: re-open immediately
                         let _ = vault.open_without_password();
