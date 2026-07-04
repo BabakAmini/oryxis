@@ -93,6 +93,11 @@ impl Oryxis {
     pub(crate) fn launch_remote_desktop(&mut self, conn: Connection) -> Task<Message> {
         self.card_context_menu = None;
         self.overlay = None;
+        // A remote-desktop launch never shows the connect-progress screen,
+        // so clear it: the gateway's host-key modal only renders while
+        // `connecting.is_none()`, and a lingering flag from elsewhere would
+        // hide the prompt and hang the bridge waiting for an answer.
+        self.connecting = None;
         use oryxis_core::models::connection::ConnectionProtocol;
         if conn.protocol != ConnectionProtocol::RemoteDesktop {
             return Task::none();
@@ -108,19 +113,13 @@ impl Oryxis {
         // Resolve the gateway SSH host to tunnel through. A missing / non-SSH
         // id degrades to a direct connection with a warning (never an error),
         // mirroring `resolve_proxy`'s dangling-identity handling.
-        let gateway = conn.rd_gateway_id.and_then(|gid| {
-            let g = self
-                .connections
-                .iter()
-                .find(|c| c.id == gid && c.protocol == ConnectionProtocol::Ssh)
-                .cloned();
-            if g.is_none() {
-                tracing::warn!(
-                    "remote-desktop gateway {gid} missing or not SSH; connecting directly"
-                );
-            }
-            g
-        });
+        let gateway = resolve_rd_gateway(conn.rd_gateway_id, &self.connections).cloned();
+        if conn.rd_gateway_id.is_some() && gateway.is_none() {
+            tracing::warn!(
+                "remote-desktop gateway {:?} missing or not SSH; connecting directly",
+                conn.rd_gateway_id
+            );
+        }
 
         // Direct connection (no SSH gateway): point the client straight at
         // the desktop endpoint, no tunnel, no managed forward.
@@ -322,5 +321,59 @@ impl Oryxis {
         );
 
         Task::stream(stream)
+    }
+}
+
+/// Resolve a remote-desktop gateway id to the SSH host it names. A missing
+/// id, or one that names a non-existent or non-SSH host, resolves to `None`
+/// (a direct connection) rather than an error, so deleting the gateway host
+/// silently degrades to direct instead of breaking the desktop host. Pure
+/// so the dangling-gateway fallback is unit-tested without a live client.
+fn resolve_rd_gateway(
+    gateway_id: Option<uuid::Uuid>,
+    connections: &[Connection],
+) -> Option<&Connection> {
+    let gid = gateway_id?;
+    connections.iter().find(|c| {
+        c.id == gid
+            && c.protocol == oryxis_core::models::connection::ConnectionProtocol::Ssh
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_rd_gateway;
+    use oryxis_core::models::connection::ConnectionProtocol;
+    use oryxis_core::models::Connection;
+
+    #[test]
+    fn none_id_is_direct() {
+        let conns = vec![Connection::new("a", "h")];
+        assert!(resolve_rd_gateway(None, &conns).is_none());
+    }
+
+    #[test]
+    fn resolves_an_ssh_host() {
+        let gw = Connection::new("gw", "bastion");
+        let id = gw.id;
+        let conns = vec![gw];
+        assert_eq!(resolve_rd_gateway(Some(id), &conns).map(|c| c.id), Some(id));
+    }
+
+    #[test]
+    fn dangling_id_degrades_to_direct() {
+        let conns = vec![Connection::new("a", "h")];
+        assert!(resolve_rd_gateway(Some(uuid::Uuid::new_v4()), &conns).is_none());
+    }
+
+    #[test]
+    fn non_ssh_gateway_is_rejected() {
+        // A gateway that is itself Telnet/Serial/RemoteDesktop can't tunnel;
+        // it must degrade to direct, not be dialled as an SSH host.
+        let mut gw = Connection::new("gw", "bastion");
+        gw.protocol = ConnectionProtocol::Telnet;
+        let id = gw.id;
+        let conns = vec![gw];
+        assert!(resolve_rd_gateway(Some(id), &conns).is_none());
     }
 }
