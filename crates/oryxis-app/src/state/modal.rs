@@ -35,6 +35,9 @@ pub(crate) enum Modal {
     /// Careful-paste confirmation (multi-line clipboard paste parked in
     /// `pending_paste`, waiting for the user to confirm or cancel).
     CarefulPaste,
+    /// Snippet-variables prompt (`{name}` placeholders parked in
+    /// `pending_snippet_vars`, filled before the send).
+    SnippetVars,
     /// Keyboard-interactive (2FA / OTP) prompt. Blocks input but owns its
     /// own dismissal, so it is intentionally absent from `ESC_ORDER`.
     KbiPrompt,
@@ -71,6 +74,7 @@ impl Modal {
         Modal::FolderDelete,
         Modal::TabRename,
         Modal::CarefulPaste,
+        Modal::SnippetVars,
         Modal::KbiPrompt,
         Modal::ThemeEditor,
         Modal::ThemeImport,
@@ -101,6 +105,7 @@ impl Modal {
         Modal::FolderDelete,
         Modal::TabRename,
         Modal::CarefulPaste,
+        Modal::SnippetVars,
         // The error dialog can pop over another flow, so it dismisses
         // before the heavier editors below; the two confirm dialogs
         // follow in the same lightweight-confirm group.
@@ -132,6 +137,7 @@ impl Modal {
             | Modal::FolderDelete
             | Modal::TabRename
             | Modal::CarefulPaste
+            | Modal::SnippetVars
             | Modal::KbiPrompt
             | Modal::ThemeEditor
             | Modal::ThemeImport
@@ -170,6 +176,7 @@ mod tests {
                 | Modal::FolderDelete
                 | Modal::TabRename
                 | Modal::CarefulPaste
+                | Modal::SnippetVars
                 | Modal::KbiPrompt
                 | Modal::ThemeEditor
                 | Modal::ThemeImport
@@ -186,7 +193,7 @@ mod tests {
                 | Modal::SftpPicker => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 24, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 25, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

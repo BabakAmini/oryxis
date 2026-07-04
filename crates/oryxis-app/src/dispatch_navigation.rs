@@ -83,6 +83,14 @@ impl Oryxis {
                 // visual noise.
                 self.show_burger_menu = false;
                 self.show_subnav_overflow = false;
+                // Any floating overlay menu (kebab, sort, the
+                // multi-select tag filters, which STAY open by design)
+                // dies with its view: a stale `overlay` keeps the modal
+                // keyboard router alive, which silently eats
+                // Enter/arrows on the next surface (live QA: the
+                // terminal 'stopped accepting commands' after
+                // navigating away from an open tag dropdown).
+                self.overlay = None;
                 // Lazy-load the local SFTP pane when the user first lands
                 // on the view (or returns to it after the underlying dir
                 // changed). Cheap enough to redo unconditionally.

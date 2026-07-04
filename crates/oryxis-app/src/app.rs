@@ -747,6 +747,9 @@ pub struct Oryxis {
     /// the field stays fully keyboard-editable.
     pub(crate) snippet_tags_input: String,
     pub(crate) snippet_editing_id: Option<Uuid>,
+    /// Snippet run/paste waiting on its `{placeholders}` (modal open
+    /// while `Some`).
+    pub(crate) pending_snippet_vars: Option<crate::state::PendingSnippetVars>,
     pub(crate) snippet_error: Option<String>,
 
     // Port forwards (standalone entity, independent of any terminal)
@@ -1384,6 +1387,12 @@ impl Oryxis {
         // without firing on_close; a stuck flag swallows
         // Enter/Space/Esc/arrows process-wide.
         self.keynav.pick_open = false;
+        // And for floating overlay menus (kebabs, the stay-open tag
+        // filters): a stale `overlay` keeps the modal keyboard router
+        // alive on the new tab, eating Enter/arrows invisibly (live
+        // QA: 'the terminal stopped accepting commands', recovered
+        // only by an explicit Esc elsewhere).
+        self.overlay = None;
     }
 
     pub(crate) fn adjust_last_terminal_tab_after_remove(&mut self, removed_idx: usize) {

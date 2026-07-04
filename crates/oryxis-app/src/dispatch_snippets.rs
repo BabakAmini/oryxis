@@ -80,6 +80,51 @@ impl Oryxis {
         tags
     }
 
+    /// Send `cmd` to the active terminal: bracketed-paste wrapped, the
+    /// submit newline OUTSIDE the bracket when `run`. Ring-preserving
+    /// (may be fired by the sidebar ring's own Enter).
+    fn inject_snippet_text(&mut self, cmd: &str, run: bool) {
+        let Some(tab_idx) = self.snippet_injection_tab() else {
+            return;
+        };
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let bracketed = tab
+            .active()
+            .terminal
+            .lock()
+            .map(|s| s.bracketed_paste_enabled())
+            .unwrap_or(false);
+        let mut payload = oryxis_terminal::wrap_paste(cmd, bracketed);
+        if run {
+            payload.push(b'\n');
+        }
+        self.write_ring_injection_to_tab(tab_idx, &payload);
+    }
+
+    /// Run/paste gate: a snippet with `{name}` placeholders parks in
+    /// the variables modal instead of sending raw braces; everything
+    /// else sends immediately. Returns the first input's focus task
+    /// when the modal opens.
+    fn snippet_send_or_prompt(&mut self, idx: usize, run: bool) -> Task<Message> {
+        let Some(snip) = self.snippets.get(idx) else {
+            return Task::none();
+        };
+        let cmd = snip.command.clone();
+        let vars = crate::util::snippet_placeholders(&cmd);
+        if vars.is_empty() {
+            self.inject_snippet_text(&cmd, run);
+            return Task::none();
+        }
+        self.pending_snippet_vars = Some(crate::state::PendingSnippetVars {
+            command: cmd,
+            run,
+            vars,
+        });
+        iced::widget::operation::focus(iced::widget::Id::new("snippet-var-0"))
+    }
+
     /// Rebuild the Group combo options from the distinct snippet
     /// groups (first spelling wins, sorted), mirroring the host
     /// editor's `editor_parent_combo` reset. Called when either
@@ -269,29 +314,7 @@ impl Oryxis {
                 }
             }
             Message::RunSnippet(idx) => {
-                if let Some(snip) = self.snippets.get(idx) {
-                    let cmd = snip.command.clone();
-                    if let Some(tab_idx) = self.snippet_injection_tab()
-                        && let Some(tab) = self.tabs.get(tab_idx)
-                    {
-                        // Bracket the body (so a multi-line snippet inserts as
-                        // one block under bracketed paste), then append the
-                        // submit newline OUTSIDE the bracket so it runs once.
-                        // With the mode off this collapses to the old
-                        // `command\n` raw write.
-                        let bracketed = tab
-                            .active()
-                            .terminal
-                            .lock()
-                            .map(|s| s.bracketed_paste_enabled())
-                            .unwrap_or(false);
-                        let mut payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
-                        payload.push(b'\n');
-                        // Ring-preserving: may be fired by the sidebar ring's
-                        // Shift+Enter, which must survive its own action.
-                        self.write_ring_injection_to_tab(tab_idx, &payload);
-                    }
-                }
+                return Ok(self.snippet_send_or_prompt(idx, true));
             }
             Message::ApplySudoPassword => {
                 // Resolve the active terminal's connection by label, decrypt
@@ -331,28 +354,27 @@ impl Oryxis {
                 ));
             }
             Message::PasteSnippet(idx) => {
-                // Same injection path as RunSnippet, but without the trailing
-                // newline so the user reviews and presses Enter themselves.
-                if let Some(snip) = self.snippets.get(idx) {
-                    let cmd = snip.command.clone();
-                    if let Some(tab_idx) = self.snippet_injection_tab()
-                        && let Some(tab) = self.tabs.get(tab_idx)
-                    {
-                        // Wrap in bracketed paste when the focused app asked
-                        // for it, so a multi-line snippet inserts as one block
-                        // instead of auto-submitting on every embedded newline.
-                        let bracketed = tab
-                            .active()
-                            .terminal
-                            .lock()
-                            .map(|s| s.bracketed_paste_enabled())
-                            .unwrap_or(false);
-                        let payload = oryxis_terminal::wrap_paste(&cmd, bracketed);
-                        // Ring-preserving: may be fired by the sidebar ring's
-                        // Enter, which must survive its own action.
-                        self.write_ring_injection_to_tab(tab_idx, &payload);
-                    }
+                // Same injection path as RunSnippet, but without the
+                // trailing newline so the user reviews and presses
+                // Enter themselves.
+                return Ok(self.snippet_send_or_prompt(idx, false));
+            }
+            Message::SnippetVarChanged(i, v) => {
+                if let Some(pending) = self.pending_snippet_vars.as_mut()
+                    && let Some(slot) = pending.vars.get_mut(i)
+                {
+                    slot.1 = v;
                 }
+            }
+            Message::ConfirmSnippetVars => {
+                if let Some(pending) = self.pending_snippet_vars.take() {
+                    let cmd =
+                        crate::util::substitute_snippet_vars(&pending.command, &pending.vars);
+                    self.inject_snippet_text(&cmd, pending.run);
+                }
+            }
+            Message::CancelSnippetVars => {
+                self.pending_snippet_vars = None;
             }
 
 

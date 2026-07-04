@@ -624,6 +624,12 @@ pub enum Message {
     OpenSidebarSnippetGroup(String),
     /// Sidebar Snippets tab: back to the folder list.
     CloseSidebarSnippetGroup,
+    /// Snippet-variables modal: edit the Nth placeholder's value.
+    SnippetVarChanged(usize, String),
+    /// Substitute the filled values and send the parked snippet.
+    ConfirmSnippetVars,
+    /// Drop the parked snippet without sending.
+    CancelSnippetVars,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the

@@ -489,6 +489,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "仅显示与此主机标签匹配的片段",
         "all_tags" => "全部标签",
         "snippet_count_one" => "1 个片段",
+        "snippet_vars_title" => "填写片段变量",
         "snippet_count_other" => "个片段",
         "host_tag_filter" => "按标签筛选",
         "host_config_no_host" => "打开一个已保存的主机以在此编辑其设置。",

@@ -44,6 +44,24 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   dropdowns are multi-select with a selection count on the toolbar
   button; the host filter narrows the Groups section by subtree.
   Groups and tags ride sync and portable export as plain snippet data.
+- **Snippet variables.** `{name}` and `{name:default}` placeholders
+  in a snippet body prompt for values in a small dialog before the
+  send (run and paste alike), with defaults pre-filled and the first
+  field focused. The matcher is deliberately narrow so shell text
+  never trips it: `${VAR}`, `{}` and `{print $1}` pass through
+  untouched. No major competitor ships this.
+- **Fixed: hotkey chords no longer type stray characters.** On some
+  platforms a chorded key event still carries its base character
+  (Ctrl+Shift+3 arrives with `#`), and focused text fields inserted
+  it, so the new section-jump chords sprayed `#$!@` into search
+  boxes. Text inputs and editors now ignore event text while Ctrl
+  (without AltGr) or the logo key is held.
+- **Fixed: floating menus die with their surface.** An overlay menu
+  left open across a navigation or a tab switch (easy with the
+  stay-open tag filters) kept the modal keyboard router alive and
+  invisibly swallowed Enter and the arrows, reading as "the terminal
+  stopped accepting commands". Navigating or activating a tab now
+  closes any floating menu.
 - **Session recording export (asciinema-compatible).** The encrypted
   session logs the vault already keeps now record real timing (chunk
   offsets stamped at capture, per-line replay steps, terminal resizes)

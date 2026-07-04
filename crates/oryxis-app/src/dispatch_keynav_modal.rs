@@ -81,6 +81,7 @@ impl Oryxis {
                     }
                     Modal::FolderDelete
                     | Modal::CarefulPaste
+                    | Modal::SnippetVars
                     | Modal::ErrorDialog
                     | Modal::ClearHistoryConfirm
                     | Modal::SshImport

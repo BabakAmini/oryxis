@@ -873,6 +873,102 @@ impl Oryxis {
             );
         }
 
+        // Snippet-variables prompt: a snippet with `{name}` placeholders
+        // parks here so the values are filled before anything reaches
+        // the session. Same dialog shell as the careful paste below.
+        if let Some(ref pending) = self.pending_snippet_vars {
+            let c = OryxisColors::t();
+            self.modal_nav_reset();
+            let mut fields = column![].spacing(10);
+            for (i, (name, value)) in pending.vars.iter().enumerate() {
+                let input_id = iced::widget::Id::from(format!("snippet-var-{i}"));
+                fields = fields.push(
+                    column![
+                        text(name.clone()).size(12).color(c.text_secondary),
+                        Space::new().height(4),
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::input(input_id.clone()),
+                            crate::widgets::INPUT_RADIUS,
+                            false,
+                            text_input("", value)
+                                .id(input_id)
+                                .on_input(move |v| Message::SnippetVarChanged(i, v))
+                                .on_submit(Message::ConfirmSnippetVars)
+                                .padding(10)
+                                .style(crate::widgets::rounded_input_style)
+                                .align_x(dir_align_x())
+                                .into(),
+                        ),
+                    ]
+                    .width(Length::Fill)
+                    .align_x(dir_align_x()),
+                );
+            }
+            let confirm_label = if pending.run {
+                crate::i18n::t("snippet_run")
+            } else {
+                crate::i18n::t("snippet_paste")
+            };
+            let dialog = container(
+                column![
+                    dir_row(vec![
+                        iced_fonts::lucide::braces().size(16).color(c.accent).into(),
+                        Space::new().width(8).into(),
+                        container(
+                            text(crate::i18n::t("snippet_vars_title"))
+                                .size(16)
+                                .color(c.text_primary),
+                        )
+                        .width(Length::Fill)
+                        .align_x(dir_align_x())
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                    Space::new().height(12),
+                    fields,
+                    Space::new().height(16),
+                    dir_row(vec![
+                        self.modal_nav_slot_default(
+                            crate::keynav::RowAction::activate(Message::ConfirmSnippetVars),
+                            6.0,
+                            true,
+                            styled_button(confirm_label, Message::ConfirmSnippetVars, c.accent),
+                        ),
+                        Space::new().width(8).into(),
+                        self.modal_nav_slot(
+                            crate::keynav::RowAction::activate(Message::CancelSnippetVars),
+                            6.0,
+                            false,
+                            styled_button(
+                                crate::i18n::t("cancel"),
+                                Message::CancelSnippetVars,
+                                c.text_muted,
+                            ),
+                        ),
+                    ]),
+                ]
+                .width(Length::Fill)
+                .align_x(dir_align_x())
+                .padding(24),
+            )
+            .width(Length::Fixed(420.0))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(c.bg_surface)),
+                border: Border { radius: Radius::from(12.0), color: c.border, width: 1.0 },
+                ..Default::default()
+            });
+
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    dialog.into(),
+                    Some(Message::CancelSnippetVars),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Careful-paste confirmation: a clipboard paste containing a line
         // break is parked in `pending_paste` and previewed here (line
         // count + first lines) before anything reaches the session, so a

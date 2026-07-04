@@ -401,6 +401,7 @@ impl Oryxis {
                 snippet_group_combo: iced::widget::combo_box::State::new(Vec::new()),
                 snippet_tags_input: String::new(),
                 snippet_editing_id: None,
+                pending_snippet_vars: None,
                 snippet_error: None,
                 port_forward_rules: Vec::new(),
                 active_forwards: std::collections::HashMap::new(),

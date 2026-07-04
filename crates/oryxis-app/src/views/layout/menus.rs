@@ -20,6 +20,10 @@ impl Oryxis {
             // Fits "Import ~/.ssh/config" / "Export all hosts" and the
             // longer translations of both on one line.
             OverlayContent::CloudProviderPicker => 210.0,
+            // "Export transcript (.txt)" + translations on one line,
+            // with room for the privacy footer to wrap sanely.
+            OverlayContent::SessionLogActions(_) => 240.0,
+            OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
             OverlayContent::CloudDiscoverGroupPicker => {
                 let b = self.cloud_discover_default_group_combo_bounds.get();
                 if b.width > 0.0 { b.width } else { 308.0 }

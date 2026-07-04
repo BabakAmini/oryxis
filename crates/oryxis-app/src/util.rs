@@ -34,6 +34,74 @@ pub(crate) fn parse_tags(input: &str) -> Vec<String> {
     out
 }
 
+/// Snippet variable placeholders: `{name}` / `{name:default}` where
+/// `name` starts with a letter or `_` and continues with `[\w-]`.
+/// Deliberately narrow so shell text never trips it: `${VAR}` (the
+/// brace is preceded by `$`), `{}` (find/awk, empty name), `{print $1}`
+/// (spaces / `$` in the name) all pass through untouched. Returns the
+/// distinct placeholders in first-appearance order, first default wins.
+pub(crate) fn snippet_placeholders(body: &str) -> Vec<(String, String)> {
+    let bytes = body.as_bytes();
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] != b'{' || (i > 0 && bytes[i - 1] == b'$') {
+            i += 1;
+            continue;
+        }
+        let Some(close_rel) = body[i + 1..].find('}') else { break };
+        let inner = &body[i + 1..i + 1 + close_rel];
+        let (name, default) = match inner.split_once(':') {
+            Some((n, d)) => (n, d),
+            None => (inner, ""),
+        };
+        let valid = !name.is_empty()
+            && name
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+        if valid {
+            if !out.iter().any(|(n, _)| n == name) {
+                out.push((name.to_string(), default.to_string()));
+            }
+            i += close_rel + 2;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Substitute every `{name}` / `{name:*}` occurrence with its value
+/// (same validity rules as [`snippet_placeholders`]; unknown names and
+/// shell-shaped braces stay literal).
+pub(crate) fn substitute_snippet_vars(body: &str, vars: &[(String, String)]) -> String {
+    let bytes = body.as_bytes();
+    let mut out = String::with_capacity(body.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'{'
+            && !(i > 0 && bytes[i - 1] == b'$')
+            && let Some(close_rel) = body[i + 1..].find('}')
+        {
+            let inner = &body[i + 1..i + 1 + close_rel];
+            let name = inner.split_once(':').map(|(n, _)| n).unwrap_or(inner);
+            if let Some((_, value)) = vars.iter().find(|(n, _)| n == name) {
+                out.push_str(value);
+                i += close_rel + 2;
+                continue;
+            }
+        }
+        let ch = body[i..].chars().next().unwrap();
+        out.push(ch);
+        i += ch.len_utf8();
+    }
+    out
+}
+
 /// Format byte size for display (e.g. "12.3 KB").
 pub(crate) fn format_data_size(bytes: usize) -> String {
     if bytes < 1024 {
@@ -692,6 +760,32 @@ mod tests {
 
     fn nb(named: Named, mods: Modifiers, app_cursor: bool) -> Vec<u8> {
         key_to_named_bytes(&Key::Named(named), &mods, app_cursor).unwrap()
+    }
+
+    #[test]
+    fn snippet_placeholders_match_only_variable_shapes() {
+        let ph = snippet_placeholders(
+            "deploy {env:prod} --tag {tag} on ${HOME} with {} and {print $1} again {env}",
+        );
+        assert_eq!(
+            ph,
+            vec![
+                ("env".to_string(), "prod".to_string()),
+                ("tag".to_string(), String::new()),
+            ]
+        );
+    }
+
+    #[test]
+    fn snippet_substitution_replaces_every_occurrence() {
+        let vars = vec![
+            ("env".to_string(), "staging".to_string()),
+            ("tag".to_string(), "v2".to_string()),
+        ];
+        assert_eq!(
+            substitute_snippet_vars("do {env} {tag} ${HOME} {env:prod}", &vars),
+            "do staging v2 ${HOME} staging"
+        );
     }
 
     #[test]

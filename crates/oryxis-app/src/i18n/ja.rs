@@ -489,6 +489,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "このホストのタグに一致するスニペットのみ",
         "all_tags" => "すべてのタグ",
         "snippet_count_one" => "スニペット 1 件",
+        "snippet_vars_title" => "スニペットの値を入力",
         "snippet_count_other" => "件のスニペット",
         "host_tag_filter" => "タグで絞り込む",
         "host_config_no_host" => "保存済みのホストを開くと、ここで設定を編集できます。",

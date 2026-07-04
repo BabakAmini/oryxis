@@ -615,6 +615,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "snippet_tag_filter_tip" => "Only snippets tagged like this host",
         "all_tags" => "All tags",
         "snippet_count_one" => "1 snippet",
+        "snippet_vars_title" => "Fill in snippet values",
         "snippet_count_other" => "snippets",
         "host_tag_filter" => "Filter by tag",
         "host_config_no_host" => "Open a saved host to edit its settings here.",

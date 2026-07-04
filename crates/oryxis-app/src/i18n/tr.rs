@@ -609,6 +609,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "Yalnızca bu ana makineyle aynı etiketli parçacıklar",
         "all_tags" => "Tüm etiketler",
         "snippet_count_one" => "1 parçacık",
+        "snippet_vars_title" => "Parçacık değerlerini doldurun",
         "snippet_count_other" => "parçacık",
         "host_tag_filter" => "Etikete göre filtrele",
         "host_config_no_host" => "Ayarlarini burada duzenlemek icin kayitli bir ana bilgisayar acin.",

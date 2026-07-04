@@ -609,6 +609,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "Лише сніпети з тегами цього хоста",
         "all_tags" => "Усі теги",
         "snippet_count_one" => "1 сніпет",
+        "snippet_vars_title" => "Заповніть значення сніпета",
         "snippet_count_other" => "сніпет(ів)",
         "host_tag_filter" => "Фільтр за тегом",
         "host_config_no_host" => "Відкрийте збережений хост, щоб змінити його налаштування тут.",

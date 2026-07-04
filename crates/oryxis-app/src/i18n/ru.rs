@@ -480,6 +480,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "Только сниппеты с тегами этого хоста",
         "all_tags" => "Все теги",
         "snippet_count_one" => "1 сниппет",
+        "snippet_vars_title" => "Заполните значения сниппета",
         "snippet_count_other" => "сниппет(ов)",
         "host_tag_filter" => "Фильтр по тегу",
         "host_config_no_host" => "Откройте сохранённый хост, чтобы изменить его настройки здесь.",

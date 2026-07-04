@@ -62,6 +62,19 @@ pub(crate) struct LocalShellSpec {
     pub args: Vec<String>,
 }
 
+/// A snippet run/paste parked while its `{name}` placeholders are
+/// filled in (the snippet-variables modal).
+#[derive(Debug, Clone)]
+pub(crate) struct PendingSnippetVars {
+    /// Raw snippet body, substituted on confirm.
+    pub command: String,
+    /// `true` = run (+ Enter); `false` = paste only.
+    pub run: bool,
+    /// (name, current value) per distinct placeholder, defaults
+    /// pre-filled; edited in place by the modal inputs.
+    pub vars: Vec<(String, String)>,
+}
+
 /// One persisted entry in the curated local-terminal list. Machine-local
 /// config (paths and WSL distros differ per host), so this is stored as a
 /// JSON string in the `settings` table and deliberately kept *out* of

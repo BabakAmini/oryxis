@@ -627,6 +627,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_tag_filter_tip" => "فقط المقتطفات الموسومة مثل هذا المضيف",
         "all_tags" => "كل الوسوم",
         "snippet_count_one" => "مقتطف واحد",
+        "snippet_vars_title" => "املأ قيم المقتطف",
         "snippet_count_other" => "مقتطفات",
         "host_tag_filter" => "تصفية حسب الوسم",
         "host_config_no_host" => "افتح مضيفًا محفوظًا لتعديل إعداداته هنا.",
