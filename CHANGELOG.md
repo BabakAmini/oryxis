@@ -7,6 +7,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **RDP / VNC over SSH (one click).** An SSH host can carry a
+  remote-desktop config (RDP or VNC + target host/port); a card action
+  opens a `-L` tunnel through the SSH connection to that service and
+  launches the OS-native client (mstsc / Microsoft Remote Desktop /
+  FreeRDP / Remmina / a VNC viewer) pointed at the local end. The
+  tunnel is a managed forward (Stop from the same menu; cleared on vault
+  lock), independent of the client process so it survives clients that
+  return immediately. If no client is installed, a message names what
+  to get. Editor: an enable toggle + kind/target rows in the host's
+  Integration section.
 - **ZMODEM file transfer in the terminal.** Run `sz file` or `rz` on
   the remote and Oryxis auto-detects the transfer, takes over the byte
   stream, and moves the file: downloads land in a configurable folder
