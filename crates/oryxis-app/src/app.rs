@@ -861,6 +861,10 @@ pub struct Oryxis {
     /// folder (dashboard-style drill-in). `None` = root (group cards +
     /// ungrouped snippets).
     pub(crate) active_snippet_group: Option<String>,
+    /// Terminal-sidebar Snippets tab: its own drill-in group (kept
+    /// separate from the vault view's so the two surfaces navigate
+    /// independently).
+    pub(crate) sidebar_snippet_group: Option<String>,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software

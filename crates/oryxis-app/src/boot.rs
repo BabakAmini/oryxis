@@ -429,6 +429,7 @@ impl Oryxis {
                 setting_snippet_tag_filter: false,
                 snippet_filter_tags: Vec::new(),
                 active_snippet_group: None,
+                sidebar_snippet_group: None,
                 setting_command_history_file_dir: None,
                 setting_performance_mode: false,
                 setting_perf_overlay: false,

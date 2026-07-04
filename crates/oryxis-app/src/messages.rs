@@ -620,6 +620,10 @@ pub enum Message {
     OpenSnippetGroup(String),
     /// Vault Snippets: back to the root (group cards + ungrouped).
     CloseSnippetGroup,
+    /// Sidebar Snippets tab: open a group folder row.
+    OpenSidebarSnippetGroup(String),
+    /// Sidebar Snippets tab: back to the folder list.
+    CloseSidebarSnippetGroup,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the

@@ -264,56 +264,150 @@ impl Oryxis {
         // afterwards), Shift+Enter pastes without the newline.
         // Floating actions stay hover-only (owner call); the ring
         // border alone marks the keyboard selection.
-        // Groups: ungrouped snippets first (no header), then each
-        // group alphabetically under a muted section caption, same
-        // treatment as the History tab's Frequent/Recent.
-        let mut sections: Vec<(Option<String>, Vec<usize>)> = vec![(
-            None,
-            visible
+        // Mirror the vault view's drill-in: at root, group FOLDER ROWS
+        // (click / Enter to open) above the ungrouped snippets; inside
+        // a group, a back row plus that group's snippets. An active
+        // search flattens everything.
+        let searching = !needle.is_empty();
+        let snippet_rows: Vec<usize>;
+        let mut folder_rows: Vec<(String, usize)> = Vec::new();
+        if let Some(open) = self.sidebar_snippet_group.clone().filter(|_| !searching) {
+            // Back row first (recorded, so Enter on it goes up).
+            let back = button(
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::arrow_left()
+                            .size(13)
+                            .color(c.accent)
+                            .into(),
+                        Space::new().width(8).into(),
+                        iced_fonts::lucide::folder().size(13).color(c.accent).into(),
+                        Space::new().width(6).into(),
+                        text(open.clone()).size(12).color(c.text_primary).into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
+                .width(Length::Fill),
+            )
+            .on_press(Message::CloseSidebarSnippetGroup)
+            .width(Length::Fill)
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                }
+            });
+            list = list.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::CloseSidebarSnippetGroup),
+                stab,
+                8.0,
+                back.into(),
+            ));
+            snippet_rows = visible
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    self.snippets[i]
+                        .group
+                        .as_ref()
+                        .is_some_and(|g| g.eq_ignore_ascii_case(&open))
+                })
+                .collect();
+        } else if searching {
+            snippet_rows = visible.clone();
+        } else {
+            for name in self.snippet_group_names() {
+                let count = visible
+                    .iter()
+                    .filter(|&&i| {
+                        self.snippets[i]
+                            .group
+                            .as_ref()
+                            .is_some_and(|g| g.eq_ignore_ascii_case(&name))
+                    })
+                    .count();
+                if count > 0 {
+                    folder_rows.push((name, count));
+                }
+            }
+            snippet_rows = visible
                 .iter()
                 .copied()
                 .filter(|&i| self.snippets[i].group.is_none())
-                .collect(),
-        )];
-        let mut groups: Vec<(String, Vec<usize>)> = Vec::new();
-        for &i in &visible {
-            if let Some(g) = &self.snippets[i].group {
-                match groups.iter_mut().find(|(name, _)| name.eq_ignore_ascii_case(g)) {
-                    Some((_, items)) => items.push(i),
-                    None => groups.push((g.clone(), vec![i])),
+                .collect();
+        }
+        for (name, count) in folder_rows {
+            let folder = button(
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::folder().size(14).color(c.accent).into(),
+                        Space::new().width(8).into(),
+                        column![
+                            text(name.clone()).size(13).color(c.text_primary),
+                            text(crate::i18n::snippet_count(count))
+                                .size(10)
+                                .color(c.text_muted),
+                        ]
+                        .spacing(2)
+                        .width(Length::Fill)
+                        .into(),
+                        iced_fonts::lucide::chevron_right()
+                            .size(13)
+                            .color(c.text_muted)
+                            .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+                .width(Length::Fill),
+            )
+            .on_press(Message::OpenSidebarSnippetGroup(name.clone()))
+            .width(Length::Fill)
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                    _ => OryxisColors::t().bg_surface,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
                 }
-            }
+            });
+            list = list.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::OpenSidebarSnippetGroup(name)),
+                stab,
+                8.0,
+                folder.into(),
+            ));
         }
-        groups.sort_by_key(|g| g.0.to_lowercase());
-        sections.extend(groups.into_iter().map(|(n, v)| (Some(n), v)));
-        for (name, items) in sections {
-            if items.is_empty() {
-                continue;
-            }
-            if let Some(name) = name {
-                list = list.push(group_label(name));
-            }
-            for idx in items {
-                let snip = &self.snippets[idx];
-                let row = snippet_row(
-                    idx,
-                    &snip.label,
-                    &snip.command,
-                    self.hovered_snippet_card == Some(idx),
-                );
-                list = list.push(self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::item(
-                        Message::RunSnippet(idx),
-                        Message::PasteSnippet(idx),
-                        Message::RequestDeleteSnippet(idx),
-                    ),
-                    stab,
-                    8.0,
-                    row,
-                ));
-            }
+        let any_rows = !snippet_rows.is_empty();
+        for idx in snippet_rows {
+            let snip = &self.snippets[idx];
+            let row = snippet_row(
+                idx,
+                &snip.label,
+                &snip.command,
+                self.hovered_snippet_card == Some(idx),
+            );
+            list = list.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::item(
+                    Message::RunSnippet(idx),
+                    Message::PasteSnippet(idx),
+                    Message::RequestDeleteSnippet(idx),
+                ),
+                stab,
+                8.0,
+                row,
+            ));
         }
-        if visible.is_empty() {
+        if visible.is_empty() || (searching && !any_rows) {
             list = list.push(sidebar_placeholder(t("no_matches")));
         }
 
@@ -543,23 +637,6 @@ fn sort_glyph<'a>(sort: crate::state::ListSort) -> iced::widget::Text<'a> {
         ListSort::NewestFirst => iced_fonts::lucide::calendar_arrow_down(),
         ListSort::OldestFirst => iced_fonts::lucide::calendar_arrow_up(),
     }
-}
-
-/// Muted section caption for a snippet group (same chrome as the
-/// History tab's Frequent/Recent labels). Owned name: group names are
-/// user data, not i18n keys.
-fn group_label(label: String) -> Element<'static, Message> {
-    container(
-        text(label)
-            .size(11)
-            .font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-            })
-            .color(OryxisColors::t().text_muted),
-    )
-    .padding(Padding { top: 4.0, right: 0.0, bottom: 2.0, left: 2.0 })
-    .into()
 }
 
 /// Centered muted text for an empty / not-yet-built sidebar tab.

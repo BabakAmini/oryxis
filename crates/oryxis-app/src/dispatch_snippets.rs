@@ -176,6 +176,16 @@ impl Oryxis {
                 self.active_snippet_group = None;
                 self.keynav.focus = None;
             }
+            Message::OpenSidebarSnippetGroup(name) => {
+                self.sidebar_snippet_group = Some(name);
+                // The row list is about to change shape; land the ring
+                // back at the top on the next engage.
+                self.keynav.sidebar_selected = None;
+            }
+            Message::CloseSidebarSnippetGroup => {
+                self.sidebar_snippet_group = None;
+                self.keynav.sidebar_selected = None;
+            }
             Message::ShowSnippetMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle: clicking the kebab again (or on the same card)
