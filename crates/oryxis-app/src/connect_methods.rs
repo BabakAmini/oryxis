@@ -164,6 +164,13 @@ impl Oryxis {
     /// identity's username fills an empty field); the default port 22 is
     /// omitted and IPv6 hosts take brackets, both via `SshTarget`.
     pub(crate) fn host_ssh_url(&self, conn: &Connection) -> String {
+        use oryxis_core::models::connection::ConnectionProtocol;
+        // Serial has no network URL; hand back the bare port path so the
+        // copy action still yields something meaningful (the caller only
+        // offers this on SSH/Telnet hosts, but stay honest if reached).
+        if conn.protocol == ConnectionProtocol::Serial {
+            return conn.hostname.clone();
+        }
         let username = conn.username.clone().or_else(|| {
             conn.identity_id.and_then(|iid| {
                 self.identities
@@ -172,12 +179,18 @@ impl Oryxis {
                     .and_then(|i| i.username.clone())
             })
         });
+        // Telnet's default port is 23, SSH's is 22: omit the port only
+        // when it matches the scheme's default.
+        let (scheme, default_port) = match conn.protocol {
+            ConnectionProtocol::Telnet => ("telnet", 23),
+            ConnectionProtocol::Ssh | ConnectionProtocol::Serial => ("ssh", 22),
+        };
         let target = oryxis_core::ssh_target::SshTarget {
             username,
             host: conn.hostname.clone(),
-            port: (conn.port != 22).then_some(conn.port),
+            port: (conn.port != default_port).then_some(conn.port),
         };
-        format!("ssh://{}", target.canonical())
+        format!("{scheme}://{}", target.canonical())
     }
 
     /// Overlay a quick-connect entry's typed credentials on top of the

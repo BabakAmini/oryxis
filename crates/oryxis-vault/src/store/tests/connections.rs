@@ -45,6 +45,38 @@ fn connection_protocol_round_trips() {
 }
 
 #[test]
+fn mcp_list_excludes_non_ssh_hosts() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault();
+    // An SSH host with MCP on is listed.
+    let mut ssh = Connection::new("box", "example.com");
+    ssh.mcp_enabled = true;
+    vault.save_connection(&ssh, None).unwrap();
+    // A Telnet host that (e.g. via sync from an old peer) still carries
+    // mcp_enabled = true must NOT be advertised: the MCP handler resolves
+    // through the SSH engine and would dial it as SSH.
+    let mut telnet = Connection::new("router", "192.168.0.1");
+    telnet.protocol = ConnectionProtocol::Telnet;
+    telnet.mcp_enabled = true;
+    vault.save_connection(&telnet, None).unwrap();
+    let mut serial = Connection::new("uart", "/dev/ttyUSB0");
+    serial.protocol = ConnectionProtocol::Serial;
+    serial.mcp_enabled = true;
+    vault.save_connection(&serial, None).unwrap();
+
+    let mcp = vault.list_mcp_connections().unwrap();
+    assert!(mcp.iter().any(|c| c.id == ssh.id), "ssh host missing");
+    assert!(
+        !mcp.iter().any(|c| c.id == telnet.id),
+        "telnet host must not be MCP-advertised"
+    );
+    assert!(
+        !mcp.iter().any(|c| c.id == serial.id),
+        "serial host must not be MCP-advertised"
+    );
+}
+
+#[test]
 fn connection_serial_params_round_trip() {
     use oryxis_core::models::connection::ConnectionProtocol;
     use oryxis_core::models::serial::{

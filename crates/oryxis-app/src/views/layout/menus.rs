@@ -239,14 +239,25 @@ impl Oryxis {
                     .and_then(|c| c.cloud_ref.as_ref())
                     .and_then(|r| r.orphaned_at)
                     .is_some();
+                // SSH-only actions (Share + SFTP mount both ride the SSH
+                // subsystem) and the URL scheme depend on the protocol.
+                use oryxis_core::models::connection::ConnectionProtocol;
+                let protocol = conn.map(|c| c.protocol).unwrap_or(ConnectionProtocol::Ssh);
+                let is_ssh_host = protocol == ConnectionProtocol::Ssh;
+                let has_url = protocol != ConnectionProtocol::Serial;
                 let mut items = column![
                     self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::ConnectSsh(idx), OryxisColors::t().success),
                     self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
-                    self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary),
-                    self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary),
-                    self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary),
                 ];
+                if is_ssh_host {
+                    items = items
+                        .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary))
+                        .push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary));
+                }
+                if has_url {
+                    items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary));
+                }
                 if let Some(pid) = cloud_profile_id {
                     items = items.push(self.menu_item(
                         iced_fonts::lucide::funnel(),

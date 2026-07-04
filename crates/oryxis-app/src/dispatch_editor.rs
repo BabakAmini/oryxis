@@ -270,7 +270,14 @@ impl Oryxis {
                 value: e.value.clone(),
             })
         }).collect();
-        conn.mcp_enabled = self.editor_form.mcp_enabled;
+        // MCP exposure is SSH-only (the handler resolves through the SSH
+        // engine). The reduced Telnet/Serial editor hides the toggle, so
+        // clamp here too: a host switched away from SSH must not stay
+        // MCP-advertised. `list_mcp_connections` filters by protocol as
+        // the source-of-truth guard for synced / imported hosts.
+        conn.mcp_enabled = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && self.editor_form.mcp_enabled;
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         conn.session_logging = self.editor_form.session_logging;
         conn.terminal_theme = self.editor_form.terminal_theme.clone();

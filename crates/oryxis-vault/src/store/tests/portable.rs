@@ -64,6 +64,59 @@ fn export_import_roundtrip() {
 }
 
 
+/// A Telnet host and a Serial host (with non-default line params) must
+/// survive export → import intact: the `protocol` field and the whole
+/// `serial` struct ride the portable payload via the model flatten.
+#[test]
+fn export_import_protocol_and_serial_round_trip() {
+    use crate::portable::{export_vault, import_vault, ExportFilter, ExportOptions};
+    use oryxis_core::models::connection::ConnectionProtocol;
+    use oryxis_core::models::serial::{
+        SerialFlowControl, SerialLineEnding, SerialParams, SerialParity, SerialStopBits,
+    };
+
+    let vault = unlocked_vault();
+    let mut telnet = Connection::new("router", "192.168.0.1");
+    telnet.protocol = ConnectionProtocol::Telnet;
+    telnet.port = 23;
+    vault.save_connection(&telnet, None).unwrap();
+
+    let params = SerialParams {
+        baud: 115200,
+        data_bits: 7,
+        parity: SerialParity::Even,
+        stop_bits: SerialStopBits::Two,
+        flow_control: SerialFlowControl::Hardware,
+        local_echo: true,
+        line_ending: SerialLineEnding::CrLf,
+    };
+    let mut serial = Connection::new("uart", "/dev/ttyUSB0");
+    serial.protocol = ConnectionProtocol::Serial;
+    serial.serial = Some(params);
+    vault.save_connection(&serial, None).unwrap();
+
+    let data = export_vault(
+        &vault,
+        "export-pw",
+        ExportOptions {
+            include_private_keys: false,
+            filter: ExportFilter::All,
+            selection: crate::portable::ExportSelection::all(),
+        },
+    )
+    .unwrap();
+
+    let vault2 = unlocked_vault();
+    import_vault(&vault2, &data, "export-pw", &crate::portable::ExportSelection::all()).unwrap();
+
+    let conns = vault2.list_connections().unwrap();
+    let t = conns.iter().find(|c| c.label == "router").expect("telnet host");
+    assert_eq!(t.protocol, ConnectionProtocol::Telnet);
+    let s = conns.iter().find(|c| c.label == "uart").expect("serial host");
+    assert_eq!(s.protocol, ConnectionProtocol::Serial);
+    assert_eq!(s.serial, Some(params));
+}
+
 /// Round-trip a connection that uses both an inline proxy (with
 /// password in its own encrypted column) and a saved proxy
 /// identity (with its own password). Both passwords + the

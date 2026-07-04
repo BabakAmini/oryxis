@@ -133,12 +133,20 @@ fn find_trigger(buf: &[u8]) -> Option<(usize, Direction)> {
 }
 
 /// Length of the longest suffix of `buf` that is a (proper) prefix of a
-/// potential header, i.e. matches `TRIG_PREFIX[..k]` for some
-/// `1 <= k <= 5`. That suffix is held back until the next chunk can
-/// complete or refute it.
+/// potential header, i.e. matches `TRIG_PREFIX[..k]`. That suffix is
+/// held back until the next chunk can complete or refute it.
+///
+/// A lone trailing `*` (k == 1) is deliberately NOT held: a single
+/// asterisk is far too common at a batch boundary (`ls -F` marks
+/// executables with `*`, prompts end in it), and holding one back
+/// strands it on screen until the next output arrives. The only cost of
+/// not holding it is missing a header whose two `**` bytes are split
+/// across the exact batch boundary, which is vanishingly rare (the pair
+/// is one write) and self-heals: lrzsz retransmits ZRQINIT on timeout,
+/// and the retransmit won't land on the same split.
 fn trailing_prefix_len(buf: &[u8]) -> usize {
     let max = TRIG_PREFIX.len().min(buf.len());
-    for k in (1..=max).rev() {
+    for k in (2..=max).rev() {
         if buf[buf.len() - k..] == TRIG_PREFIX[..k] {
             return k;
         }
@@ -196,6 +204,12 @@ mod tests {
     #[test]
     fn boundary_split_at_every_offset_detects() {
         let full = b"before**\x18B01after".to_vec();
+        // The header's first `*` is at index 6; a cut at 7 falls between
+        // the two ZPADs. Because a lone trailing `*` is not held (see
+        // `trailing_prefix_len`), that single split misses, which
+        // self-heals via lrzsz's ZRQINIT retransmit. Every OTHER split
+        // must still detect.
+        const BETWEEN_ZPADS: usize = 7;
         for cut in 0..full.len() {
             let mut d = ZmodemDetector::new();
             let mut seen_dir = None;
@@ -207,8 +221,12 @@ mod tests {
                     wire = scan.wire;
                 }
             }
-            assert_eq!(seen_dir, Some(Direction::Upload), "cut at {cut}");
-            assert!(wire.starts_with(b"**\x18B01"), "cut at {cut}");
+            if cut == BETWEEN_ZPADS {
+                assert_eq!(seen_dir, None, "between-ZPADs split should miss");
+            } else {
+                assert_eq!(seen_dir, Some(Direction::Upload), "cut at {cut}");
+                assert!(wire.starts_with(b"**\x18B01"), "cut at {cut}");
+            }
         }
     }
 
@@ -234,6 +252,21 @@ mod tests {
         let scan = d.feed(b"**\x18B05rest");
         assert_eq!(scan.detection, None);
         assert_eq!(scan.clean, b"**\x18B05rest".to_vec());
+    }
+
+    #[test]
+    fn lone_trailing_asterisk_is_not_held() {
+        let mut d = ZmodemDetector::new();
+        // `ls -F` output ending on an executable's `*` at a batch
+        // boundary must reach the terminal immediately, not stick.
+        let scan = d.feed(b"run.sh*");
+        assert_eq!(scan.clean, b"run.sh*".to_vec());
+        assert_eq!(scan.detection, None);
+        assert!(d.flush().is_empty(), "nothing should be held");
+        // Two asterisks (a real header prefix) are still held.
+        let scan = d.feed(b"foo**");
+        assert_eq!(scan.clean, b"foo".to_vec());
+        assert_eq!(d.flush(), b"**".to_vec());
     }
 
     #[test]
