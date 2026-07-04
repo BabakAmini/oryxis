@@ -15,8 +15,10 @@
 //! and `zmodem2` is small enough (no_std / heapless) to bundle freely.
 
 pub mod detector;
+pub mod driver;
 
 pub use detector::{Direction, Scan, ZmodemDetector};
+pub use driver::{Progress, TransferIo, TransferSpec, run};
 
 // Re-export the protocol primitives so the app drives one dependency.
 pub use zmodem2::{Action, Event, FileInfo, Position, Receiver, Sender};
