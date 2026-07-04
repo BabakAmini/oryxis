@@ -276,9 +276,12 @@ impl VaultStore {
         // input (bare Base32 or a full otpauth:// URI), parsed at code
         // generation time.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN totp_secret BLOB;");
-        // Wire protocol selector ("ssh" / "telnet"). NULL = ssh, so every
-        // pre-existing row keeps meaning what it meant.
+        // Wire protocol selector ("ssh" / "telnet" / "serial"). NULL = ssh,
+        // so every pre-existing row keeps meaning what it meant.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN protocol TEXT;");
+        // Serial-line parameters as JSON (SerialParams). NULL on every
+        // non-serial host.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN serial_config TEXT;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");

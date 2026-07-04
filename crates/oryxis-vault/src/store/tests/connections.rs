@@ -23,10 +23,14 @@ fn connection_session_logging_override_round_trips() {
 fn connection_protocol_round_trips() {
     use oryxis_core::models::connection::ConnectionProtocol;
     let vault = unlocked_vault();
-    // Both variants survive the save/list cycle; this guards the
+    // Every variant survives the save/list cycle; this guards the
     // string mapping in `store/connections.rs` (a missed variant
     // silently reloads as Ssh via the fallthrough).
-    for protocol in [ConnectionProtocol::Ssh, ConnectionProtocol::Telnet] {
+    for protocol in [
+        ConnectionProtocol::Ssh,
+        ConnectionProtocol::Telnet,
+        ConnectionProtocol::Serial,
+    ] {
         let mut conn = Connection::new("h", "example.com");
         conn.protocol = protocol;
         vault.save_connection(&conn, None).unwrap();
@@ -38,6 +42,47 @@ fn connection_protocol_round_trips() {
             .expect("connection listed");
         assert_eq!(loaded.protocol, protocol);
     }
+}
+
+#[test]
+fn connection_serial_params_round_trip() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    use oryxis_core::models::serial::{
+        SerialFlowControl, SerialLineEnding, SerialParams, SerialParity, SerialStopBits,
+    };
+    let vault = unlocked_vault();
+    // Non-default params must survive the JSON column round trip.
+    let params = SerialParams {
+        baud: 250000,
+        data_bits: 7,
+        parity: SerialParity::Even,
+        stop_bits: SerialStopBits::Two,
+        flow_control: SerialFlowControl::Hardware,
+        local_echo: true,
+        line_ending: SerialLineEnding::CrLf,
+    };
+    let mut conn = Connection::new("uart", "/dev/ttyUSB0");
+    conn.protocol = ConnectionProtocol::Serial;
+    conn.serial = Some(params);
+    vault.save_connection(&conn, None).unwrap();
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("connection listed");
+    assert_eq!(loaded.serial, Some(params));
+
+    // A non-serial host stores no params (NULL column -> None).
+    let ssh = Connection::new("box", "example.com");
+    vault.save_connection(&ssh, None).unwrap();
+    let loaded_ssh = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == ssh.id)
+        .unwrap();
+    assert_eq!(loaded_ssh.serial, None);
 }
 
 #[test]

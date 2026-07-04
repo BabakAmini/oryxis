@@ -42,7 +42,13 @@ impl VaultStore {
         let protocol_str = match conn.protocol {
             ConnectionProtocol::Ssh => "ssh",
             ConnectionProtocol::Telnet => "telnet",
+            ConnectionProtocol::Serial => "serial",
         };
+        // Serial line parameters as JSON (NULL on non-serial hosts).
+        let serial_json = conn
+            .serial
+            .as_ref()
+            .map(|s| serde_json::to_string(s).unwrap_or_default());
 
         // The proxy password and TOTP secret live in their own encrypted
         // columns, written only by their dedicated setters. INSERT OR
@@ -62,8 +68,8 @@ impl VaultStore {
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -117,6 +123,7 @@ impl VaultStore {
                 existing_proxy_pw,
                 existing_totp,
                 protocol_str,
+                serial_json,
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -139,12 +146,12 @@ impl VaultStore {
         let query = match mcp_filter {
             Some(true) => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config
                  FROM connections WHERE mcp_enabled = 1 ORDER BY label"
             }
             _ => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config
                  FROM connections ORDER BY label"
             }
         };
@@ -166,8 +173,16 @@ impl VaultStore {
                 // SSH, the only protocol those rows could have meant.
                 let protocol = match row.get::<_, Option<String>>(41).ok().flatten().as_deref() {
                     Some("telnet") => ConnectionProtocol::Telnet,
+                    Some("serial") => ConnectionProtocol::Serial,
                     _ => ConnectionProtocol::Ssh,
                 };
+                // Serial params JSON (NULL / malformed -> None; the
+                // connect path falls back to SerialParams::default()).
+                let serial = row
+                    .get::<_, Option<String>>(42)
+                    .ok()
+                    .flatten()
+                    .and_then(|s| serde_json::from_str(&s).ok());
 
                 Ok(Connection {
                     id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
@@ -175,6 +190,7 @@ impl VaultStore {
                     hostname: row.get(2)?,
                     port: row.get(3)?,
                     protocol,
+                    serial,
                     username: row.get(4)?,
                     auth_method,
                     key_id: row

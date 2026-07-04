@@ -17,6 +17,12 @@ pub struct Connection {
     /// terminal pane picks the matching transport at connect.
     #[serde(default)]
     pub protocol: ConnectionProtocol,
+    /// Serial-line parameters, meaningful only when `protocol` is
+    /// `Serial` (the port path itself reuses `hostname`). `None` on
+    /// every non-serial host and on legacy payloads; the connect path
+    /// falls back to `SerialParams::default()` (9600 8N1).
+    #[serde(default)]
+    pub serial: Option<super::serial::SerialParams>,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -182,6 +188,7 @@ impl Connection {
             hostname: hostname.into(),
             port: 22,
             protocol: ConnectionProtocol::Ssh,
+            serial: None,
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,
@@ -234,15 +241,21 @@ pub enum ConnectionProtocol {
     #[default]
     Ssh,
     Telnet,
+    /// Local serial line (no network). The port path lives in
+    /// `hostname`; line parameters live in `Connection.serial`.
+    Serial,
 }
 
 impl ConnectionProtocol {
-    /// Conventional port for the protocol, used by the host editor to
-    /// swap the default when the picker changes (22 <-> 23).
-    pub fn default_port(self) -> u16 {
+    /// Conventional TCP port, used by the host editor to swap the
+    /// numeric-port default when the picker changes (22 <-> 23).
+    /// `None` for `Serial`, which has no network port (the editor
+    /// hides the numeric field entirely).
+    pub fn default_port(self) -> Option<u16> {
         match self {
-            ConnectionProtocol::Ssh => 22,
-            ConnectionProtocol::Telnet => 23,
+            ConnectionProtocol::Ssh => Some(22),
+            ConnectionProtocol::Telnet => Some(23),
+            ConnectionProtocol::Serial => None,
         }
     }
 }
@@ -254,6 +267,7 @@ impl std::fmt::Display for ConnectionProtocol {
         match self {
             ConnectionProtocol::Ssh => write!(f, "SSH"),
             ConnectionProtocol::Telnet => write!(f, "Telnet"),
+            ConnectionProtocol::Serial => write!(f, "Serial"),
         }
     }
 }

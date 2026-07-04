@@ -1,0 +1,16 @@
+[package]
+name = "oryxis-serial"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+oryxis-core = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+# Async serial I/O. default-features = false drops the libudev build
+# dependency (port ENUMERATION on Linux), which the CI images don't
+# carry (no libudev-dev). Opening a port by path still works fully;
+# Oryxis takes the path as free text (Connection.hostname), so
+# enumeration is not needed.
+tokio-serial = { version = "5", default-features = false }
