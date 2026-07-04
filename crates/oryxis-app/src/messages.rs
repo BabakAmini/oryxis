@@ -805,6 +805,8 @@ pub enum Message {
 
     // Session logs
     ViewSessionLog(Uuid),
+    /// Open the kebab menu on a History session row.
+    ShowSessionLogMenu(usize),
     /// Export a recorded session as an asciicast v2 `.cast` file
     /// (replayable in the asciinema player). Output-only by design.
     ExportSessionCast(Uuid),

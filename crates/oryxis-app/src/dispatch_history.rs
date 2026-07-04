@@ -77,7 +77,26 @@ impl Oryxis {
             Message::CloseSessionLogView => {
                 self.viewing_session_log = None;
             }
+            Message::ShowSessionLogMenu(idx) => {
+                use crate::state::{OverlayContent, OverlayState};
+                // Toggle, mirroring the other card kebabs.
+                let already = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::SessionLogActions(i)) if *i == idx
+                );
+                if already {
+                    self.overlay = None;
+                } else {
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::SessionLogActions(idx),
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+            }
             Message::ExportSessionCast(log_id) => {
+                self.overlay = None;
                 // Flush first so an in-progress session exports complete.
                 self.flush_session_logs_final();
                 let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
@@ -104,6 +123,7 @@ impl Oryxis {
                 return Ok(save_text_file_task(body, default_name, "cast"));
             }
             Message::ExportSessionTranscript(log_id) => {
+                self.overlay = None;
                 self.flush_session_logs_final();
                 let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
                     return Ok(Task::none());
@@ -137,6 +157,8 @@ impl Oryxis {
                 return Ok(save_text_file_task(body, default_name, "txt"));
             }
             Message::RequestDeleteSessionLog(idx) => {
+                // Reached from the row kebab; drop it before the dialog.
+                self.overlay = None;
                 let label = self
                     .session_logs
                     .get(idx)

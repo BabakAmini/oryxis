@@ -30,6 +30,9 @@ pub(crate) enum OverlayContent {
     /// directly from the Hosts view. Only opened when at least one
     /// profile is configured (otherwise the chevron is hidden).
     CloudProviderPicker,
+    /// Kebab menu on a History session row: Export .cast, Export
+    /// transcript, Delete. `usize` is the `session_logs` index.
+    SessionLogActions(usize),
     /// Dropdown next to the dashboard sort button: pick a host tag to
     /// filter the grid by (or clear the filter).
     HostTagFilter,

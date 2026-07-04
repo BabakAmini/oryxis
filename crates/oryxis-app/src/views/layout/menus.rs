@@ -53,6 +53,7 @@ impl Oryxis {
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
             OverlayContent::HostTagFilter => (self.distinct_host_tags().len() + 1) as f32,
+            OverlayContent::SessionLogActions(_) => 4.0,
             OverlayContent::SftpTabActions(_) => 5.0,
             OverlayContent::HostActions(_) => 8.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
@@ -168,6 +169,43 @@ impl Oryxis {
                         Message::ToggleHostTagFilterTag(tg),
                     ));
                 }
+                col.into()
+            }
+            OverlayContent::SessionLogActions(idx) => {
+                let idx = *idx;
+                let log_id = self.session_logs.get(idx).map(|e| e.id);
+                let mut col = column![].spacing(2);
+                if let Some(log_id) = log_id {
+                    col = col.push(self.menu_item(
+                        iced_fonts::lucide::film(),
+                        crate::i18n::t("export_cast_tip"),
+                        Message::ExportSessionCast(log_id),
+                        OryxisColors::t().text_secondary,
+                    ));
+                    col = col.push(self.menu_item(
+                        iced_fonts::lucide::file_text(),
+                        crate::i18n::t("export_transcript_tip"),
+                        Message::ExportSessionTranscript(log_id),
+                        OryxisColors::t().text_secondary,
+                    ));
+                }
+                col = col.push(self.menu_item(
+                    iced_fonts::lucide::trash(),
+                    crate::i18n::t("delete"),
+                    Message::RequestDeleteSessionLog(idx),
+                    OryxisColors::t().error,
+                ));
+                // Honest-export caption: recordings carry the raw
+                // bytes, Privacy Mode masking is display-only.
+                col = col.push(
+                    container(
+                        text(crate::i18n::t("session_export_privacy_note"))
+                            .size(10)
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .padding(Padding { top: 4.0, right: 12.0, bottom: 2.0, left: 12.0 })
+                    .width(Length::Fill),
+                );
                 col.into()
             }
             OverlayContent::HostActions(idx) => {

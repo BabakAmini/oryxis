@@ -581,129 +581,6 @@ impl Oryxis {
             }
         };
 
-        // Trailing controls. Session rows: timestamp, the two export
-        // actions (.cast replay / plain transcript), then Delete in
-        // the last column; opening the recording is the row click
-        // itself (no View button). Failure rows: timestamp only.
-        let trailing: Element<'_, Message> = match &row.kind {
-            TimelineKind::Session { idx, entry } => {
-                let idx = *idx;
-                let log_id = entry.id;
-                // Neutral outline icon buttons, same chrome family as
-                // Delete. The tooltips carry the privacy caveat: the
-                // recording holds the raw session bytes, Privacy Mode
-                // masking is display-only.
-                let export_btn = |icon: iced::widget::Text<'static>,
-                                  msg: Message,
-                                  tip: String|
-                 -> Element<'static, Message> {
-                    iced::widget::tooltip(
-                        button(
-                            container(icon.size(12).color(OryxisColors::t().text_secondary))
-                                .padding(Padding {
-                                    top: 4.0, right: 8.0, bottom: 4.0, left: 8.0,
-                                }),
-                        )
-                        .on_press(msg)
-                        .style(|_, status| {
-                            let bg = match status {
-                                BtnStatus::Hovered | BtnStatus::Pressed => {
-                                    OryxisColors::t().bg_hover
-                                }
-                                _ => Color::TRANSPARENT,
-                            };
-                            button::Style {
-                                background: Some(Background::Color(bg)),
-                                border: Border {
-                                    radius: Radius::from(6.0),
-                                    color: OryxisColors::t().border,
-                                    width: 1.0,
-                                },
-                                ..Default::default()
-                            }
-                        }),
-                        container(
-                            text(tip).size(11).color(OryxisColors::t().text_primary),
-                        )
-                        .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                            border: Border {
-                                radius: Radius::from(6.0),
-                                color: OryxisColors::t().border,
-                                width: 1.0,
-                            },
-                            ..Default::default()
-                        }),
-                        iced::widget::tooltip::Position::Top,
-                    )
-                    .into()
-                };
-                let cast_btn = export_btn(
-                    iced_fonts::lucide::film(),
-                    Message::ExportSessionCast(log_id),
-                    format!(
-                        "{}\n{}",
-                        crate::i18n::t("export_cast_tip"),
-                        crate::i18n::t("session_export_privacy_note")
-                    ),
-                );
-                let transcript_btn = export_btn(
-                    iced_fonts::lucide::file_text(),
-                    Message::ExportSessionTranscript(log_id),
-                    format!(
-                        "{}\n{}",
-                        crate::i18n::t("export_transcript_tip"),
-                        crate::i18n::t("session_export_privacy_note")
-                    ),
-                );
-                let delete_btn = button(
-                    container(
-                        text(crate::i18n::t("delete"))
-                            .size(11)
-                            .color(OryxisColors::t().error),
-                    )
-                    .padding(Padding {
-                        top: 4.0, right: 10.0, bottom: 4.0, left: 10.0,
-                    }),
-                )
-                .on_press(Message::RequestDeleteSessionLog(idx))
-                .style(|_, status| {
-                    let bg = match status {
-                        BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().error },
-                        _ => Color::TRANSPARENT,
-                    };
-                    button::Style {
-                        background: Some(Background::Color(bg)),
-                        border: Border {
-                            radius: Radius::from(6.0),
-                            color: OryxisColors::t().error,
-                            width: 1.0,
-                        },
-                        ..Default::default()
-                    }
-                });
-                crate::widgets::dir_row(vec![
-                    text(ts)
-                        .size(10)
-                        .color(OryxisColors::t().text_muted)
-                        .into(),
-                    Space::new().width(12).into(),
-                    cast_btn,
-                    Space::new().width(4).into(),
-                    transcript_btn,
-                    Space::new().width(8).into(),
-                    delete_btn.into(),
-                ])
-                .align_y(iced::Alignment::Center)
-                .into()
-            }
-            TimelineKind::Failure(_) => text(ts)
-                .size(10)
-                .color(OryxisColors::t().text_muted)
-                .into(),
-        };
-
         // Session rows are clickable (the whole row opens the
         // recording) and highlight on hover; failure rows have nothing
         // to open, so they keep the flat card look.
@@ -717,6 +594,54 @@ impl Oryxis {
         // Keyboard selection reuses the hover treatment (bg tint) plus
         // the shared ring below.
         let hovered = (viewable.is_some() && viewable == self.hovered_log_row) || kb_selected;
+
+        // Trailing controls. Session rows: timestamp, then the shared
+        // kebab (Export .cast / Export transcript / Delete live in its
+        // context menu, the app-wide card convention); opening the
+        // recording is the row click itself. Failure rows: timestamp
+        // only.
+        let trailing: Element<'_, Message> = match &row.kind {
+            TimelineKind::Session { idx, entry } => {
+                let idx = *idx;
+                let menu_open = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::SessionLogActions(i)) if *i == idx
+                );
+                const LOG_DOTS_SLOT_W: f32 = 22.0;
+                let show_dots =
+                    (viewable.is_some() && viewable == self.hovered_log_row)
+                        || menu_open
+                        || kb_selected;
+                let kebab: Element<'_, Message> = if show_dots {
+                    crate::widgets::card_kebab_button(
+                        OryxisColors::t().text_muted,
+                        true,
+                        Message::ShowSessionLogMenu(idx),
+                    )
+                    .into()
+                } else {
+                    Space::new()
+                        .width(Length::Fixed(LOG_DOTS_SLOT_W))
+                        .height(Length::Fixed(22.0))
+                        .into()
+                };
+                let _ = entry;
+                crate::widgets::dir_row(vec![
+                    text(ts)
+                        .size(10)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(8).into(),
+                    kebab,
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            }
+            TimelineKind::Failure(_) => text(ts)
+                .size(10)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+        };
 
         let card = container(
             crate::widgets::dir_row(vec![
