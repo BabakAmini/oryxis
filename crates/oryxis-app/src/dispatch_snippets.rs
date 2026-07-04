@@ -24,6 +24,37 @@ impl Oryxis {
         Some(conn.tags.iter().map(|t| t.to_lowercase()).collect())
     }
 
+    /// Distinct snippet group names in display order (first spelling
+    /// wins, sorted case-insensitively). Shared by the vault view's
+    /// folder cards and the keyboard router so `NavItem::SnippetGroup`
+    /// indices resolve to the same group either way.
+    pub(crate) fn snippet_group_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        for snip in &self.snippets {
+            if let Some(g) = &snip.group
+                && !names.iter().any(|x| x.eq_ignore_ascii_case(g))
+            {
+                names.push(g.clone());
+            }
+        }
+        names.sort_by_key(|s| s.to_lowercase());
+        names
+    }
+
+    /// Distinct snippet tags, for the vault tag-filter dropdown.
+    pub(crate) fn distinct_snippet_tags(&self) -> Vec<String> {
+        let mut tags: Vec<String> = Vec::new();
+        for snip in &self.snippets {
+            for tg in &snip.tags {
+                if !tags.iter().any(|x| x.eq_ignore_ascii_case(tg)) {
+                    tags.push(tg.clone());
+                }
+            }
+        }
+        tags.sort_by_key(|t| t.to_lowercase());
+        tags
+    }
+
     /// Rebuild the Group combo options from the distinct snippet
     /// groups (first spelling wins, sorted), mirroring the host
     /// editor's `editor_parent_combo` reset. Called when either
@@ -74,6 +105,51 @@ impl Oryxis {
                     "snippet_tag_filter",
                     if self.setting_snippet_tag_filter { "true" } else { "false" },
                 );
+            }
+            Message::ShowSnippetTagFilterMenu => {
+                use crate::state::{OverlayContent, OverlayState};
+                let already = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::SnippetTagFilter)
+                );
+                if already {
+                    self.overlay = None;
+                } else {
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::SnippetTagFilter,
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+            }
+            Message::ToggleSnippetTagFilterTag(tag) => {
+                // Multi-select, dropdown stays open (backdrop closes).
+                match self
+                    .snippet_filter_tags
+                    .iter()
+                    .position(|t| t.eq_ignore_ascii_case(&tag))
+                {
+                    Some(i) => {
+                        self.snippet_filter_tags.remove(i);
+                    }
+                    None => self.snippet_filter_tags.push(tag),
+                }
+                self.keynav.focus = None;
+            }
+            Message::ClearSnippetTagFilter => {
+                self.snippet_filter_tags.clear();
+                self.overlay = None;
+                self.keynav.focus = None;
+            }
+            Message::OpenSnippetGroup(name) => {
+                self.active_snippet_group = Some(name);
+                self.snippet_search.clear();
+                self.keynav.focus = None;
+            }
+            Message::CloseSnippetGroup => {
+                self.active_snippet_group = None;
+                self.keynav.focus = None;
             }
             Message::ShowSnippetMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};

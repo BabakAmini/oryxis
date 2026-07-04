@@ -73,6 +73,11 @@ impl Oryxis {
                 if view == View::Dashboard {
                     self.active_group = None;
                 }
+                // Same rule for the Snippets pill: land at the root,
+                // not inside whichever snippet group was last open.
+                if view == View::Snippets {
+                    self.active_snippet_group = None;
+                }
                 // Burger menu auto-dismisses on navigation: the user
                 // picked a destination, leaving the overlay open is
                 // visual noise.

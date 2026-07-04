@@ -488,6 +488,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "未分類",
         "snippet_tag_filter_tip" => "このホストのタグに一致するスニペットのみ",
         "all_tags" => "すべてのタグ",
+        "snippet_count_one" => "スニペット 1 件",
+        "snippet_count_other" => "件のスニペット",
         "host_tag_filter" => "タグで絞り込む",
         "host_config_no_host" => "保存済みのホストを開くと、ここで設定を編集できます。",
         "host_config_subtitle" => "変更はこのホストにすぐ保存されます。",

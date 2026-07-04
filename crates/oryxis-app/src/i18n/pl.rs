@@ -614,6 +614,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "Bez grupy",
         "snippet_tag_filter_tip" => "Tylko snippety z tagami tego hosta",
         "all_tags" => "Wszystkie tagi",
+        "snippet_count_one" => "1 snippet",
+        "snippet_count_other" => "snippetów",
         "host_tag_filter" => "Filtruj według tagu",
         "host_config_no_host" => "Otworz zapisanego hosta, aby edytowac jego ustawienia tutaj.",
         "host_config_subtitle" => "Zmiany sa zapisywane natychmiast dla tego hosta.",

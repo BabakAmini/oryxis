@@ -488,6 +488,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "Sans groupe",
         "snippet_tag_filter_tip" => "Uniquement les snippets étiquetés comme cet hôte",
         "all_tags" => "Toutes les étiquettes",
+        "snippet_count_one" => "1 snippet",
+        "snippet_count_other" => "snippets",
         "host_tag_filter" => "Filtrer par étiquette",
         "host_config_no_host" => "Ouvrez un hote enregistre pour modifier ses parametres ici.",
         "host_config_subtitle" => "Les modifications sont enregistrees instantanement sur cet hote.",

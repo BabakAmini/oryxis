@@ -258,6 +258,16 @@ pub fn open_in_file_manager_label() -> &'static str {
 /// "1 host" / "N hosts" with the count inlined. One/other is an
 /// approximation (Slavic languages have richer plural classes), good
 /// enough for a count label, and it fixes the "1 hosts" card subtitle.
+/// "1 snippet" / "N snippets", same one/other approximation as
+/// [`host_count`]. Used by the snippet group folder cards.
+pub fn snippet_count(n: usize) -> String {
+    if n == 1 {
+        t("snippet_count_one").to_string()
+    } else {
+        format!("{} {}", n, t("snippet_count_other"))
+    }
+}
+
 pub fn host_count(n: usize) -> String {
     if n == 1 {
         t("host_count_one").to_string()

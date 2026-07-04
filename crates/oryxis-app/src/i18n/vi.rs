@@ -608,6 +608,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "Chưa phân nhóm",
         "snippet_tag_filter_tip" => "Chỉ các snippet có thẻ giống máy chủ này",
         "all_tags" => "Tất cả thẻ",
+        "snippet_count_one" => "1 snippet",
+        "snippet_count_other" => "snippet",
         "host_tag_filter" => "Lọc theo thẻ",
         "host_config_no_host" => "Mở một máy chủ đã lưu để chỉnh sửa cài đặt của nó ở đây.",
         "host_config_subtitle" => "Thay đổi được lưu ngay vào máy chủ này.",

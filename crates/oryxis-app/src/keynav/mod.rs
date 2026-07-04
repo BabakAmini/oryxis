@@ -101,6 +101,9 @@ pub(crate) enum NavItem {
     Identity(usize),
     /// Snippet card (vault index).
     Snippet(usize),
+    /// Snippet group folder card (index into
+    /// `Oryxis::snippet_group_names()`).
+    SnippetGroup(usize),
     /// Port-forward rule card (vault index).
     PortForward(usize),
     /// History row (session-log id, current page only).

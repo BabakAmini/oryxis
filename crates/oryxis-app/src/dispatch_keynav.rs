@@ -576,6 +576,12 @@ impl Oryxis {
             NavItem::Key(i) => Message::EditKey(i),
             NavItem::Identity(i) => Message::EditIdentity(i),
             NavItem::Snippet(i) => Message::RunSnippet(i),
+            NavItem::SnippetGroup(i) => {
+                let Some(name) = self.snippet_group_names().get(i).cloned() else {
+                    return Task::none();
+                };
+                Message::OpenSnippetGroup(name)
+            }
             NavItem::PortForward(i) => Message::EditPortForwardRule(i),
             NavItem::HistoryLog(id) => Message::ViewSessionLog(id),
             NavItem::CloudAccount(id) => Message::ShowCloudForm(Some(id)),
@@ -610,6 +616,7 @@ impl Oryxis {
         Some(match (self.active_view, item) {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::ToggleHostListView,
             (View::Dashboard, ToolbarItem::TagFilter) => Message::ShowHostTagFilterMenu,
+            (View::Snippets, ToolbarItem::TagFilter) => Message::ShowSnippetTagFilterMenu,
             (View::Dashboard, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Hosts),
             (View::Dashboard, ToolbarItem::Primary) => Message::ShowNewConnection,
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::ShowCloudProviderPicker,

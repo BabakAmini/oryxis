@@ -53,6 +53,7 @@ impl Oryxis {
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
             OverlayContent::HostTagFilter => (self.distinct_host_tags().len() + 1) as f32,
+            OverlayContent::SnippetTagFilter => (self.distinct_snippet_tags().len() + 1) as f32,
             OverlayContent::SessionLogActions(_) => 4.0,
             OverlayContent::SftpTabActions(_) => 5.0,
             OverlayContent::HostActions(_) => 8.0,
@@ -62,6 +63,81 @@ impl Oryxis {
             _ => 2.5,
         };
         items * ITEM_H + 10.0
+    }
+
+    /// Multi-select tag-filter dropdown shared by the Hosts and
+    /// Snippets toolbars: "All tags" (clears, closes) then one
+    /// toggleable row per distinct tag; the menu stays open on a
+    /// toggle so several tags land in one visit (the backdrop closes
+    /// it). Active rows read in accent with a check glyph. Labels are
+    /// user data (owned Strings), so rows are built inline instead of
+    /// via `menu_item`; each is still recorded into the modal keyboard
+    /// layer.
+    fn tag_filter_menu(
+        &self,
+        selected: Vec<String>,
+        all_tags: Vec<String>,
+        mk_toggle: fn(String) -> Message,
+        clear: Message,
+    ) -> Element<'_, Message> {
+        let tag_row = |label: String, active: bool, msg: Message| -> Element<'_, Message> {
+            let row = button(
+                container(
+                    dir_row(vec![
+                        if active {
+                            iced_fonts::lucide::check()
+                                .size(14)
+                                .color(OryxisColors::t().accent)
+                                .into()
+                        } else {
+                            iced_fonts::lucide::tag()
+                                .size(14)
+                                .color(OryxisColors::t().text_secondary)
+                                .into()
+                        },
+                        Space::new().width(8).into(),
+                        text(label)
+                            .size(12)
+                            .color(if active {
+                                OryxisColors::t().accent
+                            } else {
+                                OryxisColors::t().text_primary
+                            })
+                            .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .width(Length::Fill)
+                .align_x(dir_align_x()),
+            )
+            .on_press(msg.clone())
+            .width(Length::Fill)
+            .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
+            .style(|_, status| {
+                let bg = match status {
+                    iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into();
+            self.modal_nav_slot(crate::keynav::RowAction::activate(msg), 4.0, false, row)
+        };
+        let mut col = column![tag_row(
+            crate::i18n::t("all_tags").to_string(),
+            selected.is_empty(),
+            clear,
+        )]
+        .spacing(2);
+        for tg in all_tags {
+            let active = selected.iter().any(|f| f.eq_ignore_ascii_case(&tg));
+            col = col.push(tag_row(tg.clone(), active, mk_toggle(tg)));
+        }
+        col.into()
     }
 
     pub(crate) fn render_overlay_menu(&self, overlay: &OverlayState) -> Element<'_, Message> {
@@ -95,82 +171,18 @@ impl Oryxis {
         // back to the default kebab width.
         let menu_width = self.overlay_menu_width(overlay);
         let items: Element<'_, Message> = match &overlay.content {
-            OverlayContent::HostTagFilter => {
-                // "All tags" then every distinct tag, multi-select:
-                // picking a tag TOGGLES it and the menu stays open (the
-                // backdrop closes it), so several tags land in one
-                // visit. Active rows read in accent with a check glyph.
-                // Labels are user data (owned Strings), so the rows are
-                // built inline instead of via menu_item.
-                let active_filter = self.host_filter_tags.clone();
-                let tag_row = |label: String,
-                               active: bool,
-                               msg: Message|
-                 -> Element<'_, Message> {
-                    let row = button(
-                        container(
-                            dir_row(vec![
-                                if active {
-                                    iced_fonts::lucide::check()
-                                        .size(14)
-                                        .color(OryxisColors::t().accent)
-                                        .into()
-                                } else {
-                                    iced_fonts::lucide::tag()
-                                        .size(14)
-                                        .color(OryxisColors::t().text_secondary)
-                                        .into()
-                                },
-                                Space::new().width(8).into(),
-                                text(label)
-                                    .size(12)
-                                    .color(if active {
-                                        OryxisColors::t().accent
-                                    } else {
-                                        OryxisColors::t().text_primary
-                                    })
-                                    .into(),
-                            ])
-                            .align_y(iced::Alignment::Center),
-                        )
-                        .width(Length::Fill)
-                        .align_x(dir_align_x()),
-                    )
-                    .on_press(msg.clone())
-                    .width(Length::Fill)
-                    .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
-                    .style(|_, status| {
-                        let bg = match status {
-                            iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
-                            _ => Color::TRANSPARENT,
-                        };
-                        button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border { radius: Radius::from(4.0), ..Default::default() },
-                            ..Default::default()
-                        }
-                    })
-                    .into();
-                    self.modal_nav_slot(crate::keynav::RowAction::activate(msg), 4.0, false, row)
-                };
-                let mut col = column![tag_row(
-                    crate::i18n::t("all_tags").to_string(),
-                    active_filter.is_empty(),
-                    Message::ClearHostTagFilter,
-                )]
-                .spacing(2);
-                for tg in self.distinct_host_tags() {
-                    let active = active_filter
-                        .iter()
-                        .any(|f| f.eq_ignore_ascii_case(&tg));
-                    col = col.push(tag_row(
-                        tg.clone(),
-                        active,
-                        Message::ToggleHostTagFilterTag(tg),
-                    ));
-                }
-                col.into()
-            }
+            OverlayContent::HostTagFilter => self.tag_filter_menu(
+                self.host_filter_tags.clone(),
+                self.distinct_host_tags(),
+                Message::ToggleHostTagFilterTag,
+                Message::ClearHostTagFilter,
+            ),
+            OverlayContent::SnippetTagFilter => self.tag_filter_menu(
+                self.snippet_filter_tags.clone(),
+                self.distinct_snippet_tags(),
+                Message::ToggleSnippetTagFilterTag,
+                Message::ClearSnippetTagFilter,
+            ),
             OverlayContent::SessionLogActions(idx) => {
                 let idx = *idx;
                 let log_id = self.session_logs.get(idx).map(|e| e.id);
@@ -934,6 +946,16 @@ impl Oryxis {
                         ));
                     }
                     View::Snippets => {
+                        if !self.distinct_snippet_tags().is_empty()
+                            || !self.snippet_filter_tags.is_empty()
+                        {
+                            col = col.push(self.menu_item(
+                                iced_fonts::lucide::tag(),
+                                crate::i18n::t("host_tag_filter"),
+                                Message::ShowSnippetTagFilterMenu,
+                                secondary,
+                            ));
+                        }
                         col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("new_snippet"),

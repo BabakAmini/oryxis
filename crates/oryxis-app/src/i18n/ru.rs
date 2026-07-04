@@ -479,6 +479,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "Без группы",
         "snippet_tag_filter_tip" => "Только сниппеты с тегами этого хоста",
         "all_tags" => "Все теги",
+        "snippet_count_one" => "1 сниппет",
+        "snippet_count_other" => "сниппет(ов)",
         "host_tag_filter" => "Фильтр по тегу",
         "host_config_no_host" => "Откройте сохранённый хост, чтобы изменить его настройки здесь.",
         "host_config_subtitle" => "Изменения сразу сохраняются для этого хоста.",

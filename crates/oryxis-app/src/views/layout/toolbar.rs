@@ -75,8 +75,17 @@ impl Oryxis {
             }
             // sort(44) + gap(8) + the "+ Add" split(~113).
             View::Keys => Self::TB_ICON + 8.0 + 113.0,
-            // sort(44) + gap(8) + "+ Snippet"(~92).
-            View::Snippets => Self::TB_ICON + 8.0 + 92.0,
+            // [tag filter(44+6)] + sort(44) + gap(8) + "+ Snippet"(~92).
+            View::Snippets => {
+                let tag_filter = if !self.distinct_snippet_tags().is_empty()
+                    || !self.snippet_filter_tags.is_empty()
+                {
+                    Self::TB_ICON + 6.0
+                } else {
+                    0.0
+                };
+                tag_filter + Self::TB_ICON + 8.0 + 92.0
+            }
             View::Cloud => 95.0,            // "+ Account"
             View::PortForwarding => 92.0,   // "+ Port Forward"
             View::Proxies => {

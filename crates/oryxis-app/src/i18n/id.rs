@@ -608,6 +608,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "Tanpa grup",
         "snippet_tag_filter_tip" => "Hanya snippet dengan tag host ini",
         "all_tags" => "Semua tag",
+        "snippet_count_one" => "1 snippet",
+        "snippet_count_other" => "snippet",
         "host_tag_filter" => "Saring berdasarkan tag",
         "host_config_no_host" => "Buka host tersimpan untuk mengedit pengaturannya di sini.",
         "host_config_subtitle" => "Perubahan langsung tersimpan ke host ini.",

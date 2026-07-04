@@ -608,6 +608,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "그룹 없음",
         "snippet_tag_filter_tip" => "이 호스트와 같은 태그의 스니펫만",
         "all_tags" => "모든 태그",
+        "snippet_count_one" => "스니펫 1개",
+        "snippet_count_other" => "개의 스니펫",
         "host_tag_filter" => "태그로 필터",
         "host_config_no_host" => "저장된 호스트를 열면 여기서 설정을 편집할 수 있습니다.",
         "host_config_subtitle" => "변경 사항은 이 호스트에 즉시 저장됩니다.",

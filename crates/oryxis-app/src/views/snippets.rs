@@ -56,15 +56,54 @@ impl Oryxis {
         // keyboard router (push order == visual order here).
         let (search_collapsed, buttons_overflow) = self.toolbar_tiers();
         self.keynav_toolbar_reset();
+        let mut row_items: Vec<Element<'_, Message>> = Vec::new();
+        // Breadcrumb while inside a snippet group (dashboard-style):
+        // "Snippets" routes back to the root, then the open group.
+        if let Some(open_group) = &self.active_snippet_group {
+            row_items.push(
+                dir_row(vec![
+                    iced_fonts::lucide::folder()
+                        .size(16)
+                        .color(OryxisColors::t().accent)
+                        .into(),
+                    Space::new().width(6).into(),
+                    button(
+                        text(t("snippets"))
+                            .size(16)
+                            .wrapping(iced::widget::text::Wrapping::None)
+                            .color(OryxisColors::t().accent),
+                    )
+                    .on_press(Message::CloseSnippetGroup)
+                    .padding(Padding::ZERO)
+                    .style(|_, _| button::Style {
+                        background: Some(Background::Color(Color::TRANSPARENT)),
+                        border: Border::default(),
+                        ..Default::default()
+                    })
+                    .into(),
+                    Space::new().width(6).into(),
+                    text("/").size(16).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(6).into(),
+                    text(open_group.clone())
+                        .size(16)
+                        .wrapping(iced::widget::text::Wrapping::None)
+                        .color(OryxisColors::t().text_primary)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into(),
+            );
+            row_items.push(Space::new().width(12).into());
+        }
         let search_slot = self.vault_search_slot(search_collapsed);
-        let mut row_items: Vec<Element<'_, Message>> = vec![
-            if search_collapsed {
-                self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
-            } else {
-                search_slot
-            },
-            Space::new().width(10).into(),
-        ];
+        row_items.push(if search_collapsed {
+            self.keynav_toolbar_slot(crate::keynav::ToolbarItem::SearchIcon, search_slot)
+        } else {
+            search_slot
+        });
+        row_items.push(Space::new().width(10).into());
+        let show_tag_filter = !self.distinct_snippet_tags().is_empty()
+            || !self.snippet_filter_tags.is_empty();
         if buttons_overflow {
             row_items.push(self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,
@@ -74,6 +113,16 @@ impl Oryxis {
                 )),
             ));
         } else {
+            if show_tag_filter {
+                row_items.push(self.keynav_toolbar_slot(
+                    crate::keynav::ToolbarItem::TagFilter,
+                    crate::widgets::tag_filter_toolbar_button(
+                        self.snippet_filter_tags.len(),
+                        Message::ShowSnippetTagFilterMenu,
+                    ),
+                ));
+                row_items.push(Space::new().width(6).into());
+            }
             row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Sort, sort_btn));
             row_items.push(Space::new().width(8).into());
             row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, primary));
@@ -120,7 +169,8 @@ impl Oryxis {
         // Apply the toolbar sort by reordering an index list, the source
         // collection stays in insertion order (its index is what the
         // EditSnippet / RunSnippet messages carry). The needle also
-        // matches tags and the group name.
+        // matches tags and the group name; the toolbar tag filter keeps
+        // snippets carrying ANY selected tag.
         let mut snippet_order: Vec<usize> = (0..self.snippets.len()).collect();
         self.snippets_sort.sort_items(
             &mut snippet_order,
@@ -131,7 +181,7 @@ impl Oryxis {
             .into_iter()
             .filter(|&idx| {
                 let snip = &self.snippets[idx];
-                snippet_needle.is_empty()
+                let needle_ok = snippet_needle.is_empty()
                     || snip.label.to_lowercase().contains(&snippet_needle)
                     || snip.command.to_lowercase().contains(&snippet_needle)
                     || snip
@@ -141,47 +191,159 @@ impl Oryxis {
                     || snip
                         .group
                         .as_ref()
-                        .is_some_and(|g| g.to_lowercase().contains(&snippet_needle))
+                        .is_some_and(|g| g.to_lowercase().contains(&snippet_needle));
+                let tags_ok = self.snippet_filter_tags.is_empty()
+                    || snip.tags.iter().any(|tg| {
+                        self.snippet_filter_tags
+                            .iter()
+                            .any(|f| f.eq_ignore_ascii_case(tg))
+                    });
+                needle_ok && tags_ok
             })
             .collect();
-        // Group order: ungrouped first (no header when it is the only
-        // section), then each group alphabetically. Keyboard sections
-        // follow the same partition so Tab steps between groups like
-        // the dashboard's Groups/Hosts split.
-        let mut group_sections: Vec<(Option<String>, Vec<usize>)> = vec![(
-            None,
-            visible
+
+        // Layout mirrors the Hosts dashboard: at root, group FOLDER
+        // CARDS (click to drill in) above the ungrouped snippets;
+        // inside a group, that group's snippets with a breadcrumb in
+        // the toolbar. An active search flattens everything (the
+        // matches are the answer, folders would hide them).
+        let group_names = self.snippet_group_names();
+        let searching = !snippet_needle.is_empty();
+        let mut snippet_nav_sections: Vec<Vec<crate::keynav::NavItem>> = Vec::new();
+        let mut section_blocks: Vec<(Option<&'static str>, Vec<Element<'_, Message>>)> =
+            Vec::new();
+
+        if let Some(open_group) = self.active_snippet_group.as_ref().filter(|_| !searching) {
+            let items: Vec<usize> = visible
+                .iter()
+                .copied()
+                .filter(|&i| {
+                    self.snippets[i]
+                        .group
+                        .as_ref()
+                        .is_some_and(|g| g.eq_ignore_ascii_case(open_group))
+                })
+                .collect();
+            snippet_nav_sections.push(
+                items.iter().map(|&i| crate::keynav::NavItem::Snippet(i)).collect(),
+            );
+            section_blocks.push((None, items.iter().map(|&i| self.snippet_card(i)).collect()));
+        } else if searching {
+            // Flat filtered list, grouping suspended.
+            snippet_nav_sections.push(
+                visible.iter().map(|&i| crate::keynav::NavItem::Snippet(i)).collect(),
+            );
+            section_blocks
+                .push((None, visible.iter().map(|&i| self.snippet_card(i)).collect()));
+        } else {
+            // Root: folder cards first (absolute indices into
+            // `group_names` so the keyboard id survives filtering),
+            // hidden while the tag filter leaves them empty.
+            let mut folder_nav: Vec<crate::keynav::NavItem> = Vec::new();
+            let mut folder_cards: Vec<Element<'_, Message>> = Vec::new();
+            for (gi, name) in group_names.iter().enumerate() {
+                let count = visible
+                    .iter()
+                    .filter(|&&i| {
+                        self.snippets[i]
+                            .group
+                            .as_ref()
+                            .is_some_and(|g| g.eq_ignore_ascii_case(name))
+                    })
+                    .count();
+                if count == 0 {
+                    continue;
+                }
+                folder_nav.push(crate::keynav::NavItem::SnippetGroup(gi));
+                folder_cards.push(self.snippet_group_card(gi, name, count));
+            }
+            if !folder_cards.is_empty() {
+                snippet_nav_sections.push(folder_nav);
+                section_blocks.push((Some("groups"), folder_cards));
+            }
+            let ungrouped: Vec<usize> = visible
                 .iter()
                 .copied()
                 .filter(|&i| self.snippets[i].group.is_none())
-                .collect(),
-        )];
-        {
-            let mut named: Vec<(String, Vec<usize>)> = Vec::new();
-            for &i in &visible {
-                if let Some(g) = &self.snippets[i].group {
-                    match named.iter_mut().find(|(n, _)| n.eq_ignore_ascii_case(g)) {
-                        Some((_, items)) => items.push(i),
-                        None => named.push((g.clone(), vec![i])),
-                    }
-                }
+                .collect();
+            if !ungrouped.is_empty() || section_blocks.is_empty() {
+                snippet_nav_sections.push(
+                    ungrouped
+                        .iter()
+                        .map(|&i| crate::keynav::NavItem::Snippet(i))
+                        .collect(),
+                );
+                let header = section_blocks.is_empty().then_some(()).map_or(
+                    Some("snippets"),
+                    |_| None,
+                );
+                section_blocks.push((
+                    header,
+                    ungrouped.iter().map(|&i| self.snippet_card(i)).collect(),
+                ));
             }
-            named.sort_by_key(|g| g.0.to_lowercase());
-            group_sections.extend(named.into_iter().map(|(n, v)| (Some(n), v)));
         }
-        group_sections.retain(|(_, items)| !items.is_empty());
-        let multi_section = group_sections.len() > 1
-            || group_sections.first().is_some_and(|(n, _)| n.is_some());
-        // Keyboard-navigation order, per section, chunked to the grid
-        // columns at the bottom.
-        let mut snippet_nav_sections: Vec<Vec<crate::keynav::NavItem>> = Vec::new();
-        let mut section_blocks: Vec<(Option<String>, Vec<Element<'_, Message>>)> = Vec::new();
-        for (group_name, items) in group_sections {
-            let mut snippet_nav: Vec<crate::keynav::NavItem> = Vec::new();
-            let mut cards: Vec<Element<'_, Message>> = Vec::new();
-            for idx in items {
-            let snip = &self.snippets[idx];
-            snippet_nav.push(crate::keynav::NavItem::Snippet(idx));
+
+        let nav_width = self.vault_rail_width();
+        let panel_width = if self.show_snippet_panel { PANEL_WIDTH } else { 0.0 };
+        let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
+        let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
+        // Chunk each section's keyboard order to the grid's column
+        // count; multi-section recording makes Tab step between the
+        // folder cards and the loose snippets, dashboard-style.
+        self.keynav_set_content_sections(
+            snippet_nav_sections
+                .iter()
+                .map(|nav| nav.chunks(cols.max(1)).map(|c| c.to_vec()).collect())
+                .collect(),
+        );
+        let mut grid_col = column![].spacing(12);
+        for (header_key, cards) in section_blocks {
+            if let Some(key) = header_key {
+                grid_col = grid_col.push(
+                    container(
+                        text(t(key))
+                            .size(12)
+                            .font(iced::Font {
+                                weight: iced::font::Weight::Bold,
+                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                            })
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .width(Length::Fill)
+                    .align_x(dir_align_x()),
+                );
+            }
+            grid_col = grid_col.push(distribute_card_grid(cards, cols, 12.0, 12.0));
+        }
+
+        let grid = scrollable(
+            column![grid_col].padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }),
+        )
+        // Stable id so the keyboard router can keep the selected card
+        // scrolled into view.
+        .id(iced::widget::Id::new("snippets-grid-scroll"))
+        .height(Length::Fill);
+
+        // Inline search bar in Classic mode (Workspace puts it on
+        // the contextual sub-nav). Collapses to zero height in
+        // Workspace so we don't render the input twice.
+        // Search now lives in the toolbar (`vault_search_field`); the
+        // legacy below-toolbar search bar collapses to nothing.
+        let search_bar: Element<'_, Message> = Space::new().height(0).into();
+
+        // Side panel hoisted to `view_main` (active_side_panel).
+        column![toolbar, search_bar, status, grid]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    /// One snippet card for the vault grid (badge + label + preview +
+    /// hashtag line + hover kebab + selection ring). Extracted so the
+    /// root and in-group layouts share it.
+    fn snippet_card(&self, idx: usize) -> Element<'_, Message> {
+        let snip = &self.snippets[idx];
             let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
                 == Some(crate::keynav::NavItem::Snippet(idx));
             // Use host_icon so the snippet badge follows the global
@@ -306,80 +468,76 @@ impl Oryxis {
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
             let card_el = self.card_wash(card_el, OryxisColors::t().accent);
-            cards.push(self.keynav_ring_content(kb_selected, card_el));
-            }
-            snippet_nav_sections.push(snippet_nav);
-            section_blocks.push((group_name, cards));
-        }
+self.keynav_ring_content(kb_selected, card_el)
+    }
 
-        let nav_width = self.vault_rail_width();
-        let panel_width = if self.show_snippet_panel { PANEL_WIDTH } else { 0.0 };
-        let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
-        let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
-        // Chunk each group's keyboard order to the grid's column count;
-        // multi-section recording makes Tab step between groups.
-        self.keynav_set_content_sections(
-            snippet_nav_sections
-                .iter()
-                .map(|nav| nav.chunks(cols.max(1)).map(|c| c.to_vec()).collect())
-                .collect(),
+    /// Folder card for a snippet group, mirroring the dashboard's
+    /// manual-folder cards: badge + name + count + trailing chevron;
+    /// click (or Enter) drills into the group.
+    fn snippet_group_card(&self, gi: usize, name: &str, count: usize) -> Element<'_, Message> {
+        let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
+            == Some(crate::keynav::NavItem::SnippetGroup(gi));
+        let style = crate::widgets::resolve_host_icon_style(
+            None,
+            &self.setting_default_host_icon,
         );
-        // One grid per group, stacked under muted captions (ungrouped
-        // first, headerless while it is the only section).
-        let mut grid_col = column![].spacing(12);
-        for (group_name, cards) in section_blocks {
-            if let Some(name) = group_name {
-                grid_col = grid_col.push(
-                    container(
-                        text(name)
-                            .size(12)
-                            .font(iced::Font {
-                                weight: iced::font::Weight::Bold,
-                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                            })
-                            .color(OryxisColors::t().text_muted),
-                    )
+        let glyph: Element<'_, Message> = iced_fonts::lucide::folder()
+            .size(16)
+            .line_height(1.0)
+            .color(Color::WHITE)
+            .into();
+        let icon_box = crate::widgets::host_icon(
+            style,
+            OryxisColors::t().accent,
+            name,
+            Some(glyph),
+            32.0,
+        );
+        let card_btn = button(
+            container(
+                dir_row(vec![
+                    icon_box,
+                    Space::new().width(8).into(),
+                    column![
+                        text(name.to_string())
+                            .size(13)
+                            .color(OryxisColors::t().text_primary)
+                            .wrapping(iced::widget::text::Wrapping::None),
+                        Space::new().height(2),
+                        text(crate::i18n::snippet_count(count))
+                            .size(10)
+                            .color(OryxisColors::t().text_muted)
+                            .wrapping(iced::widget::text::Wrapping::None),
+                    ]
                     .width(Length::Fill)
-                    .align_x(dir_align_x()),
-                );
-            } else if multi_section {
-                grid_col = grid_col.push(
-                    container(
-                        text(t("ungrouped"))
-                            .size(12)
-                            .font(iced::Font {
-                                weight: iced::font::Weight::Bold,
-                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                            })
-                            .color(OryxisColors::t().text_muted),
-                    )
-                    .width(Length::Fill)
-                    .align_x(dir_align_x()),
-                );
-            }
-            grid_col = grid_col.push(distribute_card_grid(cards, cols, 12.0, 12.0));
-        }
-
-        let grid = scrollable(
-            column![grid_col].padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 }),
+                    .into(),
+                    iced_fonts::lucide::chevron_right()
+                        .size(14)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 2.0 }),
         )
-        // Stable id so the keyboard router can keep the selected card
-        // scrolled into view.
-        .id(iced::widget::Id::new("snippets-grid-scroll"))
-        .height(Length::Fill);
-
-        // Inline search bar in Classic mode (Workspace puts it on
-        // the contextual sub-nav). Collapses to zero height in
-        // Workspace so we don't render the input twice.
-        // Search now lives in the toolbar (`vault_search_field`); the
-        // legacy below-toolbar search bar collapses to nothing.
-        let search_bar: Element<'_, Message> = Space::new().height(0).into();
-
-        // Side panel hoisted to `view_main` (active_side_panel).
-        column![toolbar, search_bar, status, grid]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        .on_press(Message::OpenSnippetGroup(name.to_string()))
+        .width(Length::Fill)
+        .style(move |_, status| {
+            let (bg, bc, bw) = match status {
+                BtnStatus::Hovered => (OryxisColors::t().bg_hover, OryxisColors::t().accent, 1.5),
+                BtnStatus::Pressed => (OryxisColors::t().bg_selected, OryxisColors::t().accent, 2.0),
+                _ => (OryxisColors::t().bg_surface, OryxisColors::t().border, 1.0),
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(10.0), color: bc, width: bw },
+                ..Default::default()
+            }
+        });
+        let card_el: Element<'_, Message> =
+            container(card_btn).width(Length::Fill).clip(true).into();
+        let card_el = self.card_wash(card_el, OryxisColors::t().accent);
+        self.keynav_ring_content(kb_selected, card_el)
     }
 
     pub(crate) fn view_snippet_panel(&self) -> Element<'_, Message> {

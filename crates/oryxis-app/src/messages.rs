@@ -610,6 +610,16 @@ pub enum Message {
     SnippetTagsChanged(String),
     /// Snippets sidebar: toggle "only snippets tagged like this host".
     ToggleSnippetTagFilter,
+    /// Vault Snippets: open/close the tag-filter dropdown.
+    ShowSnippetTagFilterMenu,
+    /// Vault Snippets: toggle one tag in the multi-select filter.
+    ToggleSnippetTagFilterTag(String),
+    /// Vault Snippets: clear the tag filter.
+    ClearSnippetTagFilter,
+    /// Vault Snippets: open a snippet group as a folder.
+    OpenSnippetGroup(String),
+    /// Vault Snippets: back to the root (group cards + ungrouped).
+    CloseSnippetGroup,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the

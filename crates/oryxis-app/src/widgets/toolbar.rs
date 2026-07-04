@@ -272,7 +272,10 @@ pub(crate) fn context_menu_item<'a>(
 /// sort button. While tags are selected the button fills accent and
 /// shows the selection count next to the glyph, so a narrowed list is
 /// visibly narrowed and the "how many" question answers itself.
-pub(crate) fn host_tag_filter_button(selected: usize) -> Element<'static, Message> {
+pub(crate) fn tag_filter_toolbar_button(
+    selected: usize,
+    msg: Message,
+) -> Element<'static, Message> {
     let active = selected > 0;
     let mut inner: Vec<Element<'static, Message>> = vec![
         iced_fonts::lucide::tag()
@@ -299,7 +302,7 @@ pub(crate) fn host_tag_filter_button(selected: usize) -> Element<'static, Messag
             .center_x(Length::Shrink)
             .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 4.0 }),
     )
-    .on_press(Message::ShowHostTagFilterMenu)
+    .on_press(msg)
     .style(move |_, status| {
         let bg = if active {
             OryxisColors::t().accent

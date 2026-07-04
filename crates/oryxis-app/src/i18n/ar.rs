@@ -626,6 +626,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "بدون مجموعة",
         "snippet_tag_filter_tip" => "فقط المقتطفات الموسومة مثل هذا المضيف",
         "all_tags" => "كل الوسوم",
+        "snippet_count_one" => "مقتطف واحد",
+        "snippet_count_other" => "مقتطفات",
         "host_tag_filter" => "تصفية حسب الوسم",
         "host_config_no_host" => "افتح مضيفًا محفوظًا لتعديل إعداداته هنا.",
         "host_config_subtitle" => "تُحفظ التغييرات فورًا على هذا المضيف.",

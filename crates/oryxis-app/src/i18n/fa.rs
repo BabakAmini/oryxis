@@ -610,6 +610,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ungrouped" => "بدون گروه",
         "snippet_tag_filter_tip" => "فقط قطعه‌های هم‌برچسب با این میزبان",
         "all_tags" => "همه برچسب‌ها",
+        "snippet_count_one" => "۱ قطعه",
+        "snippet_count_other" => "قطعه",
         "host_tag_filter" => "فیلتر بر اساس برچسب",
         "host_config_no_host" => "برای ویرایش تنظیمات، یک میزبان ذخیره‌شده را باز کنید.",
         "host_config_subtitle" => "تغییرات بلافاصله روی این میزبان ذخیره می‌شوند.",

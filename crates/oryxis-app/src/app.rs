@@ -854,6 +854,13 @@ pub struct Oryxis {
     /// Snippets sidebar: only show snippets sharing at least one tag
     /// with the focused host's tags. Persisted as `snippet_tag_filter`.
     pub(crate) setting_snippet_tag_filter: bool,
+    /// Vault Snippets view: multi-select tag filter (in-memory, like
+    /// the dashboard's `host_filter_tags`); empty = off.
+    pub(crate) snippet_filter_tags: Vec<String>,
+    /// Vault Snippets view: the snippet group currently opened as a
+    /// folder (dashboard-style drill-in). `None` = root (group cards +
+    /// ungrouped snippets).
+    pub(crate) active_snippet_group: Option<String>,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
