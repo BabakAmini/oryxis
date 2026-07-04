@@ -379,10 +379,12 @@ impl Oryxis {
                                 .into();
 
                             // Wrap in MouseArea so hover events drive the
-                            // dots-button visibility (same UX as host cards).
+                            // dots-button visibility, and right-click opens
+                            // the kebab menu (app-wide card convention).
                             let wrapped = MouseArea::new(folder_element)
                                 .on_enter(Message::FolderCardHovered(gid))
-                                .on_exit(Message::FolderCardUnhovered);
+                                .on_exit(Message::FolderCardUnhovered)
+                                .on_right_press(Message::ShowFolderActions(gid));
                             group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
                         }
             }

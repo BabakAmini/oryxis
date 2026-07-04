@@ -509,6 +509,8 @@ impl Oryxis {
                 last_user_activity: std::time::Instant::now(),
                 setting_os_detection: true,
                 setting_session_logging: false,
+                setting_session_log_full: true,
+                setting_session_log_compress: true,
                 setting_connection_history: false,
                 setting_logs_retention: "off".into(),
                 setting_auto_check_updates: true,
@@ -1273,6 +1275,12 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("session_logging") {
                 self.setting_session_logging = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("session_log_full") {
+                self.setting_session_log_full = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("session_log_compress") {
+                self.setting_session_log_compress = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("connection_history") {
                 self.setting_connection_history = v == "true";

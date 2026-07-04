@@ -11,8 +11,9 @@
 //!
 //! Boundary caveat: a secret split across two flushed chunks can't be
 //! matched. `Oryxis::flush_session_logs` mitigates this by holding back
-//! the trailing partial line of each buffer until a newline (or the
-//! final flush) arrives.
+//! the trailing partial line of each buffer until a line boundary
+//! (`\n` or `\r`, neither of which can occur inside a secret run) or
+//! the final flush arrives.
 
 use std::borrow::Cow;
 use std::sync::OnceLock;

@@ -405,7 +405,7 @@ impl Oryxis {
         ]);
 
         let session_logging_enabled = self.setting_session_logging;
-        let session_logging_section = panel_section(column![
+        let mut session_logging_rows = column![
             self.nav_toggle_row(
                 crate::i18n::t("session_logging"),
                 session_logging_enabled,
@@ -414,7 +414,36 @@ impl Oryxis {
             Space::new().height(4),
             text(t("setting_session_logging_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
-        ]);
+        ];
+        // Recording sub-options only make sense while recording is on
+        // (progressive disclosure; keynav slots record during view(),
+        // so conditional rows drop out of the Tab walk for free).
+        if session_logging_enabled {
+            session_logging_rows = session_logging_rows
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("session_log_full"),
+                    self.setting_session_log_full,
+                    Message::SettingToggleSessionLogFull,
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(t("setting_session_log_full_desc"))
+                        .size(11).color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("session_log_compress"),
+                    self.setting_session_log_compress,
+                    Message::SettingToggleSessionLogCompress,
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(t("setting_session_log_compress_desc"))
+                        .size(11).color(OryxisColors::t().text_muted),
+                );
+        }
+        let session_logging_section = panel_section(session_logging_rows);
 
         let connection_history_enabled = self.setting_connection_history;
         let connection_history_section = panel_section(column![

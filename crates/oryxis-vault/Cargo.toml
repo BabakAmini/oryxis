@@ -15,6 +15,9 @@ thiserror = { workspace = true }
 zeroize = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+# Session-log chunk compression (deflate). Already present transitively
+# in the workspace tree, so this adds no new build weight.
+flate2 = "1"
 # Pinned to the same `rand` generation russh 0.61 already pulls in (its
 # `ThreadRng` implements `rand_core 0.10`'s `CryptoRng`, which
 # `ssh_key::PrivateKey::random` requires). Only `keygen` uses it; the

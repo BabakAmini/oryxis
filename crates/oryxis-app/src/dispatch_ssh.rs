@@ -361,6 +361,20 @@ impl Oryxis {
                     if self.setting_session_logging { "true" } else { "false" },
                 );
             }
+            Message::SettingToggleSessionLogFull => {
+                self.setting_session_log_full = !self.setting_session_log_full;
+                self.persist_setting(
+                    "session_log_full",
+                    if self.setting_session_log_full { "true" } else { "false" },
+                );
+            }
+            Message::SettingToggleSessionLogCompress => {
+                self.setting_session_log_compress = !self.setting_session_log_compress;
+                self.persist_setting(
+                    "session_log_compress",
+                    if self.setting_session_log_compress { "true" } else { "false" },
+                );
+            }
             Message::SettingToggleConnectionHistory => {
                 self.setting_connection_history = !self.setting_connection_history;
                 self.persist_setting(

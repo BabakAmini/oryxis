@@ -161,27 +161,80 @@ impl VaultStore {
             .ok()
     }
 
+    /// Deflate a chunk's plaintext. `None` when compression wouldn't
+    /// shrink it (already-compressed output, tiny chunks below the
+    /// frame overhead), so the caller stores it raw with `comp = 0`.
+    fn deflate_chunk(data: &[u8]) -> Option<Vec<u8>> {
+        use std::io::Write;
+        let mut enc = flate2::write::DeflateEncoder::new(
+            Vec::with_capacity(data.len() / 2),
+            flate2::Compression::new(6),
+        );
+        // Writing into a Vec cannot fail; treat an error as "don't
+        // compress" rather than failing the append.
+        if enc.write_all(data).is_err() {
+            return None;
+        }
+        let out = enc.finish().ok()?;
+        (out.len() < data.len()).then_some(out)
+    }
+
+    /// Inverse of `deflate_chunk` for rows flagged `comp = 1`. `None`
+    /// on malformed data; the caller falls back to the stored bytes
+    /// as-is (mirrors the `unseal_chunk` best-effort contract).
+    fn inflate_chunk(data: &[u8]) -> Option<Vec<u8>> {
+        use std::io::Write;
+        let mut dec = flate2::write::DeflateDecoder::new(Vec::with_capacity(data.len() * 4));
+        dec.write_all(data).ok()?;
+        dec.finish().ok()
+    }
+
+    /// Apply the row's `comp` flag to an unsealed chunk.
+    fn decode_chunk(plain: Vec<u8>, comp: i64) -> Vec<u8> {
+        if comp == 1 {
+            match Self::inflate_chunk(&plain) {
+                Some(out) => out,
+                None => plain,
+            }
+        } else {
+            plain
+        }
+    }
+
     /// Append recorded terminal bytes to a session log. One INSERT of just
     /// the new bytes, no read-modify-write of the growing stream. Callers
     /// should batch (see the app's per-pane buffer) so this fires at a
     /// human cadence rather than once per SSH chunk. `offset_ms` is the
     /// chunk's capture time in milliseconds since the log's `started_at`
     /// (asciicast timing); `None` records without timing, like the
-    /// pre-migration rows.
+    /// pre-migration rows. `compress` deflates the plaintext before
+    /// sealing (order matters: ciphertext doesn't compress) when the
+    /// chunk is big enough for it to pay off; readers honor the per-row
+    /// `comp` flag, so mixed logs (toggle flipped mid-history) are fine.
     pub fn append_session_data(
         &self,
         id: &Uuid,
         data: &[u8],
         offset_ms: Option<i64>,
+        compress: bool,
     ) -> Result<(), VaultError> {
         if data.is_empty() {
             return Ok(());
         }
-        let sealed = self.seal_chunk(data)?;
+        /// Below this, the deflate framing eats the win (prompt redraws).
+        const COMPRESS_MIN_BYTES: usize = 512;
+        let deflated = (compress && data.len() >= COMPRESS_MIN_BYTES)
+            .then(|| Self::deflate_chunk(data))
+            .flatten();
+        let (payload, comp): (&[u8], i64) = match &deflated {
+            Some(d) => (d, 1),
+            None => (data, 0),
+        };
+        let sealed = self.seal_chunk(payload)?;
         self.db.execute(
-            "INSERT INTO session_log_chunks (log_id, data, offset_ms, kind)
-             VALUES (?1, ?2, ?3, 'o')",
-            params![id.to_string(), sealed, offset_ms],
+            "INSERT INTO session_log_chunks (log_id, data, offset_ms, kind, comp)
+             VALUES (?1, ?2, ?3, 'o', ?4)",
+            params![id.to_string(), sealed, offset_ms, comp],
         )?;
         Ok(())
     }
@@ -349,16 +402,19 @@ impl VaultStore {
         // Output chunks only: resize events ('r') are timing metadata
         // for the asciicast export, not part of the byte stream.
         let mut stmt = self.db.prepare(
-            "SELECT data FROM session_log_chunks
+            "SELECT data, comp FROM session_log_chunks
              WHERE log_id = ?1 AND kind = 'o' ORDER BY id",
         )?;
-        let rows = stmt.query_map(params![id_str], |row| row.get::<_, Vec<u8>>(0))?;
-        for chunk in rows {
-            let chunk = chunk?;
-            match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
-                Some(plain) => buf.extend_from_slice(&plain),
-                None => buf.extend_from_slice(&chunk),
-            }
+        let rows = stmt.query_map(params![id_str], |row| {
+            Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        for row in rows {
+            let (chunk, comp) = row?;
+            let plain = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
+                Some(plain) => plain,
+                None => chunk,
+            };
+            buf.extend_from_slice(&Self::decode_chunk(plain, comp));
         }
         Ok(Some(buf))
     }
@@ -386,7 +442,7 @@ impl VaultStore {
             events.push(SessionLogEvent { offset_ms: None, kind: 'o', data });
         }
         let mut stmt = self.db.prepare(
-            "SELECT data, offset_ms, kind FROM session_log_chunks
+            "SELECT data, offset_ms, kind, comp FROM session_log_chunks
              WHERE log_id = ?1 ORDER BY id",
         )?;
         let rows = stmt.query_map(params![id_str], |row| {
@@ -394,18 +450,19 @@ impl VaultStore {
                 row.get::<_, Vec<u8>>(0)?,
                 row.get::<_, Option<i64>>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)?,
             ))
         })?;
         for row in rows {
-            let (chunk, offset_ms, kind) = row?;
-            let data = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
+            let (chunk, offset_ms, kind, comp) = row?;
+            let plain = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
                 Some(plain) => plain,
                 None => chunk,
             };
             events.push(SessionLogEvent {
                 offset_ms,
                 kind: if kind == "r" { 'r' } else { 'o' },
-                data,
+                data: Self::decode_chunk(plain, comp),
             });
         }
         Ok(events)

@@ -276,6 +276,9 @@ impl VaultStore {
         // input (bare Base32 or a full otpauth:// URI), parsed at code
         // generation time.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN totp_secret BLOB;");
+        // Wire protocol selector ("ssh" / "telnet"). NULL = ssh, so every
+        // pre-existing row keeps meaning what it meant.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN protocol TEXT;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");
@@ -297,6 +300,10 @@ impl VaultStore {
         // terminal resizes ('r', whose data is "<cols>x<rows>").
         let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN offset_ms INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN kind TEXT NOT NULL DEFAULT 'o';");
+        // Per-chunk compression flag: 0 = raw, 1 = deflate applied to
+        // the plaintext before sealing (ciphertext doesn't compress).
+        // Pre-existing rows are raw by the DEFAULT.
+        let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN comp INTEGER NOT NULL DEFAULT 0;");
 
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");

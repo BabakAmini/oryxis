@@ -687,12 +687,18 @@ impl Oryxis {
 
         match viewable {
             Some(log_id) => {
-                let row_el: Element<'_, Message> = iced::widget::MouseArea::new(card)
+                // Right-click anywhere on the row opens the kebab menu
+                // (app-wide card convention); left click still opens
+                // the recording.
+                let mut area = iced::widget::MouseArea::new(card)
                     .on_press(Message::ViewSessionLog(log_id))
                     .on_enter(Message::LogRowHovered(log_id))
                     .on_exit(Message::LogRowUnhovered)
-                    .interaction(iced::mouse::Interaction::Pointer)
-                    .into();
+                    .interaction(iced::mouse::Interaction::Pointer);
+                if let TimelineKind::Session { idx, .. } = &row.kind {
+                    area = area.on_right_press(Message::ShowSessionLogMenu(*idx));
+                }
+                let row_el: Element<'_, Message> = area.into();
                 crate::widgets::select_ring_opt(
                     row_el,
                     8.0,

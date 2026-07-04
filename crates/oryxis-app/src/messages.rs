@@ -1044,6 +1044,11 @@ pub enum Message {
     SettingToggleOsDetection,
     /// Toggle the global "record terminal sessions" setting.
     SettingToggleSessionLogging,
+    /// Toggle full-detail recording (timing + resizes, feeds the .cast
+    /// export) vs the plain output log.
+    SettingToggleSessionLogFull,
+    /// Toggle deflate compression of recorded chunks at flush time.
+    SettingToggleSessionLogCompress,
     /// Toggle the global "record connection events" (history) setting.
     SettingToggleConnectionHistory,
     OsDetected(Uuid, Option<String>),

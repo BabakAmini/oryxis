@@ -119,7 +119,7 @@ fn destroy_and_recreate_drops_every_table() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"sensitive recording", None).unwrap();
+    vault.append_session_data(&log_id, b"sensitive recording", None, false).unwrap();
     vault.destroy_and_recreate().unwrap();
     // No table created by create_tables may carry surviving rows.
     let mut stmt = vault

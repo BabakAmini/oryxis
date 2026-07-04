@@ -6,8 +6,8 @@ fn session_log_roundtrips_appended_chunks() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"first chunk\n", None).unwrap();
-    vault.append_session_data(&log_id, b"second chunk\n", None).unwrap();
+    vault.append_session_data(&log_id, b"first chunk\n", None, false).unwrap();
+    vault.append_session_data(&log_id, b"second chunk\n", None, false).unwrap();
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"first chunk\nsecond chunk\n");
 }
@@ -20,7 +20,7 @@ fn session_log_chunks_are_not_stored_in_the_clear() {
     let conn_id = Uuid::new_v4();
     let marker = b"TOP-SECRET-OUTPUT-MARKER";
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, marker, None).unwrap();
+    vault.append_session_data(&log_id, marker, None, false).unwrap();
     // Structural check straight against the column: the stored blob
     // must not contain the recorded bytes.
     let raw: Vec<u8> = vault
@@ -47,12 +47,12 @@ fn session_log_chunks_survive_master_password_change() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"before change\n", None).unwrap();
+    vault.append_session_data(&log_id, b"before change\n", None, false).unwrap();
     vault.set_user_password("brand-new-password").unwrap();
     // Drop the cached content key to force a re-unwrap with the new
     // master key, as a fresh process would.
     *vault.session_log_key.lock().unwrap() = None;
-    vault.append_session_data(&log_id, b"after change\n", None).unwrap();
+    vault.append_session_data(&log_id, b"after change\n", None, false).unwrap();
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"before change\nafter change\n");
 }
@@ -69,11 +69,11 @@ fn session_log_chunks_concatenate_in_append_order() {
 
     // Append in three writes; the recorded stream must read back as
     // the exact byte-for-byte concatenation, in order.
-    vault.append_session_data(&log_id, b"$ apt update\n", None).unwrap();
-    vault.append_session_data(&log_id, b"Hit:1 http://deb\n", None).unwrap();
-    vault.append_session_data(&log_id, b"Reading package lists\n", None).unwrap();
+    vault.append_session_data(&log_id, b"$ apt update\n", None, false).unwrap();
+    vault.append_session_data(&log_id, b"Hit:1 http://deb\n", None, false).unwrap();
+    vault.append_session_data(&log_id, b"Reading package lists\n", None, false).unwrap();
     // Empty appends are no-ops, never a stray zero-length chunk.
-    vault.append_session_data(&log_id, b"", None).unwrap();
+    vault.append_session_data(&log_id, b"", None, false).unwrap();
 
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(
@@ -111,7 +111,7 @@ fn session_log_reads_legacy_inline_blob_then_chunks() {
             params![b"OLD".to_vec(), log_id.to_string()],
         )
         .unwrap();
-    vault.append_session_data(&log_id, b"NEW", None).unwrap();
+    vault.append_session_data(&log_id, b"NEW", None, false).unwrap();
 
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"OLDNEW");
@@ -134,7 +134,7 @@ fn deleting_session_log_drops_its_chunks() {
     vault
         .create_session_log(&log_id, &Uuid::new_v4(), "doomed")
         .unwrap();
-    vault.append_session_data(&log_id, b"transient", None).unwrap();
+    vault.append_session_data(&log_id, b"transient", None, false).unwrap();
 
     vault.delete_session_log(&log_id).unwrap();
 
@@ -206,8 +206,8 @@ fn session_events_carry_offsets_and_kinds() {
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
     vault.append_session_resize(&log_id, 0, 120, 30).unwrap();
-    vault.append_session_data(&log_id, b"$ ls\n", Some(150)).unwrap();
-    vault.append_session_data(&log_id, b"README\n", Some(400)).unwrap();
+    vault.append_session_data(&log_id, b"$ ls\n", Some(150), false).unwrap();
+    vault.append_session_data(&log_id, b"README\n", Some(400), false).unwrap();
     vault.append_session_resize(&log_id, 900, 100, 40).unwrap();
 
     let events = vault.get_session_events(&log_id).unwrap();
@@ -230,9 +230,9 @@ fn resize_events_stay_out_of_the_byte_stream() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"before ", Some(10)).unwrap();
+    vault.append_session_data(&log_id, b"before ", Some(10), false).unwrap();
     vault.append_session_resize(&log_id, 20, 90, 25).unwrap();
-    vault.append_session_data(&log_id, b"after\n", Some(30)).unwrap();
+    vault.append_session_data(&log_id, b"after\n", Some(30), false).unwrap();
     let data = vault.get_session_data(&log_id).unwrap().unwrap();
     assert_eq!(data, b"before after\n");
 }
@@ -245,9 +245,84 @@ fn untimed_chunks_read_back_with_no_offset() {
     let log_id = Uuid::new_v4();
     let conn_id = Uuid::new_v4();
     vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
-    vault.append_session_data(&log_id, b"legacy\n", None).unwrap();
+    vault.append_session_data(&log_id, b"legacy\n", None, false).unwrap();
     let events = vault.get_session_events(&log_id).unwrap();
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].offset_ms, None);
     assert_eq!(events[0].kind, 'o');
+}
+
+#[test]
+fn compressed_chunks_roundtrip_and_actually_shrink() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    // Repetitive terminal-ish output well above the size threshold.
+    let big: Vec<u8> = b"drwxr-xr-x 2 root root 4096 Jul  4 12:00 dir\n"
+        .repeat(200)
+        .to_vec();
+    vault.append_session_data(&log_id, &big, Some(100), true).unwrap();
+    let (stored_len, comp): (i64, i64) = vault
+        .db
+        .query_row(
+            "SELECT LENGTH(data), comp FROM session_log_chunks WHERE log_id = ?1",
+            params![log_id.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(comp, 1);
+    assert!(
+        (stored_len as usize) < big.len() / 4,
+        "expected real shrink, stored {stored_len} of {}",
+        big.len()
+    );
+    // Both read paths inflate transparently.
+    assert_eq!(vault.get_session_data(&log_id).unwrap().unwrap(), big);
+    let events = vault.get_session_events(&log_id).unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0].data, big);
+    assert_eq!(events[0].offset_ms, Some(100));
+}
+
+
+#[test]
+fn small_chunks_stay_raw_even_with_compression_on() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_data(&log_id, b"$ ls\n", None, true).unwrap();
+    let comp: i64 = vault
+        .db
+        .query_row(
+            "SELECT comp FROM session_log_chunks WHERE log_id = ?1",
+            params![log_id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(comp, 0, "below-threshold chunk must not pay deflate framing");
+    assert_eq!(vault.get_session_data(&log_id).unwrap().unwrap(), b"$ ls\n");
+}
+
+
+#[test]
+fn mixed_raw_and_compressed_chunks_concatenate_in_order() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    let big: Vec<u8> = b"the same line over and over\n".repeat(100).to_vec();
+    // Raw (toggle off), compressed (on), tiny (on but under threshold):
+    // the reader honors each row's own flag.
+    vault.append_session_data(&log_id, b"before ", Some(0), false).unwrap();
+    vault.append_session_data(&log_id, &big, Some(300), true).unwrap();
+    vault.append_session_data(&log_id, b"after\n", Some(600), true).unwrap();
+    let mut expected = b"before ".to_vec();
+    expected.extend_from_slice(&big);
+    expected.extend_from_slice(b"after\n");
+    assert_eq!(vault.get_session_data(&log_id).unwrap().unwrap(), expected);
+    let events = vault.get_session_events(&log_id).unwrap();
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[1].data, big);
 }

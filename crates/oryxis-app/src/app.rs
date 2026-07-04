@@ -1123,6 +1123,13 @@ pub struct Oryxis {
     /// Global default for recording terminal sessions to the vault. A
     /// per-host `Connection.session_logging` override wins over this.
     pub(crate) setting_session_logging: bool,
+    /// Recording detail: `true` = full (arrival timing + resize events,
+    /// what the asciicast `.cast` export needs; the export action only
+    /// shows while this is on), `false` = the plain output log of old.
+    pub(crate) setting_session_log_full: bool,
+    /// Deflate recorded chunks before sealing them (order matters:
+    /// ciphertext doesn't compress). Long sessions shrink 5-20x.
+    pub(crate) setting_session_log_compress: bool,
     /// Whether connection events (connect / disconnect / auth failure /
     /// error) are recorded to the vault log. Gates every `add_log` site.
     pub(crate) setting_connection_history: bool,

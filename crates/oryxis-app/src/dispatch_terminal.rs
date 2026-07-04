@@ -21,6 +21,66 @@ const SESSION_LOG_FLUSH_BYTES: usize = 64 * 1024;
 /// vault row per PTY read; interactive pauses stay visible.
 const SESSION_LOG_SEGMENT_MS: i64 = 250;
 
+/// Split a flushed buffer into timed replay segments: `(byte offset,
+/// offset_ms)` per chunk, driven by the arrival marks. Cuts happen
+/// ONLY at line boundaries, either the byte before the mark is `\n` /
+/// `\r`, or the mark itself sits on a `\r` (a CR-prefixed progress-bar
+/// redraw, wget style). Secret runs never contain `\n` or `\r`, so a
+/// cut there can't split one across redaction chunks. And only marks
+/// whose arrival gap is worth a replay step cut; bursty output
+/// coalesces instead of producing one vault row per PTY read.
+fn session_log_segments(head: &[u8], marks: &[(usize, i64)]) -> Vec<(usize, i64)> {
+    let mut segs: Vec<(usize, i64)> = Vec::new();
+    for &(pos, ms) in marks {
+        match segs.last() {
+            None => segs.push((0, ms)),
+            Some(&(_, prev_ms)) => {
+                let line_bounded = pos > 0
+                    && pos < head.len()
+                    && (matches!(head[pos - 1], b'\n' | b'\r') || head[pos] == b'\r');
+                if line_bounded && ms - prev_ms >= SESSION_LOG_SEGMENT_MS {
+                    segs.push((pos, ms));
+                }
+            }
+        }
+    }
+    if segs.is_empty() {
+        segs.push((0, 0));
+    }
+    segs
+}
+
+/// Largest cut `<= take` that doesn't split a trailing multi-byte
+/// UTF-8 sequence (its continuation bytes may not have arrived yet).
+/// Walks back over at most 3 continuation bytes; anything that doesn't
+/// parse as UTF-8 (raw binary output) keeps the original cut, this is
+/// a best-effort alignment, not a validator.
+fn utf8_aligned(buf: &[u8], take: usize) -> usize {
+    let mut cut = take;
+    let floor = take.saturating_sub(3);
+    while cut > floor && buf[cut - 1] & 0xC0 == 0x80 {
+        cut -= 1;
+    }
+    if cut == 0 {
+        return take;
+    }
+    let lead = buf[cut - 1];
+    let need = match lead {
+        b if b & 0x80 == 0x00 => 1,
+        b if b & 0xE0 == 0xC0 => 2,
+        b if b & 0xF0 == 0xE0 => 3,
+        b if b & 0xF8 == 0xF0 => 4,
+        // Stray continuation or invalid lead: not UTF-8, cut as-is.
+        _ => return take,
+    };
+    if need > take - (cut - 1) {
+        // The sequence is incomplete at the cut: flush up to its start.
+        cut - 1
+    } else {
+        take
+    }
+}
+
 impl Oryxis {
     /// Drain every pane's recorded-output buffer into the vault, one
     /// append per pane. Driven by the size threshold, the flush tick,
@@ -31,8 +91,9 @@ impl Oryxis {
     /// Secrets/PII are scrubbed per flushed chunk (`session_redact`).
     /// Patterns can't match across chunk boundaries, so the periodic
     /// (non-final) flush holds back everything after the buffer's last
-    /// newline; the partial line rides along to the next flush unless
-    /// the buffer is oversized anyway.
+    /// line boundary (`\n` or `\r`; secret runs contain neither, so a
+    /// cut there can't split one); the partial line rides along to the
+    /// next flush unless the buffer is oversized anyway.
     pub(crate) fn flush_session_logs(&mut self) {
         self.flush_session_logs_inner(false);
     }
@@ -58,6 +119,10 @@ impl Oryxis {
     }
 
     fn flush_session_logs_inner(&mut self, final_flush: bool) {
+        // Full detail = timed segments + resize events (.cast export);
+        // simple = one untimed chunk per flush, the plain log of old.
+        let full = self.setting_session_log_full;
+        let compress = self.setting_session_log_compress;
         // (log id, offset_ms, bytes) output chunks + pending resizes.
         let mut pending: Vec<(uuid::Uuid, Option<i64>, Vec<u8>)> = Vec::new();
         let mut resizes: Vec<(uuid::Uuid, i64, u16, u16)> = Vec::new();
@@ -67,12 +132,21 @@ impl Oryxis {
                     && !pane.session_log_buf.is_empty()
                 {
                     let buf = &mut pane.session_log_buf;
-                    let take = if final_flush || buf.len() >= SESSION_LOG_FLUSH_BYTES {
+                    let take = if final_flush {
                         buf.len()
+                    } else if buf.len() >= SESSION_LOG_FLUSH_BYTES {
+                        // Oversized burst: flush everything, but never
+                        // split a multi-byte UTF-8 sequence across chunks
+                        // (the .cast export decodes per chunk, so both
+                        // halves of a split char would render as U+FFFD).
+                        utf8_aligned(buf, buf.len())
                     } else {
                         // Hold back the partial trailing line so a secret
                         // mid-echo isn't split across redaction chunks.
-                        match buf.iter().rposition(|&b| b == b'\n') {
+                        // `\r` ends a line here too: progress-bar redraws
+                        // are CR-delimited and would otherwise sit in RAM
+                        // until a newline or the size threshold.
+                        match buf.iter().rposition(|&b| b == b'\n' || b == b'\r') {
                             Some(pos) => pos + 1,
                             None => 0,
                         }
@@ -102,41 +176,25 @@ impl Oryxis {
                         tail_marks.insert(0, (0, carry_ms));
                     }
                     pane.session_log_marks = tail_marks;
-                    // Timed segments: cut ONLY at newline-aligned mark
-                    // positions (redaction patterns never span a chunk,
-                    // and today's chunks are newline-bounded; smaller
-                    // newline-bounded chunks keep that guarantee) and
-                    // only when the gap is worth a replay step.
-                    let mut segs: Vec<(usize, i64)> = Vec::new();
-                    for (pos, ms) in head_marks {
-                        match segs.last() {
-                            None => segs.push((0, ms)),
-                            Some(&(_, prev_ms)) => {
-                                if pos > 0
-                                    && pos < head.len()
-                                    && head[pos - 1] == b'\n'
-                                    && ms - prev_ms >= SESSION_LOG_SEGMENT_MS
-                                {
-                                    segs.push((pos, ms));
-                                }
-                            }
+                    if full {
+                        let segs = session_log_segments(&head, &head_marks);
+                        for (i, &(start, ms)) in segs.iter().enumerate() {
+                            let end = segs.get(i + 1).map(|s| s.0).unwrap_or(head.len());
+                            pending.push((log_id, Some(ms), head[start..end].to_vec()));
                         }
-                    }
-                    if segs.is_empty() {
-                        segs.push((0, 0));
-                    }
-                    for (i, &(start, ms)) in segs.iter().enumerate() {
-                        let end = segs.get(i + 1).map(|s| s.0).unwrap_or(head.len());
-                        pending.push((log_id, Some(ms), head[start..end].to_vec()));
+                    } else {
+                        // Simple mode: one untimed chunk, no replay
+                        // metadata (NULL offset = the legacy shape).
+                        pending.push((log_id, None, head));
                     }
                     // Geometry check rides the flush cadence: cheap, and
                     // a resize between flushes still lands close enough
                     // for replay. The first flush records the initial
-                    // size (the asciicast header reads it back).
-                    let size = pane
-                        .terminal
-                        .lock()
-                        .ok()
+                    // size (the asciicast header reads it back). Replay
+                    // metadata, so full-detail mode only.
+                    let size = full
+                        .then(|| pane.terminal.lock().ok())
+                        .flatten()
                         .map(|s| (s.cols(), s.rows()))
                         .filter(|&(c, r)| c > 0 && r > 0);
                     if let Some((cols, rows)) = size
@@ -158,7 +216,9 @@ impl Oryxis {
         if let Some(vault) = &self.vault {
             for (log_id, offset_ms, bytes) in pending {
                 let scrubbed = crate::session_redact::redact_secrets(&bytes);
-                if let Err(e) = vault.append_session_data(&log_id, &scrubbed, offset_ms) {
+                if let Err(e) =
+                    vault.append_session_data(&log_id, &scrubbed, offset_ms, compress)
+                {
                     tracing::warn!("session log append failed for {log_id}: {e}");
                 }
             }
@@ -337,6 +397,7 @@ impl Oryxis {
                 let mut flash_pane: Option<uuid::Uuid> = None;
                 let mut pending_notification: Option<String> = None;
                 let capture_enabled = self.setting_command_history;
+                let log_full = self.setting_session_log_full;
                 let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
                 if let Some(pane) = self
                     .tabs
@@ -429,13 +490,18 @@ impl Oryxis {
                     // Each batch leaves an arrival mark so the flush can
                     // stamp real replay timing onto the stored chunks.
                     if pane.session_log_id.is_some() {
-                        let t0 = *pane
-                            .session_log_t0
-                            .get_or_insert_with(std::time::Instant::now);
-                        pane.session_log_marks.push((
-                            pane.session_log_buf.len(),
-                            t0.elapsed().as_millis() as i64,
-                        ));
+                        // Arrival marks are replay metadata: full-detail
+                        // recording only. Simple mode just buffers bytes
+                        // (the flush stores one untimed chunk).
+                        if log_full {
+                            let t0 = *pane
+                                .session_log_t0
+                                .get_or_insert_with(std::time::Instant::now);
+                            pane.session_log_marks.push((
+                                pane.session_log_buf.len(),
+                                t0.elapsed().as_millis() as i64,
+                            ));
+                        }
                         pane.session_log_buf.extend_from_slice(&bytes);
                         over_threshold =
                             pane.session_log_buf.len() >= SESSION_LOG_FLUSH_BYTES;
@@ -1034,5 +1100,88 @@ impl Oryxis {
         self.tabs
             .iter()
             .position(|t| t.pane_grid.panes.values().any(|p| p.id == pane_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{session_log_segments, utf8_aligned, SESSION_LOG_SEGMENT_MS};
+
+    /// Arrival marks for consecutive batches: each batch starts where
+    /// the previous one ended, mirroring how the PTY handler records.
+    fn marks_for(batches: &[(&[u8], i64)]) -> (Vec<u8>, Vec<(usize, i64)>) {
+        let mut head = Vec::new();
+        let mut marks = Vec::new();
+        for &(bytes, ms) in batches {
+            marks.push((head.len(), ms));
+            head.extend_from_slice(bytes);
+        }
+        (head, marks)
+    }
+
+    #[test]
+    fn cr_prefixed_progress_updates_get_their_own_timed_segments() {
+        // wget style: every redraw starts with `\r`. Before the CR fix
+        // these coalesced into one untimed lump.
+        let gap = SESSION_LOG_SEGMENT_MS;
+        let (head, marks) = marks_for(&[
+            (b"GET file HTTP/1.1\n", 0),
+            (b"\r 10% [==>      ]", gap),
+            (b"\r 55% [=====>   ]", gap * 2),
+            (b"\r100% [=========]", gap * 3),
+        ]);
+        let segs = session_log_segments(&head, &marks);
+        assert_eq!(segs.len(), 4, "each CR redraw is a replay step: {segs:?}");
+        assert_eq!(segs[1], (18, gap));
+        assert!(segs.iter().skip(1).all(|&(p, _)| head[p] == b'\r'));
+    }
+
+    #[test]
+    fn cr_terminated_progress_updates_cut_after_the_cr() {
+        // apt style: every redraw ends with `\r`, the next batch starts
+        // with printable text right after it.
+        let gap = SESSION_LOG_SEGMENT_MS;
+        let (head, marks) = marks_for(&[
+            (b"Reading... 10%\r", 0),
+            (b"Reading... 55%\r", gap),
+            (b"Done\n", gap * 2),
+        ]);
+        let segs = session_log_segments(&head, &marks);
+        assert_eq!(segs.len(), 3, "{segs:?}");
+        assert!(segs.iter().skip(1).all(|&(p, _)| head[p - 1] == b'\r'));
+    }
+
+    #[test]
+    fn bursty_marks_coalesce_and_mid_line_marks_never_cut() {
+        let gap = SESSION_LOG_SEGMENT_MS;
+        // Marks inside one replay step (gap measured from the last CUT,
+        // not the last mark) coalesce even at line boundaries.
+        let (head, marks) =
+            marks_for(&[(b"a\n", 0), (b"b\n", gap / 3), (b"c\n", gap - 1)]);
+        assert_eq!(session_log_segments(&head, &marks).len(), 1);
+        // A big gap mid-line (no `\n`/`\r` anywhere near) still can't
+        // cut: chunk boundaries must stay line-bounded for redaction.
+        let (head, marks) = marks_for(&[(b"export TOKEN=abc", 0), (b"def123\n", gap * 4)]);
+        assert_eq!(session_log_segments(&head, &marks).len(), 1);
+        // No marks at all: a single segment at t=0.
+        assert_eq!(session_log_segments(b"x", &[]), vec![(0, 0)]);
+    }
+
+    #[test]
+    fn utf8_aligned_backs_off_split_sequences_only() {
+        // "é" = C3 A9. A cut between the bytes moves before the lead.
+        let buf = b"abc\xC3\xA9";
+        assert_eq!(utf8_aligned(buf, 4), 3);
+        assert_eq!(utf8_aligned(buf, 5), 5);
+        // 4-byte emoji (F0 9F 92 96) split at every interior position.
+        let buf = b"ok\xF0\x9F\x92\x96";
+        for cut in 3..6 {
+            assert_eq!(utf8_aligned(buf, cut), 2, "cut at {cut}");
+        }
+        assert_eq!(utf8_aligned(buf, 6), 6);
+        // Pure ASCII and raw binary keep the requested cut.
+        assert_eq!(utf8_aligned(b"hello", 5), 5);
+        assert_eq!(utf8_aligned(&[0xFF; 8], 8), 8);
+        assert_eq!(utf8_aligned(&[0x80; 8], 8), 8);
     }
 }

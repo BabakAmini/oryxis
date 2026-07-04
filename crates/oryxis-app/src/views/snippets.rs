@@ -558,10 +558,12 @@ impl Oryxis {
 
             // Wrap the button in a MouseArea so we can track hover
             // for the kebab show/hide affordance, same trick the host
-            // cards use.
+            // cards use; right-click opens the kebab menu (app-wide
+            // card convention).
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
                 .on_enter(Message::SnippetCardHovered(idx))
                 .on_exit(Message::SnippetCardUnhovered)
+                .on_right_press(Message::ShowSnippetMenu(idx))
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();

@@ -114,7 +114,16 @@ impl Oryxis {
                         ));
                     }
                 };
-                let body = build_asciicast(&entry.label, entry.started_at, &events);
+                // Header env.TERM mirrors what the PTY actually requested:
+                // the connection's terminal_type, or the engine's default.
+                // A deleted / quick-connect host falls back the same way.
+                let term = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == entry.connection_id)
+                    .and_then(|c| c.terminal_type.as_deref())
+                    .unwrap_or("xterm-256color");
+                let body = build_asciicast(&entry.label, entry.started_at, term, &events);
                 let default_name = format!(
                     "oryxis-{}-{}.cast",
                     crate::util::sanitize_file_stem(&entry.label),
@@ -301,15 +310,19 @@ impl Oryxis {
 }
 
 /// Serialize a recorded session as an asciicast v2 document: a JSON
-/// header line (`version: 2`, geometry, start timestamp, title), then
-/// one `[time_sec, "o"|"r", data]` line per event. Output-only by
-/// design: input events are never recorded, so the keystroke-leak
-/// class doesn't exist here. Chunks recorded before the timing
-/// migration (`offset_ms = None`) replay with a small fixed delta so
-/// old logs still play, just without real pacing.
+/// header line (`version: 2`, geometry, start timestamp, title,
+/// `env.TERM`), then one `[time_sec, "o"|"r", data]` line per event.
+/// Output-only by design: input events are never recorded, so the
+/// keystroke-leak class doesn't exist here. Chunks recorded before the
+/// timing migration (`offset_ms = None`) replay with a small fixed
+/// delta so old logs still play, just without real pacing. No
+/// `idle_time_limit` on purpose: capping pauses in the file would bake
+/// a pacing opinion into a 1:1 recording; players take it as a
+/// playback option instead.
 fn build_asciicast(
     label: &str,
     started_at: chrono::DateTime<chrono::Utc>,
+    term: &str,
     events: &[oryxis_vault::SessionLogEvent],
 ) -> String {
     // Geometry: the first recorded resize (the initial size lands on
@@ -332,6 +345,7 @@ fn build_asciicast(
             "height": height,
             "timestamp": started_at.timestamp(),
             "title": label,
+            "env": { "TERM": term },
         })
     ));
     /// Untimed-chunk replay step (legacy rows), in milliseconds.
@@ -400,6 +414,7 @@ mod tests {
         let cast = build_asciicast(
             "host-a",
             started,
+            "xterm-256color",
             &[ev(Some(0), 'r', b"120x30"), ev(Some(100), 'o', b"hi")],
         );
         let mut lines = cast.lines();
@@ -409,6 +424,7 @@ mod tests {
         assert_eq!(header["height"], 30);
         assert_eq!(header["title"], "host-a");
         assert_eq!(header["timestamp"], started.timestamp());
+        assert_eq!(header["env"]["TERM"], "xterm-256color");
         let first: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
         assert_eq!(first[1], "r");
         assert_eq!(first[2], "120x30");
@@ -424,6 +440,7 @@ mod tests {
         let cast = build_asciicast(
             "legacy",
             started,
+            "vt100",
             &[
                 ev(None, 'o', b"one"),
                 ev(None, 'o', b"two"),
