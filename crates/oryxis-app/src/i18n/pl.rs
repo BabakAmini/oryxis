@@ -622,6 +622,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Uzupełnij wartości snippetu",
         "snippet_hotkey" => "Skrót",
         "paste_guard_bidi" => "Zawiera niewidoczne lub dwukierunkowe znaki",
+        "paste_guard_label" => "Straż wklejania (podejrzana treść)",
+        "paste_guard_desc" => "Potwierdza też jednoliniowe wklejenia z niewidocznymi znakami, sekwencjami sterującymi, one-linerami do powłoki lub podobnymi literami.",
         "paste_guard_control" => "Zawiera surowe sekwencje sterujące terminala",
         "paste_guard_pipe" => "Pobiera i przekazuje prosto do powłoki",
         "paste_guard_homograph" => "Miesza podobne znaki z różnych alfabetów",

@@ -489,6 +489,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Completa los valores del snippet",
         "snippet_hotkey" => "Atajo",
         "paste_guard_bidi" => "Contiene caracteres invisibles o bidireccionales",
+        "paste_guard_label" => "Guardia de pegado (contenido sospechoso)",
+        "paste_guard_desc" => "También confirma pegados de una línea con caracteres invisibles, secuencias de control, one-liners a shell o letras parecidas.",
         "paste_guard_control" => "Contiene secuencias de control de terminal",
         "paste_guard_pipe" => "Descarga y canaliza directo a un shell",
         "paste_guard_homograph" => "Mezcla caracteres parecidos de alfabetos distintos",

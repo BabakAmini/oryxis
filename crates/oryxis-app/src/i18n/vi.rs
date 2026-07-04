@@ -616,6 +616,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Điền giá trị cho snippet",
         "snippet_hotkey" => "Phím tắt",
         "paste_guard_bidi" => "Chứa ký tự ẩn hoặc hai chiều",
+        "paste_guard_label" => "Bảo vệ dán (nội dung đáng ngờ)",
+        "paste_guard_desc" => "Cũng xác nhận các lần dán một dòng chứa ký tự ẩn, chuỗi điều khiển, lệnh pipe vào shell hoặc chữ cái giống nhau.",
         "paste_guard_control" => "Chứa chuỗi điều khiển terminal thô",
         "paste_guard_pipe" => "Tải xuống và chuyển thẳng vào shell",
         "paste_guard_homograph" => "Trộn ký tự giống nhau từ các bảng chữ cái khác nhau",

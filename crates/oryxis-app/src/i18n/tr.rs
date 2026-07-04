@@ -616,6 +616,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Parçacık değerlerini doldurun",
         "snippet_hotkey" => "Kısayol",
         "paste_guard_bidi" => "Görünmez veya çift yönlü karakterler içeriyor",
+        "paste_guard_label" => "Yapıştırma koruması (şüpheli içerik)",
+        "paste_guard_desc" => "Görünmez karakterler, kontrol dizileri, kabuğa pipe tek satırlıklar veya benzer harfler içeren tek satırlık yapıştırmaları da onaylatır.",
         "paste_guard_control" => "Ham terminal kontrol dizileri içeriyor",
         "paste_guard_pipe" => "İndirip doğrudan kabuğa aktarıyor",
         "paste_guard_homograph" => "Farklı alfabelerden benzer karakterleri karıştırıyor",

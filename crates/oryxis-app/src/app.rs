@@ -848,6 +848,11 @@ pub struct Oryxis {
     /// copies on right-click instead of on release. Ignored when
     /// `setting_copy_on_select` is off.
     pub(crate) setting_right_click_copy: bool,
+    /// Content heuristics on paste (bidi/invisible chars, control
+    /// bytes, curl|sh, homographs) park even single-line pastes behind
+    /// the confirmation. Its own switch, independent of the multi-line
+    /// careful-paste toggle. Persisted as `paste_guard`. Default on.
+    pub(crate) setting_paste_guard: bool,
     /// Command-history capture (default on): record commands executed on
     /// saved hosts into the vault's `command_history` table, surfaced in
     /// the terminal sidebar's History tab. Persisted as `command_history`.

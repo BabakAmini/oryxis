@@ -634,6 +634,8 @@ pub enum Message {
     SnippetHotkeyCaptureStart,
     /// Snippet editor: remove the custom shortcut.
     SnippetHotkeyClear,
+    /// Settings > Terminal: toggle the paste content heuristics.
+    TogglePasteGuard,
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the

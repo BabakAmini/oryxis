@@ -592,6 +592,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Preencha os valores do snippet",
         "snippet_hotkey" => "Atalho",
         "paste_guard_bidi" => "Contém caracteres invisíveis ou bidirecionais",
+        "paste_guard_label" => "Guarda de colagem (conteúdo suspeito)",
+        "paste_guard_desc" => "Também confirma colagens de uma linha com caracteres invisíveis, sequências de controle, one-liners pipe-para-shell ou letras parecidas.",
         "paste_guard_control" => "Contém sequências de controle de terminal",
         "paste_guard_pipe" => "Baixa e canaliza direto para um shell",
         "paste_guard_homograph" => "Mistura caracteres parecidos de alfabetos diferentes",

@@ -180,14 +180,14 @@ impl Oryxis {
         if self.active_tab.is_none() {
             return;
         }
-        // Multi-line OR suspicious content (bidi/invisible chars, raw
-        // control bytes, curl|sh one-liners, homograph tokens) parks
-        // the paste behind the confirmation. One master toggle: power
-        // users who disabled careful paste opted out of the guard.
-        if self.setting_careful_paste
-            && (text.contains('\n')
-                || text.contains('\r')
-                || !crate::paste_guard::paste_warnings(text).is_empty())
+        // Two independent gates (owner call: each has its own setting):
+        // careful paste parks multi-line text; the paste guard parks
+        // suspicious CONTENT (bidi/invisible chars, raw control bytes,
+        // curl|sh one-liners, homograph tokens) even on one line.
+        if (self.setting_careful_paste
+            && (text.contains('\n') || text.contains('\r')))
+            || (self.setting_paste_guard
+                && !crate::paste_guard::paste_warnings(text).is_empty())
         {
             self.pending_paste = Some(text.to_string());
             return;

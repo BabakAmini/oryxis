@@ -822,6 +822,13 @@ impl Oryxis {
                     if self.setting_careful_paste { "true" } else { "false" },
                 );
             }
+            Message::TogglePasteGuard => {
+                self.setting_paste_guard = !self.setting_paste_guard;
+                self.persist_setting(
+                    "paste_guard",
+                    if self.setting_paste_guard { "true" } else { "false" },
+                );
+            }
             Message::ToggleTerminalAutoTitle => {
                 let on = !crate::state::auto_title_enabled();
                 crate::state::set_auto_title(on);

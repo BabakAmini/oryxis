@@ -492,6 +492,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "スニペットの値を入力",
         "snippet_hotkey" => "ショートカット",
         "paste_guard_bidi" => "不可視文字や双方向制御文字を含みます",
+        "paste_guard_label" => "貼り付けガード（不審な内容）",
+        "paste_guard_desc" => "不可視文字・制御シーケンス・シェルへのパイプ・類似文字を含む 1 行の貼り付けも確認します。",
         "paste_guard_control" => "端末制御シーケンスを含みます",
         "paste_guard_pipe" => "ダウンロードして直接シェルへパイプします",
         "paste_guard_homograph" => "異なる文字体系の類似文字が混在しています",

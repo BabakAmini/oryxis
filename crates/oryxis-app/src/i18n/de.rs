@@ -483,6 +483,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Snippet-Werte ausfüllen",
         "snippet_hotkey" => "Tastenkürzel",
         "paste_guard_bidi" => "Enthält unsichtbare oder bidirektionale Zeichen",
+        "paste_guard_label" => "Einfüge-Wache (verdächtiger Inhalt)",
+        "paste_guard_desc" => "Bestätigt auch einzeilige Einfügungen mit unsichtbaren Zeichen, Steuersequenzen, Pipe-zu-Shell-Einzeilern oder ähnlich aussehenden Buchstaben.",
         "paste_guard_control" => "Enthält rohe Terminal-Steuersequenzen",
         "paste_guard_pipe" => "Lädt herunter und leitet direkt in eine Shell",
         "paste_guard_homograph" => "Mischt ähnlich aussehende Zeichen verschiedener Alphabete",

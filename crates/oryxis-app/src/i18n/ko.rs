@@ -616,6 +616,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "스니펫 값 입력",
         "snippet_hotkey" => "단축키",
         "paste_guard_bidi" => "보이지 않거나 양방향 제어 문자가 포함됨",
+        "paste_guard_label" => "붙여넣기 가드(의심스러운 내용)",
+        "paste_guard_desc" => "보이지 않는 문자, 제어 시퀀스, 셸 파이프 원라이너, 유사 문자가 포함된 한 줄 붙여넣기도 확인합니다.",
         "paste_guard_control" => "터미널 제어 시퀀스가 포함됨",
         "paste_guard_pipe" => "다운로드해 곧바로 셸로 파이프함",
         "paste_guard_homograph" => "서로 다른 문자 체계의 유사 문자가 섞여 있음",

@@ -616,6 +616,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Isi nilai snippet",
         "snippet_hotkey" => "Pintasan",
         "paste_guard_bidi" => "Mengandung karakter tak terlihat atau dua arah",
+        "paste_guard_label" => "Penjaga tempel (konten mencurigakan)",
+        "paste_guard_desc" => "Juga mengonfirmasi tempelan satu baris yang berisi karakter tak terlihat, urutan kontrol, one-liner pipe ke shell, atau huruf mirip.",
         "paste_guard_control" => "Mengandung urutan kontrol terminal mentah",
         "paste_guard_pipe" => "Mengunduh dan menyalurkan langsung ke shell",
         "paste_guard_homograph" => "Mencampur karakter mirip dari alfabet berbeda",

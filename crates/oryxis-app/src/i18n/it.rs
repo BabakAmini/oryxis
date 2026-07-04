@@ -483,6 +483,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "Compila i valori dello snippet",
         "snippet_hotkey" => "Scorciatoia",
         "paste_guard_bidi" => "Contiene caratteri invisibili o bidirezionali",
+        "paste_guard_label" => "Guardia incolla (contenuto sospetto)",
+        "paste_guard_desc" => "Conferma anche incolla di una riga con caratteri invisibili, sequenze di controllo, one-liner verso shell o lettere simili.",
         "paste_guard_control" => "Contiene sequenze di controllo del terminale",
         "paste_guard_pipe" => "Scarica e reindirizza direttamente in una shell",
         "paste_guard_homograph" => "Mescola caratteri simili di alfabeti diversi",

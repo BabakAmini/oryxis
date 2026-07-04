@@ -492,6 +492,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "填写片段变量",
         "snippet_hotkey" => "快捷键",
         "paste_guard_bidi" => "包含不可见或双向控制字符",
+        "paste_guard_label" => "粘贴防护（可疑内容）",
+        "paste_guard_desc" => "对包含不可见字符、控制序列、管道到 shell 的单行命令或形近字母的单行粘贴也进行确认。",
         "paste_guard_control" => "包含原始终端控制序列",
         "paste_guard_pipe" => "下载并直接通过管道送入 shell",
         "paste_guard_homograph" => "混用不同字母表的形近字符",

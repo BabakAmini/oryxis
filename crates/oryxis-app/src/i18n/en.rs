@@ -622,6 +622,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "snippet_vars_title" => "Fill in snippet values",
         "snippet_hotkey" => "Shortcut",
         "paste_guard_bidi" => "Contains invisible or bidirectional characters",
+        "paste_guard_label" => "Paste guard (suspicious content)",
+        "paste_guard_desc" => "Also confirm single-line pastes containing invisible characters, control sequences, pipe-to-shell one-liners or look-alike letters.",
         "paste_guard_control" => "Contains raw terminal control sequences",
         "paste_guard_pipe" => "Downloads and pipes straight into a shell",
         "paste_guard_homograph" => "Mixes look-alike characters from different alphabets",

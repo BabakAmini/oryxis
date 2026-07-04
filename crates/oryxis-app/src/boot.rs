@@ -424,6 +424,7 @@ impl Oryxis {
                 renderer_active: None,
                 setting_copy_on_select: true,
                 setting_careful_paste: true,
+                setting_paste_guard: true,
                 setting_right_click_copy: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
@@ -945,6 +946,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("careful_paste") {
                 self.setting_careful_paste = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("paste_guard") {
+                self.setting_paste_guard = v == "true";
             }
             // Auto-title (OSC 0/2) lives in a process-wide gate (read at tab
             // render time); default-on, only override when explicitly stored.

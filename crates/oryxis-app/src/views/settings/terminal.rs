@@ -88,6 +88,22 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
             );
+        // Content heuristics (bidi/invisible, control bytes, curl|sh,
+        // homographs): its own switch so the multi-line check and the
+        // suspicious-content check opt in/out independently.
+        toggles_col = toggles_col
+            .push(Space::new().height(10))
+            .push(self.nav_toggle_row(
+                crate::i18n::t("paste_guard_label"),
+                self.setting_paste_guard,
+                Message::TogglePasteGuard,
+            ))
+            .push(Space::new().height(4))
+            .push(
+                text(crate::i18n::t("paste_guard_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            );
         // Selection / clipboard behaviour.
         let toggles_section = panel_section(toggles_col);
 

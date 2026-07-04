@@ -634,6 +634,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_vars_title" => "املأ قيم المقتطف",
         "snippet_hotkey" => "الاختصار",
         "paste_guard_bidi" => "يحتوي على أحرف خفية أو ثنائية الاتجاه",
+        "paste_guard_label" => "حارس اللصق (محتوى مريب)",
+        "paste_guard_desc" => "يؤكد أيضًا لصق سطر واحد يحتوي على أحرف خفية أو تسلسلات تحكم أو أوامر أنبوب إلى الصدفة أو أحرف متشابهة.",
         "paste_guard_control" => "يحتوي على تسلسلات تحكم طرفية خام",
         "paste_guard_pipe" => "ينزّل ويمرر مباشرة إلى صدفة (shell)",
         "paste_guard_homograph" => "يخلط أحرفًا متشابهة من أبجديات مختلفة",
