@@ -71,6 +71,7 @@ mod session_manager_plugin;
 mod hotkeys;
 mod ansi_render;
 mod session_group_helpers;
+mod paste_guard;
 mod session_redact;
 mod sftp_helpers;
 mod sftp_methods;

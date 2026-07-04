@@ -1045,6 +1045,32 @@ impl Oryxis {
                 Space::new().height(0).into()
             };
 
+            // Content-heuristic warnings (paste_guard): one line per
+            // detected class, re-derived from the parked text.
+            let mut guard_notes = column![].spacing(4);
+            for w in crate::paste_guard::paste_warnings(pending) {
+                guard_notes = guard_notes.push(
+                    dir_row(vec![
+                        iced_fonts::lucide::triangle_alert()
+                            .size(13)
+                            .color(c.error)
+                            .into(),
+                        Space::new().width(6).into(),
+                        container(
+                            text(crate::i18n::t(w.label_key())).size(11).color(c.error),
+                        )
+                        .width(Length::Fill)
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                );
+            }
+            let guard_notes: Element<'_, Message> = column![
+                Space::new().height(8),
+                guard_notes,
+            ]
+            .into();
+
             let dialog = container(
                 column![
                     dir_row(vec![
@@ -1072,6 +1098,7 @@ impl Oryxis {
                     Space::new().height(10),
                     preview,
                     newline_note,
+                    guard_notes,
                     Space::new().height(14),
                     dir_row(vec![
                         // Keyboard: Confirm is the default row (Enter

@@ -44,6 +44,14 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   dropdowns are multi-select with a selection count on the toolbar
   button; the host filter narrows the Groups section by subtree.
   Groups and tags ride sync and portable export as plain snippet data.
+- **Paste guard content heuristics.** The careful-paste confirmation
+  now also fires on a SINGLE-line paste when its content looks
+  dangerous, with one explicit warning line per class: invisible or
+  bidirectional characters, raw terminal control sequences, `curl |
+  sh` style fetch-and-execute one-liners (detected even when hidden
+  behind invisible characters), and words mixing look-alike letters
+  from different alphabets. One master toggle: disabling careful
+  paste opts out of the guard too.
 - **Per-snippet shortcuts.** A snippet can carry its own key combo
   (recorded right in the editor, with conflict and shell-key
   protection): with a terminal focused, the chord runs the snippet,
