@@ -1051,6 +1051,12 @@ impl Oryxis {
                     .width(Length::Fill)
                     .align_x(dir_align_x()),
             )
+            // The inner container carries the row's real padding; the
+            // button's own default (10 px lateral) would push every
+            // item's hotkey hint 10 px off the section header's, which
+            // is a plain container (owner QA: the badge column must
+            // align).
+            .padding(0)
             .on_press(msg.clone())
             .width(Length::Fill)
             .style(|_, status| {
@@ -1140,7 +1146,9 @@ impl Oryxis {
                 dir_row(vec![
                     label_el,
                     Space::new().width(Length::Fill).into(),
-                    text(hint).size(10).color(OryxisColors::t().text_muted).into(),
+                    // Same size as the item hints so the badge column
+                    // reads as one aligned rail.
+                    text(hint).size(11).color(OryxisColors::t().text_muted).into(),
                 ])
                 .align_y(iced::Alignment::Center)
                 .into()
