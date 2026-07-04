@@ -7,6 +7,15 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **ZMODEM file transfer in the terminal.** Run `sz file` or `rz` on
+  the remote and Oryxis auto-detects the transfer, takes over the byte
+  stream, and moves the file: downloads land in a configurable folder
+  (Settings > Terminal, default the OS Downloads dir), uploads prompt
+  for the local file to send. A progress overlay shows direction, name
+  and bytes with a Cancel button. Built on a native Rust engine
+  (`oryxis-zmodem` over `zmodem2`) bundled in the core binary; works
+  over SSH, Telnet and serial. A disconnect mid-transfer resumes the
+  terminal cleanly rather than freezing it.
 - **Serial port protocol.** The per-host protocol selector adds Serial
   (alongside SSH and Telnet). Serial hosts open a local COM /
   `/dev/tty*` line over a new native engine (`oryxis-serial`, built on
