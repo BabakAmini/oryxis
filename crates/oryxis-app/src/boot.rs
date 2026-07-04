@@ -398,6 +398,7 @@ impl Oryxis {
                 snippet_label: String::new(),
                 snippet_command: text_editor::Content::new(),
                 snippet_group: String::new(),
+                snippet_group_combo: iced::widget::combo_box::State::new(Vec::new()),
                 snippet_tags_input: String::new(),
                 snippet_editing_id: None,
                 snippet_error: None,

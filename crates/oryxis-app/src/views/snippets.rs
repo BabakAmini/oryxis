@@ -420,16 +420,36 @@ impl Oryxis {
             Space::new().height(14),
             text(t("group")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            self.panel_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-group")),
-                10.0,
-                text_input(t("group_optional_placeholder"), &self.snippet_group)
-                    .id(iced::widget::Id::new("panel-snippet-group"))
+            // Same type-ahead combo as the host editor's Parent Group:
+            // filters the existing snippet groups as you type and still
+            // accepts a brand new name. Keyboard row: Left/Right cycle
+            // the known groups (the fork combo_box has no id hook, so
+            // Enter cannot focus it; free-text entry stays typing).
+            {
+                let (group_prev, group_next) = crate::keynav::slots::cycle_pair(
+                    self.snippet_group_combo.options(),
+                    &self.snippet_group,
+                    Message::SnippetGroupChanged,
+                );
+                let selection = (!self.snippet_group.is_empty())
+                    .then_some(&self.snippet_group);
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::picker(group_prev, group_next),
+                    10.0,
+                    iced::widget::combo_box(
+                        &self.snippet_group_combo,
+                        t("group_optional_placeholder"),
+                        selection,
+                        Message::SnippetGroupChanged,
+                    )
                     .on_input(Message::SnippetGroupChanged)
                     .padding(10)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .input_style(crate::widgets::rounded_input_style)
+                    .menu_style(crate::widgets::combo_menu_style)
+                    .width(Length::Fill)
                     .into(),
-            ),
+                )
+            },
             Space::new().height(14),
             text(t("tags")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),

@@ -24,6 +24,25 @@ impl Oryxis {
         Some(conn.tags.iter().map(|t| t.to_lowercase()).collect())
     }
 
+    /// Rebuild the Group combo options from the distinct snippet
+    /// groups (first spelling wins, sorted), mirroring the host
+    /// editor's `editor_parent_combo` reset. Called when either
+    /// snippet editor opens.
+    fn reset_snippet_group_combo(&mut self) {
+        let mut labels: Vec<String> = Vec::new();
+        for snip in &self.snippets {
+            if let Some(g) = &snip.group
+                && !labels.iter().any(|x| x.eq_ignore_ascii_case(g))
+            {
+                labels.push(g.clone());
+            }
+        }
+        labels.sort_by_key(|s| s.to_lowercase());
+        let selection = (!self.snippet_group.is_empty()).then(|| self.snippet_group.clone());
+        self.snippet_group_combo =
+            iced::widget::combo_box::State::with_selection(labels, selection.as_ref());
+    }
+
     pub(crate) fn handle_snippets(
         &mut self,
         message: Message,
@@ -40,6 +59,7 @@ impl Oryxis {
                 self.snippet_tags_input.clear();
                 self.snippet_editing_id = None;
                 self.snippet_error = None;
+                self.reset_snippet_group_combo();
             }
             Message::HideSnippetPanel => {
                 self.show_snippet_panel = false;
@@ -85,6 +105,7 @@ impl Oryxis {
                     self.snippet_tags_input = snip.tags.join(", ");
                     self.snippet_editing_id = Some(snip.id);
                     self.snippet_error = None;
+                    self.reset_snippet_group_combo();
                 }
             }
             Message::SaveSnippet => {

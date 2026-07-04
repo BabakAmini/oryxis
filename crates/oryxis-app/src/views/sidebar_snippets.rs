@@ -424,13 +424,23 @@ impl Oryxis {
                 .size(13)
                 .style(crate::widgets::rounded_input_style)
                 .into();
-        let group_input: Element<'_, Message> =
-            iced::widget::text_input(t("group_optional_placeholder"), &self.snippet_group)
-                .on_input(Message::SnippetGroupChanged)
-                .padding(8)
-                .size(13)
-                .style(crate::widgets::rounded_input_style)
-                .into();
+        // Same type-ahead combo as the host editor's Parent Group and
+        // the vault snippet panel: existing groups filter as you type,
+        // a new name is accepted as-is.
+        let group_selection = (!self.snippet_group.is_empty()).then_some(&self.snippet_group);
+        let group_input: Element<'_, Message> = iced::widget::combo_box(
+            &self.snippet_group_combo,
+            t("group_optional_placeholder"),
+            group_selection,
+            Message::SnippetGroupChanged,
+        )
+        .on_input(Message::SnippetGroupChanged)
+        .padding(8)
+        .size(13.0)
+        .input_style(crate::widgets::rounded_input_style)
+        .menu_style(crate::widgets::combo_menu_style)
+        .width(Length::Fill)
+        .into();
         let tags_input: Element<'_, Message> =
             iced::widget::text_input(t("tags_placeholder"), &self.snippet_tags_input)
                 .on_input(Message::SnippetTagsChanged)

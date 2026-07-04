@@ -736,6 +736,11 @@ pub struct Oryxis {
     pub(crate) snippet_command: text_editor::Content,
     /// Snippet editor: free-form group name (empty = ungrouped).
     pub(crate) snippet_group: String,
+    /// Options state for the snippet Group combo (same type-ahead
+    /// combo_box as the host editor's Parent Group): filters the
+    /// existing snippet groups as you type, still accepts a new name.
+    /// Rebuilt whenever the editor opens.
+    pub(crate) snippet_group_combo: iced::widget::combo_box::State<String>,
     /// Snippet editor: comma-separated tags as typed; parsed
     /// (trim/dedup/drop-empty) on save. Chips are display-only, so
     /// the field stays fully keyboard-editable.
