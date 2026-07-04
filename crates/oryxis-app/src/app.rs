@@ -827,6 +827,14 @@ pub struct Oryxis {
     /// saved hosts into the vault's `command_history` table, surfaced in
     /// the terminal sidebar's History tab. Persisted as `command_history`.
     pub(crate) setting_command_history: bool,
+    /// Live-append every captured command to a per-host plain-text file
+    /// (offline reference / support sharing), on top of the vault
+    /// capture. Persisted as `command_history_file`. Default off.
+    pub(crate) setting_command_history_file: bool,
+    /// Folder for the per-host command logs. `None` = the default
+    /// `~/.oryxis/command-history/`. Persisted as
+    /// `command_history_file_dir` (empty string = default).
+    pub(crate) setting_command_history_file_dir: Option<String>,
     pub(crate) setting_bold_is_bright: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software

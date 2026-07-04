@@ -4,6 +4,46 @@ use super::*;
 use iced::widget::column;
 
 impl Oryxis {
+    /// Sub-row for the command-log folder, shown only while the
+    /// live-append toggle is on: the effective folder (default
+    /// `~/.oryxis/command-history/`) with a Change button, indented
+    /// like the other nested sub-options.
+    fn command_history_dir_row(&self) -> Element<'_, Message> {
+        if !self.setting_command_history_file {
+            return Space::new().height(0).into();
+        }
+        let indent = if crate::i18n::is_rtl_layout() {
+            Padding { right: 22.0, ..Padding::ZERO }
+        } else {
+            Padding { left: 22.0, ..Padding::ZERO }
+        };
+        let dir = self.command_history_dir().display().to_string();
+        let change = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::PickCommandHistoryDir),
+            8.0,
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("browse"),
+                Some(Message::PickCommandHistoryDir),
+                crate::theme::OryxisColors::t().accent,
+            ),
+        );
+        container(
+            crate::widgets::dir_row(vec![
+                text(dir)
+                    .size(12)
+                    .color(crate::theme::OryxisColors::t().text_muted)
+                    .width(Length::Fill)
+                    .into(),
+                Space::new().width(10).into(),
+                change,
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 8.0, ..indent })
+        .width(Length::Fill)
+        .into()
+    }
+
     pub(crate) fn view_settings_terminal(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order: the sections below
         // are deliberately CONSTRUCTED in the same order they render
@@ -113,6 +153,9 @@ impl Oryxis {
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::ToggleCommandHistory),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::ToggleCommandHistoryFile),
+            self.command_history_dir_row(),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
             Space::new().height(10),

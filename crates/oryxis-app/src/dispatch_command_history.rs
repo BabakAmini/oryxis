@@ -26,6 +26,76 @@ impl Oryxis {
             Message::CmdHistorySearchChanged(v) => {
                 self.cmd_history_search = v;
             }
+            Message::ExportCommandHistory => {
+                let Some(host) = self.command_history_host else {
+                    return Ok(Task::none());
+                };
+                if self.command_history.is_empty() {
+                    return Ok(Task::none());
+                }
+                let label = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == host)
+                    .map(|c| c.label.clone())
+                    .unwrap_or_else(|| host.to_string());
+                let body = render_history_txt(&label, &self.command_history);
+                let default_name = format!("oryxis-history-{}.txt", sanitize_file_stem(&label));
+                return Ok(Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        let path = rfd::FileDialog::new()
+                            .set_title("Export command history")
+                            .set_file_name(&default_name)
+                            .add_filter("Text", &["txt"])
+                            .save_file()?;
+                        Some(
+                            std::fs::write(&path, body)
+                                .map(|_| path.display().to_string())
+                                .map_err(|e| e.to_string()),
+                        )
+                    }),
+                    |res| match res {
+                        Ok(Some(outcome)) => Message::CommandHistoryExported(outcome),
+                        // Dialog dismissed or the blocking task died:
+                        // nothing to report.
+                        _ => Message::NoOp,
+                    },
+                ));
+            }
+            Message::CommandHistoryExported(result) => {
+                return Ok(match result {
+                    Ok(path) => self.show_toast(
+                        crate::i18n::t("history_export_done").replace("{path}", &path),
+                    ),
+                    Err(e) => self.show_toast(
+                        crate::i18n::t("history_export_failed").replace("{error}", &e),
+                    ),
+                });
+            }
+            Message::ToggleCommandHistoryFile => {
+                self.setting_command_history_file = !self.setting_command_history_file;
+                self.persist_setting(
+                    "command_history_file",
+                    if self.setting_command_history_file { "true" } else { "false" },
+                );
+            }
+            Message::PickCommandHistoryDir => {
+                return Ok(Task::perform(
+                    tokio::task::spawn_blocking(|| {
+                        rfd::FileDialog::new()
+                            .set_title("Command log folder")
+                            .pick_folder()
+                            .map(|p| p.display().to_string())
+                    }),
+                    |res| Message::CommandHistoryDirPicked(res.ok().flatten()),
+                ));
+            }
+            Message::CommandHistoryDirPicked(dir) => {
+                if let Some(dir) = dir {
+                    self.persist_setting("command_history_file_dir", &dir);
+                    self.setting_command_history_file_dir = Some(dir);
+                }
+            }
             Message::RunHistoryCommand(id) => {
                 self.inject_history_command(id, true);
             }
@@ -121,6 +191,20 @@ impl Oryxis {
         {
             tracing::warn!("command-history write failed: {e}");
         }
+        // Optional plain-text mirror: append to the host's log file for
+        // offline reference / support sharing. Plain filesystem write on
+        // purpose (no vault), that is the feature.
+        if self.setting_command_history_file {
+            let label = self
+                .connections
+                .iter()
+                .find(|c| c.id == host)
+                .map(|c| c.label.clone())
+                .unwrap_or_else(|| host.to_string());
+            if let Err(e) = self.append_command_log(&host, &label, &cmd) {
+                tracing::warn!("command-history file append failed: {e}");
+            }
+        }
         if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History
             && self.command_history_host == Some(host)
         {
@@ -128,6 +212,87 @@ impl Oryxis {
         }
     }
 
+    /// The folder the per-host command logs live in: the configured
+    /// setting, or `~/.oryxis/command-history/` by default.
+    pub(crate) fn command_history_dir(&self) -> std::path::PathBuf {
+        match &self.setting_command_history_file_dir {
+            Some(dir) => std::path::PathBuf::from(dir),
+            None => dirs::home_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from("."))
+                .join(".oryxis")
+                .join("command-history"),
+        }
+    }
+
+    /// Append one captured command to the host's log file
+    /// (`<dir>/<label>-<uuid8>.txt`, one `timestamp<TAB>command` line).
+    /// The uuid suffix keeps two hosts with the same label apart and
+    /// the file name stable across renames of neither.
+    fn append_command_log(
+        &self,
+        host: &Uuid,
+        label: &str,
+        cmd: &str,
+    ) -> std::io::Result<()> {
+        use std::io::Write;
+        let dir = self.command_history_dir();
+        std::fs::create_dir_all(&dir)?;
+        let short: String = host.to_string().chars().take(8).collect();
+        let path = dir.join(format!("{}-{}.txt", sanitize_file_stem(label), short));
+        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+        // Multi-line commands (bracketed paste) stay one log line each:
+        // continuation lines are indented so the file remains greppable
+        // per entry.
+        let cmd_one = cmd.replace('\n', "\n    ");
+        writeln!(f, "{}\t{}", chrono::Utc::now().to_rfc3339(), cmd_one)
+    }
+}
+
+/// Human-readable export body: a small header, then one line per
+/// captured command, oldest first (the in-memory list is
+/// most-recent-first). Multi-line commands indent their continuation
+/// lines, same convention as the live-append log.
+fn render_history_txt(
+    label: &str,
+    entries: &[oryxis_vault::CommandHistoryEntry],
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# Oryxis command history: {label}\n# Exported {}\n\n",
+        chrono::Utc::now().to_rfc3339()
+    ));
+    for e in entries.iter().rev() {
+        let cmd_one = e.command.replace('\n', "\n    ");
+        let uses = if e.use_count > 1 {
+            format!("\t(x{})", e.use_count)
+        } else {
+            String::new()
+        };
+        out.push_str(&format!(
+            "{}{}\t{}\n",
+            e.last_used_at.to_rfc3339(),
+            uses,
+            cmd_one
+        ));
+    }
+    out
+}
+
+/// File-name-safe version of a host label (ASCII alphanumerics, `-`,
+/// `_`; everything else collapses to `_`).
+fn sanitize_file_stem(label: &str) -> String {
+    let mut s: String = label
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    s.truncate(48);
+    if s.is_empty() {
+        s.push('_');
+    }
+    s
+}
+
+impl Oryxis {
     /// Reload the sidebar list for the focused pane's host. Called when the
     /// History tab is opened, when tab/pane focus moves, and after a record
     /// while the tab is showing that host.

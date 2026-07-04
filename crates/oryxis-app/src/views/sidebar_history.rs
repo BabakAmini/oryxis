@@ -42,9 +42,25 @@ impl Oryxis {
                 .style(crate::widgets::rounded_input_style)
                 .into(),
         );
-        let header = container(search)
-            .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 })
-            .width(Length::Fill);
+        // Export the captured commands to a plain-text file (offline
+        // reference / support sharing). Recorded after the search,
+        // matching the display order.
+        let export_btn = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::button(Message::ExportCommandHistory),
+            crate::state::TerminalSidebarTab::History,
+            6.0,
+            action_btn(
+                iced_fonts::lucide::file_down(),
+                Message::ExportCommandHistory,
+                t("history_export_tip"),
+            ),
+        );
+        let header = container(
+            dir_row(vec![search, Space::new().width(6).into(), export_btn])
+                .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 })
+        .width(Length::Fill);
 
         let needle = self.cmd_history_search.to_lowercase();
         let mut list = column![]

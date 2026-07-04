@@ -633,8 +633,20 @@ pub enum Message {
     /// Filter text for the sidebar History tab's search field (distinct
     /// from `HistorySearchChanged`, which filters the session-logs view).
     CmdHistorySearchChanged(String),
+    /// Save the focused host's captured commands to a plain-text file
+    /// (save dialog; offline reference / support sharing).
+    ExportCommandHistory,
+    /// Outcome of the export: `Ok(path)` shows a toast, `Err` a warning.
+    CommandHistoryExported(Result<String, String>),
     /// Settings > Terminal: enable/disable command-history capture.
     ToggleCommandHistory,
+    /// Settings > Terminal: live-append captured commands to per-host
+    /// text files.
+    ToggleCommandHistoryFile,
+    /// Pick the folder the per-host command logs are written into.
+    PickCommandHistoryDir,
+    /// Folder chosen (or dialog dismissed with `None`).
+    CommandHistoryDirPicked(Option<String>),
 
     // Split panes
     /// Focus a pane (click). Routes keyboard / snippets / paste to it.

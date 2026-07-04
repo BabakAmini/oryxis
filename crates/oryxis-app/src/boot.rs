@@ -421,6 +421,8 @@ impl Oryxis {
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
+                setting_command_history_file: false,
+                setting_command_history_file_dir: None,
                 setting_performance_mode: false,
                 setting_perf_overlay: false,
                 pending_perf_mode_toast: false,
@@ -949,6 +951,13 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("command_history") {
                 self.setting_command_history = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("command_history_file") {
+                self.setting_command_history_file = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("command_history_file_dir") {
+                self.setting_command_history_file_dir =
+                    (!v.trim().is_empty()).then(|| v.trim().to_string());
             }
             // Performance mode. An explicit stored choice always wins. When
             // the key is absent (first boot on this machine) and the render

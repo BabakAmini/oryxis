@@ -19,8 +19,13 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   recorded, and a leading space skips capture) and surfaced in a new
   History tab in the terminal sidebar: a most-frequent shortlist over
   a recent list, with search, run, paste and delete (confirmed).
-  Local-only by design: never synced, never exported, wiped with the
-  host. Toggleable in Settings -> Terminal.
+  Local-only by design: never synced, never portable-exported, wiped
+  with the host. Toggleable in Settings -> Terminal. Two explicit
+  plain-text escape hatches for offline reference and support
+  sharing: an Export button on the History tab writes the host's
+  commands to a `.txt` of your choosing, and an optional setting
+  live-appends every captured command to a per-host log file under a
+  configurable folder (default `~/.oryxis/command-history/`).
 - **TOTP 2FA in the vault.** Store a per-host TOTP secret (bare base32
   or a full `otpauth://` URI) encrypted like every other credential;
   keyboard-interactive verification-code prompts are answered
