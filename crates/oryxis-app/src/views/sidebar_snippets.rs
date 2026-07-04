@@ -128,7 +128,13 @@ impl Oryxis {
             .map(|t| t.active().ssh_session.is_some())
             .unwrap_or(false);
         let sudo_row: Element<'_, Message> = if ssh_active {
-            let row = container(
+            // The ring wraps the button itself, INSIDE the padded
+            // container, so it hugs the visible border instead of
+            // floating 12 px away (owner QA).
+            let btn = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::ApplySudoPassword),
+                stab,
+                8.0,
                 button(
                     container(
                         dir_row(vec![
@@ -157,15 +163,12 @@ impl Oryxis {
                         },
                         ..Default::default()
                     }
-                }),
-            )
-            .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 });
-            self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::ApplySudoPassword),
-                stab,
-                8.0,
-                row.into(),
-            )
+                })
+                .into(),
+            );
+            container(btn)
+                .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 })
+                .into()
         } else {
             Space::new().height(0).into()
         };

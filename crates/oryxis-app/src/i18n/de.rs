@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_up" => "Bereich oben fokussieren",
         "hotkey_focus_pane_down" => "Bereich unten fokussieren",
         "hotkey_focus_sidebar_list" => "Seitenleisten-Listen fokussieren",
+        "hotkey_toggle_sidebar" => "Seitenleiste umschalten",
         "hotkey_vault_section_prev" => "Vorheriger Tresor-Bereich",
         "hotkey_vault_section_next" => "Nächster Tresor-Bereich",
         "detecting_shells" => "Shells werden erkannt…",

@@ -53,6 +53,8 @@ pub enum HotkeyAction {
     /// opens the sidebar when closed, cycles the two list tabs on
     /// repeat. Terminal-only, like the split-pane family.
     FocusSidebarList,
+    /// Open/close the terminal sidebar for the focused tab.
+    ToggleSidebar,
     // Vault-area section cycling (Hosts -> Keychain -> ... in sub-nav
     // order). Only fire in the vault area (`vault_only`); inside a
     // terminal tab the key is left free for TUI apps.
@@ -88,6 +90,7 @@ impl HotkeyAction {
             FocusPaneUp,
             FocusPaneDown,
             FocusSidebarList,
+            ToggleSidebar,
             VaultSectionPrev,
             VaultSectionNext,
         ]
@@ -121,6 +124,7 @@ impl HotkeyAction {
             FocusPaneUp => "focus_pane_up",
             FocusPaneDown => "focus_pane_down",
             FocusSidebarList => "focus_sidebar_list",
+            ToggleSidebar => "toggle_sidebar",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
         }
@@ -154,6 +158,7 @@ impl HotkeyAction {
             FocusPaneUp => "hotkey_focus_pane_up",
             FocusPaneDown => "hotkey_focus_pane_down",
             FocusSidebarList => "hotkey_focus_sidebar_list",
+            ToggleSidebar => "hotkey_toggle_sidebar",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
         }
@@ -173,6 +178,7 @@ impl HotkeyAction {
                 | FocusPaneUp
                 | FocusPaneDown
                 | FocusSidebarList
+                | ToggleSidebar
         )
     }
 
@@ -715,6 +721,9 @@ pub fn default_bindings() -> HotkeyMap {
     // terminal control-sequence gate (plain Ctrl+H is backspace on the
     // PTY), H for the History/lists sidebar. Rebindable like the rest.
     put(&mut m, FocusSidebarList, primary_ctrl, true, false, primary_logo, Char('h'));
+    // Ctrl+Shift+B (Cmd+Shift+B on macOS): the VS Code toggle-sidebar
+    // convention; Shift lifts it out of the control-sequence gate.
+    put(&mut m, ToggleSidebar, primary_ctrl, true, false, primary_logo, Char('b'));
     // Vault section cycling. Plain Ctrl on every platform (the
     // browser/IDE tab-strip convention; Cmd+PageUp/Down has no macOS
     // precedent), rebindable like everything else.

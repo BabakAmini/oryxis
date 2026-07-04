@@ -362,16 +362,16 @@ impl Oryxis {
                     "sidebar-history-search",
                 ))
             }
-            TerminalSidebarTab::Snippets => {
-                self.keynav.sidebar_selected = Some((target, 0));
-                self.sidebar_nav_scroll(0)
-            }
-            TerminalSidebarTab::HostConfig => {
-                // Ring the first recorded row (next frame's recording;
-                // the slot only draws the ring on non-input rows, and
-                // Enter/Tab dive into inputs from there).
-                self.keynav.sidebar_selected = Some((target, 0));
-                Task::none()
+            TerminalSidebarTab::Snippets | TerminalSidebarTab::HostConfig => {
+                // Land on the first row of the tab BODY. Index 0 is the
+                // header's Close button (the strip records first, on
+                // these tabs exactly one action; Chat's extra Reset
+                // never applies here), and landing there would put
+                // Enter one keypress away from closing the sidebar.
+                // Next frame's recording; the slot only draws the ring
+                // on non-input rows, and Enter/Tab dive into inputs.
+                self.keynav.sidebar_selected = Some((target, 1));
+                self.sidebar_nav_scroll(1)
             }
         }
     }

@@ -302,7 +302,12 @@ impl Oryxis {
         .width(Length::Fill)
         .padding(Padding { top: 12.0, right: 14.0, bottom: 12.0, left: 14.0 });
 
-        scrollable(body).height(Length::Fill).into()
+        // Shared scrollable id (only one sidebar tab renders): the
+        // keynav router snaps the ringed row into view by it.
+        scrollable(body)
+            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .height(Length::Fill)
+            .into()
     }
 
     /// Host config tab body for local/ephemeral panes: a session-only
@@ -360,7 +365,11 @@ impl Oryxis {
         .width(Length::Fill)
         .padding(Padding { top: 12.0, right: 14.0, bottom: 12.0, left: 14.0 });
 
-        scrollable(body).height(Length::Fill).into()
+        // Shared scrollable id, same as the host variant above.
+        scrollable(body)
+            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .height(Length::Fill)
+            .into()
     }
 
 }

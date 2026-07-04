@@ -184,6 +184,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hotkey_focus_pane_up" => "Focus pane up",
         "hotkey_focus_pane_down" => "Focus pane down",
         "hotkey_focus_sidebar_list" => "Focus sidebar lists",
+        "hotkey_toggle_sidebar" => "Toggle sidebar",
         "hotkey_vault_section_prev" => "Previous vault section",
         "hotkey_vault_section_next" => "Next vault section",
         "detecting_shells" => "Detecting shells…",

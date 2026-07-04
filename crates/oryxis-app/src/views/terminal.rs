@@ -255,16 +255,33 @@ impl Oryxis {
             t("tab_tip_host_config"),
         ));
         strip.push(Space::new().width(Length::Fill).into());
+        // The trailing header actions (Reset on Chat, Close always) join
+        // the Tab walk, recorded FIRST (the strip renders above every tab
+        // body) under the active tab's tag. The four tab icons stay off
+        // the walk: the FocusSidebarList hotkey already cycles them.
         if active == STab::Chat {
-            strip.push(icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::rotate_ccw(), Message::ChatResetConversation),
-                t("chat_reset_tip"),
+            strip.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::ChatResetConversation),
+                active,
+                6.0,
+                icon_tooltip(
+                    chat_header_btn(
+                        iced_fonts::lucide::rotate_ccw(),
+                        Message::ChatResetConversation,
+                    ),
+                    t("chat_reset_tip"),
+                ),
             ));
             strip.push(Space::new().width(4).into());
         }
-        strip.push(icon_tooltip(
-            chat_header_btn(iced_fonts::lucide::x(), Message::ToggleChatSidebar),
-            t("close"),
+        strip.push(self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::button(Message::ToggleChatSidebar),
+            active,
+            6.0,
+            icon_tooltip(
+                chat_header_btn(iced_fonts::lucide::x(), Message::ToggleChatSidebar),
+                t("close"),
+            ),
         ));
 
         let header = container(

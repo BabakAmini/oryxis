@@ -789,6 +789,10 @@ impl Oryxis {
             // presses cycle the two tabs. Terminal-only like the
             // split-pane family above.
             FocusSidebarList => self.focus_sidebar_list(),
+            // Open/close the focused tab's sidebar (owner ask: a
+            // keyboard path to close it; the handler already drops
+            // the ring + dropdown gate on close).
+            ToggleSidebar => Task::done(Message::ToggleChatSidebar),
             // Vault section cycling: neighbor of the active view in the
             // sub-nav pill order, wrapping. The loop only reaches these
             // in the vault area (vault_only gate above).

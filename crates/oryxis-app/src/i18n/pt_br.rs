@@ -180,6 +180,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_up" => "Focar painel acima",
         "hotkey_focus_pane_down" => "Focar painel abaixo",
         "hotkey_focus_sidebar_list" => "Focar listas da barra lateral",
+        "hotkey_toggle_sidebar" => "Alternar barra lateral",
         "hotkey_vault_section_prev" => "Seção anterior do cofre",
         "hotkey_vault_section_next" => "Próxima seção do cofre",
         "detecting_shells" => "Detectando shells…",
