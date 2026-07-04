@@ -20,6 +20,27 @@ fn connection_session_logging_override_round_trips() {
 }
 
 #[test]
+fn connection_protocol_round_trips() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault();
+    // Both variants survive the save/list cycle; this guards the
+    // string mapping in `store/connections.rs` (a missed variant
+    // silently reloads as Ssh via the fallthrough).
+    for protocol in [ConnectionProtocol::Ssh, ConnectionProtocol::Telnet] {
+        let mut conn = Connection::new("h", "example.com");
+        conn.protocol = protocol;
+        vault.save_connection(&conn, None).unwrap();
+        let loaded = vault
+            .list_connections()
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == conn.id)
+            .expect("connection listed");
+        assert_eq!(loaded.protocol, protocol);
+    }
+}
+
+#[test]
 fn connection_auth_method_round_trips() {
     use oryxis_core::models::connection::AuthMethod;
     let vault = unlocked_vault();

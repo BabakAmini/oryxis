@@ -9,6 +9,14 @@ pub struct Connection {
     pub label: String,
     pub hostname: String,
     pub port: u16,
+    /// Wire protocol for this host. Defaults to SSH so every payload
+    /// written before the field existed (old vaults, sync peers,
+    /// portable exports) keeps meaning exactly what it meant. Telnet
+    /// hosts reuse the same encrypted password column and ride sync /
+    /// export unchanged; the editor swaps to a reduced form and the
+    /// terminal pane picks the matching transport at connect.
+    #[serde(default)]
+    pub protocol: ConnectionProtocol,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -173,6 +181,7 @@ impl Connection {
             label: label.into(),
             hostname: hostname.into(),
             port: 22,
+            protocol: ConnectionProtocol::Ssh,
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,
@@ -210,6 +219,41 @@ impl Connection {
             macs: None,
             host_key_algorithms: None,
             privacy_mode: None,
+        }
+    }
+}
+
+/// Which wire protocol a connection speaks. One selector per host, not
+/// a per-host stack of protocols: the whole `Connection` model is
+/// single-endpoint, so a host that needs both SSH and Telnet is two
+/// hosts. Serialized as a plain string variant so older peers that
+/// never saw the field simply ignore it on receive and omit it on send
+/// (covered by the legacy-payload test below).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum ConnectionProtocol {
+    #[default]
+    Ssh,
+    Telnet,
+}
+
+impl ConnectionProtocol {
+    /// Conventional port for the protocol, used by the host editor to
+    /// swap the default when the picker changes (22 <-> 23).
+    pub fn default_port(self) -> u16 {
+        match self {
+            ConnectionProtocol::Ssh => 22,
+            ConnectionProtocol::Telnet => 23,
+        }
+    }
+}
+
+// Display feeds the host editor's pick_list mapper directly (the fork's
+// 4-step pick_list API renders via `|p| p.to_string()`).
+impl std::fmt::Display for ConnectionProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ConnectionProtocol::Ssh => write!(f, "SSH"),
+            ConnectionProtocol::Telnet => write!(f, "Telnet"),
         }
     }
 }
@@ -369,6 +413,28 @@ mod tests {
         value.as_object_mut().unwrap().remove("keepalive_interval");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.keepalive_interval, None);
+    }
+
+    /// Same contract for the protocol selector: a payload written
+    /// before Telnet existed carries no `protocol` key and must land as
+    /// `Ssh`, because that is what every pre-existing host is.
+    #[test]
+    fn protocol_legacy_payload_defaults_to_ssh() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("protocol");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.protocol, ConnectionProtocol::Ssh);
+    }
+
+    #[test]
+    fn protocol_telnet_round_trips() {
+        let mut conn = Connection::new("router", "192.168.0.1");
+        conn.protocol = ConnectionProtocol::Telnet;
+        conn.port = 23;
+        let json = serde_json::to_string(&conn).unwrap();
+        let de: Connection = serde_json::from_str(&json).unwrap();
+        assert_eq!(de.protocol, ConnectionProtocol::Telnet);
     }
 
     #[test]

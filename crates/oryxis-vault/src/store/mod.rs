@@ -17,7 +17,9 @@ pub(crate) use oryxis_core::models::cloud::{CloudQuery, CloudRef};
 pub(crate) use oryxis_core::models::cloud_profile::CloudProfile;
 pub(crate) use oryxis_core::models::custom_terminal_theme::CustomTerminalTheme;
 pub(crate) use oryxis_core::models::custom_ui_theme::CustomUiTheme;
-pub(crate) use oryxis_core::models::connection::{AuthMethod, Connection, ProxyType};
+pub(crate) use oryxis_core::models::connection::{
+    AuthMethod, Connection, ConnectionProtocol, ProxyType,
+};
 pub(crate) use oryxis_core::models::group::Group;
 pub(crate) use oryxis_core::models::identity::Identity;
 pub(crate) use oryxis_core::models::proxy_identity::ProxyIdentity;
