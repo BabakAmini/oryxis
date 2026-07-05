@@ -52,7 +52,11 @@ impl Oryxis {
         if !tab.chat_visible {
             return None;
         }
-        let active = if self.terminal_sidebar_tab == TerminalSidebarTab::Chat && !self.ai.enabled
+        let pane_has_ssh =
+            tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        let active = if (self.terminal_sidebar_tab == TerminalSidebarTab::Chat
+            && !self.ai.enabled)
+            || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !pane_has_ssh)
         {
             TerminalSidebarTab::Snippets
         } else {
@@ -361,15 +365,21 @@ impl Oryxis {
         let Some(idx) = self.active_tab else {
             return Task::none();
         };
-        let mut order: Vec<TerminalSidebarTab> = Vec::with_capacity(4);
+        let mut order: Vec<TerminalSidebarTab> = Vec::with_capacity(5);
         if self.ai.enabled {
             order.push(TerminalSidebarTab::Chat);
         }
-        order.extend([
-            TerminalSidebarTab::Snippets,
-            TerminalSidebarTab::History,
-            TerminalSidebarTab::HostConfig,
-        ]);
+        order.extend([TerminalSidebarTab::Snippets, TerminalSidebarTab::History]);
+        // Files only exists for an SSH pane (mirrors the strip).
+        if self
+            .tabs
+            .get(idx)
+            .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+            .unwrap_or(false)
+        {
+            order.push(TerminalSidebarTab::Files);
+        }
+        order.push(TerminalSidebarTab::HostConfig);
 
         let was_open = self
             .tabs
@@ -404,6 +414,14 @@ impl Oryxis {
                 iced::widget::operation::focus(iced::widget::Id::new(
                     "sidebar-history-search",
                 ))
+            }
+            TerminalSidebarTab::Files => {
+                // Same first-body-row landing as Snippets/HostConfig,
+                // batched with the mount / follow sync so the browser
+                // is live (or catching up to the shell) by the time
+                // the ring shows.
+                self.keynav.sidebar_selected = Some((target, 1));
+                Task::batch([self.sidebar_nav_scroll(1), self.sidebar_files_sync()])
             }
             TerminalSidebarTab::Snippets | TerminalSidebarTab::HostConfig => {
                 // Land on the first row of the tab BODY. Index 0 is the

@@ -371,6 +371,12 @@ pub struct Oryxis {
     pub(crate) hovered_identity_card: Option<usize>,
     /// Hovered row in the terminal-sidebar History tab (floating actions).
     pub(crate) hovered_history_card: Option<usize>,
+    /// Hovered row in the terminal-sidebar Files tab (floating actions).
+    pub(crate) hovered_files_row: Option<usize>,
+    /// One-shot preferred directory for the next SFTP mount, set by the
+    /// sidebar Files "expand" promotion and consumed (with home-dir
+    /// fallback) by the mount pipeline's `initial_remote_listing`.
+    pub(crate) sftp_open_at_path: Option<String>,
     /// Loaded command history for `command_history_host`, most recent
     /// first (the History tab derives its "frequent" shortlist from this).
     pub(crate) command_history: Vec<oryxis_vault::CommandHistoryEntry>,

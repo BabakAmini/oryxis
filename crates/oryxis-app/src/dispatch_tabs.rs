@@ -656,7 +656,12 @@ impl Oryxis {
                     {
                         self.refresh_command_history();
                     }
-                    return Ok(self.tab_scroll_to_active());
+                    // The Files browser is per-pane; the landed tab's pane
+                    // may need a mount or a cwd catch-up (no-op otherwise).
+                    return Ok(Task::batch([
+                        self.tab_scroll_to_active(),
+                        self.sidebar_files_sync(),
+                    ]));
                 }
             }
             Message::TabHovered(idx) => {

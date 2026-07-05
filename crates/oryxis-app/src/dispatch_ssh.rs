@@ -678,6 +678,9 @@ impl Oryxis {
                         // "finish" it with a duration spanning the outage.
                         p.running_cmd = None;
                         p.last_submitted = None;
+                        // The sidebar Files channel died with the session;
+                        // a reconnect remounts lazily (preferences kept).
+                        p.files.reset_for_disconnect();
                         p.session_log_id
                     });
                     if let Some(log_id) = log_id

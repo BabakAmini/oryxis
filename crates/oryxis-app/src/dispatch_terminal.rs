@@ -312,6 +312,9 @@ impl Oryxis {
                 if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();
                 }
+                // The Files browser is per-pane; the newly focused pane may
+                // need a mount or a cwd catch-up (no-op otherwise).
+                return Ok(self.sidebar_files_sync());
             }
             Message::ResizePane(ev) => {
                 if let Some(tab_idx) = self.active_tab
@@ -439,6 +442,9 @@ impl Oryxis {
                 // (Privacy Mode is resolved per pane at delivery).
                 let mut smart_notifications: Vec<(String, String, String)> = Vec::new();
                 let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
+                // Set when this batch carried an OSC 7 cwd; feeds the
+                // sidebar Files follow after the pane borrow ends.
+                let mut cwd_changed = false;
                 if let Some((tab_idx, pane)) = self
                     .tabs
                     .iter_mut()
@@ -570,6 +576,7 @@ impl Oryxis {
                     }
                     pending_notification = new_notification;
                     if let Some(cwd) = new_cwd {
+                        cwd_changed = pane.cwd.as_deref() != Some(cwd.as_str());
                         pane.cwd = Some(cwd);
                     }
                     if let Some(title) = new_title {
@@ -754,6 +761,12 @@ impl Oryxis {
                         },
                         |_| Message::ToastClear,
                     ));
+                }
+                if cwd_changed {
+                    // Follow-cwd for the sidebar Files browser. The sync
+                    // no-ops unless the browser is visible, following,
+                    // and this pane is the focused one.
+                    tasks.push(self.sidebar_files_sync());
                 }
                 if !tasks.is_empty() {
                     return Ok(Task::batch(tasks));

@@ -242,6 +242,8 @@ impl Oryxis {
                 hovered_identity_card: None,
                 hovered_snippet_card: None,
                 hovered_history_card: None,
+                hovered_files_row: None,
+                sftp_open_at_path: None,
                 command_history: Vec::new(),
                 command_history_host: None,
                 cmd_history_search: String::new(),

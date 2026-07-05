@@ -127,6 +127,51 @@ impl TerminalTransport {
     }
 }
 
+/// Sidebar Files tab state, one instance per pane: an SFTP channel
+/// multiplexed on this pane's SSH session plus the browsing state.
+/// The channel dies with the session, so `SshDisconnected` resets the
+/// whole struct (keeping only the user's follow / hidden preferences).
+#[derive(Default)]
+pub(crate) struct PaneFiles {
+    /// The SFTP channel on this pane's live `client::Handle`. `None`
+    /// until the Files tab is first opened (mounted lazily so panes
+    /// that never browse pay nothing).
+    pub client: Option<SftpClient>,
+    /// True while the initial mount (open channel + first listing) is
+    /// in flight, the guard against double-mounting on rapid clicks.
+    pub mounting: bool,
+    /// Current directory (absolute remote POSIX path). Empty until the
+    /// first listing lands.
+    pub path: String,
+    /// Entries of `path`, sorted dirs-first / name-insensitive.
+    pub entries: Vec<SftpEntry>,
+    /// True while a `list_dir` (navigation or cwd follow) is in flight.
+    pub loading: bool,
+    pub error: Option<String>,
+    /// Whether the browser follows the shell's OSC 7 cwd. `true` for a
+    /// fresh pane; the pin toggle flips it.
+    pub follow_disabled: bool,
+    pub show_hidden: bool,
+}
+
+impl PaneFiles {
+    /// Follow-cwd is stored inverted so `Default` gives "on".
+    pub fn follow(&self) -> bool {
+        !self.follow_disabled
+    }
+
+    /// Drop everything tied to the dead SSH session, keeping only the
+    /// user's preferences (follow / hidden) for the reconnect.
+    pub fn reset_for_disconnect(&mut self) {
+        self.client = None;
+        self.mounting = false;
+        self.path.clear();
+        self.entries.clear();
+        self.loading = false;
+        self.error = None;
+    }
+}
+
 /// One terminal pane, owns its alacritty grid and (optionally) the
 /// remote session feeding it. A `TerminalTab` holds one or more panes
 /// in a `pane_grid::State`, which owns their split layout.
@@ -233,6 +278,9 @@ pub(crate) struct Pane {
     /// ctrl-clicked a link here (either way the gesture is known),
     /// retiring the hint for the pane.
     pub link_hint_shown: bool,
+    /// Sidebar Files tab: the SFTP browser multiplexed on this pane's
+    /// SSH session. Lazily mounted; reset on disconnect.
+    pub files: PaneFiles,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -313,6 +361,7 @@ impl Pane {
             zmodem: None,
             mouse_hint_shown: false,
             link_hint_shown: false,
+            files: PaneFiles::default(),
         }
     }
 }

@@ -40,6 +40,7 @@ mod dispatch_port_forwards;
 mod dispatch_session_group;
 mod dispatch_settings;
 mod dispatch_sftp;
+mod dispatch_sidebar_files;
 mod dispatch_sftp_files;
 mod dispatch_sftp_sync;
 mod dispatch_sftp_transfers;

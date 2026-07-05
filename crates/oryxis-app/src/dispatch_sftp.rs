@@ -61,6 +61,26 @@ enum SftpConnectMsg {
     },
 }
 
+/// First listing of a freshly mounted SFTP client: try the caller's
+/// preferred directory (the sidebar Files promotion, a saved path)
+/// first, falling back to the home directory when it doesn't resolve
+/// or list (deleted, no permission), so a stale hint degrades to the
+/// normal mount instead of an error.
+pub(crate) async fn initial_remote_listing(
+    client: &oryxis_ssh::SftpClient,
+    hint: Option<String>,
+) -> Result<(String, Vec<oryxis_ssh::SftpEntry>), String> {
+    if let Some(h) = hint
+        && let Ok(path) = client.canonicalize(&h).await
+        && let Ok(entries) = client.list_dir(&path).await
+    {
+        return Ok((path, entries));
+    }
+    let path = client.canonicalize(".").await.unwrap_or_else(|_| "/".to_string());
+    let entries = client.list_dir(&path).await.map_err(|e| e.to_string())?;
+    Ok((path, entries))
+}
+
 impl Oryxis {
     /// Auto-fit `col` in `side`'s pane to the widest value across every row
     /// (issue #45). Measures through the renderer's font system, sets the new
@@ -217,6 +237,11 @@ impl Oryxis {
                     }
                 });
                 let label = conn.label.clone();
+                // One-shot preferred directory (sidebar Files promotion);
+                // taken here so both the reuse and fresh-dial branches
+                // honor it, with home-dir fallback in
+                // `initial_remote_listing` when it doesn't resolve.
+                let initial_hint = self.sftp_open_at_path.take();
                 if let Some(session) = existing {
                     let session_for_task = session.clone();
                     return Ok(Task::perform(
@@ -225,14 +250,8 @@ impl Oryxis {
                                 .open_sftp()
                                 .await
                                 .map_err(|e| e.to_string())?;
-                            let initial = client
-                                .canonicalize(".")
-                                .await
-                                .unwrap_or_else(|_| "/".to_string());
-                            let entries = client
-                                .list_dir(&initial)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                            let (initial, entries) =
+                                initial_remote_listing(&client, initial_hint).await?;
                             Ok::<_, String>((client, initial, entries))
                         },
                         move |result| match result {
@@ -346,12 +365,8 @@ impl Oryxis {
                         };
                         let result = async {
                             let client = session.open_sftp().await.map_err(|e| e.to_string())?;
-                            let initial = client
-                                .canonicalize(".")
-                                .await
-                                .unwrap_or_else(|_| "/".to_string());
-                            let entries =
-                                client.list_dir(&initial).await.map_err(|e| e.to_string())?;
+                            let (initial, entries) =
+                                initial_remote_listing(&client, initial_hint).await?;
                             Ok::<_, String>((session, client, initial, entries))
                         }
                         .await;
@@ -917,16 +932,14 @@ impl Oryxis {
                 }
                 let target = SftpPaneSide::Right;
                 let session_for_task = session.clone();
+                // One-shot preferred directory (sidebar Files promotion).
+                let initial_hint = self.sftp_open_at_path.take();
                 return Ok(Task::perform(
                     async move {
                         let client =
                             session_for_task.open_sftp().await.map_err(|e| e.to_string())?;
-                        let initial = client
-                            .canonicalize(".")
-                            .await
-                            .unwrap_or_else(|_| "/".to_string());
-                        let entries =
-                            client.list_dir(&initial).await.map_err(|e| e.to_string())?;
+                        let (initial, entries) =
+                            initial_remote_listing(&client, initial_hint).await?;
                         Ok::<_, String>((client, initial, entries))
                     },
                     move |result| match result {

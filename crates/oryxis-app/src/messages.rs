@@ -245,6 +245,25 @@ pub enum Message {
     /// the clipboard. The string arrives already side-formatted (POSIX
     /// for remote entries, OS-native for local ones).
     SftpCopyPath(String),
+
+    // Sidebar Files tab (the per-pane SFTP browser next to Chat /
+    // Snippets / History). Navigation targets the ACTIVE pane; async
+    // results carry the pane's stable `Uuid` so a pane/tab switch
+    // mid-flight can't land a listing on the wrong browser.
+    SidebarFilesNavigate(String),
+    SidebarFilesRefresh,
+    SidebarFilesToggleFollow,
+    SidebarFilesToggleHidden,
+    /// Promote the sidebar browser to a full SFTP tab at its current
+    /// directory.
+    SidebarFilesExpand,
+    /// Initial mount finished: the SFTP channel plus the first listing.
+    SidebarFilesMounted(Uuid, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
+    /// A navigation / follow / refresh listing landed.
+    SidebarFilesListed(Uuid, String, Vec<oryxis_ssh::SftpEntry>),
+    SidebarFilesError(Uuid, String),
+    SidebarFilesRowHovered(usize),
+    SidebarFilesRowUnhovered,
     /// Copy every selected path in the given pane, one per line.
     SftpCopySelectionPaths(crate::state::SftpPaneSide),
     SftpStartRename(crate::state::SftpPaneSide, String),

@@ -157,6 +157,7 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_zmodem);
         let message = try_handler!(self, message, handle_remote_desktop);
         let message = try_handler!(self, message, handle_command_history);
+        let message = try_handler!(self, message, handle_sidebar_files);
         let message = try_handler!(self, message, handle_share);
         let message = try_handler!(self, message, handle_known_hosts);
         let message = try_handler!(self, message, handle_tray);

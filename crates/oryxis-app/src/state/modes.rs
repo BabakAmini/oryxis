@@ -21,6 +21,12 @@ pub enum TerminalSidebarTab {
     /// Per-host command history (top frequent + recent), captured by the
     /// OSC 133 / input-mirror pipeline.
     History,
+    /// Remote file browser for the focused pane's SSH session (an SFTP
+    /// channel multiplexed on the live handle), with follow-cwd via the
+    /// OSC 7 the terminal already captures. SSH-only: the tab button is
+    /// hidden (and the dispatch falls back to `Snippets`) when the pane
+    /// has no SSH transport.
+    Files,
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,

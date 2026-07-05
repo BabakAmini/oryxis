@@ -324,9 +324,14 @@ impl Oryxis {
         // is built: each tab records its keyboard rows while rendering,
         // so a stale list from the previous frame must never leak in.
         self.sidebar_nav_reset();
-        // Chat is only reachable when AI is enabled; otherwise the active
-        // tab effectively falls back to Snippets.
-        let active = if self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled {
+        // Chat is only reachable when AI is enabled, Files only when the
+        // focused pane has an SSH transport (SFTP is an SSH subsystem);
+        // otherwise the active tab effectively falls back to Snippets.
+        // Mirrors `effective_sidebar_tab`.
+        let pane_has_ssh = tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
+            || (self.terminal_sidebar_tab == STab::Files && !pane_has_ssh)
+        {
             STab::Snippets
         } else {
             self.terminal_sidebar_tab
@@ -356,6 +361,14 @@ impl Oryxis {
             Message::SelectTerminalSidebarTab(STab::History),
             t("tab_tip_history"),
         ));
+        if pane_has_ssh {
+            strip.push(sidebar_tab_btn(
+                iced_fonts::lucide::folder(),
+                active == STab::Files,
+                Message::SelectTerminalSidebarTab(STab::Files),
+                t("tab_tip_files"),
+            ));
+        }
         strip.push(sidebar_tab_btn(
             iced_fonts::lucide::cog(),
             active == STab::HostConfig,
@@ -431,6 +444,7 @@ impl Oryxis {
             STab::Chat => self.chat_tab_body(tab),
             STab::Snippets => self.snippets_tab_content(),
             STab::History => self.history_tab_content(),
+            STab::Files => self.files_tab_content(tab),
             STab::HostConfig => self.host_config_tab_content(tab),
         };
         let panel_column = column![header, header_separator, content]

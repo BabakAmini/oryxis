@@ -465,6 +465,10 @@ impl Oryxis {
                     // open at close time unmounts without on_close.
                     self.keynav.sidebar_selected = None;
                     self.keynav.pick_open = false;
+                } else {
+                    // Opening onto the Files tab: mount / catch up to the
+                    // shell's cwd (no-op on every other tab).
+                    return Ok(self.sidebar_files_sync());
                 }
             }
             Message::SelectTerminalSidebarTab(tab) => {
@@ -480,6 +484,11 @@ impl Oryxis {
                     return Ok(iced::widget::operation::focus(iced::widget::Id::new(
                         "sidebar-history-search",
                     )));
+                }
+                if tab == crate::state::TerminalSidebarTab::Files {
+                    // Mount the pane's SFTP channel (first open) or catch
+                    // up to the shell's cwd.
+                    return Ok(self.sidebar_files_sync());
                 }
             }
             Message::SidebarSnippetSearchChanged(v) => {
