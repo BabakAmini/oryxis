@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "منوی زمینه",
         "right_click_paste" => "چسباندن",
         "right_click_extend" => "گسترش انتخاب",
+        "terminal_copy" => "کپی",
         "terminal_copy_all" => "کپی همه",
         "terminal_paste" => "چسباندن",
         "terminal_clear_scrollback" => "پاک کردن اسکرول‌بک",

@@ -333,6 +333,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "コンテキストメニュー",
         "right_click_paste" => "貼り付け",
         "right_click_extend" => "選択範囲を拡張",
+        "terminal_copy" => "コピー",
         "terminal_copy_all" => "すべてコピー",
         "terminal_paste" => "貼り付け",
         "terminal_clear_scrollback" => "スクロールバックをクリア",

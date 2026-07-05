@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Bağlam menüsü",
         "right_click_paste" => "Yapıştır",
         "right_click_extend" => "Seçimi genişlet",
+        "terminal_copy" => "Kopyala",
         "terminal_copy_all" => "Tümünü kopyala",
         "terminal_paste" => "Yapıştır",
         "terminal_clear_scrollback" => "Kaydırma geçmişini temizle",

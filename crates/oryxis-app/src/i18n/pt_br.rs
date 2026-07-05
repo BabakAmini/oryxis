@@ -328,6 +328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Menu de contexto",
         "right_click_paste" => "Colar",
         "right_click_extend" => "Estender seleção",
+        "terminal_copy" => "Copiar",
         "terminal_copy_all" => "Copiar tudo",
         "terminal_paste" => "Colar",
         "terminal_clear_scrollback" => "Limpar histórico",

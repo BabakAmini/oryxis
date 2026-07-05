@@ -968,8 +968,13 @@ pub enum Message {
     /// "Context menu / Paste / Extend selection" label).
     TerminalRightClickChanged(String),
     /// Open the terminal context menu for a pane at a window-absolute
-    /// point (right-click scheme = Menu). `(pane_id, x, y)`.
-    ShowTerminalContextMenu(Uuid, f32, f32),
+    /// point (right-click scheme = Menu). `(pane_id, x, y, selection)`,
+    /// where `selection` is the live selection's text captured by the
+    /// widget (`None` when empty), so the menu can offer "Copy".
+    ShowTerminalContextMenu(Uuid, f32, f32, Option<String>),
+    /// Copy the captured selection text to the clipboard (context-menu
+    /// "Copy").
+    TerminalCopySelection(String),
     /// Copy the whole buffer (scrollback + screen) of a pane to the
     /// clipboard (context-menu "Copy All"). `pane_id`.
     TerminalCopyAll(Uuid),

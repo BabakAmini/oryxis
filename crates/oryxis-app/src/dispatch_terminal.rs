@@ -830,10 +830,10 @@ impl Oryxis {
                     self.paste_text_into_active(&text);
                 }
             }
-            Message::ShowTerminalContextMenu(pane_id, x, y) => {
+            Message::ShowTerminalContextMenu(pane_id, x, y, selection) => {
                 // Focus the right-clicked pane first (standard context-menu
-                // behavior), so all three rows act on the same pane: Copy
-                // All / Clear Scrollback are pane-targeted by id, and Paste
+                // behavior), so all rows act on the same pane: Copy All /
+                // Clear Scrollback are pane-targeted by id, and Paste
                 // routes through the focused pane.
                 if let Some(tab_idx) = self.pane_tab_index(pane_id) {
                     self.active_tab = Some(tab_idx);
@@ -851,10 +851,18 @@ impl Oryxis {
                 // Right-click scheme = Menu: anchor the overlay at the
                 // click point (window-absolute, same space as every menu).
                 self.overlay = Some(crate::state::OverlayState {
-                    content: crate::state::OverlayContent::TerminalContextMenu(pane_id),
+                    content: crate::state::OverlayContent::TerminalContextMenu(pane_id, selection),
                     x,
                     y,
                 });
+            }
+            Message::TerminalCopySelection(text) => {
+                self.overlay = None;
+                if !text.is_empty()
+                    && let Ok(mut clip) = arboard::Clipboard::new()
+                {
+                    let _ = clip.set_text(text);
+                }
             }
             Message::TerminalCopyAll(pane_id) => {
                 self.overlay = None;

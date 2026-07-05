@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "컨텍스트 메뉴",
         "right_click_paste" => "붙여넣기",
         "right_click_extend" => "선택 확장",
+        "terminal_copy" => "복사",
         "terminal_copy_all" => "모두 복사",
         "terminal_paste" => "붙여넣기",
         "terminal_clear_scrollback" => "스크롤백 지우기",

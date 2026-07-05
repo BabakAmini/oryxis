@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Menu ngữ cảnh",
         "right_click_paste" => "Dán",
         "right_click_extend" => "Mở rộng vùng chọn",
+        "terminal_copy" => "Sao chép",
         "terminal_copy_all" => "Sao chép tất cả",
         "terminal_paste" => "Dán",
         "terminal_clear_scrollback" => "Xóa cuộn lại",

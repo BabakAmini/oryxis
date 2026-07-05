@@ -333,6 +333,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Menu contestuale",
         "right_click_paste" => "Incolla",
         "right_click_extend" => "Estendi selezione",
+        "terminal_copy" => "Copia",
         "terminal_copy_all" => "Copia tutto",
         "terminal_paste" => "Incolla",
         "terminal_clear_scrollback" => "Cancella cronologia",

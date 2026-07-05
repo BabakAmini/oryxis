@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Menu konteks",
         "right_click_paste" => "Tempel",
         "right_click_extend" => "Perluas seleksi",
+        "terminal_copy" => "Salin",
         "terminal_copy_all" => "Salin semua",
         "terminal_paste" => "Tempel",
         "terminal_clear_scrollback" => "Bersihkan scrollback",

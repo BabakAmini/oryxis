@@ -353,6 +353,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "right_click_menu" => "Context menu",
         "right_click_paste" => "Paste",
         "right_click_extend" => "Extend selection",
+        "terminal_copy" => "Copy",
         "terminal_copy_all" => "Copy All",
         "terminal_paste" => "Paste",
         "terminal_clear_scrollback" => "Clear Scrollback",

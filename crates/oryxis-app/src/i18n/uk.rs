@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Контекстне меню",
         "right_click_paste" => "Вставити",
         "right_click_extend" => "Розширити виділення",
+        "terminal_copy" => "Копіювати",
         "terminal_copy_all" => "Копіювати все",
         "terminal_paste" => "Вставити",
         "terminal_clear_scrollback" => "Очистити буфер прокручування",

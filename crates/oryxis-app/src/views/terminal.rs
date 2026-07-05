@@ -288,8 +288,9 @@ impl Oryxis {
         // not just the focused one.
         if self.setting_terminal_right_click == crate::util::RightClickMode::Menu {
             let pane_id = pane.id;
-            term_view = term_view
-                .on_context_menu(move |x, y, _sel| Message::ShowTerminalContextMenu(pane_id, x, y));
+            term_view = term_view.on_context_menu(move |x, y, sel| {
+                Message::ShowTerminalContextMenu(pane_id, x, y, sel)
+            });
         }
         // Wire the teaching hints only while they should still show for
         // this pane, so the widget stops emitting once HintMode::Once has

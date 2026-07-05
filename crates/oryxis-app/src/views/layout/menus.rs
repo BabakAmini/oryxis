@@ -64,7 +64,10 @@ impl Oryxis {
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
             OverlayContent::SplitMenu => 3.0,
-            OverlayContent::TerminalContextMenu(_) => 3.0,
+            OverlayContent::TerminalContextMenu(_, sel) => {
+                // Copy (only with a selection) + Copy All + Paste + Clear.
+                if sel.is_some() { 4.0 } else { 3.0 }
+            }
             _ => 2.5,
         };
         items * ITEM_H + 10.0
@@ -1073,29 +1076,40 @@ impl Oryxis {
                 }
                 col.into()
             }
-            OverlayContent::TerminalContextMenu(pane_id) => {
+            OverlayContent::TerminalContextMenu(pane_id, selection) => {
                 let pane_id = *pane_id;
-                column![
-                    self.menu_item(
+                let mut items = column![];
+                // "Copy" acts on the selection captured at right-click
+                // (the app can't read the widget's live selection); shown
+                // only when something was selected.
+                if let Some(text) = selection {
+                    items = items.push(self.menu_item(
                         iced_fonts::lucide::copy(),
+                        crate::i18n::t("terminal_copy"),
+                        Message::TerminalCopySelection(text.clone()),
+                        OryxisColors::t().text_secondary,
+                    ));
+                }
+                items = items
+                    .push(self.menu_item(
+                        iced_fonts::lucide::copy_check(),
                         crate::i18n::t("terminal_copy_all"),
                         Message::TerminalCopyAll(pane_id),
                         OryxisColors::t().text_secondary,
-                    ),
-                    self.menu_item(
+                    ))
+                    .push(self.menu_item(
                         iced_fonts::lucide::clipboard_paste(),
                         crate::i18n::t("terminal_paste"),
                         Message::TerminalPasteFromClipboard,
                         OryxisColors::t().text_secondary,
-                    ),
-                    self.menu_item(
+                    ))
+                    .push(self.menu_item(
                         iced_fonts::lucide::eraser(),
                         crate::i18n::t("terminal_clear_scrollback"),
                         Message::TerminalClearScrollback(pane_id),
                         OryxisColors::t().text_secondary,
-                    ),
-                ]
-                .into()
+                    ));
+                items.into()
             }
         };
 

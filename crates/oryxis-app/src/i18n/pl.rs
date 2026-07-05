@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "Menu kontekstowe",
         "right_click_paste" => "Wklej",
         "right_click_extend" => "Rozszerz zaznaczenie",
+        "terminal_copy" => "Kopiuj",
         "terminal_copy_all" => "Kopiuj wszystko",
         "terminal_paste" => "Wklej",
         "terminal_clear_scrollback" => "Wyczyść bufor przewijania",

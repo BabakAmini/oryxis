@@ -39,10 +39,12 @@ pub use clipboard::wrap_paste;
 pub use selection::Selection;
 pub use state::TerminalState;
 
-/// Callback for a terminal context-menu request: `(x, y, has_selection)`
-/// -> app message. Aliased so the boxed closure doesn't trip clippy's
-/// complex-type lint at the field.
-type ContextMenuFn<Message> = Box<dyn Fn(f32, f32, bool) -> Message>;
+/// Callback for a terminal context-menu request: `(x, y, selection)` ->
+/// app message, where `selection` is the live selection's text (`None`
+/// when empty). Captured here because the selection lives in the
+/// widget's internal state, out of the app's reach. Aliased so the
+/// boxed closure doesn't trip clippy's complex-type lint at the field.
+type ContextMenuFn<Message> = Box<dyn Fn(f32, f32, Option<String>) -> Message>;
 
 /// What a right-click does in the terminal, the three PuTTY schemes.
 /// The single authority for the gesture: `right_click_copy` (the
@@ -598,11 +600,11 @@ impl<Message> TerminalView<Message> {
     }
 
     /// Wire the context-menu request (fired on right-click when the
-    /// scheme is `Menu`). `f` receives window-absolute (x, y) and
-    /// whether a selection is currently live.
+    /// scheme is `Menu`). `f` receives window-absolute (x, y) and the
+    /// live selection's text (`None` when there is no selection).
     pub fn on_context_menu(
         mut self,
-        f: impl Fn(f32, f32, bool) -> Message + 'static,
+        f: impl Fn(f32, f32, Option<String>) -> Message + 'static,
     ) -> Self {
         self.on_context_menu = Some(Box::new(f));
         self
@@ -1557,12 +1559,21 @@ where
                             // (same coordinate space as every other menu
                             // anchor). `position()` is the viewport point.
                             let abs = cursor.position().unwrap_or_default();
-                            let has_sel = widget_state
+                            // Capture the live selection's text now, so the
+                            // app-rendered "Copy" row can offer it (the
+                            // selection state is unreachable from the app).
+                            let sel_text = widget_state
                                 .selection
                                 .as_ref()
-                                .is_some_and(|s| !s.is_empty());
+                                .filter(|s| !s.is_empty())
+                                .and_then(|sel| {
+                                    self.state.lock().ok().and_then(|state| {
+                                        let t = state.get_selection_text(sel);
+                                        (!t.is_empty()).then_some(t)
+                                    })
+                                });
                             return Some(
-                                CanvasAction::publish(cb(abs.x, abs.y, has_sel)).and_capture(),
+                                CanvasAction::publish(cb(abs.x, abs.y, sel_text)).and_capture(),
                             );
                         }
                         return Some(CanvasAction::capture());

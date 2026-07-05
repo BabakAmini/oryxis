@@ -333,6 +333,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "right_click_menu" => "上下文菜单",
         "right_click_paste" => "粘贴",
         "right_click_extend" => "扩展选择",
+        "terminal_copy" => "复制",
         "terminal_copy_all" => "全部复制",
         "terminal_paste" => "粘贴",
         "terminal_clear_scrollback" => "清除回滚",
