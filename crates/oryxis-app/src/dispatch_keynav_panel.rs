@@ -79,6 +79,39 @@ impl Oryxis {
         ))
     }
 
+    /// Continuation of a Tab press once iced has reported which widget is
+    /// actually focused. Sync the ring index to that widget (a mouse click
+    /// moved focus without touching our index), then walk to the next row.
+    /// `focused == None` leaves the index as-is (nothing focused, so the
+    /// ring is authoritative, e.g. it sits on a non-input row).
+    pub(crate) fn panel_nav_tab_resolved(
+        &mut self,
+        forward: bool,
+        focused: Option<iced::widget::Id>,
+    ) -> Task<Message> {
+        if let Some(id) = focused {
+            let pos = self
+                .keynav
+                .panel_items
+                .borrow()
+                .iter()
+                .position(|a| a.focus.as_ref() == Some(&id));
+            if let Some(idx) = pos {
+                self.keynav.panel_selected = Some(idx);
+                self.keynav.panel_last_row.set(Some(idx));
+            }
+        }
+        // Walk from the (now-synced) index. `None` means the panel recorded
+        // nothing this frame; fall back to the raw focus chain.
+        self.panel_nav_tab(forward).unwrap_or_else(|| {
+            if forward {
+                iced::widget::operation::focus_next()
+            } else {
+                iced::widget::operation::focus_previous()
+            }
+        })
+    }
+
     /// Tab / Shift+Tab over the recorded rows. Returns `None` when
     /// the open panel recorded nothing (caller falls back to the raw
     /// focus chain).

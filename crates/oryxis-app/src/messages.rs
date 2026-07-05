@@ -477,6 +477,14 @@ pub enum Message {
     HideCardMenu,
 
     // Connection editor
+    /// Continuation of a side-panel Tab press: `focused` is the widget
+    /// iced actually has focused (resolved via `find_focused`), so the
+    /// ring index can sync to a mouse-clicked field before walking to the
+    /// next row. `None` = nothing focused (ring authoritative).
+    PanelNavTabResolved {
+        forward: bool,
+        focused: Option<iced::widget::Id>,
+    },
     ShowNewConnection,
     /// Open the host editor seeded as a RemoteDesktop host ("Add remote
     /// desktop" in the + Host menu; only shown when the feature toggle is on).

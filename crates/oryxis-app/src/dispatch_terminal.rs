@@ -848,13 +848,22 @@ impl Oryxis {
                     // isn't a text input). Panels that record nothing
                     // fall back to the old focus-chain walk. See
                     // dispatch_keynav_panel.rs.
-                    if let Some(task) = self.panel_nav_tab(!modifiers.shift()) {
-                        return Ok(task);
+                    //
+                    // First resolve which widget iced actually has focused
+                    // (a mouse click moves focus without touching our ring
+                    // index), so the walk continues from the clicked field
+                    // instead of a stale index. The walk itself happens in
+                    // the `PanelNavTabResolved` handler.
+                    let forward = !modifiers.shift();
+                    if !self.keynav.panel_items.borrow().is_empty() {
+                        return Ok(iced::widget::operation::find_focused().map(
+                            move |focused| Message::PanelNavTabResolved { forward, focused },
+                        ));
                     }
-                    return Ok(if modifiers.shift() {
-                        iced::widget::operation::focus_previous()
-                    } else {
+                    return Ok(if forward {
                         iced::widget::operation::focus_next()
+                    } else {
+                        iced::widget::operation::focus_previous()
                     });
                 }
                 // Settings -> Security password forms open -> Tab /

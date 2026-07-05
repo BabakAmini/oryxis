@@ -33,6 +33,9 @@ impl Oryxis {
             Message::PickOpenChanged(open) => {
                 self.keynav.pick_open = open;
             }
+            Message::PanelNavTabResolved { forward, focused } => {
+                return Ok(self.panel_nav_tab_resolved(forward, focused));
+            }
             // -- Navigation --
             Message::ChangeView(view) => {
                 // Navigating away from the Shortcuts editor cancels
