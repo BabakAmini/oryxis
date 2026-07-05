@@ -5538,6 +5538,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "oryxis-cloud-gcp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "oryxis-cloud",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "oryxis-cloud-gcp-plugin"
+version = "0.1.0"
+dependencies = [
+ "oryxis-cloud",
+ "oryxis-cloud-gcp",
+ "oryxis-plugin-protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "oryxis-cloud-k8s"
 version = "0.1.0"
 dependencies = [
