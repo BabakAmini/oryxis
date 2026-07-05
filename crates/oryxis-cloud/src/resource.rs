@@ -1,13 +1,42 @@
 use serde::{Deserialize, Serialize};
 
 /// Result of a one-shot wizard discovery, the user picks a subset and
-/// imports it. Discovered EC2s become individual hosts; discovered ECS
-/// services / K8s workloads become dynamic groups.
+/// imports it. Discovered EC2s / VMs become individual hosts; discovered
+/// ECS services / K8s workloads become dynamic groups; discovered GKE
+/// clusters become Kubernetes accounts (get-credentials then a k8s
+/// profile) the user can discover workloads in.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DiscoveryResult {
     pub ec2: Vec<DiscoveredEc2>,
     pub ecs_services: Vec<DiscoveredEcsService>,
     pub k8s_workloads: Vec<DiscoveredK8sWorkload>,
+    /// GKE (managed Kubernetes) clusters, populated by the GCP provider.
+    /// `#[serde(default)]` so an older host / a non-GCP plugin that never
+    /// sends this field still deserializes, and an older host ignores it
+    /// from a newer plugin (same forward/back rule as the sync payloads).
+    #[serde(default)]
+    pub gke_clusters: Vec<DiscoveredGkeCluster>,
+}
+
+/// A GKE (managed Kubernetes) cluster surfaced by GCP discovery. Not a
+/// host and not a workload: "adding" it runs
+/// `gcloud container clusters get-credentials` and creates a Kubernetes
+/// account (profile) pointed at the resulting kubeconfig context, after
+/// which the normal K8s workload discovery / dynamic-group flow applies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredGkeCluster {
+    /// Cluster name (the handle `get-credentials` takes).
+    pub name: String,
+    /// Region or zone the cluster lives in (`--location`).
+    pub location: String,
+    /// `RUNNING`, `PROVISIONING`, ... as the provider emits it.
+    pub status: String,
+    /// Total node count across the cluster's node pools.
+    pub node_count: u32,
+    /// The kubeconfig context `get-credentials` will create
+    /// (`gke_<project>_<location>_<name>`), so the UI can dup-check
+    /// against existing k8s profiles before adding.
+    pub context: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -21,7 +21,8 @@ pub mod session;
 pub use error::CloudError;
 pub use registry::{CloudProviderRegistry, RegisteredProvider};
 pub use resource::{
-    DiscoveredEc2, DiscoveredEcsService, DiscoveredHost, DiscoveredK8sWorkload, DiscoveryResult,
+    DiscoveredEc2, DiscoveredEcsService, DiscoveredGkeCluster, DiscoveredHost,
+    DiscoveredK8sWorkload, DiscoveryResult,
 };
 pub use session::SessionPayload;
 

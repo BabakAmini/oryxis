@@ -125,6 +125,7 @@ pub(crate) async fn discover_workloads(
         ec2: Vec::new(),
         ecs_services: Vec::new(),
         k8s_workloads,
+        gke_clusters: Vec::new(),
     })
 }
 

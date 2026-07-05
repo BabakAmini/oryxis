@@ -150,10 +150,15 @@ impl CloudProvider for GcpProvider {
     async fn discover(&self, profile: &CloudProfile) -> Result<DiscoveryResult, CloudError> {
         let cfg = GcpConfig::from_profile(profile);
         let ec2 = discover::discover_instances(&cfg).await?;
+        // GKE clusters ride the same discovery pass. A missing / disabled
+        // Container API surfaces as an error here; that is desired (the
+        // user sees why no clusters showed), so it is NOT swallowed.
+        let gke_clusters = gke::discover_clusters(&cfg).await?;
         Ok(DiscoveryResult {
             ec2,
             ecs_services: Vec::new(),
             k8s_workloads: Vec::new(),
+            gke_clusters,
         })
     }
 

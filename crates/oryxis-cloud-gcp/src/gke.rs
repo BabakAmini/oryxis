@@ -11,7 +11,7 @@
 
 use serde::Deserialize;
 
-use oryxis_cloud::CloudError;
+use oryxis_cloud::{CloudError, DiscoveredGkeCluster};
 
 use crate::{run_gcloud, GcpConfig};
 
@@ -58,6 +58,30 @@ pub async fn list_clusters(cfg: &GcpConfig) -> Result<Vec<GkeCluster>, CloudErro
     )
     .await?;
     parse_clusters(&out)
+}
+
+/// Best-effort GKE cluster discovery for the combined `discover()` pass:
+/// map clusters onto the shared [`DiscoveredGkeCluster`] shape. GKE is
+/// independent of Compute Engine (a project may enable one API but not
+/// the other), so a listing failure (Container API off, no permission)
+/// yields an empty list rather than failing the whole discovery, which
+/// would also hide the Compute VMs. The user simply sees no GKE section.
+pub async fn discover_clusters(cfg: &GcpConfig) -> Result<Vec<DiscoveredGkeCluster>, CloudError> {
+    let clusters = match list_clusters(cfg).await {
+        Ok(c) => c,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let project = cfg.project.as_deref();
+    Ok(clusters
+        .into_iter()
+        .map(|c| DiscoveredGkeCluster {
+            context: context_name(project, &c.location, &c.name),
+            name: c.name,
+            location: c.location,
+            status: c.status,
+            node_count: c.node_count,
+        })
+        .collect())
 }
 
 /// Fetch (merge) a cluster's credentials into the active kubeconfig via
