@@ -75,6 +75,7 @@ impl std::fmt::Display for CloudProviderChoice {
         match self {
             Self::Aws => write!(f, "AWS"),
             Self::K8s => write!(f, "Kubernetes"),
+            Self::Gcp => write!(f, "GCP"),
         }
     }
 }
@@ -86,6 +87,7 @@ impl std::fmt::Display for CloudAuthChoice {
             Self::AccessKey => write!(f, "Access Key"),
             Self::Sso => write!(f, "SSO"),
             Self::Kubeconfig => write!(f, "Kubeconfig"),
+            Self::GcloudCli => write!(f, "gcloud CLI"),
         }
     }
 }

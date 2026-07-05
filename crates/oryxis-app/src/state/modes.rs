@@ -129,12 +129,14 @@ pub enum PluginUiStatus {
 }
 
 /// Cloud provider picked in the wizard. AWS authenticates via named
-/// profile / access key / SSO; Kubernetes via a kubeconfig.
+/// profile / access key / SSO; Kubernetes via a kubeconfig; GCP via the
+/// already-authenticated `gcloud` CLI (scoped to an optional project).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CloudProviderChoice {
     #[default]
     Aws,
     K8s,
+    Gcp,
 }
 
 /// Which kind of `PodSelector` a K8s dynamic group's editor produces.
@@ -174,12 +176,14 @@ impl CloudProviderChoice {
         match self {
             Self::Aws => "aws",
             Self::K8s => "k8s",
+            Self::Gcp => "gcp",
         }
     }
 
     pub fn from_id(s: &str) -> Self {
         match s {
             "k8s" => Self::K8s,
+            "gcp" => Self::Gcp,
             _ => Self::Aws,
         }
     }
@@ -195,6 +199,9 @@ pub enum CloudAuthChoice {
     AccessKey,
     Sso,
     Kubeconfig,
+    /// GCP: the ambient `gcloud` login (`gcloud auth login`); no secret
+    /// stored, just an optional project scope.
+    GcloudCli,
 }
 
 impl CloudAuthChoice {
@@ -204,6 +211,7 @@ impl CloudAuthChoice {
             Self::AccessKey => "access_key",
             Self::Sso => "sso",
             Self::Kubeconfig => "kubeconfig",
+            Self::GcloudCli => "gcloud",
         }
     }
 
@@ -212,6 +220,7 @@ impl CloudAuthChoice {
             "access_key" => Self::AccessKey,
             "sso" => Self::Sso,
             "kubeconfig" => Self::Kubeconfig,
+            "gcloud" => Self::GcloudCli,
             _ => Self::Profile,
         }
     }

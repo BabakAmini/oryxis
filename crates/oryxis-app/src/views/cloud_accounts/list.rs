@@ -232,6 +232,7 @@ impl Oryxis {
                 let provider_label = match cp.provider.as_str() {
                     "aws" => "AWS",
                     "k8s" => "Kubernetes",
+                    "gcp" => "GCP",
                     other => other,
                 };
 

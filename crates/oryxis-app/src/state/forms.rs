@@ -532,6 +532,9 @@ pub(crate) struct CloudForm {
     /// kubeconfig = kubectl's default, blank context = current-context.
     pub kubeconfig_path: String,
     pub context: String,
+    /// GCP project id to scope discovery to. Optional: blank = whatever
+    /// `gcloud config get-value project` resolves (the active project).
+    pub gcp_project: String,
     /// `Some` when editing an existing profile (update in place).
     pub editing_id: Option<Uuid>,
     pub error: Option<String>,

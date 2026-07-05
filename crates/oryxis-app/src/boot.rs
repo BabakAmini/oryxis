@@ -153,6 +153,8 @@ impl Oryxis {
             std::sync::Arc::new(crate::plugins::PluginProvider::new("aws"));
         let k8s_provider =
             std::sync::Arc::new(crate::plugins::PluginProvider::new("k8s"));
+        let gcp_provider =
+            std::sync::Arc::new(crate::plugins::PluginProvider::new("gcp"));
         let plugin_providers = {
             let mut m: std::collections::HashMap<
                 String,
@@ -160,12 +162,14 @@ impl Oryxis {
             > = std::collections::HashMap::new();
             m.insert("aws".to_string(), aws_provider.clone());
             m.insert("k8s".to_string(), k8s_provider.clone());
+            m.insert("gcp".to_string(), gcp_provider.clone());
             m
         };
         let cloud_provider_registry = {
             let mut reg = oryxis_cloud::CloudProviderRegistry::new();
             reg.register(aws_provider.clone());
             reg.register(k8s_provider.clone());
+            reg.register(gcp_provider.clone());
             std::sync::Arc::new(reg)
         };
 

@@ -87,6 +87,7 @@ impl Oryxis {
             let provider_display = match self.cloud_form.provider {
                 CloudProviderChoice::Aws => "AWS",
                 CloudProviderChoice::K8s => "Kubernetes",
+                CloudProviderChoice::Gcp => "GCP",
             };
             let banner_title = format!(
                 "{} {}",
@@ -184,7 +185,11 @@ impl Oryxis {
         // ── Provider picker ── AWS + Kubernetes. Keyboard row:
         // Focusable select: Tab reaches it, Enter/Space open it, the
         // widget owns arrows/Esc while focused (fork support).
-        let provider_options = vec![CloudProviderChoice::Aws, CloudProviderChoice::K8s];
+        let provider_options = vec![
+            CloudProviderChoice::Aws,
+            CloudProviderChoice::K8s,
+            CloudProviderChoice::Gcp,
+        ];
         let provider_pick: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-provider")),
             10.0,
@@ -194,6 +199,7 @@ impl Oryxis {
                 |c| match c {
                     CloudProviderChoice::Aws => "AWS".to_string(),
                     CloudProviderChoice::K8s => "Kubernetes".to_string(),
+                    CloudProviderChoice::Gcp => "GCP".to_string(),
                 },
             )
             .on_select(Message::CloudFormProviderChanged)
@@ -213,6 +219,7 @@ impl Oryxis {
                 CloudAuthChoice::Sso,
             ],
             CloudProviderChoice::K8s => vec![CloudAuthChoice::Kubeconfig],
+            CloudProviderChoice::Gcp => vec![CloudAuthChoice::GcloudCli],
         };
         let auth_pick: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-auth")),
@@ -225,6 +232,7 @@ impl Oryxis {
                     CloudAuthChoice::AccessKey => t("cloud_auth_access_key").to_string(),
                     CloudAuthChoice::Sso => t("cloud_auth_sso").to_string(),
                     CloudAuthChoice::Kubeconfig => t("cloud_auth_kubeconfig").to_string(),
+                    CloudAuthChoice::GcloudCli => t("cloud_auth_gcloud").to_string(),
                 },
             )
             .on_select(Message::CloudFormAuthKindChanged)
@@ -508,6 +516,36 @@ impl Oryxis {
                 ),
                 Space::new().height(4),
                 text(t("cloud_k8s_context_hint"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted),
+            ]
+            .into(),
+            CloudAuthChoice::GcloudCli => column![
+                // GCP uses the ambient gcloud login; no secret here, just
+                // an optional project scope.
+                text(t("cloud_gcp_login_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(14),
+                text(t("cloud_gcp_project"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-gcp-project",
+                    )),
+                    10.0,
+                    text_input(t("cloud_gcp_project_ph"), &self.cloud_form.gcp_project)
+                        .id(iced::widget::Id::new("panel-cloud-gcp-project"))
+                        .on_input(Message::CloudFormGcpProjectChanged)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style)
+                        .align_x(dir_align_x())
+                        .into(),
+                ),
+                Space::new().height(4),
+                text(t("cloud_gcp_project_hint"))
                     .size(10)
                     .color(OryxisColors::t().text_muted),
             ]

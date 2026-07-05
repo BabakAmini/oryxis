@@ -382,10 +382,22 @@ impl Oryxis {
         let ec2_collapsed = self.cloud_discover_collapsed.contains("ec2");
         let show_ec2_section = filtered_count > 0;
         if show_ec2_section {
+            // Provider-aware section title: the VM family is "EC2" on AWS
+            // but "Instances" (Compute Engine) on GCP, both flow through
+            // the shared `result.ec2`. Resolve from the profile being
+            // discovered; default to the generic "Instances".
+            let vm_label = match self
+                .cloud_discover_profile_id
+                .and_then(|id| self.cloud_profiles.iter().find(|p| p.id == id))
+                .map(|p| p.provider.as_str())
+            {
+                Some("aws") => "EC2",
+                _ => "Instances",
+            };
             let header_text = if needle.is_empty() {
-                format!("EC2 ({})", result.ec2.len())
+                format!("{vm_label} ({})", result.ec2.len())
             } else {
-                format!("EC2 ({} / {})", filtered_count, result.ec2.len())
+                format!("{vm_label} ({} / {})", filtered_count, result.ec2.len())
             };
             // Collapsible headers are keyboard rows too, so the whole
             // checklist can be driven without the mouse.

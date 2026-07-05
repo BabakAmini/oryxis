@@ -1363,6 +1363,8 @@ pub enum Message {
     /// Kubernetes (Kubeconfig) auth fields.
     CloudFormKubeconfigPathChanged(String),
     CloudFormContextChanged(String),
+    /// GCP project id field in the cloud wizard.
+    CloudFormGcpProjectChanged(String),
     /// Kicks off a `test_credentials` round-trip via the registered
     /// provider. The result lands as `CloudFormTestResult`.
     CloudFormTestCredentials,
