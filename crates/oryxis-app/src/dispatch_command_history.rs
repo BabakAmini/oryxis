@@ -169,21 +169,32 @@ impl Oryxis {
     /// that must write directly (the AI tool-exec path needs the write's
     /// success) but still wants the bytes mirrored into the history capture.
     pub(crate) fn feed_input_capture(&mut self, tab_idx: usize, bytes: &[u8]) {
-        if !self.setting_command_history {
+        // Smart tabs reuses the capture to label a running command with
+        // its command line, so the mirror runs for either feature. The
+        // capture itself is origin-agnostic and secret-safe by
+        // construction; only the vault write below needs a saved host.
+        let want_history = self.setting_command_history;
+        let want_smart = self.setting_smart_tabs;
+        if !want_history && !want_smart {
             return;
         }
         let mut captured: Vec<(Uuid, String)> = Vec::new();
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             let pane = tab.active_mut();
+            let host = match &pane.origin {
+                crate::state::PaneOrigin::Host(hid) => Some(*hid),
+                _ => None,
+            };
+            let cmds = crate::command_capture::observe_input(pane, bytes);
+            // The next OSC 133 OutputStart adopts this as the command
+            // that just started running.
+            if want_smart && let Some(cmd) = cmds.last() {
+                pane.last_submitted = Some(cmd.clone());
+            }
             // Only saved hosts get history (quick-connect / local / cloud
             // panes have no persistable identity to key it on).
-            if let crate::state::PaneOrigin::Host(hid) = &pane.origin {
-                let hid = *hid;
-                captured.extend(
-                    crate::command_capture::observe_input(pane, bytes)
-                        .into_iter()
-                        .map(|cmd| (hid, cmd)),
-                );
+            if want_history && let Some(hid) = host {
+                captured.extend(cmds.into_iter().map(|cmd| (hid, cmd)));
             }
         }
         for (host, cmd) in captured {

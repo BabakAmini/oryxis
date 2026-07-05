@@ -689,6 +689,34 @@ impl Oryxis {
                     self.persist_setting("terminal_notification", mode.code());
                 }
             }
+            Message::SettingToggleSmartTabs => {
+                self.setting_smart_tabs = !self.setting_smart_tabs;
+                self.persist_setting(
+                    "smart_tabs",
+                    if self.setting_smart_tabs { "true" } else { "false" },
+                );
+                // Turning it off retires any attention already raised;
+                // stale dots surviving the toggle would contradict the
+                // "all its UI hidden when off" rule.
+                if !self.setting_smart_tabs {
+                    for tab in &mut self.tabs {
+                        for pane in tab.pane_grid.panes.values_mut() {
+                            pane.attention = None;
+                            pane.running_cmd = None;
+                            pane.last_submitted = None;
+                        }
+                    }
+                }
+            }
+            Message::SmartTabsThresholdChanged(label) => {
+                if let Some((secs, _)) = crate::smart_tabs::threshold_options()
+                    .into_iter()
+                    .find(|(_, l)| *l == label)
+                {
+                    self.setting_smart_long_secs = secs;
+                    self.persist_setting("smart_tabs_long_seconds", &secs.to_string());
+                }
+            }
             Message::AppThemeChanged(name) => {
                 if self.apply_app_theme_name(&name) {
                     self.active_app_theme_name = name.clone();

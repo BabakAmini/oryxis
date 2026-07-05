@@ -425,12 +425,28 @@ impl Oryxis {
                 let mut pending_notification: Option<String> = None;
                 let capture_enabled = self.setting_command_history;
                 let log_full = self.setting_session_log_full;
+                // Smart tabs: policy snapshots taken before the tabs borrow.
+                let smart_enabled = self.setting_smart_tabs;
+                let smart_long = self.setting_smart_long_secs;
+                let active_tab = self.active_tab;
+                // "Watched" needs the terminal view on screen: an active
+                // tab is invisible while the user sits in the Dashboard /
+                // Settings, so it must still collect attention there.
+                let in_terminal_view =
+                    self.active_view == crate::state::View::Terminal;
+                // (pane label, full body, redacted body) triples raised by
+                // smart tabs this batch, delivered after the borrow ends
+                // (Privacy Mode is resolved per pane at delivery).
+                let mut smart_notifications: Vec<(String, String, String)> = Vec::new();
                 let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
-                if let Some(pane) = self
+                if let Some((tab_idx, pane)) = self
                     .tabs
                     .iter_mut()
-                    .flat_map(|t| t.pane_grid.panes.values_mut())
-                    .find(|p| p.id == pane_id)
+                    .enumerate()
+                    .flat_map(|(ti, t)| {
+                        t.pane_grid.panes.values_mut().map(move |p| (ti, p))
+                    })
+                    .find(|(_, p)| p.id == pane_id)
                 {
                     let mut sync_deadline = None;
                     let mut new_title = None;
@@ -463,10 +479,52 @@ impl Oryxis {
                                 &state,
                                 &new_marks,
                             );
+                            // A capture resolved at this batch's OutputStart
+                            // (paste with trailing newline) is the command
+                            // that just started: label its run with it.
+                            if smart_enabled && let Some(cmd) = cmds.last() {
+                                pane.last_submitted = Some(cmd.clone());
+                            }
                             if capture_enabled
                                 && let crate::state::PaneOrigin::Host(hid) = &pane.origin
                             {
                                 captured_cmds.extend(cmds.into_iter().map(|c| (*hid, c)));
+                            }
+                            // Smart tabs: the same marks drive command
+                            // start/end timing. A command that ran past the
+                            // threshold and finished on a tab the user was
+                            // not watching earns an attention dot + a
+                            // notification.
+                            if smart_enabled {
+                                let now = std::time::Instant::now();
+                                let watched = win_focused
+                                    && in_terminal_view
+                                    && active_tab == Some(tab_idx);
+                                for f in crate::smart_tabs::observe_marks(
+                                    &mut pane.running_cmd,
+                                    &mut pane.last_submitted,
+                                    &new_marks,
+                                    now,
+                                ) {
+                                    if smart_long > 0
+                                        && f.elapsed.as_secs() >= u64::from(smart_long)
+                                        && !watched
+                                    {
+                                        crate::smart_tabs::raise_attention(
+                                            &mut pane.attention,
+                                            if f.failed() {
+                                                crate::smart_tabs::TabAttention::FinishedFail
+                                            } else {
+                                                crate::smart_tabs::TabAttention::FinishedOk
+                                            },
+                                        );
+                                        smart_notifications.push((
+                                            pane.label.clone(),
+                                            crate::smart_tabs::finished_body(&f, true),
+                                            crate::smart_tabs::finished_body(&f, false),
+                                        ));
+                                    }
+                                }
                             }
                         }
                         // OSC 9 notification text + OSC 9;4 progress.
@@ -475,6 +533,41 @@ impl Oryxis {
                     }
                     // OSC 9;4 progress (state 0 = clear) drives the tab border.
                     pane.progress = new_progress.filter(|p| p.state != 0 && p.value > 0);
+                    // Smart tabs, quiet-period half: runs on EVERY batch
+                    // (marks or not) so the silence clock stays honest, and
+                    // covers hosts without shell integration. Output after
+                    // [`QUIET_PERIOD`] on an unwatched pane is "activity";
+                    // the notification fires only on the dot's rising edge
+                    // so a chatty background pane can't spam.
+                    if smart_enabled {
+                        let now = std::time::Instant::now();
+                        let watched = win_focused
+                            && in_terminal_view
+                            && active_tab == Some(tab_idx);
+                        let was_quiet =
+                            crate::smart_tabs::quiet_activity(&mut pane.last_output, now);
+                        if watched {
+                            // Viewing the tab consumes its attention; this
+                            // lazy clear backs up the explicit ones on
+                            // SelectTab / window refocus, catching every
+                            // other activation path as soon as bytes flow.
+                            pane.attention = None;
+                        } else if was_quiet
+                            && crate::smart_tabs::raise_attention(
+                                &mut pane.attention,
+                                crate::smart_tabs::TabAttention::Activity,
+                            )
+                        {
+                            // Activity carries no command text; only the
+                            // pane label differs under Privacy Mode.
+                            let body = crate::i18n::t("smart_activity").to_string();
+                            smart_notifications.push((
+                                pane.label.clone(),
+                                body.clone(),
+                                body,
+                            ));
+                        }
+                    }
                     pending_notification = new_notification;
                     if let Some(cwd) = new_cwd {
                         pane.cwd = Some(cwd);
@@ -567,6 +660,39 @@ impl Oryxis {
                             // before you look.
                             toast_shown = win_focused;
                         }
+                    }
+                }
+                // Smart-tab notifications ride the same delivery policy, with
+                // one twist: they only ever fire for a tab the user was NOT
+                // watching, so in OS mode a focused window (background tab)
+                // still gets the in-app toast; the native popup is reserved
+                // for an unfocused window, exactly like OSC 9 above.
+                // Privacy Mode (per pane) surfaces the redacted body and
+                // drops the pane identity: the OS notification center keeps
+                // plaintext around, and the terminal's masking is
+                // render-only, so it must not be sidestepped here.
+                for (label, body, redacted) in smart_notifications {
+                    let private = self.privacy_active_for_label(&label);
+                    let (title, text) = if private {
+                        ("Oryxis".to_string(), redacted)
+                    } else {
+                        (label, body)
+                    };
+                    let show_toast = match notif_mode {
+                        crate::util::NotificationMode::Off => false,
+                        crate::util::NotificationMode::Toast => true,
+                        crate::util::NotificationMode::Os => {
+                            win_focused
+                                || !crate::util::show_os_notification(&title, &text)
+                        }
+                    };
+                    if show_toast {
+                        self.toast = Some(if private {
+                            text
+                        } else {
+                            format!("{title} \u{b7} {text}")
+                        });
+                        toast_shown = win_focused;
                     }
                 }
                 // Session-group per-pane startup script for LOCAL panes. SSH

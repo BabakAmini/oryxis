@@ -965,6 +965,12 @@ pub enum Message {
     /// OSC 9 notification surfacing changed from the settings pick
     /// (localized "Off / Toast / OS" label).
     NotificationModeChanged(String),
+    /// Smart tabs (attention dots + long-command / activity
+    /// notifications) toggled in Settings > Terminal.
+    SettingToggleSmartTabs,
+    /// Smart-tabs long-command threshold changed from the settings pick
+    /// (display label; resolved via `smart_tabs::threshold_options`).
+    SmartTabsThresholdChanged(String),
     /// Clear a pane's visual-bell flash after its short display window.
     TerminalBellFlashEnd(Uuid),
     ToggleKeywordHighlight,

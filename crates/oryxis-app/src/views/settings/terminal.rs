@@ -4,6 +4,29 @@ use super::*;
 use iced::widget::column;
 
 impl Oryxis {
+    /// Long-command threshold pick for smart tabs, shown only while the
+    /// smart-tabs toggle is on (an off feature hides all of its UI).
+    fn smart_tabs_threshold_row(&self) -> Element<'_, Message> {
+        if !self.setting_smart_tabs {
+            return Space::new().height(0).into();
+        }
+        column![
+            Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("smart_tabs_threshold"),
+                crate::smart_tabs::threshold_options()
+                    .into_iter()
+                    .map(|(_, l)| l)
+                    .collect::<Vec<_>>(),
+                crate::smart_tabs::threshold_label(self.setting_smart_long_secs),
+                |s: &String| s.clone(),
+                200.0,
+                Message::SmartTabsThresholdChanged,
+            ),
+        ]
+        .into()
+    }
+
     /// Sub-row for the command-log folder, shown only while the
     /// live-append toggle is on: the effective folder (default
     /// `~/.oryxis/command-history/`) with a Change button, indented
@@ -269,6 +292,9 @@ impl Oryxis {
                 200.0,
                 Message::NotificationModeChanged,
             ),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::SettingToggleSmartTabs),
+            self.smart_tabs_threshold_row(),
         ]);
 
         // The +/- stepper maps naturally onto the picker action:

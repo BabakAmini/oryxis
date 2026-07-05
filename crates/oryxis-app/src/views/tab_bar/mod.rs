@@ -490,6 +490,30 @@ impl Oryxis {
             } else {
                 None
             };
+            // Smart-tabs attention dot (top-right corner of the badge):
+            // the highest-priority cause across the tab's panes. Viewing
+            // the tab clears the state, so an active watched tab never
+            // carries one.
+            let attention_dot: Option<Color> = if self.setting_smart_tabs {
+                tab.pane_grid
+                    .panes
+                    .values()
+                    .filter_map(|p| p.attention)
+                    .max()
+                    .map(|a| match a {
+                        crate::smart_tabs::TabAttention::Activity => {
+                            OryxisColors::t().accent
+                        }
+                        crate::smart_tabs::TabAttention::FinishedOk => {
+                            OryxisColors::t().success
+                        }
+                        crate::smart_tabs::TabAttention::FinishedFail => {
+                            OryxisColors::t().error
+                        }
+                    })
+            } else {
+                None
+            };
             // Session-group tabs carry the group's own icon + color.
             let session_group = tab
                 .session_group_id
@@ -543,6 +567,7 @@ impl Oryxis {
                     tab_icon,
                     tab_badge_color,
                     status_dot,
+                    attention_dot,
                     solid_fill,
                 ));
             } else {
@@ -556,6 +581,7 @@ impl Oryxis {
                     width,
                     self.setting_tab_close_button_side == "right",
                     status_dot,
+                    attention_dot,
                     tab_accent,
                     host_icon_style,
                     tab_icon,

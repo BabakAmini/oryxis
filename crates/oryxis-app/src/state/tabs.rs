@@ -201,6 +201,21 @@ pub(crate) struct Pane {
     /// Latest OSC 9;4 progress the shell reported, drawn as a growing border
     /// around the tab. `None` (or state 0) means no active progress.
     pub progress: Option<oryxis_terminal::Progress>,
+    /// Smart tabs: the command currently running here, stamped at the OSC
+    /// 133 `OutputStart` mark and resolved at `CommandEnd` / next prompt.
+    /// Only integrated hosts ever set one. Cleared on disconnect (a dead
+    /// transport voids any in-flight timing).
+    pub running_cmd: Option<crate::smart_tabs::CommandRun>,
+    /// Smart tabs: the last command line the input capture saw submitted,
+    /// consumed by the next `OutputStart` to label `running_cmd`.
+    pub last_submitted: Option<String>,
+    /// Smart tabs: why this pane's tab wants the user's eye (attention
+    /// dot on the tab strip); the tab shows its panes' highest-priority
+    /// cause. Cleared when the tab is viewed.
+    pub attention: Option<crate::smart_tabs::TabAttention>,
+    /// Instant of the last PTY output batch, driving the quiet-period
+    /// (output-after-silence) detection.
+    pub last_output: Option<std::time::Instant>,
     /// ZMODEM initiation sniffer, fed every output batch while NOT already
     /// transferring. Cheap (a few bytes of held-back state); it flags a
     /// `sz` / `rz` on the remote and hands over the byte stream.
@@ -290,6 +305,10 @@ impl Pane {
             input_tracker: oryxis_terminal::InputTracker::new(),
             pending_capture: None,
             progress: None,
+            running_cmd: None,
+            last_submitted: None,
+            attention: None,
+            last_output: None,
             zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
             zmodem: None,
             mouse_hint_shown: false,

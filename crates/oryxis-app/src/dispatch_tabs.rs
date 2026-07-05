@@ -311,6 +311,18 @@ impl Oryxis {
             Message::WindowFocusChanged(focused) => {
                 self.window_focused = focused;
                 if focused {
+                    // Refocusing the window means the active tab is being
+                    // looked at again, IF the terminal view is on screen
+                    // (returning to the Dashboard / Settings views doesn't
+                    // show it): its smart-tab attention is consumed.
+                    if self.active_view == View::Terminal
+                        && let Some(at) = self.active_tab
+                        && let Some(tab) = self.tabs.get_mut(at)
+                    {
+                        for pane in tab.pane_grid.panes.values_mut() {
+                            pane.attention = None;
+                        }
+                    }
                     // Restore any SSM/ECS terminal the keepalive may have
                     // left at `rows - 1` (it nudges and lets the next
                     // draw snap back, but no draw fires while the tab is
@@ -633,6 +645,11 @@ impl Oryxis {
                     self.active_tab = Some(idx);
                     self.remember_terminal_tab_focus(idx);
                     self.active_view = View::Terminal;
+                    // Viewing the tab consumes its smart-tab attention dot
+                    // (every pane: a split shows them all at once).
+                    for pane in self.tabs[idx].pane_grid.panes.values_mut() {
+                        pane.attention = None;
+                    }
                     // The History tab is per-host; follow the tab switch.
                     if self.terminal_sidebar_tab
                         == crate::state::TerminalSidebarTab::History

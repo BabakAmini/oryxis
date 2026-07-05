@@ -7,6 +7,25 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Smart tabs.** Background tabs now tell you when they need you,
+  built on the same OSC 133 shell-integration marks as the command
+  history capture. A command that ran past a configurable threshold
+  (Settings > Terminal, default 10 s) and finished while you were
+  looking elsewhere earns an attention dot on the tab's badge (green
+  for success, red for a nonzero exit code) plus a notification with
+  the command line and its duration, delivered through the existing
+  notification policy (in-app toast while the window is focused,
+  native OS notification while it is not). Hosts without shell
+  integration are covered by a quiet-period heuristic: output arriving
+  after 30 s of silence on an unwatched tab marks it with an activity
+  dot (the `tail -f` / long-build resuming case), notifying once per
+  silence instead of per line. Viewing the tab clears its dot; sitting
+  in the Dashboard or Settings counts as not watching, so the terminal
+  keeps collecting attention behind those views. Under Privacy Mode
+  the notification drops the command line and the host identity (the
+  OS notification center persists plaintext, and command arguments can
+  carry secrets). The whole feature is a Settings > Terminal toggle
+  (on by default).
 - **Remote desktop (RDP / VNC), optionally through an SSH gateway.** A
   first-class remote-desktop host: its address/port are the desktop
   endpoint and its username/password the desktop login. It reaches the

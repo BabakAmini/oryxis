@@ -671,6 +671,11 @@ impl Oryxis {
                         // and the pane resumes (typable) instead of being
                         // stranded as a dead sink behind a frozen card.
                         p.zmodem = None;
+                        // A dead transport voids any in-flight command
+                        // timing: the reconnect prompt would otherwise
+                        // "finish" it with a duration spanning the outage.
+                        p.running_cmd = None;
+                        p.last_submitted = None;
                         p.session_log_id
                     });
                     if let Some(log_id) = log_id

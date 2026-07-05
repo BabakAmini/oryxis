@@ -935,6 +935,15 @@ pub struct Oryxis {
     /// How an OSC 9 shell notification is surfaced: off / in-app toast / OS.
     /// Persisted as `terminal_notification`; default OS.
     pub(crate) setting_notification_mode: crate::util::NotificationMode,
+    /// Smart tabs: OSC 133-driven attention dots on background tabs plus
+    /// long-command-finished / output-after-silence notifications
+    /// (delivered per `setting_notification_mode`). Persisted as
+    /// `smart_tabs`; default on.
+    pub(crate) setting_smart_tabs: bool,
+    /// Minimum runtime (seconds) before a finished command earns a dot +
+    /// notification; `0` turns the finished half off (activity detection
+    /// stays). Persisted as `smart_tabs_long_seconds`; default 10.
+    pub(crate) setting_smart_long_secs: u32,
     /// Toggles the bottom status bar that shows current connection IP +
     /// Oryxis version. Off in `view_main` simply skips rendering it,
     /// reclaiming the row for the active content area.

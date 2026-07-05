@@ -253,6 +253,10 @@ pub(crate) fn session_tab<'a>(
     width: f32,
     close_on_right: bool,
     status_dot: Option<Color>,
+    // Smart-tabs attention (finished / failed / activity on a background
+    // tab), drawn as a dot on the badge's top-right corner so it can
+    // coexist with the connection-state dot at the bottom-right.
+    attention_dot: Option<Color>,
     host_accent: Option<Color>,
     host_icon_style: crate::widgets::HostIconStyle,
     // Session-group tabs override the OS-derived badge with the icon + color
@@ -334,29 +338,20 @@ pub(crate) fn session_tab<'a>(
         let base = container(base)
             .center_x(Length::Fixed(TAB_ICON_SLOT))
             .center_y(Length::Fixed(TAB_ICON_SLOT));
-        // Status dot (bottom-right) stacked over the badge says the
-        // connection state. The split pane-count is a separate inline chip
+        // Corner dots stacked over the badge: connection state keeps the
+        // bottom-right, smart-tabs attention takes the top-right, so both
+        // can show at once. The split pane-count is a separate inline chip
         // after the icon (built below), so it stays legible instead of
         // crowding the glyph.
-        if let Some(dot_color) = status_dot {
-            let dot_disc = container(Space::new().width(7).height(7))
-                .style(move |_| container::Style {
-                    background: Some(Background::Color(dot_color)),
-                    border: Border {
-                        radius: Radius::from(4.0),
-                        color: OryxisColors::t().bg_sidebar,
-                        width: 1.5,
-                    },
-                    ..Default::default()
-                });
-            let dot_pin = container(dot_disc)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(iced::alignment::Horizontal::Right)
-                .align_y(iced::alignment::Vertical::Bottom);
-            iced::widget::Stack::new()
-                .push(base)
-                .push(dot_pin)
+        if status_dot.is_some() || attention_dot.is_some() {
+            let mut stack = iced::widget::Stack::new().push(base);
+            if let Some(c) = status_dot {
+                stack = stack.push(corner_dot(c, 7.0, 1.5, iced::alignment::Vertical::Bottom));
+            }
+            if let Some(c) = attention_dot {
+                stack = stack.push(corner_dot(c, 7.0, 1.5, iced::alignment::Vertical::Top));
+            }
+            stack
                 .width(Length::Fixed(TAB_ICON_SLOT))
                 .height(Length::Fixed(TAB_ICON_SLOT))
                 .into()
@@ -630,6 +625,35 @@ impl iced::widget::canvas::Program<Message, iced::Theme> for TabProgressBorder {
     }
 }
 
+/// A small filled disc pinned to a right corner of the badge slot,
+/// ringed with the sidebar background so it pops off the glyph under it.
+/// Physical right on purpose: badges and their dots don't mirror under
+/// RTL (same rule as the OS glyph itself).
+fn corner_dot<'a>(
+    color: Color,
+    size: f32,
+    ring: f32,
+    y: iced::alignment::Vertical,
+) -> Element<'a, Message> {
+    let disc = container(Space::new().width(size).height(size)).style(move |_| {
+        container::Style {
+            background: Some(Background::Color(color)),
+            border: Border {
+                radius: Radius::from(size),
+                color: OryxisColors::t().bg_sidebar,
+                width: ring,
+            },
+            ..Default::default()
+        }
+    });
+    container(disc)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
+        .align_y(y)
+        .into()
+}
+
 /// Compact (Chrome-style) pinned tab: an icon-only chip at a fixed width,
 /// with the same OS / host / session-group badge as a full tab. Select on
 /// click, right-click opens the same context menu (to unpin, etc.).
@@ -643,6 +667,7 @@ pub(crate) fn pinned_tab_chip<'a>(
     custom_icon: Option<&'a str>,
     custom_color: Option<Color>,
     status_dot: Option<Color>,
+    attention_dot: Option<Color>,
     solid_fill: bool,
 ) -> Element<'a, Message> {
     let accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
@@ -654,24 +679,19 @@ pub(crate) fn pinned_tab_chip<'a>(
     };
     let glyph_el: Element<'_, Message> = glyph.view(13.0, Color::WHITE);
     let base = crate::widgets::host_icon(host_icon_style, badge_color, "", Some(glyph_el), TAB_ICON_SLOT);
-    let badge: Element<'_, Message> = if let Some(dot_color) = status_dot {
-        let dot_disc = container(Space::new().width(6).height(6)).style(move |_| container::Style {
-            background: Some(Background::Color(dot_color)),
-            border: Border { radius: Radius::from(3.0), color: OryxisColors::t().bg_sidebar, width: 1.0 },
-            ..Default::default()
-        });
-        let dot_pin = container(dot_disc)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Right)
-            .align_y(iced::alignment::Vertical::Bottom);
-        iced::widget::Stack::new()
-            .push(
-                container(base)
-                    .center_x(Length::Fixed(TAB_ICON_SLOT))
-                    .center_y(Length::Fixed(TAB_ICON_SLOT)),
-            )
-            .push(dot_pin)
+    let badge: Element<'_, Message> = if status_dot.is_some() || attention_dot.is_some() {
+        let mut stack = iced::widget::Stack::new().push(
+            container(base)
+                .center_x(Length::Fixed(TAB_ICON_SLOT))
+                .center_y(Length::Fixed(TAB_ICON_SLOT)),
+        );
+        if let Some(c) = status_dot {
+            stack = stack.push(corner_dot(c, 6.0, 1.0, iced::alignment::Vertical::Bottom));
+        }
+        if let Some(c) = attention_dot {
+            stack = stack.push(corner_dot(c, 6.0, 1.0, iced::alignment::Vertical::Top));
+        }
+        stack
             .width(Length::Fixed(TAB_ICON_SLOT))
             .height(Length::Fixed(TAB_ICON_SLOT))
             .into()
