@@ -143,6 +143,12 @@ pub(crate) struct PaneFiles {
     /// Current directory (absolute remote POSIX path). Empty until the
     /// first listing lands.
     pub path: String,
+    /// The session's home directory, resolved at mount. Expands the
+    /// `~`-relative cwd the OSC 0/2 title fallback produces.
+    pub home: Option<String>,
+    /// In-progress manual path edit (the header path is clickable,
+    /// mirroring the SFTP pane's path editing); `None` = display mode.
+    pub path_editing: Option<String>,
     /// Entries of `path`, sorted dirs-first / name-insensitive.
     pub entries: Vec<SftpEntry>,
     /// True while a `list_dir` (navigation or cwd follow) is in flight.
@@ -174,6 +180,8 @@ impl PaneFiles {
         self.client = None;
         self.mounting = false;
         self.path.clear();
+        self.home = None;
+        self.path_editing = None;
         self.entries.clear();
         self.loading = false;
         self.req_seq += 1;
@@ -243,9 +251,16 @@ pub(crate) struct Pane {
     /// Flash). Set when the shell rings, cleared by a short
     /// `TerminalBellFlashEnd` timer; drives a brief overlay in the widget.
     pub bell_flash: bool,
-    /// Working directory the shell last reported via OSC 7. Used so a new
-    /// local shell can open in the focused pane's directory.
+    /// Working directory the shell last reported via OSC 7, or (fallback)
+    /// parsed from the OSC 0/2 title when the shell has no OSC 7
+    /// integration (default Debian/Ubuntu PS1 titles `\u@\h: \w`, so the
+    /// title carries the cwd, possibly `~`-relative). Used by the sidebar
+    /// Files follow and so a new local shell can open in the focused
+    /// pane's directory.
     pub cwd: Option<String>,
+    /// True once a real OSC 7 report arrived; from then on the title
+    /// fallback is ignored (OSC 7 is exact, titles are a heuristic).
+    pub cwd_from_osc7: bool,
     /// Where the remote shell stands in the OSC 133 prompt cycle, driven by
     /// the marks drained per output batch. Gates the command-history capture:
     /// only input submitted while `AtPrompt` can be a command; everything
@@ -365,6 +380,7 @@ impl Pane {
             osc_title: None,
             bell_flash: false,
             cwd: None,
+            cwd_from_osc7: false,
             prompt: PromptState::NoIntegration,
             input_tracker: oryxis_terminal::InputTracker::new(),
             pending_capture: None,

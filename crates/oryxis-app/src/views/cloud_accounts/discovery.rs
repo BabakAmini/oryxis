@@ -838,12 +838,126 @@ impl Oryxis {
             }
         }
 
+        // GKE clusters: not batch-imported like the checklists above.
+        // Each cluster is "added" individually, which fetches its
+        // kubeconfig (get-credentials) and creates a Kubernetes account
+        // pointed at it, after which the user discovers workloads there.
+        let gke_filtered: Vec<&oryxis_cloud::DiscoveredGkeCluster> = result
+            .gke_clusters
+            .iter()
+            .filter(|c| {
+                needle.is_empty()
+                    || format!("{} {} {}", c.name, c.location, c.status)
+                        .to_lowercase()
+                        .contains(&needle)
+            })
+            .collect();
+        if !gke_filtered.is_empty() {
+            // Dup-guard: a k8s profile already pointed at a cluster's
+            // context means it's been added; show it greyed instead of
+            // minting a duplicate on a second Add.
+            let existing_contexts: std::collections::HashSet<String> = self
+                .cloud_profiles
+                .iter()
+                .filter(|p| p.provider == "k8s")
+                .filter_map(|p| {
+                    serde_json::from_str::<serde_json::Value>(&p.config)
+                        .ok()?
+                        .get("context")?
+                        .as_str()
+                        .map(str::to_string)
+                })
+                .collect();
+            sections.push(Space::new().height(8).into());
+            let gke_header = if needle.is_empty() {
+                format!("{} ({})", t("cloud_gke_clusters"), result.gke_clusters.len())
+            } else {
+                format!(
+                    "{} ({} / {})",
+                    t("cloud_gke_clusters"),
+                    gke_filtered.len(),
+                    result.gke_clusters.len()
+                )
+            };
+            let gke_collapsed = self.cloud_discover_collapsed.contains("gke");
+            sections.push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                    "gke".to_string(),
+                )),
+                4.0,
+                section_header("gke", &gke_header, gke_collapsed),
+            ));
+            sections.push(Space::new().height(6).into());
+            if !gke_collapsed {
+                for c in gke_filtered {
+                    let added = existing_contexts.contains(&c.context);
+                    let info = format!(
+                        "{}  ·  {}  ·  {} node(s)  ·  {}",
+                        c.name, c.location, c.node_count, c.status
+                    );
+                    let row_el: Element<'_, Message> = if added {
+                        text(format!("{info}  ·  {}", t("cloud_discover_already_imported")))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted)
+                            .into()
+                    } else {
+                        let add_msg = Message::CloudDiscoverAddGke {
+                            cluster: c.name.clone(),
+                            location: c.location.clone(),
+                        };
+                        dir_row(vec![
+                            text(info)
+                                .size(11)
+                                .color(OryxisColors::t().text_secondary)
+                                .width(Length::Fill)
+                                .into(),
+                            self.panel_nav_slot(
+                                crate::keynav::RowAction::activate(add_msg.clone()),
+                                4.0,
+                                button(
+                                    text(t("cloud_gke_add"))
+                                        .size(11)
+                                        .color(OryxisColors::t().text_primary),
+                                )
+                                .on_press(add_msg)
+                                .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
+                                .style(|_, status| {
+                                    let bg = match status {
+                                        BtnStatus::Hovered | BtnStatus::Pressed => {
+                                            OryxisColors::t().bg_hover
+                                        }
+                                        _ => OryxisColors::t().bg_surface,
+                                    };
+                                    button::Style {
+                                        background: Some(Background::Color(bg)),
+                                        border: Border {
+                                            radius: Radius::from(4.0),
+                                            width: 1.0,
+                                            color: OryxisColors::t().border,
+                                        },
+                                        ..Default::default()
+                                    }
+                                })
+                                .into(),
+                            ),
+                        ])
+                        .align_y(iced::Alignment::Center)
+                        .into()
+                    };
+                    sections.push(row_el);
+                    sections.push(Space::new().height(2).into());
+                }
+                sections.push(Space::new().height(8).into());
+            }
+        }
+
         // Both sections hid themselves under the active filter, show
         // a friendly hint instead of an empty scroll area so the
         // panel doesn't read as "broken".
         if !show_ec2_section
             && ecs_filtered.is_empty()
             && k8s_filtered.is_empty()
+            && gke_filtered.is_empty()
             && !needle.is_empty()
         {
             sections.push(

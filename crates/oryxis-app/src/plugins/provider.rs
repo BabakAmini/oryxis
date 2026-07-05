@@ -16,9 +16,9 @@ use oryxis_cloud::{
     DiscoveryResult, SessionPayload, TransportKind,
 };
 use oryxis_plugin_protocol::{
-    Discover, ProfileParams, PushInstanceConnectKey, PushInstanceConnectKeyParams, ResolveQuery,
-    ResolveQueryParams, StartEcsExec, StartEcsExecParams, StartSsmSession, StartSsmSessionParams,
-    TestCredentials,
+    Discover, GkeGetCredentials, GkeGetCredentialsParams, ProfileParams, PushInstanceConnectKey,
+    PushInstanceConnectKeyParams, ResolveQuery, ResolveQueryParams, StartEcsExec,
+    StartEcsExecParams, StartSsmSession, StartSsmSessionParams, TestCredentials,
 };
 
 use super::cache;
@@ -218,6 +218,22 @@ impl CloudProvider for PluginProvider {
                 instance_id: instance_id.to_string(),
                 os_user: os_user.to_string(),
                 public_key: public_key.to_string(),
+            })
+            .await
+            .map_err(plugin_err_to_cloud)
+    }
+
+    async fn gke_get_credentials(
+        &self,
+        profile: &CloudProfile,
+        cluster: &str,
+        location: &str,
+    ) -> Result<String, CloudError> {
+        self.host
+            .call::<GkeGetCredentials>(GkeGetCredentialsParams {
+                profile: profile.clone(),
+                cluster: cluster.to_string(),
+                location: location.to_string(),
             })
             .await
             .map_err(plugin_err_to_cloud)

@@ -545,11 +545,22 @@ impl Oryxis {
             let tab_icon = sg_custom_icon.or(lt_icon);
             let tab_badge_color = sg_custom_color.or(lt_color);
             let tab_accent = sg_custom_color.or(lt_color).or(host_accent);
+            // Hybrid mode glyph (issue #61): the chip (>_ terminal /
+            // folder files) only exists once the tab HAS an SFTP session
+            // (owner QA 2026-07-05: a plain SSH tab shows no glyph; the
+            // tab menu's "Open SFTP session" creates it and the toggle
+            // appears). An in-Files-mode tab always keeps it (the way
+            // back), even after a disconnect or feature toggle.
+            let files_mode = self.tab_has_sftp_session(tab).then_some(tab.files_mode);
             if is_dragging {
                 // The dragged tab floats as a ghost following the cursor
                 // (built below); leave a same-width gap here that the other
                 // tabs slide around as the reorder happens.
-                let gap_w = if tab.pinned && compact_pins { CHIP_W } else { width };
+                let gap_w = if tab.pinned && compact_pins {
+                    pinned_chip_width(files_mode)
+                } else {
+                    width
+                };
                 tab_items.push(
                     Space::new()
                         .width(gap_w)
@@ -558,6 +569,8 @@ impl Oryxis {
                 );
             } else if tab.pinned && compact_pins {
                 // Chrome-style: icon-only chip, fixed width, stuck left.
+                // A hybrid chip widens to carry the mode glyph (owner QA:
+                // the pinned form must not lose the toggle).
                 tab_items.push(pinned_tab_chip(
                     idx,
                     detected_os.as_deref(),
@@ -569,27 +582,9 @@ impl Oryxis {
                     status_dot,
                     attention_dot,
                     solid_fill,
+                    files_mode,
                 ));
             } else {
-                // Hybrid mode glyph (issue #61): SSH tabs carry a small
-                // state chip (>_ terminal / folder files) that toggles the
-                // tab between its terminal and its host's files. Hidden
-                // for local / Telnet / serial panes; kept while in Files
-                // mode even if the session drops, so the way back to the
-                // terminal never disappears.
-                // An in-Files-mode tab always keeps the glyph (the way
-                // back), even if SFTP gets toggled off or the session
-                // drops; otherwise the affordance requires the feature
-                // on and a live SSH session.
-                let files_mode = (tab.files_mode
-                    || (self.sftp_enabled
-                        && tab
-                            .active()
-                            .session
-                            .as_ref()
-                            .and_then(|s| s.ssh())
-                            .is_some()))
-                .then_some(tab.files_mode);
                 tab_items.push(session_tab(
                     idx,
                     display_label,

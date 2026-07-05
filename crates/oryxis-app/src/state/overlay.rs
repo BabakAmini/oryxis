@@ -17,6 +17,10 @@ pub(crate) enum OverlayContent {
     /// Right-click menu on an SFTP browser tab. Items: New SFTP tab,
     /// Pin/Unpin, Close. `usize` is the `sftp_tabs` index.
     SftpTabActions(usize),
+    /// Right-click menu on a sidebar Files row. Carries the entry's
+    /// full remote path + kind; items: Open (dirs), Open SFTP session
+    /// here, Copy path, Copy name (files).
+    SidebarFilesRow { path: String, is_dir: bool },
     /// Hover popover under the `+` tab button: New Tab + Split actions for
     /// the active terminal tab.
     SplitMenu,

@@ -903,68 +903,6 @@ impl Oryxis {
                 self.open_new_sftp_tab();
                 return self.handle_sftp(Message::SftpRemountPane(SftpPaneSide::Right, idx));
             }
-            Message::OpenSftpForTab(tab_idx) => {
-                self.overlay = None;
-                let Some(tab) = self.tabs.get(tab_idx) else {
-                    // Same hint hygiene as OpenSftpForConnection's bail.
-                    self.sftp_open_at_path = None;
-                    return Ok(Task::none());
-                };
-                let base = tab.label.trim_end_matches(" (disconnected)").to_string();
-                // Prefer a saved connection by label so the SFTP tab can
-                // reconnect on its own. Telnet hosts are excluded: SFTP
-                // is an SSH subsystem, dialing one would just fail.
-                if let Some(conn_idx) = self.connections.iter().position(|c| {
-                    c.label == base
-                        && c.protocol
-                            == oryxis_core::models::connection::ConnectionProtocol::Ssh
-                }) {
-                    return self.handle_sftp(Message::OpenSftpForConnection(conn_idx));
-                }
-                // No saved host (ad-hoc / cloud tab): mount the tab's live
-                // SSH session directly. Nothing to do if it has no session
-                // (or a Telnet one, which has no SSH handle to multiplex).
-                let Some(session) = tab.active().session.as_ref().and_then(|s| s.ssh()).cloned()
-                else {
-                    // Bail-out drops the one-shot initial-path hint too.
-                    self.sftp_open_at_path = None;
-                    return Ok(Task::none());
-                };
-                let label = base;
-                self.open_new_sftp_tab();
-                {
-                    let pane = self.sftp.pane_mut(SftpPaneSide::Right);
-                    pane.is_remote = true;
-                    pane.host_label = Some(label.clone());
-                    pane.remote_loading = true;
-                    pane.error = None;
-                    pane.remote_entries.clear();
-                }
-                let target = SftpPaneSide::Right;
-                let session_for_task = session.clone();
-                // One-shot preferred directory (sidebar Files promotion).
-                let initial_hint = self.sftp_open_at_path.take();
-                return Ok(Task::perform(
-                    async move {
-                        let client =
-                            session_for_task.open_sftp().await.map_err(|e| e.to_string())?;
-                        let (initial, entries) =
-                            initial_remote_listing(&client, initial_hint).await?;
-                        Ok::<_, String>((client, initial, entries))
-                    },
-                    move |result| match result {
-                        Ok((client, path, entries)) => Message::SftpHostMounted(
-                            target,
-                            label.clone(),
-                            session.clone(),
-                            client,
-                            path,
-                            entries,
-                        ),
-                        Err(e) => Message::SftpRemoteError(target, e),
-                    },
-                ));
-            }
             Message::SftpStartEditPath(side) => {
                 let value = if self.sftp.pane(side).is_remote {
                     self.sftp.pane(side).remote_path.clone()
@@ -1061,7 +999,10 @@ impl Oryxis {
                 // The string arrives already side-formatted (POSIX for a
                 // remote entry, OS-native for a local one), so this is a
                 // straight clipboard write via the shared toast path.
+                // Fired from the SFTP row menu AND the sidebar Files row
+                // menu; dismiss whichever is open.
                 self.sftp.row_menu = None;
+                self.overlay = None;
                 return Ok(self.update(Message::CopyToClipboard(path)));
             }
             Message::SftpCopySelectionPaths(side) => {

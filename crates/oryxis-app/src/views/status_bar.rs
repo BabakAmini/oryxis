@@ -43,13 +43,11 @@ impl Oryxis {
         // Hybrid tab mode segment (issue #61): redundant with the tab's
         // own glyph on purpose, the status bar is optional
         // (`show_status_bar`), so it can carry a switch but never THE
-        // switch. Shown only for a live SSH tab (or one already in
-        // Files mode, so the way back stays visible).
+        // switch. Like the glyph, it only exists once the tab has an
+        // SFTP session ("Open SFTP session" in the tab menu creates it).
         if let Some(idx) = self.active_tab
             && let Some(tab) = self.tabs.get(idx)
-            && (tab.files_mode
-                || (self.sftp_enabled
-                    && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some()))
+            && self.tab_has_sftp_session(tab)
         {
             items.push(mode_segment_btn(
                 idx,

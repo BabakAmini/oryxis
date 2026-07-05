@@ -224,10 +224,6 @@ pub enum Message {
     /// (host-card context menu). Reuses a live SSH session if one is open,
     /// otherwise connects.
     OpenSftpForConnection(usize),
-    /// Open a new SFTP tab for the terminal tab at this index (terminal-tab
-    /// context menu). Resolves the tab to a saved connection, falling back to
-    /// reusing the tab's live SSH session directly.
-    OpenSftpForTab(usize),
     SftpStartEditPath(crate::state::SftpPaneSide),
     SftpEditPath(crate::state::SftpPaneSide, String),
     SftpCommitPath(crate::state::SftpPaneSide),
@@ -257,21 +253,47 @@ pub enum Message {
     /// Promote the sidebar browser to a full SFTP tab at its current
     /// directory.
     SidebarFilesExpand,
-    /// Initial mount finished: the SFTP channel plus the first listing.
-    /// The `u64` is the request stamp (`PaneFiles::req_seq`) captured at
-    /// dispatch; a mismatch on arrival means a newer request (or a
-    /// disconnect reset) superseded this one and it is dropped.
-    SidebarFilesMounted(Uuid, u64, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
+    /// Initial mount finished: the SFTP channel, the session home (for
+    /// `~`-relative cwd expansion) plus the first listing. The `u64` is
+    /// the request stamp (`PaneFiles::req_seq`) captured at dispatch; a
+    /// mismatch on arrival means a newer request (or a disconnect
+    /// reset) superseded this one and it is dropped.
+    SidebarFilesMounted(
+        Uuid,
+        u64,
+        oryxis_ssh::SftpClient,
+        Option<String>,
+        String,
+        Vec<oryxis_ssh::SftpEntry>,
+    ),
     /// A navigation / follow / refresh listing landed (same stamp rule).
     SidebarFilesListed(Uuid, u64, String, Vec<oryxis_ssh::SftpEntry>),
     SidebarFilesError(Uuid, u64, String),
     SidebarFilesRowHovered(usize),
     SidebarFilesRowUnhovered,
+    /// Right-click on a sidebar Files row: open its context menu
+    /// (full path + is_dir), anchored at the cursor.
+    ShowSidebarFilesRowMenu(String, bool),
+    /// The header path is clickable (mirrors the SFTP pane's path
+    /// editing): start / live-edit / commit typing a directory.
+    SidebarFilesStartEditPath,
+    SidebarFilesEditPath(String),
+    SidebarFilesCommitPath,
+    /// Open (or reveal) this tab's SFTP session at the given remote
+    /// directory: the sidebar ⛶, the row context menu and the expand
+    /// affordances all funnel here.
+    SidebarFilesOpenSftpAt(String),
     /// Hybrid tab (issue #61): flip the terminal tab at this index
     /// between its Terminal and Files-full (dual-pane SFTP) states.
     /// Fired by the tab's mode glyph, the status-bar segment, the tab
     /// context menu and the hotkey.
     ToggleTabFilesMode(usize),
+    /// Promote the terminal tab's SFTP session to a standalone SFTP tab
+    /// (the server-to-server surface); the hybrid state moves out.
+    DetachTabSftp(usize),
+    /// From an SFTP tab's context menu: focus a live terminal tab on
+    /// the mounted host, or connect one.
+    OpenTerminalForSftpTab(usize),
     /// Copy every selected path in the given pane, one per line.
     SftpCopySelectionPaths(crate::state::SftpPaneSide),
     SftpStartRename(crate::state::SftpPaneSide, String),

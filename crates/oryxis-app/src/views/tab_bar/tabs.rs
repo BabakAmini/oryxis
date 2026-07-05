@@ -304,7 +304,7 @@ pub(crate) fn session_tab<'a>(
     };
     // The hybrid mode glyph takes a chip slot out of the label's room.
     if files_mode.is_some() {
-        label_width = (label_width - 24.0).max(0.0);
+        label_width = (label_width - 20.0).max(0.0);
     }
     let display_label = truncate_label(&display_label_full, label_width);
 
@@ -450,66 +450,10 @@ pub(crate) fn session_tab<'a>(
         .color(fg)
         .width(Length::Fill);
 
-    // Hybrid mode glyph: a small bordered chip showing the tab's current
-    // surface (>_ terminal / folder files); clicking flips it. A real
-    // `button` (hover/press feedback per the house convention) nested in
-    // the tab button, same pattern as the close X; plus a tooltip since
-    // it's icon-only.
-    let mode_chip: Option<Element<'_, Message>> = files_mode.map(|fm| {
-        let glyph: Element<'_, Message> = if fm {
-            iced_fonts::lucide::folder_tree().size(10).color(fg).into()
-        } else {
-            text(">_")
-                .size(9)
-                .line_height(1.0)
-                .font(iced::Font::MONOSPACE)
-                .color(fg)
-                .into()
-        };
-        let chip = button(
-            container(glyph)
-                .center_x(Length::Fixed(20.0))
-                .center_y(Length::Fixed(15.0)),
-        )
-        .padding(0)
-        .on_press(Message::ToggleTabFilesMode(idx))
-        .style(move |_, status| {
-            let bg = match status {
-                BtnStatus::Hovered | BtnStatus::Pressed => Color { a: 0.28, ..fg },
-                _ => Color { a: 0.12, ..fg },
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border {
-                    radius: Radius::from(4.0),
-                    color: Color { a: 0.35, ..fg },
-                    width: 1.0,
-                },
-                ..Default::default()
-            }
-        });
-        let tip = if fm {
-            crate::i18n::t("tab_show_terminal")
-        } else {
-            crate::i18n::t("tab_show_files")
-        };
-        iced::widget::tooltip(
-            chip,
-            container(text(tip).size(11).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
-                .style(|_| container::Style {
-                    background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                    border: Border {
-                        radius: Radius::from(6.0),
-                        color: OryxisColors::t().border,
-                        width: 1.0,
-                    },
-                    ..Default::default()
-                }),
-            iced::widget::tooltip::Position::Bottom,
-        )
-        .into()
-    });
+    // Hybrid mode glyph: shows the tab's current surface, clicking
+    // flips it (shared with the pinned chip form).
+    let mode_chip: Option<Element<'_, Message>> =
+        files_mode.map(|fm| tab_mode_chip(idx, fm, fg));
 
     let inner_row: Element<'_, Message> = {
         let mut items: Vec<Element<'_, Message>> = vec![leading_slot];
@@ -698,6 +642,78 @@ impl iced::widget::canvas::Program<Message, iced::Theme> for TabProgressBorder {
     }
 }
 
+/// The hybrid mode chip: a small square bordered button showing the
+/// tab's CURRENT surface (`>_` terminal / folder files); clicking flips
+/// it. A real `button` (hover/press feedback per the house convention)
+/// nested inside the tab button, same pattern as the close X; tooltip
+/// since it's icon-only. Shared by the full tab and the pinned chip.
+pub(crate) fn tab_mode_chip<'a>(idx: usize, fm: bool, fg: Color) -> Element<'a, Message> {
+    const MODE_CHIP: f32 = 16.0;
+    let glyph: Element<'a, Message> = if fm {
+        iced_fonts::lucide::folder_tree().size(10).color(fg).into()
+    } else {
+        text(">_")
+            .size(9)
+            .line_height(1.0)
+            .font(iced::Font::MONOSPACE)
+            .color(fg)
+            .into()
+    };
+    let chip = button(
+        container(glyph)
+            .center_x(Length::Fixed(MODE_CHIP))
+            .center_y(Length::Fixed(MODE_CHIP)),
+    )
+    .padding(0)
+    .on_press(Message::ToggleTabFilesMode(idx))
+    .style(move |_, status| {
+        let bg = match status {
+            BtnStatus::Hovered | BtnStatus::Pressed => Color { a: 0.28, ..fg },
+            _ => Color { a: 0.12, ..fg },
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border {
+                radius: Radius::from(4.0),
+                color: Color { a: 0.35, ..fg },
+                width: 1.0,
+            },
+            ..Default::default()
+        }
+    });
+    let tip = if fm {
+        crate::i18n::t("tab_show_terminal")
+    } else {
+        crate::i18n::t("tab_show_files")
+    };
+    iced::widget::tooltip(
+        chip,
+        container(text(tip).size(11).color(OryxisColors::t().text_primary))
+            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }),
+        iced::widget::tooltip::Position::Bottom,
+    )
+    .into()
+}
+
+/// Width of a compact pinned chip: the base icon square, plus the mode
+/// chip's slot when the tab is hybrid (has an SFTP session).
+pub(crate) fn pinned_chip_width(files_mode: Option<bool>) -> f32 {
+    if files_mode.is_some() {
+        CHIP_W + 20.0
+    } else {
+        CHIP_W
+    }
+}
+
 /// A small filled disc pinned to a right corner of the badge slot,
 /// ringed with the sidebar background so it pops off the glyph under it.
 /// Physical right on purpose: badges and their dots don't mirror under
@@ -742,6 +758,9 @@ pub(crate) fn pinned_tab_chip<'a>(
     status_dot: Option<Color>,
     attention_dot: Option<Color>,
     solid_fill: bool,
+    // Hybrid tab: `Some(state)` widens the chip to carry the mode glyph
+    // (a pinned hybrid must not lose its toggle).
+    files_mode: Option<bool>,
 ) -> Element<'a, Message> {
     let accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
     let fallback = OryxisColors::t().accent;
@@ -771,12 +790,28 @@ pub(crate) fn pinned_tab_chip<'a>(
     } else {
         base
     };
+    // A hybrid chip carries the mode glyph beside the badge (and widens
+    // to fit); a plain pinned chip stays the icon-only square.
+    let chip_w = pinned_chip_width(files_mode);
+    let inner: Element<'_, Message> = match files_mode {
+        Some(fm) => {
+            let fg = if is_active { accent } else { OryxisColors::t().text_muted };
+            crate::widgets::dir_row(vec![
+                badge,
+                Space::new().width(4).into(),
+                tab_mode_chip(idx, fm, fg),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
+        }
+        None => badge,
+    };
     let btn = button(
-        container(badge)
-            .center_x(Length::Fixed(CHIP_W))
+        container(inner)
+            .center_x(Length::Fixed(chip_w))
             .center_y(Length::Fixed(TAB_HEIGHT)),
     )
-    .width(Length::Fixed(CHIP_W))
+    .width(Length::Fixed(chip_w))
     .on_press(Message::SelectTab(idx))
     .style(move |_, status| {
         // Active chip paints the same "lit from above" gradient as the

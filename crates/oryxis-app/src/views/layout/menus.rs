@@ -23,6 +23,8 @@ impl Oryxis {
             // "Export transcript (.txt)" + translations on one line,
             // with room for the privacy footer to wrap sanely.
             OverlayContent::SessionLogActions(_) => 240.0,
+            // "Open SFTP session here" + translations on one line.
+            OverlayContent::SidebarFilesRow { .. } => 220.0,
             OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
             OverlayContent::CloudDiscoverGroupPicker => {
                 let b = self.cloud_discover_default_group_combo_bounds.get();
@@ -60,6 +62,7 @@ impl Oryxis {
             OverlayContent::SnippetTagFilter => (self.distinct_snippet_tags().len() + 1) as f32,
             OverlayContent::SessionLogActions(_) => 4.0,
             OverlayContent::SftpTabActions(_) => 5.0,
+            OverlayContent::SidebarFilesRow { .. } => 4.0,
             OverlayContent::HostActions(_) => 8.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
@@ -441,6 +444,51 @@ impl Oryxis {
                 }
                 items.into()
             }
+            OverlayContent::SidebarFilesRow { path, is_dir } => {
+                let path = path.clone();
+                let is_dir = *is_dir;
+                // Directory the "Open SFTP session here" lands on: the
+                // folder itself, or a file's containing folder.
+                let sftp_dir = if is_dir {
+                    path.clone()
+                } else {
+                    crate::dispatch_sidebar_files::files_parent_dir(&path)
+                        .unwrap_or_else(|| "/".to_string())
+                };
+                let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                let mut items = column![];
+                if is_dir {
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::folder_open(),
+                        crate::i18n::t("open"),
+                        Message::SidebarFilesNavigate(path.clone()),
+                        OryxisColors::t().text_secondary,
+                    ));
+                }
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::folder_tree(),
+                    crate::i18n::t("open_sftp_session_here"),
+                    Message::SidebarFilesOpenSftpAt(sftp_dir),
+                    OryxisColors::t().accent,
+                ));
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::clipboard_copy(),
+                    crate::i18n::t("copy_path"),
+                    Message::SftpCopyPath(path.clone()),
+                    OryxisColors::t().text_secondary,
+                ));
+                if !is_dir {
+                    // Routed through SftpCopyPath (not CopyToClipboard)
+                    // for the menu-dismiss it carries.
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::text_cursor_input(),
+                        crate::i18n::t("copy_name"),
+                        Message::SftpCopyPath(name),
+                        OryxisColors::t().text_secondary,
+                    ));
+                }
+                items.into()
+            }
             OverlayContent::TabActions(idx) => {
                 let idx = *idx;
                 let mut items = column![
@@ -469,22 +517,35 @@ impl Oryxis {
                             })
                     })
                     .unwrap_or(false);
-                // Hybrid toggle (issue #61): flip THIS tab between its
-                // terminal and its host's files, before the entry that
-                // opens a separate SFTP tab. An in-Files-mode tab keeps
-                // the entry (relabeled) even after a disconnect so the
-                // way back to the terminal never disappears.
+                // Hybrid SFTP session (issue #61, owner QA 2026-07-05):
+                // SFTP is the tab's own session, not a separate tab. No
+                // session yet = "Open SFTP session" (creates + shows it,
+                // and the tab's toggle glyph appears); with one, the
+                // entry flips Show SFTP / Show terminal. An in-Files-mode
+                // tab keeps its entry even after a disconnect so the way
+                // back never disappears. The old "Open SFTP tab" entry is
+                // gone: detaching the session to its own tab (below) is
+                // the standalone path now.
                 let in_files = self.tabs.get(idx).map(|t| t.files_mode).unwrap_or(false);
+                let has_session = self
+                    .tabs
+                    .get(idx)
+                    .map(|t| self.tab_has_sftp_session(t))
+                    .unwrap_or(false);
                 if can_sftp || in_files {
                     let (glyph, label) = if in_files {
                         (iced_fonts::lucide::terminal(), crate::i18n::t("tab_show_terminal"))
+                    } else if has_session {
+                        (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_show_files"))
                     } else {
-                        (iced_fonts::lucide::folder(), crate::i18n::t("tab_show_files"))
+                        (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_open_sftp_session"))
                     };
                     items = items.push(self.menu_item(glyph, label, Message::ToggleTabFilesMode(idx), OryxisColors::t().text_secondary));
                 }
-                if can_sftp {
-                    items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForTab(idx), OryxisColors::t().text_secondary));
+                if has_session && self.sftp_enabled {
+                    // Promote the tab's SFTP session to a standalone tab
+                    // (the server-to-server dual-remote surface).
+                    items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("tab_detach_sftp"), Message::DetachTabSftp(idx), OryxisColors::t().text_secondary));
                 }
                 // Quick-connect tab: offer to persist the ad-hoc host into
                 // the vault (opens the editor prefilled as a new host).
@@ -554,6 +615,10 @@ impl Oryxis {
                 };
                 let mut items = column![
                     self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::NewSftpTab, OryxisColors::t().text_secondary),
+                    // Terminal for the mounted host (owner QA 2026-07-05:
+                    // the SFTP tab had no path back to a shell). Focuses
+                    // a live terminal tab on that host, else connects.
+                    self.menu_item(iced_fonts::lucide::terminal(), crate::i18n::t("open_terminal"), Message::OpenTerminalForSftpTab(idx), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameSftpTab(idx), OryxisColors::t().text_secondary),
                     self.menu_item(pin_icon, pin_label, Message::ToggleSftpTabPin(idx), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseSftpTab(idx), OryxisColors::t().text_secondary),

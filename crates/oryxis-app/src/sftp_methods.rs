@@ -655,6 +655,24 @@ impl Oryxis {
     // tab currently loaded in `self.sftp` (the buffer owner). See the
     // invariant in `SFTP_TABS_PLAN.md`.
 
+    /// Whether a hybrid terminal tab has an SFTP session (its Files
+    /// state carries a mounted remote pane, live or parked). Drives
+    /// the tab's mode glyph / status-bar segment / menu labels: the
+    /// affordances only exist once a session does (owner QA
+    /// 2026-07-05: "Open SFTP session" creates it, the toggle glyph
+    /// appears after).
+    pub(crate) fn tab_has_sftp_session(&self, tab: &crate::state::TerminalTab) -> bool {
+        if tab.files_mode {
+            return true;
+        }
+        let st: &crate::state::SftpState = if self.hybrid_sftp_owner == Some(tab._id) {
+            &self.sftp
+        } else {
+            &tab.files_state
+        };
+        st.right.host_label.is_some() || st.left.host_label.is_some()
+    }
+
     /// Whether the full SFTP surface is what the user is looking at:
     /// the standalone SFTP view, or a hybrid terminal tab showing its
     /// Files mode. Keyboard type-ahead, row drags and OS file drops

@@ -44,6 +44,32 @@ pub(crate) fn files_join(path: &str, name: &str) -> String {
     }
 }
 
+/// Working-directory fallback for shells without OSC 7 integration:
+/// the stock Debian/Ubuntu/Fedora PS1 titles the window `\u@\h: \w`,
+/// so an OSC 0/2 title like `root@web: /var/www` carries the cwd.
+/// Extracts the trailing path (absolute or `~`-relative); anything
+/// else (`vim main.rs`, plain program names) yields `None`.
+pub(crate) fn title_cwd(title: &str) -> Option<&str> {
+    let (_, tail) = title.rsplit_once(": ")?;
+    let tail = tail.trim();
+    (tail.starts_with('/') || tail == "~" || tail.starts_with("~/")).then_some(tail)
+}
+
+/// Expand a possibly `~`-relative cwd (the title fallback) against the
+/// session's home directory. Absolute paths pass through; `~` without
+/// a known home resolves to `None` (can't follow yet, the mount's
+/// canonicalize will supply the home).
+fn expand_cwd(cwd: &str, home: Option<&str>) -> Option<String> {
+    if cwd.starts_with('/') {
+        return Some(cwd.to_string());
+    }
+    let home = home?.trim_end_matches('/');
+    if cwd == "~" {
+        return Some(home.to_string());
+    }
+    cwd.strip_prefix("~/").map(|rest| format!("{home}/{rest}"))
+}
+
 impl Oryxis {
     pub(crate) fn handle_sidebar_files(
         &mut self,
@@ -89,6 +115,8 @@ impl Oryxis {
                 }
             }
             Message::SidebarFilesNavigate(path) => {
+                // Also fired from the row context menu; dismiss it.
+                self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -97,9 +125,19 @@ impl Oryxis {
                 };
                 // A manual navigation away from the shell's cwd would be
                 // undone by the next follow sync, so browsing by hand
-                // implies unpinning; the toggle re-enables it.
-                if pane.files.follow() && pane.cwd.as_deref() != Some(path.as_str()) {
+                // implies unpinning; the toggle re-enables it. The toast
+                // makes the silent state flip visible (owner QA ask).
+                let mut unpinned = false;
+                if pane.files.follow()
+                    && pane
+                        .cwd
+                        .as_deref()
+                        .and_then(|c| expand_cwd(c, pane.files.home.as_deref()))
+                        .as_deref()
+                        != Some(path.as_str())
+                {
                     pane.files.follow_disabled = true;
+                    unpinned = true;
                 }
                 let pane_id = pane.id;
                 pane.files.loading = true;
@@ -107,25 +145,123 @@ impl Oryxis {
                 // Rapid clicks race their listings; the stamp makes the
                 // LATEST navigation win regardless of completion order.
                 let seq = pane.files.next_req();
-                return Ok(list_dir_task(client, path, pane_id, seq));
+                let list = list_dir_task(client, path, pane_id, seq);
+                if unpinned {
+                    self.toast =
+                        Some(crate::i18n::t("files_follow_paused").to_string());
+                    return Ok(Task::batch([
+                        list,
+                        Task::perform(
+                            async {
+                                tokio::time::sleep(std::time::Duration::from_millis(
+                                    2500,
+                                ))
+                                .await;
+                            },
+                            |_| Message::ToastClear,
+                        ),
+                    ]));
+                }
+                return Ok(list);
             }
             Message::SidebarFilesExpand => {
-                // Promote to a full SFTP tab at the browser's directory.
-                // The hint is consumed by the SFTP mount pipeline
-                // (`initial_remote_listing`), falling back to the home
-                // directory if the path stopped existing.
+                // Expand = this tab's SFTP session (the hybrid Files
+                // mode) at the browser's current directory. Owner QA
+                // 2026-07-05: expanding must NOT open a standalone tab.
+                let path = self
+                    .active_pane_mut()
+                    .map(|p| p.files.path.clone())
+                    .unwrap_or_default();
+                return Ok(self.update(Message::SidebarFilesOpenSftpAt(path)));
+            }
+            Message::SidebarFilesOpenSftpAt(path) => {
+                // Flip the active tab into its SFTP session at `path`.
+                // The one-shot hint is consumed by the toggle's mount
+                // (or by a navigate when the session already exists),
+                // with home fallback if the path stopped existing.
+                self.overlay = None;
                 let Some(tab_idx) = self.active_tab else {
                     return Ok(Task::none());
                 };
-                let path = self
-                    .tabs
-                    .get(tab_idx)
-                    .map(|t| t.active().files.path.clone())
-                    .filter(|p| !p.is_empty());
-                self.sftp_open_at_path = path;
-                return Ok(self.update(Message::OpenSftpForTab(tab_idx)));
+                self.sftp_open_at_path = (!path.is_empty()).then_some(path);
+                return Ok(self.update(Message::ToggleTabFilesMode(tab_idx)));
             }
-            Message::SidebarFilesMounted(pane_id, seq, client, path, mut entries) => {
+            Message::ShowSidebarFilesRowMenu(path, is_dir) => {
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::SidebarFilesRow { path, is_dir },
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
+            Message::SidebarFilesStartEditPath => {
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                if pane.files.client.is_none() {
+                    return Ok(Task::none());
+                }
+                pane.files.path_editing = Some(pane.files.path.clone());
+                // Drop the keyboard straight into the input (mirrors the
+                // SFTP pane's path editing).
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "sidebar-files-path",
+                )));
+            }
+            Message::SidebarFilesEditPath(s) => {
+                if let Some(pane) = self.active_pane_mut()
+                    && pane.files.path_editing.is_some()
+                {
+                    pane.files.path_editing = Some(s);
+                }
+            }
+            Message::SidebarFilesCommitPath => {
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(input) = pane.files.path_editing.take() else {
+                    return Ok(Task::none());
+                };
+                let input = input.trim().to_string();
+                if input.is_empty() {
+                    return Ok(Task::none());
+                }
+                // `~`-relative input expands against the session home;
+                // anything else goes to the server's canonicalize (which
+                // resolves relative segments) before listing.
+                let target = expand_cwd(&input, pane.files.home.as_deref())
+                    .unwrap_or(input);
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                // Typing a path away from the shell's cwd unpins follow,
+                // same rule as clicking into a folder.
+                if pane.files.follow() {
+                    pane.files.follow_disabled = true;
+                }
+                let pane_id = pane.id;
+                pane.files.loading = true;
+                pane.files.error = None;
+                let seq = pane.files.next_req();
+                return Ok(Task::perform(
+                    async move {
+                        let path = client
+                            .canonicalize(&target)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let entries =
+                            client.list_dir(&path).await.map_err(|e| e.to_string())?;
+                        Ok::<_, String>((path, entries))
+                    },
+                    move |result| match result {
+                        Ok((path, entries)) => {
+                            Message::SidebarFilesListed(pane_id, seq, path, entries)
+                        }
+                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                    },
+                ));
+            }
+            Message::SidebarFilesMounted(pane_id, seq, client, home, path, mut entries) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
@@ -142,11 +278,15 @@ impl Oryxis {
                 }
                 sort_entries(&mut entries);
                 pane.files.client = Some(client);
+                pane.files.home = home;
                 pane.files.mounting = false;
                 pane.files.loading = false;
                 pane.files.error = None;
                 pane.files.path = path;
                 pane.files.entries = entries;
+                // The title-fallback cwd may be `~`-relative and only
+                // expandable now that the home is known; chase it.
+                return Ok(self.sidebar_files_sync());
             }
             Message::SidebarFilesListed(pane_id, seq, path, mut entries) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
@@ -231,18 +371,29 @@ impl Oryxis {
             }
             pane.files.mounting = true;
             pane.files.error = None;
-            let hint = if pane.files.follow() { pane.cwd.clone() } else { None };
+            // The pre-mount hint can only use an absolute cwd (a
+            // `~`-relative title fallback has no home to expand against
+            // yet; the mount lands on the home anyway and the post-mount
+            // chase in SidebarFilesMounted finishes the job).
+            let hint = if pane.files.follow() {
+                pane.cwd.as_deref().and_then(|c| expand_cwd(c, None))
+            } else {
+                None
+            };
             let seq = pane.files.next_req();
             return Task::perform(
                 async move {
                     let client = ssh.open_sftp().await.map_err(|e| e.to_string())?;
+                    // Session home, resolved once: expands `~`-relative
+                    // cwds from the title fallback.
+                    let home = client.canonicalize(".").await.ok();
                     let (path, entries) =
                         crate::dispatch_sftp::initial_remote_listing(&client, hint).await?;
-                    Ok::<_, String>((client, path, entries))
+                    Ok::<_, String>((client, home, path, entries))
                 },
                 move |result| match result {
-                    Ok((client, path, entries)) => {
-                        Message::SidebarFilesMounted(pane_id, seq, client, path, entries)
+                    Ok((client, home, path, entries)) => {
+                        Message::SidebarFilesMounted(pane_id, seq, client, home, path, entries)
                     }
                     Err(e) => Message::SidebarFilesError(pane_id, seq, e),
                 },
@@ -252,7 +403,10 @@ impl Oryxis {
         // Mounted: follow the shell if it moved.
         if pane.files.follow()
             && !pane.files.loading
-            && let Some(cwd) = pane.cwd.clone()
+            && let Some(cwd) = pane
+                .cwd
+                .as_deref()
+                .and_then(|c| expand_cwd(c, pane.files.home.as_deref()))
             && cwd != pane.files.path
         {
             let client = pane.files.client.clone().expect("checked above");
@@ -282,4 +436,54 @@ fn list_dir_task(
             Err(e) => Message::SidebarFilesError(pane_id, seq, e),
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_cwd_extracts_stock_ps1_titles() {
+        // Stock Debian/Ubuntu PS1: \u@\h: \w
+        assert_eq!(title_cwd("root@web-01: /var/www"), Some("/var/www"));
+        assert_eq!(title_cwd("root@web-01: ~"), Some("~"));
+        assert_eq!(title_cwd("u@h: ~/projects/api"), Some("~/projects/api"));
+        // Colons inside the path segment: the LAST ": " wins.
+        assert_eq!(title_cwd("u@h: /data/a: b"), None); // "b" is not a path
+        assert_eq!(title_cwd("note: see: /etc"), Some("/etc"));
+    }
+
+    #[test]
+    fn title_cwd_rejects_non_path_titles() {
+        assert_eq!(title_cwd("vim main.rs"), None);
+        assert_eq!(title_cwd("htop"), None);
+        assert_eq!(title_cwd(""), None);
+        assert_eq!(title_cwd("root@web-01"), None);
+        // Windows-style path in a title is not a POSIX cwd.
+        assert_eq!(title_cwd(r"cmd: C:\Users\x"), None);
+        // A bare "~x" user-home form is ambiguous; declined.
+        assert_eq!(title_cwd("u@h: ~other"), None);
+    }
+
+    #[test]
+    fn expand_cwd_handles_absolute_and_home_relative() {
+        assert_eq!(expand_cwd("/var/www", None).as_deref(), Some("/var/www"));
+        assert_eq!(expand_cwd("~", Some("/root")).as_deref(), Some("/root"));
+        assert_eq!(
+            expand_cwd("~/a/b", Some("/home/u/")).as_deref(),
+            Some("/home/u/a/b")
+        );
+        // Home unknown: `~` can't expand yet.
+        assert_eq!(expand_cwd("~", None), None);
+        assert_eq!(expand_cwd("~/x", None), None);
+    }
+
+    #[test]
+    fn files_join_and_parent_are_inverse_at_the_root() {
+        assert_eq!(files_join("/", "etc"), "/etc");
+        assert_eq!(files_join("/var/www", "html"), "/var/www/html");
+        assert_eq!(files_parent_dir("/etc").as_deref(), Some("/"));
+        assert_eq!(files_parent_dir("/var/www/html").as_deref(), Some("/var/www"));
+        assert_eq!(files_parent_dir("/"), None);
+    }
 }

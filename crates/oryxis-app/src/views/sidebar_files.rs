@@ -37,16 +37,48 @@ impl Oryxis {
         // first, recorded by `view_terminal_sidebar`).
         let stab = TerminalSidebarTab::Files;
         let follow = files.follow();
-        let path_label = if files.path.is_empty() {
-            String::from("…")
+        // The path is clickable (owner QA: manage the directory by
+        // typing, like the SFTP pane's breadcrumb): click swaps the
+        // label for a text input; Enter commits (canonicalize + list),
+        // Esc via the sidebar router cancels.
+        let path_el: Element<'_, Message> = if let Some(editing) = &files.path_editing {
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::input(iced::widget::Id::new("sidebar-files-path")),
+                stab,
+                crate::widgets::INPUT_RADIUS,
+                iced::widget::text_input("/", editing)
+                    .id(iced::widget::Id::new("sidebar-files-path"))
+                    .on_input(Message::SidebarFilesEditPath)
+                    .on_submit(Message::SidebarFilesCommitPath)
+                    .padding(4)
+                    .size(12)
+                    .font(iced::Font::MONOSPACE)
+                    .style(crate::widgets::rounded_input_style)
+                    .width(Length::Fill)
+                    .into(),
+            )
         } else {
-            truncate_path_leading(&files.path, 34)
+            let path_label = if files.path.is_empty() {
+                String::from("…")
+            } else {
+                truncate_path_leading(&files.path, 34)
+            };
+            let label = MouseArea::new(
+                text(path_label)
+                    .size(12)
+                    .font(iced::Font::MONOSPACE)
+                    .color(OryxisColors::t().text_secondary)
+                    .width(Length::Fill),
+            )
+            .on_press(Message::SidebarFilesStartEditPath)
+            .interaction(iced::mouse::Interaction::Text);
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFilesStartEditPath),
+                stab,
+                6.0,
+                label.into(),
+            )
         };
-        let path_text = text(path_label)
-            .size(12)
-            .font(iced::Font::MONOSPACE)
-            .color(OryxisColors::t().text_secondary)
-            .width(Length::Fill);
         let pin_btn = self.sidebar_nav_slot(
             crate::keynav::SidebarRow::button(Message::SidebarFilesToggleFollow),
             stab,
@@ -92,12 +124,12 @@ impl Oryxis {
             action_btn(
                 iced_fonts::lucide::folder_tree(),
                 Message::SidebarFilesExpand,
-                t("files_expand_tip"),
+                t("open_sftp_session_here"),
             ),
         );
         let header = container(
             dir_row(vec![
-                path_text.into(),
+                path_el,
                 Space::new().width(4).into(),
                 pin_btn,
                 hidden_btn,
@@ -266,11 +298,17 @@ impl Oryxis {
             _ => card.into(),
         };
 
-        let area = MouseArea::new(row_el)
+        let mut area = MouseArea::new(row_el)
             .on_enter(Message::SidebarFilesRowHovered(pos))
             .on_exit(Message::SidebarFilesRowUnhovered)
             .on_press(primary.clone())
             .interaction(iced::mouse::Interaction::Pointer);
+        // Right-click opens the row's context menu (Open / Open SFTP
+        // session here / Copy path / Copy name); the ".." row has none.
+        if let Some(full) = &full_path {
+            area = area
+                .on_right_press(Message::ShowSidebarFilesRowMenu(full.clone(), is_dir));
+        }
 
         self.sidebar_nav_slot(
             crate::keynav::SidebarRow::button(primary),
