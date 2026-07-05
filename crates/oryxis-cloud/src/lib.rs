@@ -115,4 +115,18 @@ pub trait CloudProvider: Send + Sync {
     ) -> Result<(), CloudError> {
         Err(CloudError::Unsupported("push_instance_connect_key".into()))
     }
+
+    /// Fetch (merge) a GKE cluster's credentials into the kubeconfig
+    /// (`gcloud container clusters get-credentials`) and return the
+    /// context name written, so the caller can create a Kubernetes
+    /// account pointed at it. GCP-only; every other provider keeps the
+    /// default `Unsupported`.
+    async fn gke_get_credentials(
+        &self,
+        _profile: &CloudProfile,
+        _cluster: &str,
+        _location: &str,
+    ) -> Result<String, CloudError> {
+        Err(CloudError::Unsupported("gke_get_credentials".into()))
+    }
 }

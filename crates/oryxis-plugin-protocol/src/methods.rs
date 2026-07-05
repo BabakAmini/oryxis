@@ -34,6 +34,7 @@ pub mod method {
     pub const START_ECS_EXEC: &str = "transport.start_ecs_exec";
     pub const START_SSM_SESSION: &str = "transport.start_ssm_session";
     pub const PUSH_INSTANCE_CONNECT_KEY: &str = "transport.push_instance_connect_key";
+    pub const GKE_GET_CREDENTIALS: &str = "provider.gke_get_credentials";
 }
 
 /// Links a JSON-RPC method name to its typed params and result.
@@ -230,6 +231,31 @@ impl Method for StartSsmSession {
     const NAME: &'static str = method::START_SSM_SESSION;
     type Params = StartSsmSessionParams;
     type Result = SessionPayload;
+}
+
+// ---------------------------------------------------------------------------
+// provider.gke_get_credentials
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GkeGetCredentialsParams {
+    pub profile: CloudProfile,
+    /// GKE cluster name.
+    pub cluster: String,
+    /// Cluster region or zone (`--location`).
+    pub location: String,
+}
+
+/// `provider.gke_get_credentials`, run
+/// `gcloud container clusters get-credentials` (merges the kubeconfig)
+/// and return the kubeconfig context name it wrote. GCP-only; other
+/// plugins never implement it and answer `METHOD_NOT_FOUND`, which the
+/// host maps to a provider error (additive method, no version bump).
+pub struct GkeGetCredentials;
+impl Method for GkeGetCredentials {
+    const NAME: &'static str = method::GKE_GET_CREDENTIALS;
+    type Params = GkeGetCredentialsParams;
+    type Result = String;
 }
 
 // ---------------------------------------------------------------------------

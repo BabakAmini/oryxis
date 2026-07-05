@@ -9,9 +9,9 @@
 use oryxis_cloud::CloudProvider;
 use oryxis_cloud_gcp::GcpProvider;
 use oryxis_plugin_protocol::{
-    cloud_error_to_rpc, error_codes, method, negotiate_version, CloudError, InitializeParams,
-    InitializeResult, ProfileParams, ResolveQueryParams, SupportedTransportsParams,
-    JsonRpcResponse, SUPPORTED_PROTOCOL_VERSIONS,
+    cloud_error_to_rpc, error_codes, method, negotiate_version, CloudError,
+    GkeGetCredentialsParams, InitializeParams, InitializeResult, ProfileParams,
+    ResolveQueryParams, SupportedTransportsParams, JsonRpcResponse, SUPPORTED_PROTOCOL_VERSIONS,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -33,6 +33,7 @@ pub async fn handle(method_name: &str, id: Value, params: Option<Value>) -> Json
         method::DISCOVER => discover(params).await,
         method::RESOLVE_QUERY => resolve_query(params).await,
         method::SUPPORTED_TRANSPORTS => supported_transports(params),
+        method::GKE_GET_CREDENTIALS => gke_get_credentials(params).await,
         other => {
             return JsonRpcResponse::error(
                 id,
@@ -90,6 +91,7 @@ fn capabilities() -> Vec<String> {
         method::DISCOVER.to_string(),
         method::RESOLVE_QUERY.to_string(),
         method::SUPPORTED_TRANSPORTS.to_string(),
+        method::GKE_GET_CREDENTIALS.to_string(),
     ]
 }
 
@@ -124,6 +126,15 @@ fn supported_transports(params: Option<Value>) -> Result<Value, OpError> {
     let p: SupportedTransportsParams = parse_params(params)?;
     let transports = GcpProvider::new().supported_transports(p.resource_type);
     ok_value(transports)
+}
+
+async fn gke_get_credentials(params: Option<Value>) -> Result<Value, OpError> {
+    let p: GkeGetCredentialsParams = parse_params(params)?;
+    let context = GcpProvider::new()
+        .gke_get_credentials(&p.profile, &p.cluster, &p.location)
+        .await
+        .map_err(OpError::Provider)?;
+    ok_value(context)
 }
 
 #[cfg(test)]

@@ -180,6 +180,16 @@ impl CloudProvider for GcpProvider {
             CloudResourceType::Ec2 => vec![TransportKind::Ssh],
         }
     }
+
+    async fn gke_get_credentials(
+        &self,
+        profile: &CloudProfile,
+        cluster: &str,
+        location: &str,
+    ) -> Result<String, CloudError> {
+        let cfg = GcpConfig::from_profile(profile);
+        gke::get_credentials(&cfg, cluster, location).await
+    }
 }
 
 #[cfg(test)]
