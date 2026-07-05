@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(لا شيء)",
         "default_proxy" => "وكيل",
         "scrollback" => "سجل التمرير",
+        "scrollback_reset_keypress" => "العودة إلى الأسفل عند الضغط على مفتاح",
+        "scrollback_reset_output" => "العودة إلى الأسفل عند وجود إخراج",
         "word_delimiters" => "فواصل الكلمات",
         "setting_word_delimiters_desc" => "الأحرف التي تفصل الكلمات عند التحديد بالنقر المزدوج. النقر الثلاثي يحدد السطر بأكمله دائمًا.",
         "word_delimiters_reset" => "إعادة التعيين",

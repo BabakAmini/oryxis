@@ -382,6 +382,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(keiner)",
         "default_proxy" => "Proxy",
         "scrollback" => "Scrollverlauf",
+        "scrollback_reset_keypress" => "Bei Tastendruck zum Ende springen",
+        "scrollback_reset_output" => "Bei Ausgabe zum Ende springen",
         "word_delimiters" => "Worttrenner",
         "setting_word_delimiters_desc" => "Zeichen, die Wörter bei der Auswahl per Doppelklick trennen. Dreifachklick wählt immer die ganze Zeile.",
         "word_delimiters_reset" => "Zurücksetzen",

@@ -884,6 +884,14 @@ pub struct Oryxis {
     /// Paste (the prior behavior). `setting_right_click_copy` applies
     /// only under Paste.
     pub(crate) setting_terminal_right_click: crate::util::RightClickMode,
+    /// Jump the terminal back to the live edge when a key is pressed
+    /// (PuTTY's "reset scrollback on keypress"). Persisted as
+    /// `scrollback_reset_keypress`; default off.
+    pub(crate) setting_scrollback_reset_keypress: bool,
+    /// Jump the terminal back to the live edge on new output (PuTTY's
+    /// "reset scrollback on display activity"). Persisted as
+    /// `scrollback_reset_output`; default off.
+    pub(crate) setting_scrollback_reset_output: bool,
     /// Content heuristics on paste (bidi/invisible chars, control
     /// bytes, curl|sh, homographs) park even single-line pastes behind
     /// the confirmation. Its own switch, independent of the multi-line

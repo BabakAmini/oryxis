@@ -382,6 +382,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(aucun)",
         "default_proxy" => "Proxy",
         "scrollback" => "Historique de défilement",
+        "scrollback_reset_keypress" => "Revenir en bas à la frappe",
+        "scrollback_reset_output" => "Revenir en bas à l'activité d'affichage",
         "word_delimiters" => "Délimiteurs de mots",
         "setting_word_delimiters_desc" => "Caractères qui séparent les mots lors de la sélection par double-clic. Le triple-clic sélectionne toujours la ligne entière.",
         "word_delimiters_reset" => "Réinitialiser",

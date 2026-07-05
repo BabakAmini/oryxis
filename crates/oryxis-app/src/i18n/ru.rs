@@ -382,6 +382,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(нет)",
         "default_proxy" => "Прокси",
         "scrollback" => "Буфер прокрутки",
+        "scrollback_reset_keypress" => "К концу при нажатии клавиши",
+        "scrollback_reset_output" => "К концу при выводе",
         "word_delimiters" => "Разделители слов",
         "setting_word_delimiters_desc" => "Символы, разделяющие слова при выделении двойным щелчком. Тройной щелчок всегда выделяет всю строку.",
         "word_delimiters_reset" => "Сбросить",

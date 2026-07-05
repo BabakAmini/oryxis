@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(هیچ‌کدام)",
         "default_proxy" => "پراکسی",
         "scrollback" => "تاریخچه پیمایش",
+        "scrollback_reset_keypress" => "بازگشت به انتها با فشردن کلید",
+        "scrollback_reset_output" => "بازگشت به انتها هنگام خروجی جدید",
         "word_delimiters" => "جداکننده‌های واژه",
         "setting_word_delimiters_desc" => "نویسه‌هایی که هنگام انتخاب با دوبار کلیک، واژه‌ها را جدا می‌کنند. سه‌بار کلیک همیشه کل خط را انتخاب می‌کند.",
         "word_delimiters_reset" => "بازنشانی",

@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(없음)",
         "default_proxy" => "프록시",
         "scrollback" => "스크롤백",
+        "scrollback_reset_keypress" => "키 입력 시 맨 아래로",
+        "scrollback_reset_output" => "출력 시 맨 아래로",
         "word_delimiters" => "단어 구분자",
         "setting_word_delimiters_desc" => "더블 클릭으로 선택할 때 단어를 구분하는 문자입니다. 트리플 클릭은 항상 줄 전체를 선택합니다.",
         "word_delimiters_reset" => "기본값으로 재설정",

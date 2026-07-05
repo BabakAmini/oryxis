@@ -80,7 +80,15 @@ pub(crate) use selection::{next_click_count, union_selection, SelectGranularity}
 pub struct TerminalWidgetState {
     selecting: bool,
     selection: Option<Selection>,
-    scroll_offset: i32, // lines scrolled back (0 = bottom)
+    /// Lines scrolled back (0 = bottom). A `Cell` so the immutable-`&self`
+    /// draw can reset it to the live edge on new output (PuTTY's "reset
+    /// scrollback on display activity"); every other mutation is in
+    /// `update` under `&mut State`, where `Cell` is equally fine.
+    scroll_offset: std::cell::Cell<i32>,
+    /// `render_epoch` observed by the last draw, so the next draw can
+    /// tell whether new terminal activity landed (drives the
+    /// reset-on-output behavior). `None` before the first draw.
+    last_draw_epoch: std::cell::Cell<Option<u64>>,
     /// True while the cursor is somewhere over the terminal canvas. Drives
     /// the scrollbar's hover-to-reveal visibility.
     hover: bool,
@@ -256,6 +264,12 @@ pub struct TerminalView<Message = ()> {
     /// What a right-click does (PuTTY's three schemes). The single
     /// authority for the gesture; see [`RightClickAction`].
     right_click_action: RightClickAction,
+    /// Jump back to the live edge when the user presses a key that goes
+    /// to the terminal (PuTTY's "reset scrollback on keypress").
+    reset_scroll_on_keypress: bool,
+    /// Jump back to the live edge on new terminal output (PuTTY's "reset
+    /// scrollback on display activity").
+    reset_scroll_on_output: bool,
     /// When true, ANSI bold flag promotes the named foreground color to
     /// its bright variant (red → bright red, etc).
     bold_is_bright: bool,
@@ -531,6 +545,8 @@ impl<Message> TerminalView<Message> {
             right_click_copy: false,
             middle_click_paste: true,
             right_click_action: RightClickAction::default(),
+            reset_scroll_on_keypress: false,
+            reset_scroll_on_output: false,
             bold_is_bright: true,
             keyword_highlight: true,
             performance: false,
@@ -596,6 +612,20 @@ impl<Message> TerminalView<Message> {
     /// Set the right-click scheme (Menu / Paste / Extend).
     pub fn with_right_click_action(mut self, action: RightClickAction) -> Self {
         self.right_click_action = action;
+        self
+    }
+
+    /// PuTTY "reset scrollback on keypress": jump to the live edge when
+    /// a key is sent to the terminal.
+    pub fn with_reset_scroll_on_keypress(mut self, on: bool) -> Self {
+        self.reset_scroll_on_keypress = on;
+        self
+    }
+
+    /// PuTTY "reset scrollback on display activity": jump to the live
+    /// edge on new terminal output.
+    pub fn with_reset_scroll_on_output(mut self, on: bool) -> Self {
+        self.reset_scroll_on_output = on;
         self
     }
 
@@ -1104,7 +1134,7 @@ where
                             bounds,
                             grid.total_lines(),
                             grid.screen_lines(),
-                            widget_state.scroll_offset,
+                            widget_state.scroll_offset.get(),
                         ) && pos.x >= sb.track_x - 2.0
                             && pos.x <= sb.track_x + sb.track_w + 2.0
                             && pos.y >= sb.track_y
@@ -1113,19 +1143,19 @@ where
                             let page = grid.screen_lines() as i32;
                             if pos.y >= sb.thumb_y && pos.y <= sb.thumb_y + sb.thumb_h {
                                 widget_state.scrollbar_drag =
-                                    Some((pos.y, widget_state.scroll_offset));
+                                    Some((pos.y, widget_state.scroll_offset.get()));
                             } else if pos.y < sb.thumb_y {
-                                widget_state.scroll_offset =
-                                    (widget_state.scroll_offset + page).min(sb.history_size);
+                                widget_state.scroll_offset
+                                    .set((widget_state.scroll_offset.get() + page).min(sb.history_size));
                             } else {
-                                widget_state.scroll_offset =
-                                    (widget_state.scroll_offset - page).max(0);
+                                widget_state.scroll_offset
+                                    .set((widget_state.scroll_offset.get() - page).max(0));
                             }
                             return Some(CanvasAction::request_redraw().and_capture());
                         }
                     }
                     let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                     // Only follow URLs on Ctrl+Click, plain clicks
                     // start a selection, matching Termius. Without
                     // the modifier gate, every click on a logged URL
@@ -1266,8 +1296,8 @@ where
                         let dprogress = dy / track_range;
                         let doffset = (dprogress * sb.history_size as f32) as i32;
                         // Thumb moves down → progress decreases → offset decreases.
-                        widget_state.scroll_offset =
-                            (start_offset - doffset).clamp(0, sb.history_size);
+                        widget_state.scroll_offset
+                            .set((start_offset - doffset).clamp(0, sb.history_size));
                         return Some(CanvasAction::request_redraw().and_capture());
                     }
                 }
@@ -1322,11 +1352,11 @@ where
                                 ((past / self.cell_height).floor() as i32 + 1).clamp(1, 4);
                             widget_state.last_autoscroll = Some(now);
                             if rel.y < top_edge {
-                                widget_state.scroll_offset =
-                                    (widget_state.scroll_offset + step).min(history);
+                                widget_state.scroll_offset
+                                    .set((widget_state.scroll_offset.get() + step).min(history));
                             } else {
-                                widget_state.scroll_offset =
-                                    (widget_state.scroll_offset - step).max(0);
+                                widget_state.scroll_offset
+                                    .set((widget_state.scroll_offset.get() - step).max(0));
                             }
                         }
                         // Clamp back into the widget for cell mapping (the
@@ -1336,7 +1366,7 @@ where
                             rel.y.clamp(0.0, bounds.height),
                         );
                         let (col, vrow) = self.pixel_to_cell(clamped);
-                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                         if let Some((gran, anchor)) = widget_state.select_anchor {
                             // Word/line drag: extend by unioning the anchor's
                             // word/line with the cursor's. Throttle to one
@@ -1381,7 +1411,7 @@ where
                             .as_ref()
                             .map(|(u, _)| (u.clone(), pos))
                     } else if let Ok(state) = self.state.lock() {
-                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                         // Explicit OSC 8 link first (label may not look like a
                         // URL); capture its run for the underline. Else fall
                         // back to a scraped URL.
@@ -1463,7 +1493,7 @@ where
                     && let Some(pos) = cursor.position_in(bounds)
                 {
                     let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                     let value = self.state.lock().ok().and_then(|state| {
                         privacy_value_at_cell(
                             &state.backend.term,
@@ -1495,7 +1525,7 @@ where
                     && let Some(pos) = cursor.position_in(bounds)
                 {
                     let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                     let on_url = self.state.lock().is_ok_and(|state| {
                         osc8_link_at_cell(&state.backend.term, line, col).is_some()
                             || url_at_cell(&state.backend.term, line, col).is_some()
@@ -1586,7 +1616,7 @@ where
                         if let Some(pos) = cursor.position_in(bounds) {
                             let (col, vrow) = self.pixel_to_cell(pos);
                             let line =
-                                Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                                Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                             if let Some(sel) = widget_state.selection.as_ref().filter(|s| !s.block)
                             {
                                 let extended = sel.extended_to((col, line));
@@ -1713,8 +1743,8 @@ where
                     }
                     return Some(self.emit_input(bytes));
                 }
-                widget_state.scroll_offset =
-                    (widget_state.scroll_offset + lines).max(0).min(max_scroll);
+                widget_state.scroll_offset
+                    .set((widget_state.scroll_offset.get() + lines).max(0).min(max_scroll));
                 return Some(CanvasAction::request_redraw().and_capture());
             }
             // Modifier tracking for the URL Ctrl+Click gate. iced
@@ -1771,31 +1801,38 @@ where
             // xterm / iTerm where typing or navigating clears the highlight
             // (otherwise a stale selection lingers as a tinted band, e.g.
             // over a full-screen TUI like mc that took over the screen after
-            // the selection was made). The keystroke is NOT captured: it must
-            // still reach the PTY through the global key subscription (an
-            // independent path), so we only drop the selection and redraw.
-            // Bare modifier presses (Ctrl / Shift / Alt / Super) must NOT
-            // clear, otherwise the first key of a copy chord (Ctrl, then
-            // Shift+C) wipes the selection before the copy fires, breaking
-            // select-then-copy when copy-on-select is off.
+            // the selection was made), and, when enabled, jumps back to the
+            // live edge (PuTTY's "reset scrollback on keypress"). The
+            // keystroke is NOT captured: it must still reach the PTY through
+            // the global key subscription (an independent path), so we only
+            // drop the selection / reset the scroll and redraw. Bare modifier
+            // presses (Ctrl / Shift / Alt / Super) must NOT trigger either,
+            // otherwise the first key of a copy chord (Ctrl, then Shift+C)
+            // wipes the selection before the copy fires. The copy / select-
+            // all chords are handled by earlier arms that return first, so a
+            // copy is never treated as a terminal keystroke here.
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
-                if (widget_state.selection.is_some()
-                    || widget_state.select_anchor.is_some())
-                    && !matches!(
-                        key,
-                        keyboard::Key::Named(
-                            keyboard::key::Named::Control
-                                | keyboard::key::Named::Shift
-                                | keyboard::key::Named::Alt
-                                | keyboard::key::Named::Super
-                                | keyboard::key::Named::Hyper
-                                | keyboard::key::Named::Meta
-                        )
-                    ) =>
+                if !matches!(
+                    key,
+                    keyboard::Key::Named(
+                        keyboard::key::Named::Control
+                            | keyboard::key::Named::Shift
+                            | keyboard::key::Named::Alt
+                            | keyboard::key::Named::Super
+                            | keyboard::key::Named::Hyper
+                            | keyboard::key::Named::Meta
+                    )
+                ) && (widget_state.selection.is_some()
+                    || widget_state.select_anchor.is_some()
+                    || (self.reset_scroll_on_keypress
+                        && widget_state.scroll_offset.get() != 0)) =>
             {
                 widget_state.selection = None;
                 widget_state.select_anchor = None;
                 widget_state.selecting = false;
+                if self.reset_scroll_on_keypress {
+                    widget_state.scroll_offset.set(0);
+                }
                 return Some(CanvasAction::request_redraw());
             }
             _ => {}
@@ -1848,9 +1885,27 @@ where
             Ok(s) => s.render_epoch(),
             Err(p) => p.into_inner().render_epoch(),
         };
+        // PuTTY "reset scrollback on display activity": the render epoch
+        // advances only on terminal output (process / sync-flush / palette),
+        // never on scroll or cursor blink, so an epoch change since the last
+        // draw means new activity. Jump to the live edge before the render
+        // key is built so this frame draws at the bottom. Draw is `&self`,
+        // hence the `Cell`s. Once-per-epoch by construction (the guard
+        // updates `last_draw_epoch`), so the user can still scroll back
+        // between two output batches and it sticks until the next one.
+        if self.reset_scroll_on_output {
+            let changed = widget_state
+                .last_draw_epoch
+                .get()
+                .is_some_and(|e| e != content_epoch);
+            if changed && widget_state.scroll_offset.get() != 0 {
+                widget_state.scroll_offset.set(0);
+            }
+        }
+        widget_state.last_draw_epoch.set(Some(content_epoch));
         let render_key = RenderKey {
             epoch: content_epoch,
-            scroll_offset: widget_state.scroll_offset,
+            scroll_offset: widget_state.scroll_offset.get(),
             selection: widget_state.selection,
             hovered_url_cell: widget_state.hovered_url.as_ref().map(|(_, pos)| {
                 (
@@ -1952,7 +2007,7 @@ where
                     } else {
                         let grid = state.backend.term.grid();
                         let max_scroll = grid.total_lines().saturating_sub(grid.screen_lines()) as i32;
-                        widget_state.scroll_offset.clamp(0, max_scroll)
+                        widget_state.scroll_offset.get().clamp(0, max_scroll)
                     };
 
                     let term = &state.backend.term;

@@ -858,6 +858,20 @@ impl Oryxis {
                     self.persist_setting("terminal_right_click", mode.code());
                 }
             }
+            Message::ToggleScrollbackResetKeypress => {
+                self.setting_scrollback_reset_keypress = !self.setting_scrollback_reset_keypress;
+                self.persist_setting(
+                    "scrollback_reset_keypress",
+                    if self.setting_scrollback_reset_keypress { "true" } else { "false" },
+                );
+            }
+            Message::ToggleScrollbackResetOutput => {
+                self.setting_scrollback_reset_output = !self.setting_scrollback_reset_output;
+                self.persist_setting(
+                    "scrollback_reset_output",
+                    if self.setting_scrollback_reset_output { "true" } else { "false" },
+                );
+            }
             Message::ToggleCarefulPaste => {
                 self.setting_careful_paste = !self.setting_careful_paste;
                 // Turning the guard off releases nothing: a parked paste

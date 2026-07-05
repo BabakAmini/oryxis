@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(немає)",
         "default_proxy" => "Проксі",
         "scrollback" => "Буфер прокручування",
+        "scrollback_reset_keypress" => "До кінця при натисканні клавіші",
+        "scrollback_reset_output" => "До кінця під час виводу",
         "word_delimiters" => "Роздільники слів",
         "setting_word_delimiters_desc" => "Символи, що розділяють слова під час вибору подвійним клацанням. Потрійне клацання завжди вибирає весь рядок.",
         "word_delimiters_reset" => "Скинути",

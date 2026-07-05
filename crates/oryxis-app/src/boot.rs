@@ -432,6 +432,8 @@ impl Oryxis {
                 setting_right_click_copy: false,
                 setting_middle_click_paste: true,
                 setting_terminal_right_click: crate::util::RightClickMode::default(),
+                setting_scrollback_reset_keypress: false,
+                setting_scrollback_reset_output: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
@@ -978,6 +980,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("terminal_right_click") {
                 self.setting_terminal_right_click =
                     crate::util::RightClickMode::from_code(&v);
+            }
+            if let Ok(Some(v)) = vault.get_setting("scrollback_reset_keypress") {
+                self.setting_scrollback_reset_keypress = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("scrollback_reset_output") {
+                self.setting_scrollback_reset_output = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("bold_is_bright") {
                 self.setting_bold_is_bright = v == "true";

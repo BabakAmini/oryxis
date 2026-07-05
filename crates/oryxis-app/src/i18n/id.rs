@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(tidak ada)",
         "default_proxy" => "Proxy",
         "scrollback" => "Scrollback",
+        "scrollback_reset_keypress" => "Kembali ke bawah saat menekan tombol",
+        "scrollback_reset_output" => "Kembali ke bawah saat ada keluaran",
         "word_delimiters" => "Pembatas kata",
         "setting_word_delimiters_desc" => "Karakter yang memisahkan kata saat memilih dengan klik ganda. Klik tiga kali selalu memilih seluruh baris.",
         "word_delimiters_reset" => "Setel ulang",

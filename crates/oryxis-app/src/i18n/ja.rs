@@ -382,6 +382,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(なし)",
         "default_proxy" => "プロキシ",
         "scrollback" => "スクロールバック",
+        "scrollback_reset_keypress" => "キー入力でスクロールを最下部に戻す",
+        "scrollback_reset_output" => "出力時にスクロールを最下部に戻す",
         "word_delimiters" => "単語区切り文字",
         "setting_word_delimiters_desc" => "ダブルクリック選択で単語を区切る文字。トリプルクリックは常に行全体を選択します。",
         "word_delimiters_reset" => "デフォルトに戻す",

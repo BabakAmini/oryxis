@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(không)",
         "default_proxy" => "Proxy",
         "scrollback" => "Vùng cuộn lại",
+        "scrollback_reset_keypress" => "Về cuối khi nhấn phím",
+        "scrollback_reset_output" => "Về cuối khi có đầu ra",
         "word_delimiters" => "Ký tự phân tách từ",
         "setting_word_delimiters_desc" => "Các ký tự phân tách từ khi chọn bằng nhấp đúp. Nhấp ba lần luôn chọn toàn bộ dòng.",
         "word_delimiters_reset" => "Đặt lại mặc định",

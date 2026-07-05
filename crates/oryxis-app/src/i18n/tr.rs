@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(yok)",
         "default_proxy" => "Proxy",
         "scrollback" => "Geri kaydırma",
+        "scrollback_reset_keypress" => "Tuşa basınca en alta dön",
+        "scrollback_reset_output" => "Çıktı olunca en alta dön",
         "word_delimiters" => "Sözcük ayırıcıları",
         "setting_word_delimiters_desc" => "Çift tıklamayla seçimde sözcükleri ayıran karakterler. Üç tıklama her zaman tüm satırı seçer.",
         "word_delimiters_reset" => "Varsayılana sıfırla",

@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(brak)",
         "default_proxy" => "Proxy",
         "scrollback" => "Bufor przewijania",
+        "scrollback_reset_keypress" => "Powrót na dół po naciśnięciu klawisza",
+        "scrollback_reset_output" => "Powrót na dół przy aktywności",
         "word_delimiters" => "Separatory słów",
         "setting_word_delimiters_desc" => "Znaki oddzielające słowa przy zaznaczaniu podwójnym kliknięciem. Potrójne kliknięcie zawsze zaznacza cały wiersz.",
         "word_delimiters_reset" => "Przywróć domyślne",

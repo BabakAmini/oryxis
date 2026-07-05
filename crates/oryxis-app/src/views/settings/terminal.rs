@@ -264,6 +264,21 @@ impl Oryxis {
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
             ),
+            // PuTTY's two "jump back to the live edge" behaviors, so a user
+            // stranded deep in history returns without reaching for the
+            // wheel / scrollbar.
+            Space::new().height(12),
+            self.nav_toggle_row(
+                crate::i18n::t("scrollback_reset_keypress"),
+                self.setting_scrollback_reset_keypress,
+                Message::ToggleScrollbackResetKeypress,
+            ),
+            Space::new().height(10),
+            self.nav_toggle_row(
+                crate::i18n::t("scrollback_reset_output"),
+                self.setting_scrollback_reset_output,
+                Message::ToggleScrollbackResetOutput,
+            ),
         ]);
 
         // Text rendering toggles (their own card so they sit under

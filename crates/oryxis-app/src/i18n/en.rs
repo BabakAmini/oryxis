@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "new_default_none" => "(none)",
         "default_proxy" => "Proxy",
         "scrollback" => "Scrollback",
+        "scrollback_reset_keypress" => "Reset scrollback on keypress",
+        "scrollback_reset_output" => "Reset scrollback on display activity",
         "word_delimiters" => "Word delimiters",
         "setting_word_delimiters_desc" => "Characters that separate words when double-clicking to select. Triple-click always selects the whole line.",
         "word_delimiters_reset" => "Reset to default",

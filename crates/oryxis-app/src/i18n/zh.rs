@@ -382,6 +382,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "new_default_none" => "(无)",
         "default_proxy" => "代理",
         "scrollback" => "回滚行数",
+        "scrollback_reset_keypress" => "按键时回到底部",
+        "scrollback_reset_output" => "有输出时回到底部",
         "word_delimiters" => "单词分隔符",
         "setting_word_delimiters_desc" => "双击选择时用于分隔单词的字符。三击始终选择整行。",
         "word_delimiters_reset" => "恢复默认",

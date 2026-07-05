@@ -964,6 +964,10 @@ pub enum Message {
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,
+    /// PuTTY "reset scrollback on keypress" toggled in Settings > Terminal.
+    ToggleScrollbackResetKeypress,
+    /// PuTTY "reset scrollback on display activity" toggled in Settings.
+    ToggleScrollbackResetOutput,
     /// Right-click scheme changed from the settings pick (localized
     /// "Context menu / Paste / Extend selection" label).
     TerminalRightClickChanged(String),

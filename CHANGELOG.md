@@ -7,6 +7,12 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Reset scrollback to the live edge (PuTTY's two behaviors).** Two
+  Settings > Terminal toggles (both off by default) bring you back to
+  the bottom of the buffer without reaching for the wheel or scrollbar:
+  **on keypress** (any key sent to the terminal jumps to the bottom)
+  and **on display activity** (new terminal output jumps to the
+  bottom). Independent, so you can run either, both, or neither.
 - **Configurable right-click in the terminal (PuTTY's three schemes).**
   A Settings > Terminal picker chooses what right-click does: **Paste**
   (the default, unchanged, honouring the copy-on-select "copy on
