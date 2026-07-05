@@ -63,6 +63,11 @@ pub(crate) enum OverlayContent {
     /// actions (sort, view toggle, history pagination) when even the
     /// icon-collapsed search can't free enough room for them inline.
     ToolbarOverflow,
+    /// Right-click context menu over a terminal pane (right-click scheme
+    /// = Menu). Items: Copy All, Paste, Clear Scrollback. Carries the
+    /// pane id so the actions target the clicked pane, not the focused
+    /// one. Position lives in `OverlayState.x/y` (window-absolute).
+    TerminalContextMenu(Uuid),
 }
 
 /// Which side-panel input the shared group picker is currently

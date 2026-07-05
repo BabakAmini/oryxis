@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Kopyalamak için metin seçin ve yapıştırmak için sağ tıklayın",
         "middle_click_paste" => "Orta tıklama ile yapıştır",
+        "terminal_right_click" => "Sağ tıklama",
+        "right_click_menu" => "Bağlam menüsü",
+        "right_click_paste" => "Yapıştır",
+        "right_click_extend" => "Seçimi genişlet",
+        "terminal_copy_all" => "Tümünü kopyala",
+        "terminal_paste" => "Yapıştır",
+        "terminal_clear_scrollback" => "Kaydırma geçmişini temizle",
         "renderer_backend" => "Grafik işleyici",
         "renderer_backend_desc" => "Otomatik en iyi GPU yolunu seçer (önce Vulkan). OpenGL, Vulkan/DX12 sürücüleri bozuk GPU'lar için bir uyumluluk seçeneğidir; Yazılım (CPU) her zaman doğru işler. Uygulamak için yeniden başlatın.",
         "renderer_active" => "Etkin işleyici",

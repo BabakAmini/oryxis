@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Zaznacz tekst, aby skopiować, kliknij prawym, aby wkleić",
         "middle_click_paste" => "Wklejanie środkowym przyciskiem",
+        "terminal_right_click" => "Prawy przycisk",
+        "right_click_menu" => "Menu kontekstowe",
+        "right_click_paste" => "Wklej",
+        "right_click_extend" => "Rozszerz zaznaczenie",
+        "terminal_copy_all" => "Kopiuj wszystko",
+        "terminal_paste" => "Wklej",
+        "terminal_clear_scrollback" => "Wyczyść bufor przewijania",
         "renderer_backend" => "Renderer graficzny",
         "renderer_backend_desc" => "Automatyczny wybiera najlepszą ścieżkę GPU (najpierw Vulkan). OpenGL to opcja zgodności dla GPU z uszkodzonymi sterownikami Vulkan/DX12; Software (CPU) zawsze renderuje poprawnie. Uruchom ponownie, aby zastosować.",
         "renderer_active" => "Aktywny renderer",

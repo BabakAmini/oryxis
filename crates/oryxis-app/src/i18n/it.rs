@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Seleziona il testo per copiare e clic destro per incollare",
         "middle_click_paste" => "Incolla con il clic centrale",
+        "terminal_right_click" => "Clic destro",
+        "right_click_menu" => "Menu contestuale",
+        "right_click_paste" => "Incolla",
+        "right_click_extend" => "Estendi selezione",
+        "terminal_copy_all" => "Copia tutto",
+        "terminal_paste" => "Incolla",
+        "terminal_clear_scrollback" => "Cancella cronologia",
         "renderer_backend" => "Renderer grafico",
         "renderer_backend_desc" => "Automatico sceglie il percorso GPU migliore (prima Vulkan). OpenGL è un'opzione di compatibilità per GPU con driver Vulkan/DX12 difettosi; Software (CPU) rende sempre correttamente. Riavvia per applicare.",
         "renderer_active" => "Renderer attivo",

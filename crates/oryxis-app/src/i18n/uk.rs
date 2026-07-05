@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Виділення тексту для копіювання та права кнопка для вставлення",
         "middle_click_paste" => "Вставлення середньою кнопкою",
+        "terminal_right_click" => "Правий клік",
+        "right_click_menu" => "Контекстне меню",
+        "right_click_paste" => "Вставити",
+        "right_click_extend" => "Розширити виділення",
+        "terminal_copy_all" => "Копіювати все",
+        "terminal_paste" => "Вставити",
+        "terminal_clear_scrollback" => "Очистити буфер прокручування",
         "renderer_backend" => "Графічний рендерер",
         "renderer_backend_desc" => "Автоматично обирає найкращий шлях GPU (спочатку Vulkan). OpenGL — варіант сумісності для GPU з несправними драйверами Vulkan/DX12; Software (CPU) завжди рендерить коректно. Перезапустіть, щоб застосувати.",
         "renderer_active" => "Активний рендерер",

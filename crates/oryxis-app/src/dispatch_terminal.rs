@@ -818,10 +818,64 @@ impl Oryxis {
             // reached the local PTY and right-click looked broken on
             // every SSH tab.
             Message::TerminalPasteFromClipboard => {
+                // Also the terminal context-menu Paste row: dismiss the
+                // menu (its item sits over the backdrop, so the backdrop
+                // never sees the click). Idempotent for the other callers
+                // (widget paste hook, middle-click, keyboard), which run
+                // with no overlay open.
+                self.overlay = None;
                 if let Ok(mut clip) = arboard::Clipboard::new()
                     && let Ok(text) = clip.get_text()
                 {
                     self.paste_text_into_active(&text);
+                }
+            }
+            Message::ShowTerminalContextMenu(pane_id, x, y) => {
+                // Focus the right-clicked pane first (standard context-menu
+                // behavior), so all three rows act on the same pane: Copy
+                // All / Clear Scrollback are pane-targeted by id, and Paste
+                // routes through the focused pane.
+                if let Some(tab_idx) = self.pane_tab_index(pane_id) {
+                    self.active_tab = Some(tab_idx);
+                    if let Some(tab) = self.tabs.get_mut(tab_idx)
+                        && let Some(gp) = tab
+                            .pane_grid
+                            .panes
+                            .iter()
+                            .find(|(_, p)| p.id == pane_id)
+                            .map(|(gp, _)| *gp)
+                    {
+                        tab.focused = gp;
+                    }
+                }
+                // Right-click scheme = Menu: anchor the overlay at the
+                // click point (window-absolute, same space as every menu).
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::TerminalContextMenu(pane_id),
+                    x,
+                    y,
+                });
+            }
+            Message::TerminalCopyAll(pane_id) => {
+                self.overlay = None;
+                if let Some(pane) = self.pane_by_id(pane_id)
+                    && let Ok(state) = pane.terminal.lock()
+                {
+                    let text = state.all_text();
+                    drop(state);
+                    if !text.is_empty()
+                        && let Ok(mut clip) = arboard::Clipboard::new()
+                    {
+                        let _ = clip.set_text(text);
+                    }
+                }
+            }
+            Message::TerminalClearScrollback(pane_id) => {
+                self.overlay = None;
+                if let Some(pane) = self.pane_by_id(pane_id)
+                    && let Ok(mut state) = pane.terminal.lock()
+                {
+                    state.clear_scrollback();
                 }
             }
             // Careful-paste confirmation: release the parked multi-line

@@ -7,6 +7,15 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Configurable right-click in the terminal (PuTTY's three schemes).**
+  A Settings > Terminal picker chooses what right-click does: **Paste**
+  (the default, unchanged, honouring the copy-on-select "copy on
+  right-click" sub-option); **Context menu** (Copy All / Paste / Clear
+  Scrollback, anchored at the click and keyboard-navigable); or
+  **Extend selection** (xterm-style, moving the selection's nearer
+  boundary to the click and copying). The right-click gesture now has a
+  single authority; the "copy on right-click" sub-option is shown only
+  under Paste. Completes the PuTTY parity pack.
 - **Edit an ad-hoc host mid-connect.** The connect progress screen for
   a quick connect (`user@host` without saving) now offers "Edit host"
   in every state, not only after a failure. It edits the temporary

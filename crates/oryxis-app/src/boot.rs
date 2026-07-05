@@ -431,6 +431,7 @@ impl Oryxis {
                 setting_paste_guard: true,
                 setting_right_click_copy: false,
                 setting_middle_click_paste: true,
+                setting_terminal_right_click: crate::util::RightClickMode::default(),
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
@@ -973,6 +974,10 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("middle_click_paste") {
                 self.setting_middle_click_paste = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("terminal_right_click") {
+                self.setting_terminal_right_click =
+                    crate::util::RightClickMode::from_code(&v);
             }
             if let Ok(Some(v)) = vault.get_setting("bold_is_bright") {
                 self.setting_bold_is_bright = v == "true";

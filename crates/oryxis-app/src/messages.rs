@@ -964,6 +964,18 @@ pub enum Message {
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,
+    /// Right-click scheme changed from the settings pick (localized
+    /// "Context menu / Paste / Extend selection" label).
+    TerminalRightClickChanged(String),
+    /// Open the terminal context menu for a pane at a window-absolute
+    /// point (right-click scheme = Menu). `(pane_id, x, y)`.
+    ShowTerminalContextMenu(Uuid, f32, f32),
+    /// Copy the whole buffer (scrollback + screen) of a pane to the
+    /// clipboard (context-menu "Copy All"). `pane_id`.
+    TerminalCopyAll(Uuid),
+    /// Drop a pane's scrollback history (context-menu "Clear
+    /// Scrollback"). `pane_id`.
+    TerminalClearScrollback(Uuid),
     /// Flip the careful-paste guard (warn before multi-line paste).
     ToggleCarefulPaste,
     ToggleBoldIsBright,

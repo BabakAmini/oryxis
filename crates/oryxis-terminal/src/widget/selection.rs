@@ -43,6 +43,25 @@ impl Selection {
     pub fn is_empty(&self) -> bool {
         self.start == self.end
     }
+
+    /// xterm right-click "extend": move the boundary NEARER to `click`
+    /// onto the click point, keeping the far anchor fixed. Returns a new
+    /// flowing selection anchored at the far end. Distance compares line
+    /// first, then column, matching how a terminal grid reads. Block
+    /// selections aren't extended this way (right-click extend is a
+    /// flowing-selection gesture); the caller leaves them untouched.
+    pub fn extended_to(&self, click: (u16, i32)) -> Selection {
+        let (a, b) = self.ordered();
+        let dist = |p: (u16, i32)| {
+            (
+                (p.1 - click.1).unsigned_abs(),
+                (p.0 as i32 - click.0 as i32).unsigned_abs(),
+            )
+        };
+        // Click nearer the top-left end (a) -> anchor at b; else anchor at a.
+        let anchor = if dist(a) <= dist(b) { b } else { a };
+        Selection { start: anchor, end: click, block: false }
+    }
 }
 
 /// Granularity of a double/triple-click selection. A plain single-click
@@ -99,6 +118,33 @@ mod selection_tests {
         }
         state.process(text.as_bytes());
         state
+    }
+
+    #[test]
+    fn extend_moves_the_nearer_boundary_keeping_the_far_anchor() {
+        // Selection from (2, line 1) to (8, line 3); ordered a=(2,1),
+        // b=(8,3). A click near the top end (1, line 0) moves the near
+        // boundary and anchors at the far end b.
+        let sel = Selection { start: (2, 1), end: (8, 3), block: false };
+        let near_top = sel.extended_to((1, 0));
+        assert_eq!(near_top.start, (8, 3), "far anchor kept");
+        assert_eq!(near_top.end, (1, 0), "near end moved to the click");
+        assert!(!near_top.block);
+
+        // A click past the bottom end anchors at the top end a instead.
+        let near_bottom = sel.extended_to((5, 9));
+        assert_eq!(near_bottom.start, (2, 1), "far anchor kept");
+        assert_eq!(near_bottom.end, (5, 9));
+    }
+
+    #[test]
+    fn extend_uses_column_to_break_a_same_line_tie() {
+        // Both ends on the same line: distance ties on line, so the
+        // column decides which boundary is nearer.
+        let sel = Selection { start: (2, 5), end: (10, 5), block: false };
+        let near_left = sel.extended_to((3, 5));
+        assert_eq!(near_left.start, (10, 5), "anchored at the right end");
+        assert_eq!(near_left.end, (3, 5));
     }
 
     #[test]

@@ -324,6 +324,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Selecionar texto para copiar e clicar com botão direito para colar",
         "middle_click_paste" => "Colar com o botão do meio",
+        "terminal_right_click" => "Botão direito",
+        "right_click_menu" => "Menu de contexto",
+        "right_click_paste" => "Colar",
+        "right_click_extend" => "Estender seleção",
+        "terminal_copy_all" => "Copiar tudo",
+        "terminal_paste" => "Colar",
+        "terminal_clear_scrollback" => "Limpar histórico",
         "renderer_backend" => "Renderizador gráfico",
         "renderer_backend_desc" => "Automático escolhe o melhor caminho de GPU (Vulkan primeiro). OpenGL é um pino de compatibilidade para GPUs com drivers Vulkan/DX12 quebrados; Software (CPU) sempre renderiza correto. Reinicie para aplicar.",
         "renderer_active" => "Renderizador ativo",

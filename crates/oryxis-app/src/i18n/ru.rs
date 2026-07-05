@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Копировать при выделении, вставка правой кнопкой",
         "middle_click_paste" => "Вставка средней кнопкой",
+        "terminal_right_click" => "Правый клик",
+        "right_click_menu" => "Контекстное меню",
+        "right_click_paste" => "Вставить",
+        "right_click_extend" => "Расширить выделение",
+        "terminal_copy_all" => "Копировать всё",
+        "terminal_paste" => "Вставить",
+        "terminal_clear_scrollback" => "Очистить буфер прокрутки",
         "renderer_backend" => "Графический рендерер",
         "renderer_backend_desc" => "Автоматически выбирает лучший путь GPU (сначала Vulkan). OpenGL — вариант совместимости для GPU с неисправными драйверами Vulkan/DX12; Software (CPU) всегда отрисовывает корректно. Требуется перезапуск.",
         "renderer_active" => "Активный рендерер",

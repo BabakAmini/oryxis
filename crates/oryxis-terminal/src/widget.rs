@@ -39,6 +39,29 @@ pub use clipboard::wrap_paste;
 pub use selection::Selection;
 pub use state::TerminalState;
 
+/// Callback for a terminal context-menu request: `(x, y, has_selection)`
+/// -> app message. Aliased so the boxed closure doesn't trip clippy's
+/// complex-type lint at the field.
+type ContextMenuFn<Message> = Box<dyn Fn(f32, f32, bool) -> Message>;
+
+/// What a right-click does in the terminal, the three PuTTY schemes.
+/// The single authority for the gesture: `right_click_copy` (the
+/// copy-on-select "copy on right-click" sub-option) is honoured only
+/// under [`Paste`](RightClickAction::Paste).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RightClickAction {
+    /// Open a context menu (Windows Terminal / iTerm default).
+    Menu,
+    /// Paste the clipboard, the current Oryxis default and PuTTY's
+    /// X11-compromise scheme. Also the only mode where
+    /// `right_click_copy` applies (copy-over-selection).
+    #[default]
+    Paste,
+    /// Extend the current selection to the click point (xterm), moving
+    /// its nearer boundary, then copy.
+    Extend,
+}
+
 pub(crate) use clipboard::{open_url, set_clipboard_text};
 pub(crate) use highlight::*;
 // Shared with the app-side session-log redaction so both sides agree on
@@ -228,6 +251,9 @@ pub struct TerminalView<Message = ()> {
     /// remote app holds mouse tracking, the report path wins (Shift
     /// bypasses, as everywhere).
     middle_click_paste: bool,
+    /// What a right-click does (PuTTY's three schemes). The single
+    /// authority for the gesture; see [`RightClickAction`].
+    right_click_action: RightClickAction,
     /// When true, ANSI bold flag promotes the named foreground color to
     /// its bright variant (red → bright red, etc).
     bold_is_bright: bool,
@@ -274,6 +300,11 @@ pub struct TerminalView<Message = ()> {
     /// to the local PTY, so the app dispatcher can route to the SSH
     /// session (mirroring the Ctrl+Shift+V path).
     on_paste_request: Option<Message>,
+    /// Emitted (with window-absolute x, y and whether a selection is
+    /// live) when a right-click should open the context menu
+    /// (`right_click_action == Menu`). The app renders + drives the menu
+    /// through its overlay pipeline.
+    on_context_menu: Option<ContextMenuFn<Message>>,
     /// Optional callback for raw input bytes the widget synthesizes
     /// (mouse-tracking reports, wheel-to-arrow translation). Like
     /// `on_paste_request`, this routes the bytes through the dispatcher
@@ -497,6 +528,7 @@ impl<Message> TerminalView<Message> {
             copy_on_select: true,
             right_click_copy: false,
             middle_click_paste: true,
+            right_click_action: RightClickAction::default(),
             bold_is_bright: true,
             keyword_highlight: true,
             performance: false,
@@ -508,6 +540,7 @@ impl<Message> TerminalView<Message> {
             on_font_size_increase: None,
             on_font_size_decrease: None,
             on_paste_request: None,
+            on_context_menu: None,
             on_terminal_input: None,
             on_mouse_capture_hint: None,
             on_link_click_hint: None,
@@ -555,6 +588,23 @@ impl<Message> TerminalView<Message> {
     /// X11-style middle-click paste (independent of `copy_on_select`).
     pub fn with_middle_click_paste(mut self, on: bool) -> Self {
         self.middle_click_paste = on;
+        self
+    }
+
+    /// Set the right-click scheme (Menu / Paste / Extend).
+    pub fn with_right_click_action(mut self, action: RightClickAction) -> Self {
+        self.right_click_action = action;
+        self
+    }
+
+    /// Wire the context-menu request (fired on right-click when the
+    /// scheme is `Menu`). `f` receives window-absolute (x, y) and
+    /// whether a selection is currently live.
+    pub fn on_context_menu(
+        mut self,
+        f: impl Fn(f32, f32, bool) -> Message + 'static,
+    ) -> Self {
+        self.on_context_menu = Some(Box::new(f));
         self
     }
 
@@ -1493,41 +1543,90 @@ where
             // `copy_on_select`: that setting bundles "select to copy & right
             // click to paste", so right-click does nothing when it's off.
             iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
-                if cursor.position_in(bounds).is_some() && self.copy_on_select =>
+                if cursor.position_in(bounds).is_some() =>
             {
-                // State 3 (copy_on_select + right_click_copy): a right-click
-                // over a live selection copies it instead of pasting, then
-                // clears the selection so the next right-click pastes. With
-                // no selection we fall through to the normal paste path. The
-                // copy is written straight to the clipboard here (mirroring
-                // Ctrl+Shift+C), not via `on_paste_request`, which is the
-                // paste hook.
-                if self.copy_on_select
-                    && self.right_click_copy
-                    && let Some(sel) = widget_state.selection
-                    && !sel.is_empty()
-                {
-                    if let Ok(state) = self.state.lock() {
-                        let text = state.get_selection_text(&sel);
-                        drop(state);
-                        if !text.is_empty() {
-                            set_clipboard_text(&text);
+                // The right-click scheme (PuTTY's Menu / Paste / Extend) is
+                // the single authority for this gesture. Unlike the old
+                // path it is NOT gated on `copy_on_select`: an explicit
+                // "Paste" scheme that silently did nothing with copy-on-
+                // select off would be a surprise.
+                match self.right_click_action {
+                    RightClickAction::Menu => {
+                        if let Some(cb) = &self.on_context_menu {
+                            // Window-absolute position for the app's overlay
+                            // (same coordinate space as every other menu
+                            // anchor). `position()` is the viewport point.
+                            let abs = cursor.position().unwrap_or_default();
+                            let has_sel = widget_state
+                                .selection
+                                .as_ref()
+                                .is_some_and(|s| !s.is_empty());
+                            return Some(
+                                CanvasAction::publish(cb(abs.x, abs.y, has_sel)).and_capture(),
+                            );
                         }
+                        return Some(CanvasAction::capture());
                     }
-                    widget_state.selection = None;
-                    return Some(CanvasAction::request_redraw().and_capture());
+                    RightClickAction::Extend => {
+                        // xterm extend: move the selection's NEARER boundary
+                        // to the click point, keeping the far anchor fixed,
+                        // then copy. A no-op when there is nothing to extend
+                        // (or when the live selection is a block).
+                        if let Some(pos) = cursor.position_in(bounds) {
+                            let (col, vrow) = self.pixel_to_cell(pos);
+                            let line =
+                                Self::visible_row_to_line(vrow, widget_state.scroll_offset);
+                            if let Some(sel) = widget_state.selection.as_ref().filter(|s| !s.block)
+                            {
+                                let extended = sel.extended_to((col, line));
+                                widget_state.selection = Some(extended);
+                                if let Ok(state) = self.state.lock() {
+                                    let text = state.get_selection_text(&extended);
+                                    drop(state);
+                                    if !text.is_empty() {
+                                        set_clipboard_text(&text);
+                                    }
+                                }
+                                return Some(CanvasAction::request_redraw().and_capture());
+                            }
+                        }
+                        return Some(CanvasAction::capture());
+                    }
+                    RightClickAction::Paste => {
+                        // copy_on_select + right_click_copy: a right-click
+                        // over a live selection copies it instead of pasting,
+                        // then clears the selection so the next right-click
+                        // pastes. The copy is written straight to the
+                        // clipboard here (mirroring Ctrl+Shift+C), not via
+                        // `on_paste_request` (the paste hook).
+                        if self.copy_on_select
+                            && self.right_click_copy
+                            && let Some(sel) = widget_state.selection
+                            && !sel.is_empty()
+                        {
+                            if let Ok(state) = self.state.lock() {
+                                let text = state.get_selection_text(&sel);
+                                drop(state);
+                                if !text.is_empty() {
+                                    set_clipboard_text(&text);
+                                }
+                            }
+                            widget_state.selection = None;
+                            return Some(CanvasAction::request_redraw().and_capture());
+                        }
+                        if let Some(msg) = self.on_paste_request.clone() {
+                            return Some(CanvasAction::publish(msg).and_capture());
+                        }
+                        if let Ok(mut clip) = arboard::Clipboard::new()
+                            && let Ok(text) = clip.get_text()
+                            && let Ok(mut state) = self.state.lock()
+                        {
+                            let bracketed = state.bracketed_paste_enabled();
+                            state.write(&crate::wrap_paste(&text, bracketed));
+                        }
+                        return Some(CanvasAction::capture());
+                    }
                 }
-                if let Some(msg) = self.on_paste_request.clone() {
-                    return Some(CanvasAction::publish(msg).and_capture());
-                }
-                if let Ok(mut clip) = arboard::Clipboard::new()
-                    && let Ok(text) = clip.get_text()
-                    && let Ok(mut state) = self.state.lock()
-                {
-                    let bracketed = state.bracketed_paste_enabled();
-                    state.write(&crate::wrap_paste(&text, bracketed));
-                }
-                return Some(CanvasAction::capture());
             }
             // Ctrl + wheel, adjust terminal font size in the standard
             // alacritty / kitty / gnome-terminal way. Captured before the

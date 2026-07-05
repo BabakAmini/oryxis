@@ -64,6 +64,7 @@ impl Oryxis {
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
             OverlayContent::SplitMenu => 3.0,
+            OverlayContent::TerminalContextMenu(_) => 3.0,
             _ => 2.5,
         };
         items * ITEM_H + 10.0
@@ -1071,6 +1072,30 @@ impl Oryxis {
                     _ => {}
                 }
                 col.into()
+            }
+            OverlayContent::TerminalContextMenu(pane_id) => {
+                let pane_id = *pane_id;
+                column![
+                    self.menu_item(
+                        iced_fonts::lucide::copy(),
+                        crate::i18n::t("terminal_copy_all"),
+                        Message::TerminalCopyAll(pane_id),
+                        OryxisColors::t().text_secondary,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::clipboard_paste(),
+                        crate::i18n::t("terminal_paste"),
+                        Message::TerminalPasteFromClipboard,
+                        OryxisColors::t().text_secondary,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::eraser(),
+                        crate::i18n::t("terminal_clear_scrollback"),
+                        Message::TerminalClearScrollback(pane_id),
+                        OryxisColors::t().text_secondary,
+                    ),
+                ]
+                .into()
             }
         };
 

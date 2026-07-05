@@ -323,6 +323,31 @@ impl TerminalState {
     pub fn cols(&self) -> u16 { self.backend.cols() }
     pub fn rows(&self) -> u16 { self.backend.rows() }
 
+    /// The whole buffer (scrollback + screen) as text, trailing blank
+    /// lines trimmed. Backs the "Copy All" context-menu action, which is
+    /// app-driven and so can't reach the widget's live selection state.
+    /// Reuses the selection extractor over a full-buffer range.
+    pub fn all_text(&self) -> String {
+        use alacritty_terminal::grid::Dimensions;
+        let grid = self.backend.term.grid();
+        let top = grid.topmost_line().0;
+        let bottom = grid.bottommost_line().0;
+        let last_col = grid.columns().saturating_sub(1) as u16;
+        let sel = Selection {
+            start: (0, top),
+            end: (last_col, bottom),
+            block: false,
+        };
+        self.get_selection_text(&sel).trim_end().to_string()
+    }
+
+    /// Drop the scrollback history, keeping the visible screen (the PuTTY
+    /// / Windows Terminal "Clear Scrollback" action). No-op when there is
+    /// no history.
+    pub fn clear_scrollback(&mut self) {
+        self.backend.term.grid_mut().clear_history();
+    }
+
     /// Visible cursor cell as `(column, line)`, 0-based from the top-left of
     /// the active screen. Used to anchor the OS IME candidate window near the
     /// caret. Ignores the widget's scrollback offset (during composition the

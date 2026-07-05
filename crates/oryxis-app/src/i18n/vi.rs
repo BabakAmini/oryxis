@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Chọn văn bản để chép và nhấp chuột phải để dán",
         "middle_click_paste" => "Dán bằng nút chuột giữa",
+        "terminal_right_click" => "Chuột phải",
+        "right_click_menu" => "Menu ngữ cảnh",
+        "right_click_paste" => "Dán",
+        "right_click_extend" => "Mở rộng vùng chọn",
+        "terminal_copy_all" => "Sao chép tất cả",
+        "terminal_paste" => "Dán",
+        "terminal_clear_scrollback" => "Xóa cuộn lại",
         "renderer_backend" => "Trình kết xuất đồ họa",
         "renderer_backend_desc" => "Tự động chọn đường dẫn GPU tốt nhất (ưu tiên Vulkan). OpenGL là tùy chọn tương thích cho GPU có driver Vulkan/DX12 bị lỗi; Phần mềm (CPU) luôn hiển thị đúng. Khởi động lại để áp dụng.",
         "renderer_active" => "Trình kết xuất đang dùng",

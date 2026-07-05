@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Sélectionner pour copier et clic droit pour coller",
         "middle_click_paste" => "Coller avec le clic du milieu",
+        "terminal_right_click" => "Clic droit",
+        "right_click_menu" => "Menu contextuel",
+        "right_click_paste" => "Coller",
+        "right_click_extend" => "Étendre la sélection",
+        "terminal_copy_all" => "Tout copier",
+        "terminal_paste" => "Coller",
+        "terminal_clear_scrollback" => "Effacer l'historique",
         "renderer_backend" => "Moteur de rendu",
         "renderer_backend_desc" => "Automatique choisit le meilleur chemin GPU (Vulkan d'abord). OpenGL est une option de compatibilité pour les GPU aux pilotes Vulkan/DX12 défectueux ; Software (CPU) rend toujours correctement. Redémarrez pour appliquer.",
         "renderer_active" => "Moteur de rendu actif",

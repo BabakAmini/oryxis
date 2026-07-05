@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "选中文本自动复制，右键粘贴",
         "middle_click_paste" => "中键粘贴",
+        "terminal_right_click" => "右键单击",
+        "right_click_menu" => "上下文菜单",
+        "right_click_paste" => "粘贴",
+        "right_click_extend" => "扩展选择",
+        "terminal_copy_all" => "全部复制",
+        "terminal_paste" => "粘贴",
+        "terminal_clear_scrollback" => "清除回滚",
         "renderer_backend" => "图形渲染器",
         "renderer_backend_desc" => "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。",
         "renderer_active" => "当前渲染器",

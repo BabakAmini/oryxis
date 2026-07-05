@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "انتخاب متن برای کپی و کلیک راست برای جای‌گذاری",
         "middle_click_paste" => "چسباندن با کلیک وسط",
+        "terminal_right_click" => "کلیک راست",
+        "right_click_menu" => "منوی زمینه",
+        "right_click_paste" => "چسباندن",
+        "right_click_extend" => "گسترش انتخاب",
+        "terminal_copy_all" => "کپی همه",
+        "terminal_paste" => "چسباندن",
+        "terminal_clear_scrollback" => "پاک کردن اسکرول‌بک",
         "renderer_backend" => "موتور رندر گرافیکی",
         "renderer_backend_desc" => "حالت خودکار بهترین مسیر GPU را انتخاب می‌کند (ابتدا Vulkan). OpenGL گزینه سازگاری برای GPUهایی با درایورهای خراب Vulkan/DX12 است؛ نرم‌افزاری (CPU) همیشه درست رندر می‌کند. برای اعمال، برنامه را دوباره اجرا کنید.",
         "renderer_active" => "رندرکننده فعال",

@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "Pilih teks untuk menyalin & klik kanan untuk menempel",
         "middle_click_paste" => "Tempel dengan klik tengah",
+        "terminal_right_click" => "Klik kanan",
+        "right_click_menu" => "Menu konteks",
+        "right_click_paste" => "Tempel",
+        "right_click_extend" => "Perluas seleksi",
+        "terminal_copy_all" => "Salin semua",
+        "terminal_paste" => "Tempel",
+        "terminal_clear_scrollback" => "Bersihkan scrollback",
         "renderer_backend" => "Perender grafis",
         "renderer_backend_desc" => "Otomatis memilih jalur GPU terbaik (Vulkan lebih dulu). OpenGL adalah opsi kompatibilitas untuk GPU dengan driver Vulkan/DX12 yang rusak; Perangkat lunak (CPU) selalu merender dengan benar. Mulai ulang untuk menerapkan.",
         "renderer_active" => "Penyaji aktif",

@@ -294,6 +294,60 @@ impl NotificationMode {
     }
 }
 
+/// What a terminal right-click does (PuTTY's three schemes). Persisted
+/// as `code()`; maps to `oryxis_terminal::RightClickAction` at build.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub(crate) enum RightClickMode {
+    /// Open a context menu (Copy All / Paste / Clear Scrollback).
+    Menu,
+    /// Paste the clipboard (current default; also the only mode where
+    /// the copy-on-select "copy on right-click" sub-option applies).
+    #[default]
+    Paste,
+    /// Extend the current selection to the click point, then copy (xterm).
+    Extend,
+}
+
+impl RightClickMode {
+    pub(crate) const ALL: [RightClickMode; 3] = [
+        RightClickMode::Menu,
+        RightClickMode::Paste,
+        RightClickMode::Extend,
+    ];
+
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            RightClickMode::Menu => "menu",
+            RightClickMode::Paste => "paste",
+            RightClickMode::Extend => "extend",
+        }
+    }
+
+    pub(crate) fn from_code(code: &str) -> Self {
+        match code {
+            "menu" => RightClickMode::Menu,
+            "extend" => RightClickMode::Extend,
+            _ => RightClickMode::Paste,
+        }
+    }
+
+    pub(crate) fn label_key(self) -> &'static str {
+        match self {
+            RightClickMode::Menu => "right_click_menu",
+            RightClickMode::Paste => "right_click_paste",
+            RightClickMode::Extend => "right_click_extend",
+        }
+    }
+
+    pub(crate) fn to_widget(self) -> oryxis_terminal::RightClickAction {
+        match self {
+            RightClickMode::Menu => oryxis_terminal::RightClickAction::Menu,
+            RightClickMode::Paste => oryxis_terminal::RightClickAction::Paste,
+            RightClickMode::Extend => oryxis_terminal::RightClickAction::Extend,
+        }
+    }
+}
+
 /// How terminal teaching hints (the "hold Shift to select" mouse-capture
 /// toast, the "hold Ctrl and click" link toast) are surfaced. Default
 /// `Once`: each hint shows a single time per terminal pane, enough to teach

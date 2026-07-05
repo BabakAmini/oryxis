@@ -879,6 +879,11 @@ pub struct Oryxis {
     /// still routes through the careful-paste / paste-guard checks.
     /// Persisted as `middle_click_paste`; default on.
     pub(crate) setting_middle_click_paste: bool,
+    /// What a terminal right-click does (Menu / Paste / Extend, PuTTY's
+    /// three schemes). Persisted as `terminal_right_click`; default
+    /// Paste (the prior behavior). `setting_right_click_copy` applies
+    /// only under Paste.
+    pub(crate) setting_terminal_right_click: crate::util::RightClickMode,
     /// Content heuristics on paste (bidi/invisible chars, control
     /// bytes, curl|sh, homographs) park even single-line pastes behind
     /// the confirmation. Its own switch, independent of the multi-line

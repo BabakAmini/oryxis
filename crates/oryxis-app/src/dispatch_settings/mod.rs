@@ -848,6 +848,16 @@ impl Oryxis {
                     if self.setting_middle_click_paste { "true" } else { "false" },
                 );
             }
+            Message::TerminalRightClickChanged(name) => {
+                use crate::util::RightClickMode;
+                if let Some(mode) = RightClickMode::ALL
+                    .iter()
+                    .find(|m| crate::i18n::t(m.label_key()) == name)
+                {
+                    self.setting_terminal_right_click = *mode;
+                    self.persist_setting("terminal_right_click", mode.code());
+                }
+            }
             Message::ToggleCarefulPaste => {
                 self.setting_careful_paste = !self.setting_careful_paste;
                 // Turning the guard off releases nothing: a parked paste

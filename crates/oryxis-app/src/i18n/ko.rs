@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "텍스트를 선택하여 복사하고 우클릭하여 붙여넣기",
         "middle_click_paste" => "가운데 클릭으로 붙여넣기",
+        "terminal_right_click" => "오른쪽 클릭",
+        "right_click_menu" => "컨텍스트 메뉴",
+        "right_click_paste" => "붙여넣기",
+        "right_click_extend" => "선택 확장",
+        "terminal_copy_all" => "모두 복사",
+        "terminal_paste" => "붙여넣기",
+        "terminal_clear_scrollback" => "스크롤백 지우기",
         "renderer_backend" => "그래픽 렌더러",
         "renderer_backend_desc" => "자동은 최적의 GPU 경로를 선택합니다(Vulkan 우선). OpenGL은 Vulkan/DX12 드라이버가 손상된 GPU를 위한 호환 옵션입니다. 소프트웨어(CPU)는 항상 올바르게 렌더링합니다. 재시작 후 적용됩니다.",
         "renderer_active" => "활성 렌더러",

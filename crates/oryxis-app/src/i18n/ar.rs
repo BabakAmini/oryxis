@@ -330,6 +330,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings toggles
         "copy_on_select" => "تحديد النص للنسخ والنقر بالزر الأيمن للصق",
         "middle_click_paste" => "لصق بالنقر الأوسط",
+        "terminal_right_click" => "النقر الأيمن",
+        "right_click_menu" => "قائمة السياق",
+        "right_click_paste" => "لصق",
+        "right_click_extend" => "توسيع التحديد",
+        "terminal_copy_all" => "نسخ الكل",
+        "terminal_paste" => "لصق",
+        "terminal_clear_scrollback" => "مسح التمرير",
         "renderer_backend" => "محرّك العرض الرسومي",
         "renderer_backend_desc" => "يختار الوضع التلقائي أفضل مسار GPU (Vulkan أولاً). OpenGL خيار توافق لوحدات GPU ذات برامج تشغيل Vulkan/DX12 المعطلة؛ البرمجي (CPU) يعرض دائمًا بشكل صحيح. أعد التشغيل للتطبيق.",
         "renderer_active" => "المُصيّر النشط",

@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "テキスト選択でコピー、右クリックでペースト",
         "middle_click_paste" => "中クリックで貼り付け",
+        "terminal_right_click" => "右クリック",
+        "right_click_menu" => "コンテキストメニュー",
+        "right_click_paste" => "貼り付け",
+        "right_click_extend" => "選択範囲を拡張",
+        "terminal_copy_all" => "すべてコピー",
+        "terminal_paste" => "貼り付け",
+        "terminal_clear_scrollback" => "スクロールバックをクリア",
         "renderer_backend" => "グラフィックレンダラー",
         "renderer_backend_desc" => "自動は最適なGPUパスを選択します（Vulkan優先）。OpenGLはVulkan/DX12ドライバーが壊れたGPU向けの互換オプションです。ソフトウェア（CPU）は常に正しく描画します。再起動後に適用されます。",
         "renderer_active" => "使用中のレンダラー",

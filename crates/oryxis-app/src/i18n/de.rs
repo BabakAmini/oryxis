@@ -329,6 +329,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "copy_on_select" => "Text auswählen zum Kopieren & Rechtsklick zum Einfügen",
         "middle_click_paste" => "Einfügen per Mittelklick",
+        "terminal_right_click" => "Rechtsklick",
+        "right_click_menu" => "Kontextmenü",
+        "right_click_paste" => "Einfügen",
+        "right_click_extend" => "Auswahl erweitern",
+        "terminal_copy_all" => "Alles kopieren",
+        "terminal_paste" => "Einfügen",
+        "terminal_clear_scrollback" => "Verlauf löschen",
         "renderer_backend" => "Grafik-Renderer",
         "renderer_backend_desc" => "Automatisch wählt den besten GPU-Pfad (Vulkan zuerst). OpenGL ist eine Kompatibilitätsoption für GPUs mit defekten Vulkan/DX12-Treibern; Software (CPU) rendert immer korrekt. Neustart erforderlich.",
         "renderer_active" => "Aktiver Renderer",

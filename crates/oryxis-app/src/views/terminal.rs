@@ -269,6 +269,7 @@ impl Oryxis {
             .with_copy_on_select(self.setting_copy_on_select)
             .with_right_click_copy(self.setting_right_click_copy)
             .with_middle_click_paste(self.setting_middle_click_paste)
+            .with_right_click_action(self.setting_terminal_right_click.to_widget())
             .with_bold_is_bright(self.setting_bold_is_bright)
             .with_keyword_highlight(self.setting_keyword_highlight)
             .with_performance(self.setting_performance_mode)
@@ -282,6 +283,14 @@ impl Oryxis {
             .on_paste_request(Message::TerminalPasteFromClipboard)
             .on_terminal_input(Message::TerminalInput)
             .on_link_opened(Message::TerminalLinkOpened);
+        // Context menu (right-click scheme = Menu): carry the clicked
+        // pane's id so Copy All / Clear Scrollback target the right pane,
+        // not just the focused one.
+        if self.setting_terminal_right_click == crate::util::RightClickMode::Menu {
+            let pane_id = pane.id;
+            term_view = term_view
+                .on_context_menu(move |x, y, _sel| Message::ShowTerminalContextMenu(pane_id, x, y));
+        }
         // Wire the teaching hints only while they should still show for
         // this pane, so the widget stops emitting once HintMode::Once has
         // retired them (and never emits under Never).

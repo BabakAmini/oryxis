@@ -131,9 +131,25 @@ impl Oryxis {
         let mut toggles_col: iced::widget::Column<'_, Message> = column![
             self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::ToggleCopyOnSelect),
         ];
-        // Sub-option, only meaningful while copy-on-select is on.
-        // Indent it on the leading edge so it reads as nested.
-        if self.setting_copy_on_select {
+        // Right-click scheme (PuTTY's Context menu / Paste / Extend). The
+        // single authority for the gesture.
+        let rc_is_paste =
+            self.setting_terminal_right_click == crate::util::RightClickMode::Paste;
+        toggles_col = toggles_col.push(Space::new().height(10)).push(self.nav_pick_row(
+            crate::i18n::t("terminal_right_click"),
+            crate::util::RightClickMode::ALL
+                .iter()
+                .map(|m| crate::i18n::t(m.label_key()).to_string())
+                .collect::<Vec<_>>(),
+            crate::i18n::t(self.setting_terminal_right_click.label_key()).to_string(),
+            |s: &String| s.clone(),
+            200.0,
+            Message::TerminalRightClickChanged,
+        ));
+        // "Copy on right-click" is a sub-option of copy-on-select, and
+        // only meaningful when the right-click scheme is Paste (Menu and
+        // Extend repurpose the gesture entirely). Hidden otherwise.
+        if self.setting_copy_on_select && rc_is_paste {
             let indent = if crate::i18n::is_rtl_layout() {
                 Padding { right: 22.0, ..Padding::ZERO }
             } else {

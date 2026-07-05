@@ -349,6 +349,13 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Settings toggles
         "copy_on_select" => "Select text to copy & Right click to paste",
         "middle_click_paste" => "Middle-click pastes",
+        "terminal_right_click" => "Right-click",
+        "right_click_menu" => "Context menu",
+        "right_click_paste" => "Paste",
+        "right_click_extend" => "Extend selection",
+        "terminal_copy_all" => "Copy All",
+        "terminal_paste" => "Paste",
+        "terminal_clear_scrollback" => "Clear Scrollback",
         "renderer_backend" => "Graphics renderer",
         "renderer_backend_desc" => "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply.",
         "renderer_active" => "Active renderer",
