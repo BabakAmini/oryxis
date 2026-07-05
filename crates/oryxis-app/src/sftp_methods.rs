@@ -719,6 +719,12 @@ impl Oryxis {
     /// as before.
     pub(crate) fn ensure_sftp_tab(&mut self) {
         if self.sftp_tabs.is_empty() {
+            // A hybrid owner must park first: adopting `self.sftp` while
+            // a hybrid tab owns it would steal that tab's Files state
+            // into the new standalone tab (double ownership). After the
+            // park the buffer is a fresh default, which is exactly what
+            // a first standalone tab should adopt.
+            self.park_hybrid_sftp();
             let tab = crate::state::SftpTab::new(crate::i18n::t("sftp").to_string());
             let id = tab.id;
             self.sftp_tabs.push(tab);
@@ -868,9 +874,15 @@ impl Oryxis {
     pub(crate) fn current_sftp_owner(&self) -> Option<uuid::Uuid> {
         // A hybrid tab and a standalone tab never own the buffer at the
         // same time (hoisting one parks the other), so the chain is
-        // unambiguous.
+        // unambiguous. The hybrid id is validated against the live tabs:
+        // reconnect flows rebuild a terminal tab without going through
+        // CloseTab, which can leave a dangling owner until the next
+        // park; a fresh transfer must not get stamped with it.
         self.routing_sftp
-            .or(self.hybrid_sftp_owner)
+            .or_else(|| {
+                self.hybrid_sftp_owner
+                    .filter(|id| self.tabs.iter().any(|t| t._id == *id))
+            })
             .or_else(|| self.active_sftp_id())
     }
 

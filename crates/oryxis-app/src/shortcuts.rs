@@ -120,7 +120,12 @@ impl Oryxis {
             }
             View::Cloud => Some(widget::Id::new("search-cloud")),
             View::Proxies => Some(widget::Id::new("search-proxies")),
-            View::Settings | View::Terminal | View::KnownHosts => None,
+            // A hybrid tab in Files mode is the SFTP surface: Ctrl+F
+            // focuses the remote filter, parity with View::Sftp above.
+            View::Terminal => self
+                .sftp_surface_visible()
+                .then(|| widget::Id::new("search-sftp-remote")),
+            View::Settings | View::KnownHosts => None,
         }
     }
 
@@ -575,6 +580,17 @@ impl Oryxis {
         //    navigation into the vault / settings / SFTP surfaces, so
         //    it is exactly the "keys route to a PTY" signal.
         let in_terminal = self.active_view == View::Terminal || self.active_tab.is_some();
+        // Whether the PTY actually owns plain control sequences right
+        // now: a hybrid tab in Files mode hides the terminal and gates
+        // its byte routing off, so Ctrl+letter bindings (Ctrl+F search)
+        // may fire there, exactly like on the standalone SFTP view. The
+        // `terminal_only` skip keeps using `in_terminal` so the toggle
+        // hotkey itself still works from Files mode.
+        let pty_owns_keys = in_terminal
+            && !self
+                .active_tab
+                .and_then(|i| self.tabs.get(i))
+                .is_some_and(|t| t.files_mode);
         for &action in HotkeyAction::all() {
             // Split-pane actions only apply inside the terminal view.
             // Skipping (not consuming) elsewhere leaves their key free
@@ -589,7 +605,7 @@ impl Oryxis {
                 continue;
             }
             let bind_copy = self.hotkey_bindings.get(&action).copied();
-            if in_terminal
+            if pty_owns_keys
                 && bind_copy.is_some_and(|b| b.is_terminal_control_sequence())
             {
                 continue;
@@ -604,8 +620,10 @@ impl Oryxis {
         // 2.5. Per-snippet custom hotkeys, derived LIVE from the vault
         //      list (no side registry: deleting a snippet deletes its
         //      shortcut by construction). Terminal-focused only, since
-        //      the action types into the focused session.
-        if in_terminal && !self.show_snippet_panel {
+        //      the action types into the focused session; a hybrid tab
+        //      in Files mode gates PTY writes off, so firing here would
+        //      just dead-end (worst case through the vars modal).
+        if pty_owns_keys && !self.show_snippet_panel {
             let hit = self.snippets.iter().position(|sn| {
                 sn.hotkey
                     .as_deref()

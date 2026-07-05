@@ -223,18 +223,21 @@ impl Oryxis {
                     pane.remote_entries.clear();
                 }
 
-                // Reuse an existing SSH session whenever a terminal tab is
+                // Reuse an existing SSH session whenever a terminal pane is
                 // already pointed at this host, saves a TCP round-trip
-                // and a second auth dance.
+                // and a second auth dance. Scans every pane (not just each
+                // tab's focused one): a split tab hosts two servers under
+                // one tab label, and the match is by the pane's own label.
                 let existing = self.tabs.iter().find_map(|t| {
-                    let base = t.label.trim_end_matches(" (disconnected)");
-                    if base == conn.label {
-                        // SFTP multiplexes on the SSH handle; a Telnet
-                        // tab to the same label can't be reused.
-                        t.active().session.as_ref().and_then(|s| s.ssh()).cloned()
-                    } else {
-                        None
-                    }
+                    t.pane_grid.panes.values().find_map(|p| {
+                        if p.label.trim_end_matches(" (disconnected)") == conn.label {
+                            // SFTP multiplexes on the SSH handle; a Telnet
+                            // pane to the same label can't be reused.
+                            p.session.as_ref().and_then(|s| s.ssh()).cloned()
+                        } else {
+                            None
+                        }
+                    })
                 });
                 let label = conn.label.clone();
                 // One-shot preferred directory (sidebar Files promotion);
@@ -890,6 +893,9 @@ impl Oryxis {
                 self.card_context_menu = None;
                 self.overlay = None;
                 if self.connections.get(idx).is_none() {
+                    // Bail-out must drop any one-shot initial-path hint or
+                    // it would leak into the next unrelated mount.
+                    self.sftp_open_at_path = None;
                     return Ok(Task::none());
                 }
                 // Fresh SFTP tab, then mount the host into its remote (right)
@@ -900,6 +906,8 @@ impl Oryxis {
             Message::OpenSftpForTab(tab_idx) => {
                 self.overlay = None;
                 let Some(tab) = self.tabs.get(tab_idx) else {
+                    // Same hint hygiene as OpenSftpForConnection's bail.
+                    self.sftp_open_at_path = None;
                     return Ok(Task::none());
                 };
                 let base = tab.label.trim_end_matches(" (disconnected)").to_string();
@@ -918,6 +926,8 @@ impl Oryxis {
                 // (or a Telnet one, which has no SSH handle to multiplex).
                 let Some(session) = tab.active().session.as_ref().and_then(|s| s.ssh()).cloned()
                 else {
+                    // Bail-out drops the one-shot initial-path hint too.
+                    self.sftp_open_at_path = None;
                     return Ok(Task::none());
                 };
                 let label = base;

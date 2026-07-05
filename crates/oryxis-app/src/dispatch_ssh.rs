@@ -338,12 +338,21 @@ impl Oryxis {
                 // Clear progress, show terminal
                 self.connecting = None;
 
+                // A visible sidebar Files browser waiting on this session
+                // (reconnect with the tab open) can mount now; without
+                // this it would sit on the "Opening SFTP" placeholder
+                // until the next pane/tab interaction. No-op otherwise.
+                let files_sync = self.sidebar_files_sync();
                 if let Some((conn_id, sess)) = detect_for {
-                    return Ok(Task::perform(
-                        async move { (conn_id, sess.detect_os().await) },
-                        |(id, os)| Message::OsDetected(id, os),
-                    ));
+                    return Ok(Task::batch([
+                        files_sync,
+                        Task::perform(
+                            async move { (conn_id, sess.detect_os().await) },
+                            |(id, os)| Message::OsDetected(id, os),
+                        ),
+                    ]));
                 }
+                return Ok(files_sync);
             }
             Message::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.

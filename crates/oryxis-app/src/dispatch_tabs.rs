@@ -705,10 +705,19 @@ impl Oryxis {
                 else {
                     return Ok(select);
                 };
+                // Resolve by the FOCUSED pane (a split tab can host two
+                // different servers; the tab label only names the first):
+                // its label for the ad-hoc mount, its origin id for the
+                // saved-connection lookup (immune to renames).
                 let base = self.tabs[idx]
+                    .active()
                     .label
                     .trim_end_matches(" (disconnected)")
                     .to_string();
+                let origin_conn = match &self.tabs[idx].active().origin {
+                    crate::state::PaneOrigin::Host(hid) => Some(*hid),
+                    _ => None,
+                };
                 self.tabs[idx].files_mode = true;
                 self.hoist_hybrid_sftp(tab_id);
                 // Already mounted from an earlier visit: just show it.
@@ -728,12 +737,24 @@ impl Oryxis {
                 self.refresh_sftp_local(crate::state::SftpPaneSide::Left);
                 // Saved host: the shared mount pipeline (reuse-or-connect)
                 // finds this tab's live session by label and multiplexes
-                // an SFTP channel on it, no second dial.
-                if let Some(ci) = self.connections.iter().position(|c| {
-                    c.label == base
-                        && c.protocol
-                            == oryxis_core::models::connection::ConnectionProtocol::Ssh
-                }) {
+                // an SFTP channel on it, no second dial. Origin id wins
+                // over the label match (rename-proof).
+                if let Some(ci) = self
+                    .connections
+                    .iter()
+                    .position(|c| {
+                        origin_conn == Some(c.id)
+                            && c.protocol
+                                == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                    })
+                    .or_else(|| {
+                        self.connections.iter().position(|c| {
+                            c.label == base
+                                && c.protocol
+                                    == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                        })
+                    })
+                {
                     let mount = self.update(Message::SftpRemountPane(
                         crate::state::SftpPaneSide::Right,
                         ci,
