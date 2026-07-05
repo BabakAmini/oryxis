@@ -82,6 +82,24 @@ impl Oryxis {
             composed
         };
 
+        // The toast chip floats over everything while unlocked (Dashboard,
+        // Settings, modal scrims): smart-tab / OSC 9 notifications and
+        // copy feedback fire from any view, and a toast mounted only
+        // inside the terminal area is invisible from the vault views.
+        // The lock screen deliberately drops it, a background session's
+        // notification must not leak onto a locked UI.
+        let composed = if matches!(self.vault_ui.state, VaultState::Unlocked) {
+            match self.toast_overlay() {
+                Some(overlay) => iced::widget::Stack::new()
+                    .push(composed)
+                    .push(overlay)
+                    .into(),
+                None => composed,
+            }
+        } else {
+            composed
+        };
+
         // 1 px border around the entire app, drops to 0 when maximized
         // or in immersive fullscreen, since in both cases the OS / our
         // own chrome-hiding already clips the window to the monitor

@@ -223,6 +223,11 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 - The lock screen adopts the onboarding's accent-gradient look.
 
 ### Fixed
+- Toast notifications now show on every view: the chip moved from the
+  terminal area to the window root, so OSC 9 / smart-tab / copy
+  feedback raised while you sit in the Dashboard or Settings is no
+  longer silently dropped. The lock screen still suppresses it so a
+  background session's notification can't leak onto a locked UI.
 - Pasted text with CRLF line endings no longer doubles newlines; all
   line endings are normalized to CR on paste (#60).
 - Full-screen and raw-mode prompts over SSH no longer freeze: in-band

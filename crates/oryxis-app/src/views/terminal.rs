@@ -104,15 +104,14 @@ impl Oryxis {
                 background: Some(Background::Color(OryxisColors::t().terminal_bg)),
                 ..Default::default()
             });
-        // Floating overlays over the terminal area (shown whether or not
-        // the chat sidebar is open): the ZMODEM transfer card first, then
-        // the toast on top (copy feedback, OSC 9 notifications, …).
+        // Floating overlay over the terminal area (shown whether or not
+        // the chat sidebar is open): the ZMODEM transfer card. The toast
+        // chip is NOT layered here: it mounts at the window root
+        // (`root_view.rs`), so notifications raised while the user sits
+        // in the Dashboard / Settings views are visible too.
         let mut stack = iced::widget::Stack::new().push(base);
         if let Some(zm) = self.zmodem_overlay() {
             stack = stack.push(zm);
-        }
-        if let Some(overlay) = self.toast_overlay() {
-            stack = stack.push(overlay);
         }
         stack.into()
     }
@@ -207,10 +206,11 @@ impl Oryxis {
         )
     }
 
-    /// Bottom-center toast chip over the terminal, or `None` when no toast is
-    /// pending. Shared by the main view; the chat sidebar no longer renders its
-    /// own copy (that only showed while the sidebar was open).
-    fn toast_overlay(&self) -> Option<Element<'_, Message>> {
+    /// Bottom-center toast chip, or `None` when no toast is pending.
+    /// Mounted at the window root (`root_view.rs`) so it floats over
+    /// every unlocked view, not just the terminal; the chat sidebar no
+    /// longer renders its own copy (that only showed while it was open).
+    pub(crate) fn toast_overlay(&self) -> Option<Element<'_, Message>> {
         let text_ = self.toast.as_ref()?;
         let chip = container(
             text(text_.clone()).size(11).color(OryxisColors::t().text_primary),
