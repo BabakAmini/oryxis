@@ -16,6 +16,7 @@
 //! Kubernetes provider, so it is not part of this crate's surface.
 
 mod discover;
+pub mod gke;
 
 use async_trait::async_trait;
 use serde::Deserialize;
