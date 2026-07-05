@@ -1002,7 +1002,10 @@ impl Oryxis {
                         .size(12)
                         .font(iced::Font::MONOSPACE)
                         .color(c.text_secondary)
-                        .wrapping(iced::widget::text::Wrapping::None),
+                        // Wrap long lines inside the fixed-width dialog
+                        // instead of letting them bleed past its edge.
+                        // Glyph (not Word) so an unbroken token still wraps.
+                        .wrapping(iced::widget::text::Wrapping::Glyph),
                 );
             }
             if line_count > PREVIEW_LINES {
