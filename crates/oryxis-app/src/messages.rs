@@ -1426,6 +1426,16 @@ pub enum Message {
     /// Toggle expanded/collapsed state of a section header in the
     /// discovery panel. Carries the section key (e.g. `"ec2"`).
     CloudDiscoverToggleSection(String),
+    /// Add a discovered GKE cluster: fetch its kubeconfig
+    /// (get-credentials) and create a Kubernetes account pointed at the
+    /// resulting context.
+    CloudDiscoverAddGke { cluster: String, location: String },
+    /// get-credentials succeeded: `(label, context)` for the new K8s
+    /// account to create.
+    CloudDiscoverGkeCredentials(String, String),
+    /// Result of the GKE add: `Ok(())` created the k8s account (refresh),
+    /// `Err(msg)` surfaces on the discovery panel.
+    CloudDiscoverGkeAdded(Result<(), String>),
     CloudDiscoverDefaultTransportChanged(oryxis_core::models::cloud::TransportKind),
     CloudDiscoverDefaultGroupNameChanged(String),
     CloudDiscoverDefaultGroupPick(String),

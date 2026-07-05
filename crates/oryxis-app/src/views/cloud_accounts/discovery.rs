@@ -889,7 +889,7 @@ impl Oryxis {
             ));
             sections.push(Space::new().height(6).into());
             if !gke_collapsed {
-                for c in gke_filtered {
+                for c in &gke_filtered {
                     let added = existing_contexts.contains(&c.context);
                     let info = format!(
                         "{}  ·  {}  ·  {} node(s)  ·  {}",
