@@ -77,19 +77,48 @@ impl Oryxis {
         }
     }
 
-    /// The Ctrl+Tab walk order: every activatable tab, most-recently-used
-    /// first. Known tabs come from `tab_mru`; any live tab not yet recorded
-    /// there (e.g. one just opened this frame) is appended in visible-strip
-    /// order so it's always reachable even before the MRU has seen it.
+    /// Whether a tab reference names a dormant pinned placeholder
+    /// (restored at boot, never opened this session). Excluded from the
+    /// Ctrl+Tab walk: MRU cycling covers OPEN tabs only, and previewing
+    /// a dormant tab mid-cycle would actually reopen it (`SelectTab` /
+    /// `SelectSftpTab` fire the reopen), connecting a host the user
+    /// never asked for. Dormant tabs stay reachable by click, Alt+arrow
+    /// and Ctrl+1..9, where activation is deliberate.
+    fn tab_ref_dormant(&self, r: &TabRef) -> bool {
+        match r {
+            TabRef::Terminal(id) => self
+                .tabs
+                .iter()
+                .find(|t| t._id == *id)
+                .is_some_and(|t| t.pending_reopen.is_some()),
+            TabRef::Sftp(id) => self
+                .sftp_tabs
+                .iter()
+                .find(|t| t.id == *id)
+                .is_some_and(|t| t.pending_reopen.is_some()),
+        }
+    }
+
+    /// The Ctrl+Tab walk order: every activatable OPEN tab,
+    /// most-recently-used first. Known tabs come from `tab_mru`; any live
+    /// tab not yet recorded there (e.g. one just opened this frame) is
+    /// appended in visible-strip order so it's always reachable even
+    /// before the MRU has seen it. Dormant pinned placeholders are
+    /// skipped in both halves (see `tab_ref_dormant`).
     fn mru_tab_order(&self) -> Vec<TabRef> {
         let mut order: Vec<TabRef> = self
             .tab_mru
             .iter()
             .copied()
-            .filter(|r| self.tab_ref_select_msg(r).is_some())
+            .filter(|r| {
+                self.tab_ref_select_msg(r).is_some() && !self.tab_ref_dormant(r)
+            })
             .collect();
         for r in self.ordered_tab_refs() {
-            if self.tab_ref_select_msg(&r).is_some() && !order.contains(&r) {
+            if self.tab_ref_select_msg(&r).is_some()
+                && !self.tab_ref_dormant(&r)
+                && !order.contains(&r)
+            {
                 order.push(r);
             }
         }

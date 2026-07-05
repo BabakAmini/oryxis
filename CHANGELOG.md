@@ -223,6 +223,11 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 - The lock screen adopts the onboarding's accent-gradient look.
 
 ### Fixed
+- Ctrl+Tab (most-recently-used tab cycling) no longer walks into
+  dormant pinned tabs restored at boot, which silently reconnected
+  their hosts just by cycling past them. MRU cycling covers open tabs
+  only; dormant pins still open deliberately via click, Alt+arrow or
+  Ctrl+1..9.
 - Toast notifications now show on every view: the chip moved from the
   terminal area to the window root, so OSC 9 / smart-tab / copy
   feedback raised while you sit in the Dashboard or Settings is no
