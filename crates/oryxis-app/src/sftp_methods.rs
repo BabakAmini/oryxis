@@ -676,6 +676,35 @@ impl Oryxis {
             .map(|t| t.id)
     }
 
+    /// Post-update invariant repair for the hybrid ownership, called
+    /// from `update()` after every message (like `reconcile_tab_order`):
+    ///
+    /// - a dangling owner (its tab removed by any path that bypasses
+    ///   `CloseTab`: close-others, close-all, reconnect rebuilds) is
+    ///   dropped and the ghost buffer reset;
+    /// - an active Files-mode tab that is not the owner (activated by a
+    ///   direct `active_tab = ...` assignment: the close-neighbor
+    ///   fallback, `SplitTabPane`, dormant-reopen) is hoisted, so the
+    ///   render invariant "Files mode visible => its state is the live
+    ///   buffer" holds no matter which path focused the tab.
+    ///
+    /// Cheap when nothing needs repair (two comparisons).
+    pub(crate) fn reconcile_hybrid_sftp(&mut self) {
+        if let Some(id) = self.hybrid_sftp_owner
+            && !self.tabs.iter().any(|t| t._id == id)
+        {
+            self.hybrid_sftp_owner = None;
+            self.sftp = crate::state::SftpState::default();
+        }
+        if let Some(tab) = self.active_tab.and_then(|i| self.tabs.get(i))
+            && tab.files_mode
+            && self.hybrid_sftp_owner != Some(tab._id)
+        {
+            let id = tab._id;
+            self.hoist_hybrid_sftp(id);
+        }
+    }
+
     /// Park a hybrid tab's Files state out of the live buffer, back
     /// into its `files_state` slot. No-op when no hybrid tab owns the
     /// buffer; discards the buffer if the owning tab was closed.

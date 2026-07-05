@@ -63,7 +63,17 @@ pub(crate) fn actions_menu_card<'a>(
     // Same directory-level actions as the cursor-anchored background menu,
     // shared via `dir_action_items` so the two never drift apart.
     let mut menu_col = column![].spacing(2).padding(4);
-    let dir_ctx = DirActionCtx { pane_dir: remote_path, local_dir: local_path, show_hidden };
+    // `pane_dir` must be SIDE-RESOLVED (the background menu already does
+    // this in main_layout.rs): on a Local pane `remote_path` is empty or
+    // stale, and Copy path would copy that instead of the local dir.
+    let local_dir_display;
+    let pane_dir: &str = if is_remote {
+        remote_path
+    } else {
+        local_dir_display = local_path.to_string_lossy().into_owned();
+        &local_dir_display
+    };
+    let dir_ctx = DirActionCtx { pane_dir, local_dir: local_path, show_hidden };
     for it in dir_action_items(side, is_remote, dir_ctx, true) {
         menu_col = menu_col.push(it);
     }

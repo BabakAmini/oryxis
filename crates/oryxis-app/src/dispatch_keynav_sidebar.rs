@@ -54,11 +54,11 @@ impl Oryxis {
         if !tab.chat_visible || tab.files_mode {
             return None;
         }
-        let pane_has_ssh =
-            tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        let files_available = self.sftp_enabled
+            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == TerminalSidebarTab::Chat
             && !self.ai.enabled)
-            || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !pane_has_ssh)
+            || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !files_available)
         {
             TerminalSidebarTab::Snippets
         } else {
@@ -372,12 +372,14 @@ impl Oryxis {
             order.push(TerminalSidebarTab::Chat);
         }
         order.extend([TerminalSidebarTab::Snippets, TerminalSidebarTab::History]);
-        // Files only exists for an SSH pane (mirrors the strip).
-        if self
-            .tabs
-            .get(idx)
-            .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
-            .unwrap_or(false)
+        // Files only exists for an SSH pane with the SFTP feature on
+        // (mirrors the strip).
+        if self.sftp_enabled
+            && self
+                .tabs
+                .get(idx)
+                .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+                .unwrap_or(false)
         {
             order.push(TerminalSidebarTab::Files);
         }

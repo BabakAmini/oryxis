@@ -102,6 +102,14 @@ impl Oryxis {
                     // existing top-level `self.sftp` as the first tab). The
                     // single-tab case behaves exactly as before.
                     self.ensure_sftp_tab();
+                    // A hybrid terminal tab may own the live buffer; the
+                    // standalone surface must never render (or start
+                    // transfers against) another tab's Files state. Park
+                    // it and hoist a standalone tab in its place.
+                    self.park_hybrid_sftp();
+                    if self.active_sftp.is_none() && !self.sftp_tabs.is_empty() {
+                        self.focus_sftp_tab(0);
+                    }
                     // Refresh whichever pane(s) are Local; remote panes
                     // ignore this (refresh_sftp_local early-returns).
                     self.refresh_sftp_local(crate::state::SftpPaneSide::Left);

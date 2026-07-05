@@ -81,7 +81,8 @@ impl Oryxis {
                         let path = pane.files.path.clone();
                         let pane_id = pane.id;
                         pane.files.loading = true;
-                        return Ok(list_dir_task(client, path, pane_id));
+                        let seq = pane.files.next_req();
+                        return Ok(list_dir_task(client, path, pane_id, seq));
                     }
                     // Not mounted (or a failed mount): retry from scratch.
                     _ => return Ok(self.sidebar_files_sync()),
@@ -103,7 +104,10 @@ impl Oryxis {
                 let pane_id = pane.id;
                 pane.files.loading = true;
                 pane.files.error = None;
-                return Ok(list_dir_task(client, path, pane_id));
+                // Rapid clicks race their listings; the stamp makes the
+                // LATEST navigation win regardless of completion order.
+                let seq = pane.files.next_req();
+                return Ok(list_dir_task(client, path, pane_id, seq));
             }
             Message::SidebarFilesExpand => {
                 // Promote to a full SFTP tab at the browser's directory.
@@ -121,13 +125,18 @@ impl Oryxis {
                 self.sftp_open_at_path = path;
                 return Ok(self.update(Message::OpenSftpForTab(tab_idx)));
             }
-            Message::SidebarFilesMounted(pane_id, client, path, mut entries) => {
+            Message::SidebarFilesMounted(pane_id, seq, client, path, mut entries) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
-                // The session died while the mount was in flight: the
-                // channel is on a dead handle, don't resurrect it (the
-                // disconnect reset already cleared the browser).
+                // Superseded (a newer request, or a disconnect reset that
+                // bumped the stamp): the channel may ride a dead handle,
+                // drop it instead of installing a client that can only
+                // error. Also guards the reconnect race where the pane
+                // has a NEW session by the time the old mount lands.
+                if pane.files.req_seq != seq {
+                    return Ok(Task::none());
+                }
                 if pane.session.as_ref().and_then(|s| s.ssh()).is_none() {
                     return Ok(Task::none());
                 }
@@ -139,10 +148,15 @@ impl Oryxis {
                 pane.files.path = path;
                 pane.files.entries = entries;
             }
-            Message::SidebarFilesListed(pane_id, path, mut entries) => {
+            Message::SidebarFilesListed(pane_id, seq, path, mut entries) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
+                // Out-of-order completion of a superseded listing: drop,
+                // the newer request's result is the one that must win.
+                if pane.files.req_seq != seq {
+                    return Ok(Task::none());
+                }
                 sort_entries(&mut entries);
                 pane.files.loading = false;
                 pane.files.error = None;
@@ -153,10 +167,15 @@ impl Oryxis {
                 // behind a fast `cd a && cd b`.
                 return Ok(self.sidebar_files_sync());
             }
-            Message::SidebarFilesError(pane_id, e) => {
+            Message::SidebarFilesError(pane_id, seq, e) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
+                // A stale error must not clear the flags (or paint the
+                // banner) of a newer in-flight request.
+                if pane.files.req_seq != seq {
+                    return Ok(Task::none());
+                }
                 pane.files.mounting = false;
                 pane.files.loading = false;
                 pane.files.error = Some(e);
@@ -213,6 +232,7 @@ impl Oryxis {
             pane.files.mounting = true;
             pane.files.error = None;
             let hint = if pane.files.follow() { pane.cwd.clone() } else { None };
+            let seq = pane.files.next_req();
             return Task::perform(
                 async move {
                     let client = ssh.open_sftp().await.map_err(|e| e.to_string())?;
@@ -222,9 +242,9 @@ impl Oryxis {
                 },
                 move |result| match result {
                     Ok((client, path, entries)) => {
-                        Message::SidebarFilesMounted(pane_id, client, path, entries)
+                        Message::SidebarFilesMounted(pane_id, seq, client, path, entries)
                     }
-                    Err(e) => Message::SidebarFilesError(pane_id, e),
+                    Err(e) => Message::SidebarFilesError(pane_id, seq, e),
                 },
             );
         }
@@ -237,17 +257,20 @@ impl Oryxis {
         {
             let client = pane.files.client.clone().expect("checked above");
             pane.files.loading = true;
-            return list_dir_task(client, cwd, pane_id);
+            let seq = pane.files.next_req();
+            return list_dir_task(client, cwd, pane_id, seq);
         }
         Task::none()
     }
 }
 
-/// One directory listing on the sidebar browser's channel.
+/// One directory listing on the sidebar browser's channel. `seq` is the
+/// request stamp compared on completion (latest request wins).
 fn list_dir_task(
     client: oryxis_ssh::SftpClient,
     path: String,
     pane_id: Uuid,
+    seq: u64,
 ) -> Task<Message> {
     Task::perform(
         async move {
@@ -255,8 +278,8 @@ fn list_dir_task(
             Ok::<_, String>((path, entries))
         },
         move |result| match result {
-            Ok((path, entries)) => Message::SidebarFilesListed(pane_id, path, entries),
-            Err(e) => Message::SidebarFilesError(pane_id, e),
+            Ok((path, entries)) => Message::SidebarFilesListed(pane_id, seq, path, entries),
+            Err(e) => Message::SidebarFilesError(pane_id, seq, e),
         },
     )
 }

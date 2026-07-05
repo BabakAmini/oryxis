@@ -260,8 +260,12 @@ impl Oryxis {
                 ];
                 if is_ssh_host {
                     items = items
-                        .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary))
-                        .push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary));
+                        .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary));
+                    // SFTP is an optional feature: its entry hides with the
+                    // toggle, like every other SFTP surface.
+                    if self.sftp_enabled {
+                        items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary));
+                    }
                 }
                 if has_url {
                     items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary));
@@ -445,10 +449,12 @@ impl Oryxis {
                     self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
                     self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
                 ];
-                // Open an SFTP tab for this host: offered when the tab has a
-                // live SSH session to reuse or matches a saved connection (so
-                // it isn't shown on local-shell tabs where it would no-op).
-                let can_sftp = self
+                // Open an SFTP tab for this host: offered when the SFTP
+                // feature is on AND the tab has a live SSH session to reuse
+                // or matches a saved connection (so it isn't shown on
+                // local-shell tabs where it would no-op).
+                let can_sftp = self.sftp_enabled
+                    && self
                     .tabs
                     .get(idx)
                     .map(|t| {

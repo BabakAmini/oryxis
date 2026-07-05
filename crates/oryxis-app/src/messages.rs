@@ -258,10 +258,13 @@ pub enum Message {
     /// directory.
     SidebarFilesExpand,
     /// Initial mount finished: the SFTP channel plus the first listing.
-    SidebarFilesMounted(Uuid, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
-    /// A navigation / follow / refresh listing landed.
-    SidebarFilesListed(Uuid, String, Vec<oryxis_ssh::SftpEntry>),
-    SidebarFilesError(Uuid, String),
+    /// The `u64` is the request stamp (`PaneFiles::req_seq`) captured at
+    /// dispatch; a mismatch on arrival means a newer request (or a
+    /// disconnect reset) superseded this one and it is dropped.
+    SidebarFilesMounted(Uuid, u64, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
+    /// A navigation / follow / refresh listing landed (same stamp rule).
+    SidebarFilesListed(Uuid, u64, String, Vec<oryxis_ssh::SftpEntry>),
+    SidebarFilesError(Uuid, u64, String),
     SidebarFilesRowHovered(usize),
     SidebarFilesRowUnhovered,
     /// Hybrid tab (issue #61): flip the terminal tab at this index

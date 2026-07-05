@@ -577,13 +577,18 @@ impl Oryxis {
                 // for local / Telnet / serial panes; kept while in Files
                 // mode even if the session drops, so the way back to the
                 // terminal never disappears.
+                // An in-Files-mode tab always keeps the glyph (the way
+                // back), even if SFTP gets toggled off or the session
+                // drops; otherwise the affordance requires the feature
+                // on and a live SSH session.
                 let files_mode = (tab.files_mode
-                    || tab
-                        .active()
-                        .session
-                        .as_ref()
-                        .and_then(|s| s.ssh())
-                        .is_some())
+                    || (self.sftp_enabled
+                        && tab
+                            .active()
+                            .session
+                            .as_ref()
+                            .and_then(|s| s.ssh())
+                            .is_some()))
                 .then_some(tab.files_mode);
                 tab_items.push(session_tab(
                     idx,

@@ -77,6 +77,11 @@ impl Oryxis {
         // tabs after every message: new tabs appended, closed ones dropped,
         // drag-reordered order preserved.
         self.reconcile_tab_order();
+        // Repair the hybrid-tab SFTP ownership invariant: drop a dangling
+        // owner (tab removed by a path that bypasses CloseTab) and hoist
+        // an active Files-mode tab that some direct `active_tab = ...`
+        // assignment focused without going through SelectTab.
+        self.reconcile_hybrid_sftp();
         // Track most-recently-used tab order for Ctrl+Tab. Must run after
         // `reconcile_tab_order`: the cycle's fallback walk order reads
         // `ordered_tab_refs`, which is derived from the freshly-synced

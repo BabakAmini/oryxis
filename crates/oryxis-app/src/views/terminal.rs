@@ -343,12 +343,14 @@ impl Oryxis {
         // so a stale list from the previous frame must never leak in.
         self.sidebar_nav_reset();
         // Chat is only reachable when AI is enabled, Files only when the
-        // focused pane has an SSH transport (SFTP is an SSH subsystem);
-        // otherwise the active tab effectively falls back to Snippets.
-        // Mirrors `effective_sidebar_tab`.
-        let pane_has_ssh = tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        // focused pane has an SSH transport (SFTP is an SSH subsystem)
+        // AND the SFTP feature toggle is on (optional features hide ALL
+        // their UI when off); otherwise the active tab effectively falls
+        // back to Snippets. Mirrors `effective_sidebar_tab`.
+        let files_available = self.sftp_enabled
+            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
-            || (self.terminal_sidebar_tab == STab::Files && !pane_has_ssh)
+            || (self.terminal_sidebar_tab == STab::Files && !files_available)
         {
             STab::Snippets
         } else {
@@ -379,7 +381,7 @@ impl Oryxis {
             Message::SelectTerminalSidebarTab(STab::History),
             t("tab_tip_history"),
         ));
-        if pane_has_ssh {
+        if files_available {
             strip.push(sidebar_tab_btn(
                 iced_fonts::lucide::folder(),
                 active == STab::Files,

@@ -48,7 +48,8 @@ impl Oryxis {
         if let Some(idx) = self.active_tab
             && let Some(tab) = self.tabs.get(idx)
             && (tab.files_mode
-                || tab.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+                || (self.sftp_enabled
+                    && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some()))
         {
             items.push(mode_segment_btn(
                 idx,

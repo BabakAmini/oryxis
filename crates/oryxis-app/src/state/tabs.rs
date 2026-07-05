@@ -147,6 +147,12 @@ pub(crate) struct PaneFiles {
     pub entries: Vec<SftpEntry>,
     /// True while a `list_dir` (navigation or cwd follow) is in flight.
     pub loading: bool,
+    /// Monotonic request stamp: every mount / list task carries the
+    /// value at dispatch time and its completion is dropped unless it
+    /// still matches (latest request wins). Bumped by
+    /// `reset_for_disconnect` too, so a mount racing a reconnect can't
+    /// install a client whose channel rode the dead session.
+    pub req_seq: u64,
     pub error: Option<String>,
     /// Whether the browser follows the shell's OSC 7 cwd. `true` for a
     /// fresh pane; the pin toggle flips it.
@@ -161,14 +167,24 @@ impl PaneFiles {
     }
 
     /// Drop everything tied to the dead SSH session, keeping only the
-    /// user's preferences (follow / hidden) for the reconnect.
+    /// user's preferences (follow / hidden) for the reconnect. The
+    /// request stamp bumps so any in-flight mount / listing on the old
+    /// session is dropped when it completes.
     pub fn reset_for_disconnect(&mut self) {
         self.client = None;
         self.mounting = false;
         self.path.clear();
         self.entries.clear();
         self.loading = false;
+        self.req_seq += 1;
         self.error = None;
+    }
+
+    /// Stamp a new outgoing request (mount or listing) and return its
+    /// sequence value for the completion message to carry.
+    pub fn next_req(&mut self) -> u64 {
+        self.req_seq += 1;
+        self.req_seq
     }
 }
 
