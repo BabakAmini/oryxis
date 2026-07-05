@@ -991,6 +991,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "transfer_relaying" => "Relaying",
         "sftp_local_machine" => "This computer",
         "duplicate_n_items" => "Duplicate {n} items",
+        "copy_path" => "Copy path",
+        "copy_n_paths" => "Copy {n} paths",
         "delete_n_items" => "Delete {n} items",
         "col_name" => "Name",
         "col_modified" => "Modified",

@@ -241,6 +241,12 @@ pub enum Message {
     /// directory-level context menu anchored at the cursor.
     SftpBackgroundRightClick(crate::state::SftpPaneSide),
     SftpRowMenuClose,
+    /// Copy a full path (row entry or the pane's current directory) to
+    /// the clipboard. The string arrives already side-formatted (POSIX
+    /// for remote entries, OS-native for local ones).
+    SftpCopyPath(String),
+    /// Copy every selected path in the given pane, one per line.
+    SftpCopySelectionPaths(crate::state::SftpPaneSide),
     SftpStartRename(crate::state::SftpPaneSide, String),
     SftpRenameInput(String),
     SftpRenameCommit,

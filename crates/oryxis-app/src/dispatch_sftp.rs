@@ -1034,6 +1034,30 @@ impl Oryxis {
             Message::SftpRowMenuClose => {
                 self.sftp.row_menu = None;
             }
+            Message::SftpCopyPath(path) => {
+                // The string arrives already side-formatted (POSIX for a
+                // remote entry, OS-native for a local one), so this is a
+                // straight clipboard write via the shared toast path.
+                self.sftp.row_menu = None;
+                return Ok(self.update(Message::CopyToClipboard(path)));
+            }
+            Message::SftpCopySelectionPaths(side) => {
+                // Bulk variant: every selected path in the menu's pane,
+                // one per line. Selection is left intact, copying is
+                // not an action "on" the rows the way duplicate is.
+                self.sftp.row_menu = None;
+                let paths: Vec<String> = self
+                    .sftp
+                    .selected_rows
+                    .iter()
+                    .filter(|(s, _)| *s == side)
+                    .map(|(_, p)| p.clone())
+                    .collect();
+                if paths.is_empty() {
+                    return Ok(Task::none());
+                }
+                return Ok(self.update(Message::CopyToClipboard(paths.join("\n"))));
+            }
             Message::SftpStartRename(side, path) => {
                 self.sftp.row_menu = None;
                 let original_path = path.clone();

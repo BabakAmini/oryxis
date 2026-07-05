@@ -906,6 +906,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_explorer" => "在文件资源管理器中打开",
         "open_in_finder" => "在 Finder 中打开",
         "duplicate_n_items" => "复制 {n} 项",
+        "copy_path" => "复制路径",
+        "copy_n_paths" => "复制 {n} 个路径",
         "delete_n_items" => "删除 {n} 项",
         "col_name" => "名称",
         "col_modified" => "修改时间",

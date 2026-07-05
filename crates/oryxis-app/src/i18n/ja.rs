@@ -906,6 +906,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_explorer" => "エクスプローラーで開く",
         "open_in_finder" => "Finderで開く",
         "duplicate_n_items" => "{n} 項目を複製",
+        "copy_path" => "パスをコピー",
+        "copy_n_paths" => "{n} 件のパスをコピー",
         "delete_n_items" => "{n} 項目を削除",
         "col_name" => "名前",
         "col_modified" => "更新日時",

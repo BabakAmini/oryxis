@@ -991,6 +991,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "Przekazywanie",
         "sftp_local_machine" => "Ten komputer",
         "duplicate_n_items" => "Duplikuj {n} elementów",
+        "copy_path" => "Kopiuj ścieżkę",
+        "copy_n_paths" => "Kopiuj {n} ścieżek",
         "delete_n_items" => "Usuń {n} elementów",
         "col_name" => "Nazwa",
         "col_modified" => "Zmodyfikowano",

@@ -985,6 +985,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "Merelai",
         "sftp_local_machine" => "Komputer ini",
         "duplicate_n_items" => "Gandakan {n} item",
+        "copy_path" => "Salin jalur",
+        "copy_n_paths" => "Salin {n} jalur",
         "delete_n_items" => "Hapus {n} item",
         "col_name" => "Nama",
         "col_modified" => "Diubah",

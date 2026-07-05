@@ -990,6 +990,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_explorer" => "فتح في مستكشف الملفات",
         "open_in_finder" => "فتح في Finder",
         "duplicate_n_items" => "تكرار {n} عنصر",
+        "copy_path" => "نسخ المسار",
+        "copy_n_paths" => "نسخ {n} مسار",
         "delete_n_items" => "حذف {n} عنصر",
         "col_name" => "الاسم",
         "col_modified" => "تاريخ التعديل",

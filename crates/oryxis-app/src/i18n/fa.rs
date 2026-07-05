@@ -974,6 +974,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_explorer" => "باز کردن در Explorer",
         "open_in_finder" => "باز کردن در Finder",
         "duplicate_n_items" => "تکرار {n} مورد",
+        "copy_path" => "کپی مسیر",
+        "copy_n_paths" => "کپی {n} مسیر",
         "delete_n_items" => "حذف {n} مورد",
         "col_name" => "نام",
         "col_modified" => "تغییریافته",

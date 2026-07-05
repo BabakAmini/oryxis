@@ -985,6 +985,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "릴레이 중",
         "sftp_local_machine" => "이 컴퓨터",
         "duplicate_n_items" => "{n}개 항목 복제",
+        "copy_path" => "경로 복사",
+        "copy_n_paths" => "경로 {n}개 복사",
         "delete_n_items" => "{n}개 항목 삭제",
         "col_name" => "이름",
         "col_modified" => "수정됨",

@@ -985,6 +985,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "Ретрансляція",
         "sftp_local_machine" => "Цей комп'ютер",
         "duplicate_n_items" => "Дублювати {n} елементів",
+        "copy_path" => "Копіювати шлях",
+        "copy_n_paths" => "Копіювати {n} шляхів",
         "delete_n_items" => "Видалити {n} елементів",
         "col_name" => "Назва",
         "col_modified" => "Змінено",

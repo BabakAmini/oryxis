@@ -906,6 +906,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_explorer" => "Ouvrir dans l'Explorateur de fichiers",
         "open_in_finder" => "Ouvrir dans le Finder",
         "duplicate_n_items" => "Dupliquer {n} éléments",
+        "copy_path" => "Copier le chemin",
+        "copy_n_paths" => "Copier {n} chemins",
         "delete_n_items" => "Supprimer {n} éléments",
         "col_name" => "Nom",
         "col_modified" => "Modifié",

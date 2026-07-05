@@ -985,6 +985,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "Đang chuyển tiếp",
         "sftp_local_machine" => "Máy tính này",
         "duplicate_n_items" => "Nhân bản {n} mục",
+        "copy_path" => "Sao chép đường dẫn",
+        "copy_n_paths" => "Sao chép {n} đường dẫn",
         "delete_n_items" => "Xóa {n} mục",
         "col_name" => "Tên",
         "col_modified" => "Đã sửa",

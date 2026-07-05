@@ -985,6 +985,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "transfer_relaying" => "Aktarılıyor",
         "sftp_local_machine" => "Bu bilgisayar",
         "duplicate_n_items" => "{n} öğeyi çoğalt",
+        "copy_path" => "Yolu kopyala",
+        "copy_n_paths" => "{n} yolu kopyala",
         "delete_n_items" => "{n} öğeyi sil",
         "col_name" => "Ad",
         "col_modified" => "Değiştirilme",

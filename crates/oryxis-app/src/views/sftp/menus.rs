@@ -314,6 +314,24 @@ pub(crate) fn row_context_menu_box<'a>(
             secondary,
         ));
     }
+    // Copy the full path(s) to the clipboard. The stored path is already
+    // side-formatted (POSIX for remote, OS-native for local); the bulk
+    // variant emits one path per line.
+    if multi {
+        items = items.push(menu_item_owned_tinted(
+            iced_fonts::lucide::clipboard_copy(),
+            t("copy_n_paths").replacen("{n}", &selection_count_same_pane.to_string(), 1),
+            Message::SftpCopySelectionPaths(menu.side),
+            secondary,
+        ));
+    } else {
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::clipboard_copy(),
+            t("copy_path"),
+            Message::SftpCopyPath(menu.path.clone()),
+            secondary,
+        ));
+    }
     if multi {
         items = items.push(menu_item_owned_tinted(
             iced_fonts::lucide::copy(),
@@ -408,6 +426,13 @@ pub(crate) fn dir_action_items<'a>(
     }
     items.push(menu_item(iced_fonts::lucide::rotate_cw(), t("refresh"), refresh_msg));
     if full {
+        // Copy the pane's current directory path. `pane_dir` is already
+        // side-formatted by the caller (remote path or local display).
+        items.push(menu_item(
+            iced_fonts::lucide::clipboard_copy(),
+            t("copy_path"),
+            Message::SftpCopyPath(ctx.pane_dir.to_string()),
+        ));
         let hidden_label =
             if ctx.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") };
         items.push(menu_item(
@@ -463,17 +488,17 @@ pub(crate) fn row_context_menu_height(
     selection_count_same_pane: usize,
 ) -> f32 {
     // Background menu: directory actions only. New folder + New file +
-    // Refresh + Show hidden (4), plus Open in File Manager on a local
-    // pane (5), plus ~2 thin separators.
+    // Refresh + Copy path + Show hidden (5), plus Open in File Manager
+    // on a local pane (6), plus ~2 thin separators.
     if menu.is_background {
-        let items = if source_is_remote { 4.0 } else { 5.0 };
+        let items = if source_is_remote { 5.0 } else { 6.0 };
         let separators = if source_is_remote { 1.0 } else { 2.0 };
         return items * 30.0 + separators * 4.0 + 8.0;
     }
     let multi = selection_count_same_pane > 1;
-    // Always present: Duplicate + Rename + Properties + Delete (single),
-    // or Duplicate + Delete (multi).
-    let mut count = if multi { 2.0 } else { 4.0 };
+    // Always present: Copy path + Duplicate + Rename + Properties +
+    // Delete (single), or Copy N paths + Duplicate + Delete (multi).
+    let mut count = if multi { 3.0 } else { 5.0 };
     // Cross-pane action (Upload / Download / Relay) when the other pane
     // is a ready destination.
     if cross_pane_ready {
