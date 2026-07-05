@@ -264,6 +264,11 @@ pub enum Message {
     SidebarFilesError(Uuid, String),
     SidebarFilesRowHovered(usize),
     SidebarFilesRowUnhovered,
+    /// Hybrid tab (issue #61): flip the terminal tab at this index
+    /// between its Terminal and Files-full (dual-pane SFTP) states.
+    /// Fired by the tab's mode glyph, the status-bar segment, the tab
+    /// context menu and the hotkey.
+    ToggleTabFilesMode(usize),
     /// Copy every selected path in the given pane, one per line.
     SftpCopySelectionPaths(crate::state::SftpPaneSide),
     SftpStartRename(crate::state::SftpPaneSide, String),

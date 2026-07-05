@@ -425,6 +425,8 @@ impl Oryxis {
             session_group_id: Some(group.id),
             pinned: false,
             pending_reopen: None,
+            files_mode: false,
+            files_state: Box::default(),
         };
         let tab_idx = self.tabs.len();
         self.tabs.push(tab);

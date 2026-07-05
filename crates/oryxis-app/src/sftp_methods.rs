@@ -655,11 +655,62 @@ impl Oryxis {
     // tab currently loaded in `self.sftp` (the buffer owner). See the
     // invariant in `SFTP_TABS_PLAN.md`.
 
+    /// Whether the full SFTP surface is what the user is looking at:
+    /// the standalone SFTP view, or a hybrid terminal tab showing its
+    /// Files mode. Keyboard type-ahead, row drags and OS file drops
+    /// gate on this instead of `active_view == View::Sftp` so they
+    /// work on both surfaces.
+    pub(crate) fn sftp_surface_visible(&self) -> bool {
+        if self.active_tab.is_none() && self.active_view == crate::state::View::Sftp {
+            return true;
+        }
+        self.active_tab
+            .and_then(|i| self.tabs.get(i))
+            .is_some_and(|t| t.files_mode)
+    }
+
     /// Id of the SFTP tab currently loaded in `self.sftp`, if any.
     pub(crate) fn active_sftp_id(&self) -> Option<uuid::Uuid> {
         self.active_sftp
             .and_then(|i| self.sftp_tabs.get(i))
             .map(|t| t.id)
+    }
+
+    /// Park a hybrid tab's Files state out of the live buffer, back
+    /// into its `files_state` slot. No-op when no hybrid tab owns the
+    /// buffer; discards the buffer if the owning tab was closed.
+    pub(crate) fn park_hybrid_sftp(&mut self) {
+        if let Some(id) = self.hybrid_sftp_owner.take() {
+            if let Some(tab) = self.tabs.iter_mut().find(|t| t._id == id) {
+                *tab.files_state = std::mem::take(&mut self.sftp);
+            } else {
+                self.sftp = crate::state::SftpState::default();
+            }
+        }
+    }
+
+    /// Make the hybrid terminal tab `tab_id` the owner of the live
+    /// `self.sftp` buffer: park whichever owner (hybrid or standalone)
+    /// holds it, then hoist this tab's `files_state`. No-op when it
+    /// already owns the buffer or the id is dangling.
+    pub(crate) fn hoist_hybrid_sftp(&mut self, tab_id: uuid::Uuid) {
+        if self.hybrid_sftp_owner == Some(tab_id) {
+            return;
+        }
+        self.park_hybrid_sftp();
+        // Park a standalone owner into its slot. Unlike the standalone
+        // focus flow (where the buffer stays hoisted while the user is
+        // elsewhere), here ownership actually moves, so `active_sftp`
+        // clears; `SelectSftpTab` re-hoists it via `focus_sftp_tab`.
+        if let Some(old) = self.active_sftp.take()
+            && let Some(t) = self.sftp_tabs.get_mut(old)
+        {
+            t.state = std::mem::take(&mut self.sftp);
+        }
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t._id == tab_id) {
+            self.sftp = std::mem::take(&mut *tab.files_state);
+            self.hybrid_sftp_owner = Some(tab_id);
+        }
     }
 
     /// Ensure at least one SFTP tab exists, adopting the existing top-level
@@ -815,7 +866,12 @@ impl Oryxis {
     /// SFTP tab is active, in which case there is nothing to route to (a
     /// nil-UUID stamp would just be dropped by `route_sftp_async`).
     pub(crate) fn current_sftp_owner(&self) -> Option<uuid::Uuid> {
-        self.routing_sftp.or_else(|| self.active_sftp_id())
+        // A hybrid tab and a standalone tab never own the buffer at the
+        // same time (hoisting one parks the other), so the chain is
+        // unambiguous.
+        self.routing_sftp
+            .or(self.hybrid_sftp_owner)
+            .or_else(|| self.active_sftp_id())
     }
 
     /// Dispatch an SFTP async-continuation message against its owning tab.
@@ -823,20 +879,40 @@ impl Oryxis {
     /// is already the focused tab), runs the normal handler chain, then swaps
     /// back. Drops the message if the owning tab was closed meanwhile.
     pub(crate) fn route_sftp_async(&mut self, id: uuid::Uuid, message: Message) -> Task<Message> {
-        let Some(idx) = self.sftp_tabs.iter().position(|t| t.id == id) else {
-            return Task::none();
-        };
-        let is_active = self.active_sftp == Some(idx);
-        if !is_active {
-            std::mem::swap(&mut self.sftp, &mut self.sftp_tabs[idx].state);
+        if let Some(idx) = self.sftp_tabs.iter().position(|t| t.id == id) {
+            let is_active = self.active_sftp == Some(idx);
+            if !is_active {
+                std::mem::swap(&mut self.sftp, &mut self.sftp_tabs[idx].state);
+            }
+            let prev = self.routing_sftp.replace(id);
+            let task = self.dispatch_message(message);
+            self.routing_sftp = prev;
+            if !is_active {
+                std::mem::swap(&mut self.sftp, &mut self.sftp_tabs[idx].state);
+            }
+            return task;
         }
-        let prev = self.routing_sftp.replace(id);
-        let task = self.dispatch_message(message);
-        self.routing_sftp = prev;
-        if !is_active {
-            std::mem::swap(&mut self.sftp, &mut self.sftp_tabs[idx].state);
+        // Hybrid terminal tab (Files mode): same swap dance against its
+        // `files_state` slot.
+        if self.tabs.iter().any(|t| t._id == id) {
+            let is_owner = self.hybrid_sftp_owner == Some(id);
+            if !is_owner
+                && let Some(tab) = self.tabs.iter_mut().find(|t| t._id == id)
+            {
+                std::mem::swap(&mut self.sftp, &mut *tab.files_state);
+            }
+            let prev = self.routing_sftp.replace(id);
+            let task = self.dispatch_message(message);
+            self.routing_sftp = prev;
+            if !is_owner
+                && let Some(tab) = self.tabs.iter_mut().find(|t| t._id == id)
+            {
+                std::mem::swap(&mut self.sftp, &mut *tab.files_state);
+            }
+            return task;
         }
-        task
+        // Owner closed meanwhile: drop the continuation.
+        Task::none()
     }
 
     /// Make `idx` the focused SFTP tab: park the currently-loaded tab's state
@@ -844,7 +920,13 @@ impl Oryxis {
     /// is already loaded or out of range. Does not touch `active_view` /
     /// `active_tab`; the caller drives the surface switch.
     pub(crate) fn focus_sftp_tab(&mut self, idx: usize) {
-        if idx >= self.sftp_tabs.len() || self.active_sftp == Some(idx) {
+        if idx >= self.sftp_tabs.len() {
+            return;
+        }
+        // A hybrid tab holding the buffer parks first (its state goes
+        // home); only then can a standalone tab be hoisted.
+        self.park_hybrid_sftp();
+        if self.active_sftp == Some(idx) {
             return;
         }
         if let Some(old) = self.active_sftp

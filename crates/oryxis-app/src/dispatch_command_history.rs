@@ -148,6 +148,13 @@ impl Oryxis {
     /// injections the sidebar itself fires (row Paste / Run actions).
     pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
+            // Hybrid tab showing its Files (SFTP) surface: the terminal
+            // is hidden and the keyboard belongs to the SFTP view (its
+            // filter inputs, modals, shortcuts). Bytes must not leak
+            // into the invisible PTY.
+            if tab.files_mode {
+                return;
+            }
             let pane = tab.active_mut();
             // A ZMODEM transfer owns the byte channel: user keystrokes
             // would interleave with the protocol and corrupt it, so

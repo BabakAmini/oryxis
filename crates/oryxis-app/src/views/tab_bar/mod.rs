@@ -571,6 +571,20 @@ impl Oryxis {
                     solid_fill,
                 ));
             } else {
+                // Hybrid mode glyph (issue #61): SSH tabs carry a small
+                // state chip (>_ terminal / folder files) that toggles the
+                // tab between its terminal and its host's files. Hidden
+                // for local / Telnet / serial panes; kept while in Files
+                // mode even if the session drops, so the way back to the
+                // terminal never disappears.
+                let files_mode = (tab.files_mode
+                    || tab
+                        .active()
+                        .session
+                        .as_ref()
+                        .and_then(|s| s.ssh())
+                        .is_some())
+                .then_some(tab.files_mode);
                 tab_items.push(session_tab(
                     idx,
                     display_label,
@@ -589,6 +603,7 @@ impl Oryxis {
                     tab.pinned,
                     solid_fill,
                     tab.active().progress,
+                    files_mode,
                 ));
             }
         }

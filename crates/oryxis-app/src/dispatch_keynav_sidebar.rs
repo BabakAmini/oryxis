@@ -49,7 +49,9 @@ impl Oryxis {
     /// the resolution in `view_terminal_sidebar`.
     pub(crate) fn effective_sidebar_tab(&self) -> Option<TerminalSidebarTab> {
         let tab = self.active_tab.and_then(|i| self.tabs.get(i))?;
-        if !tab.chat_visible {
+        // A hybrid tab in Files mode replaces the whole tab content
+        // (sidebar included), so no sidebar tab is effective there.
+        if !tab.chat_visible || tab.files_mode {
             return None;
         }
         let pane_has_ssh =

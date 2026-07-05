@@ -55,6 +55,9 @@ pub enum HotkeyAction {
     FocusSidebarList,
     /// Open/close the terminal sidebar for the focused tab.
     ToggleSidebar,
+    /// Hybrid tab (issue #61): flip the focused SSH tab between its
+    /// terminal and its host's files (full SFTP surface).
+    ToggleTabFiles,
     /// Jump to a vault section by position. Family: Ctrl+Shift +
     /// digit 1..8 (Hosts, Keychain, Snippets, Port Forwarding,
     /// Logs, Cloud Accounts, Proxies, Known Hosts); 9 is spare.
@@ -95,6 +98,7 @@ impl HotkeyAction {
             FocusPaneDown,
             FocusSidebarList,
             ToggleSidebar,
+            ToggleTabFiles,
             VaultSectionSlot,
             VaultSectionPrev,
             VaultSectionNext,
@@ -130,6 +134,7 @@ impl HotkeyAction {
             FocusPaneDown => "focus_pane_down",
             FocusSidebarList => "focus_sidebar_list",
             ToggleSidebar => "toggle_sidebar",
+            ToggleTabFiles => "toggle_tab_files",
             VaultSectionSlot => "vault_section_slot",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
@@ -165,6 +170,7 @@ impl HotkeyAction {
             FocusPaneDown => "hotkey_focus_pane_down",
             FocusSidebarList => "hotkey_focus_sidebar_list",
             ToggleSidebar => "hotkey_toggle_sidebar",
+            ToggleTabFiles => "hotkey_toggle_tab_files",
             VaultSectionSlot => "hotkey_vault_section_slot",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
@@ -186,6 +192,7 @@ impl HotkeyAction {
                 | FocusPaneDown
                 | FocusSidebarList
                 | ToggleSidebar
+                | ToggleTabFiles
         )
     }
 
@@ -736,6 +743,11 @@ pub fn default_bindings() -> HotkeyMap {
     // Ctrl+Shift+B (Cmd+Shift+B on macOS): the VS Code toggle-sidebar
     // convention; Shift lifts it out of the control-sequence gate.
     put(&mut m, ToggleSidebar, primary_ctrl, true, false, primary_logo, Char('b'));
+    // Ctrl+Shift+F (Cmd+Shift+F on macOS): flip the focused SSH tab
+    // between Terminal and Files. Shift lifts it out of the terminal
+    // control-sequence gate (plain Ctrl+F is readline forward-char /
+    // the app's FocusViewSearch elsewhere).
+    put(&mut m, ToggleTabFiles, primary_ctrl, true, false, primary_logo, Char('f'));
     // Ctrl+Shift+digit (Cmd+Shift on macOS): the vault-section
     // jump family, one digit per burger-menu VAULT entry. Shift
     // keeps it clear of the Ctrl+digit tab slots.

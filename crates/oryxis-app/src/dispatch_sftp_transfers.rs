@@ -348,7 +348,7 @@ impl Oryxis {
                     .filter(|(s, _, is_dir)| *s == remote_side && *is_dir)
                     .map(|(_, p, _)| p.clone());
                 self.sftp.drop_active = false;
-                if !was_active || self.active_view != crate::state::View::Sftp {
+                if !was_active || !self.sftp_surface_visible() {
                     return Ok(Task::none());
                 }
                 let in_remote_pane =

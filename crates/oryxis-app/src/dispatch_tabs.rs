@@ -643,6 +643,13 @@ impl Oryxis {
                     // tied to the tab it was opened from).
                     self.show_session_group_panel = false;
                     self.active_tab = Some(idx);
+                    // A hybrid tab in Files mode owns the live SFTP buffer
+                    // while shown (park/hoist, same invariant as the
+                    // standalone SFTP tabs).
+                    if self.tabs[idx].files_mode {
+                        let id = self.tabs[idx]._id;
+                        self.hoist_hybrid_sftp(id);
+                    }
                     self.remember_terminal_tab_focus(idx);
                     self.active_view = View::Terminal;
                     // Viewing the tab consumes its smart-tab attention dot
@@ -663,6 +670,113 @@ impl Oryxis {
                         self.sidebar_files_sync(),
                     ]));
                 }
+            }
+            Message::ToggleTabFilesMode(idx) => {
+                // Hybrid tab (issue #61): flip this SSH tab between its
+                // terminal and its host's files (the full dual-pane SFTP
+                // surface). The PTY keeps running underneath; the SFTP
+                // state parks in `TerminalTab::files_state` when hidden.
+                let Some(tab) = self.tabs.get(idx) else {
+                    return Ok(Task::none());
+                };
+                let tab_id = tab._id;
+                // Clicking the glyph on a background tab also brings the
+                // tab to front, whichever direction it flips.
+                let select = if self.active_tab != Some(idx) {
+                    self.update(Message::SelectTab(idx))
+                } else {
+                    Task::none()
+                };
+                if self.tabs[idx].files_mode {
+                    // Back to the terminal: the browsing state goes home.
+                    self.tabs[idx].files_mode = false;
+                    self.park_hybrid_sftp();
+                    return Ok(select);
+                }
+                // Files mode needs a live SSH session (SFTP is an SSH
+                // subsystem; local / Telnet / serial tabs never show the
+                // glyph, this guards the hotkey path).
+                let Some(session) = self.tabs[idx]
+                    .active()
+                    .session
+                    .as_ref()
+                    .and_then(|s| s.ssh())
+                    .cloned()
+                else {
+                    return Ok(select);
+                };
+                let base = self.tabs[idx]
+                    .label
+                    .trim_end_matches(" (disconnected)")
+                    .to_string();
+                self.tabs[idx].files_mode = true;
+                self.hoist_hybrid_sftp(tab_id);
+                // Already mounted from an earlier visit: just show it.
+                if self.sftp.right.is_remote && self.sftp.right.host_label.is_some() {
+                    return Ok(select);
+                }
+                // First open: seed the Local pane like a fresh SFTP tab,
+                // then mount the host into the right pane.
+                if self.sftp.left.local_path.as_os_str().is_empty() {
+                    self.sftp.left.local_path = std::env::var_os("HOME")
+                        .or_else(|| std::env::var_os("USERPROFILE"))
+                        .map(std::path::PathBuf::from)
+                        .unwrap_or_else(|| std::path::PathBuf::from("/"));
+                    self.sftp.left.columns = self.sftp_columns_template.clone();
+                    self.sftp.right.columns = self.sftp_columns_template.clone();
+                }
+                self.refresh_sftp_local(crate::state::SftpPaneSide::Left);
+                // Saved host: the shared mount pipeline (reuse-or-connect)
+                // finds this tab's live session by label and multiplexes
+                // an SFTP channel on it, no second dial.
+                if let Some(ci) = self.connections.iter().position(|c| {
+                    c.label == base
+                        && c.protocol
+                            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                }) {
+                    let mount = self.update(Message::SftpRemountPane(
+                        crate::state::SftpPaneSide::Right,
+                        ci,
+                    ));
+                    return Ok(Task::batch([select, mount]));
+                }
+                // Ad-hoc host (quick connect / cloud): mount the live
+                // session directly, mirroring OpenSftpForTab's fallback.
+                {
+                    let pane = self.sftp.pane_mut(crate::state::SftpPaneSide::Right);
+                    pane.is_remote = true;
+                    pane.host_label = Some(base.clone());
+                    pane.remote_loading = true;
+                    pane.error = None;
+                    pane.remote_entries.clear();
+                }
+                let target = crate::state::SftpPaneSide::Right;
+                let session_for_task = session.clone();
+                let label = base;
+                let mount = Task::perform(
+                    async move {
+                        let client = session_for_task
+                            .open_sftp()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let (initial, entries) =
+                            crate::dispatch_sftp::initial_remote_listing(&client, None)
+                                .await?;
+                        Ok::<_, String>((client, initial, entries))
+                    },
+                    move |result| match result {
+                        Ok((client, path, entries)) => Message::SftpHostMounted(
+                            target,
+                            label.clone(),
+                            session.clone(),
+                            client,
+                            path,
+                            entries,
+                        ),
+                        Err(e) => Message::SftpRemoteError(target, e),
+                    },
+                );
+                return Ok(Task::batch([select, mount]));
             }
             Message::TabHovered(idx) => {
                 self.hovered_tab = Some(idx);
@@ -964,6 +1078,13 @@ impl Oryxis {
                     // unrelated cloud spawn.
                     if self.pin_next_plugin_tab == Some(self.tabs[idx]._id) {
                         self.pin_next_plugin_tab = None;
+                    }
+                    // A hybrid Files-mode owner dies with its tab: the
+                    // hoisted browsing state is discarded (any transfer on
+                    // it rode the session being torn down anyway).
+                    if self.hybrid_sftp_owner == Some(self.tabs[idx]._id) {
+                        self.hybrid_sftp_owner = None;
+                        self.sftp = crate::state::SftpState::default();
                     }
                     // Closing a pinned tab drops it from the persisted set.
                     let was_pinned = self.tabs[idx].pinned;

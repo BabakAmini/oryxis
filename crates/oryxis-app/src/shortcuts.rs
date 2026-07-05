@@ -905,6 +905,12 @@ impl Oryxis {
             // keyboard path to close it; the handler already drops
             // the ring + dropdown gate on close).
             ToggleSidebar => Task::done(Message::ToggleChatSidebar),
+            // Hybrid tab: Terminal <-> Files for the focused tab (the
+            // handler no-ops for tabs without a live SSH session).
+            ToggleTabFiles => match self.active_tab {
+                Some(idx) => Task::done(Message::ToggleTabFilesMode(idx)),
+                None => Task::none(),
+            },
             // Vault section cycling: neighbor of the active view in the
             // sub-nav pill order, wrapping. The loop only reaches these
             // in the vault area (vault_only gate above).

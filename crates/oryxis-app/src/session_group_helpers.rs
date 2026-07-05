@@ -333,6 +333,8 @@ mod tests {
             session_group_id: None,
             pinned: false,
             pending_reopen: None,
+            files_mode: false,
+            files_state: Box::default(),
         };
 
         let (restored, rows) = snapshot_tab_layout(&tab).expect("nothing pruned");

@@ -1368,7 +1368,7 @@ impl Oryxis {
                 // pending (active=false) until the user moves past the
                 // threshold, that way plain clicks still flow to the
                 // button's on_press handler.
-                if self.active_view != crate::state::View::Sftp {
+                if !self.sftp_surface_visible() {
                     return Ok(Task::none());
                 }
                 // A press outside the inline-rename input commits the rename
@@ -1510,8 +1510,10 @@ impl Oryxis {
                 // name starts with what's been typed. Only plain printable
                 // keys are intercepted here; modifiers, named keys, hotkeys,
                 // and typing inside text fields all forward to the terminal
-                // handler (which owns that logic) via `Err`.
-                if self.active_view != crate::state::View::Sftp {
+                // handler (which owns that logic) via `Err`. Gated on the
+                // visible surface (standalone view OR a hybrid tab's Files
+                // mode), where the PTY byte routing is disabled.
+                if !self.sftp_surface_visible() {
                     return Err(Message::KeyboardEvent(ke));
                 }
                 // Consume the activation-swallow flag on the first keyboard

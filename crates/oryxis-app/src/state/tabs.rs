@@ -472,6 +472,16 @@ pub(crate) struct TerminalTab {
     /// reopens it (connect host / spawn local shell), then clears. `None` on
     /// a live tab.
     pub pending_reopen: Option<PinnedTabSpec>,
+    /// Hybrid tab state (issue #61): when set, this SSH tab shows its
+    /// host's files (the full dual-pane SFTP surface) instead of the
+    /// terminal. The PTY keeps running underneath; the tab glyph /
+    /// status-bar segment / hotkey toggle it back.
+    pub files_mode: bool,
+    /// Parked SFTP browsing state for `files_mode`, hoisted into the
+    /// live `Oryxis::sftp` buffer while this tab owns the surface
+    /// (`hybrid_sftp_owner`), same swap-on-focus invariant as the
+    /// standalone `SftpTab::state`. Boxed: most tabs never browse.
+    pub files_state: Box<SftpState>,
 }
 
 /// Reference to an open tab in the unified strip. Terminal and SFTP tabs
@@ -656,6 +666,8 @@ impl TerminalTab {
             session_group_id: None,
             pinned: false,
             pending_reopen: None,
+            files_mode: false,
+            files_state: Box::default(),
         }
     }
 

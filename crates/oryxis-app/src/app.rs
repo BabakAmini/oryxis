@@ -435,6 +435,11 @@ pub struct Oryxis {
     /// SFTP tab is focused. Invariant: at most one of `active_tab` /
     /// `active_sftp` is `Some`.
     pub(crate) active_sftp: Option<usize>,
+    /// Hybrid tab (issue #61): id of the terminal tab whose Files-mode
+    /// SFTP state currently lives in the `self.sftp` buffer. Mutually
+    /// exclusive with `active_sftp` (hoisting one parks the other);
+    /// see `park_hybrid_sftp` / `hoist_hybrid_sftp`.
+    pub(crate) hybrid_sftp_owner: Option<Uuid>,
     /// Unified left-to-right order of the tab strip (terminal + SFTP). Both
     /// vecs (`tabs`, `sftp_tabs`) are id-addressed storage; this list drives
     /// display order and drag-reorder across the terminal/SFTP boundary.

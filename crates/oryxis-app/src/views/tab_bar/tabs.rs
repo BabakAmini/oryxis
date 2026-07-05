@@ -268,6 +268,9 @@ pub(crate) fn session_tab<'a>(
     solid_fill: bool,
     // OSC 9;4 progress from the focused pane; drawn as a growing border.
     progress: Option<oryxis_terminal::Progress>,
+    // Hybrid tab (issue #61): `Some(state)` renders the clickable mode
+    // glyph (>_ terminal / folder files); `None` hides it (no SSH).
+    files_mode: Option<bool>,
 ) -> Element<'a, Message> {
     let effective_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
     let fg = if is_active {
@@ -294,11 +297,15 @@ pub(crate) fn session_tab<'a>(
     // horizontal room. Reserve the X's slot + a small gap so the
     // truncation kicks in earlier instead of the X clipping over the
     // last few characters.
-    let label_width = if close_on_right {
+    let mut label_width = if close_on_right {
         (width - TAB_ICON_SLOT - 4.0).max(0.0)
     } else {
         width
     };
+    // The hybrid mode glyph takes a chip slot out of the label's room.
+    if files_mode.is_some() {
+        label_width = (label_width - 24.0).max(0.0);
+    }
     let display_label = truncate_label(&display_label_full, label_width);
 
     let show_close = is_active || is_hovered;
@@ -443,10 +450,76 @@ pub(crate) fn session_tab<'a>(
         .color(fg)
         .width(Length::Fill);
 
+    // Hybrid mode glyph: a small bordered chip showing the tab's current
+    // surface (>_ terminal / folder files); clicking flips it. A real
+    // `button` (hover/press feedback per the house convention) nested in
+    // the tab button, same pattern as the close X; plus a tooltip since
+    // it's icon-only.
+    let mode_chip: Option<Element<'_, Message>> = files_mode.map(|fm| {
+        let glyph: Element<'_, Message> = if fm {
+            iced_fonts::lucide::folder_tree().size(10).color(fg).into()
+        } else {
+            text(">_")
+                .size(9)
+                .line_height(1.0)
+                .font(iced::Font::MONOSPACE)
+                .color(fg)
+                .into()
+        };
+        let chip = button(
+            container(glyph)
+                .center_x(Length::Fixed(20.0))
+                .center_y(Length::Fixed(15.0)),
+        )
+        .padding(0)
+        .on_press(Message::ToggleTabFilesMode(idx))
+        .style(move |_, status| {
+            let bg = match status {
+                BtnStatus::Hovered | BtnStatus::Pressed => Color { a: 0.28, ..fg },
+                _ => Color { a: 0.12, ..fg },
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(4.0),
+                    color: Color { a: 0.35, ..fg },
+                    width: 1.0,
+                },
+                ..Default::default()
+            }
+        });
+        let tip = if fm {
+            crate::i18n::t("tab_show_terminal")
+        } else {
+            crate::i18n::t("tab_show_files")
+        };
+        iced::widget::tooltip(
+            chip,
+            container(text(tip).size(11).color(OryxisColors::t().text_primary))
+                .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        color: OryxisColors::t().border,
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }),
+            iced::widget::tooltip::Position::Bottom,
+        )
+        .into()
+    });
+
     let inner_row: Element<'_, Message> = {
         let mut items: Vec<Element<'_, Message>> = vec![leading_slot];
         // Pane-count chip sits just after the icon, offset by a small gap.
         if let Some(chip) = count_chip {
+            items.push(Space::new().width(4).into());
+            items.push(chip);
+        }
+        // Hybrid mode glyph follows the badge/count cluster.
+        if let Some(chip) = mode_chip {
             items.push(Space::new().width(4).into());
             items.push(chip);
         }

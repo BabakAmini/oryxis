@@ -463,6 +463,20 @@ impl Oryxis {
                             })
                     })
                     .unwrap_or(false);
+                // Hybrid toggle (issue #61): flip THIS tab between its
+                // terminal and its host's files, before the entry that
+                // opens a separate SFTP tab. An in-Files-mode tab keeps
+                // the entry (relabeled) even after a disconnect so the
+                // way back to the terminal never disappears.
+                let in_files = self.tabs.get(idx).map(|t| t.files_mode).unwrap_or(false);
+                if can_sftp || in_files {
+                    let (glyph, label) = if in_files {
+                        (iced_fonts::lucide::terminal(), crate::i18n::t("tab_show_terminal"))
+                    } else {
+                        (iced_fonts::lucide::folder(), crate::i18n::t("tab_show_files"))
+                    };
+                    items = items.push(self.menu_item(glyph, label, Message::ToggleTabFilesMode(idx), OryxisColors::t().text_secondary));
+                }
                 if can_sftp {
                     items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForTab(idx), OryxisColors::t().text_secondary));
                 }

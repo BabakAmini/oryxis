@@ -19,6 +19,24 @@ use crate::widgets::dir_row;
 
 impl Oryxis {
     pub(crate) fn view_terminal(&self) -> Element<'_, Message> {
+        // Hybrid tab in Files mode: the tab's whole content area is the
+        // dual-pane SFTP surface (its state hoisted into `self.sftp` by
+        // the toggle / SelectTab; the owner check keeps a broken
+        // invariant from ever rendering another surface's data). The
+        // PTY keeps running underneath and output keeps processing.
+        if let Some(tab) = self.active_tab.and_then(|idx| self.tabs.get(idx))
+            && tab.files_mode
+            && self.hybrid_sftp_owner == Some(tab._id)
+        {
+            // The ZMODEM card still floats on top: the hidden PTY keeps
+            // processing output, so a remote `sz` can seize the pane
+            // while the files surface is up and must stay visible.
+            let mut stack = iced::widget::Stack::new().push(self.view_sftp());
+            if let Some(zm) = self.zmodem_overlay() {
+                stack = stack.push(zm);
+            }
+            return stack.into();
+        }
         let chat_visible = self.active_tab
             .and_then(|idx| self.tabs.get(idx))
             .map(|tab| tab.chat_visible)
