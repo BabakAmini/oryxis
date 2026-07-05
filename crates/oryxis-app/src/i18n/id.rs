@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "Pilih teks untuk menyalin & klik kanan untuk menempel",
+        "middle_click_paste" => "Tempel dengan klik tengah",
         "renderer_backend" => "Perender grafis",
         "renderer_backend_desc" => "Otomatis memilih jalur GPU terbaik (Vulkan lebih dulu). OpenGL adalah opsi kompatibilitas untuk GPU dengan driver Vulkan/DX12 yang rusak; Perangkat lunak (CPU) selalu merender dengan benar. Mulai ulang untuk menerapkan.",
         "renderer_active" => "Penyaji aktif",
@@ -693,6 +694,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Masukkan kata sandi yang dipakai saat mengekspor",
         "expose_to_mcp" => "Ekspos ke MCP / AI",
         "forward_ssh_agent" => "Teruskan SSH Agent",
+        "host_address_family" => "Versi IP",
         "host_keepalive" => "Keepalive (timpa)",
         "host_keepalive_desc" => "Kosong mewarisi pengaturan global. 0 menonaktifkan keepalive di host ini.",
         "host_auto_title" => "Judul tab dari shell",

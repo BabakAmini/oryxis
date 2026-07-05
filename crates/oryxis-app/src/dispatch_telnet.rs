@@ -64,6 +64,7 @@ impl Oryxis {
                 .filter(|t| !t.trim().is_empty())
                 .unwrap_or_else(|| "xterm-256color".to_string()),
             encoding: conn.encoding.clone(),
+            address_family: conn.address_family,
             ..TelnetConfig::default()
         }
     }
@@ -134,6 +135,7 @@ impl Oryxis {
             failed: false,
             origin,
             tab_idx,
+            banner: None,
         });
         self.active_tab = Some(tab_idx);
         self.remember_terminal_tab_focus(tab_idx);

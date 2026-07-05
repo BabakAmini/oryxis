@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "انتخاب متن برای کپی و کلیک راست برای جای‌گذاری",
+        "middle_click_paste" => "چسباندن با کلیک وسط",
         "renderer_backend" => "موتور رندر گرافیکی",
         "renderer_backend_desc" => "حالت خودکار بهترین مسیر GPU را انتخاب می‌کند (ابتدا Vulkan). OpenGL گزینه سازگاری برای GPUهایی با درایورهای خراب Vulkan/DX12 است؛ نرم‌افزاری (CPU) همیشه درست رندر می‌کند. برای اعمال، برنامه را دوباره اجرا کنید.",
         "renderer_active" => "رندرکننده فعال",
@@ -695,6 +696,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "گذرواژه‌ای که هنگام خروجی استفاده شده را وارد کنید",
         "expose_to_mcp" => "نمایش به MCP / هوش مصنوعی",
         "forward_ssh_agent" => "ارسال SSH Agent",
+        "host_address_family" => "نسخه IP",
         "host_keepalive" => "Keepalive (لغو)",
         "host_keepalive_desc" => "خالی از تنظیم سراسری ارث می‌برد. 0 keepalive را در این میزبان غیرفعال می‌کند.",
         "host_auto_title" => "عنوان زبانه از پوسته",

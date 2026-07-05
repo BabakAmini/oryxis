@@ -512,6 +512,8 @@ pub enum Message {
     // reuse the normal hostname/port/username/password fields.
     EditorRdKindChanged(oryxis_core::models::remote_desktop::RemoteDesktopKind),
     EditorRdGatewayChanged(Option<uuid::Uuid>),
+    /// Address-family preference picked in the host editor (SSH > Network).
+    EditorAddressFamilyChanged(oryxis_core::models::connection::AddressFamily),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
     EditorPasswordChanged(String),
@@ -594,7 +596,17 @@ pub enum Message {
     /// Open the host editor prefilled from the quick-connect entry so the
     /// user can persist it as a regular host.
     SaveQuickHost(Uuid),
+    /// Same prefill, but as the temporary-host edit flow (from the
+    /// connect progress screen): Connect (without saving) is the primary
+    /// footer action, Save the secondary.
+    EditQuickHost(Uuid),
     SshProgress(ConnectionStep, String),
+    /// Pre-auth banner (RFC 4252 §5.4) for the connect in progress:
+    /// shown on the progress card and written to the tab's terminal.
+    SshBanner(String),
+    /// Pre-auth banner for a split-pane connect (no progress card):
+    /// written straight to that pane's terminal.
+    SshPaneBanner(Uuid, String),
     SshConnected(Uuid, crate::state::TerminalTransport),  // (pane_id, transport)
     SshDisconnected(Uuid),  // (pane_id)
     SshError(String),
@@ -951,6 +963,7 @@ pub enum Message {
     RendererInfoLoaded(String, String),
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
+    ToggleMiddleClickPaste,
     /// Flip the careful-paste guard (warn before multi-line paste).
     ToggleCarefulPaste,
     ToggleBoldIsBright,

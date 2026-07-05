@@ -354,6 +354,12 @@ pub(crate) struct ConnectionProgress {
     pub failed: bool,
     pub origin: ProgressOrigin,
     pub tab_idx: usize,
+    /// Pre-auth banner(s) the server sent (RFC 4252 §5.4: legal
+    /// notices, MFA instructions), shown on the progress card so the
+    /// user reads them while answering the auth prompts. Multiple
+    /// banners concatenate. Also written to the tab's terminal, where
+    /// it lands in scrollback.
+    pub banner: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -376,6 +382,8 @@ pub(crate) const KBI_FIRST_INPUT_ID: &str = "kbi-first-input";
 /// Internal message type for SSH connection streams.
 pub(crate) enum SshStreamMsg {
     Progress(ConnectionStep, String), // (step, log message)
+    /// Pre-auth banner from the server (RFC 4252 §5.4).
+    Banner(String),
     Connected(Arc<SshSession>),
     HostKeyVerify(oryxis_ssh::HostKeyQuery),
     KbiPrompt(oryxis_ssh::KbiQuery),

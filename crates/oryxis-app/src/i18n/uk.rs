@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "Виділення тексту для копіювання та права кнопка для вставлення",
+        "middle_click_paste" => "Вставлення середньою кнопкою",
         "renderer_backend" => "Графічний рендерер",
         "renderer_backend_desc" => "Автоматично обирає найкращий шлях GPU (спочатку Vulkan). OpenGL — варіант сумісності для GPU з несправними драйверами Vulkan/DX12; Software (CPU) завжди рендерить коректно. Перезапустіть, щоб застосувати.",
         "renderer_active" => "Активний рендерер",
@@ -693,6 +694,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Введіть пароль, використаний під час експорту",
         "expose_to_mcp" => "Надати доступ для MCP / ШІ",
         "forward_ssh_agent" => "Прокидати SSH-агента",
+        "host_address_family" => "Версія IP",
         "host_keepalive" => "Keepalive (перевизначення)",
         "host_keepalive_desc" => "Порожнє значення успадковує глобальне налаштування. 0 вимикає keepalive на цьому хості.",
         "host_auto_title" => "Заголовок вкладки з оболонки",

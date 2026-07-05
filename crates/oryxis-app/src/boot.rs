@@ -222,6 +222,7 @@ impl Oryxis {
                 pending_kbi_prompt: None,
                 pending_kbi_quick: None,
                 pending_auth_switch: None,
+                pending_edit_cancel: false,
                 kbi_inputs: Vec::new(),
                 kbi_response_tx: None,
                 show_host_panel: false,
@@ -429,6 +430,7 @@ impl Oryxis {
                 setting_careful_paste: true,
                 setting_paste_guard: true,
                 setting_right_click_copy: false,
+                setting_middle_click_paste: true,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
@@ -968,6 +970,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("right_click_copy") {
                 self.setting_right_click_copy = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("middle_click_paste") {
+                self.setting_middle_click_paste = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("bold_is_bright") {
                 self.setting_bold_is_bright = v == "true";

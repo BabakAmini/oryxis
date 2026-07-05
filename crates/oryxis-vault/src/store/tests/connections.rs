@@ -20,6 +20,28 @@ fn connection_session_logging_override_round_trips() {
 }
 
 #[test]
+fn connection_address_family_round_trips() {
+    use oryxis_core::models::connection::AddressFamily;
+    let vault = unlocked_vault();
+    // Every variant survives the save/list cycle; this guards the
+    // string mapping ('auto' | 'v4' | 'v6') and the positional column
+    // index in `store/connections.rs` (a typo there would silently
+    // reload everything as Auto via the fallthrough).
+    for family in [AddressFamily::Auto, AddressFamily::V4, AddressFamily::V6] {
+        let mut conn = Connection::new("h", "example.com");
+        conn.address_family = family;
+        vault.save_connection(&conn, None).unwrap();
+        let loaded = vault
+            .list_connections()
+            .unwrap()
+            .into_iter()
+            .find(|c| c.id == conn.id)
+            .expect("connection listed");
+        assert_eq!(loaded.address_family, family);
+    }
+}
+
+#[test]
 fn connection_protocol_round_trips() {
     use oryxis_core::models::connection::ConnectionProtocol;
     let vault = unlocked_vault();

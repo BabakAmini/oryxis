@@ -31,6 +31,8 @@ use crate::util::open_in_browser;
 enum PaneConnMsg {
     HostKey(oryxis_ssh::HostKeyQuery),
     Kbi(oryxis_ssh::KbiQuery),
+    /// Pre-auth banner from the server (RFC 4252 §5.4).
+    Banner(String),
     Connected(Arc<SshSession>),
     Data(Vec<u8>),
     Disconnected,
@@ -748,7 +750,32 @@ impl Oryxis {
                 if let Some(ref progress) = self.connecting {
                     let origin = progress.origin;
                     let tab_idx = progress.tab_idx;
+                    // A still-live connect (quick hosts offer Edit in every
+                    // state, not just failure) is parked on a prompt or mid
+                    // dial. Answer any pending ask so the engine isn't left
+                    // hanging on its oneshot, and arm the one-shot swallow
+                    // for the error that cancel provokes, else it lands
+                    // inside the editor as `host_panel_error`.
+                    if !progress.failed {
+                        if self.pending_kbi_prompt.is_some() {
+                            self.pending_kbi_prompt = None;
+                            self.pending_kbi_quick = None;
+                            self.kbi_inputs.clear();
+                            if let Some(ref tx) = self.kbi_response_tx {
+                                let _ = tx.try_send(None);
+                            }
+                        }
+                        if self.pending_host_key.is_some() {
+                            self.pending_host_key = None;
+                            if let Some(ref tx) = self.host_key_response_tx {
+                                let _ = tx.try_send(false);
+                            }
+                        }
+                        self.pending_edit_cancel = true;
+                    }
                     self.connecting = None;
+                    // The switch parked for this connect dies with it.
+                    self.pending_auth_switch = None;
                     if tab_idx < self.tabs.len() {
                         self.tabs.remove(tab_idx);
                         self.adjust_last_terminal_tab_after_remove(tab_idx);
@@ -759,10 +786,11 @@ impl Oryxis {
                         crate::state::ProgressOrigin::Saved(idx) => {
                             self.update(Message::EditConnection(idx))
                         }
-                        // Ad-hoc host: "edit" opens the editor prefilled as
-                        // a NEW host (the save-to-vault flow).
+                        // Ad-hoc host: edit the TEMPORARY entry; the editor
+                        // opens with Connect (without saving) as the primary
+                        // action, Save as the explicit opt-in.
                         crate::state::ProgressOrigin::Quick(id) => {
-                            self.update(Message::SaveQuickHost(id))
+                            self.update(Message::EditQuickHost(id))
                         }
                     });
                 }
@@ -844,6 +872,61 @@ impl Oryxis {
                 }
                 tracing::error!("pane SSH connect failed: {msg}");
             }
+            Message::SshBanner(text) => {
+                // Progress-card copy, so legal notices / MFA instructions
+                // are readable while the auth prompts are up. Multiple
+                // banners concatenate, but CAPPED: banners are
+                // unauthenticated input, and an unbounded concat would
+                // hand a hostile server a memory + per-frame-redaction
+                // lever. 8 KiB shows any real notice; the terminal copy
+                // below (scrollback-bounded) carries the overflow.
+                const BANNER_CAP: usize = 8 * 1024;
+                // A whitespace-only banner must not materialize an empty
+                // card block (or an empty scrollback write below).
+                if text.trim().is_empty() {
+                    return Ok(Task::none());
+                }
+                if let Some(p) = &mut self.connecting {
+                    let slot = p.banner.get_or_insert_with(String::new);
+                    if slot.len() < BANNER_CAP {
+                        if !slot.is_empty() {
+                            slot.push('\n');
+                        }
+                        slot.push_str(text.trim_end());
+                        if slot.len() > BANNER_CAP {
+                            let mut cut = BANNER_CAP;
+                            while !slot.is_char_boundary(cut) {
+                                cut -= 1;
+                            }
+                            slot.truncate(cut);
+                            slot.push('\u{2026}');
+                        }
+                    }
+                }
+                // Terminal copy: lands in scrollback, so the banner is
+                // still reviewable after the card closes (PuTTY prints
+                // it in the terminal). The emulator wants CRLF.
+                if let Some(tab_idx) = self.connecting.as_ref().map(|p| p.tab_idx)
+                    && let Some(tab) = self.tabs.get(tab_idx)
+                    && let Ok(mut state) = tab.active().terminal.lock()
+                {
+                    let normalized = text.replace("\r\n", "\n").replace('\n', "\r\n");
+                    state.process(normalized.as_bytes());
+                }
+            }
+            Message::SshPaneBanner(pane_id, text) => {
+                // Split-pane connect: no progress card, straight to the
+                // pane's terminal.
+                if text.trim().is_empty() {
+                    return Ok(Task::none());
+                }
+                if let Some(pane) = self.pane_by_id_mut(pane_id)
+                    && let Ok(mut state) = pane.terminal.lock()
+                {
+                    let normalized = text.replace("\r\n", "\n").replace('\n', "\r\n");
+                    state.process(normalized.as_bytes());
+                }
+            }
             Message::SshError(err) => {
                 // A cancel provoked by the identity / key switch: retry with
                 // the mutated entry instead of surfacing the failure. The
@@ -856,6 +939,15 @@ impl Oryxis {
                 {
                     self.pending_auth_switch = None;
                     return Ok(self.update(Message::SshRetry));
+                }
+                // A cancel provoked by "Edit host" mid-connect: the card is
+                // already gone and the editor is open, so this error is
+                // expected teardown noise. Requiring `connecting == None`
+                // keeps a fresh connect's genuine error from being eaten.
+                if self.pending_edit_cancel && self.connecting.is_none() {
+                    self.pending_edit_cancel = false;
+                    tracing::debug!("swallowing edit-host-provoked connect error: {err}");
+                    return Ok(Task::none());
                 }
                 tracing::error!("SSH error: {}", err);
                 if self.should_record_history()
@@ -1197,6 +1289,7 @@ impl Oryxis {
                     failed: false,
                     origin,
                     tab_idx,
+                    banner: None,
                 });
                 self.active_tab = Some(tab_idx);
                 self.remember_terminal_tab_focus(tab_idx);
@@ -1243,6 +1336,11 @@ impl Oryxis {
                 // (2FA / OTP) prompts when auth method is Interactive.
                 let (kbi_ask_tx, mut kbi_ask_rx) = tokio::sync::mpsc::channel::<(oryxis_ssh::KbiQuery, tokio::sync::oneshot::Sender<Option<Vec<String>>>)>(1);
                 let (kbi_resp_tx, mut kbi_resp_rx) = tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
+                // Pre-auth banner sink (one-way): the engine forwards RFC
+                // 4252 banners here; a bridge below surfaces them on the
+                // progress card + the tab's terminal.
+                let (banner_tx, mut banner_rx) =
+                    tokio::sync::mpsc::unbounded_channel::<String>();
                 self.kbi_response_tx = Some(kbi_resp_tx);
 
                 let conn_host = conn.hostname.clone();
@@ -1257,6 +1355,7 @@ impl Oryxis {
                     .unwrap_or_else(|| "root".into());
                 let auth_method_label = format!("{:?}", conn.auth_method);
                 let keepalive = self.effective_keepalive(&conn);
+                let address_family = conn.address_family;
                 let agent_forwarding = conn.agent_forwarding;
                 let env_vars: Vec<(String, String)> = conn
                     .env_vars
@@ -1392,12 +1491,23 @@ impl Oryxis {
                                 crate::i18n::t("password").to_string(),
                             )
                             .with_keepalive(keepalive)
+                            .with_address_family(address_family)
                             .with_agent_forwarding(agent_forwarding)
                             .with_env_vars(env_vars)
                             .with_encoding(encoding)
                             .with_terminal_type(terminal_type)
                             .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
+                            .with_banner_sink(banner_tx)
                         .with_auto_interactive_fallback(is_quick);
+
+                        // One-way banner bridge (no response leg): pre-auth
+                        // banners surface on the progress card + terminal.
+                        let mut banner_sender = sender.clone();
+                        let _banner_bridge = tokio::spawn(async move {
+                            while let Some(text) = banner_rx.recv().await {
+                                let _ = banner_sender.send(SshStreamMsg::Banner(text)).await;
+                            }
+                        });
 
                         // Spawn a bridge task: receives host key queries from the SSH engine,
                         // forwards to iced stream, and waits for UI response
@@ -1609,6 +1719,7 @@ impl Oryxis {
                         SshStreamMsg::Data(data) => {
                             Message::PtyOutput(pane_id, data)
                         }
+                        SshStreamMsg::Banner(text) => Message::SshBanner(text),
                         SshStreamMsg::Error(err) => Message::SshError(err),
                         SshStreamMsg::NoCommonAlgo { category, server_offers } => {
                             Message::SshNoCommonAlgo {
@@ -1868,6 +1979,7 @@ impl Oryxis {
         let resolver = self.build_jump_resolver(&conn);
         let host_key_check = self.build_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
+        let address_family = conn.address_family;
         // Parity with the full-tab `ConnectSsh` path: agent forwarding, env
         // vars and a custom encoding must ride the session too, otherwise a
         // split pane (or an in-place reconnect) silently drops them.
@@ -1936,6 +2048,10 @@ impl Oryxis {
         let (kbi_resp_tx, mut kbi_resp_rx) = tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
         self.kbi_response_tx = Some(kbi_resp_tx);
 
+        // Pre-auth banner sink (one-way); a split-pane connect has no
+        // progress card, so banners go straight to the pane's terminal.
+        let (banner_tx, mut banner_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+
         let stream = iced::stream::channel::<PaneConnMsg>(128, move |mut sender: iced::futures::channel::mpsc::Sender<PaneConnMsg>| async move {
             let engine = SshEngine::new()
                 .with_host_key_check(host_key_check)
@@ -1947,11 +2063,13 @@ impl Oryxis {
                     crate::i18n::t("password").to_string(),
                 )
                 .with_keepalive(keepalive)
+                .with_address_family(address_family)
                 .with_agent_forwarding(agent_forwarding)
                 .with_env_vars(env_vars)
                 .with_encoding(encoding)
                 .with_terminal_type(terminal_type)
                 .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
+                .with_banner_sink(banner_tx)
                 .with_auto_interactive_fallback(is_quick);
 
             let mut sender_clone = sender.clone();
@@ -1960,6 +2078,13 @@ impl Oryxis {
                     let _ = sender_clone.send(PaneConnMsg::HostKey(query)).await;
                     let accepted = hk_resp_rx.recv().await.unwrap_or(false);
                     let _ = resp_tx.send(accepted);
+                }
+            });
+
+            let mut banner_sender = sender.clone();
+            let _banner_bridge = tokio::spawn(async move {
+                while let Some(text) = banner_rx.recv().await {
+                    let _ = banner_sender.send(PaneConnMsg::Banner(text)).await;
                 }
             });
 
@@ -2002,6 +2127,7 @@ impl Oryxis {
         Task::stream(stream).map(move |m| match m {
             PaneConnMsg::HostKey(q) => Message::SshHostKeyVerify(q),
             PaneConnMsg::Kbi(q) => Message::SshKbiPrompt(quick_id, q),
+            PaneConnMsg::Banner(text) => Message::SshPaneBanner(pane_id, text),
             PaneConnMsg::Connected(s) => {
                 Message::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s))
             }

@@ -328,6 +328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "language" => "Idioma",
 
         "copy_on_select" => "Seleccionar texto para copiar y clic derecho para pegar",
+        "middle_click_paste" => "Pegar con el botón central",
         "renderer_backend" => "Renderizador gráfico",
         "renderer_backend_desc" => "Automático elige la mejor ruta de GPU (Vulkan primero). OpenGL es una opción de compatibilidad para GPU con controladores Vulkan/DX12 defectuosos; Software (CPU) siempre renderiza correctamente. Reinicia para aplicar.",
         "renderer_active" => "Renderizador activo",
@@ -566,6 +567,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Ingrese la contraseña usada al exportar",
         "expose_to_mcp" => "Exponer al MCP / IA",
         "forward_ssh_agent" => "Reenviar SSH Agent",
+        "host_address_family" => "Versión de IP",
         "host_keepalive" => "Keepalive (anular)",
         "host_keepalive_desc" => "Vacío hereda del global. 0 desactiva keepalive en este host.",
         "host_auto_title" => "Título de pestaña del shell",

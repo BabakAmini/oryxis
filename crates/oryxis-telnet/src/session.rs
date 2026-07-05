@@ -43,6 +43,10 @@ pub struct TelnetConfig {
     /// mirroring the SSH engine's PTY transcoding.
     pub encoding: Option<String>,
     pub connect_timeout: Duration,
+    /// Per-host IP-version preference (Auto / IPv4 / IPv6), the same
+    /// semantics as the SSH engine's dial: filter resolved addresses,
+    /// fail honestly when the name has none in the chosen family.
+    pub address_family: oryxis_core::models::connection::AddressFamily,
 }
 
 impl Default for TelnetConfig {
@@ -55,6 +59,7 @@ impl Default for TelnetConfig {
             term: "xterm-256color".to_string(),
             encoding: None,
             connect_timeout: Duration::from_secs(15),
+            address_family: oryxis_core::models::connection::AddressFamily::Auto,
         }
     }
 }
@@ -93,11 +98,40 @@ impl TelnetSession {
     pub async fn connect(
         config: TelnetConfig,
     ) -> Result<(TelnetSession, mpsc::UnboundedReceiver<Vec<u8>>), TelnetError> {
-        let addr = format!("{}:{}", config.host, config.port);
-        let stream = tokio::time::timeout(config.connect_timeout, TcpStream::connect(&addr))
+        // Brackets bare IPv6 literals; hostnames/IPv4 pass through.
+        let addr = oryxis_core::net::host_port(&config.host, config.port);
+        // Resolve, keep the addresses the per-host IP-version preference
+        // allows, and dial them in order until one connects (mirroring
+        // the SSH engine's dial).
+        let family = config.address_family;
+        let dial = async {
+            let resolved: Vec<std::net::SocketAddr> = tokio::net::lookup_host(&addr)
+                .await
+                .map_err(|e| TelnetError::ConnectionFailed(format!("resolve {addr}: {e}")))?
+                .collect();
+            let candidates = oryxis_core::net::filter_addrs(&resolved, family);
+            if candidates.is_empty() {
+                return Err(TelnetError::ConnectionFailed(if resolved.is_empty() {
+                    format!("{addr}: name resolved to no addresses")
+                } else {
+                    format!("{addr}: resolves to no {family} address")
+                }));
+            }
+            let mut last_err: Option<std::io::Error> = None;
+            for candidate in candidates {
+                match TcpStream::connect(candidate).await {
+                    Ok(s) => return Ok(s),
+                    Err(e) => last_err = Some(e),
+                }
+            }
+            Err(TelnetError::ConnectionFailed(format!(
+                "{addr}: {}",
+                last_err.expect("candidates was non-empty")
+            )))
+        };
+        let stream = tokio::time::timeout(config.connect_timeout, dial)
             .await
-            .map_err(|_| TelnetError::Timeout)?
-            .map_err(|e| TelnetError::ConnectionFailed(format!("{addr}: {e}")))?;
+            .map_err(|_| TelnetError::Timeout)??;
         // Interactive session: keystroke latency beats segment
         // coalescing (PuTTY defaults TCP_NODELAY on for the same
         // reason). Best-effort, some stacks refuse it.

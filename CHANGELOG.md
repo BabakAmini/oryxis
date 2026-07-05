@@ -7,6 +7,32 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Edit an ad-hoc host mid-connect.** The connect progress screen for
+  a quick connect (`user@host` without saving) now offers "Edit host"
+  in every state, not only after a failure. It edits the temporary
+  host in place: the editor opens with Connect (without saving) as the
+  primary action and Save demoted to the explicit "persist to vault"
+  opt-in, so fixing a typo'd user or port and re-dialing never writes
+  to the vault by surprise. Any in-flight prompt or dial is cancelled
+  cleanly first.
+- **PuTTY parity pack.** The small things every PuTTY hand expects.
+  TCP_NODELAY is now set on every socket the app opens (SSH session,
+  proxy dial, and the local ends of `-L` / `-R` / SOCKS forwards), so
+  interactive traffic stops paying Nagle latency. A per-host IP
+  version preference (Auto / IPv4 / IPv6, host editor > Network, and
+  on the reduced Telnet form, PuTTY applies it to Telnet too) filters
+  resolved addresses on the direct dial, the proxy dial and a jump
+  chain's first hop (the bastion's own preference governs that one),
+  failing honestly when a name has no address in the chosen family;
+  `~/.ssh/config` import maps the `AddressFamily inet` / `inet6`
+  directive onto it, and bare IPv6 literals typed as the host address
+  now dial correctly (they are bracketed for the resolver). The SSH pre-authentication banner (legal notices, MFA
+  instructions) is shown on the connect card and written to the
+  terminal scrollback instead of silently dropped; Privacy Mode
+  redacts it like the rest of the connect screen. And X11-style
+  middle-click paste in the terminal (own toggle in Settings >
+  Terminal, on by default), riding the same careful-paste and
+  paste-guard checks as every other paste path.
 - **Smart tabs.** Background tabs now tell you when they need you,
   built on the same OSC 133 shell-integration marks as the command
   history capture. A command that ran past a configurable threshold

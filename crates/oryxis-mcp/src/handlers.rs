@@ -185,6 +185,7 @@ pub async fn handle_ssh_execute(
         .flatten();
     let engine = SshEngine::new()
         .with_totp_secret(totp_secret.as_deref())
+        .with_address_family(auth_conn.address_family)
         .with_algorithm_overrides(
             auth_conn.ciphers.clone(),
             auth_conn.kex.clone(),

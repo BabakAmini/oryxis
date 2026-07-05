@@ -150,6 +150,17 @@ impl Oryxis {
                     .padding(indent),
                 );
         }
+        // X11-style middle-click paste (xterm / PuTTY tradition). Its own
+        // gesture, so it sits outside the copy-on-select bundle; the
+        // paste still routes through the careful-paste / paste-guard
+        // checks like every other paste path.
+        toggles_col = toggles_col
+            .push(Space::new().height(10))
+            .push(self.nav_toggle_row(
+                crate::i18n::t("middle_click_paste"),
+                self.setting_middle_click_paste,
+                Message::ToggleMiddleClickPaste,
+            ));
         // Careful paste: the multi-line paste guard (line-count preview
         // before anything reaches the session). Default on; the toggle is
         // the power-user opt-out.

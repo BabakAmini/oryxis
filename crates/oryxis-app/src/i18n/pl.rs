@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "Zaznacz tekst, aby skopiować, kliknij prawym, aby wkleić",
+        "middle_click_paste" => "Wklejanie środkowym przyciskiem",
         "renderer_backend" => "Renderer graficzny",
         "renderer_backend_desc" => "Automatyczny wybiera najlepszą ścieżkę GPU (najpierw Vulkan). OpenGL to opcja zgodności dla GPU z uszkodzonymi sterownikami Vulkan/DX12; Software (CPU) zawsze renderuje poprawnie. Uruchom ponownie, aby zastosować.",
         "renderer_active" => "Aktywny renderer",
@@ -699,6 +700,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Wprowadź hasło użyte podczas eksportu",
         "expose_to_mcp" => "Udostępnij dla MCP / AI",
         "forward_ssh_agent" => "Przekazuj agenta SSH",
+        "host_address_family" => "Wersja IP",
         "host_keepalive" => "Keepalive (nadpisanie)",
         "host_keepalive_desc" => "Puste dziedziczy ustawienie globalne. 0 wyłącza keepalive na tym hoście.",
         "host_auto_title" => "Tytuł karty z powłoki",

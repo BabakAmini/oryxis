@@ -268,6 +268,7 @@ impl Oryxis {
             .with_font_name(&self.terminal_font_name)
             .with_copy_on_select(self.setting_copy_on_select)
             .with_right_click_copy(self.setting_right_click_copy)
+            .with_middle_click_paste(self.setting_middle_click_paste)
             .with_bold_is_bright(self.setting_bold_is_bright)
             .with_keyword_highlight(self.setting_keyword_highlight)
             .with_performance(self.setting_performance_mode)

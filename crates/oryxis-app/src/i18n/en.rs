@@ -348,6 +348,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Settings toggles
         "copy_on_select" => "Select text to copy & Right click to paste",
+        "middle_click_paste" => "Middle-click pastes",
         "renderer_backend" => "Graphics renderer",
         "renderer_backend_desc" => "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply.",
         "renderer_active" => "Active renderer",
@@ -699,6 +700,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "import_password_hint" => "Enter the password used when exporting",
         "expose_to_mcp" => "Expose to MCP / AI",
         "forward_ssh_agent" => "Forward SSH Agent",
+        "host_address_family" => "IP version",
         "host_keepalive" => "Keepalive (override)",
         "host_keepalive_desc" => "Empty inherits the global setting. 0 disables keepalive on this host.",
         "host_auto_title" => "Tab title from shell",

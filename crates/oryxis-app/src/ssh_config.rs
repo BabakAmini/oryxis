@@ -31,6 +31,10 @@ pub struct SshConfigHost {
     /// `ForwardAgent` directive, only `yes` flips it on; missing /
     /// `no` / anything else stays off, matching OpenSSH's default.
     pub forward_agent: bool,
+    /// `AddressFamily` directive: `inet` -> IPv4-only, `inet6` ->
+    /// IPv6-only; `any`, missing, or anything else stays Auto
+    /// (OpenSSH's own default is `any`).
+    pub address_family: oryxis_core::models::connection::AddressFamily,
 }
 
 /// Parse the contents of an `ssh_config` file into a list of concrete
@@ -85,6 +89,17 @@ pub fn parse(text: &str) -> Vec<SshConfigHost> {
             }
             "proxycommand" => host.proxy_command = Some(value.to_string()),
             "forwardagent" => host.forward_agent = value.eq_ignore_ascii_case("yes"),
+            "addressfamily" => {
+                use oryxis_core::models::connection::AddressFamily;
+                host.address_family = if value.eq_ignore_ascii_case("inet") {
+                    AddressFamily::V4
+                } else if value.eq_ignore_ascii_case("inet6") {
+                    AddressFamily::V6
+                } else {
+                    // `any` and unknown values both mean no filter.
+                    AddressFamily::Auto
+                };
+            }
             _ => {}
         }
     }
@@ -121,6 +136,7 @@ pub fn to_connection(host: &SshConfigHost) -> Connection {
         AuthMethod::Auto
     };
     conn.agent_forwarding = host.forward_agent;
+    conn.address_family = host.address_family;
     // ProxyCommand maps directly to our typed `Command(cmd)` proxy.
     // Linking a ProxyJump alias to an actual jump-host UUID happens in
     // a second pass (see `link_proxy_jumps`) once every block has its

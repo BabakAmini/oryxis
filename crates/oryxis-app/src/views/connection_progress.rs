@@ -126,7 +126,15 @@ impl Oryxis {
             // header and host-key prompt can be revealed in place.
             header_children.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
         }
-        if failed {
+        // Saved hosts offer Edit only once the connect failed (the card
+        // resolves in seconds and the host has a permanent editor on its
+        // dashboard card). A quick connect offers it in EVERY state: the
+        // ad-hoc host exists nowhere else, so mid-prompt is exactly when
+        // a typo'd user/port needs fixing; the handler cancels the
+        // in-flight attempt and opens the temporary-host edit flow.
+        let is_quick_origin =
+            matches!(progress.origin, crate::state::ProgressOrigin::Quick(_));
+        if failed || is_quick_origin {
             if self.progress_privacy_on(progress) {
                 header_children.push(Space::new().width(8).into());
             }
@@ -147,6 +155,46 @@ impl Oryxis {
 
         let header = container(crate::widgets::dir_row(header_children).align_y(iced::Alignment::Center))
             .padding(Padding { top: 24.0, right: 0.0, bottom: 16.0, left: 0.0 });
+
+        // Pre-auth banner (RFC 4252 §5.4): legal notices / MFA
+        // instructions the server sent before authentication. Rendered
+        // across every branch, it matters most while the KBI prompt is
+        // up, and passes the same Privacy Mode redaction as the rest of
+        // the screen. Long legal banners scroll inside a capped box.
+        let banner_block: Element<'_, Message> = match &progress.banner {
+            Some(banner) => {
+                let body = self.redact_progress(progress, banner);
+                // No `max_height` on this fork's Container: derive the box
+                // height from the line count and cap it, so a one-line
+                // banner stays a chip and a legal wall scrolls at 140 px.
+                let box_h = (body.lines().count() as f32 * 17.0 + 22.0).min(140.0);
+                column![
+                    Space::new().height(10),
+                    container(
+                        iced::widget::scrollable(
+                            text(body)
+                                .size(12)
+                                .color(OryxisColors::t().text_secondary),
+                        )
+                        .width(Length::Fill),
+                    )
+                    .height(Length::Fixed(box_h))
+                    .width(Length::Fill)
+                    .padding(10)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                        border: Border {
+                            radius: Radius::from(8.0),
+                            color: OryxisColors::t().border,
+                            width: 1.0,
+                        },
+                        ..Default::default()
+                    }),
+                ]
+                .into()
+            }
+            None => Space::new().into(),
+        };
 
         // Pulse for the in-flight timeline node while still connecting.
         // Triangular wave 0 -> 1 -> 0 over ~800 ms, driven by the 100 ms
@@ -463,6 +511,7 @@ impl Oryxis {
             column![
                 header,
                 status_widget,
+                banner_block,
                 Space::new().height(12),
                 body_widget,
                 Space::new().height(16),

@@ -223,6 +223,11 @@ pub struct TerminalView<Message = ()> {
     /// selection copies it (the Windows console "QuickEdit" model), and a
     /// right-click with no selection still pastes.
     right_click_copy: bool,
+    /// X11-style middle-click paste (the xterm / PuTTY tradition). Its
+    /// own gesture, so it is NOT gated on `copy_on_select`; when the
+    /// remote app holds mouse tracking, the report path wins (Shift
+    /// bypasses, as everywhere).
+    middle_click_paste: bool,
     /// When true, ANSI bold flag promotes the named foreground color to
     /// its bright variant (red → bright red, etc).
     bold_is_bright: bool,
@@ -491,6 +496,7 @@ impl<Message> TerminalView<Message> {
             font: Font::MONOSPACE,
             copy_on_select: true,
             right_click_copy: false,
+            middle_click_paste: true,
             bold_is_bright: true,
             keyword_highlight: true,
             performance: false,
@@ -543,6 +549,12 @@ impl<Message> TerminalView<Message> {
     /// `copy_on_select` is off.
     pub fn with_right_click_copy(mut self, on: bool) -> Self {
         self.right_click_copy = on;
+        self
+    }
+
+    /// X11-style middle-click paste (independent of `copy_on_select`).
+    pub fn with_middle_click_paste(mut self, on: bool) -> Self {
+        self.middle_click_paste = on;
         self
     }
 
@@ -1452,6 +1464,28 @@ where
                 return None;
             }
             // Right-click, paste from clipboard. When the host wired an
+            // X11-style middle-click paste (xterm / PuTTY tradition). Its
+            // own gesture, so it isn't gated on `copy_on_select`; when
+            // the remote app holds mouse tracking, the report path above
+            // already consumed the press (Shift bypasses, as everywhere).
+            // Same delegation as right-click below: `on_paste_request`
+            // routes through the dispatcher (paste guard + SSH routing),
+            // with a local-PTY fallback for callers without the hook.
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle))
+                if cursor.position_in(bounds).is_some() && self.middle_click_paste =>
+            {
+                if let Some(msg) = self.on_paste_request.clone() {
+                    return Some(CanvasAction::publish(msg).and_capture());
+                }
+                if let Ok(mut clip) = arboard::Clipboard::new()
+                    && let Ok(text) = clip.get_text()
+                    && let Ok(mut state) = self.state.lock()
+                {
+                    let bracketed = state.bracketed_paste_enabled();
+                    state.write(&crate::wrap_paste(&text, bracketed));
+                }
+                return Some(CanvasAction::capture());
+            }
             // `on_paste_request` callback we delegate the actual paste to
             // the app dispatcher so it can target the SSH session (the
             // local-PTY write below only reaches local-shell tabs). The

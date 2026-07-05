@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "Chọn văn bản để chép và nhấp chuột phải để dán",
+        "middle_click_paste" => "Dán bằng nút chuột giữa",
         "renderer_backend" => "Trình kết xuất đồ họa",
         "renderer_backend_desc" => "Tự động chọn đường dẫn GPU tốt nhất (ưu tiên Vulkan). OpenGL là tùy chọn tương thích cho GPU có driver Vulkan/DX12 bị lỗi; Phần mềm (CPU) luôn hiển thị đúng. Khởi động lại để áp dụng.",
         "renderer_active" => "Trình kết xuất đang dùng",
@@ -693,6 +694,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Nhập mật khẩu đã dùng khi xuất",
         "expose_to_mcp" => "Hiển thị cho MCP / AI",
         "forward_ssh_agent" => "Chuyển tiếp SSH Agent",
+        "host_address_family" => "Phiên bản IP",
         "host_keepalive" => "Keepalive (ghi đè)",
         "host_keepalive_desc" => "Để trống sẽ kế thừa cài đặt toàn cục. 0 tắt keepalive trên máy chủ này.",
         "host_auto_title" => "Tiêu đề tab từ shell",

@@ -110,6 +110,30 @@ Host tunneled
 }
 
 #[test]
+fn address_family_directive_maps_to_the_preference() {
+    use oryxis_core::models::connection::AddressFamily;
+    let input = "
+Host v4only
+    HostName a.example.com
+    AddressFamily inet
+Host v6only
+    HostName b.example.com
+    AddressFamily inet6
+Host anyhost
+    HostName c.example.com
+    AddressFamily any
+Host unset
+    HostName d.example.com
+";
+    let hosts = parse(input);
+    assert_eq!(hosts.len(), 4);
+    assert_eq!(to_connection(&hosts[0]).address_family, AddressFamily::V4);
+    assert_eq!(to_connection(&hosts[1]).address_family, AddressFamily::V6);
+    assert_eq!(to_connection(&hosts[2]).address_family, AddressFamily::Auto);
+    assert_eq!(to_connection(&hosts[3]).address_family, AddressFamily::Auto);
+}
+
+#[test]
 fn proxy_command_maps_to_command_proxy_type() {
     use oryxis_core::models::connection::ProxyType;
     let host = SshConfigHost {
@@ -121,6 +145,7 @@ fn proxy_command_maps_to_command_proxy_type() {
         proxy_jump: None,
         proxy_command: Some("nc -X connect -x corp:8080 %h %p".into()),
         forward_agent: false,
+        address_family: Default::default(),
     };
     let conn = to_connection(&host);
     let proxy = conn.proxy.expect("proxy_command should produce inline proxy");
@@ -315,6 +340,7 @@ proptest! {
             proxy_jump: None,
             proxy_command: None,
             forward_agent: false,
+            address_family: Default::default(),
         };
         let conn = to_connection(&host);
         // Invariant: label always carries the alias verbatim, it's

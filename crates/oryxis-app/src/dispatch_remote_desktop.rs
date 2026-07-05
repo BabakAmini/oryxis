@@ -172,6 +172,8 @@ impl Oryxis {
         let resolver = self.build_jump_resolver(&gw);
         let host_key_check = self.build_host_key_check();
         let keepalive = self.effective_keepalive(&gw);
+        // The tunnel socket goes to the GATEWAY, so its preference rules.
+        let address_family = gw.address_family;
         let username = rd_username;
         let conn_id = conn.id;
         let target_host = desktop_host;
@@ -222,6 +224,7 @@ impl Oryxis {
                         crate::i18n::t("password").to_string(),
                     )
                     .with_keepalive(keepalive)
+                    .with_address_family(address_family)
                     .with_strict_host_key(true)
                     .with_algorithm_overrides(
                         algo_ciphers,

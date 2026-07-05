@@ -88,6 +88,7 @@ impl Oryxis {
             failed: false,
             origin,
             tab_idx,
+            banner: None,
         });
         self.active_tab = Some(tab_idx);
         self.remember_terminal_tab_focus(tab_idx);

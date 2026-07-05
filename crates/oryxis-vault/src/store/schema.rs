@@ -291,6 +291,9 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN remote_desktop TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rd_kind TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rd_gateway_id TEXT;");
+        // Outbound address-family preference ('auto' | 'v4' | 'v6');
+        // NULL on older rows reads as 'auto'.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN address_family TEXT;");
         // Backing query for dynamic groups (ECS services / K8s workloads).
         // JSON-encoded `CloudQuery`. NULL for manual groups.
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN cloud_query TEXT;");

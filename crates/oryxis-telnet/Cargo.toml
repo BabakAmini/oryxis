@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# Shared model types (AddressFamily) + net helpers (IPv6 bracketing,
+# family filter), so the per-host IP-version preference behaves
+# identically to the SSH engine's.
+oryxis-core = { path = "../oryxis-core" }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }

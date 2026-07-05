@@ -328,6 +328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "language" => "语言",
 
         "copy_on_select" => "选中文本自动复制，右键粘贴",
+        "middle_click_paste" => "中键粘贴",
         "renderer_backend" => "图形渲染器",
         "renderer_backend_desc" => "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。",
         "renderer_active" => "当前渲染器",
@@ -569,6 +570,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "输入导出时使用的密码",
         "expose_to_mcp" => "暴露给 MCP / AI",
         "forward_ssh_agent" => "转发 SSH 代理",
+        "host_address_family" => "IP 版本",
         "host_keepalive" => "心跳（覆盖）",
         "host_keepalive_desc" => "留空继承全局设置。填 0 在此主机禁用心跳。",
         "host_auto_title" => "由 shell 设置标签标题",

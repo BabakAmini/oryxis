@@ -36,6 +36,13 @@ pub struct Connection {
     /// `proxy_identity_id`). Meaningful only for `RemoteDesktop`.
     #[serde(default)]
     pub rd_gateway_id: Option<Uuid>,
+    /// Outbound address-family preference for this host's dials
+    /// (PuTTY's Auto / IPv4 / IPv6). Applies to the direct dial, the
+    /// proxy dial and the first jump hop, everything that opens a real
+    /// socket from this machine. `#[serde(default)]` -> Auto on legacy
+    /// payloads, and sync / portable export ride the serde field.
+    #[serde(default)]
+    pub address_family: AddressFamily,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -204,6 +211,7 @@ impl Connection {
             serial: None,
             rd_kind: super::remote_desktop::RemoteDesktopKind::default(),
             rd_gateway_id: None,
+            address_family: AddressFamily::default(),
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,
@@ -300,6 +308,29 @@ impl std::fmt::Display for ConnectionProtocol {
             ConnectionProtocol::Telnet => write!(f, "Telnet"),
             ConnectionProtocol::Serial => write!(f, "Serial"),
             ConnectionProtocol::RemoteDesktop => write!(f, "Remote Desktop"),
+        }
+    }
+}
+
+/// Address-family preference for outbound dials (PuTTY's Auto / IPv4 /
+/// IPv6 setting). `Auto` takes the resolver's order; `V4` / `V6` keep
+/// only that family's addresses and fail honestly when the name
+/// resolves to none of them.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum AddressFamily {
+    #[default]
+    Auto,
+    V4,
+    V6,
+}
+
+// Display feeds the host editor's pick_list mapper.
+impl std::fmt::Display for AddressFamily {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AddressFamily::Auto => write!(f, "Auto"),
+            AddressFamily::V4 => write!(f, "IPv4"),
+            AddressFamily::V6 => write!(f, "IPv6"),
         }
     }
 }
@@ -471,6 +502,27 @@ mod tests {
         value.as_object_mut().unwrap().remove("protocol");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.protocol, ConnectionProtocol::Ssh);
+    }
+
+    /// Same contract for the address-family preference: a payload from
+    /// before the field existed must land as `Auto` (the behavior every
+    /// pre-existing host had).
+    #[test]
+    fn address_family_legacy_payload_defaults_to_auto() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("address_family");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.address_family, AddressFamily::Auto);
+    }
+
+    #[test]
+    fn address_family_round_trips() {
+        let mut conn = Connection::new("v6-host", "host.example");
+        conn.address_family = AddressFamily::V6;
+        let json = serde_json::to_string(&conn).unwrap();
+        let de: Connection = serde_json::from_str(&json).unwrap();
+        assert_eq!(de.address_family, AddressFamily::V6);
     }
 
     #[test]

@@ -841,6 +841,13 @@ impl Oryxis {
                     if self.setting_right_click_copy { "true" } else { "false" },
                 );
             }
+            Message::ToggleMiddleClickPaste => {
+                self.setting_middle_click_paste = !self.setting_middle_click_paste;
+                self.persist_setting(
+                    "middle_click_paste",
+                    if self.setting_middle_click_paste { "true" } else { "false" },
+                );
+            }
             Message::ToggleCarefulPaste => {
                 self.setting_careful_paste = !self.setting_careful_paste;
                 // Turning the guard off releases nothing: a parked paste

@@ -41,6 +41,8 @@ impl Oryxis {
         // password), a kind (RDP/VNC) and an optional SSH gateway. All the
         // SSH-only rows below are `is_ssh`-gated, so they drop for free.
         let is_rd = self.editor_form.protocol == Proto::RemoteDesktop;
+        // Telnet dials TCP too, so it shares the IP-version row below.
+        let is_telnet = self.editor_form.protocol == Proto::Telnet;
         // SSH-only rows (Authentication / Network / Integration) are
         // GATED on `is_ssh`: the reduced Telnet / Serial forms drop
         // them, and because `panel_nav_slot` records at build time, an
@@ -1071,6 +1073,39 @@ impl Oryxis {
             empty()
         };
 
+        // Per-host address-family preference (SSH > Network, and the
+        // reduced Telnet form: both dial TCP): Auto keeps resolver
+        // order, IPv4/IPv6 filter the resolved addresses (PuTTY's
+        // Connection panel setting, which PuTTY applies to Telnet too).
+        // Typed pick_list over the enum; IPv4/IPv6 are universal
+        // labels, so Display feeds it.
+        let row_address_family: Element<'_, Message> = if is_ssh || is_telnet {
+            use oryxis_core::models::connection::AddressFamily;
+            panel_option_row(
+                iced_fonts::lucide::globe(),
+                t("host_address_family"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-addr-family")),
+                    crate::widgets::INPUT_RADIUS,
+                    pick_list(
+                        Some(self.editor_form.address_family),
+                        vec![AddressFamily::Auto, AddressFamily::V4, AddressFamily::V6],
+                        |f: &AddressFamily| f.to_string(),
+                    )
+                    .on_select(Message::EditorAddressFamilyChanged)
+                    .id(iced::widget::Id::new("editor-pick-addr-family"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            )
+        } else {
+            empty()
+        };
+
         // Per-host auto-title (OSC 0/2) override: Default (inherit global) /
         // Show (always use the shell title) / Hide (always keep this host's
         // curated label).
@@ -1612,12 +1647,21 @@ impl Oryxis {
         };
 
         // ── Bottom actions ──
-        // "Connect" (without saving) sits BEFORE Save both visually
-        // (leading side of the row) and in the panel-nav recording, so
-        // the keyboard walk matches the layout. Built lazily below;
-        // `save_btn` is a closure so the nav slot records the two
-        // buttons in visual order.
-        let save_btn_bg = if has_address { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
+        // New-host flow: Connect (without saving) sits BEFORE Save both
+        // visually and in the panel-nav recording. Quick-edit flow
+        // (opened from an in-flight quick connect's progress screen):
+        // the emphasis SWAPS, Connect takes the primary accent slot on
+        // the trailing edge (the flow edits the temporary host and
+        // re-dials) and Save becomes the explicit persist opt-in. Both
+        // buttons are closures so each arrangement constructs them in
+        // its own visual order (recording happens at construction).
+        let quick_flow = self.editor_form.quick_flow;
+        let save_primary = !quick_flow;
+        let save_btn_bg = if save_primary && has_address {
+            OryxisColors::t().accent
+        } else {
+            OryxisColors::t().bg_surface
+        };
         let make_save_btn = |app: &Self| -> Element<'_, Message> {
             app.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::EditorSave),
@@ -1630,10 +1674,31 @@ impl Oryxis {
                 )
                 .on_press(Message::EditorSave)
                 .width(Length::Fill)
-                .style(move |_, _| button::Style {
-                    background: Some(Background::Color(save_btn_bg)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
-                    ..Default::default()
+                .style(move |_, status| {
+                    let bg = if save_primary {
+                        save_btn_bg
+                    } else {
+                        match status {
+                            button::Status::Hovered | button::Status::Pressed => {
+                                OryxisColors::t().bg_hover
+                            }
+                            _ => OryxisColors::t().bg_surface,
+                        }
+                    };
+                    let border = if save_primary {
+                        Border { radius: Radius::from(8.0), ..Default::default() }
+                    } else {
+                        Border {
+                            radius: Radius::from(8.0),
+                            width: 1.0,
+                            color: OryxisColors::t().border,
+                        }
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border,
+                        ..Default::default()
+                    }
                 })
                 .into(),
             )
@@ -1642,10 +1707,15 @@ impl Oryxis {
         // "Connect" (without saving): quick-connect straight from the form,
         // new-host flow only (an existing host already has a card to
         // connect from, and its stored secrets would not ride along).
-        // Sits beside Save; the short label gets a tooltip spelling out
-        // that nothing is written to the vault.
-        let actions_row: Element<'_, Message> = if self.editor_form.editing_id.is_none() {
-            let connect_btn = self.panel_nav_slot(
+        // The short label gets a tooltip spelling out that nothing is
+        // written to the vault.
+        let make_connect_btn = |app: &Self| -> Element<'_, Message> {
+            let connect_bg = if quick_flow && has_address {
+                OryxisColors::t().accent
+            } else {
+                OryxisColors::t().bg_surface
+            };
+            let btn = app.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::EditorConnectWithoutSaving),
                 8.0,
                 button(
@@ -1665,26 +1735,34 @@ impl Oryxis {
                 .on_press(Message::EditorConnectWithoutSaving)
                 .width(Length::Fill)
                 .style(move |_, status| {
-                    let bg = match status {
-                        button::Status::Hovered | button::Status::Pressed => {
-                            OryxisColors::t().bg_hover
+                    if quick_flow {
+                        button::Style {
+                            background: Some(Background::Color(connect_bg)),
+                            border: Border { radius: Radius::from(8.0), ..Default::default() },
+                            ..Default::default()
                         }
-                        _ => OryxisColors::t().bg_surface,
-                    };
-                    button::Style {
-                        background: Some(Background::Color(bg)),
-                        border: Border {
-                            radius: Radius::from(8.0),
-                            width: 1.0,
-                            color: OryxisColors::t().border,
-                        },
-                        ..Default::default()
+                    } else {
+                        let bg = match status {
+                            button::Status::Hovered | button::Status::Pressed => {
+                                OryxisColors::t().bg_hover
+                            }
+                            _ => OryxisColors::t().bg_surface,
+                        };
+                        button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border {
+                                radius: Radius::from(8.0),
+                                width: 1.0,
+                                color: OryxisColors::t().border,
+                            },
+                            ..Default::default()
+                        }
                     }
                 })
                 .into(),
             );
-            let connect_btn: Element<'_, Message> = iced::widget::tooltip(
-                connect_btn,
+            iced::widget::tooltip(
+                btn,
                 container(
                     text(crate::i18n::t("quick_connect_not_saved"))
                         .size(11)
@@ -1702,8 +1780,17 @@ impl Oryxis {
                 }),
                 iced::widget::tooltip::Position::Top,
             )
-            .into();
-            dir_row(vec![connect_btn, Space::new().width(8).into(), make_save_btn(self)])
+            .into()
+        };
+        let actions_row: Element<'_, Message> = if self.editor_form.editing_id.is_none() {
+            let (leading, trailing) = if quick_flow {
+                // Connect is the primary: it takes the trailing slot Save
+                // holds in the normal flow.
+                (make_save_btn(self), make_connect_btn(self))
+            } else {
+                (make_connect_btn(self), make_save_btn(self))
+            };
+            dir_row(vec![leading, Space::new().width(8).into(), trailing])
                 .width(Length::Fill)
                 .into()
         } else {
@@ -1826,6 +1913,8 @@ impl Oryxis {
                 .push(Space::new().height(ROW_GAP))
                 .push(row_keepalive)
                 .push(Space::new().height(ROW_GAP))
+                .push(row_address_family)
+                .push(Space::new().height(ROW_GAP))
                 .push(row_auto_title)
                 .push(Space::new().height(ROW_GAP))
                 .push(algo_overrides);
@@ -1883,6 +1972,10 @@ impl Oryxis {
                 .push(section_header(t("credentials")))
                 .push(Space::new().height(ROW_GAP))
                 .push(cred_items)
+                .push(Space::new().height(ROW_GAP))
+                // Built after the credential rows, so it records after
+                // them and must render after them too (keynav order).
+                .push(row_address_family)
                 .push(Space::new().height(GROUP_GAP))
                 .push(cleartext_note);
             panel_section(telnet_col)

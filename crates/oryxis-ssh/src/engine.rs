@@ -7,7 +7,9 @@ use tokio::net::TcpStream;
 use tokio::process::Command as TokioCommand;
 use tokio::sync::mpsc;
 
-use oryxis_core::models::connection::{AuthMethod, Connection, PortForward, ProxyConfig, ProxyType};
+use oryxis_core::models::connection::{
+    AddressFamily, AuthMethod, Connection, PortForward, ProxyConfig, ProxyType,
+};
 use oryxis_core::models::port_forward_rule::{ForwardKind, PortForwardRule};
 use thiserror::Error;
 
@@ -225,6 +227,10 @@ pub(crate) struct ClientHandler {
     /// `None`, the handler drops such channels (we never asked for them).
     forwarded_channel_sink:
         Option<tokio::sync::mpsc::UnboundedSender<russh::Channel<russh::client::Msg>>>,
+    /// Where pre-auth banners (RFC 4252 §5.4: legal notices, MFA
+    /// instructions) go so the UI can show them. `None` (headless
+    /// callers: port forwards, MCP) logs and drops them.
+    banner_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 }
 
 /// Extract the `IdentityAgent` value from an ssh_config-style fragment.
@@ -421,12 +427,29 @@ impl ClientHandler {
             agent_forwarding: false,
             strict_host_key: false,
             forwarded_channel_sink: None,
+            banner_tx: None,
         }
     }
 }
 
 impl client::Handler for ClientHandler {
     type Error = SshError;
+
+    async fn auth_banner(
+        &mut self,
+        banner: &str,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        // RFC 4252 §5.4: "usually meant to be shown to the user" (legal
+        // notices, MFA instructions). Forward to the UI when a sink is
+        // set; never fail the connect over a banner.
+        if let Some(tx) = &self.banner_tx {
+            let _ = tx.send(banner.to_string());
+        } else {
+            tracing::info!("SSH banner from {}:{}: {}", self.hostname, self.port, banner.trim_end());
+        }
+        Ok(())
+    }
 
     async fn check_server_key(&mut self, key: &PublicKey) -> Result<bool, Self::Error> {
         let key_type = key.algorithm().to_string();
@@ -580,6 +603,9 @@ fn spawn_port_forward_tasks(
                     }
                 };
                 tracing::debug!("Port forward {} accepted from {}", local_port, addr);
+                // Interactive clients (RDP, VNC, DB tools) connect here;
+                // Nagle only delays their small writes into the tunnel.
+                let _ = stream.set_nodelay(true);
 
                 let shared = Arc::clone(&shared);
                 let remote_host = remote_host.clone();
@@ -930,6 +956,9 @@ fn spawn_local_forward_task(
                 },
             };
             tracing::debug!("forward {} accepted from {}", listen_port, addr);
+            // Interactive clients (RDP, VNC, DB tools) connect here;
+            // Nagle only delays their small writes into the tunnel.
+            let _ = stream.set_nodelay(true);
 
             let shared = Arc::clone(&handle);
             let target_host = target_host.clone();
@@ -1031,6 +1060,9 @@ fn spawn_autoclose_local_forward_task(
                 },
             };
             tracing::debug!("forward {} accepted from {}", listen_port, addr);
+            // Interactive clients (RDP, VNC, DB tools) connect here;
+            // Nagle only delays their small writes into the tunnel.
+            let _ = stream.set_nodelay(true);
 
             active.fetch_add(1, Ordering::SeqCst);
             ever_used.store(true, Ordering::SeqCst);
@@ -1117,6 +1149,9 @@ async fn bridge_channel_to_target(
             return;
         }
     };
+    // Interactive protocols (RDP, VNC) ride these bridges; Nagle only
+    // adds latency on top of the SSH channel's own framing.
+    let _ = stream.set_nodelay(true);
 
     let channel_stream = channel.into_stream();
     let (mut ch_reader, mut ch_writer) = tokio::io::split(channel_stream);
@@ -1155,6 +1190,9 @@ fn spawn_dynamic_forward_task(
                 },
             };
             tracing::debug!("socks5 {} accepted from {}", listen_port, addr);
+            // Same rationale as the -L accepts: the dynamic forward
+            // carries interactive client traffic.
+            let _ = stream.set_nodelay(true);
             let shared = Arc::clone(&handle);
             let child_cancel = cancel.clone();
             tokio::spawn(async move {
@@ -1333,6 +1371,11 @@ pub struct SshEngine {
     /// SSH_MSG_GLOBAL_REQUEST every N seconds so NAT / firewall idle
     /// timeouts don't kill the session.
     keepalive_interval: Option<std::time::Duration>,
+    /// Outbound address-family preference (PuTTY's Auto / IPv4 / IPv6),
+    /// applied wherever this engine opens a real socket: the direct
+    /// dial, the proxy dial, and the first jump hop. Later jump hops
+    /// ride SSH channels, where no socket (or family) exists.
+    address_family: AddressFamily,
     /// Phase-by-phase timeouts. Each step of the connect ladder gets
     /// its own bound so a misbehaving server can't hang the UI on any
     /// single stage. Defaults are sane (15s/30s/10s) and the user can
@@ -1381,6 +1424,9 @@ pub struct SshEngine {
     /// `ClientHandler::forwarded_channel_sink`.
     forwarded_channel_sink:
         Option<tokio::sync::mpsc::UnboundedSender<russh::Channel<russh::client::Msg>>>,
+    /// Sink for pre-auth banners (RFC 4252 §5.4). See
+    /// `ClientHandler::banner_tx`.
+    banner_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
 }
 
 impl Default for SshEngine {
@@ -1399,6 +1445,7 @@ impl SshEngine {
             pw_prompt_label: None,
             totp: None,
             keepalive_interval: None,
+            address_family: AddressFamily::Auto,
             connect_timeout: std::time::Duration::from_secs(15),
             auth_timeout: std::time::Duration::from_secs(30),
             session_timeout: std::time::Duration::from_secs(10),
@@ -1413,6 +1460,7 @@ impl SshEngine {
             strict_host_key: false,
             auto_interactive_fallback: false,
             forwarded_channel_sink: None,
+            banner_tx: None,
         }
     }
 
@@ -1483,6 +1531,16 @@ impl SshEngine {
     /// Reject unknown/changed host keys instead of TOFU-accepting when no
     /// UI ask channel is set. Used for port forwards auto-started at boot,
     /// where there is no terminal to surface a host-key prompt.
+    /// Route pre-auth banners (RFC 4252 §5.4) to the UI. Without a sink
+    /// they are logged and dropped (headless callers).
+    pub fn with_banner_sink(
+        mut self,
+        tx: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Self {
+        self.banner_tx = Some(tx);
+        self
+    }
+
     pub fn with_strict_host_key(mut self, enabled: bool) -> Self {
         self.strict_host_key = enabled;
         self
@@ -1600,12 +1658,68 @@ impl SshEngine {
         self
     }
 
+    /// Configure the outbound address-family preference (per-host
+    /// `Connection.address_family`).
+    pub fn with_address_family(mut self, family: AddressFamily) -> Self {
+        self.address_family = family;
+        self
+    }
+
     fn make_config(&self) -> Arc<client::Config> {
         Arc::new(client::Config {
             keepalive_interval: self.keepalive_interval,
             preferred: self.build_preferred(),
+            // Every path below hands russh a pre-dialed stream, but keep
+            // the config honest for any future `client::connect` caller.
+            nodelay: true,
             ..client::Config::default()
         })
+    }
+
+    /// Resolve `addr` (`host:port`), keep the addresses `family` allows,
+    /// and dial them in order until one connects. The resulting socket
+    /// gets TCP_NODELAY: SSH multiplexes keystrokes and window updates
+    /// on one stream, so Nagle's algorithm only adds latency (PuTTY has
+    /// defaulted it on for interactive sessions for two decades). Used
+    /// by the direct dial, the proxy dial and the first jump hop, the
+    /// places a real socket leaves this machine. `family` is explicit
+    /// because the first jump hop honors the BASTION's preference, not
+    /// the target's.
+    async fn dial_tcp(
+        &self,
+        addr: &str,
+        family: AddressFamily,
+    ) -> Result<TcpStream, SshError> {
+        let resolved: Vec<std::net::SocketAddr> = tokio::net::lookup_host(addr)
+            .await
+            .map_err(|e| SshError::ConnectionFailed(format!("resolve {addr}: {e}")))?
+            .collect();
+        let candidates = oryxis_core::net::filter_addrs(&resolved, family);
+        if candidates.is_empty() {
+            return Err(SshError::ConnectionFailed(if resolved.is_empty() {
+                format!("{addr}: name resolved to no addresses")
+            } else {
+                // Honest failure over silently ignoring the preference:
+                // the host resolves, just not in the requested family.
+                format!("{addr}: resolves to no {family} address")
+            }));
+        }
+        let mut last_err: Option<std::io::Error> = None;
+        for candidate in candidates {
+            match TcpStream::connect(candidate).await {
+                Ok(stream) => {
+                    if let Err(e) = stream.set_nodelay(true) {
+                        tracing::warn!("set_nodelay({candidate}) failed: {e}");
+                    }
+                    return Ok(stream);
+                }
+                Err(e) => last_err = Some(e),
+            }
+        }
+        Err(SshError::ConnectionFailed(format!(
+            "{addr}: {}",
+            last_err.expect("candidates was non-empty")
+        )))
     }
 
     fn make_handler(&self, hostname: &str, port: u16) -> ClientHandler {
@@ -1617,6 +1731,7 @@ impl SshEngine {
             agent_forwarding: self.agent_forwarding,
             strict_host_key: self.strict_host_key,
             forwarded_channel_sink: self.forwarded_channel_sink.clone(),
+            banner_tx: self.banner_tx.clone(),
         }
     }
 
@@ -1653,7 +1768,8 @@ impl SshEngine {
     ) -> Result<client::Handle<ClientHandler>, SshError> {
         let target_host = &connection.hostname;
         let target_port = connection.port;
-        let addr = format!("{}:{}", target_host, target_port);
+        // Brackets bare IPv6 literals; hostnames/IPv4 pass through.
+        let addr = oryxis_core::net::host_port(target_host, target_port);
         let connect_timeout = self.connect_timeout;
 
         tracing::info!(
@@ -1666,11 +1782,16 @@ impl SshEngine {
             if !connection.jump_chain.is_empty() {
                 self.connect_via_jump_hosts(connection, resolver, &addr).await
             } else if let Some(proxy) = &connection.proxy {
-                self.connect_via_proxy(proxy, target_host, target_port).await
+                self.connect_via_proxy(proxy, target_host, target_port, self.address_family)
+                    .await
             } else {
                 let config = self.make_config();
                 let handler = self.make_handler(target_host, target_port);
-                client::connect(config, &addr, handler)
+                // Dial ourselves (instead of `client::connect`) so the
+                // socket honors the address-family preference and gets
+                // TCP_NODELAY before the SSH handshake starts.
+                let stream = self.dial_tcp(&addr, self.address_family).await?;
+                client::connect_stream(config, stream, handler)
                     .await
                     .map_err(|e| {
                         // Keep the structured negotiation failure (already an
@@ -2006,25 +2127,35 @@ impl SshEngine {
     // Transport resolvers
     // -----------------------------------------------------------------------
 
-    /// Connect via SOCKS or HTTP proxy.
+    /// Connect via SOCKS or HTTP proxy. `family` governs the socket to
+    /// the PROXY (the only dial this machine makes on this path); it is
+    /// the target connection's preference, or the bastion's when the
+    /// proxied hop is a jump chain's first host.
     async fn connect_via_proxy(
         &self,
         proxy: &ProxyConfig,
         target_host: &str,
         target_port: u16,
+        family: AddressFamily,
     ) -> Result<client::Handle<ClientHandler>, SshError> {
-        let proxy_addr = format!("{}:{}", proxy.host, proxy.port);
+        let proxy_addr = oryxis_core::net::host_port(&proxy.host, proxy.port);
         tracing::info!("Connecting via {:?} proxy at {}", proxy.proxy_type, proxy_addr);
 
         match &proxy.proxy_type {
             ProxyType::Socks5 => {
+                // Dial the proxy ourselves (family + TCP_NODELAY), then
+                // run the SOCKS handshake over the prepared socket.
+                let socket = self
+                    .dial_tcp(&proxy_addr, family)
+                    .await
+                    .map_err(|e| SshError::Proxy(format!("SOCKS5 proxy connect: {}", e)))?;
                 let stream = if let Some(user) = &proxy.username {
                     // SOCKS5 username/password auth (RFC 1929). Password
                     // is hydrated from the vault before this call; if
                     // the user configured no password, send an empty
                     // one, the proxy may still accept it.
-                    tokio_socks::tcp::Socks5Stream::connect_with_password(
-                        proxy_addr.as_str(),
+                    tokio_socks::tcp::Socks5Stream::connect_with_password_and_socket(
+                        socket,
                         (target_host, target_port),
                         user.as_str(),
                         proxy.password.as_deref().unwrap_or(""),
@@ -2032,8 +2163,8 @@ impl SshEngine {
                     .await
                     .map_err(|e| SshError::Proxy(format!("SOCKS5 auth: {}", e)))?
                 } else {
-                    tokio_socks::tcp::Socks5Stream::connect(
-                        proxy_addr.as_str(),
+                    tokio_socks::tcp::Socks5Stream::connect_with_socket(
+                        socket,
                         (target_host, target_port),
                     )
                     .await
@@ -2046,17 +2177,21 @@ impl SshEngine {
                     .map_err(|e| SshError::Proxy(format!("SSH over SOCKS5: {}", e)))
             }
             ProxyType::Socks4 => {
+                let socket = self
+                    .dial_tcp(&proxy_addr, family)
+                    .await
+                    .map_err(|e| SshError::Proxy(format!("SOCKS4 proxy connect: {}", e)))?;
                 let stream = if let Some(user) = &proxy.username {
-                    tokio_socks::tcp::Socks4Stream::connect_with_userid(
-                        proxy_addr.as_str(),
+                    tokio_socks::tcp::Socks4Stream::connect_with_userid_and_socket(
+                        socket,
                         (target_host, target_port),
                         user.as_str(),
                     )
                     .await
                     .map_err(|e| SshError::Proxy(format!("SOCKS4: {}", e)))?
                 } else {
-                    tokio_socks::tcp::Socks4Stream::connect(
-                        proxy_addr.as_str(),
+                    tokio_socks::tcp::Socks4Stream::connect_with_socket(
+                        socket,
                         (target_host, target_port),
                     )
                     .await
@@ -2076,6 +2211,7 @@ impl SshEngine {
                         target_port,
                         proxy.username.as_deref(),
                         proxy.password.as_deref(),
+                        family,
                     )
                     .await?;
 
@@ -2104,8 +2240,10 @@ impl SshEngine {
         target_port: u16,
         username: Option<&str>,
         password: Option<&str>,
+        family: AddressFamily,
     ) -> Result<TcpStream, SshError> {
-        let mut stream = TcpStream::connect(proxy_addr)
+        let mut stream = self
+            .dial_tcp(proxy_addr, family)
             .await
             .map_err(|e| SshError::Proxy(format!("HTTP proxy connect: {}", e)))?;
 
@@ -2210,20 +2348,29 @@ impl SshEngine {
             .find(|c| c.id == first_jump_id)
             .ok_or_else(|| SshError::JumpHost("First jump host not found".into()))?;
 
-        let first_addr = format!("{}:{}", first_jump.hostname, first_jump.port);
+        let first_addr = oryxis_core::net::host_port(&first_jump.hostname, first_jump.port);
         let mut current_handle = if let Some(first_proxy) = resolver.proxies.get(&first_jump_id) {
             tracing::info!(
                 "First jump host {} sits behind {:?} proxy",
                 first_addr,
                 first_proxy.proxy_type
             );
-            self.connect_via_proxy(first_proxy, &first_jump.hostname, first_jump.port)
-                .await
-                .map_err(|e| SshError::JumpHost(format!("Jump host {} via proxy: {}", first_addr, e)))?
+            self.connect_via_proxy(
+                first_proxy,
+                &first_jump.hostname,
+                first_jump.port,
+                first_jump.address_family,
+            )
+            .await
+            .map_err(|e| SshError::JumpHost(format!("Jump host {} via proxy: {}", first_addr, e)))?
         } else {
             let config = self.make_config();
             let handler = self.make_handler(&first_jump.hostname, first_jump.port);
-            client::connect(config, &first_addr, handler)
+            // The socket goes to the BASTION, so its address-family
+            // preference (not the target's) governs this dial.
+            let stream = self.dial_tcp(&first_addr, first_jump.address_family).await
+                .map_err(|e| SshError::JumpHost(format!("Jump host {}: {}", first_addr, e)))?;
+            client::connect_stream(config, stream, handler)
                 .await
                 .map_err(|e| SshError::JumpHost(format!("Jump host {}: {}", first_addr, e)))?
         };

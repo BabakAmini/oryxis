@@ -322,6 +322,13 @@ pub struct Oryxis {
     // connect error is consumed as "retry with the mutated entry" instead
     // of surfacing as a failure.
     pub(crate) pending_auth_switch: Option<Uuid>,
+    // Armed when "Edit host" tears down a still-live connect (prompt
+    // cancelled / dial abandoned): the provoked error arrives after the
+    // progress card is gone and would otherwise land inside the editor
+    // as `host_panel_error`. Consumed by the next `SshError` that finds
+    // no progress card; a fresh connect clears the ambiguity because it
+    // sets `connecting` again.
+    pub(crate) pending_edit_cancel: bool,
 
     // Connection editor
     pub(crate) show_host_panel: bool,
@@ -867,6 +874,11 @@ pub struct Oryxis {
     /// copies on right-click instead of on release. Ignored when
     /// `setting_copy_on_select` is off.
     pub(crate) setting_right_click_copy: bool,
+    /// X11-style middle-click paste in the terminal (xterm / PuTTY
+    /// tradition). Independent of `setting_copy_on_select`; the paste
+    /// still routes through the careful-paste / paste-guard checks.
+    /// Persisted as `middle_click_paste`; default on.
+    pub(crate) setting_middle_click_paste: bool,
     /// Content heuristics on paste (bidi/invisible chars, control
     /// bytes, curl|sh, homographs) park even single-line pastes behind
     /// the confirmation. Its own switch, independent of the multi-line

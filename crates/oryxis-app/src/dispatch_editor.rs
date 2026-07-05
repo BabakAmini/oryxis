@@ -270,6 +270,9 @@ impl Oryxis {
         } else {
             None
         };
+        // Address-family preference rides on every host (harmless scalar;
+        // only the SSH dial paths read it today).
+        conn.address_family = self.editor_form.address_family;
         conn.hostname = self.editor_form.hostname.clone();
         conn.port = port;
         conn.username = if self.editor_form.username.is_empty() {
@@ -452,6 +455,8 @@ impl Oryxis {
             serial: conn.serial,
             rd_kind: conn.rd_kind,
             rd_gateway_id: conn.rd_gateway_id,
+            address_family: conn.address_family,
+            quick_flow: false,
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
@@ -659,6 +664,17 @@ impl Oryxis {
                     "editor-hostname",
                 )));
             }
+            Message::EditQuickHost(id) => {
+                // Same prefill as SaveQuickHost; the flag only swaps the
+                // footer emphasis (Connect primary / Save secondary) so
+                // the flow reads as "edit the temporary host and dial",
+                // never an implicit vault write.
+                let task = self.update(Message::SaveQuickHost(id));
+                if self.show_host_panel {
+                    self.editor_form.quick_flow = true;
+                }
+                return Ok(task);
+            }
             Message::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
             Message::EditorTagsChanged(v) => { self.editor_form.tags_text = v; }
             Message::EditorHostnameChanged(v) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
@@ -723,6 +739,9 @@ impl Oryxis {
             }
             Message::EditorRdGatewayChanged(id) => {
                 self.editor_form.rd_gateway_id = id;
+            }
+            Message::EditorAddressFamilyChanged(family) => {
+                self.editor_form.address_family = family;
             }
             Message::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
             Message::EditorUsernameChanged(v) => {
@@ -1132,6 +1151,7 @@ impl Oryxis {
                     dup.serial = conn.serial;
                     dup.rd_kind = conn.rd_kind;
                     dup.rd_gateway_id = conn.rd_gateway_id;
+                    dup.address_family = conn.address_family;
                     dup.encoding = conn.encoding.clone();
                     dup.terminal_type = conn.terminal_type.clone();
                     dup.port = conn.port;

@@ -328,6 +328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "language" => "言語",
 
         "copy_on_select" => "テキスト選択でコピー、右クリックでペースト",
+        "middle_click_paste" => "中クリックで貼り付け",
         "renderer_backend" => "グラフィックレンダラー",
         "renderer_backend_desc" => "自動は最適なGPUパスを選択します（Vulkan優先）。OpenGLはVulkan/DX12ドライバーが壊れたGPU向けの互換オプションです。ソフトウェア（CPU）は常に正しく描画します。再起動後に適用されます。",
         "renderer_active" => "使用中のレンダラー",
@@ -569,6 +570,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "エクスポート時に使用したパスワードを入力",
         "expose_to_mcp" => "MCP / AIに公開",
         "forward_ssh_agent" => "SSHエージェント転送",
+        "host_address_family" => "IPバージョン",
         "host_keepalive" => "キープアライブ（上書き）",
         "host_keepalive_desc" => "空白でグローバル設定を継承。0 でこのホストのキープアライブを無効化。",
         "host_auto_title" => "シェルからタブタイトル",

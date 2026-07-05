@@ -329,6 +329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Settings toggles
         "copy_on_select" => "Kopyalamak için metin seçin ve yapıştırmak için sağ tıklayın",
+        "middle_click_paste" => "Orta tıklama ile yapıştır",
         "renderer_backend" => "Grafik işleyici",
         "renderer_backend_desc" => "Otomatik en iyi GPU yolunu seçer (önce Vulkan). OpenGL, Vulkan/DX12 sürücüleri bozuk GPU'lar için bir uyumluluk seçeneğidir; Yazılım (CPU) her zaman doğru işler. Uygulamak için yeniden başlatın.",
         "renderer_active" => "Etkin işleyici",
@@ -693,6 +694,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Dışa aktarırken kullanılan parolayı girin",
         "expose_to_mcp" => "MCP / Yapay Zekaya Aç",
         "forward_ssh_agent" => "SSH Agent'ı Yönlendir",
+        "host_address_family" => "IP sürümü",
         "host_keepalive" => "Keepalive (geçersiz kıl)",
         "host_keepalive_desc" => "Boş bırakmak genel ayarı devralır. 0 bu sunucuda keepalive'i devre dışı bırakır.",
         "host_auto_title" => "Sekme başlığı kabuktan",

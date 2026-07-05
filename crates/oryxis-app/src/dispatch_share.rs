@@ -825,6 +825,7 @@ impl Oryxis {
                     .with_host_key_ask(hk_ask_tx)
                     .with_totp_secret(totp_secret.as_deref())
                     .with_keepalive(keepalive)
+                    .with_address_family(conn.address_family)
                     .with_algorithm_overrides(
                         conn.ciphers.clone(),
                         conn.kex.clone(),

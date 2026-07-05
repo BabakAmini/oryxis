@@ -79,6 +79,13 @@ pub(crate) struct ConnectionForm {
     /// SSH host to tunnel the remote-desktop connection through, or
     /// `None` for a direct connection. Saved to `Connection.rd_gateway_id`.
     pub rd_gateway_id: Option<uuid::Uuid>,
+    /// Outbound address-family preference (Auto / IPv4 / IPv6), shown in
+    /// SSH > Network. Saved to `Connection.address_family`.
+    pub address_family: oryxis_core::models::connection::AddressFamily,
+    /// Editor opened from a quick connect's progress screen ("Edit
+    /// host"): the flow edits the TEMPORARY host, so Connect (without
+    /// saving) takes the primary footer slot and Save the secondary.
+    pub quick_flow: bool,
     pub hostname: String,
     pub port: String,
     pub username: String,
@@ -705,6 +712,8 @@ impl Default for ConnectionForm {
             serial: None,
             rd_kind: oryxis_core::models::remote_desktop::RemoteDesktopKind::default(),
             rd_gateway_id: None,
+            address_family: oryxis_core::models::connection::AddressFamily::default(),
+            quick_flow: false,
             hostname: String::new(),
             port: "22".into(),
             username: String::new(),
