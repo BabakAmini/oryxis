@@ -67,6 +67,17 @@ impl Oryxis {
                         Message::SyncToggleEnabled,
                     ),
                 ),
+                Space::new().height(12),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SettingToggleRemoteDesktop),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("remote_desktop"),
+                        crate::i18n::t("feature_remote_desktop_desc"),
+                        self.remote_desktop_enabled,
+                        Message::SettingToggleRemoteDesktop,
+                    ),
+                ),
             ]),
             Space::new().height(18).into(),
             // Plugins list header: subtitle on the leading edge, the

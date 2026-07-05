@@ -57,17 +57,6 @@ impl Oryxis {
             text(t("perf_overlay_desc")).size(11).color(OryxisColors::t().text_muted),
         ]);
 
-        // ── Remote desktop (opt-in feature) ──
-        let rd_section = panel_section(column![
-            self.nav_toggle_row(
-                t("remote_desktop"),
-                self.remote_desktop_enabled,
-                Message::SettingToggleRemoteDesktop,
-            ),
-            Space::new().height(4),
-            text(t("remote_desktop_enable_desc")).size(11).color(OryxisColors::t().text_muted),
-        ]);
-
         // ── Environment information ──
         // The report is rendered verbatim so the user sees exactly what
         // the Copy button puts on the clipboard, nothing hidden.
@@ -111,8 +100,6 @@ impl Oryxis {
                     debug_section,
                     Space::new().height(12),
                     perf_section,
-                    Space::new().height(12),
-                    rd_section,
                     Space::new().height(12),
                     env_section,
                     Space::new().height(24),
