@@ -930,7 +930,6 @@ impl Oryxis {
                     Space::new().height(24),
                     auto_lock_section,
                     Space::new().height(12),
-                    Space::new().height(24),
                     privacy_mode_section,
                     Space::new().height(12),
                     session_logging_section,
