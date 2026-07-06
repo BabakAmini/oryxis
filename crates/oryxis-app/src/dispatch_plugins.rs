@@ -26,6 +26,8 @@ use crate::state::{PluginUiEntry, PluginUiStatus};
 const KNOWN_PLUGINS: &[(&str, &str)] = &[
     ("aws", "Amazon Web Services"),
     ("k8s", "Kubernetes"),
+    ("gcp", "Google Cloud"),
+    ("azure", "Microsoft Azure"),
     ("mcp", "Oryxis MCP Server"),
 ];
 
@@ -33,7 +35,7 @@ const KNOWN_PLUGINS: &[(&str, &str)] = &[
 /// `KNOWN_PLUGINS` except `mcp`, which external clients spawn). Drives
 /// the Cloud Accounts "no provider installed" explainer and the
 /// hide-on-uninstall display filters.
-pub(crate) const CLOUD_PROVIDER_IDS: &[&str] = &["aws", "k8s"];
+pub(crate) const CLOUD_PROVIDER_IDS: &[&str] = &["aws", "k8s", "gcp", "azure"];
 
 /// Build the initial `PluginUiEntry` rows from the on-disk cache plus
 /// the per-plugin settings. Called once from `boot::load_data_from_vault`.

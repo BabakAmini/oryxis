@@ -102,15 +102,17 @@ pub(crate) fn classify_az_error(stderr: &str) -> CloudError {
     }
 }
 
-/// Run `az --only-show-errors <sub...> --subscription <s>` and return
-/// stdout bytes on success. `--only-show-errors` is prepended so warnings
-/// never pollute the stderr we classify on failure, and so a TTY-less
-/// subprocess gets clean, machine-parseable diagnostics. Every call this
+/// Run `az <sub...> --subscription <s> --only-show-errors` and return
+/// stdout bytes on success. `--only-show-errors` keeps warnings out of the
+/// stderr we classify on failure, and gives a TTY-less subprocess clean,
+/// machine-parseable diagnostics. It is appended *after* the subcommand
+/// (like `--subscription`): the Azure CLI takes its global flags in the
+/// trailing position, not the leading one gcloud accepts. Every call this
 /// crate makes is read-only or a kubeconfig write, so it is side-effect
 /// safe.
 pub(crate) async fn run_az(cfg: &AzureConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
-    let mut args = vec!["--only-show-errors".to_string()];
-    args.extend(az_args(cfg, sub));
+    let mut args = az_args(cfg, sub);
+    args.push("--only-show-errors".to_string());
     let output = tokio::process::Command::new("az")
         .args(&args)
         .output()
