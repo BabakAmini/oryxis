@@ -161,6 +161,9 @@ impl CloudProvider for PluginProvider {
                 TransportKind::Ssm,
             ],
             ("k8s", _) => vec![TransportKind::KubectlExec],
+            // GCP Compute VMs are reached over plain SSH (IAP tunnelling /
+            // OS Login are future work); mirrors `GcpProvider::supported_transports`.
+            ("gcp", CloudResourceType::Ec2) => vec![TransportKind::Ssh],
             _ => Vec::new(),
         }
     }
