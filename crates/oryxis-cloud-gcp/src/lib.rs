@@ -81,19 +81,28 @@ pub(crate) fn classify_gcloud_error(stderr: &str) -> CloudError {
     {
         CloudError::Network(stderr.trim().to_string())
     } else if s.contains("has not been used")
-        || s.contains("api")
         || s.contains("is not enabled")
+        || s.contains("api is not enabled")
     {
-        // Compute Engine API disabled on the project, actionable config.
+        // A GCP API (Compute Engine / Container) disabled on the project,
+        // actionable config. Matched by the specific "not enabled" /
+        // "has not been used" phrasing, not a bare "api" substring, which
+        // would misfile unrelated errors that merely mention an API.
         CloudError::InvalidConfig(stderr.trim().to_string())
     } else {
         CloudError::Upstream(stderr.trim().to_string())
     }
 }
 
-/// Run `gcloud <sub...> --project <p>` and return stdout bytes on success.
+/// Run `gcloud --quiet <sub...> --project <p>` and return stdout bytes on
+/// success. `--quiet` is prepended so gcloud never blocks on an interactive
+/// prompt (a reauth challenge, a "continue? [Y/n]") when spawned without a
+/// TTY: it takes the default answer and fails fast instead of hanging the
+/// discovery task. Every call this crate makes is read-only or a
+/// kubeconfig write, so no default answer is destructive.
 pub(crate) async fn run_gcloud(cfg: &GcpConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
-    let args = gcloud_args(cfg, sub);
+    let mut args = vec!["--quiet".to_string()];
+    args.extend(gcloud_args(cfg, sub));
     let output = tokio::process::Command::new("gcloud")
         .args(&args)
         .output()
@@ -136,24 +145,37 @@ impl CloudProvider for GcpProvider {
 
     async fn test_credentials(&self, profile: &CloudProfile) -> Result<(), CloudError> {
         let cfg = GcpConfig::from_profile(profile);
-        // One cheap Compute list exercises exactly what discovery needs:
-        // an authenticated identity, a resolvable project, and the
-        // Compute Engine API enabled. `--limit=1` keeps it O(1).
-        run_gcloud(
-            &cfg,
-            &["compute", "instances", "list", "--limit=1", "--format=json"],
-        )
-        .await?;
+        // Validate the identity, not any one resource API. This provider
+        // serves both Compute Engine and GKE, so a Compute-specific probe
+        // (`compute instances list`) would wrongly fail a caller who has
+        // GKE access but lacks `compute.instances.list` (or whose project
+        // has the Compute API off). `auth print-access-token` exercises the
+        // exact credential `gcloud` uses for discovery and fails cleanly
+        // (classified `Auth`) when the user is not logged in / needs reauth.
+        // Project and per-API validity are surfaced later, at discovery.
+        run_gcloud(&cfg, &["auth", "print-access-token"]).await?;
         Ok(())
     }
 
     async fn discover(&self, profile: &CloudProfile) -> Result<DiscoveryResult, CloudError> {
         let cfg = GcpConfig::from_profile(profile);
-        let ec2 = discover::discover_instances(&cfg).await?;
-        // GKE clusters ride the same discovery pass. A missing / disabled
-        // Container API surfaces as an error here; that is desired (the
-        // user sees why no clusters showed), so it is NOT swallowed.
-        let gke_clusters = gke::discover_clusters(&cfg).await?;
+        // Compute and GKE are independent APIs on a project: one can be
+        // enabled / permitted without the other. Probe both, and let each
+        // half contribute what it can. `discover_clusters` is already
+        // best-effort (empty on any listing failure); mirror that for
+        // Compute so a Compute-only failure (API off, no permission) does
+        // not hide the GKE clusters the user CAN see.
+        let ec2_result = discover::discover_instances(&cfg).await;
+        let gke_clusters = gke::discover_clusters(&cfg).await.unwrap_or_default();
+        let ec2 = match ec2_result {
+            Ok(v) => v,
+            // Compute failed. If GKE also produced nothing, the failure is
+            // the real root cause (bad auth / project) and must surface;
+            // if GKE returned clusters, the project simply lacks Compute,
+            // so show what we have instead of failing the whole discovery.
+            Err(e) if gke_clusters.is_empty() => return Err(e),
+            Err(_) => Vec::new(),
+        };
         Ok(DiscoveryResult {
             ec2,
             ecs_services: Vec::new(),

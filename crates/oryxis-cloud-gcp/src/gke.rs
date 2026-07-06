@@ -34,13 +34,36 @@ pub struct GkeCluster {
 }
 
 /// The kubeconfig context name `gcloud container clusters get-credentials`
-/// creates for a cluster: `gke_<project>_<location>_<name>`. When the
-/// project is unknown (active-project profile), the segment is left blank,
-/// matching gcloud, which still fills it from the resolved active project
-/// at credential time; callers that need the exact name should read it
-/// back from the kubeconfig instead of assuming.
+/// creates for a cluster: `gke_<project>_<location>_<name>`. `project` must
+/// be the *effective* project id (see [`resolve_project`]): gcloud always
+/// fills the real active project into the context it writes, so passing
+/// `None` here would mint `gke__<location>_<name>`, which no kubeconfig
+/// entry ever matches, leaving `kubectl --context` unable to find it.
 pub fn context_name(project: Option<&str>, location: &str, cluster: &str) -> String {
     format!("gke_{}_{}_{}", project.unwrap_or(""), location, cluster)
+}
+
+/// The effective GCP project id for context-name construction: the
+/// profile's configured project when set, otherwise the active project
+/// gcloud resolves (`gcloud config get-value project`). This must match
+/// what gcloud bakes into the kubeconfig context, so a blank-project
+/// profile (the common single-project setup the wizard encourages) still
+/// produces a context name `kubectl` can select. Returns `None` only when
+/// the project is genuinely unresolvable (unset), in which case
+/// get-credentials itself would also fail; the caller then builds a
+/// best-effort blank segment rather than a confidently wrong one.
+async fn resolve_project(cfg: &GcpConfig) -> Option<String> {
+    if let Some(p) = cfg.project.as_deref().filter(|s| !s.trim().is_empty()) {
+        return Some(p.to_string());
+    }
+    let out = run_gcloud(cfg, &["config", "get-value", "project"]).await.ok()?;
+    let s = String::from_utf8_lossy(&out).trim().to_string();
+    // gcloud prints `(unset)` (older) or nothing when no active project.
+    if s.is_empty() || s == "(unset)" {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// Parse `gcloud container clusters list --format=json` output. Pure, so
@@ -71,7 +94,11 @@ pub async fn discover_clusters(cfg: &GcpConfig) -> Result<Vec<DiscoveredGkeClust
         Ok(c) => c,
         Err(_) => return Ok(Vec::new()),
     };
-    let project = cfg.project.as_deref();
+    // Resolve once for the whole batch so the displayed / dedup context
+    // matches the one `get_credentials` will persist and what gcloud
+    // writes into the kubeconfig.
+    let project = resolve_project(cfg).await;
+    let project = project.as_deref();
     Ok(clusters
         .into_iter()
         .map(|c| DiscoveredGkeCluster {
@@ -109,7 +136,11 @@ pub async fn get_credentials(
         ],
     )
     .await?;
-    Ok(context_name(cfg.project.as_deref(), location, cluster))
+    // Build the returned context from the effective project (resolving the
+    // active one when the profile leaves it blank), so it matches the
+    // current-context gcloud just wrote; the app persists this verbatim as
+    // the k8s profile's `--context`.
+    Ok(context_name(resolve_project(cfg).await.as_deref(), location, cluster))
 }
 
 #[cfg(test)]
