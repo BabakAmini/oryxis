@@ -1054,6 +1054,7 @@ pub enum Message {
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,
+    ToggleSftpForceOsc7,
     /// PuTTY "reset scrollback on keypress" toggled in Settings > Terminal.
     ToggleScrollbackResetKeypress,
     /// PuTTY "reset scrollback on display activity" toggled in Settings.

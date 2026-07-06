@@ -299,6 +299,30 @@ impl Oryxis {
                             );
                         }
                     }
+                    // Force-OSC7 (opt-in): inject a PROMPT_COMMAND that
+                    // emits OSC 7 on every prompt, so the terminal Files
+                    // sidebar follows the exact cwd instead of relying on
+                    // the window-title heuristic. bash/zsh syntax; a
+                    // shell without PROMPT_COMMAND (fish/sh) just ignores
+                    // the assignment. Prepends to any existing value so
+                    // the user's own PROMPT_COMMAND still runs. One setup
+                    // line echoes on connect (documented in Settings).
+                    if self.setting_sftp_force_osc7
+                        && let Some(ssh) = session.ssh()
+                    {
+                        // BEL-terminated OSC 7; our terminal parser reads
+                        // both BEL and ST. `${HOSTNAME:-$(hostname)}`
+                        // covers shells that don't export HOSTNAME.
+                        let inject = "PROMPT_COMMAND='printf \"\\033]7;file://%s%s\\007\" \
+                             \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"'\"${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"\n";
+                        if let Err(e) = ssh.write(inject.as_bytes()) {
+                            tracing::warn!(
+                                target = "oryxis::dispatch_ssh",
+                                error = %e,
+                                "failed to inject OSC 7 PROMPT_COMMAND"
+                            );
+                        }
+                    }
                     tracing::info!("SSH connected: {}", label);
                     if self.should_record_history()
                         && let Some(vault) = &self.vault {

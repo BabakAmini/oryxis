@@ -517,6 +517,7 @@ impl Oryxis {
                 revealed_secrets: std::collections::HashSet::new(),
                 setting_hint_mode: crate::util::HintMode::default(),
                 setting_sftp_concurrency: "2".into(),
+                setting_sftp_force_osc7: false,
                 setting_sftp_connect_timeout: "15".into(),
                 setting_sftp_auth_timeout: "30".into(),
                 setting_sftp_session_timeout: "10".into(),
@@ -1365,6 +1366,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_concurrency") {
                 self.setting_sftp_concurrency = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("sftp_force_osc7") {
+                self.setting_sftp_force_osc7 = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_connect_timeout") {
                 self.setting_sftp_connect_timeout = v;

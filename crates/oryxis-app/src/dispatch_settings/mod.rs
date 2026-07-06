@@ -848,6 +848,13 @@ impl Oryxis {
                     if self.setting_middle_click_paste { "true" } else { "false" },
                 );
             }
+            Message::ToggleSftpForceOsc7 => {
+                self.setting_sftp_force_osc7 = !self.setting_sftp_force_osc7;
+                self.persist_setting(
+                    "sftp_force_osc7",
+                    if self.setting_sftp_force_osc7 { "true" } else { "false" },
+                );
+            }
             Message::TerminalRightClickChanged(name) => {
                 use crate::util::RightClickMode;
                 if let Some(mode) = RightClickMode::ALL

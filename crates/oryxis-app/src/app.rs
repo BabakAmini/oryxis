@@ -1165,6 +1165,12 @@ pub struct Oryxis {
     /// channel on the same SSH connection so they don't fight for the
     /// shared client mutex.
     pub(crate) setting_sftp_concurrency: String,
+    /// Force exact follow-cwd for the terminal Files sidebar by
+    /// injecting a PROMPT_COMMAND OSC 7 emitter into the shell on
+    /// connect. Off by default (opt-in: it modifies the shell env and
+    /// echoes one setup line); the title fallback covers the common
+    /// case without it.
+    pub(crate) setting_sftp_force_osc7: bool,
     /// TCP connect + SSH transport handshake timeout, in seconds.
     pub(crate) setting_sftp_connect_timeout: String,
     /// Authentication phase timeout, in seconds.

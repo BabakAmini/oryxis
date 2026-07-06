@@ -90,7 +90,16 @@ impl Oryxis {
                     iced_fonts::lucide::pin_off()
                 },
                 Message::SidebarFilesToggleFollow,
-                if follow { t("files_follow_on_tip") } else { t("files_follow_off_tip") },
+                // While following, the tooltip names the cwd SOURCE so a
+                // test tells OSC 7 (exact) from the title fallback
+                // (heuristic) apart at a glance.
+                if !follow {
+                    t("files_follow_off_tip")
+                } else if pane.cwd_from_osc7 {
+                    t("files_follow_on_osc7_tip")
+                } else {
+                    t("files_follow_on_title_tip")
+                },
             ),
         );
         let hidden_btn = self.sidebar_nav_slot(
