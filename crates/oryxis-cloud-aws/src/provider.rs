@@ -78,6 +78,7 @@ impl CloudProvider for AwsProvider {
             ecs_services: ecs_res?,
             k8s_workloads: Vec::new(),
             gke_clusters: Vec::new(),
+            aks_clusters: Vec::new(),
         })
     }
 

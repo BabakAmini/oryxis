@@ -1423,6 +1423,7 @@ pub enum Message {
     CloudFormContextChanged(String),
     /// GCP project id field in the cloud wizard.
     CloudFormGcpProjectChanged(String),
+    CloudFormAzureSubscriptionChanged(String),
     /// Kicks off a `test_credentials` round-trip via the registered
     /// provider. The result lands as `CloudFormTestResult`.
     CloudFormTestCredentials,
@@ -1472,6 +1473,16 @@ pub enum Message {
     /// Result of the GKE add: `Ok(())` created the k8s account (refresh),
     /// `Err(msg)` surfaces on the discovery panel.
     CloudDiscoverGkeAdded(Result<(), String>),
+    /// Add a discovered AKS cluster: fetch its kubeconfig
+    /// (get-credentials) and create a Kubernetes account pointed at the
+    /// resulting context.
+    CloudDiscoverAddAks { cluster: String, resource_group: String },
+    /// get-credentials succeeded: `(label, context)` for the new K8s
+    /// account to create.
+    CloudDiscoverAksCredentials(String, String),
+    /// Result of the AKS add: `Ok(())` created the k8s account (refresh),
+    /// `Err(msg)` surfaces on the discovery panel.
+    CloudDiscoverAksAdded(Result<(), String>),
     CloudDiscoverDefaultTransportChanged(oryxis_core::models::cloud::TransportKind),
     CloudDiscoverDefaultGroupNameChanged(String),
     CloudDiscoverDefaultGroupPick(String),

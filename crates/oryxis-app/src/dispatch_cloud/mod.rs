@@ -413,8 +413,10 @@ impl Oryxis {
                         put(&mut obj, "sso_account_id", &self.cloud_form.aws_sso_account_id);
                         put(&mut obj, "sso_role_name", &self.cloud_form.aws_sso_role_name);
                     }
-                    CloudAuthChoice::Kubeconfig | CloudAuthChoice::GcloudCli => {
-                        // Kubeconfig / gcloud auth belong to other
+                    CloudAuthChoice::Kubeconfig
+                    | CloudAuthChoice::GcloudCli
+                    | CloudAuthChoice::AzCli => {
+                        // Kubeconfig / gcloud / az auth belong to other
                         // providers; under AWS an impossible combo, so
                         // write nothing.
                     }
@@ -430,6 +432,11 @@ impl Oryxis {
             CloudProviderChoice::Gcp => {
                 // Optional project scope; blank = gcloud's active project.
                 put(&mut obj, "project", &self.cloud_form.gcp_project);
+            }
+            CloudProviderChoice::Azure => {
+                // Optional subscription scope; blank = az's active
+                // subscription.
+                put(&mut obj, "subscription", &self.cloud_form.azure_subscription);
             }
         }
         serde_json::Value::Object(obj).to_string()

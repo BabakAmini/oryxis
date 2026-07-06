@@ -181,6 +181,7 @@ impl CloudProvider for GcpProvider {
             ecs_services: Vec::new(),
             k8s_workloads: Vec::new(),
             gke_clusters,
+            aks_clusters: Vec::new(),
         })
     }
 

@@ -88,6 +88,7 @@ impl Oryxis {
                 CloudProviderChoice::Aws => "AWS",
                 CloudProviderChoice::K8s => "Kubernetes",
                 CloudProviderChoice::Gcp => "GCP",
+                CloudProviderChoice::Azure => "Azure",
             };
             let banner_title = format!(
                 "{} {}",
@@ -189,6 +190,7 @@ impl Oryxis {
             CloudProviderChoice::Aws,
             CloudProviderChoice::K8s,
             CloudProviderChoice::Gcp,
+            CloudProviderChoice::Azure,
         ];
         let provider_pick: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-provider")),
@@ -200,6 +202,7 @@ impl Oryxis {
                     CloudProviderChoice::Aws => "AWS".to_string(),
                     CloudProviderChoice::K8s => "Kubernetes".to_string(),
                     CloudProviderChoice::Gcp => "GCP".to_string(),
+                    CloudProviderChoice::Azure => "Azure".to_string(),
                 },
             )
             .on_select(Message::CloudFormProviderChanged)
@@ -220,6 +223,7 @@ impl Oryxis {
             ],
             CloudProviderChoice::K8s => vec![CloudAuthChoice::Kubeconfig],
             CloudProviderChoice::Gcp => vec![CloudAuthChoice::GcloudCli],
+            CloudProviderChoice::Azure => vec![CloudAuthChoice::AzCli],
         };
         let auth_pick: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::input(iced::widget::Id::new("cloud-pick-auth")),
@@ -233,6 +237,7 @@ impl Oryxis {
                     CloudAuthChoice::Sso => t("cloud_auth_sso").to_string(),
                     CloudAuthChoice::Kubeconfig => t("cloud_auth_kubeconfig").to_string(),
                     CloudAuthChoice::GcloudCli => t("cloud_auth_gcloud").to_string(),
+                    CloudAuthChoice::AzCli => t("cloud_auth_az").to_string(),
                 },
             )
             .on_select(Message::CloudFormAuthKindChanged)
@@ -546,6 +551,39 @@ impl Oryxis {
                 ),
                 Space::new().height(4),
                 text(t("cloud_gcp_project_hint"))
+                    .size(10)
+                    .color(OryxisColors::t().text_muted),
+            ]
+            .into(),
+            CloudAuthChoice::AzCli => column![
+                // Azure uses the ambient az login; no secret here, just an
+                // optional subscription scope.
+                text(t("cloud_azure_login_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(14),
+                text(t("cloud_azure_subscription"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+                Space::new().height(4),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "panel-cloud-azure-subscription",
+                    )),
+                    10.0,
+                    text_input(
+                        t("cloud_azure_subscription_ph"),
+                        &self.cloud_form.azure_subscription,
+                    )
+                    .id(iced::widget::Id::new("panel-cloud-azure-subscription"))
+                    .on_input(Message::CloudFormAzureSubscriptionChanged)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                ),
+                Space::new().height(4),
+                text(t("cloud_azure_subscription_hint"))
                     .size(10)
                     .color(OryxisColors::t().text_muted),
             ]

@@ -958,6 +958,120 @@ impl Oryxis {
             }
         }
 
+        // AKS clusters: same individual-add flow as GKE (get-credentials
+        // then a Kubernetes account), keyed by resource group instead of
+        // region.
+        let aks_filtered: Vec<&oryxis_cloud::DiscoveredAksCluster> = result
+            .aks_clusters
+            .iter()
+            .filter(|c| {
+                needle.is_empty()
+                    || format!("{} {} {} {}", c.name, c.resource_group, c.location, c.status)
+                        .to_lowercase()
+                        .contains(&needle)
+            })
+            .collect();
+        if !aks_filtered.is_empty() {
+            let existing_contexts: std::collections::HashSet<String> = self
+                .cloud_profiles
+                .iter()
+                .filter(|p| p.provider == "k8s")
+                .filter_map(|p| {
+                    serde_json::from_str::<serde_json::Value>(&p.config)
+                        .ok()?
+                        .get("context")?
+                        .as_str()
+                        .map(str::to_string)
+                })
+                .collect();
+            sections.push(Space::new().height(8).into());
+            let aks_header = if needle.is_empty() {
+                format!("{} ({})", t("cloud_aks_clusters"), result.aks_clusters.len())
+            } else {
+                format!(
+                    "{} ({} / {})",
+                    t("cloud_aks_clusters"),
+                    aks_filtered.len(),
+                    result.aks_clusters.len()
+                )
+            };
+            let aks_collapsed = self.cloud_discover_collapsed.contains("aks");
+            sections.push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                    "aks".to_string(),
+                )),
+                4.0,
+                section_header("aks", &aks_header, aks_collapsed),
+            ));
+            sections.push(Space::new().height(6).into());
+            if !aks_collapsed {
+                for c in &aks_filtered {
+                    let added = existing_contexts.contains(&c.context);
+                    let info = format!(
+                        "{}  ·  {}  ·  {}  ·  {} {}  ·  {}",
+                        c.name,
+                        c.resource_group,
+                        c.location,
+                        c.node_count,
+                        t("cloud_discover_nodes_unit"),
+                        c.status
+                    );
+                    let row_el: Element<'_, Message> = if added {
+                        text(format!("{info}  ·  {}", t("cloud_discover_already_imported")))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted)
+                            .into()
+                    } else {
+                        let add_msg = Message::CloudDiscoverAddAks {
+                            cluster: c.name.clone(),
+                            resource_group: c.resource_group.clone(),
+                        };
+                        dir_row(vec![
+                            text(info)
+                                .size(11)
+                                .color(OryxisColors::t().text_secondary)
+                                .width(Length::Fill)
+                                .into(),
+                            self.panel_nav_slot(
+                                crate::keynav::RowAction::activate(add_msg.clone()),
+                                4.0,
+                                button(
+                                    text(t("cloud_aks_add"))
+                                        .size(11)
+                                        .color(OryxisColors::t().text_primary),
+                                )
+                                .on_press(add_msg)
+                                .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
+                                .style(|_, status| {
+                                    let bg = match status {
+                                        BtnStatus::Hovered | BtnStatus::Pressed => {
+                                            OryxisColors::t().bg_hover
+                                        }
+                                        _ => OryxisColors::t().bg_surface,
+                                    };
+                                    button::Style {
+                                        background: Some(Background::Color(bg)),
+                                        border: Border {
+                                            radius: Radius::from(4.0),
+                                            width: 1.0,
+                                            color: OryxisColors::t().border,
+                                        },
+                                        ..Default::default()
+                                    }
+                                })
+                                .into(),
+                            ),
+                        ])
+                        .align_y(iced::Alignment::Center)
+                        .into()
+                    };
+                    sections.push(row_el);
+                    sections.push(Space::new().height(2).into());
+                }
+                sections.push(Space::new().height(8).into());
+            }
+        }
+
         // Both sections hid themselves under the active filter, show
         // a friendly hint instead of an empty scroll area so the
         // panel doesn't read as "broken".
@@ -965,6 +1079,7 @@ impl Oryxis {
             && ecs_filtered.is_empty()
             && k8s_filtered.is_empty()
             && gke_filtered.is_empty()
+            && aks_filtered.is_empty()
             && !needle.is_empty()
         {
             sections.push(

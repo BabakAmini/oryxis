@@ -16,6 +16,11 @@ pub struct DiscoveryResult {
     /// from a newer plugin (same forward/back rule as the sync payloads).
     #[serde(default)]
     pub gke_clusters: Vec<DiscoveredGkeCluster>,
+    /// AKS (managed Kubernetes) clusters, populated by the Azure provider.
+    /// Same managed-cluster flow as GKE (get-credentials then a k8s
+    /// profile); `#[serde(default)]` for the same forward/back reason.
+    #[serde(default)]
+    pub aks_clusters: Vec<DiscoveredAksCluster>,
 }
 
 /// A GKE (managed Kubernetes) cluster surfaced by GCP discovery. Not a
@@ -36,6 +41,32 @@ pub struct DiscoveredGkeCluster {
     /// The kubeconfig context `get-credentials` will create
     /// (`gke_<project>_<location>_<name>`), so the UI can dup-check
     /// against existing k8s profiles before adding.
+    pub context: String,
+}
+
+/// An AKS (managed Kubernetes) cluster surfaced by Azure discovery. Like
+/// [`DiscoveredGkeCluster`], "adding" it runs
+/// `az aks get-credentials --resource-group <rg> --name <name>` and
+/// creates a Kubernetes account (profile) pointed at the resulting
+/// kubeconfig context, after which the normal K8s workload discovery /
+/// dynamic-group flow applies. AKS needs the `resource_group` (not a
+/// location) to fetch credentials, hence its own struct.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveredAksCluster {
+    /// Cluster name (the `--name` handle `get-credentials` takes).
+    pub name: String,
+    /// Resource group the cluster lives in (the `--resource-group`
+    /// handle `get-credentials` takes).
+    pub resource_group: String,
+    /// Azure region (`location`), informational.
+    pub location: String,
+    /// `Running`, `Stopped`, ... as the provider emits it.
+    pub status: String,
+    /// Total node count across the cluster's agent pools.
+    pub node_count: u32,
+    /// The kubeconfig context `get-credentials` will create (the cluster
+    /// name, which is what `az aks get-credentials` writes by default),
+    /// so the UI can dup-check against existing k8s profiles before adding.
     pub context: String,
 }
 

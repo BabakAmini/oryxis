@@ -21,8 +21,8 @@ pub mod session;
 pub use error::CloudError;
 pub use registry::{CloudProviderRegistry, RegisteredProvider};
 pub use resource::{
-    DiscoveredEc2, DiscoveredEcsService, DiscoveredGkeCluster, DiscoveredHost,
-    DiscoveredK8sWorkload, DiscoveryResult,
+    DiscoveredAksCluster, DiscoveredEc2, DiscoveredEcsService, DiscoveredGkeCluster,
+    DiscoveredHost, DiscoveredK8sWorkload, DiscoveryResult,
 };
 pub use session::SessionPayload;
 
@@ -128,5 +128,19 @@ pub trait CloudProvider: Send + Sync {
         _location: &str,
     ) -> Result<String, CloudError> {
         Err(CloudError::Unsupported("gke_get_credentials".into()))
+    }
+
+    /// Fetch (merge) an AKS cluster's credentials into the kubeconfig
+    /// (`az aks get-credentials --resource-group <rg> --name <name>`) and
+    /// return the context name written, so the caller can create a
+    /// Kubernetes account pointed at it. Azure-only; every other provider
+    /// keeps the default `Unsupported`.
+    async fn aks_get_credentials(
+        &self,
+        _profile: &CloudProfile,
+        _cluster: &str,
+        _resource_group: &str,
+    ) -> Result<String, CloudError> {
+        Err(CloudError::Unsupported("aks_get_credentials".into()))
     }
 }

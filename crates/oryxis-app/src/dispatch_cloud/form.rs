@@ -118,6 +118,7 @@ impl Oryxis {
                     self.cloud_form.kubeconfig_path = str_field("kubeconfig");
                     self.cloud_form.context = str_field("context");
                     self.cloud_form.gcp_project = str_field("project");
+                    self.cloud_form.azure_subscription = str_field("subscription");
                     // Never pre-fill the secret. Same convention as
                     // identity / proxy passwords, we just flag that
                     // one exists so the user knows leaving the field
@@ -156,6 +157,7 @@ impl Oryxis {
                     self.cloud_form.kubeconfig_path = String::new();
                     self.cloud_form.context = String::new();
                     self.cloud_form.gcp_project = String::new();
+                    self.cloud_form.azure_subscription = String::new();
                 }
                 self.cloud_form.aws_access_key_secret_visible = false;
             }
@@ -176,6 +178,7 @@ impl Oryxis {
                     CloudProviderChoice::Aws => CloudAuthChoice::Profile,
                     CloudProviderChoice::K8s => CloudAuthChoice::Kubeconfig,
                     CloudProviderChoice::Gcp => CloudAuthChoice::GcloudCli,
+                    CloudProviderChoice::Azure => CloudAuthChoice::AzCli,
                 };
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
@@ -189,6 +192,10 @@ impl Oryxis {
             }
             Message::CloudFormGcpProjectChanged(v) => {
                 self.cloud_form.gcp_project = v;
+                self.cloud_form.test_state = CloudTestState::Idle;
+            }
+            Message::CloudFormAzureSubscriptionChanged(v) => {
+                self.cloud_form.azure_subscription = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
             Message::CloudFormContextChanged(v) => {

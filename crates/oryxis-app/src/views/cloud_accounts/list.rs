@@ -233,6 +233,7 @@ impl Oryxis {
                     "aws" => "AWS",
                     "k8s" => "Kubernetes",
                     "gcp" => "GCP",
+                    "azure" => "Azure",
                     other => other,
                 };
 

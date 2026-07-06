@@ -16,9 +16,10 @@ use oryxis_cloud::{
     DiscoveryResult, SessionPayload, TransportKind,
 };
 use oryxis_plugin_protocol::{
-    Discover, GkeGetCredentials, GkeGetCredentialsParams, ProfileParams, PushInstanceConnectKey,
-    PushInstanceConnectKeyParams, ResolveQuery, ResolveQueryParams, StartEcsExec,
-    StartEcsExecParams, StartSsmSession, StartSsmSessionParams, TestCredentials,
+    AksGetCredentials, AksGetCredentialsParams, Discover, GkeGetCredentials,
+    GkeGetCredentialsParams, ProfileParams, PushInstanceConnectKey, PushInstanceConnectKeyParams,
+    ResolveQuery, ResolveQueryParams, StartEcsExec, StartEcsExecParams, StartSsmSession,
+    StartSsmSessionParams, TestCredentials,
 };
 
 use super::cache;
@@ -164,6 +165,9 @@ impl CloudProvider for PluginProvider {
             // GCP Compute VMs are reached over plain SSH (IAP tunnelling /
             // OS Login are future work); mirrors `GcpProvider::supported_transports`.
             ("gcp", CloudResourceType::Ec2) => vec![TransportKind::Ssh],
+            // Azure VMs are reached over plain SSH (Bastion / AAD login are
+            // future work); mirrors `AzureProvider::supported_transports`.
+            ("azure", CloudResourceType::Ec2) => vec![TransportKind::Ssh],
             _ => Vec::new(),
         }
     }
@@ -237,6 +241,22 @@ impl CloudProvider for PluginProvider {
                 profile: profile.clone(),
                 cluster: cluster.to_string(),
                 location: location.to_string(),
+            })
+            .await
+            .map_err(plugin_err_to_cloud)
+    }
+
+    async fn aks_get_credentials(
+        &self,
+        profile: &CloudProfile,
+        cluster: &str,
+        resource_group: &str,
+    ) -> Result<String, CloudError> {
+        self.host
+            .call::<AksGetCredentials>(AksGetCredentialsParams {
+                profile: profile.clone(),
+                cluster: cluster.to_string(),
+                resource_group: resource_group.to_string(),
             })
             .await
             .map_err(plugin_err_to_cloud)

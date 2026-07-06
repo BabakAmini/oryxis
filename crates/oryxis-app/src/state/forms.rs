@@ -535,6 +535,10 @@ pub(crate) struct CloudForm {
     /// GCP project id to scope discovery to. Optional: blank = whatever
     /// `gcloud config get-value project` resolves (the active project).
     pub gcp_project: String,
+    /// Azure subscription id (or name) to scope discovery to. Optional:
+    /// blank = whatever `az account show` resolves (the active
+    /// subscription).
+    pub azure_subscription: String,
     /// `Some` when editing an existing profile (update in place).
     pub editing_id: Option<Uuid>,
     pub error: Option<String>,
