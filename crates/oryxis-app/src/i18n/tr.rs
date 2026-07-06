@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "En az bir sunucu seçin",
         "cloud_discover_refresh" => "Yenile",
         "cloud_discover_already_imported" => "zaten içe aktarıldı",
+        "cloud_discover_tasks_unit" => "görev",
+        "cloud_discover_nodes_unit" => "düğüm",
         "cloud_discover_search_ph" => "Ada, id'ye, IP'ye göre filtrele…",
         "cloud_discover_no_matches" => "Bu filtreyle eşleşen yok",
         "cloud_dynamic_group_pending" => "Canlı task'lar yükleniyor…",

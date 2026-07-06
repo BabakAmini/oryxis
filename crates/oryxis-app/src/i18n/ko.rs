@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "호스트를 하나 이상 선택하세요",
         "cloud_discover_refresh" => "새로고침",
         "cloud_discover_already_imported" => "이미 가져옴",
+        "cloud_discover_tasks_unit" => "작업",
+        "cloud_discover_nodes_unit" => "노드",
         "cloud_discover_search_ph" => "이름, id, IP로 필터…",
         "cloud_discover_no_matches" => "해당 필터에 일치하는 항목이 없습니다",
         "cloud_dynamic_group_pending" => "실시간 작업 로드 중…",

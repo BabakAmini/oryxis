@@ -600,8 +600,11 @@ impl Oryxis {
                     let is_imported = already_ecs.contains(&key);
                     let checked = self.cloud_discover_selected_ecs.contains(&key);
                     let label_text = format!(
-                        "{} / {}  ·  {} task(s)",
-                        s.service, s.container, s.running_task_count
+                        "{} / {}  ·  {} {}",
+                        s.service,
+                        s.container,
+                        s.running_task_count,
+                        t("cloud_discover_tasks_unit")
                     );
                     let label_text = if is_imported {
                         format!("{label_text}  ·  {}", t("cloud_discover_already_imported"))
@@ -892,8 +895,12 @@ impl Oryxis {
                 for c in &gke_filtered {
                     let added = existing_contexts.contains(&c.context);
                     let info = format!(
-                        "{}  ·  {}  ·  {} node(s)  ·  {}",
-                        c.name, c.location, c.node_count, c.status
+                        "{}  ·  {}  ·  {} {}  ·  {}",
+                        c.name,
+                        c.location,
+                        c.node_count,
+                        t("cloud_discover_nodes_unit"),
+                        c.status
                     );
                     let row_el: Element<'_, Message> = if added {
                         text(format!("{info}  ·  {}", t("cloud_discover_already_imported")))

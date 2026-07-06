@@ -106,6 +106,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_discover_import_none" => "Pick at least one host",
         "cloud_discover_refresh" => "Refresh",
         "cloud_discover_already_imported" => "already imported",
+        "cloud_discover_tasks_unit" => "task(s)",
+        "cloud_discover_nodes_unit" => "node(s)",
         "cloud_discover_search_ph" => "Filter by name, id, IP…",
         "cloud_discover_no_matches" => "No matches for that filter",
         "cloud_dynamic_group_pending" => "Loading live tasks…",

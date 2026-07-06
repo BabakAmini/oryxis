@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "Виберіть принаймні один хост",
         "cloud_discover_refresh" => "Оновити",
         "cloud_discover_already_imported" => "вже імпортовано",
+        "cloud_discover_tasks_unit" => "завдання",
+        "cloud_discover_nodes_unit" => "вузли",
         "cloud_discover_search_ph" => "Фільтр за назвою, id, IP…",
         "cloud_discover_no_matches" => "Немає збігів для цього фільтра",
         "cloud_dynamic_group_pending" => "Завантаження активних задач…",

@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "حداقل یک میزبان انتخاب کنید",
         "cloud_discover_refresh" => "به‌روزرسانی",
         "cloud_discover_already_imported" => "قبلاً وارد شده",
+        "cloud_discover_tasks_unit" => "وظیفه",
+        "cloud_discover_nodes_unit" => "گره",
         "cloud_discover_search_ph" => "فیلتر بر اساس نام، id، IP…",
         "cloud_discover_no_matches" => "نتیجه‌ای برای این فیلتر نیست",
         "cloud_dynamic_group_pending" => "در حال بارگیری تسک‌های فعال…",

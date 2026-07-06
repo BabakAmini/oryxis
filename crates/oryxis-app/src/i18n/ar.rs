@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "اختر مضيفاً واحداً على الأقل",
         "cloud_discover_refresh" => "تحديث",
         "cloud_discover_already_imported" => "تم الاستيراد بالفعل",
+        "cloud_discover_tasks_unit" => "مهمة",
+        "cloud_discover_nodes_unit" => "عقدة",
         "cloud_discover_search_ph" => "تصفية بالاسم / المعرف / IP…",
         "cloud_discover_no_matches" => "لا توجد نتائج لهذا التصفية",
         "cloud_dynamic_group_pending" => "جاري تحميل المهام النشطة…",

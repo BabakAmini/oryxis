@@ -102,6 +102,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "至少选择一台主机",
         "cloud_discover_refresh" => "刷新",
         "cloud_discover_already_imported" => "已导入",
+        "cloud_discover_tasks_unit" => "任务",
+        "cloud_discover_nodes_unit" => "节点",
         "cloud_discover_search_ph" => "按名称、id、IP 过滤…",
         "cloud_discover_no_matches" => "没有匹配此过滤的结果",
         "cloud_dynamic_group_pending" => "正在加载活动任务…",

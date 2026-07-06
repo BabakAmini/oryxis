@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "Pilih setidaknya satu host",
         "cloud_discover_refresh" => "Segarkan",
         "cloud_discover_already_imported" => "sudah diimpor",
+        "cloud_discover_tasks_unit" => "tugas",
+        "cloud_discover_nodes_unit" => "node",
         "cloud_discover_search_ph" => "Saring berdasarkan nama, id, IP…",
         "cloud_discover_no_matches" => "Tidak ada yang cocok dengan saringan itu",
         "cloud_dynamic_group_pending" => "Memuat task langsung…",

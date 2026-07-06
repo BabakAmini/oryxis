@@ -102,6 +102,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "Mindestens einen Host auswählen",
         "cloud_discover_refresh" => "Aktualisieren",
         "cloud_discover_already_imported" => "bereits importiert",
+        "cloud_discover_tasks_unit" => "Task(s)",
+        "cloud_discover_nodes_unit" => "Node(s)",
         "cloud_discover_search_ph" => "Filter: Name, ID, IP…",
         "cloud_discover_no_matches" => "Keine Treffer für diesen Filter",
         "cloud_dynamic_group_pending" => "Live-Tasks werden geladen…",

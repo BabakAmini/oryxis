@@ -103,6 +103,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "Chọn ít nhất một máy chủ",
         "cloud_discover_refresh" => "Làm mới",
         "cloud_discover_already_imported" => "đã nhập",
+        "cloud_discover_tasks_unit" => "tác vụ",
+        "cloud_discover_nodes_unit" => "node",
         "cloud_discover_search_ph" => "Lọc theo tên, id, IP…",
         "cloud_discover_no_matches" => "Không có kết quả cho bộ lọc đó",
         "cloud_dynamic_group_pending" => "Đang tải các task đang chạy…",

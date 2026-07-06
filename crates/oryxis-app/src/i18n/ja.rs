@@ -102,6 +102,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_discover_import_none" => "1 つ以上のホストを選択",
         "cloud_discover_refresh" => "更新",
         "cloud_discover_already_imported" => "インポート済み",
+        "cloud_discover_tasks_unit" => "タスク",
+        "cloud_discover_nodes_unit" => "ノード",
         "cloud_discover_search_ph" => "名前/ID/IP でフィルタ…",
         "cloud_discover_no_matches" => "このフィルタに一致なし",
         "cloud_dynamic_group_pending" => "実行中のタスクを読み込み中…",
