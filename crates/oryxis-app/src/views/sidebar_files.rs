@@ -168,6 +168,38 @@ impl Oryxis {
                 .spacing(4)
                 .padding(Padding { top: 0.0, right: 12.0, bottom: 12.0, left: 12.0 });
             let mut pos = 0usize;
+            // Inline "new file / new folder" input at the top of the
+            // list (Enter creates, Esc via the sidebar router cancels).
+            if let Some((kind, input)) = &files.new_entry {
+                let icon = match kind {
+                    crate::state::SftpEntryKind::Folder => iced_fonts::lucide::folder_plus(),
+                    crate::state::SftpEntryKind::File => iced_fonts::lucide::file_plus(),
+                };
+                let field = iced::widget::text_input(t("name"), input)
+                    .id(iced::widget::Id::new("sidebar-files-new"))
+                    .on_input(Message::SidebarFilesNewEntryInput)
+                    .on_submit(Message::SidebarFilesNewEntryCommit)
+                    .padding(6)
+                    .size(12)
+                    .style(crate::widgets::rounded_input_style);
+                let row = dir_row(vec![
+                    icon.size(13).color(OryxisColors::t().accent).into(),
+                    Space::new().width(8).into(),
+                    field.into(),
+                ])
+                .align_y(iced::Alignment::Center);
+                list = list.push(self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::input(iced::widget::Id::new(
+                        "sidebar-files-new",
+                    )),
+                    TerminalSidebarTab::Files,
+                    crate::widgets::INPUT_RADIUS,
+                    container(row)
+                        .padding(Padding { top: 2.0, right: 0.0, bottom: 2.0, left: 2.0 })
+                        .into(),
+                ));
+                pos += 1;
+            }
             // ".." row, hidden at the root.
             if let Some(parent) = files_parent_dir(&files.path) {
                 list = list.push(self.files_row(
@@ -188,12 +220,53 @@ impl Oryxis {
                 }
                 any = true;
                 let full = files_join(&files.path, &entry.name);
+                // Inline rename swaps this row's label for an input
+                // (Enter commits, Esc via the sidebar router cancels).
+                if let Some((rpath, rinput)) = &files.rename
+                    && rpath == &full
+                {
+                    let field = iced::widget::text_input("", rinput)
+                        .id(iced::widget::Id::new("sidebar-files-rename"))
+                        .on_input(Message::SidebarFilesRenameInput)
+                        .on_submit(Message::SidebarFilesRenameCommit)
+                        .padding(6)
+                        .size(12)
+                        .style(crate::widgets::rounded_input_style);
+                    let row = dir_row(vec![
+                        crate::views::sftp::file_icon(
+                            &entry.name,
+                            entry.is_dir,
+                            entry.is_symlink,
+                        )
+                        .into(),
+                        Space::new().width(8).into(),
+                        field.into(),
+                    ])
+                    .align_y(iced::Alignment::Center);
+                    list = list.push(self.sidebar_nav_slot(
+                        crate::keynav::SidebarRow::input(iced::widget::Id::new(
+                            "sidebar-files-rename",
+                        )),
+                        TerminalSidebarTab::Files,
+                        crate::widgets::INPUT_RADIUS,
+                        container(row)
+                            .padding(Padding {
+                                top: 2.0,
+                                right: 0.0,
+                                bottom: 2.0,
+                                left: 2.0,
+                            })
+                            .into(),
+                    ));
+                    pos += 1;
+                    continue;
+                }
                 let primary = if entry.is_dir {
                     Message::SidebarFilesNavigate(full.clone())
                 } else {
                     // Files: the row's primary is Copy path (toast
-                    // feedback); heavier actions live in the full
-                    // SFTP surface one expand away.
+                    // feedback); heavier actions live in the context
+                    // menu (right-click) and the full SFTP session.
                     Message::SftpCopyPath(full.clone())
                 };
                 list = list.push(self.files_row(
@@ -212,11 +285,15 @@ impl Oryxis {
             }
             // Shared id with the Snippets / History lists (only one
             // renders): the sidebar keynav router snaps the ringed row
-            // into view by it.
-            iced::widget::scrollable(list)
+            // into view by it. Right-clicking the empty area opens the
+            // directory-level menu (rows consume their own right-press
+            // first).
+            let scroll = iced::widget::scrollable(list)
                 .id(iced::widget::Id::new("sidebar-list-scroll"))
                 .width(Length::Fill)
-                .height(Length::Fill)
+                .height(Length::Fill);
+            MouseArea::new(scroll)
+                .on_right_press(Message::ShowSidebarFilesBackgroundMenu)
                 .into()
         };
 

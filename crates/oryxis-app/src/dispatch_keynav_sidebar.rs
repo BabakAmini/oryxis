@@ -348,12 +348,16 @@ impl Oryxis {
                 // nothing at all.
                 if selected.is_some() || self.cursor_over_sidebar() {
                     self.keynav.sidebar_selected = None;
-                    // A half-typed Files path edit cancels with the
-                    // disengage (mirrors the SFTP pane's Esc).
+                    // A half-typed Files edit (path / rename / new
+                    // entry) cancels with the disengage (mirrors the
+                    // SFTP pane's Esc).
                     if let Some(idx) = self.active_tab
                         && let Some(tab) = self.tabs.get_mut(idx)
                     {
-                        tab.active_mut().files.path_editing = None;
+                        let files = &mut tab.active_mut().files;
+                        files.path_editing = None;
+                        files.rename = None;
+                        files.new_entry = None;
                     }
                     return Some(blur_task());
                 }

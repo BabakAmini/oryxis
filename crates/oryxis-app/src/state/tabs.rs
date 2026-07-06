@@ -149,6 +149,11 @@ pub(crate) struct PaneFiles {
     /// In-progress manual path edit (the header path is clickable,
     /// mirroring the SFTP pane's path editing); `None` = display mode.
     pub path_editing: Option<String>,
+    /// In-progress inline rename: `(full remote path, edited name)`.
+    pub rename: Option<(String, String)>,
+    /// In-progress inline create: `(kind, typed name)`, rendered as an
+    /// input row at the top of the list.
+    pub new_entry: Option<(SftpEntryKind, String)>,
     /// Entries of `path`, sorted dirs-first / name-insensitive.
     pub entries: Vec<SftpEntry>,
     /// True while a `list_dir` (navigation or cwd follow) is in flight.
@@ -182,6 +187,8 @@ impl PaneFiles {
         self.path.clear();
         self.home = None;
         self.path_editing = None;
+        self.rename = None;
+        self.new_entry = None;
         self.entries.clear();
         self.loading = false;
         self.req_seq += 1;

@@ -283,6 +283,37 @@ pub enum Message {
     /// directory: the sidebar ⛶, the row context menu and the expand
     /// affordances all funnel here.
     SidebarFilesOpenSftpAt(String),
+    /// Right-click on the list's empty area: directory-level menu
+    /// (New file / New folder / Upload here / Refresh / Copy path).
+    ShowSidebarFilesBackgroundMenu,
+    /// Inline rename of a sidebar row: start (full path) / live input /
+    /// commit. Esc via the sidebar router cancels.
+    SidebarFilesStartRename(String),
+    SidebarFilesRenameInput(String),
+    SidebarFilesRenameCommit,
+    /// Inline create (file or folder) at the top of the list.
+    SidebarFilesStartNewEntry(crate::state::SftpEntryKind),
+    SidebarFilesNewEntryInput(String),
+    SidebarFilesNewEntryCommit,
+    /// Delete an entry: ask (routes through the shared confirm dialog),
+    /// then the confirmed op (recursive for directories).
+    SidebarFilesDelete(String, bool),
+    SidebarFilesDeleteConfirmed(String, bool),
+    /// Download a file to a local destination picked via the OS dialog.
+    SidebarFilesDownload(String),
+    /// One-shot op finished (download / upload): toast the outcome.
+    SidebarFilesOpToast(String),
+    /// Upload local file(s) picked via the OS dialog into a directory.
+    SidebarFilesUploadInto(String),
+    /// Open the shared Properties (permissions) modal for a sidebar
+    /// entry, chmod-ing through the sidebar's own client.
+    SidebarFilesShowProperties(String, bool),
+    /// Edit-in-place for a sidebar file (temp download + OS editor +
+    /// auto-upload), through the sidebar's own client.
+    SidebarFilesEdit(String),
+    /// Uploads finished: toast + fresh listing in one hop (the stamp
+    /// rule applies to the listing half).
+    SidebarFilesUploadFinished(Uuid, u64, String, String, Vec<oryxis_ssh::SftpEntry>),
     /// Hybrid tab (issue #61): flip the terminal tab at this index
     /// between its Terminal and Files-full (dual-pane SFTP) states.
     /// Fired by the tab's mode glyph, the status-bar segment, the tab

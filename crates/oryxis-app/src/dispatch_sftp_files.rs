@@ -62,6 +62,8 @@ impl Oryxis {
                         let (uid, gid) = (None, None);
                         let view = crate::state::PropertiesView {
                             side,
+                            client_override: None,
+                            from_sidebar: false,
                             path,
                             is_dir,
                             size: meta.len(),
@@ -90,6 +92,8 @@ impl Oryxis {
                                     let mode = stat.permissions.unwrap_or(0o644);
                                     Message::SftpPropertiesLoaded(crate::state::PropertiesView {
                                         side,
+                                        client_override: None,
+                                        from_sidebar: false,
                                         path: path.clone(),
                                         is_dir,
                                         size: stat.size,
@@ -164,6 +168,16 @@ impl Oryxis {
                 p.error = None;
                 let path = p.path.clone();
                 let side = p.side;
+                // Sidebar Files browser target: chmod through its own
+                // channel, never an SFTP pane's.
+                if let Some(client) = p.client_override.clone() {
+                    return Ok(Task::perform(
+                        async move {
+                            client.chmod(&path, new_mode).await.map_err(|e| e.to_string())
+                        },
+                        Message::SftpPropertiesDone,
+                    ));
+                }
                 if !self.sftp.pane(side).is_remote {
                         #[cfg(unix)]
                         {
@@ -199,7 +213,19 @@ impl Oryxis {
                 match result {
                     Ok(()) => {
                         let side = self.sftp.properties.as_ref().map(|p| p.side);
+                        let from_sidebar = self
+                            .sftp
+                            .properties
+                            .as_ref()
+                            .map(|p| p.from_sidebar)
+                            .unwrap_or(false);
                         self.sftp.properties = None;
+                        // A sidebar-owned chmod refreshes the sidebar
+                        // browser (the modal blocked interaction, so the
+                        // active pane is still the one that opened it).
+                        if from_sidebar {
+                            return Ok(self.update(Message::SidebarFilesRefresh));
+                        }
                         // Refresh whichever pane we just touched so
                         // the new permissions show up immediately.
                         return Ok(match side {
@@ -298,6 +324,7 @@ impl Oryxis {
                             .ok()
                             .and_then(|m| m.modified().ok());
                         Ok::<crate::state::EditSession, String>(crate::state::EditSession {
+                            client_override: None,
                             remote_path,
                             temp_path,
                             label: basename,
@@ -318,6 +345,27 @@ impl Oryxis {
                 let Some(session) = self.sftp.edit_session.take() else {
                     return Ok(Task::none());
                 };
+                // Sidebar-owned edit: upload through the sidebar's own
+                // channel and refresh the sidebar browser after.
+                if let Some(client) = session.client_override.clone() {
+                    return Ok(Task::perform(
+                        async move {
+                            let bytes = tokio::fs::read(&session.temp_path)
+                                .await
+                                .map_err(|e| format!("read temp: {e}"))?;
+                            client
+                                .write_file(&session.remote_path, &bytes)
+                                .await
+                                .map_err(|e| e.to_string())?;
+                            let _ = tokio::fs::remove_file(&session.temp_path).await;
+                            Ok::<(), String>(())
+                        },
+                        |result| match result {
+                            Ok(()) => Message::SidebarFilesRefresh,
+                            Err(e) => Message::SidebarFilesOpToast(e),
+                        },
+                    ));
+                }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
                     let _ = std::fs::remove_file(&session.temp_path);

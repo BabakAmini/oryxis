@@ -393,6 +393,14 @@ pub(crate) enum PermBit {
 #[derive(Debug, Clone)]
 pub(crate) struct PropertiesView {
     pub side: SftpPaneSide,
+    /// When set, Apply chmods through THIS client instead of resolving
+    /// `side` against the live SFTP buffer: the terminal sidebar Files
+    /// browser owns its own channel and its ops must not touch another
+    /// surface's panes.
+    pub client_override: Option<SftpClient>,
+    /// Set when opened from the sidebar Files browser; the post-apply
+    /// refresh re-lists the sidebar instead of an SFTP pane.
+    pub from_sidebar: bool,
     pub path: String,
     pub is_dir: bool,
     pub size: u64,
@@ -447,6 +455,9 @@ pub(crate) enum OverwriteAction {
 
 #[derive(Debug, Clone)]
 pub(crate) struct EditSession {
+    /// When set, the save uploads through THIS client (sidebar Files
+    /// browser ops); `None` resolves the remote SFTP pane as before.
+    pub client_override: Option<SftpClient>,
     pub remote_path: String,
     pub temp_path: std::path::PathBuf,
     /// Display label shown in the modal, basename of the remote file.

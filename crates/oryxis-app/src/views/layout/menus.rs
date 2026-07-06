@@ -24,7 +24,8 @@ impl Oryxis {
             // with room for the privacy footer to wrap sanely.
             OverlayContent::SessionLogActions(_) => 240.0,
             // "Open SFTP session here" + translations on one line.
-            OverlayContent::SidebarFilesRow { .. } => 220.0,
+            OverlayContent::SidebarFilesRow { .. }
+            | OverlayContent::SidebarFilesBackground { .. } => 220.0,
             OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
             OverlayContent::CloudDiscoverGroupPicker => {
                 let b = self.cloud_discover_default_group_combo_bounds.get();
@@ -61,8 +62,11 @@ impl Oryxis {
             OverlayContent::HostTagFilter => (self.distinct_host_tags().len() + 1) as f32,
             OverlayContent::SnippetTagFilter => (self.distinct_snippet_tags().len() + 1) as f32,
             OverlayContent::SessionLogActions(_) => 4.0,
-            OverlayContent::SftpTabActions(_) => 5.0,
-            OverlayContent::SidebarFilesRow { .. } => 4.0,
+            OverlayContent::SftpTabActions(_) => 6.0,
+            OverlayContent::SidebarFilesRow { is_dir, .. } => {
+                if *is_dir { 7.0 } else { 8.0 }
+            }
+            OverlayContent::SidebarFilesBackground { .. } => 5.0,
             OverlayContent::HostActions(_) => 8.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
@@ -456,13 +460,30 @@ impl Oryxis {
                         .unwrap_or_else(|| "/".to_string())
                 };
                 let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+                let secondary = OryxisColors::t().text_secondary;
                 let mut items = column![];
                 if is_dir {
                     items = items.push(self.menu_item(
                         iced_fonts::lucide::folder_open(),
                         crate::i18n::t("open"),
                         Message::SidebarFilesNavigate(path.clone()),
-                        OryxisColors::t().text_secondary,
+                        secondary,
+                    ));
+                } else {
+                    // Edit-in-place (temp download + OS editor + upload
+                    // on save) and a one-shot download, both on the
+                    // sidebar's own channel.
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::pencil(),
+                        crate::i18n::t("edit"),
+                        Message::SidebarFilesEdit(path.clone()),
+                        secondary,
+                    ));
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::download(),
+                        crate::i18n::t("download"),
+                        Message::SidebarFilesDownload(path.clone()),
+                        OryxisColors::t().accent,
                     ));
                 }
                 items = items.push(self.menu_item(
@@ -471,11 +492,31 @@ impl Oryxis {
                     Message::SidebarFilesOpenSftpAt(sftp_dir),
                     OryxisColors::t().accent,
                 ));
+                if is_dir {
+                    items = items.push(self.menu_item(
+                        iced_fonts::lucide::upload(),
+                        crate::i18n::t("upload_here"),
+                        Message::SidebarFilesUploadInto(path.clone()),
+                        secondary,
+                    ));
+                }
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::pen_line(),
+                    crate::i18n::t("rename"),
+                    Message::SidebarFilesStartRename(path.clone()),
+                    secondary,
+                ));
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::cog(),
+                    crate::i18n::t("properties"),
+                    Message::SidebarFilesShowProperties(path.clone(), is_dir),
+                    secondary,
+                ));
                 items = items.push(self.menu_item(
                     iced_fonts::lucide::clipboard_copy(),
                     crate::i18n::t("copy_path"),
                     Message::SftpCopyPath(path.clone()),
-                    OryxisColors::t().text_secondary,
+                    secondary,
                 ));
                 if !is_dir {
                     // Routed through SftpCopyPath (not CopyToClipboard)
@@ -484,9 +525,52 @@ impl Oryxis {
                         iced_fonts::lucide::text_cursor_input(),
                         crate::i18n::t("copy_name"),
                         Message::SftpCopyPath(name),
-                        OryxisColors::t().text_secondary,
+                        secondary,
                     ));
                 }
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::trash(),
+                    crate::i18n::t("delete"),
+                    Message::SidebarFilesDelete(path.clone(), is_dir),
+                    OryxisColors::t().error,
+                ));
+                items.into()
+            }
+            OverlayContent::SidebarFilesBackground { dir } => {
+                let dir = dir.clone();
+                let secondary = OryxisColors::t().text_secondary;
+                let items = column![
+                    self.menu_item(
+                        iced_fonts::lucide::folder_plus(),
+                        crate::i18n::t("new_folder"),
+                        Message::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::Folder),
+                        secondary,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::file_plus(),
+                        crate::i18n::t("new_file"),
+                        Message::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::File),
+                        secondary,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::upload(),
+                        crate::i18n::t("upload_here"),
+                        Message::SidebarFilesUploadInto(dir.clone()),
+                        OryxisColors::t().accent,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::rotate_cw(),
+                        crate::i18n::t("refresh"),
+                        Message::SidebarFilesRefresh,
+                        secondary,
+                    ),
+                    self.menu_item(
+                        iced_fonts::lucide::clipboard_copy(),
+                        crate::i18n::t("copy_path"),
+                        Message::SftpCopyPath(dir),
+                        secondary,
+                    ),
+                ];
                 items.into()
             }
             OverlayContent::TabActions(idx) => {

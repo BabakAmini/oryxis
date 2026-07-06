@@ -21,6 +21,9 @@ pub(crate) enum OverlayContent {
     /// full remote path + kind; items: Open (dirs), Open SFTP session
     /// here, Copy path, Copy name (files).
     SidebarFilesRow { path: String, is_dir: bool },
+    /// Right-click on the sidebar Files list's empty area: directory
+    /// actions for the current folder.
+    SidebarFilesBackground { dir: String },
     /// Hover popover under the `+` tab button: New Tab + Split actions for
     /// the active terminal tab.
     SplitMenu,

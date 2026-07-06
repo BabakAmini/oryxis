@@ -96,6 +96,8 @@ impl Oryxis {
                 }
             }
             Message::SidebarFilesRefresh => {
+                // Also fired from the background context menu.
+                self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -193,6 +195,368 @@ impl Oryxis {
                     x: anchor.0,
                     y: anchor.1,
                 });
+            }
+            Message::ShowSidebarFilesBackgroundMenu => {
+                // Directory-level menu for the current folder; only once
+                // mounted (an unmounted browser has nothing to act on).
+                let Some(dir) = self
+                    .active_pane_mut()
+                    .filter(|p| p.files.client.is_some() && !p.files.path.is_empty())
+                    .map(|p| p.files.path.clone())
+                else {
+                    return Ok(Task::none());
+                };
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::SidebarFilesBackground { dir },
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
+            Message::SidebarFilesStartRename(path) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let basename = path
+                    .rsplit('/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or(&path)
+                    .to_string();
+                pane.files.new_entry = None;
+                pane.files.rename = Some((path, basename));
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "sidebar-files-rename",
+                )));
+            }
+            Message::SidebarFilesRenameInput(s) => {
+                if let Some(pane) = self.active_pane_mut()
+                    && let Some((_, input)) = pane.files.rename.as_mut()
+                {
+                    *input = s;
+                }
+            }
+            Message::SidebarFilesRenameCommit => {
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some((original, input)) = pane.files.rename.take() else {
+                    return Ok(Task::none());
+                };
+                let name = input.trim();
+                // Same guard as the SFTP pane's rename: a name, not a path.
+                if name.is_empty() || name.contains('/') {
+                    return Ok(Task::none());
+                }
+                let parent = files_parent_dir(&original).unwrap_or_else(|| "/".to_string());
+                let target = files_join(&parent, name);
+                if target == original {
+                    return Ok(Task::none());
+                }
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let list_path = pane.files.path.clone();
+                let pane_id = pane.id;
+                pane.files.loading = true;
+                pane.files.error = None;
+                let seq = pane.files.next_req();
+                return Ok(op_then_list(
+                    client.clone(),
+                    list_path,
+                    pane_id,
+                    seq,
+                    async move { client.rename(&original, &target).await },
+                ));
+            }
+            Message::SidebarFilesStartNewEntry(kind) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                if pane.files.client.is_none() {
+                    return Ok(Task::none());
+                }
+                pane.files.rename = None;
+                pane.files.new_entry = Some((kind, String::new()));
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "sidebar-files-new",
+                )));
+            }
+            Message::SidebarFilesNewEntryInput(s) => {
+                if let Some(pane) = self.active_pane_mut()
+                    && let Some((_, input)) = pane.files.new_entry.as_mut()
+                {
+                    *input = s;
+                }
+            }
+            Message::SidebarFilesNewEntryCommit => {
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some((kind, input)) = pane.files.new_entry.take() else {
+                    return Ok(Task::none());
+                };
+                let name = input.trim();
+                if name.is_empty() || name.contains('/') {
+                    return Ok(Task::none());
+                }
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let target = files_join(&pane.files.path, name);
+                let list_path = pane.files.path.clone();
+                let pane_id = pane.id;
+                pane.files.loading = true;
+                pane.files.error = None;
+                let seq = pane.files.next_req();
+                return Ok(op_then_list(client.clone(), list_path, pane_id, seq, async move {
+                    match kind {
+                        crate::state::SftpEntryKind::Folder => client.create_dir(&target).await,
+                        // An empty write is SFTP's "touch".
+                        crate::state::SftpEntryKind::File => {
+                            client.write_file(&target, &[]).await
+                        }
+                    }
+                }));
+            }
+            Message::SidebarFilesDelete(path, is_dir) => {
+                self.overlay = None;
+                let name = path
+                    .rsplit('/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or(&path)
+                    .to_string();
+                // Shared destructive-confirm dialog (Enter confirms via
+                // the modal keynav router).
+                self.confirm_remove(
+                    name,
+                    Message::SidebarFilesDeleteConfirmed(path, is_dir),
+                );
+            }
+            Message::SidebarFilesDeleteConfirmed(path, is_dir) => {
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let list_path = pane.files.path.clone();
+                let pane_id = pane.id;
+                pane.files.loading = true;
+                pane.files.error = None;
+                let seq = pane.files.next_req();
+                return Ok(op_then_list(client.clone(), list_path, pane_id, seq, async move {
+                    if is_dir {
+                        client.remove_dir_recursive(&path).await
+                    } else {
+                        client.remove_file(&path).await
+                    }
+                }));
+            }
+            Message::SidebarFilesDownload(path) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let basename = path
+                    .rsplit('/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or(&path)
+                    .to_string();
+                // One-shot transfer with a toast on completion. Heavier
+                // moves (progress, queues, retries) live in the full SFTP
+                // session one context-menu entry away.
+                return Ok(Task::perform(
+                    async move {
+                        let dest = rfd::AsyncFileDialog::new()
+                            .set_file_name(&basename)
+                            .save_file()
+                            .await?
+                            .path()
+                            .to_path_buf();
+                        Some(match client.download_to(&path, &dest, None).await {
+                            Ok(()) => crate::i18n::t("files_download_done")
+                                .replacen("{name}", &basename, 1),
+                            Err(e) => format!("{basename}: {e}"),
+                        })
+                    },
+                    |msg| match msg {
+                        Some(m) => Message::SidebarFilesOpToast(m),
+                        None => Message::NoOp,
+                    },
+                ));
+            }
+            Message::SidebarFilesUploadInto(dir) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let list_path = pane.files.path.clone();
+                let pane_id = pane.id;
+                let seq = pane.files.next_req();
+                return Ok(Task::perform(
+                    async move {
+                        let Some(files) = rfd::AsyncFileDialog::new().pick_files().await
+                        else {
+                            return (None, None);
+                        };
+                        let mut failed: Vec<String> = Vec::new();
+                        let mut ok = 0usize;
+                        for f in files {
+                            let local = f.path().to_path_buf();
+                            let name = local
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| "file".to_string());
+                            let remote = files_join(&dir, &name);
+                            match client.upload_from(&local, &remote).await {
+                                Ok(()) => ok += 1,
+                                Err(e) => failed.push(format!("{name}: {e}")),
+                            }
+                        }
+                        let toast = if failed.is_empty() {
+                            crate::i18n::t("files_upload_done")
+                                .replacen("{n}", &ok.to_string(), 1)
+                        } else {
+                            failed.join(" · ")
+                        };
+                        // Refresh the listing after the uploads landed.
+                        let listing = client.list_dir(&list_path).await.ok();
+                        (Some(toast), listing.map(|entries| (list_path, entries)))
+                    },
+                    move |(toast, listing)| match (toast, listing) {
+                        (Some(t), Some((path, entries))) => Message::SidebarFilesUploadFinished(
+                            pane_id, seq, t, path, entries,
+                        ),
+                        (Some(t), None) => Message::SidebarFilesOpToast(t),
+                        _ => Message::NoOp,
+                    },
+                ));
+            }
+            Message::SidebarFilesUploadFinished(pane_id, seq, toast, path, entries) => {
+                let refresh = self.handle_sidebar_files(Message::SidebarFilesListed(
+                    pane_id, seq, path, entries,
+                ))?;
+                let toast_task = self.update(Message::SidebarFilesOpToast(toast));
+                return Ok(Task::batch([refresh, toast_task]));
+            }
+            Message::SidebarFilesOpToast(text) => {
+                self.toast = Some(text);
+                return Ok(Task::perform(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
+                    },
+                    |_| Message::ToastClear,
+                ));
+            }
+            Message::SidebarFilesShowProperties(path, is_dir) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let pane_id = pane.id;
+                let seq = pane.files.req_seq;
+                let stat_client = client.clone();
+                let target = path.clone();
+                return Ok(Task::perform(
+                    async move { stat_client.stat(&target).await.map_err(|e| e.to_string()) },
+                    move |result| match result {
+                        Ok(stat) => {
+                            let mode = stat.permissions.unwrap_or(0o644);
+                            Message::SftpPropertiesLoaded(crate::state::PropertiesView {
+                                // `side` is unused when a client override
+                                // is present; Right is a stable filler.
+                                side: crate::state::SftpPaneSide::Right,
+                                client_override: Some(client.clone()),
+                                from_sidebar: true,
+                                path: path.clone(),
+                                is_dir,
+                                size: stat.size,
+                                mtime: stat.mtime,
+                                owner_uid: stat.uid,
+                                owner_gid: stat.gid,
+                                original_mode: mode,
+                                bits: crate::state::PermBits::from_mode(mode),
+                                mode_input: format!("{:03o}", mode & 0o777),
+                                applying: false,
+                                error: None,
+                            })
+                        }
+                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                    },
+                ));
+            }
+            Message::SidebarFilesEdit(path) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Ok(Task::none());
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(Task::none());
+                };
+                let pane_id = pane.id;
+                let seq = pane.files.req_seq;
+                return Ok(Task::perform(
+                    async move {
+                        let basename = path
+                            .rsplit('/')
+                            .find(|s| !s.is_empty())
+                            .unwrap_or(&path)
+                            .to_string();
+                        let bytes =
+                            client.read_file(&path).await.map_err(|e| e.to_string())?;
+                        let temp_path = std::env::temp_dir().join(format!(
+                            "oryxis-{}-{}",
+                            uuid::Uuid::new_v4(),
+                            basename
+                        ));
+                        tokio::fs::write(&temp_path, &bytes)
+                            .await
+                            .map_err(|e| format!("write temp: {e}"))?;
+                        // Same 0600 tightening as the SFTP pane's edit.
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt as _;
+                            let _ = tokio::fs::set_permissions(
+                                &temp_path,
+                                std::fs::Permissions::from_mode(0o600),
+                            )
+                            .await;
+                        }
+                        if let Err(e) = open::that(&temp_path) {
+                            return Err(format!(
+                                "open editor: {e} (temp at {})",
+                                temp_path.display()
+                            ));
+                        }
+                        let initial_mtime = tokio::fs::metadata(&temp_path)
+                            .await
+                            .ok()
+                            .and_then(|m| m.modified().ok());
+                        Ok::<crate::state::EditSession, String>(crate::state::EditSession {
+                            client_override: Some(client.clone()),
+                            remote_path: path,
+                            temp_path,
+                            label: basename,
+                            initial_mtime,
+                            dirty: false,
+                        })
+                    },
+                    move |result| match result {
+                        Ok(session) => Message::SftpEditReady(session),
+                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                    },
+                ));
             }
             Message::SidebarFilesStartEditPath => {
                 let Some(pane) = self.active_pane_mut() else {
@@ -416,6 +780,32 @@ impl Oryxis {
         }
         Task::none()
     }
+}
+
+/// Run a mutation (rename / create / delete) then re-list the current
+/// directory, all on the sidebar browser's channel; the completion
+/// carries the request stamp like any listing.
+fn op_then_list(
+    client: oryxis_ssh::SftpClient,
+    list_path: String,
+    pane_id: Uuid,
+    seq: u64,
+    op: impl std::future::Future<Output = Result<(), oryxis_ssh::SshError>> + Send + 'static,
+) -> Task<Message> {
+    Task::perform(
+        async move {
+            op.await.map_err(|e| e.to_string())?;
+            let entries = client
+                .list_dir(&list_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>((list_path, entries))
+        },
+        move |result| match result {
+            Ok((path, entries)) => Message::SidebarFilesListed(pane_id, seq, path, entries),
+            Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+        },
+    )
 }
 
 /// One directory listing on the sidebar browser's channel. `seq` is the
