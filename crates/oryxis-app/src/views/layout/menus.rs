@@ -630,6 +630,9 @@ impl Oryxis {
                     // Promote the tab's SFTP session to a standalone tab
                     // (the server-to-server dual-remote surface).
                     items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("tab_detach_sftp"), Message::DetachTabSftp(idx), OryxisColors::t().text_secondary));
+                    // Close just the SFTP session, back to a plain
+                    // terminal tab (the terminal keeps running).
+                    items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("tab_close_sftp_session"), Message::CloseTabSftpSession(idx), OryxisColors::t().text_secondary));
                 }
                 // Quick-connect tab: offer to persist the ad-hoc host into
                 // the vault (opens the editor prefilled as a new host).

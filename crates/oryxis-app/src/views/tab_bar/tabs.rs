@@ -667,9 +667,12 @@ pub(crate) fn tab_mode_chip<'a>(idx: usize, fm: bool, fg: Color) -> Element<'a, 
     .padding(0)
     .on_press(Message::ToggleTabFilesMode(idx))
     .style(move |_, status| {
+        // The app's dark surface as the chip fill (owner QA: the
+        // translucent accent wash read washed-out over the active
+        // tab's gradient); hover keeps the standard bg_hover feedback.
         let bg = match status {
-            BtnStatus::Hovered | BtnStatus::Pressed => Color { a: 0.28, ..fg },
-            _ => Color { a: 0.12, ..fg },
+            BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+            _ => OryxisColors::t().bg_sidebar,
         };
         button::Style {
             background: Some(Background::Color(bg)),

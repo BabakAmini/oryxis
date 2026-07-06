@@ -71,7 +71,7 @@ impl Oryxis {
     /// sidebar of the active terminal tab. Keys there never reach
     /// the PTY (the chat-sidebar swallow gate), so promoting them to
     /// navigation costs nothing.
-    fn cursor_over_sidebar(&self) -> bool {
+    pub(crate) fn cursor_over_sidebar(&self) -> bool {
         self.active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| t.chat_visible)

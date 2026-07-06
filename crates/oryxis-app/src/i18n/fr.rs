@@ -929,6 +929,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Ouvrir la session SFTP ici",
         "tab_open_sftp_session" => "Ouvrir une session SFTP",
         "tab_detach_sftp" => "Déplacer le SFTP dans son propre onglet",
+        "tab_close_sftp_session" => "Fermer la session SFTP",
         "tab_detach_sftp_busy" => "Transfert en cours ; réessayez une fois terminé",
         "files_follow_paused" => "Ne suit plus le répertoire du terminal",
         "download" => "Télécharger",

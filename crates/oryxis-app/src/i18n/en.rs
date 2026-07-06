@@ -1014,6 +1014,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "open_sftp_session_here" => "Open SFTP session here",
         "tab_open_sftp_session" => "Open SFTP session",
         "tab_detach_sftp" => "Move SFTP to its own tab",
+        "tab_close_sftp_session" => "Close SFTP session",
         "tab_detach_sftp_busy" => "Transfer in progress; try again when it finishes",
         "files_follow_paused" => "Stopped following the terminal directory",
         "download" => "Download",

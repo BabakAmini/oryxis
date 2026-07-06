@@ -929,6 +929,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "在此打开 SFTP 会话",
         "tab_open_sftp_session" => "打开 SFTP 会话",
         "tab_detach_sftp" => "将 SFTP 移到独立标签页",
+        "tab_close_sftp_session" => "关闭 SFTP 会话",
         "tab_detach_sftp_busy" => "传输进行中，完成后重试",
         "files_follow_paused" => "已停止跟随终端目录",
         "download" => "下载",

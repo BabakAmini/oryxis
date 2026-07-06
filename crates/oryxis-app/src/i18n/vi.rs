@@ -1008,6 +1008,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Mở phiên SFTP tại đây",
         "tab_open_sftp_session" => "Mở phiên SFTP",
         "tab_detach_sftp" => "Chuyển SFTP sang tab riêng",
+        "tab_close_sftp_session" => "Đóng phiên SFTP",
         "tab_detach_sftp_busy" => "Đang truyền; thử lại khi hoàn tất",
         "files_follow_paused" => "Đã ngừng theo thư mục của terminal",
         "download" => "Tải xuống",

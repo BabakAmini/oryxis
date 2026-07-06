@@ -1008,6 +1008,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Buka sesi SFTP di sini",
         "tab_open_sftp_session" => "Buka sesi SFTP",
         "tab_detach_sftp" => "Pindahkan SFTP ke tab sendiri",
+        "tab_close_sftp_session" => "Tutup sesi SFTP",
         "tab_detach_sftp_busy" => "Transfer sedang berjalan; coba lagi setelah selesai",
         "files_follow_paused" => "Berhenti mengikuti direktori terminal",
         "download" => "Unduh",

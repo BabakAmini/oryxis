@@ -890,6 +890,58 @@ impl Oryxis {
                 self.active_tab = None;
                 self.active_view = crate::state::View::Sftp;
             }
+            Message::CloseTabSftpSession(idx) => {
+                // Close ONLY the hybrid tab's SFTP session: drop the
+                // browsing state + channel, back to a plain terminal
+                // tab (the mode glyph disappears with the session). The
+                // terminal keeps running untouched.
+                self.overlay = None;
+                let Some(tab) = self.tabs.get(idx) else {
+                    return Ok(Task::none());
+                };
+                let tab_id = tab._id;
+                if !self.tab_has_sftp_session(tab) {
+                    return Ok(Task::none());
+                }
+                // An in-flight transfer would be killed by dropping the
+                // state mid-run; decline until it finishes (same guard
+                // as the detach path).
+                {
+                    let st: &crate::state::SftpState =
+                        if self.hybrid_sftp_owner == Some(tab_id) {
+                            &self.sftp
+                        } else {
+                            &tab.files_state
+                        };
+                    if st.transfer.is_some() {
+                        self.toast =
+                            Some(crate::i18n::t("tab_detach_sftp_busy").to_string());
+                        return Ok(Task::perform(
+                            async {
+                                tokio::time::sleep(std::time::Duration::from_millis(
+                                    2500,
+                                ))
+                                .await;
+                            },
+                            |_| Message::ToastClear,
+                        ));
+                    }
+                }
+                // If it currently owns the live buffer, park it out
+                // (which resets self.sftp) then discard the slot.
+                if self.hybrid_sftp_owner == Some(tab_id) {
+                    self.park_hybrid_sftp();
+                }
+                if let Some(tab) = self.tabs.get_mut(idx) {
+                    tab.files_mode = false;
+                    *tab.files_state = Default::default();
+                }
+                // Back on the terminal surface; select the tab if it
+                // wasn't already active (a background close leaves focus).
+                if self.active_tab != Some(idx) {
+                    return Ok(self.update(Message::SelectTab(idx)));
+                }
+            }
             Message::OpenTerminalForSftpTab(idx) => {
                 // From an SFTP tab's menu: the way back to a shell on the
                 // mounted host. Focus a live terminal pane on that host,

@@ -1314,6 +1314,28 @@ impl Oryxis {
                         active: false,
                     });
                 }
+                // A click outside the sidebar (i.e. into the terminal or
+                // the vault area) cancels any in-progress inline edit in
+                // the sidebar Files browser (path / rename / new entry),
+                // mirroring the SFTP pane's click-outside-commits rule.
+                // Clicks that land ON the sidebar keep the edit (the
+                // text_input handles its own caret placement).
+                if self.effective_sidebar_tab()
+                    == Some(crate::state::TerminalSidebarTab::Files)
+                    && !self.cursor_over_sidebar()
+                    && let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    let files = &mut tab.active_mut().files;
+                    if files.path_editing.is_some()
+                        || files.rename.is_some()
+                        || files.new_entry.is_some()
+                    {
+                        files.path_editing = None;
+                        files.rename = None;
+                        files.new_entry = None;
+                    }
+                }
                 // Begin a potential internal drag if the cursor is
                 // currently on a row in the SFTP view. The drag stays
                 // pending (active=false) until the user moves past the

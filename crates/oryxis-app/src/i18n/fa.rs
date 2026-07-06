@@ -997,6 +997,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "باز کردن نشست SFTP در اینجا",
         "tab_open_sftp_session" => "باز کردن نشست SFTP",
         "tab_detach_sftp" => "انتقال SFTP به زبانه جداگانه",
+        "tab_close_sftp_session" => "بستن نشست SFTP",
         "tab_detach_sftp_busy" => "انتقال در جریان است؛ پس از پایان دوباره تلاش کنید",
         "files_follow_paused" => "دیگر پوشه ترمینال را دنبال نمی‌کند",
         "download" => "دانلود",

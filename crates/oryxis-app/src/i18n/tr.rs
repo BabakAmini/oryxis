@@ -1008,6 +1008,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Burada SFTP oturumu aç",
         "tab_open_sftp_session" => "SFTP oturumu aç",
         "tab_detach_sftp" => "SFTP'yi kendi sekmesine taşı",
+        "tab_close_sftp_session" => "SFTP oturumunu kapat",
         "tab_detach_sftp_busy" => "Aktarım sürüyor; bitince yeniden deneyin",
         "files_follow_paused" => "Terminal dizini artık izlenmiyor",
         "download" => "İndir",

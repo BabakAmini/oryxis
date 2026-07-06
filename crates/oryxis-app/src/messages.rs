@@ -322,6 +322,10 @@ pub enum Message {
     /// Promote the terminal tab's SFTP session to a standalone SFTP tab
     /// (the server-to-server surface); the hybrid state moves out.
     DetachTabSftp(usize),
+    /// Close ONLY the terminal tab's SFTP session (back to a plain
+    /// terminal tab): drops the browsing state + channel, the mode
+    /// glyph disappears. The terminal keeps running.
+    CloseTabSftpSession(usize),
     /// From an SFTP tab's context menu: focus a live terminal tab on
     /// the mounted host, or connect one.
     OpenTerminalForSftpTab(usize),

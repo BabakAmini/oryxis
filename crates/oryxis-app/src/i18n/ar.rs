@@ -1013,6 +1013,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "فتح جلسة SFTP هنا",
         "tab_open_sftp_session" => "فتح جلسة SFTP",
         "tab_detach_sftp" => "نقل SFTP إلى تبويب مستقل",
+        "tab_close_sftp_session" => "إغلاق جلسة SFTP",
         "tab_detach_sftp_busy" => "النقل جارٍ؛ حاول بعد اكتماله",
         "files_follow_paused" => "توقف عن متابعة مجلد الطرفية",
         "download" => "تنزيل",

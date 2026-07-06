@@ -1014,6 +1014,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Otwórz sesję SFTP tutaj",
         "tab_open_sftp_session" => "Otwórz sesję SFTP",
         "tab_detach_sftp" => "Przenieś SFTP do osobnej karty",
+        "tab_close_sftp_session" => "Zamknij sesję SFTP",
         "tab_detach_sftp_busy" => "Transfer w toku; spróbuj po zakończeniu",
         "files_follow_paused" => "Przestano podążać za katalogiem terminala",
         "download" => "Pobierz",

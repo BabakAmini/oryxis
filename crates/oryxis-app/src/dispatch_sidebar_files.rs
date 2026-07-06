@@ -50,7 +50,18 @@ pub(crate) fn files_join(path: &str, name: &str) -> String {
 /// Extracts the trailing path (absolute or `~`-relative); anything
 /// else (`vim main.rs`, plain program names) yields `None`.
 pub(crate) fn title_cwd(title: &str) -> Option<&str> {
-    let (_, tail) = title.rsplit_once(": ")?;
+    // Preferred: the "\u@\h: \w" form (Debian/Ubuntu default, colon +
+    // space). Fallback: the no-space "\u@\h:\w" some PS1s use, taken
+    // only when the head looks like `user@host` so a stray "note:foo"
+    // title can't masquerade as a cwd.
+    let tail = title
+        .rsplit_once(": ")
+        .map(|(_, t)| t)
+        .or_else(|| {
+            let (head, t) = title.rsplit_once(':')?;
+            head.contains('@').then_some(t)
+        })
+        .unwrap_or(title);
     let tail = tail.trim();
     (tail.starts_with('/') || tail == "~" || tail.starts_with("~/")).then_some(tail)
 }
@@ -841,6 +852,11 @@ mod tests {
         // Colons inside the path segment: the LAST ": " wins.
         assert_eq!(title_cwd("u@h: /data/a: b"), None); // "b" is not a path
         assert_eq!(title_cwd("note: see: /etc"), Some("/etc"));
+        // No-space "\u@\h:\w" form (the head has an '@' so it's trusted).
+        assert_eq!(title_cwd("root@web-01:/var/www"), Some("/var/www"));
+        assert_eq!(title_cwd("root@web-01:~"), Some("~"));
+        // A bare absolute path as the whole title.
+        assert_eq!(title_cwd("/srv/app"), Some("/srv/app"));
     }
 
     #[test]

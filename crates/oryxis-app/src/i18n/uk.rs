@@ -1008,6 +1008,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "Відкрити SFTP-сесію тут",
         "tab_open_sftp_session" => "Відкрити SFTP-сесію",
         "tab_detach_sftp" => "Перемістити SFTP в окрему вкладку",
+        "tab_close_sftp_session" => "Закрити SFTP-сесію",
         "tab_detach_sftp_busy" => "Триває передача; повторіть після завершення",
         "files_follow_paused" => "Більше не слідкує за каталогом термінала",
         "download" => "Завантажити",

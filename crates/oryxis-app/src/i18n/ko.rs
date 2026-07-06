@@ -1008,6 +1008,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_sftp_session_here" => "여기에서 SFTP 세션 열기",
         "tab_open_sftp_session" => "SFTP 세션 열기",
         "tab_detach_sftp" => "SFTP를 별도 탭으로 이동",
+        "tab_close_sftp_session" => "SFTP 세션 닫기",
         "tab_detach_sftp_busy" => "전송 진행 중입니다. 완료 후 다시 시도하세요",
         "files_follow_paused" => "터미널 디렉터리 따라가기를 중지했습니다",
         "download" => "다운로드",
