@@ -920,8 +920,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_tip_files" => "ファイル",
         "files_follow_on_tip" => "ターミナルのディレクトリに追従中。クリックで停止。",
         "files_follow_off_tip" => "ターミナルのディレクトリに追従",
-        "files_follow_on_osc7_tip" => "ターミナルのディレクトリに追従中（OSC 7、正確）。クリックで停止。",
-        "files_follow_on_title_tip" => "ターミナルのディレクトリに追従中（タイトルから。正確にするには設定で OSC 7 を強制を有効化）。クリックで停止。",
         "setting_sftp_force_osc7" => "ディレクトリの正確な追従を強制（OSC 7）",
         "setting_sftp_force_osc7_desc" => "ターミナルのファイルサイドバーはシェルのディレクトリに追従します。シェルが OSC 7 で報告する場合は正確に追従し、そうでなければウィンドウタイトルの解析にフォールバックしますが、一部のプロンプトでは失敗します。これは接続時に小さな設定行を注入し、シェルが常に OSC 7 を報告するようにします。bash/zsh のみ。接続時に 1 行がエコーされ、シェルの PROMPT_COMMAND に追加されます。",
         "setting_sftp_force_osc7_toggle" => "接続時に OSC 7 エミッターを注入",

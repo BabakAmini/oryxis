@@ -1005,8 +1005,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "tab_tip_files" => "Files",
         "files_follow_on_tip" => "Following the terminal directory. Click to stop.",
         "files_follow_off_tip" => "Follow the terminal directory",
-        "files_follow_on_osc7_tip" => "Following the terminal directory (OSC 7, exact). Click to stop.",
-        "files_follow_on_title_tip" => "Following the terminal directory (from the title; enable Force OSC 7 in Settings for exact). Click to stop.",
         "setting_sftp_force_osc7" => "Force exact directory following (OSC 7)",
         "setting_sftp_force_osc7_desc" => "The terminal Files sidebar follows the shell's directory. When the shell reports it via OSC 7, following is exact; otherwise Oryxis falls back to parsing the window title, which breaks with some prompts. This injects a small setup line on connect so the shell always reports OSC 7. bash/zsh only; it echoes one line on connect and adds to the shell's PROMPT_COMMAND.",
         "setting_sftp_force_osc7_toggle" => "Inject OSC 7 emitter on connect",

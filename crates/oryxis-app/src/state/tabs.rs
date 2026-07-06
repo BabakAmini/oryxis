@@ -319,6 +319,10 @@ pub(crate) struct Pane {
     /// Sidebar Files tab: the SFTP browser multiplexed on this pane's
     /// SSH session. Lazily mounted; reset on disconnect.
     pub files: PaneFiles,
+    /// True once the force-OSC7 PROMPT_COMMAND was injected into this
+    /// pane's shell, so toggling the setting on (and reconnects) don't
+    /// stack duplicate emitters. Reset on disconnect.
+    pub osc7_injected: bool,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -401,9 +405,20 @@ impl Pane {
             mouse_hint_shown: false,
             link_hint_shown: false,
             files: PaneFiles::default(),
+            osc7_injected: false,
         }
     }
 }
+
+/// The force-OSC7 setup line: a `PROMPT_COMMAND` that emits a
+/// BEL-terminated OSC 7 (`file://host/cwd`) on every prompt, prepended
+/// to any existing `PROMPT_COMMAND` so the user's own hook still runs.
+/// bash/zsh; a shell without `PROMPT_COMMAND` ignores the assignment.
+/// One line echoes on send (documented in Settings). `${HOSTNAME:-…}`
+/// covers shells that don't export HOSTNAME.
+pub(crate) const OSC7_PROMPT_INJECT: &str =
+    "PROMPT_COMMAND='printf \"\\033]7;file://%s%s\\007\" \
+     \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"'\"${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"\n";
 
 /// Live state of a ZMODEM transfer that has seized a pane's byte stream.
 /// While present, `PtyOutput` for the pane is routed into `wire_tx`

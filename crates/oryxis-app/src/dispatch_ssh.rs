@@ -310,17 +310,18 @@ impl Oryxis {
                     if self.setting_sftp_force_osc7
                         && let Some(ssh) = session.ssh()
                     {
-                        // BEL-terminated OSC 7; our terminal parser reads
-                        // both BEL and ST. `${HOSTNAME:-$(hostname)}`
-                        // covers shells that don't export HOSTNAME.
-                        let inject = "PROMPT_COMMAND='printf \"\\033]7;file://%s%s\\007\" \
-                             \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"'\"${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"\n";
-                        if let Err(e) = ssh.write(inject.as_bytes()) {
+                        if let Err(e) =
+                            ssh.write(crate::state::OSC7_PROMPT_INJECT.as_bytes())
+                        {
                             tracing::warn!(
                                 target = "oryxis::dispatch_ssh",
                                 error = %e,
                                 "failed to inject OSC 7 PROMPT_COMMAND"
                             );
+                        } else if let Some(pane) =
+                            self.tabs[tab_idx].pane_by_id_mut(pane_id)
+                        {
+                            pane.osc7_injected = true;
                         }
                     }
                     tracing::info!("SSH connected: {}", label);
@@ -714,6 +715,9 @@ impl Oryxis {
                         // The sidebar Files channel died with the session;
                         // a reconnect remounts lazily (preferences kept).
                         p.files.reset_for_disconnect();
+                        // A fresh shell on reconnect needs the OSC 7
+                        // inject again.
+                        p.osc7_injected = false;
                         p.session_log_id
                     });
                     if let Some(log_id) = log_id

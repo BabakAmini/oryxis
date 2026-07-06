@@ -960,8 +960,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_tip_files" => "Arquivos",
         "files_follow_on_tip" => "Seguindo o diretório do terminal. Clique para parar.",
         "files_follow_off_tip" => "Seguir o diretório do terminal",
-        "files_follow_on_osc7_tip" => "Seguindo o diretório do terminal (OSC 7, exato). Clique para parar.",
-        "files_follow_on_title_tip" => "Seguindo o diretório do terminal (pelo título; ative Forçar OSC 7 nas Configurações para exato). Clique para parar.",
         "setting_sftp_force_osc7" => "Forçar seguir diretório exato (OSC 7)",
         "setting_sftp_force_osc7_desc" => "A sidebar de Arquivos do terminal segue o diretório do shell. Quando o shell reporta via OSC 7, o seguir é exato; senão o Oryxis recorre a parsear o título da janela, que falha com alguns prompts. Isto injeta uma pequena linha de setup na conexão para o shell sempre reportar OSC 7. Só bash/zsh; ecoa uma linha na conexão e soma ao PROMPT_COMMAND do shell.",
         "setting_sftp_force_osc7_toggle" => "Injetar emissor de OSC 7 na conexão",

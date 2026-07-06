@@ -8,7 +8,7 @@
 
 use iced::border::Radius;
 use iced::widget::{column, container, text, MouseArea, Space};
-use iced::{Background, Border, Element, Length, Padding};
+use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
 use crate::app::{Message, Oryxis};
@@ -83,35 +83,30 @@ impl Oryxis {
             crate::keynav::SidebarRow::button(Message::SidebarFilesToggleFollow),
             stab,
             6.0,
-            action_btn(
+            // The pin fills with an accent wash when following (a clear
+            // toggled-on look) so it never reads as disabled while active.
+            toggle_action_btn(
                 if follow {
-                    iced_fonts::lucide::pin().color(OryxisColors::t().accent)
+                    iced_fonts::lucide::pin()
                 } else {
                     iced_fonts::lucide::pin_off()
                 },
+                follow,
                 Message::SidebarFilesToggleFollow,
-                // While following, the tooltip names the cwd SOURCE so a
-                // test tells OSC 7 (exact) from the title fallback
-                // (heuristic) apart at a glance.
-                if !follow {
-                    t("files_follow_off_tip")
-                } else if pane.cwd_from_osc7 {
-                    t("files_follow_on_osc7_tip")
-                } else {
-                    t("files_follow_on_title_tip")
-                },
+                if follow { t("files_follow_on_tip") } else { t("files_follow_off_tip") },
             ),
         );
         let hidden_btn = self.sidebar_nav_slot(
             crate::keynav::SidebarRow::button(Message::SidebarFilesToggleHidden),
             stab,
             6.0,
-            action_btn(
+            toggle_action_btn(
                 if files.show_hidden {
                     iced_fonts::lucide::eye()
                 } else {
                     iced_fonts::lucide::eye_off()
                 },
+                files.show_hidden,
                 Message::SidebarFilesToggleHidden,
                 if files.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") },
             ),
@@ -412,6 +407,58 @@ fn sidebar_placeholder(label: &str) -> Element<'_, Message> {
         .padding(Padding { top: 40.0, right: 12.0, bottom: 0.0, left: 12.0 })
         .width(Length::Fill)
         .into()
+}
+
+/// A toggle icon action: fills with an accent wash + accent glyph when
+/// `active` (a clear "engaged" look), otherwise a muted glyph with the
+/// standard hover feedback. Wrapped in the same tooltip chrome.
+fn toggle_action_btn<'a>(
+    icon: iced::widget::Text<'a>,
+    active: bool,
+    msg: Message,
+    tip: &'a str,
+) -> Element<'a, Message> {
+    let fg = if active { OryxisColors::t().accent } else { OryxisColors::t().text_muted };
+    let btn = iced::widget::button(
+        container(icon.size(13).color(fg))
+            .center_x(Length::Fixed(28.0))
+            .center_y(Length::Fixed(24.0)),
+    )
+    .padding(0)
+    .on_press(msg)
+    .style(move |_, status| {
+        use iced::widget::button::Status as St;
+        let c = OryxisColors::t();
+        let bg = if active {
+            Color { a: 0.15, ..c.accent }
+        } else {
+            match status {
+                St::Hovered | St::Pressed => c.bg_hover,
+                _ => Color::TRANSPARENT,
+            }
+        };
+        iced::widget::button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    });
+    iced::widget::tooltip(
+        btn,
+        container(text(tip).size(11).color(OryxisColors::t().text_primary))
+            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }),
+        iced::widget::tooltip::Position::Top,
+    )
+    .into()
 }
 
 /// An icon action with a tooltip (same chrome as the History-row actions).

@@ -917,8 +917,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_tip_files" => "Archivos",
         "files_follow_on_tip" => "Siguiendo el directorio del terminal. Clic para detener.",
         "files_follow_off_tip" => "Seguir el directorio del terminal",
-        "files_follow_on_osc7_tip" => "Siguiendo el directorio del terminal (OSC 7, exacto). Clic para detener.",
-        "files_follow_on_title_tip" => "Siguiendo el directorio del terminal (por el título; activa Forzar OSC 7 en Ajustes para exacto). Clic para detener.",
         "setting_sftp_force_osc7" => "Forzar seguimiento exacto del directorio (OSC 7)",
         "setting_sftp_force_osc7_desc" => "La barra de Archivos del terminal sigue el directorio del shell. Si el shell lo informa por OSC 7, el seguimiento es exacto; si no, Oryxis recurre a analizar el título de la ventana, que falla con algunos prompts. Esto inyecta una pequeña línea al conectar para que el shell siempre informe OSC 7. Solo bash/zsh; muestra una línea al conectar y se suma al PROMPT_COMMAND del shell.",
         "setting_sftp_force_osc7_toggle" => "Inyectar emisor OSC 7 al conectar",

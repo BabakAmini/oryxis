@@ -854,6 +854,28 @@ impl Oryxis {
                     "sftp_force_osc7",
                     if self.setting_sftp_force_osc7 { "true" } else { "false" },
                 );
+                // Enabling it applies to LIVE sessions right away (the
+                // per-connect inject only covers future connects): the
+                // "I turned it on and nothing happened" gap. Inject into
+                // every already-connected SSH pane not yet injected; the
+                // next prompt then emits OSC 7 and the sidebar snaps to
+                // the real cwd.
+                if self.setting_sftp_force_osc7 {
+                    for tab in &mut self.tabs {
+                        for pane in tab.pane_grid.panes.values_mut() {
+                            if pane.osc7_injected {
+                                continue;
+                            }
+                            if let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
+                                && ssh
+                                    .write(crate::state::OSC7_PROMPT_INJECT.as_bytes())
+                                    .is_ok()
+                            {
+                                pane.osc7_injected = true;
+                            }
+                        }
+                    }
+                }
             }
             Message::TerminalRightClickChanged(name) => {
                 use crate::util::RightClickMode;
