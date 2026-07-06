@@ -672,6 +672,9 @@ impl Oryxis {
                 }
             }
             Message::ToggleTabFilesMode(idx) => {
+                // Fired from the tab context menu (among others):
+                // dismiss it so it doesn't linger over the new surface.
+                self.overlay = None;
                 // Hybrid tab (issue #61): flip this SSH tab between its
                 // terminal and its host's files (the full dual-pane SFTP
                 // surface). The PTY keeps running underneath; the SFTP
