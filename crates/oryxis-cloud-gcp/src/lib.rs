@@ -94,6 +94,16 @@ pub(crate) fn classify_gcloud_error(stderr: &str) -> CloudError {
     }
 }
 
+/// The gcloud CLI executable. On Windows gcloud ships as `gcloud.cmd` (a
+/// batch wrapper; there is no `gcloud.exe`), which `Command::new("gcloud")`
+/// would fail to resolve, `CreateProcess` only appends `.exe`, not `.cmd`.
+/// Name it explicitly there so a Windows install is found; Rust (>= 1.77)
+/// applies safe batch-argument escaping when the target ends in `.cmd`.
+#[cfg(windows)]
+const GCLOUD_BIN: &str = "gcloud.cmd";
+#[cfg(not(windows))]
+const GCLOUD_BIN: &str = "gcloud";
+
 /// Run `gcloud --quiet <sub...> --project <p>` and return stdout bytes on
 /// success. `--quiet` is prepended so gcloud never blocks on an interactive
 /// prompt (a reauth challenge, a "continue? [Y/n]") when spawned without a
@@ -103,8 +113,14 @@ pub(crate) fn classify_gcloud_error(stderr: &str) -> CloudError {
 pub(crate) async fn run_gcloud(cfg: &GcpConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
     let mut args = vec!["--quiet".to_string()];
     args.extend(gcloud_args(cfg, sub));
-    let output = tokio::process::Command::new("gcloud")
-        .args(&args)
+    let mut cmd = tokio::process::Command::new(GCLOUD_BIN);
+    cmd.args(&args);
+    // On Windows the `.cmd` wrapper would flash a console window over the
+    // GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses it (same
+    // guard the app uses for its own wsl.exe spawns).
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000);
+    let output = cmd
         .output()
         .await
         .map_err(|e| {

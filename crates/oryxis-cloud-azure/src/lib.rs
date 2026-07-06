@@ -102,6 +102,16 @@ pub(crate) fn classify_az_error(stderr: &str) -> CloudError {
     }
 }
 
+/// The Azure CLI executable. On Windows the CLI ships as `az.cmd` (a batch
+/// wrapper; there is no `az.exe`), which `Command::new("az")` would fail to
+/// resolve, `CreateProcess` only appends `.exe`, not `.cmd`. Name it
+/// explicitly there so a Windows install is found; Rust (>= 1.77) applies
+/// safe batch-argument escaping when the target ends in `.cmd`.
+#[cfg(windows)]
+const AZ_BIN: &str = "az.cmd";
+#[cfg(not(windows))]
+const AZ_BIN: &str = "az";
+
 /// Run `az <sub...> --subscription <s> --only-show-errors` and return
 /// stdout bytes on success. `--only-show-errors` keeps warnings out of the
 /// stderr we classify on failure, and gives a TTY-less subprocess clean,
@@ -113,8 +123,14 @@ pub(crate) fn classify_az_error(stderr: &str) -> CloudError {
 pub(crate) async fn run_az(cfg: &AzureConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
     let mut args = az_args(cfg, sub);
     args.push("--only-show-errors".to_string());
-    let output = tokio::process::Command::new("az")
-        .args(&args)
+    let mut cmd = tokio::process::Command::new(AZ_BIN);
+    cmd.args(&args);
+    // On Windows the `.cmd` wrapper would flash a console window over the
+    // GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses it (same
+    // guard the app uses for its own wsl.exe spawns).
+    #[cfg(windows)]
+    cmd.creation_flags(0x0800_0000);
+    let output = cmd
         .output()
         .await
         .map_err(|e| {
