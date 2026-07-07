@@ -127,10 +127,10 @@ mod tests {
     fn protocol_version_consistency() {
         // v5 added the Ed25519 relay handshake (RelayHello /
         // RelayHelloAck / RelayAuth) plus HKDF-SHA256 around the
-        // X25519 DH output. v4 sealed payloads under the raw DH
-        // output, which was acceptable but not best-practice; this
-        // pin catches any accidental version bump or rollback.
-        assert_eq!(PROTOCOL_VERSION, 5);
+        // X25519 DH output. v6 moved the payload AEAD to
+        // XChaCha20-Poly1305 (192-bit nonce). This pin catches any
+        // accidental version bump or rollback.
+        assert_eq!(PROTOCOL_VERSION, 6);
     }
 
     #[test]
@@ -850,5 +850,34 @@ mod tests {
         let vb = Arc::new(Mutex::new(test_vault()));
         assert!(merge_snapshot(&vb, b"", &SNAP_SECRET).is_err());
         assert!(merge_snapshot(&vb, b"NOTORX\x01\x00", &SNAP_SECRET).is_err());
+    }
+
+    /// A v1 snapshot (correct magic, version byte 1, the ChaCha20 /
+    /// 12-byte-nonce format shipped in v0.8.3) must be rejected on the
+    /// header by a v6 reader rather than fed to the wider-nonce cipher.
+    /// The reject is non-destructive: the SFTP caller `?`s out before
+    /// the upload step, so the remote blob is preserved for a still-v5
+    /// device and no data is lost across the coordinated upgrade.
+    #[test]
+    fn snapshot_v1_header_rejected() {
+        use crate::engine::merge_snapshot;
+
+        // ORXSNP magic + little-endian u16 version 1 + arbitrary body.
+        let mut v1_blob = b"ORXSNP".to_vec();
+        v1_blob.extend_from_slice(&1u16.to_le_bytes());
+        v1_blob.extend_from_slice(&[0u8; 64]);
+
+        let vb = Arc::new(Mutex::new(test_vault()));
+        let err = merge_snapshot(&vb, &v1_blob, &SNAP_SECRET)
+            .expect_err("a v1 snapshot must be rejected by a v6 reader");
+        // Must fail on the header version check, NOT incidentally on the
+        // AEAD (a body this size would also fail decrypt). Pin the message
+        // so removing the version gate can't leave the test passing for
+        // the wrong reason.
+        let msg = err.to_string();
+        assert!(
+            msg.contains("version") && msg.contains("unsupported"),
+            "expected a snapshot-version rejection, got: {msg}"
+        );
     }
 }

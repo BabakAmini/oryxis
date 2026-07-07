@@ -34,10 +34,26 @@ use uuid::Uuid;
 /// key is uniform group-independent material rather than a raw curve
 /// point.
 ///
+/// v6 switched the per-record and snapshot AEAD from ChaCha20-Poly1305
+/// (96-bit nonce) to XChaCha20-Poly1305 (192-bit nonce). The wider
+/// random nonce lifts the birthday bound past any realistic message
+/// count, so nonce reuse is a non-issue regardless of sync volume or
+/// key lifetime. The change grows the on-wire nonce 12 -> 24 bytes, so
+/// it is a hard wire break, hence the version bump. The stored SFTP
+/// snapshot carries its own `SNAPSHOT_VERSION` (bumped 1 -> 2 in
+/// lockstep) so an old snapshot blob is rejected on its header rather
+/// than fed to the wrong-length nonce. HKDF / Ed25519 domain labels are
+/// unchanged: only the AEAD nonce length moved, the key material and
+/// handshake signatures are identical to v5.
+///
 /// Older peers cannot interop across a version bump, and that is
-/// intentional. There are no pre-v5 peers in the wild because no
-/// release between v0.6.1 (which shipped v1) and now has gone out.
-pub const PROTOCOL_VERSION: u32 = 5;
+/// intentional. v5 shipped in v0.8.3, so v5 peers and v1 snapshots do
+/// exist in the wild; a v6 device rejects them at the version gate
+/// (P2P handshake) or the snapshot header, which is the coordinated
+/// re-pair / re-sync this bump expects. The reject is non-destructive:
+/// a failed snapshot merge leaves both the local vault and the remote
+/// blob untouched (`dispatch_sftp_sync.rs` refuses to push after it).
+pub const PROTOCOL_VERSION: u32 = 6;
 
 /// Entity types that can be synced.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]

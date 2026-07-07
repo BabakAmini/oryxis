@@ -1,5 +1,5 @@
 use chacha20poly1305::aead::{Aead, OsRng};
-use chacha20poly1305::{ChaCha20Poly1305, KeyInit, Nonce};
+use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::RngCore;
 use uuid::Uuid;
@@ -389,20 +389,18 @@ pub fn derive_peer_secret(dh_output: &[u8]) -> [u8; 32] {
     okm
 }
 
-/// Encrypt payload with shared secret using ChaCha20Poly1305.
+/// Encrypt payload with shared secret using XChaCha20Poly1305.
 ///
-/// Nonce is a fresh 96-bit random per call. The birthday bound on a
-/// 96-bit random nonce is ~2^48 messages per key before a collision
-/// becomes likely (a key collision under AEAD is catastrophic). At
-/// even 100 sync records per second a single per-peer key would take
-/// ~89,000 years to reach that bound, so we're far inside the safe
-/// regime. Re-pairing rotates the key, shrinking the window further.
-///
-/// FUTURE: switching to XChaCha20Poly1305 (192-bit nonce) would lift
-/// the bound past any concern. Deferred because it changes the wire
-/// format (nonce length goes 12 -> 24 bytes), which would require a
-/// protocol-version bump and a coordinated re-pair across every
-/// paired device. Worth it on the next breaking v6 bump, not before.
+/// Nonce is a fresh 192-bit random per call (v6 wire format). A 192-bit
+/// random nonce lifts the birthday bound to ~2^96 messages per key
+/// before a collision becomes likely (a key collision under AEAD is
+/// catastrophic), which is so far past any realistic message count that
+/// random-nonce reuse is a non-issue regardless of sync volume or key
+/// lifetime. This replaced the v5 ChaCha20Poly1305 (96-bit nonce) on
+/// the v6 protocol bump; the change grew the on-wire nonce 12 -> 24
+/// bytes, which is why it rode a breaking `PROTOCOL_VERSION` bump and a
+/// `SNAPSHOT_VERSION` bump (see `protocol.rs` / `engine/snapshot.rs`)
+/// rather than a silent format change.
 pub fn encrypt_payload(plaintext: &[u8], shared_secret: &[u8; 32]) -> Result<Vec<u8>, SyncError> {
     PayloadCipher::new(shared_secret)?.encrypt(plaintext)
 }
@@ -415,29 +413,29 @@ pub fn decrypt_payload(data: &[u8], shared_secret: &[u8; 32]) -> Result<Vec<u8>,
 /// Per-peer AEAD cipher, built once per session or batch. Callers that
 /// seal / open many records in a loop (`collect_records` /
 /// `apply_records`) should construct this once instead of paying the
-/// ChaCha20-Poly1305 key setup per record via [`encrypt_payload`] /
+/// XChaCha20-Poly1305 key setup per record via [`encrypt_payload`] /
 /// [`decrypt_payload`] (which remain as one-shot conveniences).
-pub struct PayloadCipher(ChaCha20Poly1305);
+pub struct PayloadCipher(XChaCha20Poly1305);
 
 impl PayloadCipher {
     pub fn new(shared_secret: &[u8; 32]) -> Result<Self, SyncError> {
-        let cipher = ChaCha20Poly1305::new_from_slice(shared_secret)
+        let cipher = XChaCha20Poly1305::new_from_slice(shared_secret)
             .map_err(|e| SyncError::Crypto(format!("Cipher init: {}", e)))?;
         Ok(Self(cipher))
     }
 
-    /// Seal `plaintext`. Wire layout: 12-byte random nonce || ciphertext.
+    /// Seal `plaintext`. Wire layout: 24-byte random nonce || ciphertext.
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, SyncError> {
-        let mut nonce_bytes = [0u8; 12];
+        let mut nonce_bytes = [0u8; 24];
         OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = Nonce::from_slice(&nonce_bytes);
+        let nonce = XNonce::from_slice(&nonce_bytes);
 
         let ciphertext = self
             .0
             .encrypt(nonce, plaintext)
             .map_err(|e| SyncError::Crypto(format!("Encrypt: {}", e)))?;
 
-        let mut result = Vec::with_capacity(12 + ciphertext.len());
+        let mut result = Vec::with_capacity(24 + ciphertext.len());
         result.extend_from_slice(&nonce_bytes);
         result.extend_from_slice(&ciphertext);
         Ok(result)
@@ -445,13 +443,13 @@ impl PayloadCipher {
 
     /// Open a payload sealed by [`Self::encrypt`].
     pub fn decrypt(&self, data: &[u8]) -> Result<Vec<u8>, SyncError> {
-        if data.len() < 12 + 16 {
+        if data.len() < 24 + 16 {
             return Err(SyncError::Crypto("Data too short".into()));
         }
-        let nonce = Nonce::from_slice(&data[..12]);
+        let nonce = XNonce::from_slice(&data[..24]);
 
         self.0
-            .decrypt(nonce, &data[12..])
+            .decrypt(nonce, &data[24..])
             .map_err(|_| SyncError::Crypto("Decryption failed (wrong key?)".into()))
     }
 }

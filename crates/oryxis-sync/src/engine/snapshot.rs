@@ -26,8 +26,15 @@ use crate::protocol::{DeltaRef, SyncRecord};
 /// Header prefixing a sealed snapshot. A wrong-format or truncated file
 /// then fails on the magic/version check instead of being fed to the
 /// AEAD and surfacing as an opaque decrypt error.
+///
+/// v2 (protocol v6) moved the outer + per-record seal to
+/// XChaCha20-Poly1305 (24-byte nonce). A v1 blob (ChaCha20, 12-byte
+/// nonce, shipped in v0.8.3) is rejected here on the version byte
+/// rather than fed to the wider-nonce cipher: the reject is
+/// non-destructive (the caller refuses to push after a failed merge),
+/// which matches the coordinated re-sync a v6 bump expects.
 const SNAPSHOT_MAGIC: &[u8; 6] = b"ORXSNP";
-const SNAPSHOT_VERSION: u16 = 1;
+const SNAPSHOT_VERSION: u16 = 2;
 const HEADER_LEN: usize = SNAPSHOT_MAGIC.len() + 2;
 
 /// Serialize the entire vault into one encrypted snapshot blob.
