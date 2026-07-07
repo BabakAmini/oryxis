@@ -25,6 +25,12 @@ impl Oryxis {
         let mut vault = VaultStore::open_default().ok();
         let mut vault_state = VaultState::Loading;
         let mut vault_has_user_password = false;
+        // Biometric-unlock state, hydrated pre-unlock (like theme /
+        // language) so the lock screen can offer the affordance without
+        // waiting for the master password. `load_data_from_vault` no
+        // longer re-probes availability (it is stable per session).
+        let mut biometric_unlock_enabled = false;
+        let mut biometric_available = false;
         // Window geometry persisted by `persist_window_geometry`. main()
         // already applied these to the OS window before iced booted; the
         // state fields must agree so the custom chrome renders the right
@@ -111,6 +117,14 @@ impl Oryxis {
                 use crate::i18n::LayoutDirection;
                 LayoutDirection::set_active(LayoutDirection::from_code(&code));
             }
+            // Biometric unlock: read the opt-in and probe platform support
+            // now, so the lock screen can show the affordance before the
+            // vault is unlocked. Availability is a provider-level check
+            // (no vault account needed) and stable for the session.
+            if let Ok(Some(flag)) = v.get_setting("biometric_unlock_enabled") {
+                biometric_unlock_enabled = flag == "true";
+            }
+            biometric_available = oryxis_biometric::default_provider().is_available();
             // Same clamp as main(): a corrupt row must not produce a
             // degenerate size (it feeds terminal layout math via
             // `window_size` before the first Resized event lands).
@@ -530,6 +544,8 @@ impl Oryxis {
                 setting_max_reconnect_attempts: "5".into(),
                 setting_auto_lock_minutes: "0".into(),
                 last_user_activity: std::time::Instant::now(),
+                setting_biometric_unlock_enabled: biometric_unlock_enabled,
+                biometric_available,
                 setting_os_detection: true,
                 setting_session_logging: false,
                 setting_session_log_full: true,
@@ -1344,6 +1360,11 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("auto_lock_minutes") {
                 self.setting_auto_lock_minutes = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("biometric_unlock_enabled") {
+                self.setting_biometric_unlock_enabled = v == "true";
+            }
+            // Availability is probed once at boot (pre-unlock, provider
+            // level) and stays stable for the session, so no re-probe here.
             if let Ok(Some(v)) = vault.get_setting("os_detection") {
                 self.setting_os_detection = v == "true";
             }

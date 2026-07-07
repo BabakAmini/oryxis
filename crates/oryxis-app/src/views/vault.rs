@@ -76,6 +76,26 @@ impl Oryxis {
 
         let btn = styled_button(crate::i18n::t("unlock"), Message::VaultUnlock, OryxisColors::t().accent);
 
+        // Secondary "Unlock with biometrics" affordance, shown only when
+        // the platform supports it, the user opted in, and the vault has a
+        // password to release. It raises the OS presence prompt off-thread
+        // (see `BiometricUnlockRequested`); the typed password stays the
+        // primary path.
+        let biometric_btn: Element<'_, Message> = if self.biometric_unlock_offered() {
+            column![
+                Space::new().height(8),
+                styled_button(
+                    crate::i18n::t("biometric_unlock"),
+                    Message::BiometricUnlockRequested,
+                    OryxisColors::t().bg_hover,
+                ),
+            ]
+            .align_x(iced::Alignment::Center)
+            .into()
+        } else {
+            Space::new().height(0).into()
+        };
+
         let error = if let Some(err) = &self.vault_ui.error {
             Element::from(text(err.clone()).size(13).color(OryxisColors::t().error))
         } else {
@@ -103,7 +123,7 @@ impl Oryxis {
         // language (see `views/onboarding.rs`): same card chrome (radius 18,
         // 1px border, soft drop shadow) and the same two-layer diagonal
         // accent gradient (`widgets::accent_gradient`).
-        let card_inner = column![logo, Space::new().height(16), title, Space::new().height(8), subtitle, Space::new().height(24), input, Space::new().height(12), btn, Space::new().height(8), error, Space::new().height(16), destroy_section]
+        let card_inner = column![logo, Space::new().height(16), title, Space::new().height(8), subtitle, Space::new().height(24), input, Space::new().height(12), btn, biometric_btn, Space::new().height(8), error, Space::new().height(16), destroy_section]
             .width(Length::Fill)
             .align_x(iced::Alignment::Center);
 

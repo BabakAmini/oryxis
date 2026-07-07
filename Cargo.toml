@@ -8,6 +8,7 @@ members = [
     "crates/oryxis-zmodem",
     "crates/oryxis-terminal",
     "crates/oryxis-vault",
+    "crates/oryxis-biometric",
     "crates/oryxis-sync",
     "crates/oryxis-relay",
     "crates/oryxis-cloud",
@@ -103,6 +104,7 @@ oryxis-serial = { path = "crates/oryxis-serial" }
 oryxis-zmodem = { path = "crates/oryxis-zmodem" }
 oryxis-terminal = { path = "crates/oryxis-terminal" }
 oryxis-vault = { path = "crates/oryxis-vault" }
+oryxis-biometric = { path = "crates/oryxis-biometric" }
 oryxis-sync = { path = "crates/oryxis-sync" }
 oryxis-cloud = { path = "crates/oryxis-cloud" }
 oryxis-cloud-aws = { path = "crates/oryxis-cloud-aws" }

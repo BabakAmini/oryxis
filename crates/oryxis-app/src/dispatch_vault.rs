@@ -112,6 +112,11 @@ impl Oryxis {
                             // Retain the password in memory so we can spawn
                             // child windows with it via stdin pipe.
                             self.master_password = Some(self.vault_ui.password_input.clone());
+                            // Keep the OS-keystore copy current so biometric
+                            // unlock reflects the live password (self-heals
+                            // after a rotation). No-op unless opted in;
+                            // enroll never prompts.
+                            self.biometric_reenroll(&self.vault_ui.password_input);
                             self.vault_ui.password_input.clear();
                             self.vault_ui.password_visible = false;
                             self.load_data_from_vault();
@@ -166,6 +171,72 @@ impl Oryxis {
                 }
             }
 
+            // ── Biometric (OS-keystore) unlock ──
+            Message::ToggleBiometricUnlock => {
+                if self.setting_biometric_unlock_enabled {
+                    // Opt out: forget the stored secret unconditionally, then
+                    // flip the setting off and persist.
+                    self.biometric_forget();
+                    self.setting_biometric_unlock_enabled = false;
+                    self.persist_setting("biometric_unlock_enabled", "false");
+                } else {
+                    // Opt in: needs an available backend and the master
+                    // password in hand (we are unlocked). Enroll first; only
+                    // turn the setting on if the store accepted it.
+                    if !self.biometric_available {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("biometric_unlock_failed").to_string(),
+                        ));
+                    }
+                    let Some(pw) = self.master_password.clone() else {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("biometric_unlock_failed").to_string(),
+                        ));
+                    };
+                    match self.biometric_vault().map(|bv| bv.enroll(&pw)) {
+                        Some(Ok(())) => {
+                            self.setting_biometric_unlock_enabled = true;
+                            self.persist_setting("biometric_unlock_enabled", "true");
+                        }
+                        _ => {
+                            return Ok(self.show_toast(
+                                crate::i18n::t("biometric_unlock_failed").to_string(),
+                            ));
+                        }
+                    }
+                }
+            }
+            Message::BiometricUnlockRequested => {
+                let Some(bv) = self.biometric_vault() else {
+                    return Ok(Task::none());
+                };
+                // The retrieval blocks on the OS presence prompt, so run it
+                // off the UI thread and route the outcome back as a message.
+                return Ok(Task::perform(
+                    async move {
+                        tokio::task::spawn_blocking(move || {
+                            bv.unlock_secret().map_err(|e| e.to_string())
+                        })
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string()))
+                    },
+                    Message::BiometricUnlockResult,
+                ));
+            }
+            Message::BiometricUnlockResult(res) => match res {
+                Ok(password) => {
+                    // Feed the released password into the ordinary unlock
+                    // path (which sets `master_password`, boots sync, etc).
+                    self.vault_ui.password_input = password;
+                    return Ok(Task::done(Message::VaultUnlock));
+                }
+                Err(e) => {
+                    tracing::warn!("biometric unlock failed: {e}");
+                    self.vault_ui.error =
+                        Some(crate::i18n::t("biometric_unlock_failed").to_string());
+                }
+            },
+
             // ── Vault password management ──
             Message::ToggleVaultPassword => {
                 if self.vault_ui.has_user_password {
@@ -196,6 +267,14 @@ impl Oryxis {
                             self.vault_ui.password_error = None;
                             self.vault_ui.new_password.clear();
                             self.vault_ui.confirm_password.clear();
+                            // A passwordless vault has nothing to gate, so
+                            // drop any biometric enrollment and turn the
+                            // setting off (it would otherwise dangle on).
+                            if self.setting_biometric_unlock_enabled {
+                                self.biometric_forget();
+                                self.setting_biometric_unlock_enabled = false;
+                                self.persist_setting("biometric_unlock_enabled", "false");
+                            }
                         }
                         Err(e) => {
                             self.vault_ui.password_error = Some(e.to_string());
@@ -283,6 +362,17 @@ impl Oryxis {
                             Ok(()) => {
                                 self.vault_ui.change_password_open = false;
                                 self.vault_ui.password_error = None;
+                                // The in-memory password must track the
+                                // rotation, or sync (which re-opens the vault
+                                // with `master_password`) would keep using
+                                // the old one after a change.
+                                self.master_password =
+                                    Some(self.vault_ui.new_password.clone());
+                                // Refresh the OS-keystore secret to the new
+                                // password in the same flow, so biometric
+                                // unlock doesn't silently break on a stale
+                                // secret. No-op unless opted in.
+                                self.biometric_reenroll(&self.vault_ui.new_password);
                                 self.vault_ui.current_password.clear();
                                 self.vault_ui.new_password.clear();
                                 self.vault_ui.confirm_password.clear();

@@ -25,6 +25,17 @@ pub enum Message {
     VaultSkipPassword,
     VaultDestroyConfirm,
     VaultDestroy,
+    /// Settings toggle: opt in / out of biometric (OS-keystore) unlock.
+    /// Enrolling stores the current master password; disabling forgets it.
+    ToggleBiometricUnlock,
+    /// Lock-screen button: raise the OS presence prompt and, on success,
+    /// unlock with the released master password. The retrieval runs off
+    /// the UI thread (it blocks on the OS prompt) and returns via
+    /// `BiometricUnlockResult`.
+    BiometricUnlockRequested,
+    /// Result of the off-thread biometric retrieval: `Ok(master_password)`
+    /// to feed into the normal unlock, or `Err(message)` to surface.
+    BiometricUnlockResult(Result<String, String>),
 
     // First-run welcome / onboarding carousel (rendered off
     // `VaultState::NeedSetup`). These drive the slide index; the final

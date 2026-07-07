@@ -11,6 +11,7 @@ pub static AmdPowerXpressRequestHighPerformance: u32 = 0;
 
 mod ai;
 mod app;
+mod biometric;
 mod boot;
 mod color_picker;
 mod command_capture;

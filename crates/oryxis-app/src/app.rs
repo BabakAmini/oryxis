@@ -1192,6 +1192,17 @@ pub struct Oryxis {
     /// Instant of the last user input event (keyboard / mouse / IME),
     /// the idle anchor for `setting_auto_lock_minutes`. Not persisted.
     pub(crate) last_user_activity: std::time::Instant,
+    /// Opt-in local unlock via the OS biometric / keystore. When on, a
+    /// successful password unlock stores the master password under OS
+    /// protection (Windows Hello / Touch ID / login keyring) so the lock
+    /// screen can release it after a presence check. Persisted as
+    /// `biometric_unlock_enabled` (off by default). NOT SSH auth; the
+    /// vault stays encrypted with the password-derived key either way.
+    pub(crate) setting_biometric_unlock_enabled: bool,
+    /// Whether this platform / session can service biometric unlock at
+    /// all (probed once at boot via the provider). The whole affordance
+    /// (setting row + lock-screen button) hides when false. Not persisted.
+    pub(crate) biometric_available: bool,
     pub(crate) setting_os_detection: bool,
     /// Global default for recording terminal sessions to the vault. A
     /// per-host `Connection.session_logging` override wins over this.

@@ -46,6 +46,7 @@ oryxis-serial = { workspace = true }
 oryxis-zmodem = { workspace = true }
 oryxis-terminal = { workspace = true }
 oryxis-vault = { workspace = true }
+oryxis-biometric = { workspace = true }
 oryxis-sync = { workspace = true }
 oryxis-cloud = { workspace = true }
 oryxis-plugin-protocol = { workspace = true }

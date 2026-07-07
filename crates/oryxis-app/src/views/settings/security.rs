@@ -389,6 +389,26 @@ impl Oryxis {
             auto_lock_field,
         ]);
 
+        // Biometric (OS-keystore) unlock. Offered only where the platform
+        // supports it and the vault actually has a password to store; the
+        // toggle records its keynav slot here so build order matches the
+        // on-screen order between auto-lock and privacy.
+        let biometric_section: Element<'_, Message> =
+            if self.biometric_available && self.vault_ui.has_user_password {
+                panel_section(column![
+                    self.nav_toggle_row(
+                        crate::i18n::t("biometric_unlock_setting"),
+                        self.setting_biometric_unlock_enabled,
+                        Message::ToggleBiometricUnlock,
+                    ),
+                    text(t("biometric_unlock_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                ])
+            } else {
+                Space::new().height(0).into()
+            };
+
         // Privacy & logging: session recordings, connection
         // history and the retention window. Moved here from the
         // Terminal section, recordings are scrubbed for secrets
@@ -929,6 +949,8 @@ impl Oryxis {
                     lock_row,
                     Space::new().height(24),
                     auto_lock_section,
+                    Space::new().height(12),
+                    biometric_section,
                     Space::new().height(12),
                     privacy_mode_section,
                     Space::new().height(12),
