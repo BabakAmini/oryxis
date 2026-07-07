@@ -488,6 +488,8 @@ impl Oryxis {
                 setting_close_to_tray: false,
                 setting_minimize_to_tray: false,
                 tray_menu_signature: 0,
+                jumplist_signature: 0,
+                jumplist_window_tagged: false,
                 is_window_hidden: false,
                 ipc_state_signature: 0,
                 setting_tab_close_button_side: "left".into(),

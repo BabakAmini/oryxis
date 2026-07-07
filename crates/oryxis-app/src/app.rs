@@ -1021,6 +1021,15 @@ pub struct Oryxis {
     /// burning cycles rebuilding the dynamic submenus 10 times a
     /// second when nothing has changed.
     pub(crate) tray_menu_signature: u64,
+    /// Signature of the recent-hosts set last pushed to the Windows
+    /// taskbar JumpList (label + id per entry). Recomputed on the same
+    /// unconditional-Windows TrayPoll tick; the JumpList only rebuilds
+    /// when it changes. Independent of `tray_menu_signature` so the
+    /// JumpList works even with the tray icon off.
+    pub(crate) jumplist_signature: u64,
+    /// True once the main window has been tagged with the JumpList AUMID
+    /// (a one-shot done on the first TrayPoll after the window exists).
+    pub(crate) jumplist_window_tagged: bool,
     /// True when the main window is currently hidden to the tray
     /// (Win32 ShowWindow(SW_HIDE), via TrayHide / close-to-tray /
     /// minimize-to-tray). Drives the primary's tray menu visibility

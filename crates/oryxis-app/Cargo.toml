@@ -130,6 +130,18 @@ winresource = "0.1"
 # (asInvoker) launches without a prompt, same code path serves both.
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_Diagnostics_Debug", "Win32_Security"] }
+# Higher-level COM ergonomics for the taskbar JumpList (ICustomDestinationList
+# / IShellLink / IPropertyStore), which windows-sys' raw vtables make painful.
+# Same 0.62 the oryxis-biometric crate uses, so Cargo shares one build.
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Variant",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
+    "Win32_UI_Shell_PropertiesSystem",
+] }
 # Cross-platform tray icon, but only built on Windows. macOS and
 # Linux need different lifecycle conventions (LSUIElement on macOS,
 # SNI/AppIndicator on Linux), deferred to a later release.

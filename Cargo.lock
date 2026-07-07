@@ -5539,6 +5539,7 @@ dependencies = [
  "ttf-parser",
  "uuid",
  "wgpu",
+ "windows 0.62.2",
  "windows-sys 0.59.0",
  "winresource",
 ]

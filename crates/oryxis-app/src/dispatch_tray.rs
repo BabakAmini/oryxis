@@ -15,6 +15,12 @@ impl Oryxis {
         match message {
             // -- System tray --
             Message::TrayPoll => {
+                // Windows JumpList refresh rides this unconditional-Windows
+                // tick (it is NOT gated on the tray setting; if TrayPoll
+                // ever becomes tray-gated, move this to its own timer).
+                // Cheap: hashes the top-10 recent hosts and only touches
+                // the shell when that set changed.
+                self.refresh_jumplist();
                 // 500 ms multi-window IPC heartbeat. Rebuild the dynamic
                 // submenu (Active sessions + Recent hosts) when the state
                 // behind it changed, plus the child IPC command drain and
@@ -142,6 +148,23 @@ impl Oryxis {
                 // clicked. On non-Windows targets both polls return
                 // None immediately, so this is harmless overhead.
                 let mut follow_ups: Vec<Task<Message>> = Vec::new();
+
+                // One-shot: tag the main window with the JumpList AUMID so
+                // its taskbar button adopts the identity the list is filed
+                // under. Needs the raw HWND, so it hops through
+                // `iced::window::run` on the UI thread. No-op off Windows.
+                if !self.jumplist_window_tagged {
+                    self.jumplist_window_tagged = true;
+                    follow_ups.push(
+                        iced::window::oldest()
+                            .and_then(|id| {
+                                iced::window::run(id, |window| {
+                                    crate::jumplist::tag_window(window);
+                                })
+                            })
+                            .discard(),
+                    );
+                }
 
                 // Push our state into the tray_ipc registry so the
                 // primary's "Hidden windows" menu reflects any tab
@@ -318,5 +341,44 @@ impl Oryxis {
             m => return Err(m),
         }
         Ok(Task::none())
+    }
+
+    /// Rebuild the Windows taskbar JumpList's recent-hosts category when
+    /// the set changed. Same list as the tray "Recent hosts" submenu (top
+    /// 10 saved connections by `last_used`, never-connected ones filtered
+    /// out). Gated on its own signature so the shell is only touched on a
+    /// real change; a full no-op off Windows.
+    pub(crate) fn refresh_jumplist(&mut self) {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+
+        let mut recent: Vec<&oryxis_core::models::connection::Connection> = self
+            .connections
+            .iter()
+            .filter(|c| c.last_used.is_some())
+            .collect();
+        recent.sort_by_key(|c| std::cmp::Reverse(c.last_used));
+        let entries: Vec<(String, uuid::Uuid)> = recent
+            .iter()
+            .take(10)
+            .map(|c| (c.label.clone(), c.id))
+            .collect();
+
+        // Signature covers label + id so a rename or reorder refreshes.
+        let mut h = DefaultHasher::new();
+        for (label, id) in &entries {
+            label.hash(&mut h);
+            id.hash(&mut h);
+        }
+        let sig = h.finish();
+        if sig == self.jumplist_signature {
+            return;
+        }
+        self.jumplist_signature = sig;
+
+        let Ok(exe) = std::env::current_exe() else {
+            return;
+        };
+        crate::jumplist::set_recent(&exe, crate::i18n::t("tray_recent_hosts"), &entries);
     }
 }

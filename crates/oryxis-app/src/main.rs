@@ -13,6 +13,7 @@ mod ai;
 mod app;
 mod biometric;
 mod boot;
+mod jumplist;
 mod color_picker;
 mod command_capture;
 mod connect_methods;
