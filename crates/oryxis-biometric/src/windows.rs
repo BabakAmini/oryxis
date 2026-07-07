@@ -24,8 +24,28 @@ use windows::Win32::Security::Credentials::{
     CredDeleteW, CredFree, CredReadW, CredWriteW, CREDENTIALW, CRED_PERSIST_LOCAL_MACHINE,
     CRED_TYPE_GENERIC,
 };
+use windows::Win32::System::Com::CoIncrementMTAUsage;
+use windows::Win32::System::WinRT::IUserConsentVerifierInterop;
+use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+use windows_future::IAsyncOperation;
 
 use crate::provider::{BioError, BiometricProvider};
+
+/// Ensure the process has a COM multithreaded apartment so the WinRT
+/// `UserConsentVerifier` calls work from an arbitrary thread. `retrieve`
+/// runs on a Tokio blocking thread that never initialized an apartment,
+/// and WinRT delegates to COM, so without this the Hello calls fail with
+/// `CO_E_NOTINITIALIZED`. `CoIncrementMTAUsage` guarantees an MTA for the
+/// process lifetime and lets any thread that hasn't explicitly joined an
+/// apartment (STA on the UI thread, none on a worker) use it. Idempotent
+/// and cheap; the returned cookie is intentionally leaked to keep the MTA
+/// alive. A thread already in an STA (the winit main thread) keeps using
+/// its STA, which WinRT also supports.
+fn ensure_com_apartment() {
+    // Errors here are non-fatal: a failure just means the subsequent WinRT
+    // call will surface its own error, which we already map to Backend.
+    let _ = unsafe { CoIncrementMTAUsage() };
+}
 
 /// Credential Manager target-name prefix; the per-vault account is
 /// appended so two vaults never share a credential.
@@ -51,10 +71,23 @@ fn target_of(account: &str) -> HSTRING {
 }
 
 /// Raise the Windows Hello prompt and map the outcome to the contract.
-fn verify() -> Result<(), BioError> {
-    let message = HSTRING::from("Unlock your Oryxis vault");
-    let op = UserConsentVerifier::RequestVerificationAsync(&message)
-        .map_err(|e| BioError::Backend(e.message()))?;
+///
+/// A classic desktop (Win32 / winit) app has an HWND, not a WinRT
+/// `CoreWindow`, so the parameterless `RequestVerificationAsync` overload
+/// (which parents the prompt to a `CoreWindow`) throws at runtime. The
+/// supported desktop path is the interop `RequestVerificationForWindowAsync`,
+/// which parents to our HWND. We use the foreground window: at the moment
+/// the user clicks the unlock button, the Oryxis window is focused.
+fn verify(prompt: &str) -> Result<(), BioError> {
+    ensure_com_apartment();
+    let interop: IUserConsentVerifierInterop =
+        windows::core::factory::<UserConsentVerifier, IUserConsentVerifierInterop>()
+            .map_err(|e| BioError::Backend(e.message()))?;
+    let hwnd = unsafe { GetForegroundWindow() };
+    let message = HSTRING::from(prompt);
+    let op: IAsyncOperation<UserConsentVerificationResult> =
+        unsafe { interop.RequestVerificationForWindowAsync(hwnd, &message) }
+            .map_err(|e| BioError::Backend(e.message()))?;
     match pollster::block_on(op.into_future()) {
         Ok(UserConsentVerificationResult::Verified) => Ok(()),
         // Canceled / DeviceBusy / RetriesExhausted / DisabledByPolicy /
@@ -67,6 +100,7 @@ fn verify() -> Result<(), BioError> {
 
 impl BiometricProvider for WindowsHello {
     fn is_available(&self) -> bool {
+        ensure_com_apartment();
         let Ok(op) = UserConsentVerifier::CheckAvailabilityAsync() else {
             return false;
         };
@@ -94,9 +128,9 @@ impl BiometricProvider for WindowsHello {
         unsafe { CredWriteW(&cred, 0) }.map_err(|e| BioError::Backend(e.message()))
     }
 
-    fn retrieve(&self, account: &str) -> Result<String, BioError> {
+    fn retrieve(&self, account: &str, prompt: &str) -> Result<String, BioError> {
         // Presence check first: no Hello, no read.
-        verify()?;
+        verify(prompt)?;
 
         let target = target_of(account);
         let mut pcred: *mut CREDENTIALW = std::ptr::null_mut();

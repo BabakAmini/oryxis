@@ -59,10 +59,11 @@ impl BiometricProvider for SecretServiceStore {
         Self::entry(account)?.set_password(secret).map_err(map_err)
     }
 
-    fn retrieve(&self, account: &str) -> Result<String, BioError> {
+    fn retrieve(&self, account: &str, _prompt: &str) -> Result<String, BioError> {
         // The keyring may prompt to unlock the login collection here if it
         // is locked; on success it returns the secret. No biometric gate
-        // on this platform (see the module note).
+        // and no custom prompt message on this platform (see the module
+        // note), so `_prompt` is unused.
         Self::entry(account)?.get_password().map_err(|e| match e {
             KeyringError::NoEntry => BioError::NotEnrolled,
             other => map_err(other),

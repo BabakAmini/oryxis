@@ -28,11 +28,19 @@ windows = { version = "0.62", features = [
     "Security_Credentials_UI",
     "Win32_Foundation",
     "Win32_Security_Credentials",
+    "Win32_System_Com",
+    "Win32_System_WinRT",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 # windows-future 0.3 dropped the blocking `IAsyncOperation::get()`; the
 # WinRT ops are `IntoFuture` now, so we drive them to completion on the
 # calling (background) thread with a minimal blocking executor.
 pollster = "0.4"
+# `IAsyncOperation` lives in windows-future (the `windows` crate only
+# re-exports `core`), and we must name it to annotate the interop
+# `RequestVerificationForWindowAsync` return type. Cargo unifies this to
+# the same 0.3.x the `windows` crate pulls.
+windows-future = "0.3"
 
 # macOS: Keychain item guarded by a SecAccessControl user-presence flag,
 # so reading it intrinsically raises the Touch ID / passcode prompt. The

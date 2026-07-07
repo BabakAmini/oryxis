@@ -22,8 +22,8 @@ fn vault_with(mock: Arc<MockProvider>, account: &str) -> BiometricVault {
         fn enroll(&self, account: &str, secret: &str) -> Result<(), BioError> {
             self.0.enroll(account, secret)
         }
-        fn retrieve(&self, account: &str) -> Result<String, BioError> {
-            self.0.retrieve(account)
+        fn retrieve(&self, account: &str, prompt: &str) -> Result<String, BioError> {
+            self.0.retrieve(account, prompt)
         }
         fn clear(&self, account: &str) -> Result<(), BioError> {
             self.0.clear(account)
@@ -39,7 +39,7 @@ fn enroll_then_unlock_returns_the_password() {
 
     bv.enroll("hunter2").unwrap();
     assert!(mock.has("vault:a"));
-    assert_eq!(bv.unlock_secret().unwrap(), "hunter2");
+    assert_eq!(bv.unlock_secret("Unlock").unwrap(), "hunter2");
 }
 
 #[test]
@@ -51,7 +51,7 @@ fn refresh_replaces_the_stored_password() {
     bv.refresh("new-pw").unwrap();
     // A rotation that forgot to update the store would return the stale
     // password here; that is exactly the silent break this pins against.
-    assert_eq!(bv.unlock_secret().unwrap(), "new-pw");
+    assert_eq!(bv.unlock_secret("Unlock").unwrap(), "new-pw");
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn disable_clears_and_makes_unlock_fail_not_enrolled() {
     bv.enroll("pw").unwrap();
     bv.disable().unwrap();
     assert!(!mock.has("vault:a"));
-    assert!(matches!(bv.unlock_secret(), Err(BioError::NotEnrolled)));
+    assert!(matches!(bv.unlock_secret("Unlock"), Err(BioError::NotEnrolled)));
 }
 
 #[test]
@@ -81,11 +81,11 @@ fn denied_prompt_surfaces_as_denied() {
 
     bv.enroll("pw").unwrap();
     mock.set_consent(false);
-    assert!(matches!(bv.unlock_secret(), Err(BioError::Denied)));
+    assert!(matches!(bv.unlock_secret("Unlock"), Err(BioError::Denied)));
     // The secret is still stored: a denied prompt must not wipe it, so a
     // retry (or the typed password) still works.
     mock.set_consent(true);
-    assert_eq!(bv.unlock_secret().unwrap(), "pw");
+    assert_eq!(bv.unlock_secret("Unlock").unwrap(), "pw");
 }
 
 #[test]
@@ -96,7 +96,7 @@ fn unavailable_backend_rejects_enroll_and_unlock() {
 
     assert!(!bv.is_available());
     assert!(matches!(bv.enroll("pw"), Err(BioError::Unavailable)));
-    assert!(matches!(bv.unlock_secret(), Err(BioError::Unavailable)));
+    assert!(matches!(bv.unlock_secret("Unlock"), Err(BioError::Unavailable)));
 }
 
 #[test]
@@ -108,13 +108,13 @@ fn accounts_are_isolated() {
     a.enroll("pw-a").unwrap();
     b.enroll("pw-b").unwrap();
     // Two vaults sharing one OS store must not read each other's secret.
-    assert_eq!(a.unlock_secret().unwrap(), "pw-a");
-    assert_eq!(b.unlock_secret().unwrap(), "pw-b");
+    assert_eq!(a.unlock_secret("Unlock").unwrap(), "pw-a");
+    assert_eq!(b.unlock_secret("Unlock").unwrap(), "pw-b");
 
     a.disable().unwrap();
     // Clearing one leaves the other intact.
-    assert!(matches!(a.unlock_secret(), Err(BioError::NotEnrolled)));
-    assert_eq!(b.unlock_secret().unwrap(), "pw-b");
+    assert!(matches!(a.unlock_secret("Unlock"), Err(BioError::NotEnrolled)));
+    assert_eq!(b.unlock_secret("Unlock").unwrap(), "pw-b");
 }
 
 #[test]
@@ -122,7 +122,7 @@ fn unavailable_provider_is_never_available() {
     use crate::provider::UnavailableProvider;
     let bv = BiometricVault::with_provider(Box::new(UnavailableProvider), "vault:a");
     assert!(!bv.is_available());
-    assert!(matches!(bv.unlock_secret(), Err(BioError::Unavailable)));
+    assert!(matches!(bv.unlock_secret("Unlock"), Err(BioError::Unavailable)));
     // disable() stays a no-op success even here.
     bv.disable().unwrap();
 }

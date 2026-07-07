@@ -44,7 +44,10 @@ pub trait BiometricProvider: Send + Sync {
     fn enroll(&self, account: &str, secret: &str) -> Result<(), BioError>;
 
     /// Raise the presence prompt and return the stored secret on success.
-    fn retrieve(&self, account: &str) -> Result<String, BioError>;
+    /// `prompt` is the localized reason line shown in the OS dialog (the
+    /// caller supplies it so it honors the app's language); backends that
+    /// cannot show a custom message (Linux keyring) ignore it.
+    fn retrieve(&self, account: &str, prompt: &str) -> Result<String, BioError>;
 
     /// Remove any stored secret for `account`. Removing a missing entry
     /// is success, not an error (callers disable unconditionally).
@@ -65,7 +68,7 @@ impl BiometricProvider for UnavailableProvider {
         Err(BioError::Unavailable)
     }
 
-    fn retrieve(&self, _account: &str) -> Result<String, BioError> {
+    fn retrieve(&self, _account: &str, _prompt: &str) -> Result<String, BioError> {
         Err(BioError::Unavailable)
     }
 

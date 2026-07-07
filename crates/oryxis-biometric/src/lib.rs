@@ -137,13 +137,14 @@ impl BiometricVault {
 
     /// Raise the platform presence prompt and, on success, return the
     /// enrolled master password for feeding into `VaultStore::unlock`.
+    /// `prompt` is the localized reason line shown in the OS dialog.
     /// Returns [`BioError::NotEnrolled`] when nothing is stored and
     /// [`BioError::Denied`] when the user cancels or fails verification.
-    pub fn unlock_secret(&self) -> Result<String, BioError> {
+    pub fn unlock_secret(&self, prompt: &str) -> Result<String, BioError> {
         if !self.is_available() {
             return Err(BioError::Unavailable);
         }
-        self.provider.retrieve(&self.account)
+        self.provider.retrieve(&self.account, prompt)
     }
 
     /// Re-enroll after the master password changed (rotation / change

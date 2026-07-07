@@ -64,7 +64,7 @@ impl BiometricProvider for MockProvider {
         Ok(())
     }
 
-    fn retrieve(&self, account: &str) -> Result<String, BioError> {
+    fn retrieve(&self, account: &str, _prompt: &str) -> Result<String, BioError> {
         if !self.is_available() {
             return Err(BioError::Unavailable);
         }

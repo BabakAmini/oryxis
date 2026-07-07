@@ -152,17 +152,17 @@ impl BiometricProvider for TouchId {
         }
     }
 
-    fn retrieve(&self, account: &str) -> Result<String, BioError> {
+    fn retrieve(&self, account: &str, prompt: &str) -> Result<String, BioError> {
         let mut pairs = base_pairs(account);
         pairs.push((key(unsafe { kSecReturnData }), cf_true()));
         pairs.push((
             key(unsafe { kSecMatchLimit }),
             key(unsafe { kSecMatchLimitOne }),
         ));
-        // The prompt string shown above the Touch ID sheet.
+        // The (localized) reason string shown above the Touch ID sheet.
         pairs.push((
             key(unsafe { kSecUseOperationPrompt }),
-            CFString::new("Unlock your Oryxis vault").as_CFType(),
+            CFString::new(prompt).as_CFType(),
         ));
 
         let dict = CFDictionary::from_CFType_pairs(&pairs);

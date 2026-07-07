@@ -210,12 +210,15 @@ impl Oryxis {
                 let Some(bv) = self.biometric_vault() else {
                     return Ok(Task::none());
                 };
+                // Localized reason line for the OS prompt (Touch ID sheet /
+                // Hello dialog); captured before the move into the worker.
+                let prompt = crate::i18n::t("biometric_unlock").to_string();
                 // The retrieval blocks on the OS presence prompt, so run it
                 // off the UI thread and route the outcome back as a message.
                 return Ok(Task::perform(
                     async move {
                         tokio::task::spawn_blocking(move || {
-                            bv.unlock_secret().map_err(|e| e.to_string())
+                            bv.unlock_secret(&prompt).map_err(|e| e.to_string())
                         })
                         .await
                         .unwrap_or_else(|e| Err(e.to_string()))
@@ -311,6 +314,12 @@ impl Oryxis {
                             self.vault_ui.has_user_password = true;
                             self.vault_ui.show_password_form = false;
                             self.vault_ui.password_error = None;
+                            // Track the newly-set password in memory (a
+                            // previously passwordless vault had none), so
+                            // sync and a subsequent biometric opt-in have
+                            // the credential to work with.
+                            self.master_password =
+                                Some(self.vault_ui.new_password.clone());
                             self.vault_ui.new_password.clear();
                             self.vault_ui.confirm_password.clear();
                         }
