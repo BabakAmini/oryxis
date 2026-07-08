@@ -114,16 +114,23 @@ impl Oryxis {
                         ));
                     }
                 };
-                // Header env.TERM mirrors what the PTY actually requested:
+                // Header term.type mirrors what the PTY actually requested:
                 // the connection's terminal_type, or the engine's default.
                 // A deleted / quick-connect host falls back the same way.
-                let term = self
+                // The embedded theme resolves like the live pane did:
+                // per-host override first, then the global theme.
+                let conn = self
                     .connections
                     .iter()
-                    .find(|c| c.id == entry.connection_id)
+                    .find(|c| c.id == entry.connection_id);
+                let term = conn
                     .and_then(|c| c.terminal_type.as_deref())
                     .unwrap_or("xterm-256color");
-                let body = build_asciicast(&entry.label, entry.started_at, term, &events);
+                let palette = conn
+                    .map(|c| self.resolve_terminal_palette_for_connection(c))
+                    .unwrap_or_else(|| self.resolve_global_terminal_palette());
+                let body =
+                    build_asciicast(&entry.label, entry.started_at, term, &palette, &events);
                 let default_name = format!(
                     "oryxis-{}-{}.cast",
                     crate::util::sanitize_file_stem(&entry.label),
@@ -309,20 +316,26 @@ impl Oryxis {
     }
 }
 
-/// Serialize a recorded session as an asciicast v2 document: a JSON
-/// header line (`version: 2`, geometry, start timestamp, title,
-/// `env.TERM`), then one `[time_sec, "o"|"r", data]` line per event.
-/// Output-only by design: input events are never recorded, so the
-/// keystroke-leak class doesn't exist here. Chunks recorded before the
-/// timing migration (`offset_ms = None`) replay with a small fixed
-/// delta so old logs still play, just without real pacing. No
-/// `idle_time_limit` on purpose: capping pauses in the file would bake
-/// a pacing opinion into a 1:1 recording; players take it as a
-/// playback option instead.
+/// Serialize a recorded session as an asciicast v3 document: a JSON
+/// header line (`version: 3`, a `term` object carrying geometry,
+/// terminal type and the effective color theme, start timestamp,
+/// title), then one `[interval_sec, "o"|"r", data]` line per event,
+/// timed as the interval since the PREVIOUS event (v3 semantics; the
+/// stored offsets are integer milliseconds, so emitted intervals sum
+/// exactly and need no rounding-drift correction). The embedded
+/// `term.theme` is what lets players and agg reproduce the terminal
+/// colors without any side-channel. Output-only by design: input
+/// events are never recorded, so the keystroke-leak class doesn't
+/// exist here. Chunks recorded before the timing migration
+/// (`offset_ms = None`) replay with a small fixed delta so old logs
+/// still play, just without real pacing. No `idle_time_limit` on
+/// purpose: capping pauses in the file would bake a pacing opinion
+/// into a 1:1 recording; players take it as a playback option instead.
 fn build_asciicast(
     label: &str,
     started_at: chrono::DateTime<chrono::Utc>,
     term: &str,
+    palette: &oryxis_terminal::TerminalPalette,
     events: &[oryxis_vault::SessionLogEvent],
 ) -> String {
     // Geometry: the first recorded resize (the initial size lands on
@@ -336,16 +349,30 @@ fn build_asciicast(
             Some((c.parse::<u16>().ok()?, r.parse::<u16>().ok()?))
         })
         .unwrap_or((80, 24));
+    let hex = crate::theme::color_to_hex;
+    let theme_palette: String = palette
+        .ansi
+        .iter()
+        .map(|c| hex(*c))
+        .collect::<Vec<_>>()
+        .join(":");
     let mut out = String::new();
     out.push_str(&format!(
         "{}\n",
         serde_json::json!({
-            "version": 2,
-            "width": width,
-            "height": height,
+            "version": 3,
+            "term": {
+                "cols": width,
+                "rows": height,
+                "type": term,
+                "theme": {
+                    "fg": hex(palette.foreground),
+                    "bg": hex(palette.background),
+                    "palette": theme_palette,
+                },
+            },
             "timestamp": started_at.timestamp(),
             "title": label,
-            "env": { "TERM": term },
         })
     ));
     /// Untimed-chunk replay step (legacy rows), in milliseconds.
@@ -353,18 +380,19 @@ fn build_asciicast(
     let mut last_ms: i64 = 0;
     for event in events {
         let ms = match event.offset_ms {
-            // Times must be non-decreasing for players; clamp against
-            // interleavings (a resize stamped at flush time can sit a
-            // hair before the chunk rows written in the same batch).
+            // Intervals must be >= 0; clamp against interleavings (a
+            // resize stamped at flush time can sit a hair before the
+            // chunk rows written in the same batch).
             Some(ms) => ms.max(last_ms),
             None => last_ms + LEGACY_DELTA_MS,
         };
+        let interval_ms = ms - last_ms;
         last_ms = ms;
         let kind = if event.kind == 'r' { "r" } else { "o" };
         let data = String::from_utf8_lossy(&event.data);
         out.push_str(&format!(
             "{}\n",
-            serde_json::json!([ms as f64 / 1000.0, kind, data])
+            serde_json::json!([interval_ms as f64 / 1000.0, kind, data])
         ));
     }
     out
@@ -406,6 +434,10 @@ mod tests {
         SessionLogEvent { offset_ms, kind, data: data.to_vec() }
     }
 
+    fn palette() -> oryxis_terminal::TerminalPalette {
+        oryxis_terminal::TerminalPalette::default()
+    }
+
     #[test]
     fn asciicast_header_reads_geometry_from_the_first_resize() {
         let started = chrono::DateTime::parse_from_rfc3339("2026-07-04T12:00:00Z")
@@ -415,16 +447,17 @@ mod tests {
             "host-a",
             started,
             "xterm-256color",
+            &palette(),
             &[ev(Some(0), 'r', b"120x30"), ev(Some(100), 'o', b"hi")],
         );
         let mut lines = cast.lines();
         let header: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
-        assert_eq!(header["version"], 2);
-        assert_eq!(header["width"], 120);
-        assert_eq!(header["height"], 30);
+        assert_eq!(header["version"], 3);
+        assert_eq!(header["term"]["cols"], 120);
+        assert_eq!(header["term"]["rows"], 30);
+        assert_eq!(header["term"]["type"], "xterm-256color");
         assert_eq!(header["title"], "host-a");
         assert_eq!(header["timestamp"], started.timestamp());
-        assert_eq!(header["env"]["TERM"], "xterm-256color");
         let first: serde_json::Value = serde_json::from_str(lines.next().unwrap()).unwrap();
         assert_eq!(first[1], "r");
         assert_eq!(first[2], "120x30");
@@ -435,31 +468,62 @@ mod tests {
     }
 
     #[test]
-    fn untimed_events_replay_with_a_fixed_delta_and_times_never_regress() {
+    fn asciicast_header_embeds_the_terminal_theme() {
+        let cast = build_asciicast(
+            "host-a",
+            chrono::Utc::now(),
+            "xterm-256color",
+            &palette(),
+            &[ev(Some(0), 'o', b"hi")],
+        );
+        let header: serde_json::Value =
+            serde_json::from_str(cast.lines().next().unwrap()).unwrap();
+        let theme = &header["term"]["theme"];
+        let is_hex = |v: &serde_json::Value| {
+            let s = v.as_str().unwrap();
+            s.len() == 7
+                && s.starts_with('#')
+                && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+        };
+        assert!(is_hex(&theme["fg"]), "bad fg: {theme}");
+        assert!(is_hex(&theme["bg"]), "bad bg: {theme}");
+        // The v3 spec wants 8 or 16 colon-separated #rrggbb entries;
+        // we always emit the full 16-color ANSI set.
+        let colors: Vec<&str> =
+            theme["palette"].as_str().unwrap().split(':').collect();
+        assert_eq!(colors.len(), 16, "bad palette: {theme}");
+        assert!(colors
+            .iter()
+            .all(|c| c.len() == 7 && c.starts_with('#')));
+    }
+
+    #[test]
+    fn untimed_events_replay_with_a_fixed_delta_and_intervals_never_regress() {
         let started = chrono::Utc::now();
         let cast = build_asciicast(
             "legacy",
             started,
             "vt100",
+            &palette(),
             &[
                 ev(None, 'o', b"one"),
                 ev(None, 'o', b"two"),
                 // A stamped event earlier than the synthetic clock must
-                // clamp forward, players reject regressing times.
+                // clamp forward: v3 intervals are relative to the
+                // previous event and can never be negative.
                 ev(Some(20), 'o', b"three"),
             ],
         );
-        let times: Vec<f64> = cast
+        let intervals: Vec<f64> = cast
             .lines()
             .skip(1)
             .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap()[0].as_f64().unwrap())
             .collect();
-        assert_eq!(times.len(), 3);
-        assert!(times.windows(2).all(|w| w[0] <= w[1]), "times regressed: {times:?}");
+        assert_eq!(intervals, vec![0.05, 0.05, 0.0]);
         // No resize event anywhere: the header falls back to 80x24.
         let header: serde_json::Value =
             serde_json::from_str(cast.lines().next().unwrap()).unwrap();
-        assert_eq!(header["width"], 80);
-        assert_eq!(header["height"], 24);
+        assert_eq!(header["term"]["cols"], 80);
+        assert_eq!(header["term"]["rows"], 24);
     }
 }

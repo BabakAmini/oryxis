@@ -233,7 +233,7 @@ pub const UI_COLOR_FIELDS: [(&str, &str); 21] = [
     ("Button text", "Buttons"),
 ];
 
-fn color_to_hex(c: Color) -> String {
+pub(crate) fn color_to_hex(c: Color) -> String {
     let q = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
     format!("#{:02x}{:02x}{:02x}", q(c.r), q(c.g), q(c.b))
 }
