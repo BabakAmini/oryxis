@@ -546,6 +546,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "导出为文本",
         "export_cast_tip" => "导出 .cast（asciinema）",
         "export_transcript_tip" => "导出文字记录（.txt）",
+        "export_commands_tip" => "导出输入的命令（.txt）",
+        "session_export_commands_empty" => "此会话未记录任何输入的命令",
         "session_export_privacy_note" => "导出的是原始录制内容；隐私模式的遮罩仅作用于显示。",
         "history_export_done" => "已导出到 {path}",
         "history_export_failed" => "导出失败：{error}",

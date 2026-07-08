@@ -450,6 +450,9 @@ impl Oryxis {
                 // (Privacy Mode is resolved per pane at delivery).
                 let mut smart_notifications: Vec<(String, String, String)> = Vec::new();
                 let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
+                // (log id, offset_ms, command) rows for the session
+                // recording's 'c' chunks, written after the borrow ends.
+                let mut session_cmds: Vec<(uuid::Uuid, Option<i64>, String)> = Vec::new();
                 // Set when this batch carried an OSC 7 cwd; feeds the
                 // sidebar Files follow after the pane borrow ends.
                 let mut cwd_changed = false;
@@ -498,6 +501,17 @@ impl Oryxis {
                             // that just started: label its run with it.
                             if smart_enabled && let Some(cmd) = cmds.last() {
                                 pane.last_submitted = Some(cmd.clone());
+                            }
+                            // A recording session stores the resolved
+                            // captures as 'c' chunks too (input-only
+                            // export), regardless of the history setting.
+                            if let Some(log_id) = pane.session_log_id {
+                                let off = pane
+                                    .session_log_t0
+                                    .map(|t| t.elapsed().as_millis() as i64);
+                                session_cmds.extend(
+                                    cmds.iter().map(|c| (log_id, off, c.clone())),
+                                );
                             }
                             if capture_enabled
                                 && let crate::state::PaneOrigin::Host(hid) = &pane.origin
@@ -660,6 +674,9 @@ impl Oryxis {
                 }
                 for (host, cmd) in captured_cmds {
                     self.record_command_history(host, cmd);
+                }
+                for (log_id, off, cmd) in session_cmds {
+                    self.record_session_command(&log_id, off, &cmd);
                 }
                 if over_threshold {
                     self.flush_session_logs();

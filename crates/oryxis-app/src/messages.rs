@@ -993,6 +993,9 @@ pub enum Message {
     /// Export a recorded session as a plain-text transcript (ANSI
     /// resolved and stripped by the same renderer the viewer uses).
     ExportSessionTranscript(Uuid),
+    /// Export only the commands typed during a recorded session (the
+    /// 'c' chunks) as a plain-text file.
+    ExportSessionCommands(Uuid),
     CloseSessionLogView,
     /// Ask for confirmation before deleting one recording; the
     /// dialog's action carries `DeleteSessionLog`.

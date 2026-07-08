@@ -676,6 +676,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "history_export_tip" => "Export as text",
         "export_cast_tip" => "Export .cast (asciinema)",
         "export_transcript_tip" => "Export transcript (.txt)",
+        "export_commands_tip" => "Export typed commands (.txt)",
+        "session_export_commands_empty" => "No typed commands recorded in this session",
         "session_export_privacy_note" => "Exports carry the raw recording; Privacy Mode masking is display-only.",
         "history_export_done" => "Exported to {path}",
         "history_export_failed" => "Export failed: {error}",

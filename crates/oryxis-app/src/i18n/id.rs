@@ -670,6 +670,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Ekspor sebagai teks",
         "export_cast_tip" => "Ekspor .cast (asciinema)",
         "export_transcript_tip" => "Ekspor transkrip (.txt)",
+        "export_commands_tip" => "Ekspor perintah yang diketik (.txt)",
+        "session_export_commands_empty" => "Tidak ada perintah yang diketik terekam di sesi ini",
         "session_export_privacy_note" => "Ekspor memuat rekaman mentah; penyamaran Mode Privasi hanya berlaku di tampilan.",
         "history_export_done" => "Diekspor ke {path}",
         "history_export_failed" => "Gagal mengekspor: {error}",

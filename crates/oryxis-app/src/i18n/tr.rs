@@ -670,6 +670,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Metin olarak dışa aktar",
         "export_cast_tip" => ".cast dışa aktar (asciinema)",
         "export_transcript_tip" => "Dökümü dışa aktar (.txt)",
+        "export_commands_tip" => "Yazılan komutları dışa aktar (.txt)",
+        "session_export_commands_empty" => "Bu oturumda kaydedilmiş yazılan komut yok",
         "session_export_privacy_note" => "Dışa aktarma ham kaydı içerir; Gizlilik Modu maskesi yalnızca görseldir.",
         "history_export_done" => "{path} konumuna aktarıldı",
         "history_export_failed" => "Dışa aktarma başarısız: {error}",

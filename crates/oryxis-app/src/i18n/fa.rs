@@ -672,6 +672,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "خروجی متنی",
         "export_cast_tip" => "خروجی ‎.cast (asciinema)",
         "export_transcript_tip" => "خروجی متن جلسه (.txt)",
+        "export_commands_tip" => "خروجی فرمان‌های تایپ‌شده (.txt)",
+        "session_export_commands_empty" => "هیچ فرمان تایپ‌شده‌ای در این نشست ثبت نشده است",
         "session_export_privacy_note" => "خروجی شامل ضبط خام است؛ پوشش حالت حریم خصوصی فقط نمایشی است.",
         "history_export_done" => "در {path} ذخیره شد",
         "history_export_failed" => "خطا در خروجی گرفتن: {error}",

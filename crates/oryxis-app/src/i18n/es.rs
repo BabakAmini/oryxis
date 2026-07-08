@@ -543,6 +543,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Exportar como texto",
         "export_cast_tip" => "Exportar .cast (asciinema)",
         "export_transcript_tip" => "Exportar transcripción (.txt)",
+        "export_commands_tip" => "Exportar comandos escritos (.txt)",
+        "session_export_commands_empty" => "No hay comandos escritos registrados en esta sesión",
         "session_export_privacy_note" => "La exportación lleva la grabación en bruto; el enmascarado del Modo Privacidad es solo visual.",
         "history_export_done" => "Exportado a {path}",
         "history_export_failed" => "Error al exportar: {error}",

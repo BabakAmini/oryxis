@@ -670,6 +670,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Експортувати як текст",
         "export_cast_tip" => "Експорт .cast (asciinema)",
         "export_transcript_tip" => "Експорт розшифровки (.txt)",
+        "export_commands_tip" => "Експорт введених команд (.txt)",
+        "session_export_commands_empty" => "У цьому сеансі не записано введених команд",
         "session_export_privacy_note" => "Експорт містить необроблений запис; маскування режиму приватності діє лише на екрані.",
         "history_export_done" => "Експортовано до {path}",
         "history_export_failed" => "Помилка експорту: {error}",

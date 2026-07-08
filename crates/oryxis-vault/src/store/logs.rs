@@ -259,6 +259,31 @@ impl VaultStore {
         Ok(())
     }
 
+    /// Record one typed command in a session log (`kind = 'c'`, data =
+    /// the command text, sealed like output). These rows feed the
+    /// input-only (.txt) export; they are never part of the output
+    /// byte stream (`get_session_data` filters on 'o') and the
+    /// asciicast export skips them, so replay stays output-only.
+    /// The text comes from the command-history capture, whose gates
+    /// (prompt state, echo check) already keep unechoed secrets out.
+    pub fn append_session_command(
+        &self,
+        id: &Uuid,
+        offset_ms: Option<i64>,
+        cmd: &str,
+    ) -> Result<(), VaultError> {
+        if cmd.is_empty() {
+            return Ok(());
+        }
+        let sealed = self.seal_chunk(cmd.as_bytes())?;
+        self.db.execute(
+            "INSERT INTO session_log_chunks (log_id, data, offset_ms, kind)
+             VALUES (?1, ?2, ?3, 'c')",
+            params![id.to_string(), sealed, offset_ms],
+        )?;
+        Ok(())
+    }
+
     /// Set ended_at = now on a session log.
     pub fn end_session_log(&self, id: &Uuid) -> Result<(), VaultError> {
         let now = Utc::now().to_rfc3339();
@@ -421,8 +446,9 @@ impl VaultStore {
 
     /// Timed event stream for the asciicast export: the legacy inline
     /// blob first (no timing), then every chunk in append order with
-    /// its capture offset and kind ('o' output / 'r' resize).
-    /// Pre-migration chunks come back with `offset_ms = None`.
+    /// its capture offset and kind ('o' output / 'r' resize /
+    /// 'c' typed command). Pre-migration chunks come back with
+    /// `offset_ms = None`.
     pub fn get_session_events(
         &self,
         id: &Uuid,
@@ -461,7 +487,48 @@ impl VaultStore {
             };
             events.push(SessionLogEvent {
                 offset_ms,
-                kind: if kind == "r" { 'r' } else { 'o' },
+                // Unknown kinds (from a future version) degrade to
+                // output rather than dropping recorded bytes.
+                kind: match kind.as_str() {
+                    "r" => 'r',
+                    "c" => 'c',
+                    _ => 'o',
+                },
+                data: Self::decode_chunk(plain, comp),
+            });
+        }
+        Ok(events)
+    }
+
+    /// The typed commands of a session (`kind = 'c'` rows only), in
+    /// capture order, for the input-only export. Empty for sessions
+    /// recorded before command rows existed.
+    pub fn get_session_commands(
+        &self,
+        id: &Uuid,
+    ) -> Result<Vec<SessionLogEvent>, VaultError> {
+        let key = self.session_log_key().ok();
+        let mut stmt = self.db.prepare(
+            "SELECT data, offset_ms, comp FROM session_log_chunks
+             WHERE log_id = ?1 AND kind = 'c' ORDER BY id",
+        )?;
+        let rows = stmt.query_map(params![id.to_string()], |row| {
+            Ok((
+                row.get::<_, Vec<u8>>(0)?,
+                row.get::<_, Option<i64>>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+        let mut events: Vec<SessionLogEvent> = Vec::new();
+        for row in rows {
+            let (chunk, offset_ms, comp) = row?;
+            let plain = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
+                Some(plain) => plain,
+                None => chunk,
+            };
+            events.push(SessionLogEvent {
+                offset_ms,
+                kind: 'c',
                 data: Self::decode_chunk(plain, comp),
             });
         }

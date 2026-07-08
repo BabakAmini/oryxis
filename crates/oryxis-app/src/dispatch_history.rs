@@ -172,6 +172,41 @@ impl Oryxis {
                 );
                 return Ok(save_text_file_task(body, default_name, "txt"));
             }
+            Message::ExportSessionCommands(log_id) => {
+                self.overlay = None;
+                // 'c' rows are written at capture time (never buffered),
+                // so no flush is needed here.
+                let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
+                    return Ok(Task::none());
+                };
+                let Some(vault) = &self.vault else {
+                    return Ok(Task::none());
+                };
+                let events = match vault.get_session_commands(&log_id) {
+                    Ok(ev) => ev,
+                    Err(e) => {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("history_export_failed")
+                                .replace("{error}", &e.to_string()),
+                        ));
+                    }
+                };
+                // Pre-feature recordings (and sessions where nothing was
+                // typed at a prompt) have no command rows; say so instead
+                // of silently writing an empty file.
+                if events.is_empty() {
+                    return Ok(self.show_toast(
+                        crate::i18n::t("session_export_commands_empty").to_string(),
+                    ));
+                }
+                let body = build_command_export(&entry.label, entry.started_at, &events);
+                let default_name = format!(
+                    "oryxis-{}-{}-input.txt",
+                    crate::util::sanitize_file_stem(&entry.label),
+                    entry.started_at.format("%Y%m%d-%H%M%S"),
+                );
+                return Ok(save_text_file_task(body, default_name, "txt"));
+            }
             Message::RequestDeleteSessionLog(idx) => {
                 // Reached from the row kebab; drop it before the dialog.
                 self.overlay = None;
@@ -379,6 +414,13 @@ fn build_asciicast(
     const LEGACY_DELTA_MS: i64 = 50;
     let mut last_ms: i64 = 0;
     for event in events {
+        // Typed-command rows feed the input-only .txt export; the cast
+        // replay stays output-only (they are not asciicast "i" events:
+        // resolved command lines, not keystrokes, and their echo is
+        // already in the output stream).
+        if event.kind == 'c' {
+            continue;
+        }
         let ms = match event.offset_ms {
             // Intervals must be >= 0; clamp against interleavings (a
             // resize stamped at flush time can sit a hair before the
@@ -394,6 +436,36 @@ fn build_asciicast(
             "{}\n",
             serde_json::json!([interval_ms as f64 / 1000.0, kind, data])
         ));
+    }
+    out
+}
+
+/// Input-only export body: a small header, then one line per typed
+/// command in capture order. Timed rows (full-detail recording)
+/// prefix the absolute timestamp, tab-separated, mirroring the
+/// per-host command-history export; untimed rows are bare. Multi-line
+/// commands indent their continuation lines, same convention as the
+/// live-append log.
+fn build_command_export(
+    label: &str,
+    started_at: chrono::DateTime<chrono::Utc>,
+    events: &[oryxis_vault::SessionLogEvent],
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# Oryxis session input: {label}\n# Session started {}\n\n",
+        started_at.to_rfc3339()
+    ));
+    for event in events {
+        let cmd = String::from_utf8_lossy(&event.data);
+        let cmd_one = cmd.replace('\n', "\n    ");
+        match event.offset_ms {
+            Some(ms) => {
+                let at = started_at + chrono::Duration::milliseconds(ms);
+                out.push_str(&format!("{}\t{}\n", at.to_rfc3339(), cmd_one));
+            }
+            None => out.push_str(&format!("{cmd_one}\n")),
+        }
     }
     out
 }
@@ -495,6 +567,53 @@ mod tests {
         assert!(colors
             .iter()
             .all(|c| c.len() == 7 && c.starts_with('#')));
+    }
+
+    #[test]
+    fn asciicast_skips_typed_command_rows() {
+        let started = chrono::Utc::now();
+        let cast = build_asciicast(
+            "host-a",
+            started,
+            "xterm-256color",
+            &palette(),
+            &[
+                ev(Some(0), 'o', b"prompt$ "),
+                ev(Some(50), 'c', b"ls -la"),
+                ev(Some(100), 'o', b"total 0"),
+            ],
+        );
+        assert!(
+            !cast.contains("ls -la"),
+            "command row leaked into the cast: {cast}"
+        );
+        assert_eq!(cast.lines().count(), 3, "header + 2 output events");
+    }
+
+    #[test]
+    fn command_export_prefixes_timestamps_and_indents_continuations() {
+        let started = chrono::DateTime::parse_from_rfc3339("2026-07-08T10:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let body = super::build_command_export(
+            "host-a",
+            started,
+            &[
+                ev(Some(60_000), 'c', b"ls -la"),
+                ev(None, 'c', b"for f in *; do\necho $f\ndone"),
+            ],
+        );
+        assert!(body.starts_with("# Oryxis session input: host-a\n"));
+        assert!(
+            body.contains("2026-07-08T10:01:00+00:00\tls -la\n"),
+            "timed row missing its absolute timestamp: {body}"
+        );
+        // Untimed rows are bare; continuation lines stay indented so
+        // the file remains greppable per entry.
+        assert!(
+            body.contains("\nfor f in *; do\n    echo $f\n    done\n"),
+            "untimed multi-line row malformed: {body}"
+        );
     }
 
     #[test]

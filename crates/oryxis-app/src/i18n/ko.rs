@@ -670,6 +670,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "텍스트로 내보내기",
         "export_cast_tip" => ".cast 내보내기 (asciinema)",
         "export_transcript_tip" => "전사본 내보내기 (.txt)",
+        "export_commands_tip" => "입력한 명령 내보내기 (.txt)",
+        "session_export_commands_empty" => "이 세션에 기록된 입력 명령이 없습니다",
         "session_export_privacy_note" => "내보내기에는 원본 기록이 포함됩니다. 프라이버시 모드 마스킹은 화면 표시에만 적용됩니다.",
         "history_export_done" => "{path}(으)로 내보냈습니다",
         "history_export_failed" => "내보내기 실패: {error}",

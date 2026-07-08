@@ -546,6 +546,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Exporter en texte",
         "export_cast_tip" => "Exporter .cast (asciinema)",
         "export_transcript_tip" => "Exporter la transcription (.txt)",
+        "export_commands_tip" => "Exporter les commandes saisies (.txt)",
+        "session_export_commands_empty" => "Aucune commande saisie enregistrée dans cette session",
         "session_export_privacy_note" => "L'export contient l'enregistrement brut ; le masquage du mode Confidentialité est purement visuel.",
         "history_export_done" => "Exporté vers {path}",
         "history_export_failed" => "Échec de l'export : {error}",

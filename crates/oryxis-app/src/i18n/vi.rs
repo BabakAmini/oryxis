@@ -670,6 +670,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "Xuất dưới dạng văn bản",
         "export_cast_tip" => "Xuất .cast (asciinema)",
         "export_transcript_tip" => "Xuất bản ghi (.txt)",
+        "export_commands_tip" => "Xuất các lệnh đã gõ (.txt)",
+        "session_export_commands_empty" => "Không có lệnh đã gõ nào được ghi trong phiên này",
         "session_export_privacy_note" => "Tệp xuất chứa bản ghi gốc; che của Chế độ riêng tư chỉ áp dụng khi hiển thị.",
         "history_export_done" => "Đã xuất ra {path}",
         "history_export_failed" => "Xuất thất bại: {error}",

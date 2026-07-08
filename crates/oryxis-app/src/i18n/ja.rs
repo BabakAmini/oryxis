@@ -546,6 +546,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "テキストとして書き出す",
         "export_cast_tip" => ".cast を書き出す (asciinema)",
         "export_transcript_tip" => "トランスクリプトを書き出す (.txt)",
+        "export_commands_tip" => "入力したコマンドを書き出す (.txt)",
+        "session_export_commands_empty" => "このセッションに記録された入力コマンドはありません",
         "session_export_privacy_note" => "書き出しには生の記録が含まれます。プライバシーモードのマスクは表示上のみです。",
         "history_export_done" => "{path} に書き出しました",
         "history_export_failed" => "書き出しに失敗しました: {error}",

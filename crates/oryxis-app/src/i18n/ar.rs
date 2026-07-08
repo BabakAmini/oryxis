@@ -688,6 +688,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_export_tip" => "تصدير كنص",
         "export_cast_tip" => "تصدير ‎.cast (asciinema)",
         "export_transcript_tip" => "تصدير النص (.txt)",
+        "export_commands_tip" => "تصدير الأوامر المكتوبة (.txt)",
+        "session_export_commands_empty" => "لا توجد أوامر مكتوبة مسجلة في هذه الجلسة",
         "session_export_privacy_note" => "يتضمن التصدير التسجيل الخام؛ إخفاء وضع الخصوصية يقتصر على العرض فقط.",
         "history_export_done" => "تم التصدير إلى {path}",
         "history_export_failed" => "فشل التصدير: {error}",

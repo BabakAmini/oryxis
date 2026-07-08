@@ -220,6 +220,12 @@ impl Oryxis {
                         Message::ExportSessionTranscript(log_id),
                         OryxisColors::t().text_secondary,
                     ));
+                    col = col.push(self.menu_item(
+                        iced_fonts::lucide::keyboard(),
+                        crate::i18n::t("export_commands_tip"),
+                        Message::ExportSessionCommands(log_id),
+                        OryxisColors::t().text_secondary,
+                    ));
                 }
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::trash(),

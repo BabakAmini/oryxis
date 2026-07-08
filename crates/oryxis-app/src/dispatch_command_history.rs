@@ -177,17 +177,21 @@ impl Oryxis {
     /// success) but still wants the bytes mirrored into the history capture.
     pub(crate) fn feed_input_capture(&mut self, tab_idx: usize, bytes: &[u8]) {
         // Smart tabs reuses the capture to label a running command with
-        // its command line, so the mirror runs for either feature. The
-        // capture itself is origin-agnostic and secret-safe by
-        // construction; only the vault write below needs a saved host.
+        // its command line, and an active session recording stores the
+        // captured commands as 'c' chunks (the input-only export), so
+        // the mirror runs for any of the three. The capture itself is
+        // origin-agnostic and secret-safe by construction; only the
+        // command-history vault write below needs a saved host.
         let want_history = self.setting_command_history;
         let want_smart = self.setting_smart_tabs;
-        if !want_history && !want_smart {
-            return;
-        }
         let mut captured: Vec<(Uuid, String)> = Vec::new();
+        let mut session_cmds: Vec<(Uuid, Option<i64>, String)> = Vec::new();
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             let pane = tab.active_mut();
+            let want_session = pane.session_log_id.is_some();
+            if !want_history && !want_smart && !want_session {
+                return;
+            }
             let host = match &pane.origin {
                 crate::state::PaneOrigin::Host(hid) => Some(*hid),
                 _ => None,
@@ -198,6 +202,14 @@ impl Oryxis {
             if want_smart && let Some(cmd) = cmds.last() {
                 pane.last_submitted = Some(cmd.clone());
             }
+            // Session recording keys on the log, not the host, so
+            // quick-connect / local / cloud panes are covered too.
+            if let Some(log_id) = pane.session_log_id {
+                let off = pane
+                    .session_log_t0
+                    .map(|t| t.elapsed().as_millis() as i64);
+                session_cmds.extend(cmds.iter().map(|c| (log_id, off, c.clone())));
+            }
             // Only saved hosts get history (quick-connect / local / cloud
             // panes have no persistable identity to key it on).
             if want_history && let Some(hid) = host {
@@ -206,6 +218,9 @@ impl Oryxis {
         }
         for (host, cmd) in captured {
             self.record_command_history(host, cmd);
+        }
+        for (log_id, off, cmd) in session_cmds {
+            self.record_session_command(&log_id, off, &cmd);
         }
     }
 
@@ -234,6 +249,24 @@ impl Oryxis {
             && self.command_history_host == Some(host)
         {
             self.refresh_command_history();
+        }
+    }
+
+    /// Persist one captured command into the pane's active session
+    /// recording as a 'c' chunk (the input-only export). Same
+    /// redaction pass as the output chunks, so an inline secret
+    /// (`mysql -p...`) is scrubbed before it reaches the vault.
+    pub(crate) fn record_session_command(
+        &self,
+        log_id: &Uuid,
+        offset_ms: Option<i64>,
+        cmd: &str,
+    ) {
+        let Some(vault) = &self.vault else { return };
+        let scrubbed = crate::session_redact::redact_secrets(cmd.as_bytes());
+        let text = String::from_utf8_lossy(&scrubbed);
+        if let Err(e) = vault.append_session_command(log_id, offset_ms, &text) {
+            tracing::warn!("session command append failed for {log_id}: {e}");
         }
     }
 

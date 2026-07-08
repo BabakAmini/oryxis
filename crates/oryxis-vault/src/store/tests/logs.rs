@@ -42,6 +42,66 @@ fn session_log_chunks_are_not_stored_in_the_clear() {
 
 
 #[test]
+fn session_commands_roundtrip_and_stay_out_of_the_output_stream() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_data(&log_id, b"prompt$ ls -la\r\ntotal 0\r\n", Some(0), false).unwrap();
+    vault.append_session_command(&log_id, Some(120), "ls -la").unwrap();
+    vault.append_session_command(&log_id, None, "sudo apt update").unwrap();
+    // Empty commands are dropped, not stored.
+    vault.append_session_command(&log_id, None, "").unwrap();
+
+    let cmds = vault.get_session_commands(&log_id).unwrap();
+    assert_eq!(cmds.len(), 2);
+    assert_eq!(cmds[0].data, b"ls -la");
+    assert_eq!(cmds[0].offset_ms, Some(120));
+    assert_eq!(cmds[0].kind, 'c');
+    assert_eq!(cmds[1].data, b"sudo apt update");
+    assert_eq!(cmds[1].offset_ms, None);
+
+    // The output byte stream must not grow command rows: replay and
+    // the transcript stay exactly what the terminal printed.
+    let data = vault.get_session_data(&log_id).unwrap().unwrap();
+    assert_eq!(data, b"prompt$ ls -la\r\ntotal 0\r\n");
+
+    // The full event stream preserves the kind so the asciicast
+    // export can skip 'c' rows instead of misreading them as output.
+    let events = vault.get_session_events(&log_id).unwrap();
+    assert_eq!(
+        events.iter().map(|e| e.kind).collect::<Vec<_>>(),
+        vec!['o', 'c', 'c']
+    );
+}
+
+
+#[test]
+fn session_commands_are_not_stored_in_the_clear() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    let marker = "TOP-SECRET-COMMAND-MARKER";
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_command(&log_id, None, marker).unwrap();
+    let raw: Vec<u8> = vault
+        .db
+        .query_row(
+            "SELECT data FROM session_log_chunks WHERE log_id = ?1 AND kind = 'c'",
+            params![log_id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(
+        !raw.windows(marker.len()).any(|w| w == marker.as_bytes()),
+        "recorded command stored in the clear"
+    );
+    let cmds = vault.get_session_commands(&log_id).unwrap();
+    assert_eq!(cmds[0].data, marker.as_bytes());
+}
+
+
+#[test]
 fn session_log_chunks_survive_master_password_change() {
     let mut vault = unlocked_vault();
     let log_id = Uuid::new_v4();
