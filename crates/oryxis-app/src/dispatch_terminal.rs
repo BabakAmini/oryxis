@@ -335,6 +335,10 @@ impl Oryxis {
                     self.show_new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
+                    // Same focus-the-search behavior as ShowNewTabPicker.
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        crate::state::NEW_TAB_PICKER_SEARCH_ID,
+                    )));
                 }
             }
             Message::SplitTabPane(tab_idx, axis) => {
@@ -350,6 +354,10 @@ impl Oryxis {
                     self.show_new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
+                    // Same focus-the-search behavior as ShowNewTabPicker.
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        crate::state::NEW_TAB_PICKER_SEARCH_ID,
+                    )));
                 }
             }
             Message::ClosePane => {

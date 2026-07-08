@@ -379,6 +379,11 @@ pub enum ConnectionStep {
 /// OTP entry without a click).
 pub(crate) const KBI_FIRST_INPUT_ID: &str = "kbi-first-input";
 
+/// Widget id of the new-tab picker's search input, so every path that
+/// opens the picker (Ctrl+K, the `+` button, pane splits) can land
+/// focus there for immediate type-to-filter.
+pub(crate) const NEW_TAB_PICKER_SEARCH_ID: &str = "new-tab-picker-search";
+
 /// Internal message type for SSH connection streams.
 pub(crate) enum SshStreamMsg {
     Progress(ConnectionStep, String), // (step, log message)

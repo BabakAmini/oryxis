@@ -1019,6 +1019,11 @@ impl Oryxis {
                 self.show_new_tab_picker = true;
                 self.new_tab_picker_search.clear();
                 self.new_tab_picker_group = None;
+                // Land focus on the search so the picker is
+                // type-to-filter from the first keystroke.
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::state::NEW_TAB_PICKER_SEARCH_ID,
+                )));
             }
             Message::HideNewTabPicker => {
                 self.show_new_tab_picker = false;

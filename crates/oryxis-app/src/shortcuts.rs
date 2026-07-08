@@ -766,7 +766,11 @@ impl Oryxis {
             ShowNewTabPicker => {
                 self.show_new_tab_picker = true;
                 self.new_tab_picker_search.clear();
-                Task::none()
+                // Land focus on the search so Ctrl+K flows straight
+                // into type-to-filter.
+                iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::state::NEW_TAB_PICKER_SEARCH_ID,
+                ))
             }
             ShowTabJump => {
                 self.show_tab_jump = true;

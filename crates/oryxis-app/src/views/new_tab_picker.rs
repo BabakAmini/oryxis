@@ -36,6 +36,7 @@ impl Oryxis {
         // Internal right-padding leaves room for the floating "Ctrl+K"
         // affordance so the typed value never slides under the hint.
         let search = text_input(t("search_hosts_or_tabs"), &self.new_tab_picker_search)
+            .id(iced::widget::Id::new(crate::state::NEW_TAB_PICKER_SEARCH_ID))
             .on_input(Message::NewTabPickerSearchChanged)
             .on_submit(Message::NewTabPickerSubmit)
             .padding(Padding {
