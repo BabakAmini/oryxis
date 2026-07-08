@@ -779,6 +779,20 @@ impl Oryxis {
             }
             OpenLocalShell => Task::done(Message::OpenLocalShell),
             NewWindow => Task::done(Message::SpawnNewWindow),
+            // Entity creation: the editor panels only render in their
+            // owning vault section, so land there first (ShowKeyPanel
+            // already navigates itself).
+            NewHost => {
+                self.active_view = View::Dashboard;
+                self.active_tab = None;
+                self.update(Message::ShowNewConnection)
+            }
+            NewKey => self.update(Message::ShowKeyPanel),
+            NewIdentity => {
+                self.active_view = View::Keys;
+                self.active_tab = None;
+                self.update(Message::ShowIdentityPanel)
+            }
             CloseActiveTab => {
                 // With a terminal tab focused (View::Terminal or the
                 // workspace) this closes the focused split pane;

@@ -67,6 +67,15 @@ pub enum HotkeyAction {
     // terminal tab the key is left free for TUI apps.
     VaultSectionPrev,
     VaultSectionNext,
+    // Vault entity creation. Each opens its editor panel, navigating
+    // to the owning vault section first (the panels only render
+    // there). Appended per the order contract above.
+    /// Open the new-host editor (Hosts section).
+    NewHost,
+    /// Open the key import panel (Keychain).
+    NewKey,
+    /// Open the new-identity panel (Keychain).
+    NewIdentity,
 }
 
 impl HotkeyAction {
@@ -79,6 +88,9 @@ impl HotkeyAction {
             ShowTabJump,
             OpenLocalShell,
             NewWindow,
+            NewHost,
+            NewKey,
+            NewIdentity,
             CloseActiveTab,
             OpenPortForwards,
             OpenSettings,
@@ -138,6 +150,9 @@ impl HotkeyAction {
             VaultSectionSlot => "vault_section_slot",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
+            NewHost => "new_host",
+            NewKey => "new_key",
+            NewIdentity => "new_identity",
         }
     }
 
@@ -174,6 +189,11 @@ impl HotkeyAction {
             VaultSectionSlot => "hotkey_vault_section_slot",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
+            // Reuse the vault-area button labels (already translated
+            // in all 17 languages), same as the split-pane pair.
+            NewHost => "new_host",
+            NewKey => "import_key",
+            NewIdentity => "new_identity",
         }
     }
 
@@ -712,6 +732,16 @@ pub fn default_bindings() -> HotkeyMap {
     // everywhere while plain Ctrl+L still reaches the PTY to clear.
     put(&mut m, OpenLocalShell, primary_ctrl, true, false, primary_logo, Char('l'));
     put(&mut m, NewWindow, primary_ctrl, true, false, primary_logo, Char('n'));
+    // Ctrl+N (Cmd+N on macOS): the Termius new-host convention. A bare
+    // Ctrl+letter, so inside a terminal it stays with the PTY (readline
+    // next-history), like Ctrl+K / Ctrl+P above.
+    put(&mut m, NewHost, primary_ctrl, false, false, primary_logo, Char('n'));
+    // Keychain pair on Ctrl+Shift (Cmd+Shift on macOS): Shift lifts
+    // both out of the terminal control-sequence gate; K mirrors the
+    // key mnemonic (exact-modifier matching keeps it clear of the
+    // plain Ctrl+K picker), I the identity one.
+    put(&mut m, NewKey, primary_ctrl, true, false, primary_logo, Char('k'));
+    put(&mut m, NewIdentity, primary_ctrl, true, false, primary_logo, Char('i'));
     put(&mut m, CloseActiveTab, primary_ctrl, true, false, primary_logo, Char('w'));
     put(&mut m, OpenPortForwards, primary_ctrl, false, false, primary_logo, Char('p'));
     put(&mut m, OpenSettings, primary_ctrl, false, false, primary_logo, Punct(","));
