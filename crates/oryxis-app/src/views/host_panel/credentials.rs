@@ -1,0 +1,423 @@
+//! Host editor: the Credentials body (username, identity suggestions,
+//! password / identity banner, TOTP) and the reduced Serial line block.
+use super::*;
+use iced::widget::column;
+
+impl Oryxis {
+    pub(super) fn hp_cred_items(&self, is_serial: bool, is_ssh: bool) -> Element<'_, Message> {
+
+        // Credentials column: username, then identity suggestions, then
+        // either the "managed by identity" banner is hoisted to the SSH
+        // Authentication group, or the password row is appended below.
+        // Gated off for Serial, which has no auth (and whose param block
+        // replaces it); building it there would record dead Tab targets.
+        let cred_items: Element<'_, Message> = if is_serial {
+            empty()
+        } else {
+        let mut cred_items = column![
+            dir_row(vec![
+                iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
+                Space::new().width(10).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-username")),
+                    10.0,
+                    text_input(t("username"), &self.editor_form.username)
+                        .id(iced::widget::Id::new("editor-username"))
+                        .on_input(Message::EditorUsernameChanged)
+                        .on_submit(Message::EditorSave)
+                        .padding(10)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+                ),
+            ]).align_y(iced::Alignment::Center)
+        ];
+
+        // Identity suggestion dropdown (only when username field is
+        // focused). Identities are an SSH-auth concept, so the reduced
+        // Telnet form never offers them.
+        if is_ssh && self.editor_form.username_focused && self.editor_form.selected_identity.is_none() && !self.identities.is_empty() {
+            let search = self.editor_form.username.to_lowercase();
+            let matching: Vec<&Identity> = if search.is_empty() {
+                self.identities.iter().collect()
+            } else {
+                self.identities.iter()
+                    .filter(|i| i.label.to_lowercase().contains(&search)
+                        || i.username.as_deref().unwrap_or("").to_lowercase().contains(&search))
+                    .collect()
+            };
+            if !matching.is_empty() {
+                for identity in matching.iter().take(3) {
+                    let label = identity.label.clone();
+                    let subtitle = format!(
+                        "{}{}",
+                        identity.username.as_deref().unwrap_or(""),
+                        if identity.key_id.is_some() {
+                            let key_name = identity.key_id.and_then(|kid| {
+                                self.keys.iter().find(|k| k.id == kid).map(|k| k.label.as_str())
+                            }).unwrap_or("key");
+                            format!(", {}", key_name)
+                        } else { String::new() },
+                    );
+                    let ident_label = identity.label.clone();
+                    cred_items = cred_items.push(self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::EditorIdentityChanged(
+                            ident_label.clone(),
+                        )),
+                        6.0,
+                        button(
+                            container(
+                                dir_row(vec![
+                                    iced_fonts::lucide::user().size(12).color(OryxisColors::t().accent).into(),
+                                    Space::new().width(8).into(),
+                                    column![
+                                        text(label.clone()).size(12).color(OryxisColors::t().text_primary),
+                                        text(subtitle.clone()).size(10).color(OryxisColors::t().text_muted),
+                                    ].into(),
+                                ]).align_y(iced::Alignment::Center),
+                            )
+                            .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
+                            .width(Length::Fill)
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                                border: Border { radius: Radius::from(6.0), color: OryxisColors::t().border, width: 1.0 },
+                                ..Default::default()
+                            }),
+                        )
+                        .on_press(Message::EditorIdentityChanged(ident_label))
+                        .width(Length::Fill)
+                        .style(|_, status| {
+                            let bg = match status {
+                                BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                                _ => Color::TRANSPARENT,
+                            };
+                            button::Style {
+                                background: Some(Background::Color(bg)),
+                                ..Default::default()
+                            }
+                        })
+                        .into(),
+                    ));
+                    cred_items = cred_items.push(Space::new().height(2));
+                }
+            }
+        }
+
+        // Identity selected -> the "managed by identity" banner replaces
+        // both the password (Credentials) and the key (SSH Authentication).
+        // We compute the banner / key / password as separate optionals so
+        // each lands in its own section below.
+        let ssh_identity_banner: Option<Element<'_, Message>> = self
+            .editor_form
+            .selected_identity
+            .as_ref()
+            .filter(|_| is_ssh)
+            .map(|ident_label| {
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::user().size(14).color(OryxisColors::t().accent).into(),
+                        Space::new().width(8).into(),
+                        column![
+                            text(format!("{}: {}", t("identity"), ident_label)).size(12).color(OryxisColors::t().text_primary),
+                            text(t("managed_by_identity")).size(10).color(OryxisColors::t().text_muted),
+                        ].into(),
+                        Space::new().width(Length::Fill).into(),
+                        button(text("\u{00D7}").size(11).color(OryxisColors::t().text_muted))
+                            .on_press(Message::EditorIdentityChanged("(none)".into()))
+                            .padding(4)
+                            .style(|_, _| button::Style::default()).into(),
+                    ]).align_y(iced::Alignment::Center),
+                )
+                .padding(10)
+                .width(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.15, ..OryxisColors::t().accent })),
+                    border: Border { radius: Radius::from(8.0), color: OryxisColors::t().accent, width: 1.0 },
+                    ..Default::default()
+                })
+                .into()
+            });
+
+        // Credentials body: password row when no identity, else the
+        // "managed by identity" banner (both belong with the login).
+        cred_items = cred_items.push(Space::new().height(8));
+        if let Some(banner) = ssh_identity_banner {
+            // Keyboard row: Enter/Space clears the identity (the
+            // banner's only verb, same as its × button).
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorIdentityChanged("(none)".into())),
+                8.0,
+                banner,
+            ));
+        } else if is_ssh && self.editor_form.auth_method == AuthMethod::PasswordPrompt {
+            // "Ask every time": no password is stored, so there is no field
+            // to fill. A one-line note explains the prompt-on-connect flow.
+            // SSH-only (the auth-method picker that sets it is hidden on
+            // Telnet, which always shows a stored-password field).
+            cred_items = cred_items.push(
+                dir_row(vec![
+                    iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("auth_password_prompt_note"))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                ]).align_y(iced::Alignment::Center)
+            );
+        } else {
+            let pw_placeholder: &'static str = if self.editor_form.has_existing_password
+                && !self.editor_form.password_touched
+            {
+                "••••••••"
+            } else {
+                t("password")
+            };
+            // Keyboard row: Tab focuses the inner input via its id.
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-password")),
+                10.0,
+                dir_row(vec![
+                    iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    password_input_with_eye_id(
+                        pw_placeholder,
+                        &self.editor_form.password,
+                        Message::EditorPasswordChanged,
+                        Some(Message::EditorSave),
+                        self.editor_form.password_visible,
+                        Message::EditorTogglePasswordVisibility,
+                        10.0,
+                        Some(iced::widget::Id::new("editor-password")),
+                    ),
+                ]).align_y(iced::Alignment::Center).into(),
+            ));
+        }
+
+        // TOTP secret (2FA autofill). Shown for every auth method: a
+        // keyboard-interactive second factor can follow any first factor
+        // (password, key, agent). Same masked-placeholder tri-state as
+        // the password field above. Telnet has no keyboard-interactive
+        // second factor, so the reduced form hides it.
+        if is_ssh {
+            let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
+                && !self.editor_form.totp_touched
+            {
+                "••••••••"
+            } else {
+                t("totp_secret")
+            };
+            // Keyboard row: Tab focuses the inner input via its id.
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("editor-totp")),
+                10.0,
+                dir_row(vec![
+                    iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    password_input_with_eye_id(
+                        totp_placeholder,
+                        &self.editor_form.totp_secret,
+                        Message::EditorTotpChanged,
+                        Some(Message::EditorSave),
+                        self.editor_form.totp_visible,
+                        Message::EditorToggleTotpVisibility,
+                        10.0,
+                        Some(iced::widget::Id::new("editor-totp")),
+                    ),
+                ]).align_y(iced::Alignment::Center).into(),
+            ));
+        }
+        cred_items.into()
+        };
+        cred_items
+    }
+
+    pub(super) fn hp_serial_params_block(&self, is_serial: bool) -> Element<'_, Message> {
+        // Serial line parameters (reduced Serial form). Built here, after
+        // the credentials region and before the terminal card, so the
+        // keynav walk records them right after the protocol picker.
+        // Gated off (empty) for non-serial protocols so they never
+        // record invisible Tab targets.
+        let serial_params_block: Element<'_, Message> = if is_serial {
+            use oryxis_core::models::serial::{
+                SerialFlowControl, SerialLineEnding, SerialParity, SerialStopBits,
+                COMMON_BAUD_RATES,
+            };
+            let p = self.editor_form.serial.unwrap_or_default();
+            let radius = crate::widgets::INPUT_RADIUS;
+            // Baud: common rates (the model still accepts any u32).
+            let baud_row = panel_option_row(
+                iced_fonts::lucide::gauge(),
+                t("serial_baud"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-baud")),
+                    radius,
+                    pick_list(Some(p.baud), COMMON_BAUD_RATES.to_vec(), |b: &u32| b.to_string())
+                        .on_select(Message::EditorSerialBaudChanged)
+                        .id(iced::widget::Id::new("editor-serial-baud"))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                ),
+            );
+            let data_bits_row = panel_option_row(
+                iced_fonts::lucide::binary(),
+                t("serial_data_bits"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-data")),
+                    radius,
+                    pick_list(Some(p.data_bits), vec![8u8, 7, 6, 5], |n: &u8| n.to_string())
+                        .on_select(Message::EditorSerialDataBitsChanged)
+                        .id(iced::widget::Id::new("editor-serial-data"))
+                        .on_open(Message::PickOpenChanged(true))
+                        .on_close(Message::PickOpenChanged(false))
+                        .width(120)
+                        .padding(10)
+                        .style(crate::widgets::rounded_pick_list_style)
+                        .into(),
+                ),
+            );
+            let parity_row = panel_option_row(
+                iced_fonts::lucide::sigma(),
+                t("serial_parity"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-parity")),
+                    radius,
+                    pick_list(
+                        Some(p.parity),
+                        vec![SerialParity::None, SerialParity::Odd, SerialParity::Even],
+                        |v: &SerialParity| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialParityChanged)
+                    .id(iced::widget::Id::new("editor-serial-parity"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let stop_row = panel_option_row(
+                iced_fonts::lucide::octagon_pause(),
+                t("serial_stop_bits"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-stop")),
+                    radius,
+                    pick_list(
+                        Some(p.stop_bits),
+                        vec![SerialStopBits::One, SerialStopBits::Two],
+                        |v: &SerialStopBits| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialStopBitsChanged)
+                    .id(iced::widget::Id::new("editor-serial-stop"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let flow_row = panel_option_row(
+                iced_fonts::lucide::waves(),
+                t("serial_flow_control"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-flow")),
+                    radius,
+                    pick_list(
+                        Some(p.flow_control),
+                        vec![
+                            SerialFlowControl::None,
+                            SerialFlowControl::Software,
+                            SerialFlowControl::Hardware,
+                        ],
+                        |v: &SerialFlowControl| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialFlowChanged)
+                    .id(iced::widget::Id::new("editor-serial-flow"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(140)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            let line_ending_row = panel_option_row(
+                iced_fonts::lucide::corner_down_left(),
+                t("serial_line_ending"),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-eol")),
+                    radius,
+                    pick_list(
+                        Some(p.line_ending),
+                        vec![
+                            SerialLineEnding::Cr,
+                            SerialLineEnding::Lf,
+                            SerialLineEnding::CrLf,
+                        ],
+                        |v: &SerialLineEnding| v.to_string(),
+                    )
+                    .on_select(Message::EditorSerialLineEndingChanged)
+                    .id(iced::widget::Id::new("editor-serial-eol"))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+                ),
+            );
+            // Local echo: ON/OFF toggle (raw serial has no ECHO
+            // negotiation, so a non-echoing device shows nothing typed
+            // until this is on).
+            let echo_row = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::EditorSerialLocalEchoToggled),
+                8.0,
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::eye().size(13).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        text(t("serial_local_echo")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        {
+                            let on = p.local_echo;
+                            let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                            let fg = crate::theme::contrast_text_for(bg);
+                            button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
+                                .on_press(Message::EditorSerialLocalEchoToggled)
+                                .style(move |_theme, _status| button::Style {
+                                    background: Some(Background::Color(bg)),
+                                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                    text_color: fg,
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    ]).align_y(iced::Alignment::Center)
+                )
+                .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+            );
+            column![
+                baud_row,
+                Space::new().height(ROW_GAP),
+                data_bits_row,
+                Space::new().height(ROW_GAP),
+                parity_row,
+                Space::new().height(ROW_GAP),
+                stop_row,
+                Space::new().height(ROW_GAP),
+                flow_row,
+                Space::new().height(ROW_GAP),
+                line_ending_row,
+                Space::new().height(ROW_GAP),
+                echo_row,
+            ]
+            .into()
+        } else {
+            empty()
+        };
+        serial_params_block
+    }
+}
