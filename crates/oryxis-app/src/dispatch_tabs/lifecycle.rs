@@ -1,0 +1,484 @@
+//! Tab lifecycle handlers split out of `dispatch_tabs`: select,
+//! close, reconnect, duplicate, plus the dormant-pin reopen path.
+//! Called from `handle_tabs`.
+
+#![allow(clippy::result_large_err)]
+
+use iced::Task;
+use oryxis_core::models::cloud::TransportKind;
+
+use crate::app::{Message, Oryxis};
+use crate::state::View;
+
+impl Oryxis {
+    pub(super) fn handle_select_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+        if idx < self.tabs.len() {
+            // Lazy reopen: a dormant pinned tab (restored at boot) has
+            // no live session; entering it the first time connects.
+            if self.tabs[idx].pending_reopen.is_some() {
+                return Ok(self.reopen_dormant_tab(idx));
+            }
+            // Switching tabs dismisses the session-group editor (it's
+            // tied to the tab it was opened from).
+            self.show_session_group_panel = false;
+            self.active_tab = Some(idx);
+            // A hybrid tab in Files mode owns the live SFTP buffer
+            // while shown (park/hoist, same invariant as the
+            // standalone SFTP tabs).
+            if self.tabs[idx].files_mode {
+                let id = self.tabs[idx]._id;
+                self.hoist_hybrid_sftp(id);
+            }
+            self.remember_terminal_tab_focus(idx);
+            self.active_view = View::Terminal;
+            // Viewing the tab consumes its smart-tab attention dot
+            // (every pane: a split shows them all at once).
+            for pane in self.tabs[idx].pane_grid.panes.values_mut() {
+                pane.attention = None;
+            }
+            // The History tab is per-host; follow the tab switch.
+            if self.terminal_sidebar_tab
+                == crate::state::TerminalSidebarTab::History
+            {
+                self.refresh_command_history();
+            }
+            // The Files browser is per-pane; the landed tab's pane
+            // may need a mount or a cwd catch-up (no-op otherwise).
+            return Ok(Task::batch([
+                self.tab_scroll_to_active(),
+                self.sidebar_files_sync(),
+            ]));
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_close_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+        // Also dismiss any open context menu so the menu doesn't linger
+        // after the user clicks Close from it.
+        self.overlay = None;
+        // Closing a tab dismisses the session-group editor it spawned.
+        self.show_session_group_panel = false;
+        if idx < self.tabs.len() {
+            // Persist recorded output before the tab (and its
+            // panes' buffers) are dropped.
+            self.flush_session_logs_final();
+            // Actively tear down the tab's remote sessions; the
+            // connect streams hold their own Arcs, so dropping
+            // the panes alone would leak the live sessions.
+            Self::close_tab_sessions(&self.tabs[idx]);
+            // Closing a tab that owns a live AI chat stream must
+            // cancel it (per-tab now, so any tab, not just the
+            // active one): otherwise the detached tool-followup
+            // pipeline keeps polling a terminal that's being torn
+            // down and keeps calling the model. The handle lives on
+            // the tab (dropped with it), but abort first so the
+            // detached task stops promptly rather than on next poll.
+            self.abort_chat_task_for(self.tabs[idx]._id);
+            // A pending placeholder replacement aimed at this tab
+            // would otherwise go stale and hijack the next
+            // unrelated cloud spawn.
+            if self.pin_next_plugin_tab == Some(self.tabs[idx]._id) {
+                self.pin_next_plugin_tab = None;
+            }
+            // A hybrid Files-mode owner dies with its tab: the
+            // hoisted browsing state is discarded (any transfer on
+            // it rode the session being torn down anyway).
+            if self.hybrid_sftp_owner == Some(self.tabs[idx]._id) {
+                self.hybrid_sftp_owner = None;
+                self.sftp = crate::state::SftpState::default();
+            }
+            // Closing a pinned tab drops it from the persisted set.
+            let was_pinned = self.tabs[idx].pinned;
+            self.tabs.remove(idx);
+            if was_pinned {
+                self.persist_pinned_tabs();
+            }
+            // Keep the in-flight connection progress in sync with
+            // the tab list. Closing the connecting tab clears the
+            // progress (otherwise the stale screen, including a
+            // failed/timeout state, leaks into the next session,
+            // e.g. an ECS/SSM tab that doesn't set `connecting`).
+            // Closing an earlier tab shifts the connecting tab's
+            // index down by one so `SshRetry`/`SshCloseProgress`
+            // still target the right `self.tabs[..]` entry.
+            if let Some(ref mut progress) = self.connecting {
+                match progress.tab_idx.cmp(&idx) {
+                    std::cmp::Ordering::Equal => self.connecting = None,
+                    std::cmp::Ordering::Greater => progress.tab_idx -= 1,
+                    std::cmp::Ordering::Less => {}
+                }
+            }
+            self.adjust_last_terminal_tab_after_remove(idx);
+            // Drop quick-connect entries (and their in-memory
+            // credentials) that no pane references anymore.
+            self.prune_quick_connects();
+            if self.tabs.is_empty() {
+                self.active_tab = None;
+                self.active_view = View::Dashboard;
+            } else {
+                let i = idx.min(self.tabs.len() - 1);
+                // A dormant pinned tab (pinned, never opened, still
+                // carries its reopen spec) is a placeholder, not a
+                // real session to fall back onto: land on Home
+                // instead of "focusing" an unopened pin.
+                let fallback = &self.tabs[i];
+                if fallback.pinned && fallback.pending_reopen.is_some() {
+                    self.active_tab = None;
+                    self.active_view = View::Dashboard;
+                } else {
+                    self.active_tab = Some(i);
+                    self.remember_terminal_tab_focus(i);
+                }
+            }
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_reconnect_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+        self.overlay = None;
+        // Prefer an in-place reconnect that REUSES the pane's existing
+        // terminal, so the scrollback the user was looking at survives
+        // the round-trip instead of being wiped by a fresh tab. Only a
+        // single-pane tab backed by a saved plain-SSH connection
+        // qualifies: cloud transports (SSM / ECS / kubectl) need their
+        // own PTY path, and a split tab's live sibling panes must not be
+        // torn down. Everything else falls back to the legacy
+        // remove-and-rebuild below.
+        // What the in-place reconnect should respawn: a saved host
+        // (by index) or a quick-connect entry (by id).
+        enum ReuseTarget {
+            Saved(usize),
+            Quick(uuid::Uuid),
+        }
+        let reuse = self.tabs.get(idx).and_then(|tab| {
+            if tab.pane_grid.panes.len() != 1 {
+                return None;
+            }
+            // A live pane qualifies too (a "restart this host" from the
+            // context menu on a still-connected tab). We close its old
+            // session and re-key the pane below so the dying stream's
+            // trailing messages don't stack a second session onto this
+            // terminal; see the `new_pane_id` swap in the reuse branch.
+            let base_label =
+                tab.label.trim_end_matches(" (disconnected)").to_string();
+            let pane_id = tab.active().id;
+            // The pane origin is authoritative for ad-hoc hosts: they
+            // have no row in `connections`, so resolve them straight
+            // from the quick-connect store (always plain SSH).
+            if let crate::state::PaneOrigin::QuickHost(qid) = &tab.active().origin
+                && self.quick_connects.contains_key(qid)
+            {
+                return Some((ReuseTarget::Quick(*qid), pane_id, base_label));
+            }
+            let conn_idx =
+                self.connections.iter().position(|c| c.label == base_label)?;
+            let plain_ssh = self.connections[conn_idx]
+                .cloud_ref
+                .as_ref()
+                .is_none_or(|c| c.transport_pref == TransportKind::Ssh);
+            plain_ssh.then_some((ReuseTarget::Saved(conn_idx), pane_id, base_label))
+        });
+        if let Some((target, pane_id, base_label)) = reuse {
+            // Persist whatever this pane recorded before we tear its
+            // session down, so the log tail isn't truncated.
+            self.flush_session_logs_final();
+            // Restore the live label (strip the "(disconnected)" suffix).
+            // Keeping the tab in place means we never set
+            // `self.connecting`, so the terminal (with its scrollback)
+            // stays on screen through the reconnect instead of being
+            // replaced by the full-screen progress view.
+            self.tabs[idx].label = base_label.clone();
+            // Re-key the pane before wiring the new session in. A live
+            // pane's old stream task keeps emitting `PtyOutput` /
+            // `SshDisconnected` for the id it was spawned with; routing
+            // is by `Pane::id`, so a fresh id sends those trailing
+            // messages to an id no pane holds (they get dropped) instead
+            // of stacking a second session onto this terminal or
+            // relabeling it "(disconnected)" mid-reconnect. `focused` is
+            // a pane_grid handle, not the Uuid, so it survives the swap.
+            let new_pane_id = uuid::Uuid::new_v4();
+            let ended_log = self.tabs[idx].pane_by_id_mut(pane_id).and_then(|pane| {
+                // Explicitly close a still-live session. Dropping the
+                // pane's Arc alone never tears it down: the stream task
+                // holds its own Arc, so without close() the engine
+                // tasks, the SSH connection, and any per-connection
+                // port-forward listeners leak (the "connection not
+                // properly closed" the user saw).
+                if let Some(session) = pane.session.take() {
+                    session.close();
+                }
+                pane.id = new_pane_id;
+                if let Ok(mut state) = pane.terminal.lock() {
+                    // Dim marker so the reconnect reads as a continuation
+                    // of the same pane, not a wipe. The scrollback above
+                    // it is left untouched.
+                    state.process(
+                        format!(
+                            "\r\n\x1b[2m[reconnecting to {base_label}...]\x1b[0m\r\n"
+                        )
+                        .as_bytes(),
+                    );
+                }
+                // Hand back the old log id so it can be ended below: the
+                // orphaned old-id stream won't reach the
+                // `SshDisconnected` path that normally does it.
+                pane.session_log_id.take()
+            });
+            if let Some(log_id) = ended_log
+                && let Some(vault) = &self.vault
+            {
+                let _ = vault.end_session_log(&log_id);
+            }
+            // Toast "Reconnecting..." so the user sees feedback the
+            // moment the attempt starts (a silent auto-reconnect can fire
+            // up to 30s after the disconnect was first detected). Focus is
+            // left alone: a manual reconnect is already on the active tab,
+            // and a background auto-reconnect shouldn't yank the user away.
+            self.toast =
+                Some(crate::i18n::t("disconnected_reconnecting").to_string());
+            let spawn = match target {
+                ReuseTarget::Saved(conn_idx) => {
+                    self.spawn_ssh_for_pane(conn_idx, idx, new_pane_id)
+                }
+                ReuseTarget::Quick(qid) => {
+                    self.spawn_ssh_for_pane_quick(qid, idx, new_pane_id)
+                }
+            };
+            return Ok(Task::batch(vec![
+                spawn,
+                Task::perform(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_millis(2500))
+                            .await;
+                    },
+                    |_| Message::ToastClear,
+                ),
+            ]));
+        }
+        // Legacy fallback (multi-pane, cloud transport, or a dead tab
+        // with no matching connection): remove the tab and rebuild via
+        // ConnectSsh / QuickConnect. Dead tabs (no matching connection
+        // or a pruned quick entry) are just closed.
+        if let Some(tab) = self.tabs.get(idx) {
+            let base_label = tab.label.trim_end_matches(" (disconnected)").to_string();
+            let conn_idx = self.connections.iter().position(|c| c.label == base_label);
+            // A quick-connect tab has no saved connection; rebuild it
+            // from its stored entry instead of silently closing.
+            let quick_entry = if conn_idx.is_none() {
+                tab.pane_grid.panes.values().find_map(|p| match &p.origin {
+                    crate::state::PaneOrigin::QuickHost(qid) => {
+                        self.quick_connects.get(qid).cloned()
+                    }
+                    _ => None,
+                })
+            } else {
+                None
+            };
+            self.tabs.remove(idx);
+            self.adjust_last_terminal_tab_after_remove(idx);
+            if self.tabs.is_empty() {
+                self.active_tab = None;
+                self.active_view = View::Dashboard;
+            } else {
+                let i = idx.min(self.tabs.len() - 1);
+                self.active_tab = Some(i);
+                self.remember_terminal_tab_focus(i);
+            }
+            let rebuild = match (conn_idx, quick_entry) {
+                (Some(ci), _) => Some(Message::ConnectSsh(ci)),
+                (None, Some(entry)) => {
+                    Some(Message::QuickConnect(Box::new(entry)))
+                }
+                (None, None) => None,
+            };
+            if let Some(msg) = rebuild {
+                // Toast "Reconnecting..." so the user sees feedback the
+                // moment the attempt actually starts (not when the
+                // disconnect was first detected, up to 30s earlier).
+                self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
+                return Ok(Task::batch(vec![
+                    Task::done(msg),
+                    Task::perform(
+                        async {
+                            tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                        },
+                        |_| Message::ToastClear,
+                    ),
+                ]));
+            }
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_duplicate_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+        self.overlay = None;
+        // Local shell tabs aren't backed by a saved connection; for
+        // those we just open a fresh shell tab. SSH tabs find their
+        // connection by label and dispatch `ConnectSsh` so the user
+        // gets a second live session into the same box. Cloud tabs
+        // (ECS Exec / kubectl) re-open via the relaunch message
+        // stashed on the tab at spawn time.
+        if let Some(tab) = self.tabs.get(idx) {
+            let is_local_shell = tab.active().session.is_none()
+                && tab.label == "Local Shell";
+            if is_local_shell {
+                return Ok(Task::done(Message::OpenLocalShell));
+            }
+            // Cloud tabs with no saved connection (ECS Exec,
+            // kubectl pod) carry the message that re-opens them.
+            if let Some(relaunch) = tab.relaunch.as_deref() {
+                return Ok(Task::done(relaunch.clone()));
+            }
+            // Connection-backed tabs (SSH, InstanceConnect, and
+            // SSM-into-EC2) duplicate by re-finding the host by
+            // label. SSM tabs carry a title prefix, strip it so
+            // the lookup matches; ConnectSsh re-routes to SSM via
+            // the cloud_ref transport check.
+            let base_label = tab
+                .label
+                .trim_end_matches(" (disconnected)")
+                .trim_start_matches(crate::app::SSM_TAB_PREFIX)
+                .to_string();
+            if let Some(ci) = self.connections.iter().position(|c| c.label == base_label) {
+                return Ok(Task::done(Message::ConnectSsh(ci)));
+            }
+        }
+        Ok(Task::none())
+    }
+
+    /// First select of a dormant pinned tab: drop the placeholder and fire
+    /// the saved spec to reopen it (connect host / spawn local shell). The
+    /// freshly-opened tab inherits the pin.
+    fn reopen_dormant_tab(&mut self, idx: usize) -> Task<Message> {
+        use crate::state::PinnedTabSpec;
+        let Some(spec) = self
+            .tabs
+            .get_mut(idx)
+            .and_then(|t| t.pending_reopen.take())
+        else {
+            return Task::none();
+        };
+        // Resolve the open message fresh (the host id maps to a possibly
+        // different index than last session; the connection may be gone).
+        // Cloud sessions spawn asynchronously, so they can't ride the
+        // synchronous len-check below; flag them instead.
+        let mut cloud = false;
+        let open = match &spec {
+            PinnedTabSpec::Host { id, .. } => self
+                .connections
+                .iter()
+                .position(|c| c.id == *id)
+                .map(Message::ConnectSsh),
+            PinnedTabSpec::LocalShell { program, args, label } => {
+                Some(Message::OpenLocalShellWith {
+                    program: program.clone(),
+                    args: args.clone(),
+                    label: label.clone(),
+                })
+            }
+            PinnedTabSpec::EcsExec {
+                group_id,
+                task_id,
+                container,
+                ..
+            } => {
+                cloud = true;
+                // ECS task ids are ephemeral (services recycle tasks), so
+                // a saved id is expected to go stale. Resolve the group
+                // and connect to the task currently running; the saved id
+                // only wins when it still exists.
+                Some(Message::EcsExecConnectFreshTask {
+                    group_id: *group_id,
+                    container: container.clone(),
+                    fallback_task_id: task_id.clone(),
+                })
+            }
+            PinnedTabSpec::KubectlExec {
+                group_id,
+                namespace,
+                pod,
+                container,
+                ..
+            } => {
+                cloud = true;
+                Some(Message::ConnectKubectlExecPod {
+                    group_id: *group_id,
+                    namespace: namespace.clone(),
+                    pod: pod.clone(),
+                    container: container.clone(),
+                })
+            }
+            // SFTP dormant tabs live in `sftp_tabs`, not `self.tabs`, and reopen
+            // via `SelectSftpTab` (which re-mounts their panes), so this
+            // terminal-tab reopen path never produces an open message for them.
+            PinnedTabSpec::Sftp { .. } => None,
+        };
+        if cloud {
+            // Cloud sessions spawn asynchronously. Keep the dormant
+            // placeholder in the strip (so its chip doesn't blink out) and let
+            // `spawn_plugin_tab` replace it in place by id, inheriting its slot
+            // + pin. We don't persist here: the dormant spec stays in the
+            // setting as a safety net until the live tab re-persists. Stay on
+            // the placeholder pane with a connecting hint instead of bouncing
+            // to Hosts while the session resolves + spawns.
+            self.pin_next_plugin_tab = Some(self.tabs[idx]._id);
+            self.active_tab = Some(idx);
+            self.remember_terminal_tab_focus(idx);
+            self.active_view = View::Terminal;
+            if let Some(pane) = self.tabs[idx].pane_grid.panes.values().next()
+                && let Ok(mut term) = pane.terminal.lock()
+            {
+                let hint = format!(
+                    "\r\n\x1b[2m  {}\x1b[0m\r\n",
+                    crate::i18n::t("connecting_status")
+                );
+                term.process(hint.as_bytes());
+            }
+            return open.map(|m| self.update(m)).unwrap_or_else(Task::none);
+        }
+
+        // Host / local: the connect appends a live tab synchronously, so
+        // remove the placeholder and slot the live tab into its place.
+        let dormant_id = self.tabs[idx]._id;
+        self.tabs.remove(idx);
+        self.adjust_last_terminal_tab_after_remove(idx);
+
+        let before = self.tabs.len();
+        let task = open.map(|m| self.update(m)).unwrap_or_else(Task::none);
+        if self.tabs.len() > before {
+            // A live tab was appended at the end; move it back to the
+            // dormant's old slot so reopening doesn't reorder, and pin it.
+            let live = self.tabs.pop().expect("a tab was just appended");
+            let at = idx.min(self.tabs.len());
+            self.tabs.insert(at, live);
+            self.tabs[at].pinned = true;
+            // Keep the reopened tab at the dormant's spot in the unified strip
+            // order (else reconcile would append the new id at the end).
+            let live_id = self.tabs[at]._id;
+            self.replace_tab_order_id(dormant_id, live_id);
+            self.active_tab = Some(at);
+            self.remember_terminal_tab_focus(at);
+            self.active_view = View::Terminal;
+            // ConnectSsh set `connecting.tab_idx` to the append index; the
+            // move just shifted it, so retarget the progress overlay.
+            if let Some(p) = &mut self.connecting
+                && p.tab_idx == before
+            {
+                p.tab_idx = at;
+            }
+        } else if self.tabs.is_empty() {
+            // Nothing reopened (e.g. the host was deleted) and no tabs left.
+            self.active_tab = None;
+            self.active_view = View::Dashboard;
+        } else {
+            // Nothing reopened but other tabs remain: clamp the selection so
+            // `active_tab` never dangles past the removed placeholder.
+            let i = idx.min(self.tabs.len() - 1);
+            self.active_tab = Some(i);
+            self.remember_terminal_tab_focus(i);
+        }
+        self.persist_pinned_tabs();
+        Task::batch([task, self.tab_scroll_to_active()])
+    }
+
+}

@@ -1,0 +1,456 @@
+//! Window-chrome + pointer handlers split out of `dispatch_tabs`:
+//! mouse-move drag tracking, window resize / move / focus, and the
+//! custom title-bar drag / minimize / maximize / close / fullscreen
+//! actions. Called from `handle_tabs`.
+
+#![allow(clippy::result_large_err)]
+
+use iced::{Point, Task};
+
+use crate::app::{Message, Oryxis};
+use crate::state::View;
+
+impl Oryxis {
+    pub(super) fn handle_mouse_moved(&mut self, pos: iced::Point) -> Result<Task<Message>, Message> {
+        // Spatial debounce: mouse-move events fire 60+ times per
+        // second. Re-stating `mouse_position` on every event forces
+        // a view() pass each time, which on dense pages (keychain
+        // grid, SFTP listing) can take long enough to back up
+        // iced's subscription channel and trigger
+        // `TrySendError { kind: Full }` warnings. Quantising the
+        // stored position to a 2 px grid means consecutive moves
+        // within the same cell don't re-state the field at all,
+        // so the view doesn't reflow. Same trick the
+        // `WindowResized` handler uses below.
+        const SNAP: f32 = 2.0;
+        let snapped = iced::Point {
+            x: (pos.x / SNAP).round() * SNAP,
+            y: (pos.y / SNAP).round() * SNAP,
+        };
+        let needs_drag_update = self.chat_sidebar_drag.is_some()
+            || self.sftp_split_drag.is_some()
+            || self.sftp_log_drag.is_some()
+            || self.sftp_col_resize.is_some()
+            || self.sftp_col_drag.is_some()
+            || self.sftp.drag.is_some()
+            || self.tab_drag.is_some();
+        // Promote an armed tab drag to active once the cursor moves
+        // past a small threshold, so a plain click never reorders.
+        if let Some(drag) = self.tab_drag.as_mut()
+            && !drag.active
+        {
+            const TAB_DRAG_THRESHOLD: f32 = 6.0;
+            let dx = pos.x - drag.start.x;
+            let dy = pos.y - drag.start.y;
+            if (dx * dx + dy * dy).sqrt() > TAB_DRAG_THRESHOLD {
+                drag.active = true;
+            }
+        }
+        let changed = (snapped.x - self.mouse_position.x).abs() > 0.5
+            || (snapped.y - self.mouse_position.y).abs() > 0.5;
+        if !changed && !needs_drag_update {
+            return Ok(Task::none());
+        }
+        self.mouse_position = if needs_drag_update { pos } else { snapped };
+        // A real mouse move restores the hover highlight that keyboard
+        // navigation muted (no-op when it wasn't suppressed).
+        if changed {
+            self.sftp.suppress_hover = false;
+        }
+        // Promote an armed SFTP internal drag once the cursor crosses
+        // into the *opposite* pane, driven by cursor geometry (which
+        // IS delivered during a button-hold here, the same signal the
+        // divider / column-resize drags rely on). Runs after
+        // `mouse_position` is updated so the hit-test sees the fresh
+        // coord. This is the primary activation; row-hover
+        // (SftpRowEnter) is only a fallback, since it can be disrupted
+        // by tooltips / row gaps and is why cross-pane drag used to
+        // fail intermittently.
+        if let Some(drag) = self.sftp.drag.as_ref()
+            && !drag.active
+        {
+            use crate::state::SftpPaneSide::{Left, Right};
+            let dx = pos.x - drag.press_pos.x;
+            let dy = pos.y - drag.press_pos.y;
+            let moved = (dx * dx + dy * dy).sqrt() > 6.0;
+            let over_opposite = match drag.origin_side {
+                Left => self.is_cursor_over_remote_pane(),
+                Right => self.is_cursor_over_local_pane(),
+            };
+            if moved && over_opposite && let Some(d) = self.sftp.drag.as_mut() {
+                d.active = true;
+            }
+        }
+        // While the chat-sidebar resize handle is held down, the
+        // sidebar width tracks the cursor, dragging left grows
+        // the panel, dragging right shrinks it. Clamp to a sane
+        // band so the user can't accidentally make it unusable.
+        if let Some((start_x, start_width)) = self.chat_sidebar_drag {
+            let new_width = (start_width - (pos.x - start_x)).clamp(260.0, 700.0);
+            self.chat_sidebar_width = new_width;
+        }
+        // SFTP center divider: the ratio tracks the cursor across the
+        // content area (window minus the nav rail; the chat sidebar is
+        // terminal-only so it isn't subtracted here). Clamp so neither
+        // pane can collapse.
+        if let Some((start_x, start_ratio)) = self.sftp_split_drag {
+            let content_w = (self.window_size.width - self.vault_rail_width()).max(1.0);
+            let new_ratio =
+                (start_ratio + (pos.x - start_x) / content_w).clamp(0.15, 0.85);
+            self.sftp_split_ratio = new_ratio;
+        }
+        // SFTP message-log panel height: the divider sits above the
+        // panel, so dragging up (smaller y) grows it.
+        if let Some((start_y, start_h)) = self.sftp_log_drag {
+            self.sftp.log_height = (start_h - (pos.y - start_y))
+                .clamp(crate::state::SFTP_LOG_MIN_H, crate::state::SFTP_LOG_MAX_H);
+        }
+        // SFTP column resize: the dragged column's width tracks the
+        // cursor (clamped inside the setters). The total row width
+        // grows; the other columns keep their size.
+        if let Some((side, col, start_x, start_w)) = self.sftp_col_resize {
+            let new_w = start_w + (pos.x - start_x);
+            self.sftp.pane_mut(side).columns.width.set(col, new_w);
+        }
+        // Promote a column reorder drag to active past a small
+        // threshold so a plain header click still sorts.
+        if let Some(drag) = self.sftp_col_drag.as_mut()
+            && !drag.active
+            && (pos.x - drag.press_x).abs() > 5.0
+        {
+            drag.active = true;
+        }
+        // Promote a pending press to an active drag once the
+        // cursor moves past the threshold. Below the threshold
+        // we leave it pending so the click handler still fires
+        // for plain clicks (jitter < 5px).
+        if let Some(drag) = self.sftp.drag.as_mut()
+            && !drag.active
+        {
+            let dx = pos.x - drag.press_pos.x;
+            let dy = pos.y - drag.press_pos.y;
+            if (dx * dx + dy * dy).sqrt() > 5.0 {
+                drag.active = true;
+            }
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_window_resized(&mut self, size: iced::Size) -> Result<Task<Message>, Message> {
+        // Spatial debounce: drag-resize emits one event per pixel.
+        // Quantising to an 8 px grid means most consecutive events
+        // resolve to the same `window_size` so we don't re-state
+        // the field, and view()s that depend on it don't reflow
+        // a responsive grid on every frame. Cuts reflow frequency
+        // by ~8x during a sustained drag, which keeps iced's
+        // subscription channel from filling up and dropping events
+        // (the `TrySendError { kind: Full }` warnings).
+        const SNAP: f32 = 8.0;
+        let snapped = iced::Size {
+            width: (size.width / SNAP).round() * SNAP,
+            height: (size.height / SNAP).round() * SNAP,
+        };
+        if (snapped.width - self.window_size.width).abs() > 0.5
+            || (snapped.height - self.window_size.height).abs() > 0.5
+        {
+            self.window_size = snapped;
+            // Track the last plain-windowed size separately: it is
+            // what `persist_window_geometry` restores on the next
+            // launch. The maximize / fullscreen flags flip
+            // optimistically *before* the OS resize arrives, so the
+            // monitor-sized events those transitions emit are
+            // correctly skipped here.
+            if !self.window_maximized && !self.window_fullscreen {
+                self.window_windowed_size = snapped;
+            }
+            // The floating toolbar search / overflow popovers are
+            // anchored to a width that just changed, and the inline
+            // field may now fit again. Dismiss them so they re-pop
+            // at the right place (and the inline field re-mounts
+            // without colliding on its widget Id).
+            if matches!(
+                self.overlay.as_ref().map(|o| &o.content),
+                Some(crate::state::OverlayContent::ToolbarSearch)
+                    | Some(crate::state::OverlayContent::ToolbarOverflow)
+            ) {
+                self.overlay = None;
+            }
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_window_ensure_on_screen(&mut self) -> Result<Task<Message>, Message> {
+        // Runs once shortly after boot when a saved position was
+        // restored. If that position is on a monitor that no
+        // longer exists (undocked laptop, unplugged display),
+        // the window would be stranded off-screen with no way to
+        // grab its title bar, so pull it back onto the monitor
+        // the OS considers nearest. All values are logical
+        // coordinates; `monitor_*` return `None` where the
+        // platform can't say (Wayland), in which case the WM
+        // already placed us somewhere visible and we skip.
+        let win_size = self.window_size;
+        Ok(iced::window::latest().then(move |id_opt| {
+            let Some(id) = id_opt else { return Task::none(); };
+            iced::window::position(id).then(move |pos_opt| {
+                let Some(pos) = pos_opt else { return Task::none(); };
+                iced::window::monitor_position(id).then(move |origin_opt| {
+                    let Some(origin) = origin_opt else {
+                        return Task::none();
+                    };
+                    iced::window::monitor_size(id).then(move |size_opt| {
+                        let Some(monitor) = size_opt else {
+                            return Task::none();
+                        };
+                        // Visible enough = at least 60 px of
+                        // horizontal overlap with the nearest
+                        // monitor AND the title strip (top
+                        // 40 px) vertically inside it. The
+                        // nearest monitor is the only one we
+                        // can query, but a window that fails
+                        // this against its *nearest* monitor
+                        // fails it against every other one by
+                        // definition.
+                        let overlap_x = (pos.x + win_size.width)
+                            .min(origin.x + monitor.width)
+                            - pos.x.max(origin.x);
+                        let title_visible = pos.y >= origin.y - 4.0
+                            && pos.y + 40.0 <= origin.y + monitor.height;
+                        if overlap_x >= 60.0 && title_visible {
+                            return Task::none();
+                        }
+                        tracing::info!(
+                            "restored window position ({}, {}) is off-screen, \
+                             recentering on the nearest monitor",
+                            pos.x,
+                            pos.y
+                        );
+                        iced::window::move_to(
+                            id,
+                            Point::new(origin.x + 48.0, origin.y + 48.0),
+                        )
+                    })
+                })
+            })
+        }))
+    }
+
+    pub(super) fn handle_window_focus_changed(&mut self, focused: bool) -> Result<Task<Message>, Message> {
+        self.window_focused = focused;
+        if focused {
+            // Refocusing the window means the active tab is being
+            // looked at again, IF the terminal view is on screen
+            // (returning to the Dashboard / Settings views doesn't
+            // show it): its smart-tab attention is consumed.
+            if self.active_view == View::Terminal
+                && let Some(at) = self.active_tab
+                && let Some(tab) = self.tabs.get_mut(at)
+            {
+                for pane in tab.pane_grid.panes.values_mut() {
+                    pane.attention = None;
+                }
+            }
+            // Restore any SSM/ECS terminal the keepalive may have
+            // left at `rows - 1` (it nudges and lets the next
+            // draw snap back, but no draw fires while the tab is
+            // off-screen). Explicit so a refocus is always clean.
+            if let Some((cols, rows)) = self.ssm_keepalive_base.take() {
+                for tab in self.tabs.iter().filter(|t| t.ssm_keepalive) {
+                    for pane in tab.pane_grid.panes.values() {
+                        if let Ok(mut state) = pane.terminal.lock() {
+                            state.resize(cols, rows);
+                        }
+                    }
+                }
+            }
+            // A notification toast raised while the window was unfocused
+            // is left up (no auto-dismiss timer) so it isn't gone before
+            // you look; clear it a few seconds after you return.
+            if self.toast.is_some() {
+                return Ok(iced::Task::perform(
+                    async {
+                        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                    },
+                    |_| Message::ToastClear,
+                ));
+            }
+        } else {
+            // Crash-safe geometry checkpoint: the exit paths all
+            // persist, but an OS shutdown or a kill never reaches
+            // them. Focus loss is infrequent enough that four tiny
+            // row upserts don't matter, and recent enough that the
+            // restored geometry stays accurate.
+            self.persist_window_geometry();
+            // Commit any in-progress Ctrl+Tab run: losing focus with
+            // Ctrl held may swallow the release event, and the OS may
+            // not deliver a modifier change on blur, so end the run
+            // here rather than leave it stranded (which would freeze
+            // MRU tracking until the next real Ctrl-release).
+            self.commit_tab_cycle();
+            // Anchor the keepalive toggle to the size the window
+            // had when it lost focus. All plugin tabs share the
+            // window, so the first one's size is representative.
+            self.ssm_keepalive_base = self
+                .tabs
+                .iter()
+                .filter(|t| t.ssm_keepalive)
+                .find_map(|t| {
+                    t.pane_grid.panes.values().next().and_then(|p| {
+                        p.terminal
+                            .lock()
+                            .ok()
+                            .map(|s| (s.cols(), s.rows()))
+                    })
+                });
+        }
+        Ok(Task::none())
+    }
+
+    pub(super) fn handle_window_expand_vertical(&mut self) -> Result<Task<Message>, Message> {
+        if self.window_maximized {
+            return Ok(Task::none());
+        }
+        let current_width = self.window_size.width;
+        Ok(iced::window::latest().then(move |id_opt| {
+            let Some(id) = id_opt else { return Task::none(); };
+            iced::window::position(id).then(move |pos_opt| {
+                let Some(pos) = pos_opt else { return Task::none(); };
+                iced::window::monitor_size(id).then(move |size_opt| {
+                    let Some(size) = size_opt else { return Task::none(); };
+                    iced::window::monitor_position(id).then(move |origin_opt| {
+                        // Default to (0, 0) when the platform
+                        // can't report the monitor origin so we
+                        // at least fall back to the primary
+                        // same as the old behaviour.
+                        let origin = origin_opt.unwrap_or(Point::ORIGIN);
+                        Task::batch([
+                            iced::window::move_to(
+                                id,
+                                Point::new(pos.x, origin.y),
+                            ),
+                            iced::window::resize(
+                                id,
+                                iced::Size::new(current_width, size.height),
+                            ),
+                        ])
+                    })
+                })
+            })
+        }))
+    }
+
+    pub(super) fn handle_window_minimize(&mut self) -> Result<Task<Message>, Message> {
+        // Custom title bar minimize. Honours
+        // setting_minimize_to_tray on Windows by hiding the
+        // window outright instead of minimizing (which would
+        // leave a taskbar slot). Everywhere else and when
+        // the toggle is off we fall through to the real
+        // iced::window::minimize call.
+        if self.setting_minimize_to_tray && cfg!(target_os = "windows") {
+            self.is_window_hidden = true;
+            self.broadcast_ipc_state_if_child();
+            return Ok(iced::window::oldest()
+                .and_then(|id| {
+                    iced::window::run(id, |window| {
+                        crate::tray::hide_window(window);
+                    })
+                })
+                .discard());
+        }
+        Ok(iced::window::latest().then(|id_opt| match id_opt {
+            Some(id) => iced::window::minimize(id, true),
+            None => Task::none(),
+        }))
+    }
+
+    pub(super) fn handle_window_close(&mut self) -> Result<Task<Message>, Message> {
+        // Persist any buffered session-log output before the
+        // window goes away (real close or hide-to-tray both).
+        self.flush_session_logs_final();
+        // Remember size + maximized/fullscreen for the next
+        // launch (also on hide-to-tray: a later tray Quit exits
+        // without passing through here again).
+        self.persist_window_geometry();
+        // Honour the close-to-tray setting: when on, the
+        // user's "close" verb (custom title bar X, Alt+F4
+        // via CloseRequested subscription, etc.) hides the
+        // window into the tray instead of quitting. Returns
+        // a hide task on Windows where the tray is real; on
+        // other platforms the helper is a no-op so we fall
+        // through to a real close. Default (off) closes for
+        // everyone.
+        if self.setting_close_to_tray && cfg!(target_os = "windows") {
+            self.is_window_hidden = true;
+            self.broadcast_ipc_state_if_child();
+            return Ok(iced::window::oldest()
+                .and_then(|id| {
+                    iced::window::run(id, |window| {
+                        crate::tray::hide_window(window);
+                    })
+                })
+                .discard());
+        }
+        // Real close (not tray-hide): gracefully drain the plugin
+        // subprocesses (flush logs / close SDK clients on stdin EOF)
+        // before the window closes and the process exits. Providers
+        // drain in parallel; the whole thing is time-bounded so a
+        // wedged plugin can't hold the app open.
+        let providers: Vec<std::sync::Arc<crate::plugins::PluginProvider>> =
+            self.plugin_providers.values().cloned().collect();
+        Ok(Task::perform(
+            async move {
+                let drain = futures_util::future::join_all(
+                    providers.iter().map(|p| p.shutdown()),
+                );
+                let _ = tokio::time::timeout(
+                    std::time::Duration::from_millis(2000),
+                    drain,
+                )
+                .await;
+            },
+            |_: ()| Message::NoOp,
+        )
+        .then(|_| {
+            iced::window::latest().then(|id_opt| match id_opt {
+                Some(id) => iced::window::close(id),
+                None => Task::none(),
+            })
+        }))
+    }
+
+    pub(super) fn handle_window_fullscreen_toggle(&mut self) -> Result<Task<Message>, Message> {
+        // Optimistic local flip mirrors `WindowMaximizeToggle`,
+        // the only way fullscreen changes today is through this
+        // handler so the cached bool stays in sync.
+        self.window_fullscreen = !self.window_fullscreen;
+        // Same crash-safe checkpoint as the maximize toggle.
+        self.persist_window_geometry();
+        let entering = self.window_fullscreen;
+        let next = if entering {
+            iced::window::Mode::Fullscreen
+        } else {
+            iced::window::Mode::Windowed
+        };
+        let mode_task = iced::window::latest().then(move |id_opt| match id_opt {
+            Some(id) => iced::window::set_mode(id, next),
+            None => Task::none(),
+        });
+        // Browser-style on-enter hint: show "Press F11 to
+        // exit" for 3 s then auto-hide. Exiting fullscreen
+        // also clears the flag in case the user toggled
+        // out before the timer fired.
+        if entering {
+            self.fullscreen_hint_visible = true;
+            let hide_task = Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                },
+                |_| Message::FullscreenHintHide,
+            );
+            return Ok(Task::batch([mode_task, hide_task]));
+        }
+        self.fullscreen_hint_visible = false;
+        Ok(mode_task)
+    }
+
+}
