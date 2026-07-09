@@ -332,9 +332,15 @@ impl Oryxis {
             dir_row(vec![
                 self.keynav_toolbar_ring(
                     crate::keynav::ToolbarItem::TagFilter,
-                    crate::widgets::tag_filter_toolbar_button(
-                        self.host_filter_tags.len(),
-                        Message::ShowHostTagFilterMenu,
+                    // Report the button's bounds so the dropdown anchors
+                    // under it (like the "+ Host" split menu) instead of
+                    // at the cursor.
+                    crate::widgets::bounds_reporter(
+                        crate::widgets::tag_filter_toolbar_button(
+                            self.host_filter_tags.len(),
+                            Message::ShowHostTagFilterMenu,
+                        ),
+                        self.host_tag_filter_btn_bounds.clone(),
                     ),
                 ),
                 Space::new().width(6).into(),

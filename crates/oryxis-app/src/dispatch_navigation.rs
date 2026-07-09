@@ -189,13 +189,29 @@ impl Oryxis {
                 if already_open {
                     self.overlay = None;
                 } else {
-                    // Ring anchor when opened from the keyboard, mouse
-                    // position otherwise (same pattern as the kebabs).
-                    let anchor = self.keynav_take_menu_anchor();
+                    // Anchor under the tag-filter button (its bounds are
+                    // reported every draw by a `bounds_reporter`), matching
+                    // the "+ Host" split menu rather than dropping at the
+                    // cursor. The render treats `x` as the leading edge
+                    // (right edge under RTL, where it subtracts the menu
+                    // width), so hand it the button's leading edge. Falls
+                    // back to the cursor before the first draw populates
+                    // the cell.
+                    let b = self.host_tag_filter_btn_bounds.get();
+                    let (x, y) = if b.width > 0.0 {
+                        let lead = if crate::i18n::is_rtl_layout() {
+                            b.x + b.width
+                        } else {
+                            b.x
+                        };
+                        (lead, b.y + b.height + 6.0)
+                    } else {
+                        (self.mouse_position.x, self.mouse_position.y + 26.0)
+                    };
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::HostTagFilter,
-                        x: anchor.0,
-                        y: anchor.1,
+                        x,
+                        y,
                     });
                 }
             }

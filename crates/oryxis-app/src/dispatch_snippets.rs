@@ -188,11 +188,25 @@ impl Oryxis {
                 if already {
                     self.overlay = None;
                 } else {
-                    let anchor = self.keynav_take_menu_anchor();
+                    // Anchor under the tag-filter button rather than the
+                    // cursor (mirrors `ShowHostTagFilterMenu`). `x` is the
+                    // leading edge; the render subtracts the menu width
+                    // under RTL, so hand it the button's leading edge.
+                    let b = self.snippet_tag_filter_btn_bounds.get();
+                    let (x, y) = if b.width > 0.0 {
+                        let lead = if crate::i18n::is_rtl_layout() {
+                            b.x + b.width
+                        } else {
+                            b.x
+                        };
+                        (lead, b.y + b.height + 6.0)
+                    } else {
+                        (self.mouse_position.x, self.mouse_position.y + 26.0)
+                    };
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::SnippetTagFilter,
-                        x: anchor.0,
-                        y: anchor.1,
+                        x,
+                        y,
                     });
                 }
             }

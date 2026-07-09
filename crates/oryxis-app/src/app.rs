@@ -687,6 +687,13 @@ pub struct Oryxis {
     /// Bounds of the `+` tab button, so the split hover popover anchors
     /// under it at a fixed position instead of following the cursor.
     pub(crate) plus_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the Hosts-toolbar tag-filter button, so its dropdown
+    /// anchors under the button (like the "+ Host" split menu) instead
+    /// of at the cursor. Populated by a `bounds_reporter` wrapper.
+    pub(crate) host_tag_filter_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the Snippets-toolbar tag-filter button, same role as
+    /// `host_tag_filter_btn_bounds` for the Snippets view.
+    pub(crate) snippet_tag_filter_btn_bounds: crate::widgets::BoundsCell,
     /// Search text inside the group picker overlay. Independent of
     /// `cloud_discover_default_group_name` (the input box) so typing
     /// in the picker's filter doesn't overwrite the user's chosen

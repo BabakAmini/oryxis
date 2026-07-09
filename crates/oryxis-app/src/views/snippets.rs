@@ -116,9 +116,14 @@ impl Oryxis {
             if show_tag_filter {
                 row_items.push(self.keynav_toolbar_slot(
                     crate::keynav::ToolbarItem::TagFilter,
-                    crate::widgets::tag_filter_toolbar_button(
-                        self.snippet_filter_tags.len(),
-                        Message::ShowSnippetTagFilterMenu,
+                    // Report the button's bounds so the dropdown anchors
+                    // under it instead of at the cursor.
+                    crate::widgets::bounds_reporter(
+                        crate::widgets::tag_filter_toolbar_button(
+                            self.snippet_filter_tags.len(),
+                            Message::ShowSnippetTagFilterMenu,
+                        ),
+                        self.snippet_tag_filter_btn_bounds.clone(),
                     ),
                 ));
                 row_items.push(Space::new().width(6).into());

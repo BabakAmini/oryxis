@@ -381,6 +381,8 @@ impl Oryxis {
                 dynamic_form_parent_combo_bounds: crate::widgets::new_bounds_cell(),
                 session_group_folder_combo_bounds: crate::widgets::new_bounds_cell(),
                 plus_btn_bounds: crate::widgets::new_bounds_cell(),
+                host_tag_filter_btn_bounds: crate::widgets::new_bounds_cell(),
+                snippet_tag_filter_btn_bounds: crate::widgets::new_bounds_cell(),
                 host_filter_cloud_profile: None,
                 host_filter_tags: Vec::new(),
                 cloud_import_confirm_visible: false,
