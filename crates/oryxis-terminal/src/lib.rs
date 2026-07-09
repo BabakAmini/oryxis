@@ -11,6 +11,7 @@ pub use input_tracker::{InputTracker, SubmittedLine};
 pub use osc::{PositionedShellMark, Progress, ShellMark};
 pub use colors::{TerminalPalette, TerminalTheme};
 pub use widget::{
-    ime_caret_rect, looks_like_ipv6, wrap_paste, RightClickAction, TerminalState, TerminalView,
+    ime_caret_rect, looks_like_ipv6, wrap_paste, NetHud, RightClickAction, TerminalState,
+    TerminalView,
 };
 pub use pty::PtyHandle;

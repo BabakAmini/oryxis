@@ -1,8 +1,11 @@
 /// Rolling per-frame samples for the perf overlay. We track the
 /// **max** of each phase over a short window so transient spikes
 /// (the kind that actually feel like lag) stay visible for a beat
-/// instead of being averaged away, plus window averages and a
-/// current/average/peak fps triple (issue #69).
+/// instead of being averaged away, plus window averages, the busy
+/// fraction and the over-budget frame count. No fps figures: this is
+/// an on-demand renderer, so redraw cadence tracks user/host activity
+/// rather than rendering speed; frame TIME against the 60 Hz budget is
+/// the metric that actually answers "is it slow" (issue #69).
 pub(crate) struct PerfStats {
     /// Last few frames of each phase. Old entries are dropped after
     /// `WINDOW` so the max reflects recent activity, not the whole
@@ -25,77 +28,51 @@ pub(crate) struct PerfSample {
     pub(crate) built: bool,
 }
 
-/// Frames retained for the rolling max / fps. ~2s of activity at
-/// 60 fps; long enough to catch a typing burst, short enough that
-/// the HUD recovers when things calm down.
+/// Frames retained for the rolling window. ~2s of activity at 60 fps;
+/// long enough to catch a typing burst, short enough that the HUD
+/// recovers when things calm down.
 pub(crate) const PERF_WINDOW: usize = 120;
 
-/// Frames feeding the "curr" fps readout. Short enough to track what
-/// is happening right now, long enough not to flicker per frame.
-const CURRENT_FPS_WINDOW: usize = 10;
+/// The 60 Hz frame budget. A draw that costs more than this cannot
+/// keep up with a standard display; the HUD flags those frames.
+pub(crate) const FRAME_BUDGET: std::time::Duration = std::time::Duration::from_micros(16_667);
+
+/// Half the budget: the "getting expensive" warning threshold.
+pub(crate) const FRAME_WARN: std::time::Duration = std::time::Duration::from_micros(8_333);
 
 /// Gaps longer than this are idle pauses, not slow frames: the canvas
-/// redraws on demand, so a quiet second between two keystrokes must
-/// not read as "1 fps". Excluded from every fps figure.
+/// redraws on demand, so a quiet second between two keystrokes is not
+/// render time. Capped out of the busy-fraction denominator.
 const IDLE_GAP: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// Gaps shorter than this are two panes drawing inside the same redraw
-/// cycle (the stats are process-global), not two frames. Excluded from
-/// the fps figures so a split layout doesn't double them; the phase
-/// timings of such samples still count, they measure real work.
-const SAME_CYCLE_GAP: std::time::Duration = std::time::Duration::from_millis(1);
-
-impl PerfSample {
-    /// Instantaneous fps of this frame, `None` when the gap doesn't
-    /// represent a real frame-to-frame interval (first frame, idle
-    /// pause, same-cycle sibling pane).
-    fn fps(&self) -> Option<f32> {
-        (self.frame_gap >= SAME_CYCLE_GAP && self.frame_gap <= IDLE_GAP)
-            .then(|| 1.0 / self.frame_gap.as_secs_f32())
-    }
-}
-
 impl PerfStats {
-    /// Mean fps over an iterator of frame-gap samples, honoring the
-    /// idle / same-cycle exclusions.
-    fn mean_fps<'a>(samples: impl Iterator<Item = &'a PerfSample>) -> f32 {
-        let mut n = 0u32;
-        let mut total = std::time::Duration::ZERO;
-        for s in samples.filter(|s| s.fps().is_some()) {
-            n += 1;
-            total += s.frame_gap;
+    /// Fraction (0-100) of recent active wall-clock spent inside draw.
+    /// Denominator caps each inter-frame gap at `IDLE_GAP` so idle time
+    /// doesn't dilute it to zero; clamped because sibling panes in one
+    /// redraw cycle contribute draw time with a near-zero gap.
+    pub(crate) fn busy_pct(&self) -> f32 {
+        let drawing: std::time::Duration = self.samples.iter().map(|s| s.total).sum();
+        let active: std::time::Duration =
+            self.samples.iter().map(|s| s.frame_gap.min(IDLE_GAP)).sum();
+        if active.is_zero() {
+            return 0.0;
         }
-        if n == 0 || total.is_zero() {
-            0.0
-        } else {
-            n as f32 / total.as_secs_f32()
-        }
+        (100.0 * drawing.as_secs_f32() / active.as_secs_f32()).min(100.0)
     }
 
-    /// Fps over the last few frames only, the "what is happening right
-    /// now" readout matching the current-frame phase timings.
-    pub(crate) fn current_fps(&self) -> f32 {
-        let skip = self.samples.len().saturating_sub(CURRENT_FPS_WINDOW);
-        Self::mean_fps(self.samples.iter().skip(skip))
-    }
-
-    /// Fps averaged over the whole rolling window.
-    pub(crate) fn avg_fps(&self) -> f32 {
-        Self::mean_fps(self.samples.iter())
-    }
-
-    /// Highest instantaneous fps seen in the window.
-    pub(crate) fn peak_fps(&self) -> f32 {
+    /// Frames in the window whose total draw cost blew the 60 Hz
+    /// budget, the classic "dropped frames" figure.
+    pub(crate) fn over_budget(&self) -> usize {
         self.samples
             .iter()
-            .filter_map(PerfSample::fps)
-            .fold(0.0, f32::max)
+            .filter(|s| s.total > FRAME_BUDGET)
+            .count()
     }
 
-    /// Per-sample instantaneous fps, oldest first, for the sparkline.
-    /// Excluded gaps (idle / same-cycle / first frame) draw as zero.
-    pub(crate) fn fps_series(&self) -> impl Iterator<Item = f32> + '_ {
-        self.samples.iter().map(|s| s.fps().unwrap_or(0.0))
+    /// Per-sample total draw cost in ms, oldest first, for the
+    /// frame-time sparkline.
+    pub(crate) fn total_series(&self) -> impl Iterator<Item = f32> + '_ {
+        self.samples.iter().map(|s| s.total.as_secs_f32() * 1000.0)
     }
 
     /// Percentage of frames in the window served from the geometry
@@ -158,7 +135,7 @@ pub(crate) fn perf_stats() -> &'static std::sync::Mutex<PerfStats> {
 }
 
 /// Reads the `ORYXIS_TERM_PERF` env var once and caches it. Set to `1`
-/// (or any non-empty value) to render a small FPS/timing HUD in the
+/// (or any non-empty value) to render a small frame-timing HUD in the
 /// top-right of every terminal canvas.
 pub(crate) fn perf_overlay_enabled() -> bool {
     static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -188,72 +165,60 @@ pub(crate) fn toggle_hud_wide() {
 mod tests {
     use super::*;
 
-    fn sample(gap: std::time::Duration, built: bool) -> PerfSample {
+    fn sample(gap_ms: u64, total_ms: u64, built: bool) -> PerfSample {
         PerfSample {
-            frame_gap: gap,
+            frame_gap: std::time::Duration::from_millis(gap_ms),
             lock: std::time::Duration::from_micros(100),
             cells: std::time::Duration::from_micros(200),
             highlights: std::time::Duration::from_micros(50),
-            total: std::time::Duration::from_micros(400),
+            total: std::time::Duration::from_millis(total_ms),
             built,
         }
     }
 
-    fn stats(gaps_ms: &[u64]) -> PerfStats {
+    fn stats(samples: &[PerfSample]) -> PerfStats {
         PerfStats {
-            samples: gaps_ms
-                .iter()
-                .map(|ms| sample(std::time::Duration::from_millis(*ms), true))
-                .collect(),
+            samples: samples.iter().copied().collect(),
             last_draw_at: None,
         }
     }
 
     #[test]
-    fn current_tracks_recent_frames_average_tracks_window() {
-        // 20 slow frames (50 ms = 20 fps) followed by 10 fast ones
-        // (10 ms = 100 fps): "curr" reads the recent burst, "avg" the
-        // whole window, "peak" the fastest single frame.
-        let mut gaps = vec![50u64; 20];
-        gaps.extend(vec![10u64; 10]);
-        let s = stats(&gaps);
-        assert!((s.current_fps() - 100.0).abs() < 1.0, "curr={}", s.current_fps());
-        let avg = s.avg_fps();
-        assert!(avg > 20.0 && avg < 100.0, "avg={avg}");
-        assert!((s.peak_fps() - 100.0).abs() < 1.0, "peak={}", s.peak_fps());
+    fn busy_pct_is_draw_time_over_active_time() {
+        // 4 frames, 16 ms apart, each costing 4 ms to draw: 25% busy.
+        let s = stats(&[sample(16, 4, true); 4]);
+        assert!((s.busy_pct() - 25.0).abs() < 0.1, "busy={}", s.busy_pct());
     }
 
     #[test]
-    fn idle_and_same_cycle_gaps_are_excluded_from_fps() {
-        // A 5 s idle pause and a 0 ms same-cycle sibling draw must not
-        // drag or inflate the figures; only the two real 20 ms frames
-        // (50 fps) count.
-        let s = stats(&[5000, 0, 20, 20]);
-        assert!((s.avg_fps() - 50.0).abs() < 1.0, "avg={}", s.avg_fps());
-        assert!((s.peak_fps() - 50.0).abs() < 1.0, "peak={}", s.peak_fps());
-        // The excluded gaps still occupy sparkline slots, as zeros.
-        let series: Vec<f32> = s.fps_series().collect();
-        assert_eq!(series.len(), 4);
-        assert_eq!(series[0], 0.0);
-        assert_eq!(series[1], 0.0);
-        assert!(series[2] > 0.0);
+    fn busy_pct_caps_idle_gaps_and_clamps() {
+        // A 10 s idle gap counts as only 1 s of active time, so one
+        // 5 ms draw after it reads ~0.5% busy, not ~0.05%.
+        let s = stats(&[sample(10_000, 5, true)]);
+        assert!((s.busy_pct() - 0.5).abs() < 0.05, "busy={}", s.busy_pct());
+        // Same-cycle gaps (~0) with real draw cost can't exceed 100%.
+        let s = stats(&[sample(0, 5, true); 3]);
+        assert!(s.busy_pct() <= 100.0);
     }
 
     #[test]
-    fn all_excluded_gaps_read_as_zero_fps() {
-        let s = stats(&[0, 5000]);
-        assert_eq!(s.current_fps(), 0.0);
-        assert_eq!(s.avg_fps(), 0.0);
-        assert_eq!(s.peak_fps(), 0.0);
+    fn over_budget_counts_frames_past_16ms() {
+        let s = stats(&[
+            sample(16, 2, true),
+            sample(16, 17, true),
+            sample(16, 30, true),
+        ]);
+        assert_eq!(s.over_budget(), 2);
     }
 
     #[test]
     fn cache_hit_rate_counts_unbuilt_frames() {
-        let mut s = stats(&[]);
-        for built in [true, false, false, false] {
-            s.samples
-                .push_back(sample(std::time::Duration::from_millis(16), built));
-        }
+        let s = stats(&[
+            sample(16, 1, true),
+            sample(16, 0, false),
+            sample(16, 0, false),
+            sample(16, 0, false),
+        ]);
         assert!((s.cache_hit_pct() - 75.0).abs() < 0.01);
         assert_eq!(stats(&[]).cache_hit_pct(), 0.0);
     }

@@ -25,6 +25,12 @@ pub struct SshSession {
     pub(crate) reader_task: tokio::task::JoinHandle<()>,
     pub(crate) writer_task: tokio::task::JoinHandle<()>,
     pub(crate) port_forward_tasks: Vec<tokio::task::JoinHandle<()>>,
+    /// Rolling link-quality figures (RTT / jitter / stalls), fed by
+    /// `quality_task` and surfaced in the terminal performance HUD.
+    pub(crate) net_quality: Arc<NetQuality>,
+    /// The RTT prober behind `net_quality`; aborted on close so a
+    /// closed session stops pinging.
+    pub(crate) quality_task: tokio::task::JoinHandle<()>,
     /// Latched by `close()` so teardown runs exactly once even when both
     /// an explicit close and the `Drop` backstop fire.
     pub(crate) closed: std::sync::atomic::AtomicBool,
@@ -108,6 +114,12 @@ impl SshSession {
         !self.writer_tx.is_closed()
     }
 
+    /// Point-in-time link-quality figures for this session (RTT probe
+    /// window). See [`NetQualitySnapshot`].
+    pub fn net_quality(&self) -> NetQualitySnapshot {
+        self.net_quality.snapshot()
+    }
+
     /// Tear the session down. Idempotent: only the first call acts.
     ///
     /// Aborts the reader / writer / port-forward tasks (releasing any
@@ -123,6 +135,7 @@ impl SshSession {
         }
         self.reader_task.abort();
         self.writer_task.abort();
+        self.quality_task.abort();
         for task in &self.port_forward_tasks {
             task.abort();
         }

@@ -76,6 +76,28 @@ pub(crate) use selection::{next_click_count, union_selection, SelectGranularity}
 // Canvas widget state (per-instance, managed by Iced)
 // ---------------------------------------------------------------------------
 
+/// Link-quality readout for the perf HUD's `net` row, a plain-data
+/// mirror of the SSH engine's probe snapshot so this crate stays
+/// transport-agnostic. All figures are milliseconds from the rolling
+/// RTT probe window.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct NetHud {
+    /// Most recent successful round trip.
+    pub rtt_ms: Option<f32>,
+    /// Mean round trip over the window.
+    pub avg_rtt_ms: Option<f32>,
+    /// Worst round trip in the window (TCP loss shows up here as
+    /// spikes; raw loss is invisible above TCP).
+    pub peak_rtt_ms: Option<f32>,
+    /// Mean absolute difference between consecutive round trips.
+    pub jitter_ms: Option<f32>,
+    /// Probes that went unanswered in the window.
+    pub lost: usize,
+    /// Seconds since the server last answered, present only while the
+    /// link is currently unresponsive (drives the "no reply" banner).
+    pub silent_for_secs: Option<f32>,
+}
+
 #[derive(Default)]
 pub struct TerminalWidgetState {
     selecting: bool,
@@ -292,9 +314,14 @@ pub struct TerminalView<Message = ()> {
     /// [`privacy`](Self::privacy) is on, because Privacy Mode masks the
     /// spans that same scan produces.
     performance: bool,
-    /// Draws the per-phase timing / fps HUD in the top-right of the pane.
+    /// Draws the per-phase timing HUD in the top-right of the pane.
     /// ORed with the `ORYXIS_TERM_PERF` env var at draw time.
     perf_overlay: bool,
+    /// Link-quality figures for the HUD's `net` row, provided by the app
+    /// from the SSH session's RTT probe window. `None` for panes without
+    /// a probed transport (local shell, telnet, serial), which simply
+    /// omits the row.
+    net_hud: Option<NetHud>,
     /// Privacy Mode: when true, detected IP addresses and `user@host`
     /// prompt tokens are masked with muted block glyphs and revealed only
     /// when the cursor hovers their span. Runs independently of
@@ -561,6 +588,7 @@ impl<Message> TerminalView<Message> {
             keyword_highlight: true,
             performance: false,
             perf_overlay: false,
+            net_hud: None,
             privacy: false,
             privacy_terms: Vec::new(),
             smart_contrast: true,
@@ -695,6 +723,13 @@ impl<Message> TerminalView<Message> {
     /// Show the per-pane perf HUD (also forced by `ORYXIS_TERM_PERF`).
     pub fn with_perf_overlay(mut self, on: bool) -> Self {
         self.perf_overlay = on;
+        self
+    }
+
+    /// Link-quality figures for the perf HUD's `net` row. `None` omits
+    /// the row (panes without a probed transport).
+    pub fn with_net_hud(mut self, net: Option<NetHud>) -> Self {
+        self.net_hud = net;
         self
     }
 
@@ -2641,12 +2676,11 @@ where
 
             #[allow(clippy::type_complexity)]
             let (
-                (curr_fps, avg_fps, peak_fps),
                 (avg_total, avg_lock, avg_cells, avg_hl),
                 (max_total, max_lock, max_cells, max_hl),
-                cache_pct,
+                (cache_pct, busy_pct, over_budget),
                 spark_series,
-            ): (_, _, _, f32, Vec<f32>) = {
+            ): (_, _, (f32, f32, usize), Vec<f32>) = {
                 let mut stats = perf_stats().lock().unwrap();
                 let frame_gap = stats
                     .last_draw_at
@@ -2665,7 +2699,6 @@ where
                     stats.samples.pop_front();
                 }
                 (
-                    (stats.current_fps(), stats.avg_fps(), stats.peak_fps()),
                     (
                         stats.avg_total(),
                         stats.avg_lock(),
@@ -2678,70 +2711,156 @@ where
                         stats.max_cells(),
                         stats.max_highlights(),
                     ),
-                    stats.cache_hit_pct(),
-                    stats.fps_series().collect(),
+                    (stats.cache_hit_pct(), stats.busy_pct(), stats.over_budget()),
+                    stats.total_series().collect(),
                 )
             };
 
             // The grid palette lived inside the cache closure and isn't in
-            // scope here; grab just the two colors the HUD paints with.
-            let (hud_bg, hud_fg) = match self.state.lock() {
-                Ok(s) => (s.palette.background, s.palette.foreground),
+            // scope here; grab just the colors the HUD paints with (fg /
+            // bg plus the theme's red and yellow for the threshold tints).
+            let (hud_bg, hud_fg, hud_red, hud_amber) = match self.state.lock() {
+                Ok(s) => (
+                    s.palette.background,
+                    s.palette.foreground,
+                    s.palette.ansi[1],
+                    s.palette.ansi[3],
+                ),
                 Err(p) => {
                     let s = p.into_inner();
-                    (s.palette.background, s.palette.foreground)
+                    (
+                        s.palette.background,
+                        s.palette.foreground,
+                        s.palette.ansi[1],
+                        s.palette.ansi[3],
+                    )
                 }
             };
 
-            // Three-line HUD pinned top-right, plus an fps sparkline.
-            // Line 1 is the current frame (its phase timings read C0.0 /
-            // H0.0 on a cache hit, the signal that the hit skipped the
-            // snapshot + build) with the rolling cache hit-rate; line 2
-            // averages the `PERF_WINDOW`; line 3 is the extremes: fastest
-            // frame, slowest phases, so transient spikes, the kind that
-            // read as typing lag, stay visible long enough to spot.
-            // Fractional ms because most healthy draws are sub-1 ms.
-            // Clicking the panel swaps T/L/C/H for full metric names
-            // (issue #69's tooltip ask; a canvas layer can't host
+            // Frame-timing HUD pinned top-right, market-standard shape:
+            // frame COST against the 60 Hz budget rather than fps (an
+            // on-demand renderer's redraw cadence tracks activity, not
+            // rendering speed, so fps here only ever measured how busy
+            // the user was). Row 1 is the current frame (C 0.0 / H 0.0
+            // reads as "cache hit skipped the snapshot + build") plus the
+            // rolling cache hit-rate; row 2 averages the `PERF_WINDOW`
+            // and adds `busy` (draw time over active wall-clock); row 3
+            // is the window worst case plus `slow` (frames over budget,
+            // the dropped-frame count), so transient spikes, the kind
+            // that read as typing lag, stay visible long enough to spot.
+            // The optional `net` row carries the session's link quality
+            // (RTT probe window): on an SSH client the wire, not the
+            // renderer, is what usually makes a session feel slow.
+            // Values past their thresholds tint amber / red with the
+            // theme's ANSI colors. Clicking the panel swaps the
+            // single-letter keys for full metric names (issue #69's
+            // tooltip ask; a canvas layer can't host
             // `iced::widget::tooltip`).
             let ms = |d: std::time::Duration| d.as_secs_f32() * 1000.0;
             let wide = hud_wide();
-            let metrics = |t, l, c, h| {
-                if wide {
-                    format!(
-                        "total{:>6.1}ms  lock{:>6.1}ms  cells{:>6.1}ms  highlight{:>6.1}ms",
-                        ms(t),
-                        ms(l),
-                        ms(c),
-                        ms(h),
-                    )
+            let tint = |warn: bool, bad: bool| {
+                if bad {
+                    hud_red
+                } else if warn {
+                    hud_amber
                 } else {
-                    format!("T{:>5.1}  L{:>4.1}  C{:>4.1}  H{:>4.1}", ms(t), ms(l), ms(c), ms(h))
+                    hud_fg
                 }
             };
-            let label = |compact: &str, full: &str| {
+            let total_tint = |d: std::time::Duration| tint(d > FRAME_WARN, d > FRAME_BUDGET);
+            // Lock time is the typing-lag signal (draw contending with
+            // the SSH output path), so it gets its own, tighter bar.
+            let lock_tint = |d: std::time::Duration| {
+                tint(d.as_secs_f32() > 0.002, d.as_secs_f32() > 0.008)
+            };
+            type Seg = (String, Color);
+            let metrics = |t: std::time::Duration, l, c, h| -> Vec<Seg> {
                 if wide {
-                    format!("{full:<8}")
+                    vec![
+                        ("total".into(), hud_fg),
+                        (format!("{:>6.1}ms", ms(t)), total_tint(t)),
+                        ("  lock".into(), hud_fg),
+                        (format!("{:>6.1}ms", ms(l)), lock_tint(l)),
+                        (
+                            format!("  cells{:>6.1}ms  highlight{:>6.1}ms", ms(c), ms(h)),
+                            hud_fg,
+                        ),
+                    ]
                 } else {
-                    format!("{compact:<5}")
+                    vec![
+                        ("T".into(), hud_fg),
+                        (format!("{:>5.1}", ms(t)), total_tint(t)),
+                        ("  L".into(), hud_fg),
+                        (format!("{:>4.1}", ms(l)), lock_tint(l)),
+                        (format!("  C{:>4.1}  H{:>4.1}", ms(c), ms(h)), hud_fg),
+                    ]
                 }
             };
-            let line1 = format!(
-                "{}{curr_fps:>4.0} fps   {}   cache {cache_pct:>3.0}%",
-                label("curr", "current"),
-                metrics(total, lock_dur, cells_dur, highlights_dur),
-            );
-            let line2 = format!(
-                "{}{avg_fps:>4.0} fps   {}",
-                label("avg", "average"),
-                metrics(avg_total, avg_lock, avg_cells, avg_hl),
-            );
-            let line3 = format!(
-                "{}{peak_fps:>4.0} fps   {}",
-                label("peak", "peak"),
-                metrics(max_total, max_lock, max_cells, max_hl),
-            );
-            let lines = [line1, line2, line3];
+            let label = |compact: &str, full: &str| -> Seg {
+                if wide {
+                    (format!("{full:<9}"), hud_fg)
+                } else {
+                    (format!("{compact:<5}"), hud_fg)
+                }
+            };
+            let mut line1 = vec![label("curr", "current")];
+            line1.extend(metrics(total, lock_dur, cells_dur, highlights_dur));
+            line1.push((format!("   cache {cache_pct:>3.0}%"), hud_fg));
+            let mut line2 = vec![label("avg", "average")];
+            line2.extend(metrics(avg_total, avg_lock, avg_cells, avg_hl));
+            line2.push((format!("   busy {busy_pct:>4.0}%"), hud_fg));
+            let mut line3 = vec![label("peak", "peak")];
+            line3.extend(metrics(max_total, max_lock, max_cells, max_hl));
+            line3.push((
+                format!(
+                    "   {} {over_budget}",
+                    if wide { "over-budget" } else { "slow" }
+                ),
+                tint(over_budget > 0, over_budget >= PERF_WINDOW / 20),
+            ));
+            let mut lines = vec![line1, line2, line3];
+            if let Some(net) = self.net_hud {
+                let mut line = vec![label("net", "network")];
+                if let Some(silent) = net.silent_for_secs {
+                    // The mosh-style dead-link banner: the server has
+                    // stopped answering probes entirely.
+                    line.push((format!("no reply for {silent:.0}s"), hud_red));
+                } else if let Some(rtt) = net.rtt_ms {
+                    let avg = net.avg_rtt_ms.unwrap_or(rtt);
+                    let peak = net.peak_rtt_ms.unwrap_or(rtt);
+                    let jit = net.jitter_ms.unwrap_or(0.0);
+                    // Interactive-SSH thresholds: a 100 ms echo is
+                    // noticeable, 250 ms is painful. Peak spikes are how
+                    // TCP loss manifests, hence their own (looser) bar.
+                    let rtt_tint = tint(rtt >= 100.0, rtt >= 250.0);
+                    let peak_tint = tint(peak >= 500.0, peak >= 1000.0);
+                    let jit_tint = tint(jit >= 30.0, jit >= 100.0);
+                    if wide {
+                        line.push(("round-trip".into(), hud_fg));
+                        line.push((format!("{rtt:>5.0}ms"), rtt_tint));
+                        line.push((format!("  avg{avg:>5.0}ms"), hud_fg));
+                        line.push(("  peak".into(), hud_fg));
+                        line.push((format!("{peak:>5.0}ms"), peak_tint));
+                        line.push(("  jitter".into(), hud_fg));
+                        line.push((format!("{jit:>4.0}ms"), jit_tint));
+                    } else {
+                        line.push(("rtt".into(), hud_fg));
+                        line.push((format!("{rtt:>5.0}"), rtt_tint));
+                        line.push((format!("  avg{avg:>5.0}"), hud_fg));
+                        line.push(("  peak".into(), hud_fg));
+                        line.push((format!("{peak:>5.0}"), peak_tint));
+                        line.push(("  jit".into(), hud_fg));
+                        line.push((format!("{jit:>4.0}"), jit_tint));
+                        line.push(("  ms".into(), hud_fg));
+                    }
+                    if net.lost > 0 {
+                        line.push((format!("  lost {}", net.lost), hud_red));
+                    }
+                } else {
+                    line.push(("measuring...".into(), Color { a: 0.6, ..hud_fg }));
+                }
+                lines.push(line);
+            }
 
             // Panel sized to the text it holds: the HUD renders with the
             // terminal's monospace font at a fixed 10 px, so the measured
@@ -2753,7 +2872,11 @@ where
             const HUD_LINE_H: f32 = 13.0;
             const SPARK_H: f32 = 12.0;
             let advance = cell_advance(self.font, HUD_FONT_PX);
-            let chars = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+            let chars = lines
+                .iter()
+                .map(|l| l.iter().map(|(s, _)| s.chars().count()).sum::<usize>())
+                .max()
+                .unwrap_or(0);
             let panel_w = (chars as f32 * advance).ceil() + HUD_PAD * 2.0;
             let text_top = 6.0;
             let spark_top = text_top + lines.len() as f32 * HUD_LINE_H + 3.0;
@@ -2784,41 +2907,58 @@ where
                 Size::new(1.0, panel.height),
                 border,
             );
-            for (i, content) in lines.into_iter().enumerate() {
-                hud.fill_text(CanvasText {
-                    content,
-                    position: Point::new(
-                        panel.x + HUD_PAD,
-                        panel.y + text_top + i as f32 * HUD_LINE_H,
-                    ),
-                    color: hud_fg,
-                    size: Pixels(HUD_FONT_PX),
-                    font: self.font,
-                    align_x: alignment::Horizontal::Left.into(),
-                    align_y: alignment::Vertical::Top,
-                    ..Default::default()
-                });
+            for (i, segs) in lines.into_iter().enumerate() {
+                let y = panel.y + text_top + i as f32 * HUD_LINE_H;
+                let mut x = panel.x + HUD_PAD;
+                for (content, color) in segs {
+                    // Monospace at a fixed size, so the advance times the
+                    // char count is the exact segment width.
+                    let w = content.chars().count() as f32 * advance;
+                    hud.fill_text(CanvasText {
+                        content,
+                        position: Point::new(x, y),
+                        color,
+                        size: Pixels(HUD_FONT_PX),
+                        font: self.font,
+                        align_x: alignment::Horizontal::Left.into(),
+                        align_y: alignment::Vertical::Top,
+                        ..Default::default()
+                    });
+                    x += w;
+                }
             }
-            // Sparkline of per-frame fps across the window, one slot per
-            // sample, newest hugging the right edge. Scaled to the peak
-            // (60 fps floor) so a steady run reads near-full and spikes
-            // still fit; excluded gaps (idle pauses, same-cycle sibling
-            // panes) draw as gaps.
+            // Frame-time sparkline across the window, one slot per
+            // sample, newest hugging the right edge; taller = costlier
+            // frame. The faint guide line is the 16.7 ms budget: bars
+            // crossing it (red) are dropped frames, past half of it
+            // amber. Healthy sub-ms draws render as 1 px ticks, so a
+            // flat baseline means "all good", not "no data".
             let spark_w = panel.width - HUD_PAD * 2.0;
             let spark_x = panel.x + HUD_PAD;
             let spark_y = panel.y + spark_top;
-            let scale = peak_fps.max(60.0);
+            let budget_ms = FRAME_BUDGET.as_secs_f32() * 1000.0;
+            let scale = ms(max_total).max(budget_ms * 1.25);
             let bar_w = spark_w / PERF_WINDOW as f32;
             let n = spark_series.len();
-            for (i, fps) in spark_series.into_iter().enumerate() {
-                let h = (fps / scale).clamp(0.0, 1.0) * SPARK_H;
-                if h < 0.5 {
-                    continue;
-                }
+            let budget_y = spark_y + SPARK_H - (budget_ms / scale) * SPARK_H;
+            hud.fill_rectangle(
+                Point::new(spark_x, budget_y),
+                Size::new(spark_w, 1.0),
+                Color { a: 0.3, ..hud_fg },
+            );
+            for (i, cost) in spark_series.into_iter().enumerate() {
+                let h = ((cost / scale).clamp(0.0, 1.0) * SPARK_H).max(1.0);
+                let color = if cost > budget_ms {
+                    hud_red
+                } else if cost > budget_ms / 2.0 {
+                    hud_amber
+                } else {
+                    hud_fg
+                };
                 hud.fill_rectangle(
                     Point::new(spark_x + spark_w - (n - i) as f32 * bar_w, spark_y + SPARK_H - h),
                     Size::new((bar_w - 0.5).max(0.5), h),
-                    Color { a: 0.65, ..hud_fg },
+                    Color { a: 0.65, ..color },
                 );
             }
             hud.fill_rectangle(

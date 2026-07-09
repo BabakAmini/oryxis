@@ -303,6 +303,25 @@ impl Oryxis {
             .on_paste_request(Message::TerminalPasteFromClipboard)
             .on_terminal_input(Message::TerminalInput)
             .on_link_opened(Message::TerminalLinkOpened);
+        // The perf HUD's `net` row: link quality from the SSH session's
+        // RTT probe window. Only sampled while the HUD can render it, so
+        // the per-frame snapshot lock costs nothing when it's off. The
+        // env-var check mirrors the widget's own `ORYXIS_TERM_PERF`
+        // force-on so the forced HUD isn't missing its net row.
+        let hud_on = self.setting_perf_overlay
+            || std::env::var("ORYXIS_TERM_PERF").is_ok_and(|v| !v.is_empty() && v != "0");
+        if hud_on && let Some(ssh) = pane.session.as_ref().and_then(|t| t.ssh()) {
+            let q = ssh.net_quality();
+            let ms = |d: std::time::Duration| d.as_secs_f32() * 1000.0;
+            term_view = term_view.with_net_hud(Some(oryxis_terminal::NetHud {
+                rtt_ms: q.last_rtt.map(ms),
+                avg_rtt_ms: q.avg_rtt.map(ms),
+                peak_rtt_ms: q.peak_rtt.map(ms),
+                jitter_ms: q.jitter.map(ms),
+                lost: q.timeouts,
+                silent_for_secs: q.silent_for.map(|d| d.as_secs_f32()),
+            }));
+        }
         // Context menu (right-click scheme = Menu): carry the clicked
         // pane's id so Copy All / Clear Scrollback target the right pane,
         // not just the focused one.

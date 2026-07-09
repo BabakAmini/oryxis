@@ -235,6 +235,9 @@ impl SshEngine {
 
         let shared_handle = Arc::new(tokio::sync::Mutex::new(handle));
         let pf_tasks = spawn_port_forward_tasks(pf_listeners, &shared_handle);
+        let net_quality = Arc::new(NetQuality::new());
+        let quality_task =
+            spawn_quality_probe(Arc::clone(&shared_handle), Arc::clone(&net_quality));
 
         Ok((
             SshSession {
@@ -244,6 +247,8 @@ impl SshEngine {
                 reader_task,
                 writer_task,
                 port_forward_tasks: pf_tasks,
+                net_quality,
+                quality_task,
                 closed: std::sync::atomic::AtomicBool::new(false),
                 // Default, overridden by the engine right after this
                 // returns via `sftp_open_timeout` assignment.
