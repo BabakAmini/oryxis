@@ -162,6 +162,20 @@ impl Oryxis {
         if !crate::sftp_helpers::is_safe_remote_entry_name(&new_name) {
             return Task::none();
         }
+        // Unchanged name: close the editor silently. The commit also fires
+        // on any click outside the input, and a remote SSH_FXP_RENAME onto
+        // its own path fails with SSH_FX_FAILURE (the target exists), so
+        // without this a no-op edit surfaces a spurious "Failure" error.
+        let unchanged = if self.sftp.pane(rn.side).is_remote {
+            rn.original_path.rsplit('/').next() == Some(new_name.as_str())
+        } else {
+            std::path::Path::new(&rn.original_path)
+                .file_name()
+                .is_some_and(|n| n == std::ffi::OsStr::new(&new_name))
+        };
+        if unchanged {
+            return Task::none();
+        }
         if !self.sftp.pane(rn.side).is_remote {
             let original = std::path::PathBuf::from(&rn.original_path);
             let Some(parent) = original.parent().map(|p| p.to_path_buf()) else {
@@ -1581,6 +1595,31 @@ impl Oryxis {
                     || self.sftp.picker_open
                     || self.sftp.left.path_editing.is_some()
                     || self.sftp.right.path_editing.is_some();
+                // Ctrl+A / Cmd+A: select every visible row in the focused
+                // pane (post filter/sort, the same list shift-click range
+                // extension walks). Anchored on the first entry so a
+                // follow-up shift-click keeps well-defined semantics.
+                if !editing
+                    && let iced::keyboard::Event::KeyPressed {
+                        key: iced::keyboard::Key::Character(s),
+                        modifiers,
+                        ..
+                    } = &ke
+                    && (modifiers.control() || modifiers.command())
+                    && !modifiers.alt()
+                    && s.as_str() == "a"
+                {
+                    let side = self.sftp.focused_side;
+                    let entries = self.visible_entry_paths_in_pane(side);
+                    if !entries.is_empty() {
+                        self.sftp.selection_anchor = Some((side, entries[0].clone()));
+                        self.sftp.selected_rows =
+                            entries.into_iter().map(|p| (side, p)).collect();
+                        self.sftp.parent_cursor = false;
+                        self.sftp.suppress_hover = true;
+                    }
+                    return Ok(Task::none());
+                }
                 // Arrow / Enter navigation: move the focused row or open
                 // it (folder -> navigate, file -> open). These are Named
                 // keys, so they never reach the type-ahead char extraction
