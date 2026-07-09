@@ -37,10 +37,17 @@ impl Oryxis {
                             self.vault_ui.error = None;
                             // Cache for child-window spawn.
                             self.master_password = Some(self.vault_ui.password_input.clone());
+                            // Onboarding's biometric opt-in enrolls the
+                            // freshly created password in the same flow
+                            // (before the input buffer is cleared).
+                            let bio_task = self
+                                .biometric_setup_enroll(&self.vault_ui.password_input.clone())
+                                .unwrap_or_else(Task::none);
                             self.vault_ui.password_input.clear();
                             self.vault_ui.password_visible = false;
                             self.load_data_from_vault();
                             return Ok(Task::batch([
+                                bio_task,
                                 self.take_perf_mode_toast_task(),
                                 iced::widget::operation::focus(iced::widget::Id::new(
                                     "search-dashboard",
@@ -119,6 +126,9 @@ impl Oryxis {
                             self.biometric_reenroll(&self.vault_ui.password_input);
                             self.vault_ui.password_input.clear();
                             self.vault_ui.password_visible = false;
+                            // Next lock screen leads with biometrics again
+                            // (a one-time fallback choice shouldn't stick).
+                            self.vault_ui.password_fallback = false;
                             self.load_data_from_vault();
                             // Bring the sync engine up now that the
                             // vault is open, if the user left it on. Only
@@ -237,8 +247,28 @@ impl Oryxis {
                     tracing::warn!("biometric unlock failed: {e}");
                     self.vault_ui.error =
                         Some(crate::i18n::t("biometric_unlock_failed").to_string());
+                    // Drop to the typed-password layout so the user is
+                    // never stuck on a prompt the OS keeps rejecting, and
+                    // focus the input the error just told them to use.
+                    self.vault_ui.password_fallback = true;
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        "vault-unlock-password",
+                    )));
                 }
             },
+            Message::VaultShowPasswordFallback => {
+                // Biometric-first lock screen: reveal the typed-password
+                // form. The biometric button stays available below it, so
+                // this is a per-lock choice, not a mode switch.
+                self.vault_ui.password_fallback = true;
+                self.vault_ui.error = None;
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "vault-unlock-password",
+                )));
+            }
+            Message::ToggleSetupBiometric => {
+                self.vault_ui.setup_enable_biometric = !self.vault_ui.setup_enable_biometric;
+            }
 
             // ── Vault password management ──
             Message::ToggleVaultPassword => {
@@ -255,6 +285,10 @@ impl Oryxis {
                     // set-password form. Nothing is committed until the user
                     // types, confirms, and presses Set Password.
                     self.vault_ui.show_password_form = !self.vault_ui.show_password_form;
+                    // Offer the biometric opt-in pre-checked whenever the
+                    // platform can service it (password creation is the
+                    // natural moment to enable the convenience layer).
+                    self.vault_ui.setup_enable_biometric = self.biometric_available;
                     self.vault_ui.new_password.clear();
                     self.vault_ui.confirm_password.clear();
                     self.vault_ui.password_error = None;
@@ -320,8 +354,16 @@ impl Oryxis {
                             // the credential to work with.
                             self.master_password =
                                 Some(self.vault_ui.new_password.clone());
+                            // The form's biometric opt-in enrolls the new
+                            // password in the same flow (before the form
+                            // buffers are cleared).
+                            let bio_task = self
+                                .biometric_setup_enroll(&self.vault_ui.new_password.clone());
                             self.vault_ui.new_password.clear();
                             self.vault_ui.confirm_password.clear();
+                            if let Some(toast) = bio_task {
+                                return Ok(toast);
+                            }
                         }
                         Err(e) => {
                             self.vault_ui.password_error = Some(e.to_string());

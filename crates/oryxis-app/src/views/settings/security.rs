@@ -179,6 +179,24 @@ impl Oryxis {
             ))
             .width(300);
             let btn = styled_button(crate::i18n::t("set_password"), Message::SetVaultPassword, OryxisColors::t().accent);
+            // Offer the biometric convenience layer at password-creation
+            // time (the market-standard moment: 1Password / Bitwarden ask
+            // right after the master password is set), pre-checked when
+            // the platform supports it.
+            let bio_opt: Element<'_, Message> = if self.biometric_available {
+                column![
+                    Space::new().height(8),
+                    container(crate::widgets::toggle_row(
+                        crate::biometric::bio_setup_label(),
+                        self.vault_ui.setup_enable_biometric,
+                        Message::ToggleSetupBiometric,
+                    ))
+                    .width(300),
+                ]
+                .into()
+            } else {
+                Space::new().height(0).into()
+            };
             let error: Element<'_, Message> = if let Some(err) = &self.vault_ui.password_error {
                 text(err.clone()).size(12).color(OryxisColors::t().error).into()
             } else {
@@ -194,6 +212,7 @@ impl Oryxis {
                 input,
                 Space::new().height(8),
                 confirm,
+                bio_opt,
                 Space::new().height(8),
                 btn,
                 error,
@@ -265,6 +284,53 @@ impl Oryxis {
                 column![Space::new().height(8), protected, error].into()
             }
         };
+
+        // Biometric (OS-keystore) unlock: lives inside the vault-password
+        // block, since it is a convenience layer over the master password
+        // (it stores that password in the OS keystore). Rendered as a
+        // highlighted card like the other vault callouts; offered only
+        // where the platform supports it and the vault actually has a
+        // password to store. Built here, before the lock/update buttons,
+        // so the keynav recording order matches the on-screen order.
+        let biometric_section: Element<'_, Message> =
+            if self.biometric_available && self.vault_ui.has_user_password {
+                let tint = OryxisColors::t().accent;
+                let card = container(
+                    dir_row(vec![
+                        crate::biometric::bio_icon().size(20).color(tint).into(),
+                        Space::new().width(12).into(),
+                        column![
+                            self.nav_toggle_row(
+                                crate::biometric::bio_setting_label(),
+                                self.setting_biometric_unlock_enabled,
+                                Message::ToggleBiometricUnlock,
+                            ),
+                            Space::new().height(4),
+                            text(t("biometric_unlock_desc"))
+                                .size(11)
+                                .color(OryxisColors::t().text_secondary),
+                        ]
+                        .width(Length::Fill)
+                        .align_x(dir_align_x())
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Start),
+                )
+                .padding(14)
+                .width(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.10, ..tint })),
+                    border: Border {
+                        radius: Radius::from(8.0),
+                        color: Color { a: 0.4, ..tint },
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                });
+                column![Space::new().height(12), card].into()
+            } else {
+                Space::new().height(0).into()
+            };
 
         // Lock Vault only makes sense once a master password is
         // set; without one, locking has nothing to protect and
@@ -388,26 +454,6 @@ impl Oryxis {
             Space::new().height(8),
             auto_lock_field,
         ]);
-
-        // Biometric (OS-keystore) unlock. Offered only where the platform
-        // supports it and the vault actually has a password to store; the
-        // toggle records its keynav slot here so build order matches the
-        // on-screen order between auto-lock and privacy.
-        let biometric_section: Element<'_, Message> =
-            if self.biometric_available && self.vault_ui.has_user_password {
-                panel_section(column![
-                    self.nav_toggle_row(
-                        crate::i18n::t("biometric_unlock_setting"),
-                        self.setting_biometric_unlock_enabled,
-                        Message::ToggleBiometricUnlock,
-                    ),
-                    text(t("biometric_unlock_desc"))
-                        .size(11)
-                        .color(OryxisColors::t().text_muted),
-                ])
-            } else {
-                Space::new().height(0).into()
-            };
 
         // Privacy & logging: session recordings, connection
         // history and the retention window. Moved here from the
@@ -945,12 +991,11 @@ impl Oryxis {
                 column![
                     panel_section(column![password_toggle]),
                     password_section,
+                    biometric_section,
                     Space::new().height(24),
                     lock_row,
                     Space::new().height(24),
                     auto_lock_section,
-                    Space::new().height(12),
-                    biometric_section,
                     Space::new().height(12),
                     privacy_mode_section,
                     Space::new().height(12),

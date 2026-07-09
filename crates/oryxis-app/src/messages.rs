@@ -36,6 +36,11 @@ pub enum Message {
     /// Result of the off-thread biometric retrieval: `Ok(master_password)`
     /// to feed into the normal unlock, or `Err(message)` to surface.
     BiometricUnlockResult(Result<String, String>),
+    /// Lock-screen link on the biometric-first layout: reveal the typed
+    /// master-password form (biometrics stay one click away).
+    VaultShowPasswordFallback,
+    /// Set-password forms: flip the "also enable biometric unlock" opt-in.
+    ToggleSetupBiometric,
 
     // First-run welcome / onboarding carousel (rendered off
     // `VaultState::NeedSetup`). These drive the slide index; the final

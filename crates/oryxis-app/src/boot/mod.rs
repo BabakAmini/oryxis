@@ -43,6 +43,16 @@ impl Oryxis {
         let mut restored_window_pos: Option<iced::Point> = None;
         let mut restored_maximized = false;
         let mut restored_fullscreen = false;
+        // Update-check settings, hydrated pre-unlock: the boot
+        // `CheckForUpdate` fires while the vault can still be locked, so
+        // reading these only in `load_data_from_vault` made a locked-vault
+        // boot check run on the default channel (Stable) and ignore a
+        // disabled auto-check. A nightly binary checked on Stable is
+        // always offered the latest stable (the un-strand rule in
+        // `update::check_stable`), which nagged nightly users with a
+        // same-version "update" on every boot.
+        let mut auto_check_updates = true;
+        let mut update_channel = crate::update::UpdateChannel::default();
 
         if let Some(v) = &mut vault {
             if !v.is_initialized() {
@@ -129,6 +139,12 @@ impl Oryxis {
                 biometric_unlock_enabled = flag == "true";
             }
             biometric_available = oryxis_biometric::default_provider().is_available();
+            if let Ok(Some(flag)) = v.get_setting("auto_check_updates") {
+                auto_check_updates = flag == "true";
+            }
+            if let Ok(Some(c)) = v.get_setting("update_channel") {
+                update_channel = crate::update::UpdateChannel::from_setting(&c);
+            }
             // Same clamp as main(): a corrupt row must not produce a
             // degenerate size (it feeds terminal layout math via
             // `window_size` before the first Resized event lands).
@@ -201,6 +217,9 @@ impl Oryxis {
                 vault_ui: crate::state::VaultUi {
                     state: vault_state,
                     has_user_password: vault_has_user_password,
+                    // Pre-check the onboarding form's biometric opt-in
+                    // whenever the platform can service it.
+                    setup_enable_biometric: biometric_available,
                     ..Default::default()
                 },
                 // Vector logo: rendered through iced's SVG (resvg) path so
@@ -560,8 +579,8 @@ impl Oryxis {
                 setting_session_log_compress: true,
                 setting_connection_history: false,
                 setting_logs_retention: "off".into(),
-                setting_auto_check_updates: true,
-                setting_update_channel: crate::update::UpdateChannel::default(),
+                setting_auto_check_updates: auto_check_updates,
+                setting_update_channel: update_channel,
                 pending_update: None,
                 update_downloading: false,
                 update_progress: 0.0,

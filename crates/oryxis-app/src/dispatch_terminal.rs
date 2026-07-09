@@ -1050,6 +1050,23 @@ impl Oryxis {
                         return Ok(Task::none());
                     }
                 }
+                // Lock screen, biometric-first layout: there is no
+                // password input on screen, so Enter raises the OS
+                // presence prompt (the primary action). The fallback
+                // layout keeps Enter on the focused input's on_submit.
+                if self.vault_ui.state == crate::state::VaultState::Locked
+                    && self.biometric_unlock_offered()
+                    && !self.vault_ui.password_fallback
+                    && matches!(
+                        &event,
+                        keyboard::Event::KeyPressed {
+                            key: keyboard::Key::Named(keyboard::key::Named::Enter),
+                            ..
+                        }
+                    )
+                {
+                    return Ok(Task::done(Message::BiometricUnlockRequested));
+                }
                 // An open pick_list dropdown owns the keyboard: the
                 // widget itself handles Enter/Space (confirm), Up/Down
                 // (move the hovered option) and Esc (close). The global

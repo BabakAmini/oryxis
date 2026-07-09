@@ -206,6 +206,24 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
+        // Offer the biometric convenience layer at password-creation time
+        // (pre-checked when the platform supports it); `VaultSetup`
+        // enrolls the new password in the same flow.
+        let bio_opt: Element<'_, Message> = if self.biometric_available {
+            column![
+                Space::new().height(10),
+                container(crate::widgets::toggle_row(
+                    crate::biometric::bio_setup_label(),
+                    self.vault_ui.setup_enable_biometric,
+                    Message::ToggleSetupBiometric,
+                ))
+                .width(300),
+            ]
+            .into()
+        } else {
+            Space::new().height(0).into()
+        };
+
         column![
             header,
             Space::new().height(8),
@@ -215,6 +233,7 @@ impl Oryxis {
                 .align_x(iced::alignment::Horizontal::Center),
             Space::new().height(14),
             fields,
+            bio_opt,
             Space::new().height(14),
             styled_button(t("create_vault"), Message::VaultSetup, accent),
             Space::new().height(6),

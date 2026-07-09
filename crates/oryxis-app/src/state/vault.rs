@@ -45,4 +45,16 @@ pub(crate) struct VaultUi {
     pub(crate) password_error: Option<String>,
     /// Two-step confirm latch for the destroy-vault action.
     pub(crate) destroy_confirm: bool,
+    /// Lock screen: the user asked for the typed-password form even though
+    /// biometric unlock is offered (biometric-first layout). Also flipped
+    /// on automatically when the OS prompt fails or is cancelled, so the
+    /// user is never stuck without an input. Reset on every lock and on a
+    /// successful unlock, so the next lock screen leads with biometrics.
+    pub(crate) password_fallback: bool,
+    /// Set-password forms (Settings and the onboarding final slide):
+    /// whether the "also enable biometric unlock" opt-in is checked.
+    /// Seeded to platform availability when the form opens / at boot, so
+    /// the convenience layer is offered at password-creation time (the
+    /// market-standard moment) without another trip to Settings.
+    pub(crate) setup_enable_biometric: bool,
 }

@@ -102,3 +102,56 @@ pub(crate) fn styled_button_opt(
     }
     b.into()
 }
+
+/// Like [`styled_button`] but with a leading icon glyph. The caller colors
+/// the icon (accent CTAs pair with `button_text`, like the label); the
+/// background carries the hover feedback, matching [`styled_button`], and
+/// `dir_row` keeps the icon on the leading edge under RTL.
+pub(crate) fn styled_icon_button<'a>(
+    icon: Element<'a, Message>,
+    label: &'a str,
+    msg: Message,
+    color: Color,
+) -> Element<'a, Message> {
+    let fg = if color == OryxisColors::t().accent {
+        OryxisColors::t().button_text
+    } else {
+        crate::theme::contrast_text_for(color)
+    };
+    button(
+        container(
+            dir_row(vec![
+                icon,
+                Space::new().width(8).into(),
+                text(label.to_owned())
+                    .size(12)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Bold,
+                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                    })
+                    .color(fg)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 6.0, right: 18.0, bottom: 6.0, left: 18.0 }),
+    )
+    .on_press(msg)
+    .style(move |_, status| {
+        let bg = match status {
+            iced::widget::button::Status::Hovered => Color {
+                a: 1.0,
+                r: (color.r + 0.05).min(1.0),
+                g: (color.g + 0.05).min(1.0),
+                b: (color.b + 0.05).min(1.0),
+            },
+            _ => color,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}

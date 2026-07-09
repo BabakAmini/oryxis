@@ -1520,6 +1520,9 @@ impl Oryxis {
                     vault.lock();
                     self.vault_ui.state = VaultState::Locked;
                     self.master_password = None;
+                    // The lock screen leads with biometrics when enrolled;
+                    // a fallback choice from a previous lock must not stick.
+                    self.vault_ui.password_fallback = false;
                     // Sweep UI that may hold typed or revealed secrets;
                     // everything else (tabs, terminals) stays.
                     self.revealed_secrets.clear();
@@ -1660,6 +1663,8 @@ impl Oryxis {
                     vault.lock();
                     if self.vault_ui.has_user_password {
                         self.vault_ui.state = VaultState::Locked;
+                        // Same reset as the soft lock: lead with biometrics.
+                        self.vault_ui.password_fallback = false;
                         self.connections.clear();
                         self.quick_connects.clear();
                         self.keys.clear();
