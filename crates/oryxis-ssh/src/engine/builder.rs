@@ -1,0 +1,303 @@
+use super::*;
+
+impl SshEngine {
+    pub fn new() -> Self {
+        Self {
+            host_key_check: None,
+            host_key_ask_tx: None,
+            kbi_ask_tx: None,
+            pw_prompt_title: None,
+            pw_prompt_label: None,
+            totp: None,
+            keepalive_interval: None,
+            address_family: AddressFamily::Auto,
+            connect_timeout: std::time::Duration::from_secs(15),
+            auth_timeout: std::time::Duration::from_secs(30),
+            session_timeout: std::time::Duration::from_secs(10),
+            agent_forwarding: false,
+            env_vars: Vec::new(),
+            encoding: None,
+            terminal_type: None,
+            algo_ciphers: None,
+            algo_kex: None,
+            algo_macs: None,
+            algo_host_keys: None,
+            strict_host_key: false,
+            auto_interactive_fallback: false,
+            forwarded_channel_sink: None,
+            banner_tx: None,
+        }
+    }
+
+    /// Pin per-host SSH algorithm overrides. Each `None` keeps russh's
+    /// safe default for that category; `Some(list)` forces exactly those
+    /// wire names (in order). Used to reach legacy servers that only offer
+    /// cbc / sha1 / dh-group1.
+    pub fn with_algorithm_overrides(
+        mut self,
+        ciphers: Option<Vec<String>>,
+        kex: Option<Vec<String>>,
+        macs: Option<Vec<String>>,
+        host_keys: Option<Vec<String>>,
+    ) -> Self {
+        self.algo_ciphers = ciphers.filter(|v| !v.is_empty());
+        self.algo_kex = kex.filter(|v| !v.is_empty());
+        self.algo_macs = macs.filter(|v| !v.is_empty());
+        self.algo_host_keys = host_keys.filter(|v| !v.is_empty());
+        self
+    }
+
+    /// Build the russh `Preferred` algorithm set, starting from the safe
+    /// default and overriding only the pinned categories. When every
+    /// override is `None` the result is byte-identical to the default, so
+    /// the secure negotiation is untouched unless the user opts in.
+    pub(crate) fn build_preferred(&self) -> russh::Preferred {
+        use std::borrow::Cow;
+        let mut p = russh::Preferred::DEFAULT;
+        if let Some(list) = &self.algo_ciphers {
+            let names: Vec<russh::cipher::Name> = list
+                .iter()
+                .filter_map(|s| russh::cipher::Name::try_from(s.as_str()).ok())
+                .collect();
+            if !names.is_empty() {
+                p.cipher = Cow::Owned(names);
+            }
+        }
+        if let Some(list) = &self.algo_kex {
+            let names: Vec<russh::kex::Name> = list
+                .iter()
+                .filter_map(|s| russh::kex::Name::try_from(s.as_str()).ok())
+                .collect();
+            if !names.is_empty() {
+                p.kex = Cow::Owned(names);
+            }
+        }
+        if let Some(list) = &self.algo_macs {
+            let names: Vec<russh::mac::Name> = list
+                .iter()
+                .filter_map(|s| russh::mac::Name::try_from(s.as_str()).ok())
+                .collect();
+            if !names.is_empty() {
+                p.mac = Cow::Owned(names);
+            }
+        }
+        if let Some(list) = &self.algo_host_keys {
+            let algos: Vec<russh::keys::ssh_key::Algorithm> = list
+                .iter()
+                .filter_map(|s| s.parse().ok())
+                .collect();
+            if !algos.is_empty() {
+                p.key = Cow::Owned(algos);
+            }
+        }
+        p
+    }
+
+    /// Reject unknown/changed host keys instead of TOFU-accepting when no
+    /// UI ask channel is set. Used for port forwards auto-started at boot,
+    /// where there is no terminal to surface a host-key prompt.
+    /// Route pre-auth banners (RFC 4252 §5.4) to the UI. Without a sink
+    /// they are logged and dropped (headless callers).
+    pub fn with_banner_sink(
+        mut self,
+        tx: tokio::sync::mpsc::UnboundedSender<String>,
+    ) -> Self {
+        self.banner_tx = Some(tx);
+        self
+    }
+
+    pub fn with_strict_host_key(mut self, enabled: bool) -> Self {
+        self.strict_host_key = enabled;
+        self
+    }
+
+    /// Quick-connect auth mode: let `AuthMethod::Auto` fall back to the
+    /// interactive prompt (keyboard-interactive modal, then a single
+    /// prompted password) once every silent method has failed. Needs a
+    /// `with_kbi_ask` channel to have any effect.
+    pub fn with_auto_interactive_fallback(mut self, enabled: bool) -> Self {
+        self.auto_interactive_fallback = enabled;
+        self
+    }
+
+    /// Set per-host environment variables to send (via `set_env`) before
+    /// the shell starts on the next session opened on this engine.
+    pub fn with_env_vars(mut self, vars: Vec<(String, String)>) -> Self {
+        self.env_vars = vars;
+        self
+    }
+
+    /// Set the per-host character encoding. `None` / `"UTF-8"` leaves the
+    /// byte stream untouched; any other label transcodes PTY data to and
+    /// from UTF-8 for the terminal.
+    pub fn with_encoding(mut self, encoding: Option<String>) -> Self {
+        self.encoding = encoding;
+        self
+    }
+
+    /// Override the `TERM` name requested for the PTY. `None` keeps the
+    /// default `xterm-256color`.
+    pub fn with_terminal_type(mut self, terminal_type: Option<String>) -> Self {
+        self.terminal_type = terminal_type;
+        self
+    }
+
+    /// Enable ssh-agent forwarding for the next session opened on this
+    /// engine. The flag is propagated to the channel-open request and
+    /// to the inbound forward-channel handler so we don't proxy
+    /// channels we didn't ask for.
+    pub fn with_agent_forwarding(mut self, enabled: bool) -> Self {
+        self.agent_forwarding = enabled;
+        self
+    }
+
+    /// Override the TCP/SSH-handshake timeout (default 15s).
+    pub fn with_connect_timeout(mut self, t: std::time::Duration) -> Self {
+        self.connect_timeout = t;
+        self
+    }
+
+    /// Override the authentication-phase timeout (default 30s).
+    pub fn with_auth_timeout(mut self, t: std::time::Duration) -> Self {
+        self.auth_timeout = t;
+        self
+    }
+
+    /// Override the session/SFTP-channel-open timeout (default 10s).
+    /// Applies to PTY session open, SFTP subsystem open, and sibling
+    /// channel opens for the parallel transfer pool.
+    pub fn with_session_timeout(mut self, t: std::time::Duration) -> Self {
+        self.session_timeout = t;
+        self
+    }
+
+    /// Set a sync callback that checks known hosts and returns the status.
+    pub fn with_host_key_check(mut self, cb: HostKeyCheckCallback) -> Self {
+        self.host_key_check = Some(cb);
+        self
+    }
+
+    /// Set a channel for asking the UI to verify unknown/changed host keys.
+    pub fn with_host_key_ask(mut self, tx: HostKeyAskSender) -> Self {
+        self.host_key_ask_tx = Some(tx);
+        self
+    }
+
+    /// Set a channel for surfacing keyboard-interactive prompts to the UI.
+    /// Only meaningful for `AuthMethod::Interactive`; without it, interactive
+    /// auth falls back to answering every prompt with the stored password.
+    pub fn with_kbi_ask(mut self, tx: KbiAskSender) -> Self {
+        self.kbi_ask_tx = Some(tx);
+        self
+    }
+
+    /// Provide localized labels for the `AuthMethod::PasswordPrompt` modal
+    /// (`title` = dialog heading, `label` = the password field caption).
+    /// The engine renders these into the synthetic prompt it sends over
+    /// `kbi_ask_tx`; without this call it falls back to plain English.
+    pub fn with_password_prompt_labels(mut self, title: String, label: String) -> Self {
+        self.pw_prompt_title = Some(title);
+        self.pw_prompt_label = Some(label);
+        self
+    }
+
+    /// Provide the connection's stored TOTP secret (raw vault value, a
+    /// bare Base32 secret or an otpauth:// URI) for keyboard-interactive
+    /// autofill. An unparseable value logs a warning and disables the
+    /// autofill rather than failing the connect, the manual modal still
+    /// works.
+    pub fn with_totp_secret(mut self, secret: Option<&str>) -> Self {
+        self.totp = secret.and_then(|s| match oryxis_core::totp::Totp::parse(s) {
+            Ok(t) => Some(t),
+            Err(e) => {
+                tracing::warn!("stored TOTP secret unusable, autofill disabled: {e}");
+                None
+            }
+        });
+        self
+    }
+
+    /// Configure the client-side keepalive interval (zero / `None` disables).
+    pub fn with_keepalive(mut self, interval: Option<std::time::Duration>) -> Self {
+        self.keepalive_interval = interval.filter(|d| !d.is_zero());
+        self
+    }
+
+    /// Configure the outbound address-family preference (per-host
+    /// `Connection.address_family`).
+    pub fn with_address_family(mut self, family: AddressFamily) -> Self {
+        self.address_family = family;
+        self
+    }
+
+    pub(crate) fn make_config(&self) -> Arc<client::Config> {
+        Arc::new(client::Config {
+            keepalive_interval: self.keepalive_interval,
+            preferred: self.build_preferred(),
+            // Every path below hands russh a pre-dialed stream, but keep
+            // the config honest for any future `client::connect` caller.
+            nodelay: true,
+            ..client::Config::default()
+        })
+    }
+
+    /// Resolve `addr` (`host:port`), keep the addresses `family` allows,
+    /// and dial them in order until one connects. The resulting socket
+    /// gets TCP_NODELAY: SSH multiplexes keystrokes and window updates
+    /// on one stream, so Nagle's algorithm only adds latency (PuTTY has
+    /// defaulted it on for interactive sessions for two decades). Used
+    /// by the direct dial, the proxy dial and the first jump hop, the
+    /// places a real socket leaves this machine. `family` is explicit
+    /// because the first jump hop honors the BASTION's preference, not
+    /// the target's.
+    pub(crate) async fn dial_tcp(
+        &self,
+        addr: &str,
+        family: AddressFamily,
+    ) -> Result<TcpStream, SshError> {
+        let resolved: Vec<std::net::SocketAddr> = tokio::net::lookup_host(addr)
+            .await
+            .map_err(|e| SshError::ConnectionFailed(format!("resolve {addr}: {e}")))?
+            .collect();
+        let candidates = oryxis_core::net::filter_addrs(&resolved, family);
+        if candidates.is_empty() {
+            return Err(SshError::ConnectionFailed(if resolved.is_empty() {
+                format!("{addr}: name resolved to no addresses")
+            } else {
+                // Honest failure over silently ignoring the preference:
+                // the host resolves, just not in the requested family.
+                format!("{addr}: resolves to no {family} address")
+            }));
+        }
+        let mut last_err: Option<std::io::Error> = None;
+        for candidate in candidates {
+            match TcpStream::connect(candidate).await {
+                Ok(stream) => {
+                    if let Err(e) = stream.set_nodelay(true) {
+                        tracing::warn!("set_nodelay({candidate}) failed: {e}");
+                    }
+                    return Ok(stream);
+                }
+                Err(e) => last_err = Some(e),
+            }
+        }
+        Err(SshError::ConnectionFailed(format!(
+            "{addr}: {}",
+            last_err.expect("candidates was non-empty")
+        )))
+    }
+
+    pub(crate) fn make_handler(&self, hostname: &str, port: u16) -> ClientHandler {
+        ClientHandler {
+            hostname: hostname.into(),
+            port,
+            host_key_check: self.host_key_check.clone(),
+            host_key_ask_tx: self.host_key_ask_tx.clone(),
+            agent_forwarding: self.agent_forwarding,
+            strict_host_key: self.strict_host_key,
+            forwarded_channel_sink: self.forwarded_channel_sink.clone(),
+            banner_tx: self.banner_tx.clone(),
+        }
+    }
+
+}

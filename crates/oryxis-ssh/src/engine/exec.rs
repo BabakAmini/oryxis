@@ -1,0 +1,255 @@
+use super::*;
+
+impl SshEngine {
+
+    /// Execute a command without PTY (non-interactive) and return the output.
+    pub async fn exec_command(
+        &self,
+        handle: SshHandle,
+        command: &str,
+        timeout: std::time::Duration,
+    ) -> Result<ExecResult, SshError> {
+        let channel = handle.0.channel_open_session().await
+            .map_err(|e| SshError::Channel(format!("open session: {}", e)))?;
+
+        channel.exec(true, command).await
+            .map_err(|e| SshError::Channel(format!("exec: {}", e)))?;
+
+        let mut stdout = Vec::new();
+        let mut stderr = Vec::new();
+        let mut exit_code: Option<u32> = None;
+
+        let collect = async {
+            let mut channel = channel;
+            // Read until channel close (`None`), not just Eof, some
+            // servers send `ExitStatus` after `Eof`, so breaking early
+            // would leave us defaulting to 255.
+            loop {
+                match channel.wait().await {
+                    Some(ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
+                    Some(ChannelMsg::ExtendedData { data, ext: 1 }) => {
+                        stderr.extend_from_slice(&data);
+                    }
+                    Some(ChannelMsg::ExitStatus { exit_status }) => {
+                        exit_code = Some(exit_status);
+                    }
+                    None => break,
+                    _ => {}
+                }
+            }
+        };
+
+        match tokio::time::timeout(timeout, collect).await {
+            Ok(()) => {}
+            Err(_) => {
+                return Err(SshError::Channel("Command timed out".into()));
+            }
+        }
+
+        Ok(ExecResult {
+            exit_code: exit_code.unwrap_or(255),
+            stdout: String::from_utf8_lossy(&stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        })
+    }
+
+    pub(crate) async fn open_pty_session(
+        &self,
+        handle: client::Handle<ClientHandler>,
+        cols: u32,
+        rows: u32,
+        pf_listeners: Vec<(PortForward, tokio::net::TcpListener)>,
+    ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
+        // Open session channel
+        let channel = handle.channel_open_session().await
+            .map_err(|e| SshError::Channel(format!("Failed to open session channel: {}", e)))?;
+
+        // Request PTY
+        let term = self.terminal_type.as_deref().unwrap_or("xterm-256color");
+        channel
+            .request_pty(false, term, cols, rows, 0, 0, &[])
+            .await
+            .map_err(|e| SshError::Channel(format!("PTY request failed: {}", e)))?;
+
+        // Optional ssh-agent forwarding. Must fire BEFORE `request_shell`
+        //, sshd reads the channel requests in order and only sets
+        // `SSH_AUTH_SOCK` on the launched process if forwarding was
+        // already requested when the shell starts. Issued without
+        // `want_reply`; failures (server has `AllowAgentForwarding no`)
+        // are not fatal, the user still gets a normal shell, they
+        // just can't hop further with their local keys.
+        if self.agent_forwarding
+            && let Err(e) = channel.agent_forward(false).await
+        {
+            tracing::warn!("agent_forward request failed (non-fatal): {}", e);
+        }
+
+        // Per-host environment variables. Sent before `request_shell` so
+        // the server can apply them to the launched process. Non-fatal:
+        // most `sshd` reject anything outside `AcceptEnv` (LC_*/LANG_* by
+        // default), and we'd rather give the user a shell than abort.
+        for (name, value) in &self.env_vars {
+            if let Err(e) = channel.set_env(false, name.clone(), value.clone()).await {
+                tracing::warn!("set_env {} failed (non-fatal): {}", name, e);
+            }
+        }
+
+        // Request shell
+        channel.request_shell(false).await
+            .map_err(|e| SshError::Channel(format!("Shell request failed: {}", e)))?;
+
+        // I/O bridging
+        let (output_tx, output_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let (writer_tx, mut writer_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let (resize_tx, mut resize_rx) = mpsc::unbounded_channel::<(u16, u16)>();
+
+        // Resolve the per-host charset once. `None` (or UTF-8) means the
+        // byte stream is forwarded untouched; any other charset is decoded
+        // to UTF-8 inbound and encoded back outbound for the terminal.
+        let enc: Option<&'static encoding_rs::Encoding> = self
+            .encoding
+            .as_deref()
+            .and_then(|n| encoding_rs::Encoding::for_label(n.as_bytes()))
+            .filter(|e| *e != encoding_rs::UTF_8);
+
+        let mut channel_writer = channel.make_writer();
+
+        // Reader task, multiplexes incoming PTY data with outgoing
+        // window-change requests so we only own `channel` in one place.
+        let reader_task = tokio::spawn(async move {
+            let mut channel = channel;
+            // Stateful decoder so a multi-byte char split across two reads
+            // still decodes correctly. `None` for UTF-8 (passthrough).
+            let mut decoder = enc.map(|e| e.new_decoder());
+            // Cap on one forwarded message. Data messages already queued on
+            // the channel are folded into a single send so the UI runs one
+            // update+view+draw cycle per batch instead of one per SSH packet.
+            const COALESCE_MAX: usize = 64 * 1024;
+            loop {
+                tokio::select! {
+                    msg = channel.wait() => {
+                        // Set when EOF / exit-status arrives mid-batch: the
+                        // accumulated bytes are flushed first, then the loop
+                        // exits, so no trailing output is dropped.
+                        let mut closed = false;
+                        let bytes: Option<Vec<u8>> = match msg {
+                            Some(ChannelMsg::Data { data }) => Some(data.to_vec()),
+                            Some(ChannelMsg::ExtendedData { data, ext: 1 }) => Some(data.to_vec()),
+                            Some(ChannelMsg::ExtendedData { .. }) => continue,
+                            Some(ChannelMsg::ExitStatus { exit_status }) => {
+                                tracing::info!("Remote exited with status {}", exit_status);
+                                break;
+                            }
+                            Some(ChannelMsg::Eof) | None => {
+                                tracing::info!("SSH channel closed");
+                                break;
+                            }
+                            _ => continue,
+                        };
+                        if let Some(mut b) = bytes {
+                            // Coalesce: drain messages that are already
+                            // queued (zero timeout never waits for new
+                            // data, so interactive echo latency is
+                            // unchanged) up to the batch cap.
+                            while b.len() < COALESCE_MAX {
+                                match tokio::time::timeout(
+                                    std::time::Duration::ZERO,
+                                    channel.wait(),
+                                ).await {
+                                    Ok(Some(ChannelMsg::Data { data })) => {
+                                        b.extend_from_slice(&data);
+                                    }
+                                    Ok(Some(ChannelMsg::ExtendedData { data, ext: 1 })) => {
+                                        b.extend_from_slice(&data);
+                                    }
+                                    Ok(Some(ChannelMsg::ExtendedData { .. })) => continue,
+                                    Ok(Some(ChannelMsg::ExitStatus { exit_status })) => {
+                                        tracing::info!(
+                                            "Remote exited with status {}", exit_status,
+                                        );
+                                        closed = true;
+                                        break;
+                                    }
+                                    Ok(Some(ChannelMsg::Eof)) | Ok(None) => {
+                                        tracing::info!("SSH channel closed");
+                                        closed = true;
+                                        break;
+                                    }
+                                    Ok(Some(_)) => continue,
+                                    // Nothing queued right now: flush.
+                                    Err(_) => break,
+                                }
+                            }
+                            let out = match &mut decoder {
+                                Some(dec) => {
+                                    let mut s = String::with_capacity(b.len() + 16);
+                                    let _ = dec.decode_to_string(&b, &mut s, false);
+                                    s.into_bytes()
+                                }
+                                None => b,
+                            };
+                            if output_tx.send(out).is_err() {
+                                break;
+                            }
+                        }
+                        if closed {
+                            break;
+                        }
+                    }
+                    Some((cols, rows)) = resize_rx.recv() => {
+                        if let Err(e) = channel
+                            .window_change(cols as u32, rows as u32, 0, 0)
+                            .await
+                        {
+                            tracing::warn!("SSH window-change failed: {}", e);
+                        }
+                    }
+                }
+            }
+        });
+
+        // Writer task
+        let writer_task = tokio::spawn(async move {
+            while let Some(data) = writer_rx.recv().await {
+                // Terminal input arrives as UTF-8; encode it to the host
+                // charset when one is set. One-shot per write is fine:
+                // keystrokes/pastes arrive as whole UTF-8 chars.
+                let data = match enc {
+                    Some(e) => {
+                        let text = String::from_utf8_lossy(&data);
+                        let (encoded, _, _) = e.encode(&text);
+                        encoded.into_owned()
+                    }
+                    None => data,
+                };
+                if let Err(e) = channel_writer.write_all(&data).await {
+                    tracing::error!("SSH write error: {}", e);
+                    break;
+                }
+                if let Err(e) = channel_writer.flush().await {
+                    tracing::error!("SSH flush error: {}", e);
+                    break;
+                }
+            }
+        });
+
+        let shared_handle = Arc::new(tokio::sync::Mutex::new(handle));
+        let pf_tasks = spawn_port_forward_tasks(pf_listeners, &shared_handle);
+
+        Ok((
+            SshSession {
+                _handle: shared_handle,
+                writer_tx,
+                resize_tx,
+                reader_task,
+                writer_task,
+                port_forward_tasks: pf_tasks,
+                closed: std::sync::atomic::AtomicBool::new(false),
+                // Default, overridden by the engine right after this
+                // returns via `sftp_open_timeout` assignment.
+                sftp_open_timeout: std::time::Duration::from_secs(10),
+            },
+            output_rx,
+        ))
+    }
+}
