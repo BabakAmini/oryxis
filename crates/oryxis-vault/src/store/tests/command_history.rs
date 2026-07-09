@@ -96,6 +96,106 @@ fn delete_entry_and_clear_host() {
     assert!(vault.list_command_history(&host).unwrap().is_empty());
 }
 
+/// Critical: a captured command line can carry echoed inline secrets
+/// (`mysql -pS3cret`), so the text must never sit in a plaintext column.
+/// The `command` column carries only the keyed dedup hash; the text
+/// lives sealed in `command_enc`.
+#[test]
+fn command_text_is_encrypted_at_rest() {
+    let vault = unlocked_vault();
+    let host = Uuid::new_v4();
+    let secret_cmd = "mysql -u root -pS3cretMarker777";
+
+    vault.record_command(&host, secret_cmd).unwrap();
+
+    let (raw_cmd, raw_enc): (String, Option<Vec<u8>>) = vault
+        .db
+        .query_row(
+            "SELECT command, command_enc FROM command_history WHERE connection_id = ?1",
+            params![host.to_string()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .unwrap();
+    assert!(
+        !raw_cmd.contains("S3cretMarker777"),
+        "command text leaked into the plaintext command column: {raw_cmd}"
+    );
+    let enc = raw_enc.expect("sealed command blob must be present");
+    assert!(
+        !String::from_utf8_lossy(&enc).contains("S3cretMarker777"),
+        "command text leaked unencrypted into command_enc"
+    );
+
+    // Round-trip through the API still yields the original text.
+    let entries = vault.list_command_history(&host).unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].command, secret_cmd);
+}
+
+/// Rows written by pre-encryption versions (plaintext `command`, NULL
+/// `command_enc`) are sealed on first unlocked use, keep their counters,
+/// and dedup against new recordings of the same command.
+#[test]
+fn legacy_plaintext_rows_migrate_and_dedup() {
+    let vault = unlocked_vault();
+    let host = Uuid::new_v4();
+
+    // Simulate a row from an older build: plaintext command, no blob.
+    vault
+        .db
+        .execute(
+            "INSERT INTO command_history
+                 (id, connection_id, command, use_count, last_used_at, created_at)
+             VALUES (?1, ?2, 'sudo systemctl restart nginx', 3, ?3, ?3)",
+            params![
+                Uuid::new_v4().to_string(),
+                host.to_string(),
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )
+        .unwrap();
+
+    // Recording the same command must migrate the legacy row first and
+    // then bump it, not insert a duplicate.
+    vault
+        .record_command(&host, "sudo systemctl restart nginx")
+        .unwrap();
+
+    let entries = vault.list_command_history(&host).unwrap();
+    assert_eq!(entries.len(), 1, "legacy row must dedup with the new record");
+    assert_eq!(entries[0].command, "sudo systemctl restart nginx");
+    assert_eq!(entries[0].use_count, 4, "migration must keep the counter");
+
+    // And the plaintext is gone from the table.
+    let leftovers: i64 = vault
+        .db
+        .query_row(
+            "SELECT COUNT(*) FROM command_history
+             WHERE command_enc IS NULL OR command LIKE '%nginx%'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(leftovers, 0, "plaintext command survived the migration");
+}
+
+/// A vault reset must not leave a command trail behind (the DROP list in
+/// `destroy_and_recreate` has to cover this table like every other).
+#[test]
+fn destroy_and_recreate_wipes_command_history() {
+    let mut vault = unlocked_vault();
+    let host = Uuid::new_v4();
+    vault.record_command(&host, "ls -la").unwrap();
+
+    vault.destroy_and_recreate().unwrap();
+
+    let rows: i64 = vault
+        .db
+        .query_row("SELECT COUNT(*) FROM command_history", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(rows, 0, "command history survived a vault destroy");
+}
+
 #[test]
 fn deleting_the_connection_cascades_its_history() {
     let vault = unlocked_vault();

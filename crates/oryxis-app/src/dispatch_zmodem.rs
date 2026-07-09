@@ -24,7 +24,7 @@ use uuid::Uuid;
 use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec};
 
 use crate::app::{Message, Oryxis};
-use crate::state::ZmodemPane;
+use crate::state::{TerminalTransport, ZmodemPane};
 
 impl Oryxis {
     /// Directory downloads land in: the `zmodem_download_dir` setting
@@ -54,11 +54,19 @@ impl Oryxis {
         direction: Direction,
         first_wire: Vec<u8>,
     ) -> Task<Message> {
-        // The transport whose input sender carries protocol replies.
+        // The transport channel that carries the protocol replies.
+        // ZMODEM frames are raw bytes, not keystrokes: Telnet's generic
+        // input path charset-transcodes and maps line endings (which
+        // corrupts binary frames), so it gets the IAC-doubling-only raw
+        // sender; serial's `write_sender` is already the raw, echo-free
+        // wire path; an SSH PTY channel is 8-bit clean as-is.
         let Some(wire_out) = self
             .pane_by_id(pane_id)
             .and_then(|p| p.session.as_ref())
-            .map(|s| s.write_sender())
+            .map(|s| match s {
+                TerminalTransport::Telnet(t) => t.raw_write_sender(),
+                other => other.write_sender(),
+            })
         else {
             // No transport (local shell): nothing to run the protocol on.
             return Task::none();
@@ -179,15 +187,15 @@ impl Oryxis {
                     Progress::FileDone { .. } => {}
                     Progress::Completed => {
                         pane.zmodem = None;
-                        self.toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                        self.set_toast(crate::i18n::t("zmodem_complete").to_string());
                     }
                     Progress::Aborted => {
                         pane.zmodem = None;
-                        self.toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                        self.set_toast(crate::i18n::t("zmodem_cancelled").to_string());
                     }
                     Progress::Error(e) => {
                         pane.zmodem = None;
-                        self.toast = Some(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                        self.set_toast(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
                     }
                 }
                 Ok(Task::none())
@@ -195,7 +203,7 @@ impl Oryxis {
             Message::PickZmodemDownloadDir => Ok(Task::perform(
                 tokio::task::spawn_blocking(|| {
                     rfd::FileDialog::new()
-                        .set_title("ZMODEM download folder")
+                        .set_title(crate::i18n::t("zmodem_download_dir"))
                         .pick_folder()
                         .map(|p| p.display().to_string())
                 }),
@@ -217,9 +225,14 @@ impl Oryxis {
                 if let Some(pane) = self.pane_by_id_mut(pane_id)
                     && let Some(zm) = pane.zmodem.as_ref()
                 {
-                    // Cooperative: the driver sees the flag, emits ZCAN,
-                    // and ends with `Aborted`, which clears the divert.
+                    // Cooperative cancel: raise the flag, then wake the
+                    // driver with an empty wire chunk in case it is
+                    // parked on a silent peer's recv (an empty chunk is
+                    // the driver's documented wake-up). It sends the
+                    // CANCEL sequence and ends with `Aborted`, which
+                    // clears the divert.
                     zm.abort.store(true, Ordering::Relaxed);
+                    let _ = zm.wire_tx.send(Vec::new());
                 }
                 Ok(Task::none())
             }

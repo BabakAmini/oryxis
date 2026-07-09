@@ -10,7 +10,7 @@ use chacha20poly1305::{
 // that `keygen` needs for ssh-key 0.7.
 use chacha20poly1305::aead::rand_core::RngCore;
 use rusqlite::{params, Connection as SqliteConn};
-use zeroize::Zeroizing;
+use zeroize::{Zeroize, Zeroizing};
 use uuid::Uuid;
 
 pub(crate) use oryxis_core::models::cloud::{CloudQuery, CloudRef};
@@ -283,6 +283,11 @@ pub struct VaultStore {
     /// chunk writes don't pay the master-key KDF. Interior mutability
     /// because append/read paths only hold `&self`. Cleared on `lock()`.
     session_log_key: std::sync::Mutex<Option<[u8; KEY_LEN]>>,
+    /// "Nothing left to migrate" cache for the one-shot upgrade of
+    /// legacy plaintext `command_history` rows to the sealed format.
+    /// Purely an optimization: the truth lives in the table
+    /// (`command_enc IS NULL` rows), re-checked on every open.
+    command_history_migrated: std::sync::atomic::AtomicBool,
     db_path: PathBuf,
 }
 
@@ -345,6 +350,7 @@ impl VaultStore {
             db,
             master_key: None,
             session_log_key: std::sync::Mutex::new(None),
+            command_history_migrated: std::sync::atomic::AtomicBool::new(false),
             db_path: path,
         };
         store.create_tables()?;
@@ -556,8 +562,21 @@ impl VaultStore {
 
     pub fn lock(&mut self) {
         self.master_key = None;
-        *self.session_log_key.lock().unwrap() = None;
+        self.wipe_session_log_key();
         tracing::info!("Vault locked");
+    }
+
+    /// Clear the cached session-recording content key, zeroizing the
+    /// 32 key bytes in place first (setting the `Option` to `None`
+    /// alone would leave the bytes in the mutex's memory); same
+    /// hygiene as the `Zeroizing`-wrapped master key next to it.
+    fn wipe_session_log_key(&self) {
+        if let Ok(mut cached) = self.session_log_key.lock() {
+            if let Some(key) = cached.as_mut() {
+                key.zeroize();
+            }
+            *cached = None;
+        }
     }
 
     fn require_unlocked(&self) -> Result<&[u8], VaultError> {
@@ -640,13 +659,14 @@ impl VaultStore {
              DROP TABLE IF EXISTS logs;
              DROP TABLE IF EXISTS session_logs;
              DROP TABLE IF EXISTS session_log_chunks;
+             DROP TABLE IF EXISTS command_history;
              DROP TABLE IF EXISTS cloud_profiles;
              DROP TABLE IF EXISTS sync_peers;
              DROP TABLE IF EXISTS sync_metadata;
              VACUUM;"
         )?;
         self.master_key = None;
-        *self.session_log_key.lock().unwrap() = None;
+        self.wipe_session_log_key();
         self.create_tables()?;
         tracing::info!("Vault destroyed and recreated");
         Ok(())

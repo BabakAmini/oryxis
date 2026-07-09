@@ -255,8 +255,9 @@ impl Oryxis {
                     return Ok(Task::none());
                 };
                 let name = input.trim();
-                // Same guard as the SFTP pane's rename: a name, not a path.
-                if name.is_empty() || name.contains('/') {
+                // Same guard as the SFTP pane's rename: one plain path
+                // component (rejects empty, ".", ".." and separators).
+                if !crate::sftp_helpers::is_safe_remote_entry_name(name) {
                     return Ok(Task::none());
                 }
                 let parent = files_parent_dir(&original).unwrap_or_else(|| "/".to_string());
@@ -309,7 +310,9 @@ impl Oryxis {
                     return Ok(Task::none());
                 };
                 let name = input.trim();
-                if name.is_empty() || name.contains('/') {
+                // One plain path component (rejects empty, ".", ".." and
+                // separators), same guard as the rename commit.
+                if !crate::sftp_helpers::is_safe_remote_entry_name(name) {
                     return Ok(Task::none());
                 }
                 let Some(client) = pane.files.client.clone() else {
@@ -321,12 +324,22 @@ impl Oryxis {
                 pane.files.loading = true;
                 pane.files.error = None;
                 let seq = pane.files.next_req();
+                let exists_msg = crate::i18n::t("files_entry_exists")
+                    .replacen("{name}", name, 1);
                 return Ok(op_then_list(client.clone(), list_path, pane_id, seq, async move {
                     match kind {
                         crate::state::SftpEntryKind::Folder => client.create_dir(&target).await,
-                        // An empty write is SFTP's "touch".
+                        // Exclusive create: colliding with an existing name
+                        // must error out, not silently truncate it to zero
+                        // bytes (which a plain CREATE|TRUNCATE write does).
+                        // The stat pre-check turns the server's opaque
+                        // EXCL failure into a readable message; EXCL still
+                        // closes the check-to-create race.
                         crate::state::SftpEntryKind::File => {
-                            client.write_file(&target, &[]).await
+                            if client.stat(&target).await.is_ok() {
+                                return Err(oryxis_ssh::SshError::Channel(exists_msg));
+                            }
+                            client.create_file_exclusive(&target).await
                         }
                     }
                 }));
@@ -406,22 +419,46 @@ impl Oryxis {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
+                if pane.files.client.is_none() {
+                    return Ok(Task::none());
+                }
+                let pane_id = pane.id;
+                // The dialog is cancellable, so NOTHING is touched here (in
+                // particular the request stamp: bumping it now would leave a
+                // superseded in-flight listing's completion dropped with
+                // `loading` stuck on, killing follow-cwd for good). The
+                // uploads themselves start in SidebarFilesUploadPicked.
+                return Ok(Task::perform(
+                    async move {
+                        rfd::AsyncFileDialog::new().pick_files().await.map(|files| {
+                            files
+                                .iter()
+                                .map(|f| f.path().to_path_buf())
+                                .collect::<Vec<_>>()
+                        })
+                    },
+                    move |picked| match picked {
+                        Some(paths) if !paths.is_empty() => {
+                            Message::SidebarFilesUploadPicked(pane_id, dir.clone(), paths)
+                        }
+                        _ => Message::NoOp,
+                    },
+                ));
+            }
+            Message::SidebarFilesUploadPicked(pane_id, dir, paths) => {
+                // The dialog returned real picks; the pane may have changed
+                // hands meanwhile, so resolve it by id like any completion.
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Ok(Task::none());
+                };
                 let Some(client) = pane.files.client.clone() else {
                     return Ok(Task::none());
                 };
-                let list_path = pane.files.path.clone();
-                let pane_id = pane.id;
-                let seq = pane.files.next_req();
                 return Ok(Task::perform(
                     async move {
-                        let Some(files) = rfd::AsyncFileDialog::new().pick_files().await
-                        else {
-                            return (None, None);
-                        };
                         let mut failed: Vec<String> = Vec::new();
                         let mut ok = 0usize;
-                        for f in files {
-                            let local = f.path().to_path_buf();
+                        for local in paths {
                             let name = local
                                 .file_name()
                                 .map(|n| n.to_string_lossy().into_owned())
@@ -432,34 +469,39 @@ impl Oryxis {
                                 Err(e) => failed.push(format!("{name}: {e}")),
                             }
                         }
-                        let toast = if failed.is_empty() {
+                        if failed.is_empty() {
                             crate::i18n::t("files_upload_done")
                                 .replacen("{n}", &ok.to_string(), 1)
                         } else {
                             failed.join(" · ")
-                        };
-                        // Refresh the listing after the uploads landed.
-                        let listing = client.list_dir(&list_path).await.ok();
-                        (Some(toast), listing.map(|entries| (list_path, entries)))
+                        }
                     },
-                    move |(toast, listing)| match (toast, listing) {
-                        (Some(t), Some((path, entries))) => Message::SidebarFilesUploadFinished(
-                            pane_id, seq, t, path, entries,
-                        ),
-                        (Some(t), None) => Message::SidebarFilesOpToast(t),
-                        _ => Message::NoOp,
-                    },
+                    move |toast| Message::SidebarFilesUploadFinished(pane_id, toast),
                 ));
             }
-            Message::SidebarFilesUploadFinished(pane_id, seq, toast, path, entries) => {
-                let refresh = self.handle_sidebar_files(Message::SidebarFilesListed(
-                    pane_id, seq, path, entries,
-                ))?;
+            Message::SidebarFilesUploadFinished(pane_id, toast) => {
                 let toast_task = self.update(Message::SidebarFilesOpToast(toast));
-                return Ok(Task::batch([refresh, toast_task]));
+                // Refresh the pane's CURRENT listing through the normal
+                // stamped pipeline: the bump happens synchronously with
+                // `loading = true`, and the completion (listed or error)
+                // always resolves it, so no stuck states are possible.
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Ok(toast_task);
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Ok(toast_task);
+                };
+                let path = pane.files.path.clone();
+                pane.files.loading = true;
+                pane.files.error = None;
+                let seq = pane.files.next_req();
+                return Ok(Task::batch([
+                    toast_task,
+                    list_dir_task(client, path, pane_id, seq),
+                ]));
             }
             Message::SidebarFilesOpToast(text) => {
-                self.toast = Some(text);
+                self.set_toast(text);
                 return Ok(Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
@@ -475,8 +517,6 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Ok(Task::none());
                 };
-                let pane_id = pane.id;
-                let seq = pane.files.req_seq;
                 let stat_client = client.clone();
                 let target = path.clone();
                 return Ok(Task::perform(
@@ -503,7 +543,12 @@ impl Oryxis {
                                 error: None,
                             })
                         }
-                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                        // One-shot op, not a listing: its failure surfaces
+                        // as a toast (like download/upload) instead of a
+                        // SidebarFilesError, whose un-bumped stamp would
+                        // alias an in-flight listing's and paint an error
+                        // over it / clear its loading flag.
+                        Err(e) => Message::SidebarFilesOpToast(e),
                     },
                 ));
             }
@@ -515,8 +560,6 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Ok(Task::none());
                 };
-                let pane_id = pane.id;
-                let seq = pane.files.req_seq;
                 return Ok(Task::perform(
                     async move {
                         let basename = path
@@ -565,7 +608,9 @@ impl Oryxis {
                     },
                     move |result| match result {
                         Ok(session) => Message::SftpEditReady(session),
-                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                        // Toast, not SidebarFilesError: see the properties
+                        // handler above for the stamp-aliasing rationale.
+                        Err(e) => Message::SidebarFilesOpToast(e),
                     },
                 ));
             }

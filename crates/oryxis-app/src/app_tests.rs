@@ -232,3 +232,43 @@ proptest! {
         prop_assert_eq!(parent, expected);
     }
 }
+
+#[test]
+fn sftp_owned_envelope_carries_owner_for_routing() {
+    // The mount pipeline stamps its completions with the buffer owner at
+    // kickoff time; the dispatcher must read that stamp back so
+    // `route_sftp_async` can swap the owner's state in.
+    let id = uuid::Uuid::new_v4();
+    let wrapped = Message::sftp_owned(
+        Some(id),
+        Message::SftpRemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
+    );
+    assert_eq!(wrapped.sftp_async_owner(), Some(id));
+    // No owner at kickoff: the bare message falls back to the live buffer
+    // and must not enter the routing path.
+    let bare = Message::sftp_owned(
+        None,
+        Message::SftpRemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
+    );
+    assert_eq!(bare.sftp_async_owner(), None);
+}
+
+#[test]
+fn sftp_state_unsaved_covers_dirty_edit_sessions() {
+    // Shared close-guard predicate: standalone tab close and the hybrid
+    // Close-SFTP-session guard must agree that a dirty external edit (a
+    // pending upload) is unsaved work, while a clean edit session is not.
+    let mut st = crate::state::SftpState::default();
+    assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
+    st.edit_session = Some(crate::state::EditSession {
+        client_override: None,
+        remote_path: "/srv/x.conf".into(),
+        temp_path: std::path::PathBuf::from("/tmp/oryxis-x.conf"),
+        label: "x.conf".into(),
+        initial_mtime: None,
+        dirty: false,
+    });
+    assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
+    st.edit_session.as_mut().unwrap().dirty = true;
+    assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
+}

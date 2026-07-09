@@ -226,10 +226,24 @@ impl Oryxis {
 
     /// Persist one captured command and keep the open History tab live.
     pub(crate) fn record_command_history(&mut self, host: Uuid, cmd: String) {
-        if let Some(ref vault) = self.vault
-            && let Err(e) = vault.record_command(&host, &cmd)
-        {
-            tracing::warn!("command-history write failed: {e}");
+        // Captured commands get the same two defenses as the
+        // session-recording 'c' chunks: the redaction pass runs BEFORE
+        // anything is persisted (an ECHOED inline secret is a
+        // legitimate command line to the capture gates, so it must be
+        // scrubbed here), and the vault seals the text with the content
+        // key at rest (`command_enc`; the plaintext column carries only
+        // a keyed dedup hash). The optional plain-text mirror below
+        // also sees only the scrubbed text.
+        let cmd = crate::session_redact::redact_command(&cmd);
+        if let Some(ref vault) = self.vault {
+            match vault.record_command(&host, &cmd) {
+                Ok(()) => {}
+                // Soft auto-lock keeps sessions alive while the master
+                // key is zeroized; recording is paused, not broken, and
+                // no sink (vault or file) runs without it.
+                Err(oryxis_vault::VaultError::Locked) => return,
+                Err(e) => tracing::warn!("command-history write failed: {e}"),
+            }
         }
         // Optional plain-text mirror: append to the host's log file for
         // offline reference / support sharing. Plain filesystem write on
@@ -263,8 +277,7 @@ impl Oryxis {
         cmd: &str,
     ) {
         let Some(vault) = &self.vault else { return };
-        let scrubbed = crate::session_redact::redact_secrets(cmd.as_bytes());
-        let text = String::from_utf8_lossy(&scrubbed);
+        let text = crate::session_redact::redact_command(cmd);
         if let Err(e) = vault.append_session_command(log_id, offset_ms, &text) {
             tracing::warn!("session command append failed for {log_id}: {e}");
         }
@@ -294,10 +307,29 @@ impl Oryxis {
     ) -> std::io::Result<()> {
         use std::io::Write;
         let dir = self.command_history_dir();
+        // Owner-only like the vault file (0700 dir / 0600 file): the log
+        // content is plaintext by design, but that is no reason to let
+        // other local users read a per-host command trail.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt as _;
+            std::fs::DirBuilder::new()
+                .recursive(true)
+                .mode(0o700)
+                .create(&dir)?;
+        }
+        #[cfg(not(unix))]
         std::fs::create_dir_all(&dir)?;
         let short: String = host.to_string().chars().take(8).collect();
         let path = dir.join(format!("{}-{}.txt", crate::util::sanitize_file_stem(label), short));
-        let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path)?;
+        let mut opts = std::fs::OpenOptions::new();
+        opts.create(true).append(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt as _;
+            opts.mode(0o600);
+        }
+        let mut f = opts.open(path)?;
         // Multi-line commands (bracketed paste) stay one log line each:
         // continuation lines are indented so the file remains greppable
         // per entry.
@@ -320,7 +352,10 @@ fn render_history_txt(
         chrono::Utc::now().to_rfc3339()
     ));
     for e in entries.iter().rev() {
-        let cmd_one = e.command.replace('\n', "\n    ");
+        // Rows are already scrubbed at record time, but re-redacting
+        // here covers rows recorded before redaction existed, so a
+        // legacy secret can't be copied into a plaintext export file.
+        let cmd_one = crate::session_redact::redact_command(&e.command).replace('\n', "\n    ");
         let uses = if e.use_count > 1 {
             format!("\t(x{})", e.use_count)
         } else {
@@ -389,5 +424,28 @@ impl Oryxis {
         // Ring-preserving: Enter on a ringed row must not drop the ring,
         // so the user can arrow to the next command and Enter again.
         self.write_ring_injection_to_tab(tab_idx, &payload);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_export_redacts_legacy_rows() {
+        // Rows written before record-time redaction existed may still
+        // carry inline secrets; the .txt export must scrub them again
+        // so they never reach a plaintext file on disk.
+        let entry = oryxis_vault::CommandHistoryEntry {
+            id: Uuid::new_v4(),
+            connection_id: Uuid::new_v4(),
+            command: "export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG".into(),
+            use_count: 3,
+            last_used_at: chrono::Utc::now(),
+        };
+        let body = render_history_txt("web-01", &[entry]);
+        assert!(!body.contains("wJalrXUtnFEMI"), "secret leaked into export: {body}");
+        assert!(body.contains("AWS_SECRET_ACCESS_KEY"), "key name should survive");
+        assert!(body.contains("[REDACTED]"));
     }
 }

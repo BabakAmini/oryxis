@@ -11,11 +11,19 @@
 //! handled here because a raw line offers no equivalent of SSH/Telnet
 //! ECHO:
 //!
-//! - **line ending**: the terminal sends a bare `\r` for Enter; the
-//!   configured [`SerialLineEnding`](oryxis_core::models::serial::SerialLineEnding)
-//!   maps it to CR / LF / CR LF on the wire.
-//! - **local echo**: when enabled, written bytes are echoed back into
-//!   the output stream so a non-echoing device still shows typing.
+//! - **line ending**: the terminal sends a bare `\r` for Enter (and
+//!   app-injected lines end with a bare `\n`); the configured
+//!   [`SerialLineEnding`](oryxis_core::models::serial::SerialLineEnding)
+//!   maps either to CR / LF / CR LF on the wire.
+//! - **local echo**: when enabled, user input written through
+//!   [`SerialSession::write`] is echoed back into the output stream so
+//!   a non-echoing device still shows typing.
+//!
+//! Both conveniences apply to USER input only. Programmatic wire
+//! writes ([`SerialSession::write_sender`]: in-band terminal replies,
+//! ZMODEM protocol frames) go out byte-exact and silent; echoing them
+//! would feed protocol replies back into their own driver, and the
+//! line-ending map would corrupt raw frames containing 0x0D.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -49,6 +57,9 @@ pub struct SerialSession {
     /// Terminal input; the writer task maps Enter to the line ending
     /// and (optionally) echoes locally before writing to the port.
     writer_tx: mpsc::UnboundedSender<Vec<u8>>,
+    /// Programmatic wire writes (protocol replies, ZMODEM frames):
+    /// written to the port verbatim, never echoed, never re-encoded.
+    raw_tx: mpsc::UnboundedSender<Vec<u8>>,
     reader_task: tokio::task::JoinHandle<()>,
     writer_task: tokio::task::JoinHandle<()>,
     closed: AtomicBool,
@@ -97,10 +108,12 @@ fn flow_control(f: SerialFlowControl) -> tokio_serial::FlowControl {
     }
 }
 
-/// Map terminal input bytes onto the wire: the terminal emits a bare
-/// `\r` for Enter, which becomes the configured line ending. Any `\r`
-/// already paired with `\n` collapses so a CR LF from the terminal
-/// stays a single ending rather than doubling.
+/// Map terminal input bytes onto the wire: a line submit becomes the
+/// configured line ending. A submit is the Enter key's bare `\r`, an
+/// app-injected line's bare `\n` (snippets, startup commands, autofill
+/// all terminate with `\n`), or an explicit `\r\n` pair, which
+/// collapses so a CR LF from the terminal stays a single ending rather
+/// than doubling.
 fn encode_input(data: &[u8], ending: SerialLineEnding) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len() + 2);
     let mut i = 0;
@@ -112,6 +125,9 @@ fn encode_input(data: &[u8], ending: SerialLineEnding) -> Vec<u8> {
                     i += 1;
                 }
             }
+            // A lone LF (any CR-paired one was consumed above) is an
+            // app-injected line submit; map it like Enter.
+            b'\n' => out.extend_from_slice(ending.bytes()),
             b => out.push(b),
         }
         i += 1;
@@ -158,14 +174,27 @@ impl SerialSession {
         let (mut read_half, mut write_half) = tokio::io::split(stream);
         let (output_tx, output_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (writer_tx, mut writer_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        // Programmatic wire writes: verbatim, no echo, no line-ending
+        // map (see `write_sender`).
+        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         // Local-echo side channel: writer -> reader. Kept alive as long
         // as the writer lives; when it dies the reader's `recv()` yields
         // `None` and that select branch simply disables itself.
         let (echo_tx, mut echo_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        // Reader -> writer death cascade: the sender lives in the reader
+        // task and drops when it exits (EOF / unplug / read error), which
+        // resolves the receiver and ends the writer too. Without it the
+        // writer would park in `recv()` forever after an unplug (the
+        // session still holds both input senders), and `is_alive()`
+        // would keep reporting a dead port as alive.
+        let (reader_gone_tx, mut reader_gone_rx) = tokio::sync::oneshot::channel::<()>();
 
         // Reader task: port + echo -> output stream. Raw passthrough (no
         // sniffing, no transcode): the terminal emulator owns decoding.
         let reader_task = tokio::spawn(async move {
+            // Owned so it drops (firing the writer cascade) when this
+            // task ends, however it ends.
+            let _reader_gone = reader_gone_tx;
             let mut buf = vec![0u8; 4096];
             loop {
                 tokio::select! {
@@ -198,22 +227,41 @@ impl SerialSession {
             // (recv -> None), so the disconnect propagates on unplug.
         });
 
-        // Writer task: terminal input -> line-ending map -> optional
-        // local echo (via the reader) -> port.
+        // Writer task: user input gets the line-ending map and the
+        // optional local echo (via the reader); raw wire writes go out
+        // byte-exact and silent. Both channels close together (the
+        // session holds both senders), so either `None` ends the task.
         let local_echo = params.local_echo;
         let line_ending = params.line_ending;
         let writer_task = tokio::spawn(async move {
-            while let Some(data) = writer_rx.recv().await {
-                let encoded = encode_input(&data, line_ending);
-                if local_echo {
-                    // Echo the exact wire form (Enter as the configured
-                    // ending) through the reader so it shares the one
-                    // `output_tx` owner. A send error means the reader
-                    // (and thus the port) is gone; the write below then
-                    // fails too and ends the task.
-                    let _ = echo_tx.send(encoded.clone());
-                }
-                if let Err(e) = write_half.write_all(&encoded).await {
+            loop {
+                let bytes = tokio::select! {
+                    data = writer_rx.recv() => match data {
+                        Some(data) => {
+                            let encoded = encode_input(&data, line_ending);
+                            if local_echo {
+                                // Echo the exact wire form (Enter as the
+                                // configured ending) through the reader so
+                                // it shares the one `output_tx` owner. A
+                                // send error means the reader (and thus the
+                                // port) is gone; the write below then fails
+                                // too and ends the task.
+                                let _ = echo_tx.send(encoded.clone());
+                            }
+                            encoded
+                        }
+                        None => break,
+                    },
+                    data = raw_rx.recv() => match data {
+                        Some(data) => data,
+                        None => break,
+                    },
+                    // Reader died (unplug / EOF): stop too, so the input
+                    // channels close and `is_alive()` flips promptly,
+                    // mirroring the telnet writer's reader-gone break.
+                    _ = &mut reader_gone_rx => break,
+                };
+                if let Err(e) = write_half.write_all(&bytes).await {
                     tracing::error!("Serial write error: {}", e);
                     break;
                 }
@@ -227,6 +275,7 @@ impl SerialSession {
         (
             SerialSession {
                 writer_tx,
+                raw_tx,
                 reader_task,
                 writer_task,
                 closed: AtomicBool::new(false),
@@ -242,11 +291,16 @@ impl SerialSession {
         Ok(())
     }
 
-    /// Hand out a clone of the input sender so the terminal emulator can
-    /// answer in-band queries directly, same contract as the SSH/Telnet
-    /// sessions' back-channel.
+    /// Hand out a clone of the RAW wire sender so the terminal emulator
+    /// can answer in-band queries directly and the ZMODEM driver can
+    /// write protocol frames, same contract as the SSH/Telnet sessions'
+    /// back-channel. Bytes sent here reach the port verbatim: no local
+    /// echo (echoing protocol replies would divert them straight back
+    /// into the ZMODEM driver and corrupt the transfer) and no
+    /// line-ending mapping (raw frames contain 0x0D bytes that must
+    /// survive untouched).
     pub fn write_sender(&self) -> mpsc::UnboundedSender<Vec<u8>> {
-        self.writer_tx.clone()
+        self.raw_tx.clone()
     }
 
     pub fn is_alive(&self) -> bool {
@@ -291,6 +345,32 @@ mod tests {
         assert_eq!(
             encode_input(b"ls\r\n", SerialLineEnding::Lf),
             b"ls\n".to_vec()
+        );
+    }
+
+    #[test]
+    fn bare_lf_maps_to_configured_line_ending() {
+        // App-injected lines (snippet Run, startup command, autofill)
+        // terminate with a bare LF; it must submit exactly like Enter.
+        assert_eq!(encode_input(b"ls\n", SerialLineEnding::Cr), b"ls\r".to_vec());
+        assert_eq!(encode_input(b"ls\n", SerialLineEnding::Lf), b"ls\n".to_vec());
+        assert_eq!(
+            encode_input(b"ls\n", SerialLineEnding::CrLf),
+            b"ls\r\n".to_vec()
+        );
+        // A CR LF pair still collapses to ONE ending, never two.
+        assert_eq!(
+            encode_input(b"ls\r\n", SerialLineEnding::Cr),
+            b"ls\r".to_vec()
+        );
+        // Mid-string mix: CR, lone LF and CR LF each submit once.
+        assert_eq!(
+            encode_input(b"a\rb\nc\r\nd", SerialLineEnding::Cr),
+            b"a\rb\rc\rd".to_vec()
+        );
+        assert_eq!(
+            encode_input(b"a\rb\nc\r\nd", SerialLineEnding::CrLf),
+            b"a\r\nb\r\nc\r\nd".to_vec()
         );
     }
 
@@ -350,6 +430,96 @@ mod tests {
             }
             assert_eq!(seen, b"hello".to_vec());
             // The session is a live handle until dropped/closed.
+            session.close();
+        });
+    }
+
+    /// After an unplug only the reader sees the EOF; the death cascade
+    /// must take the writer down with it so `is_alive()` flips to false.
+    /// Before the cascade the writer parked in `recv()` forever and the
+    /// dead session kept reporting alive.
+    #[test]
+    fn is_alive_flips_after_unplug() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let (session_end, device) = tokio::io::duplex(256);
+            let (session, mut output) = SerialSession::run(session_end, SerialParams::default());
+            assert!(session.is_alive());
+
+            // Unplug: the read half EOFs, only the reader task notices
+            // directly.
+            drop(device);
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+            // The output stream ends first (the reader died)...
+            loop {
+                match tokio::time::timeout_at(deadline, output.recv()).await {
+                    Ok(Some(_)) => continue,
+                    Ok(None) => break,
+                    Err(_) => panic!("output stream never closed on unplug"),
+                }
+            }
+            // ...then the cascade ends the writer, closing the input
+            // channels the session holds.
+            while session.is_alive() {
+                assert!(
+                    tokio::time::Instant::now() < deadline,
+                    "session still alive after unplug (writer never died)"
+                );
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        });
+    }
+
+    /// Protocol writes through `write_sender` must reach the port
+    /// byte-exact with NO local echo and NO line-ending mapping, while
+    /// user writes keep both. A regression here echoes ZMODEM replies
+    /// back into the transfer's own divert and corrupts it.
+    #[test]
+    fn wire_writes_bypass_echo_and_line_ending_mapping() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let (session_end, mut device) = tokio::io::duplex(1024);
+            let params = SerialParams {
+                local_echo: true,
+                line_ending: SerialLineEnding::Lf,
+                ..SerialParams::default()
+            };
+            let (session, mut output) = SerialSession::run(session_end, params);
+            let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
+
+            // A protocol frame with a CR that the Lf ending would eat.
+            let frame = vec![0x2a, 0x18, b'\r', 0x00, b'A'];
+            session.write_sender().send(frame.clone()).unwrap();
+            let mut buf = vec![0u8; 64];
+            let n = tokio::time::timeout_at(deadline, device.read(&mut buf))
+                .await
+                .expect("device never saw the wire frame")
+                .unwrap();
+            assert_eq!(&buf[..n], &frame[..], "wire frame was re-encoded");
+
+            // A user keystroke line: Enter mapped to LF, echoed locally.
+            session.write(b"ls\r").unwrap();
+            let n = tokio::time::timeout_at(deadline, device.read(&mut buf))
+                .await
+                .expect("device never saw the user input")
+                .unwrap();
+            assert_eq!(&buf[..n], b"ls\n");
+            // The FIRST echo on the output stream is the user input; the
+            // wire frame (sent earlier) must not have been echoed at all.
+            let echoed = tokio::time::timeout_at(deadline, output.recv())
+                .await
+                .expect("echo never arrived")
+                .unwrap();
+            assert_eq!(echoed, b"ls\n".to_vec(), "wire frame leaked into the echo");
+
             session.close();
         });
     }

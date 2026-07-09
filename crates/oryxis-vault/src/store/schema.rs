@@ -183,14 +183,21 @@ impl VaultStore {
             -- Per-host command history (terminal sidebar History tab). One
             -- row per distinct command per host, frequency-counted in place;
             -- local-only like session logs (no sync, no portable export).
-            -- Command text is deliberately plaintext, mirroring
-            -- snippets.command; anything secret-shaped never reaches this
-            -- table (the capture layer refuses unechoed input and
-            -- mid-command stdin).
+            -- The command text is sealed with the content key in
+            -- `command_enc` (a command line can carry echoed inline
+            -- secrets the capture gates cannot see, so it is treated
+            -- like session-recording data, not like snippets.command).
+            -- `command` holds a keyed dedup hash (HMAC-SHA256 under the
+            -- content key), which keeps the unique index and the
+            -- bump-in-place UPDATE working without deterministic
+            -- encryption. Rows written before this scheme carry the
+            -- plaintext in `command` with a NULL `command_enc` and are
+            -- sealed by a one-shot migration on first unlocked use.
             CREATE TABLE IF NOT EXISTS command_history (
                 id            TEXT PRIMARY KEY,
                 connection_id TEXT NOT NULL,
                 command       TEXT NOT NULL,
+                command_enc   BLOB,
                 use_count     INTEGER NOT NULL DEFAULT 1,
                 last_used_at  TEXT NOT NULL,
                 created_at    TEXT NOT NULL
@@ -319,6 +326,11 @@ impl VaultStore {
         // the plaintext before sealing (ciphertext doesn't compress).
         // Pre-existing rows are raw by the DEFAULT.
         let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN comp INTEGER NOT NULL DEFAULT 0;");
+        // Encrypted command text (content-key sealed). Rows written
+        // before this column existed keep their plaintext in `command`
+        // until the one-shot migration on first unlocked use replaces
+        // it with the keyed dedup hash (see the table comment above).
+        let _ = self.db.execute_batch("ALTER TABLE command_history ADD COLUMN command_enc BLOB;");
 
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");

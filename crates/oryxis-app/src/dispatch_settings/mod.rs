@@ -598,7 +598,7 @@ impl Oryxis {
                     {
                         self.loaded_cjk_fonts.insert(code.to_string());
                         if !crate::fonts::is_language_cached(lang) {
-                            self.toast = Some(
+                            self.set_toast(
                                 crate::i18n::t("cjk_font_downloading").to_string(),
                             );
                         }
@@ -1080,14 +1080,14 @@ impl Oryxis {
             Message::ClearDebugLog => {
                 match crate::logging::clear() {
                     Ok(true) => {
-                        self.toast = Some(crate::i18n::t("debug_log_cleared").to_string());
+                        self.set_toast(crate::i18n::t("debug_log_cleared").to_string());
                     }
                     Ok(false) => {
-                        self.toast = Some(crate::i18n::t("debug_log_missing").to_string());
+                        self.set_toast(crate::i18n::t("debug_log_missing").to_string());
                     }
                     Err(e) => {
                         tracing::warn!("failed to clear debug log: {e}");
-                        self.toast = Some(format!("{}: {e}", crate::i18n::t("debug_log_clear")));
+                        self.set_toast(format!("{}: {e}", crate::i18n::t("debug_log_clear")));
                     }
                 }
                 return Ok(toast_clear_task());
@@ -1530,6 +1530,22 @@ impl Oryxis {
                     self.editor_form = crate::state::ConnectionForm::default();
                     self.overlay = None;
                     self.card_context_menu = None;
+                    // A master-password candidate typed into the change /
+                    // set-password form must not survive the soft lock.
+                    self.vault_ui.new_password.clear();
+                    self.vault_ui.confirm_password.clear();
+                    // SFTP modals carry remote paths and live action buttons;
+                    // root_view already stops rendering them while locked, but
+                    // sweep the state so none reappears after unlock. A dirty
+                    // edit_session is dropped with its pending upload, matching
+                    // the soft-lock promise (secret-bearing UI is discarded,
+                    // the live session survives).
+                    self.sftp.picker_open = false;
+                    self.sftp.new_entry = None;
+                    self.sftp.delete_confirm.clear();
+                    self.sftp.edit_session = None;
+                    self.sftp.overwrite_prompt = None;
+                    self.sftp.properties = None;
                     // A pending keyboard-interactive prompt belongs to an
                     // in-flight connect; cancel it cleanly (the engine
                     // treats `None` as auth abort).
@@ -1538,6 +1554,15 @@ impl Oryxis {
                         if let Some(ref tx) = self.kbi_response_tx {
                             let _ = tx.try_send(None);
                         }
+                    }
+                    // A pending host-key prompt is a security dialog for an
+                    // in-flight backgrounded connect; reject it (safe
+                    // default) rather than leaving it rendered over the lock
+                    // screen. Mirrors SshHostKeyReject.
+                    if self.pending_host_key.take().is_some()
+                        && let Some(tx) = self.active_host_key_tx.take()
+                    {
+                        let _ = tx.try_send(false);
                     }
                     self.pending_kbi_quick = None;
                     // A parked identity/key switch must not fire a

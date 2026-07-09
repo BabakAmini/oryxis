@@ -17,9 +17,13 @@
 //! - **`submit_wire` may take only part of a chunk** (heapless internal
 //!   buffer), so unconsumed wire is retained and re-submitted rather
 //!   than dropped.
-//! - **Abort is cooperative**: a shared flag lets the app request a
-//!   `ZCAN`; the machine then emits its cancel bytes and ends with
-//!   `Aborted`, so the remote tears down cleanly instead of hanging.
+//! - **Abort is cooperative but must never wait on the peer**: a shared
+//!   flag lets the app request cancellation, and an empty chunk on
+//!   `wire_in` wakes a driver parked on a silent peer's `recv` so the
+//!   flag is actually seen. On abort the driver writes the canonical
+//!   `CANCEL` sequence itself (`zmodem2`'s `abort()` only queues the
+//!   `Aborted` event; it stages no wire bytes), so the remote tears
+//!   down cleanly instead of waiting out its timeout.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -62,8 +66,11 @@ pub enum Progress {
 /// Handles the app passes in to drive one transfer.
 pub struct TransferIo {
     /// Bytes diverted from the terminal (the detector's `wire` first,
-    /// then every subsequent pane output batch). Closing it (drop) is
-    /// treated as a disconnect and aborts the transfer.
+    /// then every subsequent pane output batch). An EMPTY chunk is a
+    /// pure wake-up carrying no wire bytes: the cancel path sends one
+    /// so a driver blocked on a silent peer's `recv` notices the abort
+    /// flag. Closing it (drop) is treated as a disconnect and aborts
+    /// the transfer.
     pub wire_in: mpsc::UnboundedReceiver<Vec<u8>>,
     /// The pane transport's input sender: protocol replies to the peer.
     pub wire_out: mpsc::UnboundedSender<Vec<u8>>,
@@ -145,9 +152,14 @@ async fn run_download(
     let mut name = String::new();
     let mut transferred: u64 = 0;
     let mut total: Option<u64> = None;
+    let mut aborting = false;
 
     loop {
-        if io.abort.load(Ordering::Relaxed) {
+        if !aborting && io.abort.load(Ordering::Relaxed) {
+            aborting = true;
+            // `zmodem2`'s abort() only queues the Aborted event; the
+            // cancel bytes the peer needs are ours to send.
+            let _ = io.wire_out.send(crate::CANCEL.to_vec());
             let _ = receiver.abort();
         }
         match decode(receiver.poll()) {
@@ -174,13 +186,15 @@ async fn run_download(
             }
             Step::Started { name: raw, size } => {
                 let safe = sanitize_name(&raw);
-                let path = dest_dir.join(&safe);
-                let file = tokio::fs::File::create(&path)
-                    .await
-                    .map_err(|e| format!("create {}: {e}", path.display()))?;
+                let (file, path) = create_download_file(&dest_dir, &safe).await?;
                 dest = Some(file);
+                // Report the on-disk name, which carries a " (N)"
+                // suffix when the advertised one was already taken.
+                name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or(safe);
                 dest_path = Some(path);
-                name = safe;
                 total = size;
                 transferred = 0;
                 let _ = io.progress.send(Progress::Started {
@@ -201,6 +215,14 @@ async fn run_download(
             Step::Aborted => return Ok(Outcome::Aborted),
             Step::Idle => {
                 if pending.is_empty() {
+                    // Once the cancel went out, a torn-down peer may
+                    // never speak again; exit instead of parking on
+                    // wire that will never come. (Normally the Aborted
+                    // event above ends the loop first; this is the
+                    // backstop.)
+                    if aborting {
+                        return Ok(Outcome::Aborted);
+                    }
                     match io.wire_in.recv().await {
                         Some(bytes) => pending = bytes,
                         None => return Err("connection closed during transfer".into()),
@@ -246,9 +268,14 @@ async fn run_upload(
     });
 
     let mut pending = first_wire;
+    let mut aborting = false;
 
     loop {
-        if io.abort.load(Ordering::Relaxed) {
+        if !aborting && io.abort.load(Ordering::Relaxed) {
+            aborting = true;
+            // Same as the download side: the cancel bytes are ours to
+            // send, abort() only queues the Aborted event.
+            let _ = io.wire_out.send(crate::CANCEL.to_vec());
             sender.abort();
         }
         match decode(sender.poll()) {
@@ -289,6 +316,11 @@ async fn run_upload(
             Step::Aborted => return Ok(Outcome::Aborted),
             Step::Idle => {
                 if pending.is_empty() {
+                    // Backstop, same as the download side: never park
+                    // on a peer we just cancelled.
+                    if aborting {
+                        return Ok(Outcome::Aborted);
+                    }
                     match io.wire_in.recv().await {
                         Some(bytes) => pending = bytes,
                         None => return Err("connection closed during transfer".into()),
@@ -303,10 +335,55 @@ async fn run_upload(
     }
 }
 
+/// Open a download target without clobbering anything already on disk:
+/// try the advertised name first, then browser-style `name (N).ext`
+/// candidates. `create_new` makes the existence check and the create a
+/// single atomic step, so a remote-controlled name can never truncate
+/// an existing local file, and two concurrent downloads of the same
+/// name can never interleave into one file.
+async fn create_download_file(
+    dest_dir: &std::path::Path,
+    name: &str,
+) -> Result<(tokio::fs::File, PathBuf), String> {
+    // Hard bound so a pathological directory cannot spin forever;
+    // hitting it reports honestly instead of overwriting.
+    for attempt in 0..10_000u32 {
+        let candidate = if attempt == 0 {
+            name.to_string()
+        } else {
+            numbered_name(name, attempt)
+        };
+        let path = dest_dir.join(candidate);
+        match tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .await
+        {
+            Ok(file) => return Ok((file, path)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("create {}: {e}", path.display())),
+        }
+    }
+    Err(format!(
+        "create {}: too many name collisions",
+        dest_dir.join(name).display()
+    ))
+}
+
+/// `report.pdf` + 2 -> `report (2).pdf`; an extensionless name gets the
+/// counter at the end (`README (2)`).
+fn numbered_name(name: &str, n: u32) -> String {
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => format!("{stem} ({n}).{ext}"),
+        _ => format!("{name} ({n})"),
+    }
+}
+
 /// Strip a sender-advertised name down to a safe basename: no directory
-/// components, no `..`, no leading dots that could hide the file. A
-/// hostile or careless peer must not be able to write outside the
-/// chosen download folder.
+/// components, no `..`, no leading dots that could hide the file, and
+/// no Windows reserved device names. A hostile or careless peer must
+/// not be able to write outside the chosen download folder.
 fn sanitize_name(raw: &[u8]) -> String {
     let lossy = String::from_utf8_lossy(raw);
     let base = lossy
@@ -315,10 +392,34 @@ fn sanitize_name(raw: &[u8]) -> String {
         .unwrap_or("")
         .trim_matches(|c: char| c == '.' || c.is_whitespace() || c.is_control());
     if base.is_empty() || base == ".." {
-        "received.bin".to_string()
+        return "received.bin".to_string();
+    }
+    // Windows matches device names on the part before the first dot
+    // ("CON.txt" still opens the console). Defused on every platform so
+    // a download folder that later syncs to a Windows machine stays
+    // portable.
+    let stem = base.split('.').next().unwrap_or(base);
+    if is_windows_reserved(stem) {
+        format!("_{base}")
     } else {
         base.to_string()
     }
+}
+
+/// Windows reserved device names: CON, PRN, AUX, NUL, COM1-9, LPT1-9
+/// (case-insensitive; COM0/LPT0 and two-digit ports are NOT reserved).
+fn is_windows_reserved(stem: &str) -> bool {
+    let stem = stem.trim_end();
+    if ["CON", "PRN", "AUX", "NUL"]
+        .iter()
+        .any(|r| stem.eq_ignore_ascii_case(r))
+    {
+        return true;
+    }
+    let bytes = stem.as_bytes();
+    bytes.len() == 4
+        && (bytes[..3].eq_ignore_ascii_case(b"COM") || bytes[..3].eq_ignore_ascii_case(b"LPT"))
+        && (b'1'..=b'9').contains(&bytes[3])
 }
 
 #[cfg(test)]
@@ -334,6 +435,133 @@ mod tests {
         assert_eq!(sanitize_name(b""), "received.bin");
         assert_eq!(sanitize_name(b"..."), "received.bin");
         assert_eq!(sanitize_name(b"/"), "received.bin");
+    }
+
+    #[test]
+    fn sanitize_defuses_windows_reserved_device_names() {
+        // Reserved with or without an extension, any case.
+        assert_eq!(sanitize_name(b"CON"), "_CON");
+        assert_eq!(sanitize_name(b"con.txt"), "_con.txt");
+        assert_eq!(sanitize_name(b"NUL.tar.gz"), "_NUL.tar.gz");
+        assert_eq!(sanitize_name(b"Prn"), "_Prn");
+        assert_eq!(sanitize_name(b"aux.log"), "_aux.log");
+        assert_eq!(sanitize_name(b"COM1"), "_COM1");
+        assert_eq!(sanitize_name(b"lpt9.bin"), "_lpt9.bin");
+        // Near misses stay untouched.
+        assert_eq!(sanitize_name(b"COM0"), "COM0");
+        assert_eq!(sanitize_name(b"COM10"), "COM10");
+        assert_eq!(sanitize_name(b"CONSOLE.txt"), "CONSOLE.txt");
+        assert_eq!(sanitize_name(b"conf.ig"), "conf.ig");
+    }
+
+    #[test]
+    fn numbered_name_splits_on_the_last_extension() {
+        assert_eq!(numbered_name("report.pdf", 1), "report (1).pdf");
+        assert_eq!(numbered_name("archive.tar.gz", 3), "archive.tar (3).gz");
+        assert_eq!(numbered_name("README", 2), "README (2)");
+    }
+
+    /// A remote-controlled file name must never truncate an existing
+    /// local file: collisions get a browser-style " (N)" suffix, and
+    /// the original bytes survive untouched.
+    #[test]
+    fn download_never_clobbers_an_existing_file() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir = std::env::temp_dir().join(format!("oryxis-zm-uniq-{}", std::process::id()));
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+            tokio::fs::create_dir_all(&dir).await.unwrap();
+            tokio::fs::write(dir.join("report.pdf"), b"original").await.unwrap();
+
+            let (_f1, p1) = create_download_file(&dir, "report.pdf").await.unwrap();
+            assert_eq!(p1.file_name().unwrap().to_str().unwrap(), "report (1).pdf");
+            // A second concurrent same-name download gets its own file.
+            let (_f2, p2) = create_download_file(&dir, "report.pdf").await.unwrap();
+            assert_eq!(p2.file_name().unwrap().to_str().unwrap(), "report (2).pdf");
+            // The pre-existing file was not truncated.
+            let orig = tokio::fs::read(dir.join("report.pdf")).await.unwrap();
+            assert_eq!(orig, b"original".to_vec());
+
+            // A fresh name takes the advertised name directly.
+            let (_f3, p3) = create_download_file(&dir, "clean.txt").await.unwrap();
+            assert_eq!(p3.file_name().unwrap().to_str().unwrap(), "clean.txt");
+
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
+    }
+
+    /// A cancel must take effect while the driver is parked on
+    /// `wire_in.recv()` waiting for a silent peer: the flag plus the
+    /// empty wake-up chunk end the transfer with `Aborted` after the
+    /// CANCEL sequence went out, instead of hanging until disconnect.
+    #[test]
+    fn cancel_wakes_a_driver_blocked_on_a_silent_peer() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir = std::env::temp_dir().join(format!("oryxis-zm-abort-{}", std::process::id()));
+            let _ = tokio::fs::create_dir_all(&dir).await;
+
+            let (wire_tx, wire_in) = mpsc::unbounded_channel();
+            let (wire_out_tx, mut wire_out_rx) = mpsc::unbounded_channel();
+            let (p_tx, mut p_rx) = mpsc::unbounded_channel();
+            let abort = Arc::new(AtomicBool::new(false));
+
+            let task = tokio::spawn(run(
+                Direction::Download,
+                TransferSpec::Download {
+                    dest_dir: dir.clone(),
+                },
+                Vec::new(),
+                TransferIo {
+                    wire_in,
+                    wire_out: wire_out_tx,
+                    progress: p_tx,
+                    abort: abort.clone(),
+                },
+            ));
+            // Let the receiver flush its opening wire and park on recv
+            // (the peer never answers).
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+            // Cancel: raise the flag, then wake the parked recv with an
+            // empty chunk, exactly what the app's ZmodemCancel does.
+            abort.store(true, Ordering::Relaxed);
+            wire_tx.send(Vec::new()).unwrap();
+
+            tokio::time::timeout(std::time::Duration::from_secs(5), task)
+                .await
+                .expect("cancel did not wake the blocked driver")
+                .unwrap();
+
+            // The terminal progress is Aborted (this is what releases
+            // the pane's divert in the app).
+            let mut aborted = false;
+            while let Ok(p) = p_rx.try_recv() {
+                if matches!(p, Progress::Aborted) {
+                    aborted = true;
+                }
+            }
+            assert!(aborted, "driver ended without a terminal Aborted");
+            // And the peer got the canonical cancel bytes so its `sz`
+            // exits instead of waiting out its timeout.
+            let mut sent = Vec::new();
+            while let Ok(b) = wire_out_rx.try_recv() {
+                sent.extend_from_slice(&b);
+            }
+            assert!(
+                sent.windows(crate::CANCEL.len()).any(|w| w == crate::CANCEL),
+                "no CANCEL sequence on the wire after abort"
+            );
+
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
     }
 
     /// End-to-end oracle: drive our upload driver and our download

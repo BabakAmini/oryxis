@@ -149,6 +149,11 @@ impl Oryxis {
             Modal::CarefulPaste => self.pending_paste.is_some(),
             Modal::SnippetVars => self.pending_snippet_vars.is_some(),
             Modal::KbiPrompt => self.pending_kbi_prompt.is_some(),
+            // Mirrors KbiPrompt: the flag alone is the source of truth. The
+            // inline connect-progress host-key path (which renders inside
+            // the progress screen and has no focused PTY behind it) is
+            // gated separately by `connecting.is_none()` at the render site.
+            Modal::HostKey => self.pending_host_key.is_some(),
             Modal::ThemeEditor => self.theme_editor.is_some(),
             Modal::ThemeImport => self.show_theme_import,
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
@@ -173,7 +178,14 @@ impl Oryxis {
     pub(crate) fn close_modal(&mut self, m: crate::state::Modal) {
         use crate::state::Modal;
         match m {
-            Modal::NewTabPicker => self.show_new_tab_picker = false,
+            Modal::NewTabPicker => {
+                // Mirror HideNewTabPicker: abandoning the picker also
+                // abandons any pending split-fill intent, so a later
+                // unrelated open can't inherit it.
+                self.show_new_tab_picker = false;
+                self.pending_pane_split = None;
+                self.new_tab_picker_group = None;
+            }
             Modal::TabJump => self.show_tab_jump = false,
             Modal::IconPicker => {
                 self.show_icon_picker = false;
@@ -198,6 +210,16 @@ impl Oryxis {
                 self.kbi_inputs.clear();
                 if let Some(ref tx) = self.kbi_response_tx {
                     let _ = tx.try_send(None);
+                }
+            }
+            // Esc rejects the host key: a security prompt's safe default is
+            // never to accept an unknown / changed key. Full mirror of
+            // SshHostKeyReject: the engine's verifier must receive `false`
+            // or the in-flight connect stays parked forever.
+            Modal::HostKey => {
+                self.pending_host_key = None;
+                if let Some(tx) = self.active_host_key_tx.take() {
+                    let _ = tx.try_send(false);
                 }
             }
             Modal::ThemeEditor => {
@@ -591,7 +613,18 @@ impl Oryxis {
                 .active_tab
                 .and_then(|i| self.tabs.get(i))
                 .is_some_and(|t| t.files_mode);
+        // A blocking modal owns the keyboard: only Esc may pass (step 3
+        // below closes the modal). Skip binding-table and snippet dispatch
+        // so chords like ClosePane / SplitPane / the host-editor hotkey
+        // cannot fire on the surface hidden behind the modal. The modal's
+        // own keyboard navigation runs earlier in the router
+        // (`handle_modal_nav_key`), so movement / activation keys are
+        // unaffected.
+        let modal_owns_keys = self.any_modal_blocks_input();
         for &action in HotkeyAction::all() {
+            if modal_owns_keys {
+                break;
+            }
             // Split-pane actions only apply inside the terminal view.
             // Skipping (not consuming) elsewhere leaves their key free
             // in other views and avoids a confusing no-op.
@@ -623,7 +656,7 @@ impl Oryxis {
         //      the action types into the focused session; a hybrid tab
         //      in Files mode gates PTY writes off, so firing here would
         //      just dead-end (worst case through the vars modal).
-        if pty_owns_keys && !self.show_snippet_panel {
+        if !modal_owns_keys && pty_owns_keys && !self.show_snippet_panel {
             let hit = self.snippets.iter().position(|sn| {
                 sn.hotkey
                     .as_deref()
@@ -683,7 +716,7 @@ impl Oryxis {
         let Some(mut new_binding) = captured else {
             // Plain letter without modifier → reject with toast,
             // leave editing_hotkey set so the user can try again.
-            self.toast = Some(crate::i18n::t("hotkey_must_have_modifier").to_string());
+            self.set_toast(crate::i18n::t("hotkey_must_have_modifier").to_string());
             return Some(toast_clear_after_secs(2));
         };
         // For family actions we only edit modifiers; preserve the
@@ -725,14 +758,14 @@ impl Oryxis {
                     &format!("hotkey_{}", other.id()),
                     &d.serialize(),
                 );
-                self.toast = Some(
+                self.set_toast(
                     crate::i18n::t("hotkey_conflict_rebound_default")
                         .replace("{action}", crate::i18n::t(other.label_key())),
                 );
             } else {
                 self.hotkey_bindings.remove(&other);
                 self.persist_setting(&format!("hotkey_{}", other.id()), "");
-                self.toast = Some(
+                self.set_toast(
                     crate::i18n::t("hotkey_conflict_unbound")
                         .replace("{action}", crate::i18n::t(other.label_key())),
                 );
@@ -763,15 +796,13 @@ impl Oryxis {
     ) -> Task<Message> {
         use HotkeyAction::*;
         match action {
-            ShowNewTabPicker => {
-                self.show_new_tab_picker = true;
-                self.new_tab_picker_search.clear();
-                // Land focus on the search so Ctrl+K flows straight
-                // into type-to-filter.
-                iced::widget::operation::focus(iced::widget::Id::new(
-                    crate::state::NEW_TAB_PICKER_SEARCH_ID,
-                ))
-            }
+            // Route through the message so the new-tab intent is reset the
+            // same way the `+` button does: Ctrl+K always opens a fresh
+            // new-tab picker, never inherits a `pending_pane_split` left
+            // armed by an earlier split-picker that was dismissed with Esc
+            // (which would otherwise fill the old tab's split instead of
+            // opening a new tab).
+            ShowNewTabPicker => Task::done(Message::ShowNewTabPicker),
             ShowTabJump => {
                 self.show_tab_jump = true;
                 self.tab_jump_search.clear();

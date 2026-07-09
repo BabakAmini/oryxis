@@ -41,6 +41,13 @@ pub(crate) enum Modal {
     /// Keyboard-interactive (2FA / OTP) prompt. Blocks input but owns its
     /// own dismissal, so it is intentionally absent from `ESC_ORDER`.
     KbiPrompt,
+    /// Host-key verification prompt (`pending_host_key`) for a backgrounded
+    /// connect (split pane / manual port forward / RDP launcher) with no
+    /// connect-progress screen. A security prompt, so it MUST block input
+    /// (Enter must never fall through to the PTY behind it) and Esc rejects
+    /// the key (the safe default: never accept an unknown / changed key by
+    /// a stray keystroke).
+    HostKey,
     ThemeEditor,
     ThemeImport,
     UiThemeEditor,
@@ -76,6 +83,7 @@ impl Modal {
         Modal::CarefulPaste,
         Modal::SnippetVars,
         Modal::KbiPrompt,
+        Modal::HostKey,
         Modal::ThemeEditor,
         Modal::ThemeImport,
         Modal::UiThemeEditor,
@@ -106,6 +114,8 @@ impl Modal {
         Modal::TabRename,
         Modal::CarefulPaste,
         Modal::SnippetVars,
+        // A security prompt: Esc rejects the host key (safe default).
+        Modal::HostKey,
         // The error dialog can pop over another flow, so it dismisses
         // before the heavier editors below; the two confirm dialogs
         // follow in the same lightweight-confirm group.
@@ -139,6 +149,7 @@ impl Modal {
             | Modal::CarefulPaste
             | Modal::SnippetVars
             | Modal::KbiPrompt
+            | Modal::HostKey
             | Modal::ThemeEditor
             | Modal::ThemeImport
             | Modal::UiThemeEditor
@@ -178,6 +189,7 @@ mod tests {
                 | Modal::CarefulPaste
                 | Modal::SnippetVars
                 | Modal::KbiPrompt
+                | Modal::HostKey
                 | Modal::ThemeEditor
                 | Modal::ThemeImport
                 | Modal::UiThemeEditor
@@ -193,7 +205,7 @@ mod tests {
                 | Modal::SftpPicker => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 25, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 26, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

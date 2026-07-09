@@ -250,7 +250,7 @@ impl Oryxis {
         // interactive; the surrounding Fill stays transparent to clicks so it
         // never steals input from the terminal underneath.
         let chip = MouseArea::new(chip)
-            .on_press(Message::ToastClear)
+            .on_press(Message::ToastDismiss)
             .interaction(iced::mouse::Interaction::Pointer);
         Some(
             container(

@@ -12,8 +12,10 @@
 //! clears the taint; a submit resets both.
 //!
 //! Bracketed-paste wrappers (`CSI 200~` / `CSI 201~`) are recognized so a
-//! pasted block lands in the buffer as literal text, newlines included,
-//! mirroring how the remote readline treats it.
+//! pasted block lands in the buffer as literal text, newlines and control
+//! bytes included, mirroring how the remote readline treats it (the paste
+//! payload is inserted verbatim into the edit buffer, never interpreted
+//! as line-editing commands).
 
 /// A line the user submitted with Enter.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -89,19 +91,35 @@ impl InputTracker {
             }
             self.pending_utf8.clear();
         }
+        // Inside a bracketed paste the payload is content, not commands:
+        // readline's bracketed-paste-begin inserts the raw block into the
+        // edit buffer verbatim, so control bytes (Ctrl+U, Ctrl+W, DEL, ...)
+        // must not line-edit here. Only ESC still needs scanning, the
+        // `CSI 201~` terminator is the sole exit from the paste.
+        if self.in_paste {
+            match b {
+                // The remote editor inserts the pasted newline literally
+                // instead of executing.
+                0x0d | 0x0a => self.insert('\n'),
+                0x1b => self.scan = Scan::Esc,
+                _ => {
+                    if b < 0x80 {
+                        self.insert(b as char);
+                    } else {
+                        self.pending_utf8.push(b);
+                        self.try_flush_utf8();
+                    }
+                }
+            }
+            return;
+        }
         match b {
             0x0d | 0x0a => {
-                if self.in_paste {
-                    // Inside a bracketed paste the remote editor inserts the
-                    // newline literally instead of executing.
-                    self.insert('\n');
-                } else {
-                    submitted.push(SubmittedLine {
-                        text: self.chars.iter().collect(),
-                        tainted: self.tainted,
-                    });
-                    self.clear_line();
-                }
+                submitted.push(SubmittedLine {
+                    text: self.chars.iter().collect(),
+                    tainted: self.tainted,
+                });
+                self.clear_line();
             }
             0x1b => self.scan = Scan::Esc,
             0x7f | 0x08 => {
@@ -111,12 +129,8 @@ impl InputTracker {
                 }
             }
             0x09 => {
-                if self.in_paste {
-                    self.insert('\t');
-                } else {
-                    // Tab completion rewrites the line remotely.
-                    self.tainted = true;
-                }
+                // Tab completion rewrites the line remotely.
+                self.tainted = true;
             }
             0x01 => self.cursor = 0,                 // Ctrl+A
             0x05 => self.cursor = self.chars.len(),  // Ctrl+E
@@ -405,6 +419,27 @@ mod tests {
         assert_eq!(lines.len(), 1);
         let line = lines.remove(0);
         assert_eq!(line.text, "echo a\necho b");
+        assert!(!line.tainted);
+    }
+
+    #[test]
+    fn bracketed_paste_c0_bytes_insert_literally() {
+        let mut t = InputTracker::new();
+        // Ctrl+A / Ctrl+U / Ctrl+W / DEL inside a paste are payload, not
+        // line editing: nothing moves the cursor or kills text, and the
+        // catch-all C0 taint must not fire either.
+        let line = submit_one(&mut t, b"\x1b[200~a\x01b\x15c\x17d\x7fe\x1b[201~\r");
+        assert_eq!(line.text, "a\x01b\x15c\x17d\x7fe");
+        assert!(!line.tainted);
+    }
+
+    #[test]
+    fn bracketed_paste_ctrl_c_backspace_and_tab_are_literal() {
+        let mut t = InputTracker::new();
+        // Ctrl+C must not abort the line, backspace must not delete the
+        // typed prefix, and TAB is content rather than completion.
+        let line = submit_one(&mut t, b"pre \x1b[200~ab\x03c\x08d\te\x1b[201~\r");
+        assert_eq!(line.text, "pre ab\x03c\x08d\te");
         assert!(!line.tainted);
     }
 

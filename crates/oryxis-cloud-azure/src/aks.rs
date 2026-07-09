@@ -68,13 +68,23 @@ impl AksCluster {
     }
 }
 
-/// The kubeconfig context name `az aks get-credentials` creates for a
-/// cluster: the cluster name itself (az's default). Unlike GKE there is no
-/// project/location compounding, so no live resolution is needed and the
-/// name is deterministic. A helper so the dup-check and the credential
-/// fetch agree by construction.
-pub fn context_name(cluster: &str) -> String {
-    cluster.to_string()
+/// The kubeconfig context name Oryxis asks `az aks get-credentials` to
+/// write for a cluster: `<cluster>-<resource_group>`. az's own default is
+/// the bare cluster name, which collides when two resource groups carry
+/// same-named clusters (the dup-check would grey the second one forever,
+/// and `--overwrite-existing` would silently repoint the first cluster's
+/// context), so we pass an explicit `--context` compounding the resource
+/// group, mirroring how GKE compounds project + location. No live
+/// resolution is needed, the name is deterministic. A helper so the
+/// dup-check and the credential fetch agree by construction. A blank
+/// resource group (never emitted by `az aks list`, but tolerated) falls
+/// back to the bare cluster name rather than minting a trailing dash.
+pub fn context_name(cluster: &str, resource_group: &str) -> String {
+    if resource_group.trim().is_empty() {
+        cluster.to_string()
+    } else {
+        format!("{cluster}-{resource_group}")
+    }
 }
 
 /// Parse `az aks list --output json` output. Pure, so it is unit-tested
@@ -106,7 +116,7 @@ pub async fn discover_clusters(
     Ok(clusters
         .into_iter()
         .map(|c| DiscoveredAksCluster {
-            context: context_name(&c.name),
+            context: context_name(&c.name, &c.resource_group),
             status: c.status(),
             node_count: c.node_count(),
             name: c.name,
@@ -121,14 +131,19 @@ pub async fn discover_clusters(
 /// this the `oryxis-cloud-k8s` provider can discover workloads and open
 /// shells against `--context <name>`.
 ///
+/// The context is named explicitly (`--context`, see [`context_name`]) so
+/// same-named clusters in different resource groups get distinct contexts
+/// instead of az's colliding bare-cluster-name default.
 /// `--overwrite-existing` makes a re-add idempotent (az otherwise refuses
-/// to clobber a same-named context); every fetch re-establishes the same
-/// credentials, so overwriting is safe.
+/// to clobber a same-named context); with the composite name it can only
+/// ever overwrite this exact cluster's own context, and every fetch
+/// re-establishes the same credentials, so overwriting is safe.
 pub async fn get_credentials(
     cfg: &AzureConfig,
     cluster: &str,
     resource_group: &str,
 ) -> Result<String, CloudError> {
+    let context = context_name(cluster, resource_group);
     // get-credentials writes to the kubeconfig; there is no useful stdout.
     // Success is the exit code.
     run_az(
@@ -140,11 +155,13 @@ pub async fn get_credentials(
             cluster,
             "--resource-group",
             resource_group,
+            "--context",
+            &context,
             "--overwrite-existing",
         ],
     )
     .await?;
-    Ok(context_name(cluster))
+    Ok(context)
 }
 
 #[cfg(test)]
@@ -152,8 +169,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn context_name_is_the_cluster_name() {
-        assert_eq!(context_name("prod"), "prod");
+    fn context_name_compounds_cluster_and_resource_group() {
+        assert_eq!(context_name("prod", "rg-prod"), "prod-rg-prod");
+        // Same cluster name in two resource groups must not collide.
+        assert_ne!(context_name("prod", "rg-a"), context_name("prod", "rg-b"));
+        // A blank resource group falls back to the bare cluster name.
+        assert_eq!(context_name("prod", ""), "prod");
+        assert_eq!(context_name("prod", "  "), "prod");
     }
 
     #[test]

@@ -526,8 +526,16 @@ impl Oryxis {
             NavItem::Identity(i) => Message::ShowIdentityMenu(i),
             NavItem::Snippet(i) => Message::ShowSnippetMenu(i),
             NavItem::CloudAccount(id) => Message::ShowCloudCardMenu(id),
-            // Rows without a context menu (history, proxies, known
-            // hosts, port forwards, settings): nothing to open.
+            // Session-log rows carry a kebab menu (Export .cast /
+            // transcript / commands / Delete). The row is keyed by uuid;
+            // the menu is keyed by the index into `session_logs`, so map
+            // one to the other (the same index the view and the menu use).
+            NavItem::HistoryLog(id) => {
+                let idx = self.session_logs.iter().position(|e| e.id == id)?;
+                Message::ShowSessionLogMenu(idx)
+            }
+            // Rows without a context menu (proxies, known hosts, port
+            // forwards, settings): nothing to open.
             _ => return None,
         };
         Some(self.update(msg))

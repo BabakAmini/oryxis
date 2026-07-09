@@ -972,6 +972,9 @@ impl Oryxis {
             })
             .collect();
         if !aks_filtered.is_empty() {
+            // Dup-guard: a k8s profile already pointed at a cluster's
+            // context means it's been added; show it greyed instead of
+            // minting a duplicate on a second Add.
             let existing_contexts: std::collections::HashSet<String> = self
                 .cloud_profiles
                 .iter()
@@ -1006,7 +1009,12 @@ impl Oryxis {
             sections.push(Space::new().height(6).into());
             if !aks_collapsed {
                 for c in &aks_filtered {
-                    let added = existing_contexts.contains(&c.context);
+                    // Match the composite `<cluster>-<resource_group>`
+                    // context this build mints, or the bare cluster name
+                    // older builds stored (az's default context name), so
+                    // a legacy import is still recognized as added.
+                    let added = existing_contexts.contains(&c.context)
+                        || existing_contexts.contains(&c.name);
                     let info = format!(
                         "{}  ·  {}  ·  {}  ·  {} {}  ·  {}",
                         c.name,

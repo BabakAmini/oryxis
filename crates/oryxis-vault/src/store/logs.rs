@@ -94,12 +94,15 @@ impl VaultStore {
         Ok(())
     }
 
-    /// Content key for session recordings: a random 256-bit key wrapped
-    /// with the master key in `vault_meta` (`session_log_key`). Chunks
-    /// are sealed with this key directly (no per-chunk KDF), so appends
-    /// stay cheap; only the first use after unlock pays the unwrap.
-    /// Generated lazily on the first recording of a vault's lifetime.
-    fn session_log_key(&self) -> Result<[u8; KEY_LEN], VaultError> {
+    /// Content key for locally recorded terminal data (session-log
+    /// chunks and the encrypted `command_history` text): a random
+    /// 256-bit key wrapped with the master key in `vault_meta`
+    /// (`session_log_key`). Payloads are sealed with this key directly
+    /// (no per-write KDF), so appends stay cheap; only the first use
+    /// after unlock pays the unwrap. Generated lazily on first use in a
+    /// vault's lifetime. Master-password rotation re-wraps it via
+    /// `convert_all_fields`, so the sealed rows never need rewriting.
+    pub(super) fn session_log_key(&self) -> Result<[u8; KEY_LEN], VaultError> {
         if let Some(k) = *self.session_log_key.lock().unwrap() {
             return Ok(k);
         }
@@ -131,9 +134,9 @@ impl VaultStore {
         Ok(key)
     }
 
-    /// Seal a chunk with the session content key: random nonce(12) +
+    /// Seal a payload with the content key: random nonce(12) +
     /// ciphertext(+16 tag).
-    fn seal_chunk(&self, data: &[u8]) -> Result<Vec<u8>, VaultError> {
+    pub(super) fn seal_chunk(&self, data: &[u8]) -> Result<Vec<u8>, VaultError> {
         let key = self.session_log_key()?;
         let cipher = ChaCha20Poly1305::new_from_slice(&key)
             .map_err(|e| VaultError::Crypto(e.to_string()))?;
@@ -151,7 +154,7 @@ impl VaultStore {
     /// Inverse of `seal_chunk`. `None` when the blob isn't a sealed
     /// chunk under `key` (i.e. a chunk recorded by an older version),
     /// in which case the caller uses the raw bytes as-is.
-    fn unseal_chunk(key: &[u8; KEY_LEN], blob: &[u8]) -> Option<Vec<u8>> {
+    pub(super) fn unseal_chunk(key: &[u8; KEY_LEN], blob: &[u8]) -> Option<Vec<u8>> {
         if blob.len() < NONCE_LEN + 16 {
             return None;
         }

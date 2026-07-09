@@ -172,12 +172,25 @@ impl Oryxis {
                     .map(|_| Message::ConnectAnimTick),
             );
         }
+        // Auto-dismiss the transient toast chip. Only ticks while a toast
+        // is shown, otherwise idle; the handler clears it once its
+        // deadline passes.
+        if self.toast.is_some() {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(200))
+                    .map(|_| Message::ToastClear),
+            );
+        }
         // 2s mtime poll on the edit-in-place temp file, only ticks
         // while a session is actually active, otherwise idle. Scans every
-        // SFTP tab (active buffer + parked) so a backgrounded edit-session
-        // keeps watching for external saves.
+        // SFTP surface: the live buffer, parked standalone tabs AND parked
+        // hybrid tabs' `files_state` (a hoisted hybrid state lives in
+        // `self.sftp` and its slot holds a taken default, so there is no
+        // double count), so a backgrounded edit-session keeps watching for
+        // external saves no matter which surface owns it.
         if self.sftp.edit_session.is_some()
             || self.sftp_tabs.iter().any(|t| t.state.edit_session.is_some())
+            || self.tabs.iter().any(|t| t.files_state.edit_session.is_some())
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
@@ -186,10 +199,12 @@ impl Oryxis {
         }
         // Live transfer bar: poll the shared byte counter a few times a
         // second while a transfer runs, so the progress bar advances
-        // smoothly. Idle otherwise. Scans every SFTP tab so a backgrounded
-        // transfer keeps the bar live when refocused.
+        // smoothly. Idle otherwise. Scans every SFTP surface (live buffer,
+        // parked standalone tabs, parked hybrid tabs' `files_state`) so a
+        // backgrounded transfer keeps the bar live when refocused.
         if self.sftp.transfer.is_some()
             || self.sftp_tabs.iter().any(|t| t.state.transfer.is_some())
+            || self.tabs.iter().any(|t| t.files_state.transfer.is_some())
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(120))

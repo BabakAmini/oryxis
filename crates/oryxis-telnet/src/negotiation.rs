@@ -18,9 +18,9 @@
 //!   pre-fill the login prompt without scraping it).
 //!
 //! Everything else is declined, including BINARY, so NVT rules always
-//! hold: inbound `CR NUL` collapses to `CR`, and `encode_input` maps
-//! the terminal's bare `CR` to the `CR LF` new-line the protocol
-//! expects from an Enter key.
+//! hold: inbound `CR NUL` collapses to `CR`, and `encode_input` maps a
+//! line submit (Enter's bare `CR`, an app-injected line's bare `LF`, or
+//! a `CR LF` pair) to the one `CR LF` new-line the protocol expects.
 
 pub(crate) const IAC: u8 = 255;
 const DONT: u8 = 254;
@@ -48,6 +48,13 @@ const ENV_VAR: u8 = 0;
 const ENV_VALUE: u8 = 1;
 const ENV_ESC: u8 = 2;
 const ENV_USERVAR: u8 = 3;
+
+/// Hard cap on a buffered subnegotiation payload. The options this
+/// client plays (TTYPE / NAWS / NEW-ENVIRON class) are tens of bytes;
+/// a server that opens IAC SB and never sends IAC SE would otherwise
+/// grow `subneg_buf` without bound. On overflow the subnegotiation is
+/// abandoned and the stream falls back to ordinary data.
+const SUBNEG_MAX: usize = 4096;
 
 /// RFC 1143 per-option state, one instance per (option, side).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -200,10 +207,30 @@ impl Negotiator {
                 }
                 ParseState::SubnegData => match byte {
                     IAC => self.state = ParseState::SubnegIac,
+                    // Runaway subnegotiation (no IAC SE in sight): drop
+                    // the buffered payload, return to ground state and
+                    // let this byte through as data, so the session can
+                    // neither hang nor grow the buffer without bound.
+                    _ if self.subneg_buf.len() >= SUBNEG_MAX => {
+                        self.subneg_buf.clear();
+                        self.last_was_cr = byte == b'\r';
+                        step.app.push(byte);
+                        self.state = ParseState::Data;
+                    }
                     _ => self.subneg_buf.push(byte),
                 },
                 ParseState::SubnegIac => match byte {
                     // IAC IAC inside a subnegotiation is a literal 0xFF.
+                    // The overflow guard applies here too, an IAC IAC
+                    // flood grows the buffer just like plain bytes; on
+                    // overflow the pair degrades to a data-state IAC IAC
+                    // (a literal 0xFF to the terminal).
+                    IAC if self.subneg_buf.len() >= SUBNEG_MAX => {
+                        self.subneg_buf.clear();
+                        self.last_was_cr = false;
+                        step.app.push(IAC);
+                        self.state = ParseState::Data;
+                    }
                     IAC => {
                         self.subneg_buf.push(IAC);
                         self.state = ParseState::SubnegData;
@@ -383,10 +410,13 @@ fn subnegotiation(option: u8, body: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Encode terminal input for the wire: double IAC bytes and map the
-/// Enter key's bare CR to the protocol's CR LF new line (what line-mode
-/// servers and network appliances expect; PuTTY's default too). A CR LF
-/// already present in the input stays a single CR LF.
+/// Encode terminal input for the wire: double IAC bytes and map a line
+/// submit to the protocol's CR LF new line (what line-mode servers and
+/// network appliances expect; PuTTY's default too). A submit is the
+/// Enter key's bare CR, an app-injected line's bare LF (snippets,
+/// startup commands, autofill all end lines with `\n`), or an explicit
+/// CR LF pair, which collapses to a single CR LF so pasted CRLF text
+/// doesn't double-fire.
 pub fn encode_input(data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len() + 4);
     let mut i = 0;
@@ -400,9 +430,29 @@ pub fn encode_input(data: &[u8]) -> Vec<u8> {
                     i += 1;
                 }
             }
+            // A lone LF (any CR-paired one was consumed above) is an
+            // app-injected line submit; encode it like Enter.
+            b'\n' => out.extend_from_slice(b"\r\n"),
             b => out.push(b),
         }
         i += 1;
+    }
+    out
+}
+
+/// Escape raw binary payload for the wire: double IAC bytes and nothing
+/// else. This is the path for protocol-level writes (ZMODEM frames),
+/// which must reach the wire byte-exact; `encode_input`'s line-ending
+/// mapping would corrupt them. NVT caveat: without the BINARY option
+/// the server may still apply CR rules on its side, so in-band binary
+/// over Telnet stays best-effort by nature.
+pub fn escape_iac(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() + 4);
+    for &b in data {
+        if b == IAC {
+            out.push(IAC);
+        }
+        out.push(b);
     }
     out
 }
@@ -571,5 +621,63 @@ mod tests {
         assert_eq!(encode_input(b"ls\r\n"), b"ls\r\n".to_vec());
         assert_eq!(encode_input(&[0x41, IAC, 0x42]), vec![0x41, IAC, IAC, 0x42]);
         assert_eq!(encode_input(b"plain"), b"plain".to_vec());
+    }
+
+    #[test]
+    fn encode_input_maps_bare_lf_like_enter() {
+        // App-injected lines (snippets, startup command, autofill) end
+        // with a bare LF; it must submit exactly like Enter's CR.
+        assert_eq!(encode_input(b"ls\n"), b"ls\r\n".to_vec());
+        // Mixed payload: CR, lone LF and CR LF each submit once.
+        assert_eq!(encode_input(b"a\rb\nc\r\nd"), b"a\r\nb\r\nc\r\nd".to_vec());
+        assert_eq!(encode_input(b"\n\n"), b"\r\n\r\n".to_vec());
+    }
+
+    #[test]
+    fn escape_iac_doubles_iac_and_leaves_line_endings_alone() {
+        assert_eq!(
+            escape_iac(&[0x41, IAC, b'\r', b'\n', 0x42]),
+            vec![0x41, IAC, IAC, b'\r', b'\n', 0x42]
+        );
+        assert_eq!(escape_iac(&[IAC, IAC]), vec![IAC, IAC, IAC, IAC]);
+        assert_eq!(escape_iac(b"plain"), b"plain".to_vec());
+    }
+
+    #[test]
+    fn runaway_subnegotiation_is_capped_and_recovers() {
+        let (mut neg, _) = Negotiator::new("xterm", None);
+        // IAC SB TTYPE then a flood of payload with no IAC SE ever.
+        let mut flood = vec![IAC, SB, OPT_TTYPE];
+        flood.extend(std::iter::repeat_n(b'x', SUBNEG_MAX + 10));
+        let step = neg.receive(&flood);
+        // The first SUBNEG_MAX bytes buffer; everything past the cap
+        // falls through as ordinary data instead of growing the buffer.
+        assert_eq!(step.app, vec![b'x'; 10]);
+        assert!(neg.subneg_buf.is_empty(), "overflow must discard the buffer");
+        assert_eq!(neg.state, ParseState::Data);
+        // The parser is healthy again: negotiation still answers.
+        let step = neg.receive(&[IAC, DO, 34]);
+        assert_eq!(step.wire, vec![IAC, WONT, 34]);
+        // And ordinary data flows.
+        let step = neg.receive(b"ok");
+        assert_eq!(step.app, b"ok".to_vec());
+    }
+
+    #[test]
+    fn subneg_iac_iac_flood_is_capped_too() {
+        // An IAC IAC flood buffers one byte per pair through the
+        // SubnegIac arm; it must hit the same cap as plain payload.
+        let (mut neg, _) = Negotiator::new("xterm", None);
+        neg.receive(&[IAC, SB, OPT_TTYPE]);
+        for _ in 0..SUBNEG_MAX {
+            let step = neg.receive(&[IAC, IAC]);
+            assert!(step.app.is_empty());
+        }
+        assert_eq!(neg.subneg_buf.len(), SUBNEG_MAX);
+        // The pair past the cap degrades to a data-state literal 0xFF.
+        let step = neg.receive(&[IAC, IAC]);
+        assert_eq!(step.app, vec![IAC]);
+        assert!(neg.subneg_buf.is_empty());
+        assert_eq!(neg.state, ParseState::Data);
     }
 }

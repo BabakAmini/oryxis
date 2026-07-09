@@ -564,6 +564,7 @@ impl Oryxis {
                 reconnect_counters: std::collections::HashMap::new(),
                 ai: crate::state::AiState::default(),
                 toast: None,
+                toast_deadline: None,
                 loaded_cjk_fonts: std::collections::HashSet::new(),
                 error_dialog: None,
                 local_terminals: None,
@@ -739,7 +740,7 @@ impl Oryxis {
         if !std::mem::take(&mut self.pending_perf_mode_toast) {
             return Task::none();
         }
-        self.toast = Some(crate::i18n::t("perf_mode_auto_toast").to_string());
+        self.set_toast(crate::i18n::t("perf_mode_auto_toast").to_string());
         Task::perform(
             async {
                 tokio::time::sleep(std::time::Duration::from_millis(4000)).await;

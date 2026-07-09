@@ -70,7 +70,17 @@ impl Oryxis {
         // global pickers above, instead of only the SFTP panes. No-op when
         // no SFTP modal is open. This keeps the invariant that a set modal
         // flag always corresponds to a visible, input-owning overlay.
-        let composed = self.layer_sftp_modals(composed);
+        // Gated on Unlocked: unlike the app-level modals above (update /
+        // plugin install, which are meant to surface over the lock screen),
+        // an SFTP modal carries remote paths and live action buttons
+        // (Save & Upload / Delete) and must never render or accept input
+        // over a soft-locked vault. `AutoLockVault` also sweeps these
+        // fields so nothing stale reappears after unlock.
+        let composed = if matches!(self.vault_ui.state, VaultState::Unlocked) {
+            self.layer_sftp_modals(composed)
+        } else {
+            composed
+        };
 
         // Browser-style fullscreen overlays: on-enter hint banner and
         // hover-only round X. Both stack above any modal scrim so the

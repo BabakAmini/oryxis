@@ -609,27 +609,35 @@ impl Oryxis {
 }
 
 impl Oryxis {
-    /// Show a transient toast chip and schedule its auto-dismiss. Used
-    /// for import / export count feedback that should be visible from any
-    /// screen, not just the dialog that triggered it.
+    /// Show a transient toast chip. Auto-dismissal is deadline-driven
+    /// (see [`Oryxis::set_toast`]); the returned `Task` is empty and kept
+    /// only so the many `return Ok(self.show_toast(..))` call sites stay
+    /// unchanged. Used for feedback that should be visible from any screen.
     pub(crate) fn show_toast(&mut self, msg: String) -> Task<Message> {
-        self.show_toast_secs_inner(msg, 2600)
+        self.set_toast(msg);
+        Task::none()
     }
 
     /// Like [`show_toast`] but with an explicit dwell in whole seconds, for
     /// hints that are a sentence to read rather than a one-word confirmation.
     pub(crate) fn show_toast_secs(&mut self, msg: String, secs: u64) -> Task<Message> {
-        self.show_toast_secs_inner(msg, secs * 1000)
+        self.set_toast_millis(msg, secs * 1000);
+        Task::none()
     }
 
-    fn show_toast_secs_inner(&mut self, msg: String, millis: u64) -> Task<Message> {
+    /// Set the toast chip and stamp its auto-dismiss deadline (default
+    /// dwell). This is the single entry point every toast should go
+    /// through: the `ToastTick` subscription clears the chip once the
+    /// deadline passes, so no toast is ever stranded and the newest one
+    /// always wins its full dwell.
+    pub(crate) fn set_toast(&mut self, msg: String) {
+        self.set_toast_millis(msg, 2600);
+    }
+
+    fn set_toast_millis(&mut self, msg: String, millis: u64) {
         self.toast = Some(msg);
-        Task::perform(
-            async move {
-                tokio::time::sleep(std::time::Duration::from_millis(millis)).await;
-            },
-            |_| Message::ToastClear,
-        )
+        self.toast_deadline =
+            std::time::Instant::now().checked_add(std::time::Duration::from_millis(millis));
     }
 
     /// A folder id together with every folder nested beneath it. Drives

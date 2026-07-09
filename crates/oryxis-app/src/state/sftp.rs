@@ -649,14 +649,19 @@ pub(crate) struct SftpRename {
     pub input: String,
 }
 
-/// Target of the SFTP close-guard confirmation modal: either a single tab or
-/// "close every tab except this one". Drives `pending_sftp_close`.
+/// Target of the SFTP close-guard confirmation modal: a single tab, "close
+/// every tab except this one", or a hybrid terminal tab's SFTP session.
+/// Drives `pending_sftp_close`.
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PendingSftpClose {
     /// Close just the tab at this index.
     One(usize),
     /// Close every tab except the one at this index.
     Others(usize),
+    /// Close ONLY the SFTP session of the hybrid terminal tab with this
+    /// id (the tab itself stays). Keyed by id, not index: the strip can
+    /// reorder while the modal is up.
+    HybridSession(uuid::Uuid),
 }
 
 #[derive(Debug, Clone)]

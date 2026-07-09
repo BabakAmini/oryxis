@@ -49,12 +49,12 @@ impl Oryxis {
                         // emits a now-stale `ClientClosed` we ignore by seq).
                         self.remote_desktop_forwards
                             .insert(conn_id, (seq, session));
-                        self.toast = Some(
+                        self.set_toast(
                             crate::i18n::t("remote_desktop_opening")
                                 .replace("{port}", &port.to_string()),
                         );
                     }
-                    Err(e) => self.toast = Some(e),
+                    Err(e) => self.set_toast(e),
                 }
                 Ok(Task::none())
             }
@@ -137,19 +137,19 @@ impl Oryxis {
                     .spawn()
                 {
                     Ok(_child) => {
-                        self.toast = Some(
+                        self.set_toast(
                             crate::i18n::t("remote_desktop_opening")
                                 .replace("{port}", &desktop_port.to_string()),
                         );
                         Task::none()
                     }
                     Err(e) => {
-                        self.toast = Some(format!("{}: {e}", cmd.program));
+                        self.set_toast(format!("{}: {e}", cmd.program));
                         Task::none()
                     }
                 },
                 Err(no) => {
-                    self.toast = Some(format!(
+                    self.set_toast(format!(
                         "{} ({})",
                         crate::i18n::t("remote_desktop_no_client"),
                         no.looked_for.join(", ")

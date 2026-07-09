@@ -156,7 +156,10 @@ impl Oryxis {
             return Task::none();
         };
         let new_name = rn.input.trim().to_string();
-        if new_name.is_empty() {
+        // One plain path component (rejects empty, ".", ".." and
+        // separators): "." / ".." would rename onto the directory itself
+        // or its parent, a separator would silently relocate the entry.
+        if !crate::sftp_helpers::is_safe_remote_entry_name(&new_name) {
             return Task::none();
         }
         if !self.sftp.pane(rn.side).is_remote {
@@ -245,6 +248,12 @@ impl Oryxis {
                 // honor it, with home-dir fallback in
                 // `initial_remote_listing` when it doesn't resolve.
                 let initial_hint = self.sftp_open_at_path.take();
+                // Owner of the live buffer at kickoff time (standalone SFTP
+                // tab or hybrid terminal tab). The mount completion is
+                // stamped with it so a park/hoist swap while the mount is in
+                // flight still delivers the result to the originating
+                // state, or drops it if that owner closed meanwhile.
+                let owner = self.current_sftp_owner();
                 if let Some(session) = existing {
                     let session_for_task = session.clone();
                     return Ok(Task::perform(
@@ -258,15 +267,21 @@ impl Oryxis {
                             Ok::<_, String>((client, initial, entries))
                         },
                         move |result| match result {
-                            Ok((client, path, entries)) => Message::SftpHostMounted(
-                                target,
-                                label.clone(),
-                                session.clone(),
-                                client,
-                                path,
-                                entries,
+                            Ok((client, path, entries)) => Message::sftp_owned(
+                                owner,
+                                Message::SftpHostMounted(
+                                    target,
+                                    label.clone(),
+                                    session.clone(),
+                                    client,
+                                    path,
+                                    entries,
+                                ),
                             ),
-                            Err(e) => Message::SftpRemoteError(target, e),
+                            Err(e) => Message::sftp_owned(
+                                owner,
+                                Message::SftpRemoteError(target, e),
+                            ),
                         },
                     ));
                 }
@@ -379,9 +394,21 @@ impl Oryxis {
                 return Ok(Task::stream(stream).map(move |m| match m {
                     SftpConnectMsg::HostKey(q) => Message::SshHostKeyVerify(q),
                     SftpConnectMsg::Done(Ok((session, client, path, entries))) => {
-                        Message::SftpHostMounted(target, label.clone(), session, client, path, entries)
+                        Message::sftp_owned(
+                            owner,
+                            Message::SftpHostMounted(
+                                target,
+                                label.clone(),
+                                session,
+                                client,
+                                path,
+                                entries,
+                            ),
+                        )
                     }
-                    SftpConnectMsg::Done(Err(e)) => Message::SftpRemoteError(target, e),
+                    SftpConnectMsg::Done(Err(e)) => {
+                        Message::sftp_owned(owner, Message::SftpRemoteError(target, e))
+                    }
                     SftpConnectMsg::NoCommonAlgo { category, server_offers } => {
                         Message::SshNoCommonAlgo {
                             conn_id: sftp_conn_id,
@@ -442,10 +469,16 @@ impl Oryxis {
                 pane.remote_loading = false;
                 pane.error = None;
                 // Inherit the mounted host's name as the tab label (last mount
-                // wins when both panes are remote).
-                if let Some(i) = self.active_sftp
-                    && let Some(t) = self.sftp_tabs.get_mut(i)
-                {
+                // wins when both panes are remote). Mid-route the stamped
+                // owner names the tab, NOT `active_sftp` (which points at
+                // whichever standalone tab holds the buffer right now); a
+                // hybrid owner resolves to no position, its terminal tab
+                // keeps its own label.
+                let owner_idx = match self.routing_sftp {
+                    Some(id) => self.sftp_tabs.iter().position(|t| t.id == id),
+                    None => self.active_sftp,
+                };
+                if let Some(t) = owner_idx.and_then(|i| self.sftp_tabs.get_mut(i)) {
                     t.label = tab_label;
                 }
                 self.push_sftp_log(
@@ -490,7 +523,7 @@ impl Oryxis {
                     // is still valid (e.g. trying to enter a symlink that
                     // points at a file). Keep it on screen and surface the
                     // error as a transient toast instead of wiping the pane.
-                    self.toast = Some(msg);
+                    self.set_toast(msg);
                     return Ok(Task::perform(
                         async {
                             tokio::time::sleep(TOAST_DURATION).await
@@ -733,6 +766,9 @@ impl Oryxis {
                     }
                     Some(crate::state::PendingSftpClose::Others(idx)) => {
                         return Ok(self.close_other_sftp_tabs(idx));
+                    }
+                    Some(crate::state::PendingSftpClose::HybridSession(tab_id)) => {
+                        return Ok(self.close_tab_sftp_session(tab_id));
                     }
                     None => {}
                 }
@@ -1215,19 +1251,33 @@ impl Oryxis {
                 // See SftpRenameCommit: swallow the trailing Enter's activation.
                 self.sftp.swallow_next_activate = true;
                 let name = ne.input.trim().to_string();
-                if name.is_empty() {
+                // One plain path component (rejects empty, ".", ".." and
+                // separators), same guard as the rename commit.
+                if !crate::sftp_helpers::is_safe_remote_entry_name(&name) {
                     return Ok(Task::none());
                 }
                 if !self.sftp.pane(ne.side).is_remote {
                     let target = self.sftp.pane(ne.side).local_path.join(&name);
                     let result = match ne.kind {
                         crate::state::SftpEntryKind::Folder => std::fs::create_dir(&target),
-                        crate::state::SftpEntryKind::File => {
-                            std::fs::File::create(&target).map(|_| ())
-                        }
+                        // create_new: colliding with an existing file must
+                        // error out, not truncate it to zero bytes.
+                        crate::state::SftpEntryKind::File => std::fs::OpenOptions::new()
+                            .write(true)
+                            .create_new(true)
+                            .open(&target)
+                            .map(|_| ()),
                     };
                     if let Err(e) = result {
-                        self.sftp.pane_mut(ne.side).error = Some(e.to_string());
+                        self.sftp.pane_mut(ne.side).error =
+                            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                                Some(
+                                    crate::i18n::t("files_entry_exists")
+                                        .replacen("{name}", &name, 1),
+                                )
+                            } else {
+                                Some(e.to_string())
+                            };
                     }
                     self.refresh_sftp_local(ne.side);
                 } else {
@@ -1243,16 +1293,29 @@ impl Oryxis {
                     let kind = ne.kind;
                     let side = ne.side;
                     let reload_path = self.sftp.pane(side).remote_path.clone();
+                    let exists_msg = crate::i18n::t("files_entry_exists")
+                        .replacen("{name}", &name, 1);
                     return Ok(Task::perform(
                         async move {
                             match kind {
                                 crate::state::SftpEntryKind::Folder => {
                                     client.create_dir(&target).await.map_err(|e| e.to_string())
                                 }
-                                crate::state::SftpEntryKind::File => client
-                                    .write_file(&target, b"")
-                                    .await
-                                    .map_err(|e| e.to_string()),
+                                // Exclusive create, so an existing file
+                                // errors instead of being truncated to
+                                // zero bytes; the stat pre-check turns the
+                                // server's opaque EXCL failure into a
+                                // readable message (EXCL still closes the
+                                // check-to-create race).
+                                crate::state::SftpEntryKind::File => {
+                                    if client.stat(&target).await.is_ok() {
+                                        return Err(exists_msg);
+                                    }
+                                    client
+                                        .create_file_exclusive(&target)
+                                        .await
+                                        .map_err(|e| e.to_string())
+                                }
                             }
                         },
                         move |result| match result {

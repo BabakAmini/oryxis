@@ -700,7 +700,7 @@ impl Oryxis {
                             }
                         };
                         if show_toast {
-                            self.toast = Some(body.to_string());
+                            self.set_toast(body.to_string());
                             // Auto-dismiss on a timer only when the window is
                             // focused (you see it now). A toast raised while
                             // unfocused is left up and cleared shortly after you
@@ -735,7 +735,7 @@ impl Oryxis {
                         }
                     };
                     if show_toast {
-                        self.toast = Some(if private {
+                        self.set_toast(if private {
                             text
                         } else {
                             format!("{title} \u{b7} {text}")

@@ -354,7 +354,7 @@ impl Oryxis {
                     Some("sudo_password_sent")
                 })()
                 .unwrap_or("no_stored_password");
-                self.toast = Some(crate::i18n::t(toast_key).to_string());
+                self.set_toast(crate::i18n::t(toast_key).to_string());
                 return Ok(Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(1800)).await;

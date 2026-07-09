@@ -370,25 +370,40 @@ impl Oryxis {
 
             Message::PluginInstall(id) => {
                 // Installing needs a manifest entry to download.
-                let best = self
+                let (has_versions, best) = self
                     .plugins
                     .iter()
                     .find(|p| p.provider_id == id)
                     .and_then(|p| p.manifest.as_ref())
-                    .and_then(|m| {
-                        m.best(
-                            env!("CARGO_PKG_VERSION"),
-                            oryxis_plugin_protocol::SUPPORTED_PROTOCOL_VERSIONS,
+                    .map(|m| {
+                        (
+                            !m.versions.is_empty(),
+                            m.best(
+                                env!("CARGO_PKG_VERSION"),
+                                oryxis_plugin_protocol::SUPPORTED_PROTOCOL_VERSIONS,
+                            )
+                            .cloned(),
                         )
-                        .cloned()
-                    });
+                    })
+                    .unwrap_or((false, None));
                 let Some(best) = best else {
+                    // Two distinct failures land here: no manifest at
+                    // all (fetch failed, nothing published), and a
+                    // manifest whose every version was filtered out by
+                    // the min_app / protocol / platform gates. The
+                    // latter means a release exists but this app build
+                    // can't run it, so tell the user to update the app
+                    // instead of claiming there is no release.
+                    let key = if has_versions {
+                        "plugin_err_needs_update"
+                    } else {
+                        "plugin_err_no_manifest"
+                    };
                     if let Some(entry) =
                         self.plugins.iter_mut().find(|p| p.provider_id == id)
                     {
-                        entry.status = PluginUiStatus::Failed(
-                            crate::i18n::t("plugin_err_no_manifest").to_string(),
-                        );
+                        entry.status =
+                            PluginUiStatus::Failed(crate::i18n::t(key).to_string());
                     }
                     self.plugin_install_modal = None;
                     return Ok(Task::none());

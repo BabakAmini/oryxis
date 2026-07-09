@@ -1,6 +1,9 @@
 //! Best-effort masking of secrets and PII in recorded terminal output,
-//! applied when a session-log buffer is flushed to the vault. The live
-//! terminal is untouched; only what gets persisted is scrubbed.
+//! applied when a session-log buffer is flushed to the vault, and in
+//! captured commands before they reach the command-history table, the
+//! opt-in live-append log or the History export ([`redact_command`]).
+//! The live terminal is untouched; only what gets persisted is
+//! scrubbed.
 //!
 //! The patterns are deliberately conservative (high-confidence token
 //! shapes and explicit `key = value` assignments) so ordinary command
@@ -56,6 +59,35 @@ fn rules() -> &'static [Rule] {
             rule(
                 r#"(?i)\b(?<k>[A-Za-z0-9_.-]*(?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret|private[_-]?key))(?<sep>[ \t]*[=:][ \t]*)(?<v>"[^"\r\n]+"|'[^'\r\n]+'|[^\s"']{4,})"#,
                 b"$k$sep[REDACTED]",
+            ),
+            // mysql-family attached password flag (`mysql -phunter2`).
+            // Scoped to the command names because a generic `-pXXX`
+            // would mangle ordinary flags (`tar -pxvf`). The `[ \t]-p`
+            // anchor keeps `--port=...` (double dash) out, and the
+            // value must not start with `-` (that is another flag; a
+            // bare `-p` means "prompt me" and carries no secret).
+            rule(
+                r"(?i)\b(?<pre>(?:mysql|mysqldump|mysqladmin|mysqlimport|mariadb(?:-dump|-admin)?)\b[^\r\n;|&]*?[ \t]-p)(?<v>[^-\s][^ \t\r\n]*)",
+                b"${pre}[REDACTED]",
+            ),
+            // sshpass takes its password as a separate argument.
+            rule(
+                r"(?i)\b(?<pre>sshpass[ \t]+-p[ \t]*)(?<v>[^-\s][^ \t\r\n]*)",
+                b"${pre}[REDACTED]",
+            ),
+            // Space-separated secret flags (`--password hunter2`,
+            // `vault login --token s.xyz`). The `=`-separated forms are
+            // already covered by the assignment rule above.
+            rule(
+                r#"(?i)(?<k>--(?:password|passwd|pass|token|secret|api-key|access-key|client-secret))[ \t]+(?<v>"[^"\r\n]+"|'[^'\r\n]+'|[^-\s"'][^\s"']*)"#,
+                b"$k [REDACTED]",
+            ),
+            // curl basic-auth credentials (`curl -u user:pass`). Keeps
+            // the user, masks the password; scoped to curl because a
+            // generic `-u x:y` collides with rsync/ssh path syntax.
+            rule(
+                r"(?i)\b(?<pre>curl\b[^\r\n;|&]*?[ \t](?:-u[ \t]*|--user(?:[ \t]+|=))[^\s:]+:)(?<v>[^ \t\r\n]+)",
+                b"${pre}[REDACTED]",
             ),
             // AWS access key ids (long-term and STS).
             rule(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b", b"[REDACTED]"),
@@ -164,6 +196,16 @@ pub(crate) fn redact_secrets(data: &[u8]) -> Cow<'_, [u8]> {
     out
 }
 
+/// Scrub one captured command line before it is persisted anywhere
+/// plaintext: the `command_history` table (readable off disk without
+/// the master password), the opt-in per-host live-append log and the
+/// History `.txt` export all route through here. Same rules as the
+/// session-recording pass; commands are valid UTF-8, so this is a
+/// `String` convenience over [`redact_secrets`].
+pub(crate) fn redact_command(cmd: &str) -> String {
+    String::from_utf8_lossy(&redact_secrets(cmd.as_bytes())).into_owned()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -246,6 +288,53 @@ mod tests {
         assert_eq!(red("order 4111 1111 1111 1112 shipped"), "order 4111 1111 1111 1112 shipped");
         // 16-digit hashes / ids without separators that fail Luhn.
         assert_eq!(red("trace 1234567890123456"), "trace 1234567890123456");
+    }
+
+    #[test]
+    fn masks_cli_password_flags() {
+        assert_eq!(
+            red("mysql -u root -phunter2 prod"),
+            "mysql -u root -p[REDACTED] prod"
+        );
+        assert_eq!(red("mysqldump -uroot -pS3cret! app"), "mysqldump -uroot -p[REDACTED] app");
+        // A bare `-p` means "prompt me": no secret on the line.
+        assert_eq!(red("mysql -u root -p"), "mysql -u root -p");
+        // Double-dash flags are not the attached password form.
+        assert_eq!(red("mysql --port=3306 -u root"), "mysql --port=3306 -u root");
+        assert_eq!(
+            red("sshpass -p hunter2 ssh admin@10.0.0.5"),
+            "sshpass -p [REDACTED] ssh admin@10.0.0.5"
+        );
+        assert_eq!(red("vault login --token s.abcdef123"), "vault login --token [REDACTED]");
+        assert_eq!(
+            red("curl -u admin:hunter2 https://api.internal/v1"),
+            "curl -u admin:[REDACTED] https://api.internal/v1"
+        );
+        // rsync's `-u` is "update", and `host:path` is not a credential.
+        assert_eq!(red("rsync -u server:/var/www ."), "rsync -u server:/var/www .");
+    }
+
+    #[test]
+    fn command_history_never_stores_known_secret_shapes() {
+        // Structural guard for the plaintext `command_history` column:
+        // every captured command passes through `redact_command` before
+        // it reaches the vault, the live-append log or the .txt export
+        // (`record_command_history` / `render_history_txt`), so these
+        // shapes must never survive it verbatim. Mirrors the spirit of
+        // the vault's proxy_password_does_not_leak_into_proxy_column.
+        for (cmd, secret) in [
+            ("export AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG", "wJalrXUtnFEMI"),
+            ("mysql -u root -phunter2 prod", "hunter2"),
+            (
+                "curl -H 'Authorization: Bearer abcdef0123456789abcdef' https://api",
+                "abcdef0123456789abcdef",
+            ),
+            ("sshpass -p hunter2 ssh admin@host", "hunter2"),
+            ("psql postgres://app:s3cr3t@db.internal/prod", "s3cr3t"),
+        ] {
+            let out = redact_command(cmd);
+            assert!(!out.contains(secret), "secret survived: {cmd} -> {out}");
+        }
     }
 
     #[test]

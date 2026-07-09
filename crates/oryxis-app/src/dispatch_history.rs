@@ -322,7 +322,7 @@ impl Oryxis {
                     }
                 }
                 if ok {
-                    self.toast = Some(crate::i18n::t("copied_to_clipboard").to_string());
+                    self.set_toast(crate::i18n::t("copied_to_clipboard").to_string());
                     return Ok(Task::perform(
                         async {
                             tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
@@ -332,7 +332,22 @@ impl Oryxis {
                 }
             }
             Message::ToastClear => {
+                // Deadline-guarded auto-dismiss (subscription tick or a
+                // legacy scheduled sleep-timer). Only the current toast's
+                // own elapsed deadline clears it, so a superseded timer can
+                // never wipe a newer toast.
+                if self
+                    .toast_deadline
+                    .is_some_and(|d| std::time::Instant::now() >= d)
+                {
+                    self.toast = None;
+                    self.toast_deadline = None;
+                }
+            }
+            Message::ToastDismiss => {
+                // Explicit click on the chip: clear immediately.
                 self.toast = None;
+                self.toast_deadline = None;
             }
             Message::ErrorDialogRunAction => {
                 if let Some(dialog) = self.error_dialog.take()

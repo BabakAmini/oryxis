@@ -88,6 +88,7 @@ impl Oryxis {
             failed: false,
             origin,
             tab_idx,
+            pane_id,
             banner: None,
         });
         self.active_tab = Some(tab_idx);

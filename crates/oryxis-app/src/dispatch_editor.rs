@@ -573,6 +573,17 @@ impl Oryxis {
                     self.show_session_group_panel = false;
                     self.group_edit.visible = false;
                     self.show_host_panel = true;
+                    // When invoked from a focused terminal tab (the
+                    // OpenPortForwards / edit-host hotkey), leave the
+                    // terminal surface so the right-panel editor actually
+                    // renders: it only shows when no tab is focused.
+                    // Without this the flag sticks true and silently
+                    // disables Ctrl+Tab MRU, IME routing and sidebar
+                    // keynav. The tab keeps running in the background.
+                    if self.active_tab.is_some() {
+                        self.active_tab = None;
+                        self.active_view = crate::state::View::Dashboard;
+                    }
                     // Inline panel_nav_clear: a method call would
                     // borrow all of self while `conn` holds it.
                     self.keynav.panel_selected = None;
@@ -1001,7 +1012,8 @@ impl Oryxis {
             }
             Message::EditorSave => {
                 if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
-                    self.host_panel_error = Some("Label and hostname are required".into());
+                    self.host_panel_error =
+                        Some(crate::i18n::t("editor_label_host_required").to_string());
                     return Ok(Task::none());
                 }
                 let conn = match self.connection_from_editor_form(true) {
@@ -1041,8 +1053,17 @@ impl Oryxis {
                                 let _ = vault.set_proxy_password(&conn.id, None);
                             }
                             // TOTP secret, same touched tri-state as the
-                            // proxy password (empty input clears).
-                            if self.editor_form.totp_touched {
+                            // proxy password (empty input clears). TOTP is
+                            // SSH-only (keyboard-interactive 2FA); if the
+                            // protocol was switched to Telnet/Serial/RDP the
+                            // field is hidden, so clear any secret rather than
+                            // persisting dead credential material, mirroring
+                            // the `mcp_enabled` SSH clamp above.
+                            let is_ssh = self.editor_form.protocol
+                                == oryxis_core::models::connection::ConnectionProtocol::Ssh;
+                            if !is_ssh {
+                                let _ = vault.set_connection_totp_secret(&conn.id, None);
+                            } else if self.editor_form.totp_touched {
                                 let s = self.editor_form.totp_secret.trim();
                                 let s = (!s.is_empty()).then_some(s);
                                 let _ = vault.set_connection_totp_secret(&conn.id, s);

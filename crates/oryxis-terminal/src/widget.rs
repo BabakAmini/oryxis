@@ -889,8 +889,11 @@ impl<Message> TerminalView<Message> {
 
     /// Translate a pointer event into a mouse-tracking report for the
     /// remote app. Returns `Some(action)` when the event was consumed,
-    /// `None` to let the normal local handlers run. The caller guarantees
-    /// the app has mouse tracking on and Shift isn't held.
+    /// `None` to let the normal local handlers run. The caller
+    /// guarantees the app has mouse tracking on and Shift isn't held,
+    /// except for the release of a tracked press (see
+    /// `release_completes_tracked_press`), which is let through with
+    /// Shift down so the report sequence stays balanced.
     #[allow(clippy::too_many_arguments)]
     fn handle_mouse_report(
         &self,
@@ -906,7 +909,9 @@ impl<Message> TerminalView<Message> {
         let kbd = widget_state.modifiers;
         let ctrl = kbd.control();
         // Shift is the local-selection bypass, so the caller only reaches
-        // here with it released; never fold it into the report.
+        // here with it released (or completing a tracked press, whose
+        // release must stay consistent with the Shift-less press); never
+        // fold it into the report.
         let mods = ReportMods { shift: false, alt: kbd.alt(), ctrl };
 
         // Resolve a pixel position to a clamped, zero-based cell.
@@ -1029,6 +1034,35 @@ impl<Message> TerminalView<Message> {
         }
     }
 
+    /// Whether copy-on-select's auto-copy at release is deferred to a
+    /// right-click. The deferral is the `right_click_copy` sub-option,
+    /// which only exists under the Paste scheme; a stale `true` left
+    /// behind after switching to Menu / Extend (Settings hides the
+    /// toggle there) must not silently kill copy-on-select.
+    fn defers_copy_to_right_click(&self) -> bool {
+        self.right_click_copy && self.right_click_action == RightClickAction::Paste
+    }
+
+    /// True when `event` is the release of a button whose press WAS
+    /// reported to the remote app. Such a release must still be
+    /// reported even while Shift is held: the Shift bypass exists so
+    /// NEW gestures can select locally, but letting it swallow the
+    /// release that completes a tracked press would leave the app
+    /// holding a phantom button and `report_button` stuck at
+    /// `Some(..)`, turning every later motion into a drag report.
+    fn release_completes_tracked_press(
+        widget_state: &TerminalWidgetState,
+        event: &iced::Event,
+    ) -> bool {
+        match event {
+            iced::Event::Mouse(mouse::Event::ButtonReleased(btn)) => {
+                Self::iced_to_report_button(*btn)
+                    .is_some_and(|rb| widget_state.report_button == Some(rb))
+            }
+            _ => false,
+        }
+    }
+
     fn is_in_selection(sel: &Selection, col: u16, line: i32) -> bool {
         if sel.block {
             let (c0, c1, l0, l1) = sel.block_bounds();
@@ -1112,8 +1146,12 @@ where
         } else {
             None
         };
+        // The Shift bypass only blocks NEW gestures; the release of a
+        // press that was already reported must go through regardless,
+        // see `release_completes_tracked_press`.
         if let Some((mode, grid_cols, grid_rows)) = report_ctx
-            && !widget_state.modifiers.shift()
+            && (!widget_state.modifiers.shift()
+                || Self::release_completes_tracked_press(widget_state, event))
             && let Some(action) =
                 self.handle_mouse_report(widget_state, event, bounds, cursor, mode, grid_cols, grid_rows)
         {
@@ -1464,10 +1502,12 @@ where
                 // enabled (XTerm / iTerm behaviour). Skip degenerate
                 // selections that didn't move (single click). When
                 // `right_click_copy` is on the copy is deferred to a
-                // right-click instead, so skip the auto-copy here.
+                // right-click instead, so skip the auto-copy here; the
+                // deferral is Paste-scheme-only (see
+                // `defers_copy_to_right_click`).
                 if was_selecting
                     && self.copy_on_select
-                    && !self.right_click_copy
+                    && !self.defers_copy_to_right_click()
                     && let Some(ref sel) = widget_state.selection
                     && (!sel.is_empty() || was_semantic)
                     && let Ok(state) = self.state.lock()
@@ -2752,5 +2792,77 @@ mod mouse_report_tests {
         let action = view.handle_mouse_report(&mut ws, &release, bounds(), outside, mode, 80, 24);
         assert!(action.is_some(), "release of a reported press must land");
         assert!(ws.report_button.is_none(), "press tracking cleared on release");
+    }
+
+    /// Pressing Shift AFTER a reported press must not swallow the
+    /// release: `release_completes_tracked_press` lets it through the
+    /// Shift bypass, so the app gets its button-up and `report_button`
+    /// clears instead of sticking at `Some(Left)` (phantom held button,
+    /// every later motion misread as a drag).
+    #[test]
+    fn shift_at_release_does_not_swallow_tracked_release() {
+        use alacritty_terminal::term::TermMode;
+        let (view, mut ws) = view_and_state();
+        let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
+
+        let press = iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let inside = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        let action = view.handle_mouse_report(&mut ws, &press, bounds(), inside, mode, 80, 24);
+        assert!(action.is_some(), "press without Shift must be reported");
+        assert_eq!(ws.report_button, Some(ReportButton::Left));
+
+        // Shift lands between press and release.
+        ws.modifiers = iced::keyboard::Modifiers::SHIFT;
+        let release = iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        assert!(
+            TerminalView::<()>::release_completes_tracked_press(&ws, &release),
+            "tracked release must pierce the Shift bypass"
+        );
+        let action = view.handle_mouse_report(&mut ws, &release, bounds(), inside, mode, 80, 24);
+        assert!(action.is_some(), "release of a tracked press reports despite Shift");
+        assert!(ws.report_button.is_none(), "press tracking cleared on release");
+    }
+
+    /// The Shift bypass must keep blocking NEW gestures: with no
+    /// tracked press, neither a Shift+press nor its release qualifies
+    /// as completing a tracked press, so local selection stays in
+    /// charge for the whole gesture.
+    #[test]
+    fn shift_bypass_still_blocks_new_gestures() {
+        let (_view, ws) = view_and_state();
+        assert!(ws.report_button.is_none());
+        let press = iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left));
+        let release = iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left));
+        assert!(
+            !TerminalView::<()>::release_completes_tracked_press(&ws, &press),
+            "a press never qualifies"
+        );
+        assert!(
+            !TerminalView::<()>::release_completes_tracked_press(&ws, &release),
+            "a release with no tracked press never qualifies"
+        );
+    }
+
+    /// `right_click_copy` is a Paste-scheme sub-option: a stale `true`
+    /// under Menu / Extend (Settings hides the toggle there, so the
+    /// user can't see or clear it) must not defer, i.e. suppress, the
+    /// copy-on-select auto-copy.
+    #[test]
+    fn right_click_copy_only_defers_auto_copy_under_paste_scheme() {
+        let (view, _) = view_and_state();
+        let paste = view.with_right_click_copy(true).with_right_click_action(RightClickAction::Paste);
+        assert!(paste.defers_copy_to_right_click(), "Paste scheme honours the deferral");
+
+        let (view, _) = view_and_state();
+        let menu = view.with_right_click_copy(true).with_right_click_action(RightClickAction::Menu);
+        assert!(!menu.defers_copy_to_right_click(), "stale flag under Menu must not defer");
+
+        let (view, _) = view_and_state();
+        let extend = view.with_right_click_copy(true).with_right_click_action(RightClickAction::Extend);
+        assert!(!extend.defers_copy_to_right_click(), "stale flag under Extend must not defer");
+
+        let (view, _) = view_and_state();
+        let off = view.with_right_click_action(RightClickAction::Paste);
+        assert!(!off.defers_copy_to_right_click(), "flag off never defers");
     }
 }

@@ -94,15 +94,18 @@ pub(crate) fn classify_gcloud_error(stderr: &str) -> CloudError {
     }
 }
 
-/// The gcloud CLI executable. On Windows gcloud ships as `gcloud.cmd` (a
-/// batch wrapper; there is no `gcloud.exe`), which `Command::new("gcloud")`
-/// would fail to resolve, `CreateProcess` only appends `.exe`, not `.cmd`.
-/// Name it explicitly there so a Windows install is found; Rust (>= 1.77)
-/// applies safe batch-argument escaping when the target ends in `.cmd`.
+/// gcloud CLI executable candidates, tried in order until one spawns. On
+/// Windows the SDK-installed gcloud ships as `gcloud.cmd` (a batch wrapper
+/// with no `gcloud.exe`), which `Command::new("gcloud")` would fail to
+/// resolve, `CreateProcess` only appends `.exe`, not `.cmd`, so the
+/// wrapper is named explicitly first; Rust (>= 1.77) applies safe
+/// batch-argument escaping when the target ends in `.cmd`. A NotFound on
+/// `gcloud.cmd` falls back to plain `gcloud`, which resolves a `.exe` if
+/// an install ships one (same fallback shape as the Azure provider's az).
 #[cfg(windows)]
-const GCLOUD_BIN: &str = "gcloud.cmd";
+const GCLOUD_BINS: &[&str] = &["gcloud.cmd", "gcloud"];
 #[cfg(not(windows))]
-const GCLOUD_BIN: &str = "gcloud";
+const GCLOUD_BINS: &[&str] = &["gcloud"];
 
 /// Run `gcloud --quiet <sub...> --project <p>` and return stdout bytes on
 /// success. `--quiet` is prepended so gcloud never blocks on an interactive
@@ -113,27 +116,33 @@ const GCLOUD_BIN: &str = "gcloud";
 pub(crate) async fn run_gcloud(cfg: &GcpConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
     let mut args = vec!["--quiet".to_string()];
     args.extend(gcloud_args(cfg, sub));
-    let mut cmd = tokio::process::Command::new(GCLOUD_BIN);
-    cmd.args(&args);
-    // On Windows the `.cmd` wrapper would flash a console window over the
-    // GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses it (same
-    // guard the app uses for its own wsl.exe spawns).
-    #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000);
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                CloudError::InvalidConfig(
-                    "gcloud was not found on PATH. Install the Google Cloud CLI and run \
-                     `gcloud auth login` to use GCP."
-                        .into(),
-                )
-            } else {
-                CloudError::Other(format!("failed to run gcloud: {e}"))
+    let mut output = None;
+    for bin in GCLOUD_BINS {
+        let mut cmd = tokio::process::Command::new(bin);
+        cmd.args(&args);
+        // On Windows the `.cmd` wrapper would flash a console window over
+        // the GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses
+        // it (same guard the app uses for its own wsl.exe spawns).
+        #[cfg(windows)]
+        cmd.creation_flags(0x0800_0000);
+        match cmd.output().await {
+            Ok(o) => {
+                output = Some(o);
+                break;
             }
-        })?;
+            // Not on PATH under this name: try the next candidate.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(CloudError::Other(format!("failed to run gcloud: {e}"))),
+        }
+    }
+    let Some(output) = output else {
+        // Every candidate was NotFound: the CLI is genuinely missing.
+        return Err(CloudError::InvalidConfig(
+            "gcloud was not found on PATH. Install the Google Cloud CLI and run \
+             `gcloud auth login` to use GCP."
+                .into(),
+        ));
+    };
     if !output.status.success() {
         return Err(classify_gcloud_error(&String::from_utf8_lossy(
             &output.stderr,

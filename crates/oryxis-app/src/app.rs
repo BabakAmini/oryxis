@@ -1249,11 +1249,17 @@ pub struct Oryxis {
     pub(crate) ai: crate::state::AiState,
 
 
-    /// Transient bottom-of-chat status chip, currently used for the
-    /// "Copied to clipboard" feedback after a Copy button click.
-    /// `Some(text)` → render the chip; cleared after ~1.8 s by a
-    /// `Task::perform`-spawned `ToastClear` round-trip.
+    /// Transient bottom-of-chat status chip, e.g. the "Copied to
+    /// clipboard" feedback after a Copy button click. `Some(text)` →
+    /// render the chip. Auto-dismissal is deadline-driven: every setter
+    /// (`set_toast` / `show_toast`) stamps `toast_deadline`, and the
+    /// `ToastTick` subscription clears both once it passes. A single
+    /// deadline (not per-call sleep timers) means a newer toast always
+    /// wins and no toast is ever left stranded on screen.
     pub(crate) toast: Option<String>,
+    /// When the current `toast` should auto-dismiss. Reset on every new
+    /// toast so the latest one always gets its full dwell.
+    pub(crate) toast_deadline: Option<std::time::Instant>,
 
     /// CJK language codes (`"ko"`/`"zh"`/`"ja"`) whose font has already
     /// been requested this session, so switching language back and forth

@@ -102,15 +102,18 @@ pub(crate) fn classify_az_error(stderr: &str) -> CloudError {
     }
 }
 
-/// The Azure CLI executable. On Windows the CLI ships as `az.cmd` (a batch
-/// wrapper; there is no `az.exe`), which `Command::new("az")` would fail to
-/// resolve, `CreateProcess` only appends `.exe`, not `.cmd`. Name it
-/// explicitly there so a Windows install is found; Rust (>= 1.77) applies
-/// safe batch-argument escaping when the target ends in `.cmd`.
+/// Azure CLI executable candidates, tried in order until one spawns. On
+/// Windows the MSI-installed CLI ships as `az.cmd` (a batch wrapper with
+/// no `az.exe`), which `Command::new("az")` would fail to resolve,
+/// `CreateProcess` only appends `.exe`, not `.cmd`, so the wrapper is
+/// named explicitly first; Rust (>= 1.77) applies safe batch-argument
+/// escaping when the target ends in `.cmd`. A pip-installed CLI ships an
+/// `az.exe` console script instead (and no `az.cmd`), so a NotFound on
+/// `az.cmd` falls back to plain `az`, which resolves the `.exe`.
 #[cfg(windows)]
-const AZ_BIN: &str = "az.cmd";
+const AZ_BINS: &[&str] = &["az.cmd", "az"];
 #[cfg(not(windows))]
-const AZ_BIN: &str = "az";
+const AZ_BINS: &[&str] = &["az"];
 
 /// Run `az <sub...> --subscription <s> --only-show-errors` and return
 /// stdout bytes on success. `--only-show-errors` keeps warnings out of the
@@ -123,27 +126,33 @@ const AZ_BIN: &str = "az";
 pub(crate) async fn run_az(cfg: &AzureConfig, sub: &[&str]) -> Result<Vec<u8>, CloudError> {
     let mut args = az_args(cfg, sub);
     args.push("--only-show-errors".to_string());
-    let mut cmd = tokio::process::Command::new(AZ_BIN);
-    cmd.args(&args);
-    // On Windows the `.cmd` wrapper would flash a console window over the
-    // GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses it (same
-    // guard the app uses for its own wsl.exe spawns).
-    #[cfg(windows)]
-    cmd.creation_flags(0x0800_0000);
-    let output = cmd
-        .output()
-        .await
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                CloudError::InvalidConfig(
-                    "az was not found on PATH. Install the Azure CLI and run \
-                     `az login` to use Azure."
-                        .into(),
-                )
-            } else {
-                CloudError::Other(format!("failed to run az: {e}"))
+    let mut output = None;
+    for bin in AZ_BINS {
+        let mut cmd = tokio::process::Command::new(bin);
+        cmd.args(&args);
+        // On Windows the `.cmd` wrapper would flash a console window over
+        // the GUI on every call. 0x08000000 = CREATE_NO_WINDOW suppresses
+        // it (same guard the app uses for its own wsl.exe spawns).
+        #[cfg(windows)]
+        cmd.creation_flags(0x0800_0000);
+        match cmd.output().await {
+            Ok(o) => {
+                output = Some(o);
+                break;
             }
-        })?;
+            // Not on PATH under this name: try the next candidate.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(e) => return Err(CloudError::Other(format!("failed to run az: {e}"))),
+        }
+    }
+    let Some(output) = output else {
+        // Every candidate was NotFound: the CLI is genuinely missing.
+        return Err(CloudError::InvalidConfig(
+            "az was not found on PATH. Install the Azure CLI and run \
+             `az login` to use Azure."
+                .into(),
+        ));
+    };
     if !output.status.success() {
         return Err(classify_az_error(&String::from_utf8_lossy(&output.stderr)));
     }

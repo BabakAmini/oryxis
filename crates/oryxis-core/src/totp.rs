@@ -36,12 +36,42 @@ pub enum TotpAlgorithm {
 }
 
 /// A parsed, ready-to-generate TOTP configuration.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Totp {
     key: Vec<u8>,
     pub digits: u32,
     pub period: u64,
     pub algorithm: TotpAlgorithm,
+}
+
+/// Manual impl: the derived `Debug` would print the raw decoded seed,
+/// which is credential material one `{:?}` in a log line away from
+/// leaking. The key is redacted; everything else prints normally.
+impl std::fmt::Debug for Totp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Totp")
+            .field("key", &"[redacted]")
+            .field("digits", &self.digits)
+            .field("period", &self.period)
+            .field("algorithm", &self.algorithm)
+            .finish()
+    }
+}
+
+/// Best-effort key hygiene: wipe the decoded seed when the value is
+/// dropped, so it doesn't linger on freed heap pages between the
+/// autofill that used it and whenever the allocator reuses the block.
+/// Volatile writes so the optimizer can't elide the "dead" stores;
+/// hand-rolled because `oryxis-core` doesn't otherwise depend on the
+/// `zeroize` crate.
+impl Drop for Totp {
+    fn drop(&mut self) {
+        for b in self.key.iter_mut() {
+            // SAFETY: `b` is a valid, aligned `&mut u8` from iter_mut.
+            unsafe { std::ptr::write_volatile(b, 0) };
+        }
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 impl Totp {
@@ -118,13 +148,19 @@ impl Totp {
             TotpAlgorithm::Sha256 => hmac_digest::<Hmac<Sha256>>(&self.key, &counter),
             TotpAlgorithm::Sha512 => hmac_digest::<Hmac<Sha512>>(&self.key, &counter),
         };
-        // RFC 4226 dynamic truncation.
+        // RFC 4226 dynamic truncation, generalized to the validated
+        // 6..=10 digit range. The modulo runs in u64: 10^10 overflows
+        // u32, and the previous `min(9)` clamp silently collapsed a
+        // 10-digit configuration to a zero-padded 9-digit code, i.e.
+        // codes a server expecting 10 digits would reject (the 31-bit
+        // truncated value never exceeds 10 decimal digits, so the u64
+        // modulo is exact).
         let offset = (hash[hash.len() - 1] & 0x0f) as usize;
         let binary = (u32::from(hash[offset] & 0x7f) << 24)
             | (u32::from(hash[offset + 1]) << 16)
             | (u32::from(hash[offset + 2]) << 8)
             | u32::from(hash[offset + 3]);
-        let code = binary % 10u32.pow(self.digits.min(9));
+        let code = u64::from(binary) % 10u64.pow(self.digits.min(10));
         format!("{code:0width$}", width = self.digits as usize)
     }
 
@@ -187,6 +223,17 @@ mod tests {
         assert_eq!(t.code_at(1111111109), "07081804");
         assert_eq!(t.code_at(1234567890), "89005924");
         assert_eq!(t.code_at(20000000000), "65353130");
+    }
+
+    #[test]
+    fn ten_digit_codes_keep_the_full_truncation() {
+        // The full 31-bit truncated value for the SHA-1 vector at t=59
+        // is 1094287082 (its low 8 digits are the RFC's "94287082").
+        // The old u32 arithmetic clamped 10-digit configs to 9 digits
+        // and would have produced "0094287082".
+        let mut t = rfc_totp(TotpAlgorithm::Sha1);
+        t.digits = 10;
+        assert_eq!(t.code_at(59), "1094287082");
     }
 
     #[test]
@@ -259,6 +306,17 @@ mod tests {
             Totp::parse("otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&period=0"),
             Err(TotpError::BadPeriod)
         );
+    }
+
+    #[test]
+    fn debug_never_prints_the_key() {
+        let t = Totp::parse("JBSWY3DPEHPK3PXP").unwrap();
+        let dbg = format!("{t:?}");
+        assert!(dbg.contains("[redacted]"), "unexpected Debug output: {dbg}");
+        // "JBSWY3DPEHPK3PXP" decodes to b"Hello!\xde\xad\xbe\xef"; neither
+        // the raw bytes nor a byte listing may appear.
+        assert!(!dbg.contains("Hello"), "raw key bytes leaked: {dbg}");
+        assert!(!dbg.contains("72, 101"), "byte listing leaked: {dbg}");
     }
 
     #[test]

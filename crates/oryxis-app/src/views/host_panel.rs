@@ -696,7 +696,7 @@ impl Oryxis {
                             let on = p.local_echo;
                             let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                             let fg = crate::theme::contrast_text_for(bg);
-                            button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                            button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
                                 .on_press(Message::EditorSerialLocalEchoToggled)
                                 .style(move |_theme, _status| button::Style {
                                     background: Some(Background::Color(bg)),
@@ -892,7 +892,7 @@ impl Oryxis {
                         let on = self.editor_form.agent_forwarding;
                         let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                         let fg = crate::theme::contrast_text_for(bg);
-                        button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                        button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
                             .on_press(Message::EditorToggleAgentForwarding)
                             .style(move |_theme, _status| button::Style {
                                 background: Some(Background::Color(bg)),
@@ -1167,7 +1167,7 @@ impl Oryxis {
                         let on = self.editor_form.mcp_enabled;
                         let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                         let fg = crate::theme::contrast_text_for(bg);
-                        button(text(if on { "ON" } else { "OFF" }).size(12).color(fg))
+                        button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
                             .on_press(Message::EditorToggleMcpEnabled)
                             .style(move |_theme, _status| button::Style {
                                 background: Some(Background::Color(bg)),
@@ -1302,7 +1302,7 @@ impl Oryxis {
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     text("=").size(12).color(OryxisColors::t().text_muted).into(),
-                    text_input("value", &e.value)
+                    text_input(crate::i18n::t("env_value_placeholder"), &e.value)
                         .on_input(move |v| Message::EditorEnvVarValueChanged(idx, v))
                         .padding(6)
                         .width(Length::FillPortion(3))

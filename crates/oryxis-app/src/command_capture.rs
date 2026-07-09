@@ -166,12 +166,25 @@ pub(crate) fn sanitize_command(text: &str) -> Option<String> {
 /// Find the earliest classic prompt terminator in `line` and return what
 /// follows it. `None` when the line carries no recognizable prompt, which on
 /// the heuristic path means "don't record" (REPLs, raw program prompts).
+///
+/// A bare `> ` is deliberately NOT a marker: it is bash's PS2 continuation
+/// and the prompt of many REPLs (`mysql>`, node's `>`), so accepting it
+/// recorded heredoc bodies and REPL input, e.g. secrets typed line by line
+/// into `cat > .env <<EOF`, as commands. The one real shell prompt that
+/// ends in `> ` is PowerShell's `PS C:\...> `, which announces itself with
+/// the leading `PS `, so it is kept behind that gate.
 pub(crate) fn strip_prompt(line: &str) -> Option<&str> {
-    const MARKERS: [&str; 6] = ["$ ", "# ", "% ", "\u{276f} ", "\u{279c} ", "> "];
-    let (pos, len) = MARKERS
+    const MARKERS: [&str; 5] = ["$ ", "# ", "% ", "\u{276f} ", "\u{279c} "];
+    let classic = MARKERS
         .iter()
         .filter_map(|m| line.find(m).map(|i| (i, m.len())))
-        .min()?;
+        .min();
+    let powershell = if line.starts_with("PS ") {
+        line.find("> ").map(|i| (i, "> ".len()))
+    } else {
+        None
+    };
+    let (pos, len) = [classic, powershell].into_iter().flatten().min()?;
     Some(&line[pos + len..])
 }
 
@@ -190,6 +203,22 @@ mod tests {
         assert_eq!(strip_prompt("\u{276f} git status"), Some("git status"));
         assert_eq!(strip_prompt("Password:"), None);
         assert_eq!(strip_prompt("Continue? [y/N] y"), None);
+    }
+
+    #[test]
+    fn strip_prompt_rejects_continuation_and_repl_prompts() {
+        // bash PS2 continuation: a heredoc body line (`cat > .env <<EOF`
+        // then `DB_PASSWORD=hunter2`) must never qualify as a command.
+        assert_eq!(strip_prompt("> DB_PASSWORD=hunter2"), None);
+        assert_eq!(strip_prompt("> EOF"), None);
+        // REPL prompts ending in `> ` are program input, not shell commands.
+        assert_eq!(strip_prompt("mysql> SELECT * FROM users;"), None);
+        assert_eq!(strip_prompt("node > 1 + 1"), None);
+        // PowerShell is the one legitimate `> ` prompt, gated on `PS `.
+        assert_eq!(
+            strip_prompt(r"PS C:\Users\wilson> Get-ChildItem"),
+            Some("Get-ChildItem")
+        );
     }
 
     #[test]

@@ -309,6 +309,29 @@ impl Oryxis {
                 // account pointed at the resulting context. Discovering
                 // that account then lists its workloads. Mirrors the GKE
                 // path; AKS keys credentials by resource group, not region.
+                //
+                // Dup-guard before the fetch: a k8s account may already
+                // point at this cluster, either under the composite
+                // `<cluster>-<resource_group>` context this build mints
+                // (mirrors `oryxis-cloud-azure::aks::context_name`) or
+                // under the bare cluster name older builds stored (az's
+                // default context name). Bail with the "added" toast
+                // instead of minting a duplicate; the bare form cannot be
+                // checked post-fetch (the returned context is composite),
+                // so it must be recognized here.
+                let composite = format!("{cluster}-{resource_group}");
+                let already = self.cloud_profiles.iter().any(|p| {
+                    p.provider == "k8s"
+                        && serde_json::from_str::<serde_json::Value>(&p.config)
+                            .ok()
+                            .and_then(|v| {
+                                v.get("context").and_then(|c| c.as_str()).map(str::to_string)
+                            })
+                            .is_some_and(|c| c == composite || c == cluster)
+                });
+                if already {
+                    return Ok(self.show_toast(crate::i18n::t("cloud_aks_added").to_string()));
+                }
                 let Some(profile_id) = self.cloud_discover_profile_id else {
                     return Ok(Task::none());
                 };

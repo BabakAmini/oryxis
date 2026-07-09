@@ -61,7 +61,7 @@ impl Oryxis {
                     // Every pane was non-referenceable (e.g. a cloud-only
                     // tab). Nothing to save; tell the user instead of
                     // opening an empty editor.
-                    self.toast = Some(crate::i18n::t("session_group_nothing_to_save").to_string());
+                    self.set_toast(crate::i18n::t("session_group_nothing_to_save").to_string());
                     return Ok(toast_clear(3));
                 };
 
@@ -392,7 +392,7 @@ impl Oryxis {
             PaneSource::Host(id) => conn_ids.contains(id),
             PaneSource::LocalShell { .. } => true,
         }) else {
-            self.toast = Some(crate::i18n::t("session_group_empty_on_open").to_string());
+            self.set_toast(crate::i18n::t("session_group_empty_on_open").to_string());
             return toast_clear(4);
         };
 

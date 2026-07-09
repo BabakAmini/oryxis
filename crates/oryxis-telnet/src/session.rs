@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use tokio::sync::mpsc;
 
 use crate::autologin::AutoLogin;
-use crate::negotiation::{Negotiator, encode_input};
+use crate::negotiation::{Negotiator, encode_input, escape_iac};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TelnetError {
@@ -74,6 +74,10 @@ pub struct TelnetSession {
     /// Application-level input (terminal keystrokes / in-band replies).
     /// The writer task applies charset + NVT encoding before the wire.
     writer_tx: mpsc::UnboundedSender<Vec<u8>>,
+    /// Protocol-level binary payload (ZMODEM frames): IAC-doubled for
+    /// wire correctness but never charset-transcoded and never run
+    /// through the NVT line-ending mapping.
+    raw_tx: mpsc::UnboundedSender<Vec<u8>>,
     /// Viewport changes, reported to the server via NAWS when active.
     resize_tx: mpsc::UnboundedSender<(u16, u16)>,
     reader_task: tokio::task::JoinHandle<()>,
@@ -154,6 +158,11 @@ impl TelnetSession {
         let (resize_tx, mut resize_rx) = mpsc::unbounded_channel::<(u16, u16)>();
         // Raw protocol bytes (negotiation replies), written verbatim.
         let (wire_tx, mut wire_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        // Application-side binary payload (ZMODEM frames): IAC-doubled
+        // in the writer, otherwise byte-exact. A separate channel from
+        // `writer_tx` so protocol drivers bypass the charset transcode
+        // and the NVT Enter mapping, which would corrupt their frames.
+        let (raw_tx, mut raw_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
         let _ = wire_tx.send(greeting);
 
@@ -249,6 +258,12 @@ impl TelnetSession {
                         }
                         None => break, // session closed
                     },
+                    raw = raw_rx.recv() => match raw {
+                        // Binary payload: IAC doubling only, no charset
+                        // transcode, no line-ending mapping.
+                        Some(b) => Some(escape_iac(&b)),
+                        None => break, // session closed
+                    },
                     size = resize_rx.recv() => match size {
                         Some((cols, rows)) => {
                             let mut neg = writer_neg.lock().expect("negotiator lock");
@@ -274,6 +289,7 @@ impl TelnetSession {
         Ok((
             TelnetSession {
                 writer_tx,
+                raw_tx,
                 resize_tx,
                 reader_task,
                 writer_task,
@@ -307,6 +323,14 @@ impl TelnetSession {
     /// directly, same contract as the SSH session's back-channel.
     pub fn write_sender(&self) -> mpsc::UnboundedSender<Vec<u8>> {
         self.writer_tx.clone()
+    }
+
+    /// Clone of the raw wire sender for protocol-level writes (ZMODEM
+    /// frames): bytes are IAC-doubled and written otherwise byte-exact,
+    /// skipping the charset transcode and the NVT Enter mapping that
+    /// `write_sender` applies to keystrokes.
+    pub fn raw_write_sender(&self) -> mpsc::UnboundedSender<Vec<u8>> {
+        self.raw_tx.clone()
     }
 
     pub fn is_alive(&self) -> bool {

@@ -70,6 +70,18 @@ fn target_of(account: &str) -> HSTRING {
     HSTRING::from(format!("{TARGET_PREFIX}{account}"))
 }
 
+/// Volatile-zero a secret-bearing buffer before it is freed or dropped
+/// (the SecureZeroMemory pattern): the master password must not linger
+/// on heap pages after the API call that consumed it. Volatile writes
+/// so the optimizer can't elide stores to a buffer it considers dead.
+fn wipe(buf: &mut [u8]) {
+    for b in buf.iter_mut() {
+        // SAFETY: `b` is a valid, aligned `&mut u8` from iter_mut.
+        unsafe { std::ptr::write_volatile(b, 0) };
+    }
+    std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+}
+
 /// Raise the Windows Hello prompt and map the outcome to the contract.
 ///
 /// A classic desktop (Win32 / winit) app has an HWND, not a WinRT
@@ -125,7 +137,12 @@ impl BiometricProvider for WindowsHello {
         };
         // CredWriteW overwrites an existing credential of the same target,
         // so enroll is idempotent / re-enrollable without a prior delete.
-        unsafe { CredWriteW(&cred, 0) }.map_err(|e| BioError::Backend(e.message()))
+        let result =
+            unsafe { CredWriteW(&cred, 0) }.map_err(|e| BioError::Backend(e.message()));
+        // CredWriteW copied the blob into the OS store; our staging copy
+        // of the master password is done and must not outlive the call.
+        wipe(&mut blob);
+        result
     }
 
     fn retrieve(&self, account: &str, prompt: &str) -> Result<String, BioError> {
@@ -150,9 +167,14 @@ impl BiometricProvider for WindowsHello {
             })?;
 
             let cred = &*pcred;
-            let bytes =
-                std::slice::from_raw_parts(cred.CredentialBlob, cred.CredentialBlobSize as usize);
+            let bytes = std::slice::from_raw_parts_mut(
+                cred.CredentialBlob,
+                cred.CredentialBlobSize as usize,
+            );
             let secret = String::from_utf8_lossy(bytes).into_owned();
+            // CredFree releases the buffer without clearing it; zero the
+            // password bytes first so they don't sit on a freed heap page.
+            wipe(bytes);
             CredFree(pcred as *const core::ffi::c_void);
             Ok(secret)
         }

@@ -213,6 +213,32 @@ impl SftpClient {
         .await
     }
 
+    /// Create an empty remote file, failing if the path already exists
+    /// (SSH_FXF_EXCL). The "touch" primitive for new-file UI: unlike
+    /// [`write_file`](Self::write_file), a name collision surfaces as an
+    /// error instead of silently truncating the existing file. Note that
+    /// protocol-v3 servers report the collision as a generic failure
+    /// status; callers wanting a readable message should stat first.
+    pub async fn create_file_exclusive(&self, path: &str) -> Result<(), SshError> {
+        use tokio::io::AsyncWriteExt as _;
+        let label = format!("create({path})");
+        self.with_op_timeout(&label, async {
+            let s = self.inner.lock().await;
+            let mut file = s
+                .open_with_flags(
+                    path,
+                    OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::EXCLUDE,
+                )
+                .await
+                .map_err(|e| SshError::Channel(format!("sftp create({path}): {e}")))?;
+            file.shutdown()
+                .await
+                .map_err(|e| SshError::Channel(format!("sftp close({path}): {e}")))?;
+            Ok(())
+        })
+        .await
+    }
+
     /// Thin wrapper that snapshots the per-op timeout once and hands the
     /// copy off to [`pump_bytes`]. Reading the deadline a single time at
     /// entry matches the `set_op_timeout` contract (in-flight ops keep

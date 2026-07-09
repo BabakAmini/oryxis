@@ -360,8 +360,18 @@ impl Oryxis {
                         }
                     }
                 }
-                // Clear progress, show terminal
-                self.connecting = None;
+                // Clear progress, show terminal, but ONLY if this completion
+                // is the connect the card is tracking. A split-pane or
+                // background connect completing, or a stale completion from a
+                // dial the user cancelled via "Edit host" (whose tab is
+                // gone), must not wipe an unrelated Home connect's card.
+                if self
+                    .connecting
+                    .as_ref()
+                    .is_some_and(|c| c.pane_id == pane_id)
+                {
+                    self.connecting = None;
+                }
 
                 // A visible sidebar Files browser waiting on this session
                 // (reconnect with the tab open) can mount now; without
@@ -472,7 +482,7 @@ impl Oryxis {
                 // waiting for the next boot check.
                 self.update_error = None;
                 self.update_check_status = Some(crate::update::UpdateStatus::Checking);
-                self.toast = Some(crate::i18n::t("update_check_checking").to_string());
+                self.set_toast(crate::i18n::t("update_check_checking").to_string());
                 return Ok(Task::perform(
                     crate::update::check_latest_release(channel),
                     |res| match res {
@@ -522,7 +532,7 @@ impl Oryxis {
                 self.active_tab = None;
                 self.update_error = None;
                 self.update_check_status = Some(crate::update::UpdateStatus::Checking);
-                self.toast = Some(crate::i18n::t("update_check_checking").to_string());
+                self.set_toast(crate::i18n::t("update_check_checking").to_string());
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("skipped_update_version", "");
                 }
@@ -540,7 +550,7 @@ impl Oryxis {
                         // Surface the new version as a toast too so a
                         // burger-menu-triggered check confirms the
                         // result even before the update modal renders.
-                        self.toast = Some(format!(
+                        self.set_toast(format!(
                             "{} {}",
                             crate::i18n::t("update_check_available"),
                             i.version,
@@ -556,7 +566,7 @@ impl Oryxis {
                         if self.update_check_status.is_some() {
                             self.update_check_status =
                                 Some(crate::update::UpdateStatus::UpToDate);
-                            self.toast = Some(format!(
+                            self.set_toast(format!(
                                 "{} ({})",
                                 crate::i18n::t("update_check_up_to_date"),
                                 env!("CARGO_PKG_VERSION"),
@@ -580,7 +590,7 @@ impl Oryxis {
                 if self.update_check_status.is_some() {
                     self.update_check_status =
                         Some(crate::update::UpdateStatus::Failed(cause.clone()));
-                    self.toast = Some(format!(
+                    self.set_toast(format!(
                         "{}: {}",
                         crate::i18n::t("update_check_failed"),
                         cause,
@@ -762,7 +772,7 @@ impl Oryxis {
                     // reset itself. A second toast fires from `ReconnectTab`
                     // when the actual reconnect attempt starts, so the
                     // wording here is intentionally past-tense only.
-                    self.toast = Some(crate::i18n::t("disconnected_idle").to_string());
+                    self.set_toast(crate::i18n::t("disconnected_idle").to_string());
                     return Ok(Task::perform(
                         async {
                             tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
@@ -1329,6 +1339,7 @@ impl Oryxis {
                     failed: false,
                     origin,
                     tab_idx,
+                    pane_id,
                     banner: None,
                 });
                 self.active_tab = Some(tab_idx);

@@ -354,6 +354,12 @@ pub(crate) struct ConnectionProgress {
     pub failed: bool,
     pub origin: ProgressOrigin,
     pub tab_idx: usize,
+    /// Stable id of the pane this connect is dialing. The completion
+    /// (`SshConnected(pane_id, _)`, shared by SSH / Telnet / Serial) is
+    /// matched against this so a split-pane or background connect, or a
+    /// stale completion from a dial the user cancelled via "Edit host",
+    /// can never clear an unrelated Home connect's card.
+    pub pane_id: uuid::Uuid,
     /// Pre-auth banner(s) the server sent (RFC 4252 §5.4: legal
     /// notices, MFA instructions), shown on the progress card so the
     /// user reads them while answering the auth prompts. Multiple

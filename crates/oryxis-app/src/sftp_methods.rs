@@ -846,7 +846,31 @@ impl Oryxis {
                 None => return false,
             }
         };
-        st.transfer.is_some() || st.edit_session.as_ref().is_some_and(|e| e.dirty)
+        sftp_state_has_unsaved(st)
+    }
+
+    /// Tear down a hybrid terminal tab's SFTP session: park the live buffer
+    /// if this tab owns it (which resets `self.sftp`), discard the parked
+    /// Files state, drop Files mode, and select the tab when the close came
+    /// from a background affordance. The guards (in-flight transfer decline,
+    /// dirty-edit confirm) live at the call sites: the `CloseTabSftpSession`
+    /// handler and the close-guard modal's confirm.
+    pub(crate) fn close_tab_sftp_session(&mut self, tab_id: uuid::Uuid) -> Task<Message> {
+        if self.hybrid_sftp_owner == Some(tab_id) {
+            self.park_hybrid_sftp();
+        }
+        let Some(idx) = self.tabs.iter().position(|t| t._id == tab_id) else {
+            return Task::none();
+        };
+        let tab = &mut self.tabs[idx];
+        tab.files_mode = false;
+        *tab.files_state = Default::default();
+        // Back on the terminal surface; select the tab if it wasn't
+        // already active (a background close leaves focus).
+        if self.active_tab != Some(idx) {
+            return self.update(Message::SelectTab(idx));
+        }
+        Task::none()
     }
 
     /// Close the SFTP tab at `idx`. Removes it from the strip, reindexes
@@ -938,6 +962,13 @@ impl Oryxis {
     /// is already the focused tab), runs the normal handler chain, then swaps
     /// back. Drops the message if the owning tab was closed meanwhile.
     pub(crate) fn route_sftp_async(&mut self, id: uuid::Uuid, message: Message) -> Task<Message> {
+        // Unwrap the owner-routing envelope (the id was already read from
+        // it by `sftp_async_owner`); the inner message is what the handler
+        // chain understands.
+        let message = match message {
+            Message::SftpFor(_, inner) => *inner,
+            m => m,
+        };
         if let Some(idx) = self.sftp_tabs.iter().position(|t| t.id == id) {
             let is_active = self.active_sftp == Some(idx);
             if !is_active {
@@ -1016,6 +1047,15 @@ fn is_wsl_root(path: &std::path::Path) -> bool {
 /// from `wsl.exe` is decoded back to a `String`, then trimmed for
 /// the empty trailing entries Windows likes to add. Returns an empty
 /// list on non-Windows or if `wsl.exe` is unavailable.
+/// Whether an SFTP state carries unsaved work worth a close-guard: an
+/// in-flight transfer, or a dirty edit-session (an external-editor save
+/// whose upload hasn't landed yet). Shared by the standalone tab close
+/// guards and the hybrid Close-SFTP-session guard so the two paths can
+/// never diverge on what counts as discardable.
+pub(crate) fn sftp_state_has_unsaved(st: &crate::state::SftpState) -> bool {
+    st.transfer.is_some() || st.edit_session.as_ref().is_some_and(|e| e.dirty)
+}
+
 fn list_wsl_distros_for_pane() -> Vec<String> {
     #[cfg(target_os = "windows")]
     {

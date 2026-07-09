@@ -812,16 +812,27 @@ impl Oryxis {
                             .await?;
                         Ok::<_, String>((client, initial, entries))
                     },
+                    // Completion stamped with THIS hybrid tab (hoisted just
+                    // above): a park/hoist swap while the mount is in
+                    // flight must not land the result in whichever buffer
+                    // is live by then. `route_sftp_async` swaps the owner's
+                    // state back in, or drops the result if the tab closed.
                     move |result| match result {
-                        Ok((client, path, entries)) => Message::SftpHostMounted(
-                            target,
-                            label.clone(),
-                            session.clone(),
-                            client,
-                            path,
-                            entries,
+                        Ok((client, path, entries)) => Message::sftp_owned(
+                            Some(tab_id),
+                            Message::SftpHostMounted(
+                                target,
+                                label.clone(),
+                                session.clone(),
+                                client,
+                                path,
+                                entries,
+                            ),
                         ),
-                        Err(e) => Message::SftpRemoteError(target, e),
+                        Err(e) => Message::sftp_owned(
+                            Some(tab_id),
+                            Message::SftpRemoteError(target, e),
+                        ),
                     },
                 );
                 return Ok(Task::batch([select, mount]));
@@ -851,7 +862,7 @@ impl Oryxis {
                             &tab.files_state
                         };
                     if st.transfer.is_some() {
-                        self.toast = Some(
+                        self.set_toast(
                             crate::i18n::t("tab_detach_sftp_busy").to_string(),
                         );
                         return Ok(Task::perform(
@@ -904,8 +915,10 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
                 // An in-flight transfer would be killed by dropping the
-                // state mid-run; decline until it finishes (same guard
-                // as the detach path).
+                // state mid-run, and its continuations are stamped with
+                // this still-existing tab id (so they would land on the
+                // freshly-reset state); decline until it finishes (same
+                // guard as the detach path).
                 {
                     let st: &crate::state::SftpState =
                         if self.hybrid_sftp_owner == Some(tab_id) {
@@ -926,21 +939,18 @@ impl Oryxis {
                             |_| Message::ToastClear,
                         ));
                     }
+                    // Unsaved work beyond the transfer (a dirty external
+                    // edit whose upload hasn't landed): route through the
+                    // same confirm modal as the standalone tab close
+                    // instead of silently discarding the pending save.
+                    if crate::sftp_methods::sftp_state_has_unsaved(st) {
+                        self.pending_sftp_close = Some(
+                            crate::state::PendingSftpClose::HybridSession(tab_id),
+                        );
+                        return Ok(Task::none());
+                    }
                 }
-                // If it currently owns the live buffer, park it out
-                // (which resets self.sftp) then discard the slot.
-                if self.hybrid_sftp_owner == Some(tab_id) {
-                    self.park_hybrid_sftp();
-                }
-                if let Some(tab) = self.tabs.get_mut(idx) {
-                    tab.files_mode = false;
-                    *tab.files_state = Default::default();
-                }
-                // Back on the terminal surface; select the tab if it
-                // wasn't already active (a background close leaves focus).
-                if self.active_tab != Some(idx) {
-                    return Ok(self.update(Message::SelectTab(idx)));
-                }
+                return Ok(self.close_tab_sftp_session(tab_id));
             }
             Message::OpenTerminalForSftpTab(idx) => {
                 // From an SFTP tab's menu: the way back to a shell on the
@@ -1561,7 +1571,7 @@ impl Oryxis {
                         // Toast "Reconnecting..." so the user sees feedback the
                         // moment the attempt actually starts (not when the
                         // disconnect was first detected, up to 30s earlier).
-                        self.toast = Some(crate::i18n::t("disconnected_reconnecting").to_string());
+                        self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
                         return Ok(Task::batch(vec![
                             Task::done(msg),
                             Task::perform(

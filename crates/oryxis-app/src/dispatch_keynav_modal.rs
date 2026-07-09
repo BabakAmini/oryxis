@@ -106,7 +106,14 @@ impl Oryxis {
         matches!(
             surface,
             ModalSurface::Modal(
-                Modal::ShareDialog | Modal::SshImport | Modal::CloudImportConfirm
+                Modal::ShareDialog
+                    | Modal::SshImport
+                    | Modal::CloudImportConfirm
+                    // The snippet-variables prompt is a column of value
+                    // text_inputs; the caret must keep Space (and Left/Right)
+                    // so typing a value never fires the default Confirm and
+                    // submits the snippet with partial values.
+                    | Modal::SnippetVars
             )
         )
     }

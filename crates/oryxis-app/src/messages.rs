@@ -162,6 +162,15 @@ pub enum Message {
     SftpHostMounted(crate::state::SftpPaneSide, String, Arc<SshSession>, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
     SftpRemoteLoaded(crate::state::SftpPaneSide, String, Vec<oryxis_ssh::SftpEntry>),
     SftpRemoteError(crate::state::SftpPaneSide, String),
+    /// Owner-routing envelope for SFTP async completions whose payload has no
+    /// owner stamp of its own (the mount pipeline: `SftpHostMounted` /
+    /// `SftpRemoteError`). Carries the id of the tab (standalone SFTP tab or
+    /// hybrid terminal tab) that owned the live buffer at kickoff time, so
+    /// `route_sftp_async` swaps that owner's state in before the inner
+    /// message runs, or drops it when the owner is gone. Without it, a
+    /// park/hoist swap between kickoff and completion would land the result
+    /// in whichever buffer happens to be live. Built via `Message::sftp_owned`.
+    SftpFor(Uuid, Box<Message>),
     /// Navigate a *remote* pane to a POSIX path.
     SftpNavigateRemote(crate::state::SftpPaneSide, String),
     /// Navigate a *local* pane to a filesystem path.
@@ -315,16 +324,25 @@ pub enum Message {
     /// One-shot op finished (download / upload): toast the outcome.
     SidebarFilesOpToast(String),
     /// Upload local file(s) picked via the OS dialog into a directory.
+    /// Only opens the dialog; a cancelled dialog ends the flow with no
+    /// state touched (in particular no request-stamp bump, which would
+    /// strand an in-flight listing's completion).
     SidebarFilesUploadInto(String),
+    /// The upload dialog returned actual picks: run the uploads on the
+    /// pane's channel. Payload: pane id, destination directory, local
+    /// paths.
+    SidebarFilesUploadPicked(Uuid, String, Vec<std::path::PathBuf>),
     /// Open the shared Properties (permissions) modal for a sidebar
     /// entry, chmod-ing through the sidebar's own client.
     SidebarFilesShowProperties(String, bool),
     /// Edit-in-place for a sidebar file (temp download + OS editor +
     /// auto-upload), through the sidebar's own client.
     SidebarFilesEdit(String),
-    /// Uploads finished: toast + fresh listing in one hop (the stamp
-    /// rule applies to the listing half).
-    SidebarFilesUploadFinished(Uuid, u64, String, String, Vec<oryxis_ssh::SftpEntry>),
+    /// Uploads finished: toast the outcome, then refresh the pane's
+    /// current listing through the normal stamped pipeline (the handler
+    /// bumps the request stamp synchronously, so the refresh always
+    /// resolves `loading` no matter how it completes).
+    SidebarFilesUploadFinished(Uuid, String),
     /// Hybrid tab (issue #61): flip the terminal tab at this index
     /// between its Terminal and Files-full (dual-pane SFTP) states.
     /// Fired by the tab's mode glyph, the status-bar segment, the tab
@@ -403,7 +421,13 @@ pub enum Message {
     CopyToClipboard(String),
     /// Dismiss the transient toast chip (`Oryxis.toast`). Fired by a
     /// `Task::perform` sleep scheduled when a toast is shown.
+    /// Deadline-guarded clear: clears the toast only if `toast_deadline`
+    /// has passed. Fired by the `ToastTick`-style subscription and by any
+    /// legacy scheduled sleep-timer, so a superseded timer can never wipe
+    /// a newer toast.
     ToastClear,
+    /// Immediate dismissal (clicking the chip), regardless of deadline.
+    ToastDismiss,
     /// Dismiss the blocking error dialog (`Oryxis.error_dialog`). Fired
     /// by the OK button or by clicking the scrim.
     ErrorDialogDismiss,
@@ -1993,8 +2017,21 @@ impl Message {
             | Message::SftpTransferNext(id)
             | Message::SftpTransferItemDone(id, _)
             | Message::SftpTransferError(id, _, _)
-            | Message::SftpTransferConflict(id, _, _, _) => Some(*id),
+            | Message::SftpTransferConflict(id, _, _, _)
+            | Message::SftpFor(id, _) => Some(*id),
             _ => None,
+        }
+    }
+
+    /// Wrap an SFTP async completion in the `SftpFor` owner-routing
+    /// envelope when a buffer owner existed at kickoff time. `None`
+    /// falls back to the bare message (pre-envelope behavior: applied
+    /// to whichever buffer is live on arrival), which only happens when
+    /// no SFTP surface owned the buffer at all.
+    pub(crate) fn sftp_owned(owner: Option<Uuid>, message: Message) -> Message {
+        match owner {
+            Some(id) => Message::SftpFor(id, Box::new(message)),
+            None => message,
         }
     }
 }
