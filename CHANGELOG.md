@@ -4,9 +4,75 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.0] - 2026-07-09
 
 ### Added
+- **Hybrid SSH/SFTP tab + Files sidebar** (#61). Every SSH tab can
+  browse files without leaving the terminal, multiplexed over the
+  same live connection (no second login, jump chains and proxies
+  included). A new **Files** tab in the terminal sidebar is a
+  per-pane browser that follows the shell's working directory as you
+  `cd` (via shell-integration cwd reporting, with a window-title
+  fallback for stock bash; manual navigation unpins, one click
+  re-follows) and carries the full operation set: upload, download,
+  rename, delete, new file / folder, and Copy path in every context
+  menu. From there, "Open SFTP session" (or the expand action)
+  promotes the tab itself into the dual-pane SFTP manager at that
+  directory; the tab then owns both surfaces, and a chip on the tab,
+  a status-bar segment, the tab context menu or Ctrl+Shift+F flip
+  between Terminal and Files while the PTY keeps running underneath.
+  The SFTP surface can also detach into its own tab (blocked
+  mid-transfer, never silently). An opt-in "Force OSC 7" setting
+  injects cwd reporting into bash and zsh sessions that lack shell
+  integration, hiding its own echo. Standalone SFTP tabs are
+  unchanged and remain the server-to-server surface.
+- **Google Cloud provider (Compute Engine + GKE).** Cloud Accounts
+  gains GCP alongside AWS and Kubernetes, as an on-demand subprocess
+  plugin driving the `gcloud` CLI you already authenticate with.
+  Compute Engine instances are discovered across zones and import as
+  dynamic groups that resolve live on expand; GKE clusters are
+  discovered too, and adding one runs `get-credentials` and creates a
+  Kubernetes account pointed at the resulting context, reusing the
+  entire kubectl pipeline. Discovery is best-effort per service, so
+  an API you never enabled doesn't sink the rest.
+- **Azure provider (VMs + AKS).** The same shape over the `az` CLI:
+  Virtual Machines import as dynamic groups, AKS clusters add as
+  one-click Kubernetes accounts. Cloud Accounts now spans AWS,
+  Google Cloud, Azure and bare Kubernetes, every one an on-demand
+  plugin that stays out of the binary until you use it.
+- **Biometric app unlock.** Unlock the vault with Windows Hello,
+  Touch ID, or the Linux system keyring instead of typing the master
+  password. Opt-in: offered when you set a master password (and in
+  onboarding), toggleable in Settings. The lock screen leads with the
+  biometric prompt, labelled with the platform's own name, and the
+  master password stays one click away as the fallback; a failed or
+  cancelled prompt falls back cleanly. Locking still zeroizes the
+  key. On Linux, where the keyring hands the secret back without a
+  presence check, the UI says so honestly instead of pretending.
+- **Windows JumpList.** Right-click the taskbar icon for your recent
+  hosts: picking one connects in the running window (routed through
+  the single-instance IPC) or launches the app connecting. The list
+  updates as you connect.
+- **Performance HUD** (#69). An opt-in terminal overlay that tells
+  the truth about rendering: frame time against the 16.7 ms budget
+  (sparkline auto-scaled to the window peak), busy and slow-frame
+  percentages with severity tinting, and a network line with
+  round-trip time and jitter measured over the live SSH connection.
+- **Typed-command capture in session recordings.** Recordings store
+  the commands typed at a prompt as their own chunk kind, captured by
+  the same pipeline as the per-host command history (quick-connect,
+  local and cloud panes included) and passed through the same
+  secret-redaction before touching the vault. A new "Export typed
+  commands (.txt)" action on a session lists them with timestamps;
+  the `.cast` and transcript exports stay output-only.
+- **Creation hotkeys.** New host, new SSH key and new identity get
+  their own rebindable chords, listed in the burger menu.
+- **Six new languages.** Hebrew (right-to-left, joining Persian and
+  Arabic), Traditional Chinese (Taiwan vocabulary, not a script
+  conversion), Thai, Hindi, Czech and Greek bring the UI to 23
+  languages, with the Hebrew / Thai / Devanagari fonts bundled and
+  Traditional Chinese as an on-demand font download like the other
+  CJK faces.
 - **Reset scrollback to the live edge (PuTTY's two behaviors).** Two
   Settings > Terminal toggles (both off by default) bring you back to
   the bottom of the buffer without reaching for the wheel or scrollbar:
@@ -120,9 +186,11 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   failure screen offer switching to any saved identity or key and
   reconnect in place.
 - **Per-host command history.** Commands executed on saved hosts are
-  captured into the vault (shell-integration OSC 133 marks with a
-  raw-input heuristic fallback; prompts in password state are never
-  recorded, and a leading space skips capture) and surfaced in a new
+  captured into the vault, encrypted at rest and run through a
+  secret-redaction pass before storage (shell-integration OSC 133
+  marks with a raw-input heuristic fallback; prompts in password
+  state are never recorded, and a leading space skips capture) and
+  surfaced in a new
   History tab in the terminal sidebar: a most-frequent shortlist over
   a recent list, with search, run, paste and delete (confirmed).
   Local-only by design: never synced, never portable-exported, wiped
@@ -185,10 +253,13 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   session logs the vault already keeps now record real timing (chunk
   offsets stamped at capture, per-line replay steps, terminal resizes)
   and any session exports from the History screen as a standard
-  asciicast v2 `.cast` file, replayable in the asciinema player, or as
-  a plain-text transcript (ANSI resolved by the same renderer the
-  in-app viewer uses). Output-only by design: keystrokes are never
-  recorded, so the input-leak class doesn't exist. Sessions recorded
+  asciicast v3 `.cast` file with the effective terminal theme
+  embedded (the asciinema player and GIF renderers reproduce your
+  colors with no extra flags), or as a plain-text transcript (ANSI
+  resolved by the same renderer the in-app viewer uses). Recording
+  detail and on-disk compression are configurable in Settings.
+  Output-only by design: keystrokes are never recorded, so the
+  input-leak class doesn't exist. Sessions recorded
   before this release still export, replayed with a small fixed delta
   instead of real pacing. Note: exports carry the raw recording;
   Privacy Mode masking is display-only.
@@ -249,6 +320,15 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   behind an interest flag so idle mouse movement stops burning CPU.
 
 ### Changed
+- **Sync wire format: XChaCha20-Poly1305 on protocol v6.** The P2P
+  sync payload cipher moves from ChaCha20-Poly1305 to XChaCha20 with
+  192-bit random nonces, on a protocol bump (v5 to v6) and a snapshot
+  format bump. Both peers must run 0.9; an older peer or snapshot is
+  rejected cleanly with a clear message, nothing is overwritten or
+  lost.
+- The update dialog identifies nightly builds and labels the download
+  button with the exact artifact it picked for your platform.
+- The new-tab picker focuses its search box on open.
 - **AI chat harness.** Replies and tool calls now route to the tab
   that asked (a stream could previously land commands on another
   host's tab), each tab carries a Plan / Ask / Auto mode, a floating
@@ -264,6 +344,26 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 - The lock screen adopts the onboarding's accent-gradient look.
 
 ### Fixed
+- SFTP dialogs no longer render, still functional, on top of the lock
+  screen; the idle auto-lock also sweeps every secret-bearing piece
+  of UI state (editor password fields, pending host-key prompts, open
+  SFTP dialogs).
+- The host-key verification prompt is a real modal: keystrokes,
+  Enter included, no longer leak into the terminal underneath while
+  it is open, and Esc rejects.
+- App hotkeys no longer fire behind a blocking modal (closing a pane
+  behind a 2FA prompt, for example).
+- Toast notifications auto-dismiss on a timer everywhere and can be
+  clicked away; several code paths could previously strand one on
+  screen indefinitely.
+- Inline renames in SFTP that don't change the name no longer send a
+  rename to the server (clicking away from the field could touch
+  every visited file's mtime), and Ctrl+A selects all in SFTP text
+  fields (#63).
+- The keychain screen shows identities again when the vault has no
+  SSH keys (#70).
+- Tag-filter dropdowns anchor under their toolbar button instead of
+  wherever the mouse happened to be, keyboard activation included.
 - Ctrl+Tab (most-recently-used tab cycling) no longer walks into
   dormant pinned tabs restored at boot, which silently reconnected
   their hosts just by cycling past them. MRU cycling covers open tabs
