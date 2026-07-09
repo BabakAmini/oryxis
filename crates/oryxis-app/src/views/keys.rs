@@ -217,7 +217,11 @@ impl Oryxis {
 
         let mut cards: Vec<Element<'_, Message>> = Vec::new();
 
-        if filtered_keys.is_empty() && self.keys.is_empty() {
+        // The full-page empty state only applies when the whole keychain
+        // is empty: a vault with identities but no SSH keys must still
+        // render the identities section below (issue #70, credentials
+        // looked "lost" because this early return hid them).
+        if self.keys.is_empty() && self.identities.is_empty() {
             let empty_state = crate::widgets::empty_state(
                 iced_fonts::lucide::key_round()
                     .size(32)
@@ -242,7 +246,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill);
             return main_content.into();
-        } else if filtered_keys.is_empty() {
+        } else if filtered_keys.is_empty() && !self.keys.is_empty() {
             let no_results = container(
                 text(t("no_keys_match")).size(13).color(OryxisColors::t().text_muted),
             )
@@ -589,10 +593,14 @@ impl Oryxis {
             ]);
         }
 
-        // Combine keys and identities into one scrollable area
+        // Combine keys and identities into one scrollable area. Either
+        // section hides entirely when its list is empty (the both-empty
+        // case never reaches here, it takes the empty-state return above).
         let mut all_rows: Vec<Element<'_, Message>> = Vec::new();
-        all_rows.push(section_title.into());
-        all_rows.push(keys_grid_elem);
+        if !self.keys.is_empty() {
+            all_rows.push(section_title.into());
+            all_rows.push(keys_grid_elem);
+        }
         if !self.identities.is_empty() {
             all_rows.push(identity_section_title.into());
             all_rows.push(identity_grid_elem);
