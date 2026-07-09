@@ -155,6 +155,16 @@ pub struct TerminalWidgetState {
     /// span text (not its cells) so the reveal survives scrolling and
     /// re-prints of the same value.
     pinned_privacy: std::collections::HashSet<String>,
+    /// Panel rect (widget-local coords) the perf HUD occupied on the last
+    /// draw. Used by `update` to hit-test the click that toggles compact /
+    /// full-name metric labels and by `mouse_interaction` for the pointer
+    /// cursor. `None` until the HUD has drawn once. A `Cell` because it is
+    /// written from the immutable-`&self` draw path.
+    hud_rect: std::cell::Cell<Option<Rectangle>>,
+    /// True between a left press that landed on the perf HUD and its
+    /// release, so the release can't fall through to the selection /
+    /// privacy-pin handling for the cells underneath the panel.
+    hud_pressed: bool,
     /// Tessellated grid geometry from the last miss, kept across frames.
     /// A draw whose [`RenderKey`] matches `last_render_key` returns this
     /// cached geometry without re-running the (expensive) snapshot + glyph
@@ -1125,6 +1135,26 @@ where
         let hover_changed = widget_state.hover != new_hover;
         widget_state.hover = new_hover;
 
+        // A left press on the perf HUD toggles its compact <-> full-name
+        // metric labels, the canvas overlay's stand-in for tooltips
+        // (issue #69). Checked before mouse reporting and selection: the
+        // HUD draws above everything, so it hit-tests above everything
+        // too (and the press must not reach a remote app holding mouse
+        // tracking; the report path only reports releases whose press it
+        // reported, so the matching release stays local for free).
+        if (self.perf_overlay || perf_overlay_enabled())
+            && matches!(
+                event,
+                iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            )
+            && let Some(pos) = cursor.position_in(bounds)
+            && widget_state.hud_rect.get().is_some_and(|hud| hud.contains(pos))
+        {
+            widget_state.hud_pressed = true;
+            toggle_hud_wide();
+            return Some(CanvasAction::request_redraw().and_capture());
+        }
+
         // When the remote app has mouse tracking on (tmux `mouse on`,
         // vim `mouse=a`, htop, ...) pointer events are reported to it
         // instead of driving local selection / scrollback. We snapshot
@@ -1488,6 +1518,13 @@ where
             }
             // Mouse release, end selection or scrollbar drag.
             iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
+                // The press was consumed by the perf HUD toggle; swallow
+                // the matching release so it can't privacy-pin or
+                // click-classify the cells underneath the panel.
+                if widget_state.hud_pressed {
+                    widget_state.hud_pressed = false;
+                    return Some(CanvasAction::capture());
+                }
                 let was_dragging = widget_state.scrollbar_drag.is_some();
                 widget_state.scrollbar_drag = None;
                 let was_selecting = widget_state.selecting;
@@ -1888,6 +1925,15 @@ where
     ) -> mouse::Interaction {
         if !cursor.is_over(bounds) {
             return mouse::Interaction::default();
+        }
+        // Pointer over the perf HUD panel: it's clickable (toggles the
+        // compact / full-name labels), and the cursor change is the only
+        // discoverability affordance a canvas layer can offer.
+        if (self.perf_overlay || perf_overlay_enabled())
+            && let Some(pos) = cursor.position_in(bounds)
+            && state.hud_rect.get().is_some_and(|hud| hud.contains(pos))
+        {
+            return mouse::Interaction::Pointer;
         }
         // Pointer cursor over a URL, same as the browser hover affordance
         // and clear visual cue that "click does something different here".
@@ -2593,7 +2639,14 @@ where
             let total = start.elapsed();
             let now = std::time::Instant::now();
 
-            let (fps, max_lock, max_cells, max_hl, max_total) = {
+            #[allow(clippy::type_complexity)]
+            let (
+                (curr_fps, avg_fps, peak_fps),
+                (avg_total, avg_lock, avg_cells, avg_hl),
+                (max_total, max_lock, max_cells, max_hl),
+                cache_pct,
+                spark_series,
+            ): (_, _, _, f32, Vec<f32>) = {
                 let mut stats = perf_stats().lock().unwrap();
                 let frame_gap = stats
                     .last_draw_at
@@ -2606,16 +2659,27 @@ where
                     cells: cells_dur,
                     highlights: highlights_dur,
                     total,
+                    built,
                 });
                 while stats.samples.len() > PERF_WINDOW {
                     stats.samples.pop_front();
                 }
                 (
-                    stats.fps(),
-                    stats.max_lock(),
-                    stats.max_cells(),
-                    stats.max_highlights(),
-                    stats.max_total(),
+                    (stats.current_fps(), stats.avg_fps(), stats.peak_fps()),
+                    (
+                        stats.avg_total(),
+                        stats.avg_lock(),
+                        stats.avg_cells(),
+                        stats.avg_highlights(),
+                    ),
+                    (
+                        stats.max_total(),
+                        stats.max_lock(),
+                        stats.max_cells(),
+                        stats.max_highlights(),
+                    ),
+                    stats.cache_hit_pct(),
+                    stats.fps_series().collect(),
                 )
             };
 
@@ -2629,36 +2693,78 @@ where
                 }
             };
 
-            // Two-line HUD pinned top-right. Line 1 shows the current frame
-            // plus the cache verdict (a hit reads C0.0 / H0.0, the signal
-            // that it skipped the snapshot + build); line 2 shows the rolling
-            // **max** over the last `PERF_WINDOW` frames so transient spikes,
-            // the kind that read as typing lag, stay visible long enough to
-            // spot. Fractional ms because most healthy draws are sub-1 ms.
+            // Three-line HUD pinned top-right, plus an fps sparkline.
+            // Line 1 is the current frame (its phase timings read C0.0 /
+            // H0.0 on a cache hit, the signal that the hit skipped the
+            // snapshot + build) with the rolling cache hit-rate; line 2
+            // averages the `PERF_WINDOW`; line 3 is the extremes: fastest
+            // frame, slowest phases, so transient spikes, the kind that
+            // read as typing lag, stay visible long enough to spot.
+            // Fractional ms because most healthy draws are sub-1 ms.
+            // Clicking the panel swaps T/L/C/H for full metric names
+            // (issue #69's tooltip ask; a canvas layer can't host
+            // `iced::widget::tooltip`).
             let ms = |d: std::time::Duration| d.as_secs_f32() * 1000.0;
+            let wide = hud_wide();
+            let metrics = |t, l, c, h| {
+                if wide {
+                    format!(
+                        "total{:>6.1}ms  lock{:>6.1}ms  cells{:>6.1}ms  highlight{:>6.1}ms",
+                        ms(t),
+                        ms(l),
+                        ms(c),
+                        ms(h),
+                    )
+                } else {
+                    format!("T{:>5.1}  L{:>4.1}  C{:>4.1}  H{:>4.1}", ms(t), ms(l), ms(c), ms(h))
+                }
+            };
+            let label = |compact: &str, full: &str| {
+                if wide {
+                    format!("{full:<8}")
+                } else {
+                    format!("{compact:<5}")
+                }
+            };
             let line1 = format!(
-                "{:>4.0} fps   T{:>5.1}  L{:>4.1}  C{:>4.1}  H{:>4.1}   {}",
-                fps,
-                ms(total),
-                ms(lock_dur),
-                ms(cells_dur),
-                ms(highlights_dur),
-                if built { "cache:miss" } else { "cache:hit" },
+                "{}{curr_fps:>4.0} fps   {}   cache {cache_pct:>3.0}%",
+                label("curr", "current"),
+                metrics(total, lock_dur, cells_dur, highlights_dur),
             );
             let line2 = format!(
-                "  peak     T{:>5.1}  L{:>4.1}  C{:>4.1}  H{:>4.1}",
-                ms(max_total),
-                ms(max_lock),
-                ms(max_cells),
-                ms(max_hl),
+                "{}{avg_fps:>4.0} fps   {}",
+                label("avg", "average"),
+                metrics(avg_total, avg_lock, avg_cells, avg_hl),
             );
+            let line3 = format!(
+                "{}{peak_fps:>4.0} fps   {}",
+                label("peak", "peak"),
+                metrics(max_total, max_lock, max_cells, max_hl),
+            );
+            let lines = [line1, line2, line3];
 
-            let panel_w = 300.0;
-            let panel_h = 38.0;
+            // Panel sized to the text it holds: the HUD renders with the
+            // terminal's monospace font at a fixed 10 px, so the measured
+            // advance at that size gives the exact line width (the old
+            // fixed 300 px panel let long lines spill past its border and
+            // the app edge, issue #69).
+            const HUD_FONT_PX: f32 = 10.0;
+            const HUD_PAD: f32 = 8.0;
+            const HUD_LINE_H: f32 = 13.0;
+            const SPARK_H: f32 = 12.0;
+            let advance = cell_advance(self.font, HUD_FONT_PX);
+            let chars = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0);
+            let panel_w = (chars as f32 * advance).ceil() + HUD_PAD * 2.0;
+            let text_top = 6.0;
+            let spark_top = text_top + lines.len() as f32 * HUD_LINE_H + 3.0;
+            let panel_h = spark_top + SPARK_H + 7.0;
             let panel = Rectangle::new(
                 Point::new((bounds.width - panel_w - 8.0).max(0.0), 6.0),
                 Size::new(panel_w, panel_h),
             );
+            // Published for the click hit-test / pointer cursor in
+            // `update` / `mouse_interaction`.
+            widget_state.hud_rect.set(Some(panel));
             let border = Color { a: 0.5, ..hud_fg };
             let mut hud = Frame::new(renderer, bounds.size());
             hud.fill_rectangle(
@@ -2678,18 +2784,48 @@ where
                 Size::new(1.0, panel.height),
                 border,
             );
-            for (i, content) in [line1, line2].into_iter().enumerate() {
+            for (i, content) in lines.into_iter().enumerate() {
                 hud.fill_text(CanvasText {
                     content,
-                    position: Point::new(panel.x + 8.0, panel.y + 6.0 + i as f32 * 13.0),
+                    position: Point::new(
+                        panel.x + HUD_PAD,
+                        panel.y + text_top + i as f32 * HUD_LINE_H,
+                    ),
                     color: hud_fg,
-                    size: Pixels(10.0),
+                    size: Pixels(HUD_FONT_PX),
                     font: self.font,
                     align_x: alignment::Horizontal::Left.into(),
                     align_y: alignment::Vertical::Top,
                     ..Default::default()
                 });
             }
+            // Sparkline of per-frame fps across the window, one slot per
+            // sample, newest hugging the right edge. Scaled to the peak
+            // (60 fps floor) so a steady run reads near-full and spikes
+            // still fit; excluded gaps (idle pauses, same-cycle sibling
+            // panes) draw as gaps.
+            let spark_w = panel.width - HUD_PAD * 2.0;
+            let spark_x = panel.x + HUD_PAD;
+            let spark_y = panel.y + spark_top;
+            let scale = peak_fps.max(60.0);
+            let bar_w = spark_w / PERF_WINDOW as f32;
+            let n = spark_series.len();
+            for (i, fps) in spark_series.into_iter().enumerate() {
+                let h = (fps / scale).clamp(0.0, 1.0) * SPARK_H;
+                if h < 0.5 {
+                    continue;
+                }
+                hud.fill_rectangle(
+                    Point::new(spark_x + spark_w - (n - i) as f32 * bar_w, spark_y + SPARK_H - h),
+                    Size::new((bar_w - 0.5).max(0.5), h),
+                    Color { a: 0.65, ..hud_fg },
+                );
+            }
+            hud.fill_rectangle(
+                Point::new(spark_x, spark_y + SPARK_H),
+                Size::new(spark_w, 1.0),
+                Color { a: 0.25, ..hud_fg },
+            );
             geometries.push(hud.into_geometry());
         }
 
