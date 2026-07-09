@@ -1,13 +1,14 @@
 //! On-demand CJK font download + runtime load.
 //!
-//! Noto Sans (Latin / Cyrillic / Greek / Vietnamese) and Noto Sans
-//! Arabic ship inside the binary (see `main.rs`). The CJK scripts
-//! (Chinese, Japanese, Korean) are large (9-16 MB each) and most users
-//! never need them, so they are fetched the first time the user selects
-//! one of those languages, cached under `~/.oryxis/fonts/`, integrity
-//! checked against a baked-in SHA-256, then handed to the iced font
-//! system with `iced::font::load` so cosmic-text falls back to them
-//! per codepoint.
+//! Noto Sans (Latin / Cyrillic / Greek / Vietnamese) plus the Noto
+//! Sans Arabic, Hebrew, Thai and Devanagari script fonts ship inside
+//! the binary (see `main.rs`). The CJK scripts (Simplified and
+//! Traditional Chinese, Japanese, Korean) are large (9-18 MB each) and
+//! most users never need them, so they are fetched the first time the
+//! user selects one of those languages, cached under
+//! `~/.oryxis/fonts/`, integrity checked against a baked-in SHA-256,
+//! then handed to the iced font system with `iced::font::load` so
+//! cosmic-text falls back to them per codepoint.
 //!
 //! A failed download degrades to the system CJK font (the behaviour
 //! that existed before this module) and never surfaces as a hard error.
@@ -44,10 +45,11 @@ struct CjkAsset {
 // URL at a fixed commit is content-addressed, so the bytes can never
 // change under the SHA-256 pin.
 
-/// The three regional CJK fonts. Han unification means each regional
+/// The four regional CJK fonts. Han unification means each regional
 /// font only covers its own language's full alphabet (KR has Hangul,
-/// JP has kana, SC has the simplified Han set), so they are downloaded
-/// per language rather than as one shared file.
+/// JP has kana, SC has the simplified Han set, TC the traditional
+/// set), so they are downloaded per language rather than as one
+/// shared file.
 static ASSETS: &[CjkAsset] = &[
     CjkAsset {
         code: "ko",
@@ -70,6 +72,13 @@ static ASSETS: &[CjkAsset] = &[
         sha256: "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f",
         len: 9_589_900,
     },
+    CjkAsset {
+        code: "zh-TW",
+        file: "NotoSansTC.ttf",
+        url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+        sha256: "864727d210d54f2537bbe23b3a839436c3992af72de9322af5270897246bd44f",
+        len: 11_941_968,
+    },
 ];
 
 /// The CJK asset a language needs, if any.
@@ -78,6 +87,7 @@ fn asset_for(lang: Language) -> Option<&'static CjkAsset> {
         Language::Korean => "ko",
         Language::Chinese => "zh",
         Language::Japanese => "ja",
+        Language::ChineseTraditional => "zh-TW",
         _ => return None,
     };
     ASSETS.iter().find(|a| a.code == code)
@@ -253,6 +263,7 @@ mod tests {
         let face = ttf_parser::Face::parse(data, 0).expect("MenuCJK parses");
         for lang in [
             Language::Chinese,
+            Language::ChineseTraditional,
             Language::Japanese,
             Language::Korean,
         ] {

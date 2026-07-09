@@ -1356,7 +1356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "مقصدهای ابری با یک کلیک: AWS و Kubernetes",
         "onboarding_sync_b1" => "همگام‌سازی نظیربه‌نظیر اختیاری میان دستگاه‌های شما",
         "onboarding_sync_b2" => "یک دستیار AI جداگانه برای هر نشست درون پایانه",
-        "onboarding_sync_b3" => "۱۳ پوسته‌ی پایانه، RTL و ۱۷ زبان رابط کاربری",
+        "onboarding_sync_b3" => "۱۳ پوسته‌ی پایانه، RTL و ۲۳ زبان رابط کاربری",
 _ => return None,
     })
 }

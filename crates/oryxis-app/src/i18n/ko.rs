@@ -1369,7 +1369,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "원클릭 클라우드 대상: AWS와 Kubernetes",
         "onboarding_sync_b1" => "기기 간 선택적 P2P 동기화",
         "onboarding_sync_b2" => "터미널 안의 세션별 AI 어시스턴트",
-        "onboarding_sync_b3" => "13가지 터미널 테마, RTL, 17개 인터페이스 언어",
+        "onboarding_sync_b3" => "13가지 터미널 테마, RTL, 23개 인터페이스 언어",
 _ => return None,
     })
 }

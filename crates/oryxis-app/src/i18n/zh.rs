@@ -1337,7 +1337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "一键连接云目标：AWS 和 Kubernetes",
         "onboarding_sync_b1" => "可选的点对点同步，在你的设备之间同步数据",
         "onboarding_sync_b2" => "终端内置的会话级 AI 助手",
-        "onboarding_sync_b3" => "13 款终端主题、RTL 支持和 17 种界面语言",
+        "onboarding_sync_b3" => "13 款终端主题、RTL 支持和 23 种界面语言",
 _ => return None,
     })
 }

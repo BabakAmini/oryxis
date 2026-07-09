@@ -1369,7 +1369,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Tek tıklamayla bulut hedefleri: AWS ve Kubernetes",
         "onboarding_sync_b1" => "İsteğe bağlı, cihazlarınız arasında eşler arası senkronizasyon",
         "onboarding_sync_b2" => "Terminalin içinde oturum başına AI yardımcısı",
-        "onboarding_sync_b3" => "13 terminal teması, RTL ve 17 arayüz dili",
+        "onboarding_sync_b3" => "13 terminal teması, RTL ve 23 arayüz dili",
 _ => return None,
     })
 }

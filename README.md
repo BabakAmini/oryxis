@@ -179,8 +179,8 @@ Most SSH clients are either powerful but ugly (PuTTY), pretty but Electron-heavy
 ### Themes & Internationalization
 - **13 global themes plus custom UI schemes.** Switch the entire UI instantly, or build your own (21 colors) with a built-in graphical color picker and live preview.
 - **Per-theme button colors** with WCAG contrast guards enforced in CI.
-- **17 languages.** English, Português, Español, Français, Deutsch, Italiano, 中文, 日本語, Русский, فارسی, العربية, 한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська.
-- **RTL layout support.** Persian and Arabic flip the chrome; `Settings → Theme → Layout direction` overrides with Auto / LTR / RTL.
+- **23 languages.** English, Português, Español, Français, Deutsch, Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית, 한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย, हिन्दी, Čeština, Ελληνικά.
+- **RTL layout support.** Persian, Arabic and Hebrew flip the chrome; `Settings → Theme → Layout direction` overrides with Auto / LTR / RTL.
 - **Theme + language on the lock screen**, plus floating overlay context menus.
 
 ### Vault & Security
@@ -200,7 +200,7 @@ Most SSH clients are either powerful but ugly (PuTTY), pretty but Electron-heavy
 - **Out-of-process plugins.** Cloud providers and the MCP server run as subprocess binaries over JSON-RPC stdio.
 - **Signed binaries.** Every plugin is Ed25519-signed and verified against a baked-in key before execution.
 - **Manifest + cache.** The right asset for the host arch is downloaded on demand and verified (signature + sha256).
-- **Install errors translated** across all 17 languages.
+- **Install errors translated** across all 23 languages.
 
 ### MCP Server
 - **AI integration.** Expose your SSH hosts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/).
@@ -349,7 +349,7 @@ cargo test --workspace
 7. **MCP Server.** Enable in Settings > Security, configure in your AI client.
 8. **P2P Sync.** Settings > Sync to pair devices and sync vault data.
 9. **Themes.** Switch in Settings (Oryxis Dark, Light, Dracula, Nord).
-10. **Language.** Change in Settings > Theme (17 languages available, including Persian and Arabic with RTL layout).
+10. **Language.** Change in Settings > Theme (23 languages available, including Persian, Arabic and Hebrew with RTL layout).
 
 ### MCP Server Setup
 

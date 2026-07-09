@@ -1338,7 +1338,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "ワンクリックでクラウドに接続：AWS と Kubernetes",
         "onboarding_sync_b1" => "デバイス間で同期できるオプトイン式のピアツーピア同期",
         "onboarding_sync_b2" => "ターミナル内のセッションごとの AI アシスタント",
-        "onboarding_sync_b3" => "13 種類のターミナルテーマ、RTL、17 言語のインターフェース",
+        "onboarding_sync_b3" => "13 種類のターミナルテーマ、RTL、23 言語のインターフェース",
 _ => return None,
     })
 }

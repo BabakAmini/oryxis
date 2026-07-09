@@ -1339,7 +1339,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Destinos na nuvem com um clique: AWS e Kubernetes",
         "onboarding_sync_b1" => "Sincronização ponto a ponto opcional entre seus dispositivos",
         "onboarding_sync_b2" => "Um assistente de IA por sessão dentro do terminal",
-        "onboarding_sync_b3" => "13 temas de terminal, RTL e 17 idiomas de interface",
+        "onboarding_sync_b3" => "13 temas de terminal, RTL e 23 idiomas de interface",
 _ => return None,
     })
 }

@@ -1369,7 +1369,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Хмарні цілі в один клік: AWS та Kubernetes",
         "onboarding_sync_b1" => "Опціональна однорангова синхронізація між вашими пристроями",
         "onboarding_sync_b2" => "AI-помічник для кожного сеансу всередині термінала",
-        "onboarding_sync_b3" => "13 тем термінала, RTL та 17 мов інтерфейсу",
+        "onboarding_sync_b3" => "13 тем термінала, RTL та 23 мов інтерфейсу",
 _ => return None,
     })
 }

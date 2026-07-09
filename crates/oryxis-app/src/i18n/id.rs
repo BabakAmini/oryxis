@@ -1369,7 +1369,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Target cloud sekali klik: AWS dan Kubernetes",
         "onboarding_sync_b1" => "Sinkronisasi peer-to-peer opsional di seluruh perangkat Anda",
         "onboarding_sync_b2" => "Asisten AI per sesi di dalam terminal",
-        "onboarding_sync_b3" => "13 tema terminal, RTL, dan 17 bahasa antarmuka",
+        "onboarding_sync_b3" => "13 tema terminal, RTL, dan 23 bahasa antarmuka",
 _ => return None,
     })
 }

@@ -100,6 +100,12 @@ pub enum Language {
     Indonesian,
     Vietnamese,
     Ukrainian,
+    Hebrew,
+    ChineseTraditional,
+    Thai,
+    Hindi,
+    Czech,
+    Greek,
 }
 
 impl Language {
@@ -121,6 +127,12 @@ impl Language {
         Self::Indonesian,
         Self::Vietnamese,
         Self::Ukrainian,
+        Self::Hebrew,
+        Self::ChineseTraditional,
+        Self::Thai,
+        Self::Hindi,
+        Self::Czech,
+        Self::Greek,
     ];
 
     pub fn code(&self) -> &'static str {
@@ -142,6 +154,12 @@ impl Language {
             Self::Indonesian => "id",
             Self::Vietnamese => "vi",
             Self::Ukrainian => "uk",
+            Self::Hebrew => "he",
+            Self::ChineseTraditional => "zh-TW",
+            Self::Thai => "th",
+            Self::Hindi => "hi",
+            Self::Czech => "cs",
+            Self::Greek => "el",
         }
     }
 
@@ -153,7 +171,7 @@ impl Language {
             Self::French => "Français",
             Self::German => "Deutsch",
             Self::Italian => "Italiano",
-            Self::Chinese => "中文",
+            Self::Chinese => "简体中文",
             Self::Japanese => "日本語",
             Self::Russian => "Русский",
             Self::Persian => "فارسی",
@@ -164,13 +182,19 @@ impl Language {
             Self::Indonesian => "Bahasa Indonesia",
             Self::Vietnamese => "Tiếng Việt",
             Self::Ukrainian => "Українська",
+            Self::Hebrew => "עברית",
+            Self::ChineseTraditional => "繁體中文",
+            Self::Thai => "ไทย",
+            Self::Hindi => "हिन्दी",
+            Self::Czech => "Čeština",
+            Self::Greek => "Ελληνικά",
         }
     }
 
     /// Whether this language is written right-to-left. Used by the
     /// `LayoutDirection::Auto` setting to decide if the UI should mirror.
     pub fn is_rtl(&self) -> bool {
-        matches!(self, Self::Persian | Self::Arabic)
+        matches!(self, Self::Persian | Self::Arabic | Self::Hebrew)
     }
 
     pub fn from_code(code: &str) -> Self {
@@ -191,6 +215,12 @@ impl Language {
             "id" => Self::Indonesian,
             "vi" => Self::Vietnamese,
             "uk" => Self::Ukrainian,
+            "he" => Self::Hebrew,
+            "zh-TW" => Self::ChineseTraditional,
+            "th" => Self::Thai,
+            "hi" => Self::Hindi,
+            "cs" => Self::Czech,
+            "el" => Self::Greek,
             _ => Self::English,
         }
     }
@@ -229,6 +259,12 @@ mod tr;
 mod id;
 mod vi;
 mod uk;
+mod he;
+mod zh_tw;
+mod th;
+mod hi;
+mod cs;
+mod el;
 
 /// Get a translated string. Usage: `t("hosts")` or `t("create_host")`
 pub fn t(key: &str) -> &'static str {
@@ -305,5 +341,11 @@ fn translate(key: &str, lang: Language) -> &'static str {
         Language::Indonesian => id::lookup(key).unwrap_or_else(|| en::lookup(key)),
         Language::Vietnamese => vi::lookup(key).unwrap_or_else(|| en::lookup(key)),
         Language::Ukrainian => uk::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::Hebrew => he::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::ChineseTraditional => zh_tw::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::Thai => th::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::Hindi => hi::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::Czech => cs::lookup(key).unwrap_or_else(|| en::lookup(key)),
+        Language::Greek => el::lookup(key).unwrap_or_else(|| en::lookup(key)),
     }
 }

@@ -1168,7 +1168,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "onboarding_connect_b3" => "One-click cloud targets: AWS and Kubernetes",
         "onboarding_sync_b1" => "Opt-in peer-to-peer sync across your devices",
         "onboarding_sync_b2" => "A per-session AI assistant inside the terminal",
-        "onboarding_sync_b3" => "13 terminal themes, RTL and 17 interface languages",
+        "onboarding_sync_b3" => "13 terminal themes, RTL and 23 interface languages",
         "onboarding_back" => "Back",
         "onboarding_skip" => "Skip",
         "onboarding_next" => "Next",

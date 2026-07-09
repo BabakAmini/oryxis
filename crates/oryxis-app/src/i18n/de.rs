@@ -1338,7 +1338,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Cloud-Ziele mit einem Klick: AWS und Kubernetes",
         "onboarding_sync_b1" => "Optionale Peer-to-Peer-Synchronisierung über Ihre Geräte hinweg",
         "onboarding_sync_b2" => "Ein KI-Assistent pro Sitzung direkt im Terminal",
-        "onboarding_sync_b3" => "13 Terminal-Themes, RTL und 17 Oberflächensprachen",
+        "onboarding_sync_b3" => "13 Terminal-Themes, RTL und 23 Oberflächensprachen",
 _ => return None,
     })
 }

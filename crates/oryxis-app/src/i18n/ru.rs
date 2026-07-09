@@ -1338,7 +1338,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Облачные цели в один клик: AWS и Kubernetes",
         "onboarding_sync_b1" => "Одноранговая синхронизация между вашими устройствами по желанию",
         "onboarding_sync_b2" => "Отдельный AI-ассистент для каждой сессии прямо в терминале",
-        "onboarding_sync_b3" => "13 тем терминала, RTL и 17 языков интерфейса",
+        "onboarding_sync_b3" => "13 тем терминала, RTL и 23 языков интерфейса",
 _ => return None,
     })
 }

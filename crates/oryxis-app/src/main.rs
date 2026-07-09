@@ -385,8 +385,9 @@ fn main() -> iced::Result {
         // standard look instead of per-OS system fonts). Covers Latin,
         // Latin Extended, Cyrillic, Greek and Vietnamese in one family, so
         // English, Portuguese, Spanish, French, German, Italian, Russian,
-        // Polish, Turkish, Indonesian, Vietnamese and Ukrainian all render
-        // from the bundle with no system font dependency. Regular (400),
+        // Polish, Turkish, Indonesian, Vietnamese, Ukrainian, Czech and
+        // Greek all render from the bundle with no system font
+        // dependency. Regular (400),
         // SemiBold (600) and Bold (700) share the "Noto Sans" typographic
         // family (name ID 16), so weight selection resolves to the right
         // file. Licensed under SIL OFL 1.1 (see resources/fonts/OFL.txt).
@@ -402,13 +403,27 @@ fn main() -> iced::Result {
         .font(include_bytes!("../../../resources/fonts/NotoSansArabic-Regular.ttf").as_slice())
         .font(include_bytes!("../../../resources/fonts/NotoSansArabic-SemiBold.ttf").as_slice())
         .font(include_bytes!("../../../resources/fonts/NotoSansArabic-Bold.ttf").as_slice())
+        // Noto Sans Hebrew / Thai / Devanagari, bundled like Arabic so
+        // the Hebrew, Thai and Hindi languages render offline. All three
+        // scripts are small (17-185 KB per weight), nowhere near the CJK
+        // sizes that justify the on-demand download path.
+        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-Regular.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-SemiBold.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-Bold.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansThai-Regular.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansThai-SemiBold.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansThai-Bold.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-Regular.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-SemiBold.ttf").as_slice())
+        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-Bold.ttf").as_slice())
         // Tiny (~4 KB) CJK subset holding only the glyphs for the
-        // language-picker names (한국어 / 中文 / 日本語). Bundling it means
-        // those entries always render, even on a fresh install before the
-        // full CJK font has been downloaded on demand, so the user can
-        // always read and pick a CJK language. Distinct family
-        // ("Oryxis Menu CJK") so it is a pure per-codepoint fallback and
-        // never shadows the full Noto Sans / downloaded CJK faces.
+        // language-picker names (한국어 / 简体中文 / 繁體中文 / 日本語).
+        // Bundling it means those entries always render, even on a fresh
+        // install before the full CJK font has been downloaded on demand,
+        // so the user can always read and pick a CJK language. Distinct
+        // family ("Oryxis Menu CJK") so it is a pure per-codepoint
+        // fallback and never shadows the full Noto Sans / downloaded CJK
+        // faces.
         .font(include_bytes!("../../../resources/fonts/MenuCJK.ttf").as_slice())
         // SauceCodePro Nerd Font, default terminal font (Source Code
         // Pro patched with the full Nerd Font glyph set: Powerline,

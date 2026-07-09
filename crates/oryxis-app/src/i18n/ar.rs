@@ -1355,7 +1355,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "وجهات سحابية بنقرة واحدة: AWS وKubernetes",
         "onboarding_sync_b1" => "مزامنة اختيارية بين الأقران عبر أجهزتك",
         "onboarding_sync_b2" => "مساعد AI مخصص لكل جلسة داخل الطرفية",
-        "onboarding_sync_b3" => "13 سمة للطرفية، ودعم RTL، و17 لغة للواجهة",
+        "onboarding_sync_b3" => "13 سمة للطرفية، ودعم RTL، و23 لغة للواجهة",
 _ => return None,
     })
 }

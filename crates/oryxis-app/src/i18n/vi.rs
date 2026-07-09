@@ -1369,7 +1369,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_connect_b3" => "Đích đến đám mây chỉ với một cú nhấp: AWS và Kubernetes",
         "onboarding_sync_b1" => "Đồng bộ ngang hàng tùy chọn giữa các thiết bị của bạn",
         "onboarding_sync_b2" => "Trợ lý AI cho từng phiên ngay trong terminal",
-        "onboarding_sync_b3" => "13 chủ đề terminal, RTL và 17 ngôn ngữ giao diện",
+        "onboarding_sync_b3" => "13 chủ đề terminal, RTL và 23 ngôn ngữ giao diện",
 _ => return None,
     })
 }
