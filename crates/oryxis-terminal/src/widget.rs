@@ -2870,7 +2870,7 @@ where
             const HUD_FONT_PX: f32 = 10.0;
             const HUD_PAD: f32 = 8.0;
             const HUD_LINE_H: f32 = 13.0;
-            const SPARK_H: f32 = 12.0;
+            const SPARK_H: f32 = 18.0;
             let advance = cell_advance(self.font, HUD_FONT_PX);
             let chars = lines
                 .iter()
@@ -2929,23 +2929,29 @@ where
             }
             // Frame-time sparkline across the window, one slot per
             // sample, newest hugging the right edge; taller = costlier
-            // frame. The faint guide line is the 16.7 ms budget: bars
-            // crossing it (red) are dropped frames, past half of it
-            // amber. Healthy sub-ms draws render as 1 px ticks, so a
-            // flat baseline means "all good", not "no data".
+            // frame. Scaled to the window's worst frame so healthy
+            // sub-ms runs still use the full height and their shape is
+            // readable (anchoring the scale at the 16.7 ms budget
+            // squashed real-world 0.2-5 ms draws into 1 px dust). The
+            // faint budget guide only appears once some frame climbs
+            // into its range; bars crossing it (red) are dropped
+            // frames, past half of it amber, so color, not height,
+            // carries the absolute verdict.
             let spark_w = panel.width - HUD_PAD * 2.0;
             let spark_x = panel.x + HUD_PAD;
             let spark_y = panel.y + spark_top;
             let budget_ms = FRAME_BUDGET.as_secs_f32() * 1000.0;
-            let scale = ms(max_total).max(budget_ms * 1.25);
+            let scale = (ms(max_total) * 1.1).max(1.0);
             let bar_w = spark_w / PERF_WINDOW as f32;
             let n = spark_series.len();
-            let budget_y = spark_y + SPARK_H - (budget_ms / scale) * SPARK_H;
-            hud.fill_rectangle(
-                Point::new(spark_x, budget_y),
-                Size::new(spark_w, 1.0),
-                Color { a: 0.3, ..hud_fg },
-            );
+            if budget_ms <= scale {
+                let budget_y = spark_y + SPARK_H - (budget_ms / scale) * SPARK_H;
+                hud.fill_rectangle(
+                    Point::new(spark_x, budget_y),
+                    Size::new(spark_w, 1.0),
+                    Color { a: 0.3, ..hud_fg },
+                );
+            }
             for (i, cost) in spark_series.into_iter().enumerate() {
                 let h = ((cost / scale).clamp(0.0, 1.0) * SPARK_H).max(1.0);
                 let color = if cost > budget_ms {
