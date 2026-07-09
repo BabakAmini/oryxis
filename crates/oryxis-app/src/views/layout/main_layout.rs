@@ -1,7 +1,7 @@
 //! Root layout: main_layout. Split out of views/layout/mod.rs.
 
 use super::*;
-use iced::widget::{column, row};
+use iced::widget::column;
 
 /// Widget id of the tab-rename dialog's input, focused on open (see
 /// `Message::StartRenameTab` / `StartRenameSftpTab` in `dispatch_tabs.rs`).
@@ -9,15 +9,28 @@ pub(crate) const TAB_RENAME_INPUT_ID: &str = "tab-rename-input";
 
 impl Oryxis {
     pub(crate) fn view_main(&self) -> Element<'_, Message> {
-        // Single top-bar layout: the tab bar (Home icon + session tabs +
-        // burger) spans the full width; there is no classic full-height
-        // sidebar. The vault sub-sections render either as a horizontal
-        // pill strip below the bar or as a vertical icon rail on the left
-        // of the content, per `setting_nav_orientation`.
-        // Browser-style fullscreen suppresses every piece of chrome (tab
-        // bar, status bar) so the content fills the monitor edge-to-edge.
-        // The X-close affordance and the on-enter hint banner are drawn as
-        // Stack overlays below.
+        let base = self.build_base();
+
+        // Edge/corner resize handles, only when the window isn't
+        // maximized or in immersive fullscreen (no borders to grab in
+        // either case). Placed as the topmost stack layer so they win
+        // over tab-bar buttons near the frame, while the Space in the
+        // middle is pass-through.
+        let resize_overlay: Option<Element<'_, Message>> =
+            if self.window_maximized || self.window_fullscreen {
+                None
+            } else {
+                Some(resize_border())
+            };
+        self.layer_modals(base, resize_overlay)
+    }
+
+    /// Assemble the chrome-wrapped main-window content (`base`): the tab
+    /// bar (or bottom-dock chrome), the active-view content router with its
+    /// vault sub-nav / rail and side panel, the accent hairline, and the
+    /// status bar, composed in a single background container. The modal /
+    /// overlay layering is applied on top by `layer_modals`.
+    fn build_base(&self) -> Element<'_, Message> {
         let immersive = self.window_fullscreen;
         // Opt-in bottom docking (Settings -> Interface -> Tab bar
         // position): the strip moves above the status bar and the top
@@ -152,15 +165,19 @@ impl Oryxis {
                 ..Default::default()
             })
             .into();
+        base
+    }
 
-        // Edge/corner resize handles, only when the window isn't
-        // maximized or in immersive fullscreen (no borders to grab in
-        // either case). Placed as the topmost stack layer so they win
-        // over tab-bar buttons near the frame, while the Space in the
-        // middle is pass-through.
-        let resize_overlay: Option<Element<'_, Message>> =
-            if self.window_maximized || immersive { None } else { Some(resize_border()) };
-
+    /// Layer every modal, dropdown, context menu and floating overlay on
+    /// top of `base`, in strict precedence order (the first matching
+    /// surface wins and short-circuits). Returns `base` wrapped in a
+    /// single-child `Stack` when nothing is open, keeping the tree depth
+    /// constant so scrollable offsets survive a modal open / close.
+    fn layer_modals<'a>(
+        &'a self,
+        base: Element<'a, Message>,
+        resize_overlay: Option<Element<'a, Message>>,
+    ) -> Element<'a, Message> {
         // SFTP close-guard: the close button lives in the always-visible tab
         // strip, so this modal must render globally (not just on the SFTP
         // surface) or a close click from a terminal would set the pending
@@ -211,130 +228,10 @@ impl Oryxis {
 
         // Share dialog overlay
         if self.show_share_dialog {
-            let share_include_keys = self.share.include_keys;
-            // Group-mode export: a per-folder include/exclude checklist
-            // sits between the password and the keys toggle. A single-host
-            // share skips it (no folder choice to make).
-            let group_picker: Element<'_, Message> = if self.share.group_mode {
-                let mut list = column![text(crate::i18n::t("export_groups"))
-                    .size(12)
-                    .color(OryxisColors::t().text_muted)]
-                .spacing(6);
-                for g in &self.groups {
-                    let id = g.id;
-                    list = list.push(
-                        iced::widget::checkbox(self.share.groups.contains(&id))
-                            .label(g.label.as_str())
-                            .on_toggle(move |_| Message::ShareToggleGroup(id))
-                            .size(16)
-                            .text_size(13),
-                    );
-                }
-                list = list.push(
-                    iced::widget::checkbox(self.share.include_ungrouped)
-                        .label(crate::i18n::t("export_ungrouped"))
-                        .on_toggle(|_| Message::ShareToggleUngrouped)
-                        .size(16)
-                        .text_size(13),
-                );
-                column![
-                    iced::widget::container(
-                        iced::widget::scrollable(list)
-                            .height(Length::Fixed(160.0))
-                    )
-                    .width(280),
-                    Space::new().height(8),
-                ]
-                .into()
-            } else {
-                Space::new().height(0).into()
-            };
-            let dialog_title = if self.share.group_mode {
-                crate::i18n::t("export_hosts")
-            } else {
-                crate::i18n::t("share")
-            };
-            let dialog_content = container(
-                column![
-                    text(dialog_title).size(16).color(OryxisColors::t().text_primary),
-                    Space::new().height(12),
-                    container(crate::widgets::password_input_with_eye(
-                        crate::i18n::t("export_password"),
-                        &self.share.password,
-                        Message::SharePasswordChanged,
-                        None,
-                        self.revealed_secrets
-                            .contains(&crate::state::SecretField::SharePassword),
-                        Message::ToggleSecretVisibility(
-                            crate::state::SecretField::SharePassword,
-                        ),
-                        10.0,
-                    ))
-                    .width(280),
-                    Space::new().height(8),
-                    group_picker,
-                    row![
-                        text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary),
-                        Space::new().width(Length::Fill),
-                        // Keyboard rows: keys toggle, then Share as the
-                        // default (Enter shares), then Cancel.
-                        {
-                            self.modal_nav_reset();
-                            self.modal_nav_slot(
-                                crate::keynav::RowAction::activate(Message::ShareToggleKeys),
-                                4.0,
-                                false,
-                                button(
-                                    text(if share_include_keys { "ON" } else { "OFF" }).size(12)
-                                ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
-                                    button::Style {
-                                        background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
-                                        border: Border { radius: Radius::from(4.0), ..Default::default() },
-                                        text_color: OryxisColors::t().text_primary,
-                                        ..Default::default()
-                                    }
-                                }).into(),
-                            )
-                        },
-                    ].align_y(iced::Alignment::Center).width(280),
-                    Space::new().height(12),
-                    row![
-                        self.modal_nav_slot_default(
-                            crate::keynav::RowAction::activate(Message::ShareConfirm),
-                            6.0,
-                            true,
-                            styled_button(crate::i18n::t("share"), Message::ShareConfirm, OryxisColors::t().accent),
-                        ),
-                        Space::new().width(8),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(Message::ShareDismiss),
-                            6.0,
-                            false,
-                            styled_button(crate::i18n::t("cancel"), Message::ShareDismiss, OryxisColors::t().text_muted),
-                        ),
-                    ],
-                    if let Some(status) = &self.share.status {
-                        let (msg, color) = match status {
-                            Ok(m) => (m.as_str(), OryxisColors::t().success),
-                            Err(m) => (m.as_str(), OryxisColors::t().error),
-                        };
-                        Element::from(column![Space::new().height(8), text(msg).size(12).color(color)])
-                    } else {
-                        Element::from(Space::new().height(0))
-                    },
-                ]
-                .padding(24),
-            )
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog_content.into(),
+                    self.build_share_dialog(),
                     Some(Message::ShareDismiss),
                     0.0,
                 ),
@@ -346,120 +243,10 @@ impl Oryxis {
         // checkbox so the user picks which to add; hosts whose label
         // already exists are flagged and start unticked.
         if self.show_ssh_import_dialog {
-            let ssh_total = self.ssh_import_hosts.len();
-            let ssh_selected =
-                self.ssh_import_selected.iter().filter(|s| **s).count();
-            // Keyboard rows in visual order: select/deselect all, the
-            // per-host checkboxes, then Import (default) + Cancel.
-            // Pre-build the top buttons so the recording order matches
-            // the screen (the checkbox list is constructed next).
-            self.modal_nav_reset();
-            let select_all_btn = self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::SshImportSelectAll(true)),
-                6.0,
-                false,
-                styled_button(
-                    crate::i18n::t("select_all"),
-                    Message::SshImportSelectAll(true),
-                    OryxisColors::t().accent,
-                ),
-            );
-            let deselect_all_btn = self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::SshImportSelectAll(false)),
-                6.0,
-                false,
-                styled_button(
-                    crate::i18n::t("deselect_all"),
-                    Message::SshImportSelectAll(false),
-                    OryxisColors::t().text_muted,
-                ),
-            );
-            let mut list = column![].spacing(4);
-            for (i, host) in self.ssh_import_hosts.iter().enumerate() {
-                let checked =
-                    self.ssh_import_selected.get(i).copied().unwrap_or(false);
-                let exists =
-                    self.ssh_import_existing.get(i).copied().unwrap_or(false);
-                // "user@hostname:port", falling back to the alias when
-                // HostName is omitted (OpenSSH treats the alias as host).
-                let mut detail = host
-                    .hostname
-                    .clone()
-                    .unwrap_or_else(|| host.alias.clone());
-                if let Some(u) = &host.user {
-                    detail = format!("{u}@{detail}");
-                }
-                if let Some(p) = host.port {
-                    detail = format!("{detail}:{p}");
-                }
-                let mut label = format!("{}  ({detail})", host.alias);
-                if exists {
-                    label.push_str("  · ");
-                    label.push_str(crate::i18n::t("ssh_import_exists"));
-                }
-                list = list.push(self.modal_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SshImportToggle(i)),
-                    4.0,
-                    false,
-                    iced::widget::checkbox(checked)
-                        .label(label)
-                        .on_toggle(move |_| Message::SshImportToggle(i))
-                        .size(16)
-                        .text_size(13)
-                        .into(),
-                ));
-            }
-            let dialog_content = container(
-                column![
-                    text(crate::i18n::t("import_ssh_config_btn"))
-                        .size(16)
-                        .color(OryxisColors::t().text_primary),
-                    Space::new().height(4),
-                    text(format!(
-                        "{} ({}/{})",
-                        crate::i18n::t("ssh_import_select"),
-                        ssh_selected,
-                        ssh_total,
-                    ))
-                        .size(12)
-                        .color(OryxisColors::t().text_muted),
-                    Space::new().height(8),
-                    row![select_all_btn, Space::new().width(8), deselect_all_btn],
-                    Space::new().height(8),
-                    container(
-                        iced::widget::scrollable(list)
-                            .height(Length::Fixed(280.0))
-                    )
-                    .width(440),
-                    Space::new().height(12),
-                    row![
-                        self.modal_nav_slot_default(
-                            crate::keynav::RowAction::activate(Message::SshImportConfirm),
-                            6.0,
-                            true,
-                            styled_button(crate::i18n::t("import_from_file"), Message::SshImportConfirm, OryxisColors::t().success),
-                        ),
-                        Space::new().width(8),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(Message::SshImportDismiss),
-                            6.0,
-                            false,
-                            styled_button(crate::i18n::t("cancel"), Message::SshImportDismiss, OryxisColors::t().text_muted),
-                        ),
-                    ],
-                ]
-                .padding(24),
-            )
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog_content.into(),
+                    self.build_ssh_import_dialog(),
                     Some(Message::SshImportDismiss),
                     0.0,
                 ),
@@ -473,84 +260,10 @@ impl Oryxis {
         // optional "open URL" button (the URL opens in the system
         // browser via Message::OpenUrl).
         if let Some(dialog) = self.error_dialog.clone() {
-            // Keyboard: Close and the optional link/action are recorded
-            // rows; the action button (when present) is the default so
-            // a bare Enter runs it, matching the desktop convention for
-            // a dialog that IS the confirmation step.
-            self.modal_nav_reset();
-            use crate::keynav::RowAction;
-            let mut buttons = iced::widget::row![self.modal_nav_slot(
-                RowAction::activate(Message::ErrorDialogDismiss),
-                6.0,
-                false,
-                styled_button(
-                    crate::i18n::t("close"),
-                    Message::ErrorDialogDismiss,
-                    OryxisColors::t().text_muted,
-                ),
-            )]
-            .spacing(8);
-            if let Some(link) = dialog.link.clone() {
-                let url = link.url.clone();
-                buttons = buttons.push(self.modal_nav_slot(
-                    RowAction::activate(Message::OpenUrl(url)),
-                    6.0,
-                    false,
-                    open_link_button(link.label, link.url),
-                ));
-            }
-            if let Some(action) = dialog.action.clone() {
-                // Recovery action, accent-styled like the link button;
-                // dispatching goes through ErrorDialogRunAction so the
-                // dialog also dismisses itself.
-                buttons = buttons.push(self.modal_nav_slot_default(
-                    RowAction::activate(Message::ErrorDialogRunAction),
-                    6.0,
-                    true,
-                    dialog_action_button(action.label, action.danger),
-                ));
-            }
-
-            // Body uses Rich text with `.selectable(true)` so the user
-            // can highlight and copy the failure message (key when the
-            // dialog explains how to install a missing dependency or
-            // includes a path / command to run).
-            let body_span: iced::widget::text::Span<'_, ()> =
-                iced::widget::text::Span::new(dialog.body.clone())
-                    .color(OryxisColors::t().text_secondary);
-            let dialog_body = iced::widget::text::Rich::<'_, (), Message>::with_spans(
-                [body_span],
-            )
-            .size(13)
-            .selectable(true);
-
-            let dialog_content = container(
-                column![
-                    text(dialog.title.clone())
-                        .size(16)
-                        .color(OryxisColors::t().text_primary),
-                    Space::new().height(12),
-                    dialog_body,
-                    Space::new().height(20),
-                    buttons,
-                ]
-                .padding(24),
-            )
-            .width(Length::Shrink.max(520.0))
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    radius: Radius::from(12.0),
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog_content.into(),
+                    self.build_error_dialog(dialog),
                     Some(Message::ErrorDialogDismiss),
                     0.0,
                 ),
@@ -564,404 +277,17 @@ impl Oryxis {
         // transport choice. Transport row hides itself when the
         // batch is ECS-only since dynamic groups always run ECS Exec.
         if self.cloud_import_confirm_visible {
-            use oryxis_core::models::cloud::TransportKind;
-            let n_ec2 = self.cloud_discover_selected_ec2.len();
-            let n_ecs = self.cloud_discover_selected_ecs.len();
-            let summary = if n_ec2 > 0 && n_ecs > 0 {
-                format!("{} EC2 + {} ECS", n_ec2, n_ecs)
-            } else if n_ec2 > 0 {
-                format!("{} EC2", n_ec2)
-            } else {
-                format!("{} ECS", n_ecs)
-            };
-
-            // Keyboard rows in visual order: the group input (Enter
-            // focuses it), the transport picker (Left/Right cycle),
-            // Import (default) and Cancel.
-            self.modal_nav_reset();
-
-            // Import-into field + chevron. The suggestion dropdown
-            // is no longer inline; it's a floating popover rendered
-            // via the global OverlayState (`CloudDiscoverGroupPicker`)
-            // injected into the modal's own Stack below so it can
-            // visually rise above the dialog instead of pushing
-            // siblings. Input + chevron heights are explicitly fixed
-            // to 36 so they stay aligned in the row.
-            const COMBO_HEIGHT: f32 = 36.0;
-            let group_input = iced::widget::text_input(
-                crate::i18n::t("cloud_discover_import_into_placeholder"),
-                &self.cloud_discover_default_group_name,
-            )
-            .on_input(Message::CloudDiscoverDefaultGroupNameChanged)
-            .id(iced::widget::Id::new("cloud-import-group-input"))
-            .padding(8)
-            .style(crate::widgets::rounded_input_style)
-            .align_x(dir_align_x());
-            // Row 0: Enter focuses the group input.
-            let group_input = self.modal_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new(
-                    "cloud-import-group-input",
-                )),
-                10.0,
-                false,
-                group_input.into(),
-            );
-            let chevron_btn = iced::widget::button(
-                container(
-                    iced_fonts::lucide::chevron_down::<iced::Theme, iced::Renderer>()
-                        .size(12)
-                        .color(OryxisColors::t().text_muted),
-                )
-                .center_x(Length::Fixed(32.0))
-                .center_y(Length::Fixed(COMBO_HEIGHT)),
-            )
-            .on_press(Message::ToggleCloudDiscoverGroupPicker)
-            .padding(0)
-            .style(|_, status| {
-                let bg = match status {
-                    iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
-                    _ => OryxisColors::t().bg_surface,
-                };
-                iced::widget::button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border {
-                        radius: Radius::from(6.0),
-                        color: OryxisColors::t().border,
-                        width: 1.0,
-                    },
-                    ..Default::default()
-                }
-            });
-
-            // Transport picker is always rendered. For ECS-only
-            // imports the value is ignored on save (dynamic groups
-            // always run ECS Exec), but keeping the row in place
-            // preserves the row geometry + the explanatory hint
-            // beneath it and avoids the modal looking sparse when
-            // the user happens to pick zero EC2 hosts.
-            let transport_section: Element<'_, Message> = {
-                let transport_options = vec![
-                    TransportKind::Ssh,
-                    TransportKind::InstanceConnect,
-                    TransportKind::Ssm,
-                ];
-                let transport_pick = iced::widget::pick_list(
-                    Some(self.cloud_discover_default_transport),
-                    transport_options.clone(),
-                    |t| match t {
-                        TransportKind::Ssh => "SSH".to_string(),
-                        TransportKind::InstanceConnect => "EC2 Instance Connect".to_string(),
-                        TransportKind::Ssm => "SSM Session".to_string(),
-                        TransportKind::EcsExec => "ECS Exec".to_string(),
-                        TransportKind::KubectlExec => "kubectl exec".to_string(),
-                    },
-                )
-                .on_select(Message::CloudDiscoverDefaultTransportChanged)
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
-                .padding(10)
-                .style(crate::widgets::rounded_pick_list_style);
-                // Row 1: Left/Right cycle the transport without
-                // opening the dropdown.
-                let (t_prev, t_next) = crate::keynav::slots::cycle_pair(
-                    &transport_options,
-                    &self.cloud_discover_default_transport,
-                    Message::CloudDiscoverDefaultTransportChanged,
-                );
-                let transport_pick = self.modal_nav_slot(
-                    crate::keynav::RowAction::picker(t_prev, t_next),
-                    10.0,
-                    false,
-                    transport_pick.into(),
-                );
-                column![
-                    text(crate::i18n::t("cloud_dynamic_form_transport"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    container(transport_pick).width(Length::Fixed(320.0)),
-                    Space::new().height(8),
-                    text(crate::i18n::t("cloud_import_transport_hint"))
-                        .size(11)
-                        .color(OryxisColors::t().text_muted),
-                    Space::new().height(16),
-                ]
-                .into()
-            };
-            // Silence the now-unused n_ec2 binding; kept by name so
-            // the summary text above can read it without re-querying.
-            let _ = n_ec2;
-
-            let dialog_content = container(
-                column![
-                    text(crate::i18n::t("cloud_import_confirm_title"))
-                        .size(16)
-                        .color(OryxisColors::t().text_primary),
-                    Space::new().height(4),
-                    text(summary).size(11).color(OryxisColors::t().text_muted),
-                    Space::new().height(16),
-                    // "Import into" comes BEFORE Transport: the
-                    // dropdown is anchored to the chevron and opens
-                    // downward, so having the field higher in the
-                    // dialog gives the menu maximum vertical room
-                    // to extend without escaping the screen edge.
-                    text(crate::i18n::t("cloud_discover_import_into"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    // Wrap the combo row in `bounds_reporter` so the
-                    // toggle handler can read its on-screen rect and
-                    // anchor the picker overlay right below it. The
-                    // cell lives on Oryxis state; the wrapper here
-                    // just writes to it on every draw pass. Wrapping
-                    // the whole row (input + chevron) means the menu
-                    // can mirror the full combo width by default,
-                    // covering the empty area between the input and
-                    // the chevron edge.
-                    crate::widgets::bounds_reporter(
-                        dir_row(vec![
-                            container(group_input)
-                                .width(Length::Fill)
-                                .height(Length::Fixed(COMBO_HEIGHT))
-                                .into(),
-                            Space::new().width(6).into(),
-                            container(chevron_btn)
-                                .height(Length::Fixed(COMBO_HEIGHT))
-                                .into(),
-                        ])
-                        .width(Length::Fixed(308.0))
-                        .align_y(iced::Alignment::Center),
-                        self.cloud_discover_default_group_combo_bounds.clone(),
-                    ),
-                    Space::new().height(16),
-                    transport_section,
-                    crate::widgets::dir_row(vec![
-                        self.modal_nav_slot_default(
-                            crate::keynav::RowAction::activate(
-                                Message::CloudDiscoverImportConfirmed,
-                            ),
-                            6.0,
-                            true,
-                            styled_button(
-                                crate::i18n::t("import_btn_label"),
-                                Message::CloudDiscoverImportConfirmed,
-                                OryxisColors::t().accent,
-                            ),
-                        ),
-                        Space::new().width(8).into(),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(
-                                Message::CloudDiscoverImportCancelled,
-                            ),
-                            6.0,
-                            false,
-                            styled_button(
-                                crate::i18n::t("cancel"),
-                                Message::CloudDiscoverImportCancelled,
-                                OryxisColors::t().text_muted,
-                            ),
-                        ),
-                    ]),
-                ]
-                .padding(24),
-            )
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    radius: Radius::from(12.0),
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                },
-                ..Default::default()
-            });
-
-            let centered = container(
-                MouseArea::new(dialog_content).on_press(Message::NoOp),
-            )
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill);
-
-            // Intentionally NOT routed through `widgets::modal_overlay`:
-            // this modal injects a positioned group-picker popover into its
-            // own Stack (below) and uses a context-dependent scrim message,
-            // neither of which the simple helper hosts. It stays mouse-safe
-            // via `opaque` and keyboard-safe via `any_modal_blocks_input`.
-            //
-            // Scrim behaviour: while the group picker is open,
-            // off-dialog clicks dismiss only the picker so the user
-            // doesn't accidentally cancel the whole import. Wrapped
-            // in `iced::widget::opaque` so hover events stop here
-            // instead of bleeding through to the dashboard cards
-            // beneath the modal (otherwise iced's Stack lets mouse
-            // hover propagate to lower layers, lighting up rows
-            // under the cursor while the modal is open).
-            let on_scrim_click = if self.cloud_discover_default_group_picker_open {
-                Message::ToggleCloudDiscoverGroupPicker
-            } else {
-                Message::CloudDiscoverImportCancelled
-            };
-            let scrim: Element<'_, Message> = iced::widget::opaque(
-                MouseArea::new(
-                    container(Space::new())
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(Color::from_rgba(
-                                0.0, 0.0, 0.0, 0.5,
-                            ))),
-                            ..Default::default()
-                        }),
-                )
-                .on_press(on_scrim_click),
-            );
-
-            // Group-picker context menu: same pattern as the
-            // existing kebab menus. Built via the global
-            // `OverlayState` + `render_overlay_menu` pipeline so the
-            // menu styling, backdrop, and dismiss-on-click-outside
-            // all behave like every other context menu in the app.
-            // Injected here (inside the modal's Stack) because the
-            // modal short-circuits the global overlay path further
-            // down in `view_main`.
-            let mut modal_stack =
-                Stack::new().push(base).push(scrim).push(centered);
-            if let Some(ref ovl) = self.overlay
-                && matches!(ovl.content, OverlayContent::CloudDiscoverGroupPicker)
-            {
-                let menu = self.render_overlay_menu(ovl);
-                // Width matches the combo's measured width from the
-                // bounds_reporter (falls back to 308 on the very
-                // first open when the cell is still zeroed). Height
-                // clamp keeps tall menus on-screen.
-                let combo = self.cloud_discover_default_group_combo_bounds.get();
-                let menu_width = if combo.width > 0.0 { combo.width } else { 308.0 };
-                let menu_height = 280.0_f32;
-                let x = ovl
-                    .x
-                    .min((self.window_size.width - menu_width).max(0.0))
-                    .max(0.0);
-                let y = ovl
-                    .y
-                    .min((self.window_size.height - menu_height).max(0.0))
-                    .max(0.0);
-                let backdrop: Element<'_, Message> = MouseArea::new(
-                    container(Space::new())
-                        .width(Length::Fill)
-                        .height(Length::Fill),
-                )
-                .on_press(Message::ToggleCloudDiscoverGroupPicker)
-                .into();
-                let positioned: Element<'_, Message> = column![
-                    Space::new().height(y),
-                    row![
-                        Space::new().width(x),
-                        container(menu).width(Length::Fixed(menu_width)),
-                    ],
-                ]
-                .into();
-                modal_stack = modal_stack.push(backdrop).push(positioned);
-            }
-
-            return wrap_with_resize(
-                modal_stack
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                resize_overlay,
-            );
+            return self.layer_cloud_import_confirm(base, resize_overlay);
         }
 
         // Snippet-variables prompt: a snippet with `{name}` placeholders
         // parks here so the values are filled before anything reaches
         // the session. Same dialog shell as the careful paste below.
         if let Some(ref pending) = self.pending_snippet_vars {
-            let c = OryxisColors::t();
-            self.modal_nav_reset();
-            let mut fields = column![].spacing(10);
-            for (i, (name, value)) in pending.vars.iter().enumerate() {
-                let input_id = iced::widget::Id::from(format!("snippet-var-{i}"));
-                fields = fields.push(
-                    column![
-                        text(name.clone()).size(12).color(c.text_secondary),
-                        Space::new().height(4),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::input(input_id.clone()),
-                            crate::widgets::INPUT_RADIUS,
-                            false,
-                            text_input("", value)
-                                .id(input_id)
-                                .on_input(move |v| Message::SnippetVarChanged(i, v))
-                                .on_submit(Message::ConfirmSnippetVars)
-                                .padding(10)
-                                .style(crate::widgets::rounded_input_style)
-                                .align_x(dir_align_x())
-                                .into(),
-                        ),
-                    ]
-                    .width(Length::Fill)
-                    .align_x(dir_align_x()),
-                );
-            }
-            let confirm_label = if pending.run {
-                crate::i18n::t("snippet_run")
-            } else {
-                crate::i18n::t("snippet_paste")
-            };
-            let dialog = container(
-                column![
-                    dir_row(vec![
-                        iced_fonts::lucide::braces().size(16).color(c.accent).into(),
-                        Space::new().width(8).into(),
-                        container(
-                            text(crate::i18n::t("snippet_vars_title"))
-                                .size(16)
-                                .color(c.text_primary),
-                        )
-                        .width(Length::Fill)
-                        .align_x(dir_align_x())
-                        .into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                    Space::new().height(12),
-                    fields,
-                    Space::new().height(16),
-                    dir_row(vec![
-                        self.modal_nav_slot_default(
-                            crate::keynav::RowAction::activate(Message::ConfirmSnippetVars),
-                            6.0,
-                            true,
-                            styled_button(confirm_label, Message::ConfirmSnippetVars, c.accent),
-                        ),
-                        Space::new().width(8).into(),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(Message::CancelSnippetVars),
-                            6.0,
-                            false,
-                            styled_button(
-                                crate::i18n::t("cancel"),
-                                Message::CancelSnippetVars,
-                                c.text_muted,
-                            ),
-                        ),
-                    ]),
-                ]
-                .width(Length::Fill)
-                .align_x(dir_align_x())
-                .padding(24),
-            )
-            .width(Length::Fixed(420.0))
-            .style(move |_| container::Style {
-                background: Some(Background::Color(c.bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: c.border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_snippet_vars_dialog(pending),
                     Some(Message::CancelSnippetVars),
                     0.0,
                 ),
@@ -974,181 +300,10 @@ impl Oryxis {
         // count + first lines) before anything reaches the session, so a
         // hidden trailing newline can't auto-run a command.
         if let Some(ref pending) = self.pending_paste {
-            let c = OryxisColors::t();
-            // Count "\n", "\r\n" and bare-"\r" breaks alike; `str::lines`
-            // already folds the first two, normalize lone \r (old-Mac /
-            // bracketed-paste-hostile clipboards) before counting.
-            let normalized = pending.replace('\r', "\n");
-            let line_count = normalized.lines().count().max(1);
-            let ends_with_newline = pending.ends_with('\n') || pending.ends_with('\r');
-
-            // Preview: the first lines in the terminal's monospace, each
-            // clipped so a minified one-liner can't blow the dialog up.
-            const PREVIEW_LINES: usize = 8;
-            const PREVIEW_COLS: usize = 100;
-            let mut preview_col = column![].spacing(2);
-            for line in normalized.lines().take(PREVIEW_LINES) {
-                let clipped: String = if line.chars().count() > PREVIEW_COLS {
-                    let mut s: String = line.chars().take(PREVIEW_COLS).collect();
-                    s.push('…');
-                    s
-                } else {
-                    line.to_string()
-                };
-                // Preserve blank lines' height (empty text collapses).
-                let shown = if clipped.is_empty() { " ".to_string() } else { clipped };
-                preview_col = preview_col.push(
-                    text(shown)
-                        .size(12)
-                        .font(iced::Font::MONOSPACE)
-                        .color(c.text_secondary)
-                        // Wrap long lines inside the fixed-width dialog
-                        // instead of letting them bleed past its edge.
-                        // Glyph (not Word) so an unbroken token still wraps.
-                        .wrapping(iced::widget::text::Wrapping::Glyph),
-                );
-            }
-            if line_count > PREVIEW_LINES {
-                preview_col = preview_col.push(
-                    text("…").size(12).font(iced::Font::MONOSPACE).color(c.text_muted),
-                );
-            }
-            let preview = container(preview_col)
-                .width(Length::Fill)
-                .padding(10)
-                .style(move |_| container::Style {
-                    background: Some(Background::Color(c.bg_primary)),
-                    border: Border { radius: Radius::from(8.0), color: c.border, width: 1.0 },
-                    ..Default::default()
-                });
-
-            // The trailing-newline case is the whole reason this dialog
-            // exists; call it out explicitly when it applies.
-            let newline_note: Element<'_, Message> = if ends_with_newline {
-                column![
-                    Space::new().height(8),
-                    dir_row(vec![
-                        iced_fonts::lucide::triangle_alert()
-                            .size(13)
-                            .color(c.warning)
-                            .into(),
-                        Space::new().width(6).into(),
-                        container(
-                            text(crate::i18n::t("careful_paste_trailing"))
-                                .size(11)
-                                .color(c.warning),
-                        )
-                        .width(Length::Fill)
-                        .into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                ]
-                .into()
-            } else {
-                Space::new().height(0).into()
-            };
-
-            // Content-heuristic warnings (paste_guard): one line per
-            // detected class, re-derived from the parked text.
-            let mut guard_notes = column![].spacing(4);
-            for w in crate::paste_guard::paste_warnings(pending) {
-                guard_notes = guard_notes.push(
-                    dir_row(vec![
-                        iced_fonts::lucide::triangle_alert()
-                            .size(13)
-                            .color(c.error)
-                            .into(),
-                        Space::new().width(6).into(),
-                        container(
-                            text(crate::i18n::t(w.label_key())).size(11).color(c.error),
-                        )
-                        .width(Length::Fill)
-                        .into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                );
-            }
-            let guard_notes: Element<'_, Message> = column![
-                Space::new().height(8),
-                guard_notes,
-            ]
-            .into();
-
-            let dialog = container(
-                column![
-                    dir_row(vec![
-                        iced_fonts::lucide::clipboard_list()
-                            .size(16)
-                            .color(c.accent)
-                            .into(),
-                        Space::new().width(8).into(),
-                        container(
-                            text(crate::i18n::t("careful_paste_title"))
-                                .size(16)
-                                .color(c.text_primary),
-                        )
-                        .width(Length::Fill)
-                        .align_x(dir_align_x())
-                        .into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                    Space::new().height(6),
-                    text(crate::i18n::line_count(line_count))
-                        .size(12)
-                        .color(c.text_muted)
-                        .width(Length::Fill)
-                        .align_x(dir_align_x()),
-                    Space::new().height(10),
-                    preview,
-                    newline_note,
-                    guard_notes,
-                    Space::new().height(14),
-                    dir_row(vec![
-                        // Keyboard: Confirm is the default row (Enter
-                        // pastes), arrows/Tab reach Cancel.
-                        {
-                            self.modal_nav_reset();
-                            self.modal_nav_slot_default(
-                                crate::keynav::RowAction::activate(
-                                    Message::ConfirmPendingPaste,
-                                ),
-                                6.0,
-                                true,
-                                styled_button(
-                                    crate::i18n::t("careful_paste_confirm"),
-                                    Message::ConfirmPendingPaste,
-                                    c.accent,
-                                ),
-                            )
-                        },
-                        Space::new().width(8).into(),
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(Message::CancelPendingPaste),
-                            6.0,
-                            false,
-                            styled_button(
-                                crate::i18n::t("cancel"),
-                                Message::CancelPendingPaste,
-                                c.text_muted,
-                            ),
-                        ),
-                    ]),
-                ]
-                .width(Length::Fill)
-                .align_x(dir_align_x())
-                .padding(24),
-            )
-            .width(Length::Fixed(520.0))
-            .style(move |_| container::Style {
-                background: Some(Background::Color(c.bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: c.border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_paste_dialog(pending),
                     Some(Message::CancelPendingPaste),
                     0.0,
                 ),
@@ -1160,49 +315,10 @@ impl Oryxis {
         // tab's context menu. Same shape as the folder rename below; an
         // empty name restores the automatic label.
         if let Some((_tab_ref, ref input)) = self.tab_rename {
-            let dialog = container(
-                column![
-                    text(crate::i18n::t("rename_tab"))
-                        .size(16)
-                        .color(OryxisColors::t().text_primary)
-                        .width(Length::Fill)
-                        .align_x(dir_align_x()),
-                    Space::new().height(12),
-                    text_input(crate::i18n::t("tab_name"), input.as_str())
-                        .id(iced::widget::Id::new(TAB_RENAME_INPUT_ID))
-                        .on_input(Message::TabRenameInput)
-                        .on_submit(Message::ConfirmTabRename)
-                        .padding(10)
-                        .width(Length::Fill)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                    Space::new().height(6),
-                    text(crate::i18n::t("tab_name_hint"))
-                        .size(11)
-                        .color(OryxisColors::t().text_muted)
-                        .width(Length::Fill)
-                        .align_x(dir_align_x()),
-                    Space::new().height(12),
-                    dir_row(vec![
-                        styled_button(crate::i18n::t("save"), Message::ConfirmTabRename, OryxisColors::t().accent),
-                        Space::new().width(8).into(),
-                        styled_button(crate::i18n::t("cancel"), Message::CancelTabRename, OryxisColors::t().text_muted),
-                    ]),
-                ]
-                .width(Length::Fill)
-                .align_x(dir_align_x())
-                .padding(24),
-            )
-            .width(Length::Fixed(360.0))
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_tab_rename_dialog(input),
                     Some(Message::CancelTabRename),
                     0.0,
                 ),
@@ -1213,42 +329,10 @@ impl Oryxis {
         // Folder rename modal, shown after the user picks "Rename" from
         // the folder context menu.
         if let Some((_gid, ref input)) = self.folder_rename {
-            let dialog = container(
-                column![
-                    text(crate::i18n::t("rename_folder"))
-                        .size(16)
-                        .color(OryxisColors::t().text_primary)
-                        .width(Length::Fill)
-                        .align_x(dir_align_x()),
-                    Space::new().height(12),
-                    text_input(crate::i18n::t("folder_name"), input.as_str())
-                        .on_input(Message::FolderRenameInput)
-                        .on_submit(Message::ConfirmRenameFolder)
-                        .padding(10)
-                        .width(Length::Fill)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
-                    Space::new().height(12),
-                    dir_row(vec![
-                        styled_button(crate::i18n::t("save"), Message::ConfirmRenameFolder, OryxisColors::t().accent),
-                        Space::new().width(8).into(),
-                        styled_button(crate::i18n::t("cancel"), Message::CancelFolderModal, OryxisColors::t().text_muted),
-                    ]),
-                ]
-                .width(Length::Fill)
-                .align_x(dir_align_x())
-                .padding(24),
-            )
-            .width(Length::Fixed(360.0))
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_folder_rename_dialog(input),
                     Some(Message::CancelFolderModal),
                     0.0,
                 ),
@@ -1260,137 +344,10 @@ impl Oryxis {
         // since destroying hosts vs only the folder are very different
         // intentions and deserve explicit affordances.
         if let Some(gid) = self.folder_delete {
-            let folder_name = self
-                .groups
-                .iter()
-                .find(|g| g.id == gid)
-                .map(|g| g.label.clone())
-                .unwrap_or_default();
-            let host_count = self
-                .connections
-                .iter()
-                .filter(|c| c.group_id == Some(gid))
-                .count();
-            let c = OryxisColors::t();
-
-            // Tinted circular warning badge anchoring the dialog.
-            let badge = container(
-                iced_fonts::lucide::triangle_alert().size(22).color(c.error),
-            )
-            .width(Length::Fixed(48.0))
-            .height(Length::Fixed(48.0))
-            .center_x(Length::Fixed(48.0))
-            .center_y(Length::Fixed(48.0))
-            .style(move |_| container::Style {
-                background: Some(Background::Color(Color { a: 0.12, ..c.error })),
-                border: Border { radius: Radius::from(24.0), ..Default::default() },
-                ..Default::default()
-            });
-
-            // Subtitle: the folder name, plus the host count when it carries
-            // any (an empty folder has nothing to qualify).
-            let subtitle = if host_count == 0 {
-                format!("\"{}\"", folder_name)
-            } else {
-                format!("\"{}\"  ·  {}", folder_name, crate::i18n::host_count(host_count))
-            };
-            let header = column![
-                badge,
-                Space::new().height(14),
-                text(crate::i18n::t("delete_folder_question"))
-                    .size(17)
-                    .font(iced::Font {
-                        weight: iced::font::Weight::Semibold,
-                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                    })
-                    .color(c.text_primary),
-                Space::new().height(6),
-                text(subtitle)
-                    .size(12)
-                    .color(c.text_muted)
-                    .width(Length::Fill)
-                    .align_x(iced::alignment::Horizontal::Center),
-            ]
-            .width(Length::Fill)
-            .align_x(iced::Alignment::Center);
-
-            // Empty folders have no hosts to move or destroy, so the
-            // three-way choice collapses to a single, honest "remove the
-            // folder" action. Keyboard: the first (safest) choice card
-            // is the default row; Up/Down walk cards + Cancel.
-            self.modal_nav_reset();
-            use crate::keynav::RowAction;
-            let actions = if host_count == 0 {
-                column![self.modal_nav_slot_default(
-                    RowAction::activate(Message::DeleteFolderWithHosts),
-                    12.0,
-                    false,
-                    folder_choice_card(
-                        iced_fonts::lucide::trash(),
-                        crate::i18n::t("delete_folder_empty"),
-                        crate::i18n::t("delete_folder_empty_desc"),
-                        Message::DeleteFolderWithHosts,
-                        c.error,
-                    ),
-                )]
-            } else {
-                column![
-                    self.modal_nav_slot_default(
-                        RowAction::activate(Message::DeleteFolderKeepHosts),
-                        12.0,
-                        false,
-                        folder_choice_card(
-                            iced_fonts::lucide::folder_open(),
-                            crate::i18n::t("delete_folder_keep_hosts"),
-                            crate::i18n::t("delete_folder_keep_hosts_desc"),
-                            Message::DeleteFolderKeepHosts,
-                            c.accent,
-                        ),
-                    ),
-                    Space::new().height(10),
-                    self.modal_nav_slot(
-                        RowAction::activate(Message::DeleteFolderWithHosts),
-                        12.0,
-                        false,
-                        folder_choice_card(
-                            iced_fonts::lucide::trash(),
-                            crate::i18n::t("delete_folder_with_hosts"),
-                            crate::i18n::t("delete_folder_with_hosts_desc"),
-                            Message::DeleteFolderWithHosts,
-                            c.error,
-                        ),
-                    ),
-                ]
-            }
-            .width(Length::Fill);
-
-            let dialog = container(
-                column![
-                    header,
-                    Space::new().height(20),
-                    actions,
-                    Space::new().height(14),
-                    self.modal_nav_slot(
-                        RowAction::activate(Message::CancelFolderModal),
-                        8.0,
-                        false,
-                        ghost_button(crate::i18n::t("cancel"), Message::CancelFolderModal),
-                    ),
-                ]
-                .width(Length::Fill)
-                .padding(24),
-            )
-            .width(Length::Fixed(400.0))
-            .style(move |_| container::Style {
-                background: Some(Background::Color(c.bg_surface)),
-                border: Border { radius: Radius::from(14.0), color: c.border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_folder_delete_dialog(gid),
                     Some(Message::CancelFolderModal),
                     0.0,
                 ),
@@ -1402,67 +359,10 @@ impl Oryxis {
         // what gets wiped (recordings + connection events) before the
         // irreversible ClearLogs runs.
         if self.clear_history_confirm {
-            let total = self.logs_total + self.session_logs_total;
-            let dialog = container(
-                column![
-                    text(crate::i18n::t("clear_history_title"))
-                        .size(16)
-                        .color(OryxisColors::t().text_primary),
-                    Space::new().height(6),
-                    text(crate::i18n::t("clear_history_confirm"))
-                        .size(13)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    text(format!("{} {}", total, crate::i18n::t("entries")))
-                        .size(13)
-                        .color(OryxisColors::t().text_muted),
-                    Space::new().height(16),
-                    crate::widgets::dir_row(vec![
-                        // Keyboard: Clear all is the default (Enter
-                        // confirms); arrows/Tab reach Cancel; Esc
-                        // cancels via close_topmost_modal.
-                        {
-                            self.modal_nav_reset();
-                            self.modal_nav_slot(
-                                crate::keynav::RowAction::activate(
-                                    Message::CancelClearHistory,
-                                ),
-                                6.0,
-                                false,
-                                styled_button(
-                                    crate::i18n::t("cancel"),
-                                    Message::CancelClearHistory,
-                                    OryxisColors::t().text_muted,
-                                ),
-                            )
-                        },
-                        Space::new().width(8).into(),
-                        self.modal_nav_slot_default(
-                            crate::keynav::RowAction::activate(Message::ClearLogs),
-                            6.0,
-                            true,
-                            styled_button(
-                                crate::i18n::t("clear_all"),
-                                Message::ClearLogs,
-                                OryxisColors::t().error,
-                            ),
-                        ),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                ]
-                .padding(24)
-                .width(360),
-            )
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
-                    dialog.into(),
+                    self.build_clear_history_dialog(),
                     Some(Message::CancelClearHistory),
                     0.0,
                 ),
@@ -1598,164 +498,14 @@ impl Oryxis {
         // too. Don't re-render it here.
 
         if let Some(ref overlay) = self.overlay {
-            let menu = self.render_overlay_menu(overlay);
-
-            // The `+` split popover is hover-driven: it opens on hover and
-            // dismisses on mouse-out (`SplitMenuLeave`), so a click-dismiss
-            // backdrop is redundant for it. Worse, a full-screen backdrop sits
-            // on top of the `+` button and swallows the click, so the first
-            // click on `+` only closes the popover and a second is needed to
-            // open a new tab. Skip the backdrop here so the click reaches the
-            // button. Every other overlay through this path is click-triggered
-            // and keeps its click-outside dismissal.
-            let is_hover_popover = matches!(overlay.content, OverlayContent::SplitMenu);
-
-            // Position the menu, clamping to window bounds to prevent clipping.
-            // Under RTL, anchor by the menu's right edge so it grows toward
-            // the leading (left) side, mirroring native OS dropdown behavior.
-            // Width must match the value used in `render_overlay_menu` so
-            // clamping lines up with the rendered box.
-            let menu_width = self.overlay_menu_width(overlay);
-            let menu_height = self.overlay_menu_height(overlay);
-            let raw_x = if crate::i18n::is_rtl_layout() {
-                overlay.x - menu_width
-            } else {
-                overlay.x
-            };
-            let x = raw_x.min(self.window_size.width - menu_width).max(0.0);
-            let y = overlay.y.min(self.window_size.height - menu_height).max(0.0);
-            let positioned_menu: Element<'_, Message> = column![
-                Space::new().height(y),
-                row![
-                    Space::new().width(x),
-                    menu,
-                ],
-            ]
-            .into();
-
-            let mut stack = Stack::new().push(base);
-            if !is_hover_popover {
-                // Transparent backdrop that dismisses the menu on click.
-                let backdrop: Element<'_, Message> = MouseArea::new(
-                    container(Space::new())
-                        .width(Length::Fill)
-                        .height(Length::Fill),
-                )
-                .on_press(Message::HideOverlayMenu)
-                .into();
-                stack = stack.push(backdrop);
-            }
-            return wrap_with_resize(
-                stack
-                    .push(positioned_menu)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                resize_overlay,
-            );
+            return self.layer_overlay_menu(base, resize_overlay, overlay);
         }
 
         // SFTP row right-click menu, rendered at the layout root so the
         // window-coord click position lines up with the menu origin
         // without having to compensate for the title + tab bar height.
         if let Some(ref row_menu) = self.sftp.row_menu {
-            // "Cross-pane action available" = the pane opposite the
-            // right-clicked row is connected (remote with a client) or is
-            // a local destination. The row menu uses this to decide
-            // whether to offer Upload / Download / Relay.
-            let other_side = if row_menu.side == crate::state::SftpPaneSide::Left {
-                crate::state::SftpPaneSide::Right
-            } else {
-                crate::state::SftpPaneSide::Left
-            };
-            let other = self.sftp.pane(other_side);
-            let cross_pane_ready = if other.is_remote {
-                other.client.is_some()
-            } else {
-                true
-            };
-            let other_is_remote = other.is_remote;
-            let src_pane = self.sftp.pane(row_menu.side);
-            let source_is_remote = src_pane.is_remote;
-            let other_label = other.host_label.clone();
-            // Current directory of the source pane + its local path, fed to
-            // the directory-level actions (Refresh / New / Open in FM).
-            let pane_dir = if source_is_remote {
-                src_pane.remote_path.clone()
-            } else {
-                src_pane.local_path.to_string_lossy().into_owned()
-            };
-            let local_dir = src_pane.local_path.clone();
-            let show_hidden = src_pane.show_hidden;
-            // Count of selected rows in the same pane as the right-
-            // clicked row, drives the bulk vs single menu mode.
-            let selection_count_same_pane = self
-                .sftp
-                .selected_rows
-                .iter()
-                .filter(|(s, _)| *s == row_menu.side)
-                .count();
-            let menu = crate::views::sftp::row_context_menu_box(
-                row_menu,
-                cross_pane_ready,
-                source_is_remote,
-                other_is_remote,
-                other_label,
-                selection_count_same_pane,
-                crate::views::sftp::DirActionCtx {
-                    pane_dir: &pane_dir,
-                    local_dir: &local_dir,
-                    show_hidden,
-                },
-            );
-            let backdrop: Element<'_, Message> = MouseArea::new(
-                container(Space::new())
-                    .width(Length::Fill)
-                    .height(Length::Fill),
-            )
-            .on_press(Message::SftpRowMenuClose)
-            .into();
-            // Nudge the menu a few px down/right so it doesn't sit
-            // directly under the cursor, feels like the OS-native menu
-            // anchoring.
-            let menu_width = crate::views::sftp::ROW_CONTEXT_MENU_WIDTH;
-            let rtl = crate::i18n::is_rtl_layout();
-            // Under RTL, nudge toward the leading side so the menu grows
-            // left-from-cursor instead of right-from-cursor.
-            let nudged_x = if rtl {
-                row_menu.x - 2.0 - menu_width
-            } else {
-                row_menu.x + 2.0
-            };
-            let nudged_y = row_menu.y + 2.0;
-            let menu_height = crate::views::sftp::row_context_menu_height(
-                row_menu,
-                cross_pane_ready,
-                source_is_remote,
-                other_is_remote,
-                selection_count_same_pane,
-            );
-            let x = nudged_x
-                .min(self.window_size.width - menu_width)
-                .max(0.0);
-            let y = nudged_y
-                .min(self.window_size.height - menu_height)
-                .max(0.0);
-            let positioned_menu: Element<'_, Message> = column![
-                Space::new().height(y),
-                row![Space::new().width(x), menu],
-            ]
-            .into();
-            return wrap_with_resize(
-                Stack::new()
-                    .push(base)
-                    .push(backdrop)
-                    .push(positioned_menu)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                resize_overlay,
-            );
+            return self.layer_sftp_row_menu(base, resize_overlay, row_menu);
         }
 
         // Floating drag ghost, rendered last so it sits above
@@ -1765,37 +515,7 @@ impl Oryxis {
         if let Some(drag) = &self.sftp.drag
             && drag.active
         {
-            let ghost = crate::views::sftp::drag_ghost(&drag.label);
-            // Offset slightly off the cursor, matches OS drag previews
-            // and keeps the label out from under the pointer. Direction
-            // mirrors under RTL so the ghost trails the cursor on the
-            // leading side instead of running off-screen at the edge.
-            let ghost_width = 200.0_f32;
-            let x_offset = if crate::i18n::is_rtl_layout() {
-                -ghost_width - 12.0
-            } else {
-                12.0
-            };
-            let x = (self.mouse_position.x + x_offset)
-                .min(self.window_size.width - ghost_width)
-                .max(0.0);
-            let y = (self.mouse_position.y + 12.0)
-                .min(self.window_size.height - 40.0)
-                .max(0.0);
-            let positioned: Element<'_, Message> = column![
-                Space::new().height(y),
-                row![Space::new().width(x), ghost],
-            ]
-            .into();
-            return wrap_with_resize(
-                Stack::new()
-                    .push(base)
-                    .push(positioned)
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into(),
-                resize_overlay,
-            );
+            return self.layer_sftp_drag_ghost(base, resize_overlay, drag);
         }
 
         // No modal open. Wrap `base` in a single-child Stack so it sits

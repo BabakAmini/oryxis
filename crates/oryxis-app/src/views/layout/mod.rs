@@ -21,6 +21,9 @@ const RESIZE_EDGE: f32 = 5.0;
 // Layout sub-views split into sibling files.
 mod chrome;
 mod main_layout;
+mod modal_dialogs;
+mod modal_overlays;
+mod modal_prompts;
 mod menus;
 mod toolbar;
 pub(crate) use chrome::*;
