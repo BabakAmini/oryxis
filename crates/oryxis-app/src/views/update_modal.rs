@@ -18,7 +18,23 @@ impl Oryxis {
             None => return Space::new().into(),
         };
 
-        let current = env!("CARGO_PKG_VERSION");
+        // What this binary actually is. A nightly build carries the same
+        // CARGO_PKG_VERSION as the stable it branched from, so showing the
+        // bare version when a nightly user is offered a stable reads as
+        // "0.8.3 is available. You're on 0.8.3." Identify nightlies by
+        // channel + embedded commit instead.
+        let current = match crate::update::build_channel() {
+            crate::update::UpdateChannel::Nightly => {
+                let sha = env!("ORYXIS_GIT_SHA");
+                if sha == "unknown" {
+                    "nightly".to_string()
+                } else {
+                    let short: String = sha.chars().take(8).collect();
+                    format!("nightly ({short})")
+                }
+            }
+            crate::update::UpdateChannel::Stable => env!("CARGO_PKG_VERSION").to_string(),
+        };
         let title = text(t("update_available")).size(18).font(iced::Font {
             weight: iced::font::Weight::Bold,
             ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
@@ -27,7 +43,7 @@ impl Oryxis {
         let subtitle = text(
             t("update_subtitle")
                 .replacen("{new}", &info.version, 1)
-                .replacen("{current}", current, 1),
+                .replacen("{current}", &current, 1),
         )
         .size(12)
         .color(OryxisColors::t().text_secondary);
@@ -97,15 +113,13 @@ impl Oryxis {
                 border: Border { radius: Radius::from(3.0), ..Default::default() },
                 ..Default::default()
             });
-            // Nightly / non-stable swaps the bare binary in place (no
-            // installer), so a generic "Downloading" reads right there.
-            let label = if matches!(
-                self.setting_update_channel,
-                crate::update::UpdateChannel::Stable
-            ) {
-                t("downloading_installer")
-            } else {
-                t("downloading_update")
+            // Branch on the update's own artifact kind, not the channel
+            // setting: a nightly binary can legitimately download a stable
+            // installer (channel flipped back to Stable), and the setting
+            // can lag the offer that's actually on screen.
+            let label = match info.artifact {
+                crate::update::UpdateArtifact::Installer => t("downloading_installer"),
+                crate::update::UpdateArtifact::Binary => t("downloading_update"),
             };
             column![
                 text(format!("{} {}%", label, pct))
