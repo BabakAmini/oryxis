@@ -21,6 +21,8 @@ const RESIZE_EDGE: f32 = 5.0;
 // Layout sub-views split into sibling files.
 mod chrome;
 mod main_layout;
+mod menu_card;
+mod menu_vault;
 mod modal_dialogs;
 mod modal_overlays;
 mod modal_prompts;
