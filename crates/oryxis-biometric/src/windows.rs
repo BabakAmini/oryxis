@@ -166,16 +166,32 @@ impl BiometricProvider for WindowsHello {
                 }
             })?;
 
-            let cred = &*pcred;
-            let bytes = std::slice::from_raw_parts_mut(
-                cred.CredentialBlob,
-                cred.CredentialBlobSize as usize,
-            );
+            // CredReadW is documented to set the out pointer on success,
+            // but nothing in the type system proves it; guard instead of
+            // dereferencing blindly so a misbehaving credential provider
+            // can't make us touch null (CodeQL rust/access-invalid-pointer).
+            let Some(pcred_nn) = std::ptr::NonNull::new(pcred) else {
+                return Err(BioError::Backend(
+                    "CredReadW succeeded but returned a null credential".into(),
+                ));
+            };
+            let cred = pcred_nn.as_ref();
+            // An empty credential may carry a null CredentialBlob, and
+            // from_raw_parts_mut requires a non-null pointer even for a
+            // zero-length slice; treat that case as an empty secret.
+            let bytes: &mut [u8] = if cred.CredentialBlob.is_null() {
+                &mut []
+            } else {
+                std::slice::from_raw_parts_mut(
+                    cred.CredentialBlob,
+                    cred.CredentialBlobSize as usize,
+                )
+            };
             let secret = String::from_utf8_lossy(bytes).into_owned();
             // CredFree releases the buffer without clearing it; zero the
             // password bytes first so they don't sit on a freed heap page.
             wipe(bytes);
-            CredFree(pcred as *const core::ffi::c_void);
+            CredFree(pcred_nn.as_ptr() as *const core::ffi::c_void);
             Ok(secret)
         }
     }
