@@ -940,7 +940,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "ターミナルのディレクトリに追従中。クリックで停止。",
         "files_follow_off_tip" => "ターミナルのディレクトリに追従",
         "setting_sftp_force_osc7" => "ディレクトリの正確な追従を強制（OSC 7）",
-        "setting_sftp_force_osc7_desc" => "ターミナルのファイルサイドバーはシェルのディレクトリに追従します。シェルが OSC 7 で報告する場合は正確に追従し、そうでなければウィンドウタイトルの解析にフォールバックしますが、一部のプロンプトでは失敗します。これは接続時に小さな設定行を注入し、シェルが常に OSC 7 を報告するようにします。bash/zsh のみ。接続時に 1 行がエコーされ、シェルの PROMPT_COMMAND に追加されます。",
+        "setting_sftp_force_osc7_desc" => "ターミナルのファイルサイドバーはシェルのディレクトリに追従します。シェルが OSC 7 で報告する場合は正確に追従し、そうでなければウィンドウタイトルの解析にフォールバックしますが、一部のプロンプトでは失敗します。これは接続時に小さな設定行を注入し、シェルが常に OSC 7 を報告するようにします。bash/zsh のみ。シェルの PROMPT_COMMAND に追加され、自身の出力を消去するため画面には何も表示されません。",
         "setting_sftp_force_osc7_toggle" => "接続時に OSC 7 エミッターを注入",
         "files_mounting" => "SFTP を開いています…",
         "files_empty" => "空のフォルダー",

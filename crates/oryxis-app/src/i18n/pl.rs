@@ -1025,7 +1025,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Podąża za katalogiem terminala. Kliknij, aby zatrzymać.",
         "files_follow_off_tip" => "Podążaj za katalogiem terminala",
         "setting_sftp_force_osc7" => "Wymuś dokładne podążanie za katalogiem (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "Panel Plików terminala podąża za katalogiem powłoki. Gdy powłoka zgłasza go przez OSC 7, podążanie jest dokładne; w przeciwnym razie Oryxis analizuje tytuł okna, co zawodzi przy niektórych znakach zachęty. To wstrzykuje przy połączeniu małą linię, aby powłoka zawsze zgłaszała OSC 7. Tylko bash/zsh; wyświetla jedną linię przy połączeniu i dodaje do PROMPT_COMMAND powłoki.",
+        "setting_sftp_force_osc7_desc" => "Panel Plików terminala podąża za katalogiem powłoki. Gdy powłoka zgłasza go przez OSC 7, podążanie jest dokładne; w przeciwnym razie Oryxis analizuje tytuł okna, co zawodzi przy niektórych znakach zachęty. To wstrzykuje przy połączeniu małą linię, aby powłoka zawsze zgłaszała OSC 7. Tylko bash/zsh; dodaje do PROMPT_COMMAND powłoki i czyści własne wyjście, więc nic nie pojawia się na ekranie.",
         "setting_sftp_force_osc7_toggle" => "Wstrzyknij emiter OSC 7 przy połączeniu",
         "files_mounting" => "Otwieranie SFTP…",
         "files_empty" => "Pusty folder",

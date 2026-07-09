@@ -1025,7 +1025,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "files_follow_on_tip" => "Following the terminal directory. Click to stop.",
         "files_follow_off_tip" => "Follow the terminal directory",
         "setting_sftp_force_osc7" => "Force exact directory following (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "The terminal Files sidebar follows the shell's directory. When the shell reports it via OSC 7, following is exact; otherwise Oryxis falls back to parsing the window title, which breaks with some prompts. This injects a small setup line on connect so the shell always reports OSC 7. bash/zsh only; it echoes one line on connect and adds to the shell's PROMPT_COMMAND.",
+        "setting_sftp_force_osc7_desc" => "The terminal Files sidebar follows the shell's directory. When the shell reports it via OSC 7, following is exact; otherwise Oryxis falls back to parsing the window title, which breaks with some prompts. This injects a small setup line on connect so the shell always reports OSC 7. bash/zsh only; it adds to the shell's PROMPT_COMMAND and cleans up its own output so nothing shows on screen.",
         "setting_sftp_force_osc7_toggle" => "Inject OSC 7 emitter on connect",
         "files_mounting" => "Opening SFTP…",
         "files_empty" => "Empty folder",

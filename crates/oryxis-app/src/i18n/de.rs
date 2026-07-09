@@ -931,7 +931,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Folgt dem Terminal-Verzeichnis. Klicken zum Stoppen.",
         "files_follow_off_tip" => "Dem Terminal-Verzeichnis folgen",
         "setting_sftp_force_osc7" => "Exaktes Verzeichnis-Folgen erzwingen (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "Die Terminal-Dateileiste folgt dem Shell-Verzeichnis. Meldet die Shell es per OSC 7, ist das Folgen exakt; sonst wertet Oryxis den Fenstertitel aus, was mit manchen Prompts fehlschlägt. Dies fügt beim Verbinden eine kleine Zeile ein, damit die Shell immer OSC 7 meldet. Nur bash/zsh; eine Zeile wird beim Verbinden ausgegeben und dem PROMPT_COMMAND der Shell hinzugefügt.",
+        "setting_sftp_force_osc7_desc" => "Die Terminal-Dateileiste folgt dem Shell-Verzeichnis. Meldet die Shell es per OSC 7, ist das Folgen exakt; sonst wertet Oryxis den Fenstertitel aus, was mit manchen Prompts fehlschlägt. Dies fügt beim Verbinden eine kleine Zeile ein, damit die Shell immer OSC 7 meldet. Nur bash/zsh; es wird dem PROMPT_COMMAND der Shell hinzugefügt und räumt seine eigene Ausgabe auf, sodass nichts auf dem Bildschirm erscheint.",
         "setting_sftp_force_osc7_toggle" => "OSC-7-Emitter beim Verbinden einfügen",
         "files_mounting" => "SFTP wird geöffnet…",
         "files_empty" => "Leerer Ordner",

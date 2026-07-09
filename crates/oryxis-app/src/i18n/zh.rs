@@ -940,7 +940,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "正在跟随终端目录。点击停止。",
         "files_follow_off_tip" => "跟随终端目录",
         "setting_sftp_force_osc7" => "强制精确跟随目录（OSC 7）",
-        "setting_sftp_force_osc7_desc" => "终端文件侧栏会跟随 shell 的目录。当 shell 通过 OSC 7 报告时，跟随是精确的；否则 Oryxis 回退到解析窗口标题，这在某些提示符下会失败。此选项在连接时注入一小段设置，使 shell 始终报告 OSC 7。仅限 bash/zsh；连接时会回显一行并追加到 shell 的 PROMPT_COMMAND。",
+        "setting_sftp_force_osc7_desc" => "终端文件侧栏会跟随 shell 的目录。当 shell 通过 OSC 7 报告时，跟随是精确的；否则 Oryxis 回退到解析窗口标题，这在某些提示符下会失败。此选项在连接时注入一小段设置，使 shell 始终报告 OSC 7。仅限 bash/zsh；它会追加到 shell 的 PROMPT_COMMAND 并清理自身输出，因此屏幕上不会显示任何内容。",
         "setting_sftp_force_osc7_toggle" => "连接时注入 OSC 7 发射器",
         "files_mounting" => "正在打开 SFTP…",
         "files_empty" => "空文件夹",

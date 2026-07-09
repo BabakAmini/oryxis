@@ -1019,7 +1019,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Đang theo thư mục của terminal. Nhấp để dừng.",
         "files_follow_off_tip" => "Theo thư mục của terminal",
         "setting_sftp_force_osc7" => "Buộc theo thư mục chính xác (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "Thanh bên Tệp của terminal theo thư mục của shell. Khi shell báo cáo qua OSC 7, việc theo là chính xác; nếu không Oryxis phân tích tiêu đề cửa sổ, vốn thất bại với một số dấu nhắc. Tùy chọn này chèn một dòng thiết lập nhỏ khi kết nối để shell luôn báo cáo OSC 7. Chỉ bash/zsh; hiển thị một dòng khi kết nối và thêm vào PROMPT_COMMAND của shell.",
+        "setting_sftp_force_osc7_desc" => "Thanh bên Tệp của terminal theo thư mục của shell. Khi shell báo cáo qua OSC 7, việc theo là chính xác; nếu không Oryxis phân tích tiêu đề cửa sổ, vốn thất bại với một số dấu nhắc. Tùy chọn này chèn một dòng thiết lập nhỏ khi kết nối để shell luôn báo cáo OSC 7. Chỉ bash/zsh; thêm vào PROMPT_COMMAND của shell và tự dọn đầu ra của nó, nên không có gì hiển thị trên màn hình.",
         "setting_sftp_force_osc7_toggle" => "Chèn bộ phát OSC 7 khi kết nối",
         "files_mounting" => "Đang mở SFTP…",
         "files_empty" => "Thư mục trống",

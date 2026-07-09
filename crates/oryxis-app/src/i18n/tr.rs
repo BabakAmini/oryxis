@@ -1019,7 +1019,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Terminal dizini izleniyor. Durdurmak için tıklayın.",
         "files_follow_off_tip" => "Terminal dizinini izle",
         "setting_sftp_force_osc7" => "Dizini tam izlemeyi zorla (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "Terminal Dosyalar kenar çubuğu kabuğun dizinini izler. Kabuk bunu OSC 7 ile bildirdiğinde izleme tamdır; aksi halde Oryxis pencere başlığını ayrıştırmaya geri döner, bu da bazı komut istemlerinde başarısız olur. Bu, bağlanırken küçük bir kurulum satırı enjekte ederek kabuğun her zaman OSC 7 bildirmesini sağlar. Yalnızca bash/zsh; bağlanırken bir satır yankılanır ve kabuğun PROMPT_COMMAND'ine eklenir.",
+        "setting_sftp_force_osc7_desc" => "Terminal Dosyalar kenar çubuğu kabuğun dizinini izler. Kabuk bunu OSC 7 ile bildirdiğinde izleme tamdır; aksi halde Oryxis pencere başlığını ayrıştırmaya geri döner, bu da bazı komut istemlerinde başarısız olur. Bu, bağlanırken küçük bir kurulum satırı enjekte ederek kabuğun her zaman OSC 7 bildirmesini sağlar. Yalnızca bash/zsh; kabuğun PROMPT_COMMAND'ine eklenir ve kendi çıktısını temizler, böylece ekranda hiçbir şey görünmez.",
         "setting_sftp_force_osc7_toggle" => "Bağlanırken OSC 7 yayıcı enjekte et",
         "files_mounting" => "SFTP açılıyor…",
         "files_empty" => "Boş klasör",

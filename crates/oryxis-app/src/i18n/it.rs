@@ -931,7 +931,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Segue la directory del terminale. Clic per fermare.",
         "files_follow_off_tip" => "Segui la directory del terminale",
         "setting_sftp_force_osc7" => "Forza il following esatto della directory (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "La barra File del terminale segue la directory della shell. Se la shell la riporta via OSC 7, il following è esatto; altrimenti Oryxis analizza il titolo della finestra, che fallisce con alcuni prompt. Questo inietta una piccola riga alla connessione così la shell riporta sempre OSC 7. Solo bash/zsh; mostra una riga alla connessione e si somma al PROMPT_COMMAND della shell.",
+        "setting_sftp_force_osc7_desc" => "La barra File del terminale segue la directory della shell. Se la shell la riporta via OSC 7, il following è esatto; altrimenti Oryxis analizza il titolo della finestra, che fallisce con alcuni prompt. Questo inietta una piccola riga alla connessione così la shell riporta sempre OSC 7. Solo bash/zsh; si somma al PROMPT_COMMAND della shell e ripulisce il proprio output, così non appare nulla sullo schermo.",
         "setting_sftp_force_osc7_toggle" => "Inietta l'emettitore OSC 7 alla connessione",
         "files_mounting" => "Apertura SFTP…",
         "files_empty" => "Cartella vuota",

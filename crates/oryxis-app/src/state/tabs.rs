@@ -410,15 +410,43 @@ impl Pane {
     }
 }
 
-/// The force-OSC7 setup line: a `PROMPT_COMMAND` that emits a
-/// BEL-terminated OSC 7 (`file://host/cwd`) on every prompt, prepended
-/// to any existing `PROMPT_COMMAND` so the user's own hook still runs.
-/// bash/zsh; a shell without `PROMPT_COMMAND` ignores the assignment.
-/// One line echoes on send (documented in Settings). `${HOSTNAME:-…}`
-/// covers shells that don't export HOSTNAME.
-pub(crate) const OSC7_PROMPT_INJECT: &str =
-    "PROMPT_COMMAND='printf \"\\033]7;file://%s%s\\007\" \
-     \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"'\"${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"\n";
+/// The force-OSC7 setup: defines a helper that emits a BEL-terminated
+/// OSC 7 (`file://host/cwd`), then registers it as a pre-prompt hook in
+/// BOTH shell families so the terminal Files sidebar can follow the exact
+/// cwd. `${HOSTNAME:-…}` covers shells that don't export HOSTNAME.
+///
+/// Works on bash AND zsh with no shell detection, by registering through
+/// each shell's own mechanism and letting the other one no-op. bash reads
+/// `PROMPT_COMMAND` (we prepend the helper, keeping any existing value),
+/// and its `precmd_functions+=(…)` just creates an array bash never reads.
+/// zsh has no `PROMPT_COMMAND` (that assignment sets an unused var) and
+/// runs `precmd_functions`, the array we append the helper to. So the same
+/// line lights up cwd following on either shell, and neither mechanism
+/// errors in the other.
+///
+/// It also cleans up its own echo instead of leaving the setup text on
+/// screen. An interactive shell runs through readline (raw mode), so the
+/// tty echoes what we send and no `stty` trick can suppress it; and we
+/// can't send raw control bytes as input (readline would interpret them).
+/// So we send two ordinary-text commands in one write. The first, `printf
+/// '\x1b7'`, saves the cursor (DECSC) at the clean prompt baseline, before
+/// the big line below echoes. The second defines + registers the helper,
+/// then `printf '\x1b8\x1b[1A\x1b[J'` restores the cursor (DECRC), steps
+/// over the tiny first line, and erases to the end of the screen. That
+/// wipes the whole echoed block regardless of how many rows it wrapped to,
+/// without touching the MOTD above it. Only literal backslash escapes are
+/// sent; printf turns them into the real control bytes at run time, so the
+/// remote line editor only ever sees plain text. The DECSC/DECRC bytes use
+/// `\x1b` hex (bounded to two hex digits) rather than octal `\033`, because
+/// the octal form would merge the trailing `7` of DECSC into the escape
+/// (`\0337` parses as one octal byte, not ESC + `7`); `\x1b` is safe here
+/// since the feature is bash/zsh-only and both printf builtins accept
+/// `\xHH`.
+pub(crate) const OSC7_PROMPT_INJECT: &str = "printf '\\x1b7'\n\
+     __oryxis_o7(){ printf '\\033]7;file://%s%s\\007' \
+     \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"; }; \
+     PROMPT_COMMAND=\"__oryxis_o7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; \
+     precmd_functions+=(__oryxis_o7); printf '\\x1b8\\x1b[1A\\x1b[J'\n";
 
 /// Live state of a ZMODEM transfer that has seized a pane's byte stream.
 /// While present, `PtyOutput` for the pane is routed into `wire_tx`
@@ -971,5 +999,45 @@ mod terminal_tab_tests {
         assert_eq!(tab.label, "host-a");
         tab.custom_name = None;
         assert_eq!(tab.display_label(), "host-a");
+    }
+
+    #[test]
+    fn osc7_inject_is_plain_text_and_self_clearing() {
+        let s = OSC7_PROMPT_INJECT;
+        // The remote shell runs through readline (raw mode): sending a raw
+        // control byte would be interpreted as a key, not inserted. Every
+        // escape must travel as literal backslash text for printf to
+        // expand at run time, so the on-the-wire bytes stay printable
+        // (plus the two command-terminating newlines).
+        for b in s.bytes() {
+            assert!(
+                b == b'\n' || (b' '..=b'~').contains(&b),
+                "OSC7 injection must be plain text, found control byte {b:#04x}",
+            );
+        }
+        // Pin the exact wire bytes: this catches escaping/spacing slips in
+        // the multi-line string literal (a glued `}; PROMPT_COMMAND` or a
+        // dropped space would break the shell parse on connect, which we
+        // can't unit-test directly).
+        let expected = "printf '\\x1b7'\n\
+            __oryxis_o7(){ printf '\\033]7;file://%s%s\\007' \
+            \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"; }; \
+            PROMPT_COMMAND=\"__oryxis_o7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; \
+            precmd_functions+=(__oryxis_o7); printf '\\x1b8\\x1b[1A\\x1b[J'\n";
+        assert_eq!(s, expected);
+        // DECSC uses hex `\x1b7`, never octal `\0337` (which printf would
+        // read as a single octal byte because `7` is an octal digit).
+        assert!(!s.contains(r"\0337"), "octal DECSC would merge the trailing 7");
+        // Registered in both shell families: bash via PROMPT_COMMAND, zsh
+        // via precmd_functions. One without the other silently drops cwd
+        // following on that shell.
+        assert!(s.contains("PROMPT_COMMAND=\""), "missing bash registration");
+        assert!(
+            s.contains("precmd_functions+=(__oryxis_o7)"),
+            "missing zsh registration",
+        );
+        // Two commands, so two newlines: the DECSC save, then the setup
+        // plus the self-clear trailer.
+        assert_eq!(s.matches('\n').count(), 2, "expected exactly two commands");
     }
 }

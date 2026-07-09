@@ -1019,7 +1019,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "Mengikuti direktori terminal. Klik untuk berhenti.",
         "files_follow_off_tip" => "Ikuti direktori terminal",
         "setting_sftp_force_osc7" => "Paksa pengikutan direktori yang tepat (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "Bilah sisi Berkas terminal mengikuti direktori shell. Saat shell melaporkannya via OSC 7, pengikutan tepat; jika tidak Oryxis mengurai judul jendela, yang gagal pada beberapa prompt. Ini menyuntikkan satu baris pengaturan saat menyambung agar shell selalu melaporkan OSC 7. Hanya bash/zsh; menampilkan satu baris saat menyambung dan menambah ke PROMPT_COMMAND shell.",
+        "setting_sftp_force_osc7_desc" => "Bilah sisi Berkas terminal mengikuti direktori shell. Saat shell melaporkannya via OSC 7, pengikutan tepat; jika tidak Oryxis mengurai judul jendela, yang gagal pada beberapa prompt. Ini menyuntikkan satu baris pengaturan saat menyambung agar shell selalu melaporkan OSC 7. Hanya bash/zsh; menambah ke PROMPT_COMMAND shell dan membersihkan keluarannya sendiri, jadi tidak ada yang tampil di layar.",
         "setting_sftp_force_osc7_toggle" => "Suntikkan pemancar OSC 7 saat menyambung",
         "files_mounting" => "Membuka SFTP…",
         "files_empty" => "Folder kosong",

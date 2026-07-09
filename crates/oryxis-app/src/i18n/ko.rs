@@ -1019,7 +1019,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "터미널 디렉터리를 따라가는 중. 클릭하여 중지.",
         "files_follow_off_tip" => "터미널 디렉터리 따라가기",
         "setting_sftp_force_osc7" => "디렉터리 정확 따라가기 강제 (OSC 7)",
-        "setting_sftp_force_osc7_desc" => "터미널 파일 사이드바는 셸의 디렉터리를 따라갑니다. 셸이 OSC 7로 보고하면 정확하게 따라가고, 아니면 창 제목을 파싱하는 방식으로 대체되는데 일부 프롬프트에서는 실패합니다. 이 옵션은 연결 시 작은 설정 줄을 주입해 셸이 항상 OSC 7을 보고하도록 합니다. bash/zsh 전용이며, 연결 시 한 줄이 출력되고 셸의 PROMPT_COMMAND에 추가됩니다.",
+        "setting_sftp_force_osc7_desc" => "터미널 파일 사이드바는 셸의 디렉터리를 따라갑니다. 셸이 OSC 7로 보고하면 정확하게 따라가고, 아니면 창 제목을 파싱하는 방식으로 대체되는데 일부 프롬프트에서는 실패합니다. 이 옵션은 연결 시 작은 설정 줄을 주입해 셸이 항상 OSC 7을 보고하도록 합니다. bash/zsh 전용이며, 셸의 PROMPT_COMMAND에 추가되고 자체 출력을 정리하므로 화면에는 아무것도 표시되지 않습니다.",
         "setting_sftp_force_osc7_toggle" => "연결 시 OSC 7 이미터 주입",
         "files_mounting" => "SFTP 여는 중…",
         "files_empty" => "빈 폴더",

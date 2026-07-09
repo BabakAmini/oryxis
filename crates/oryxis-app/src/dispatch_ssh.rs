@@ -305,8 +305,9 @@ impl Oryxis {
                     // the window-title heuristic. bash/zsh syntax; a
                     // shell without PROMPT_COMMAND (fish/sh) just ignores
                     // the assignment. Prepends to any existing value so
-                    // the user's own PROMPT_COMMAND still runs. One setup
-                    // line echoes on connect (documented in Settings).
+                    // the user's own PROMPT_COMMAND still runs. The setup
+                    // block erases its own echo (see OSC7_PROMPT_INJECT),
+                    // so nothing is left on screen.
                     if self.setting_sftp_force_osc7
                         && let Some(ssh) = session.ssh()
                     {
