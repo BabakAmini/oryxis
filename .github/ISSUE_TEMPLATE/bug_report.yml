@@ -1,0 +1,79 @@
+name: Bug report
+description: Something isn't working as expected
+labels: ["t: bug", "n: triage"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Oryxis version
+      description: Shown in Settings > About, or run `oryxis --version`.
+      placeholder: "0.8.3"
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux (X11)
+        - Linux (Wayland)
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version / distribution
+      placeholder: "Windows 11 24H2, macOS 15.5, Ubuntu 24.04, Arch..."
+    validations:
+      required: true
+  - type: dropdown
+    id: install-method
+    attributes:
+      label: How did you install Oryxis?
+      options:
+        - Windows installer (system)
+        - Windows installer (per-user)
+        - winget
+        - Scoop
+        - AUR (oryxis-bin)
+        - .deb package
+        - AppImage
+        - Tarball
+        - Built from source
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Exact steps so we can reproduce it. Include the remote server OS/shell if the bug involves a session.
+      placeholder: |
+        1. Connect to a host with ...
+        2. Run ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What you expected to happen instead.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / environment info
+      description: >-
+        In Settings > Advanced, use "Copy env info" and paste it here. If the issue is
+        reproducible, enable debug logging there, reproduce it, and attach the relevant part of
+        `~/.oryxis/oryxis-debug.log`. Redact hostnames, usernames and anything sensitive first.
+      render: text

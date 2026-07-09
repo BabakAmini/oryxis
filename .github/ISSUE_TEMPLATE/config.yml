@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question / support
+    url: https://github.com/wilsonglasser/oryxis/discussions/categories/q-a
+    about: Ask questions and get help in Q&A Discussions.
+  - name: Ideas / brainstorming
+    url: https://github.com/wilsonglasser/oryxis/discussions/categories/ideas
+    about: Not sure it's a concrete feature request yet? Start a discussion first.

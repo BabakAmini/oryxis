@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a new feature or an improvement
+labels: ["t: feature", "n: triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do that Oryxis doesn't handle well today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How you imagine it working. Rough ideas are fine.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / current workaround
+      description: How you work around it today, or other approaches you considered.
+  - type: input
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: Another client that has this (PuTTY, Termius, MobaXterm, WindTerm, ...), if any.
