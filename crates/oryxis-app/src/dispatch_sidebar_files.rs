@@ -160,8 +160,7 @@ impl Oryxis {
                 let seq = pane.files.next_req();
                 let list = list_dir_task(client, path, pane_id, seq);
                 if unpinned {
-                    self.toast =
-                        Some(crate::i18n::t("files_follow_paused").to_string());
+                    self.set_toast(crate::i18n::t("files_follow_paused").to_string());
                     return Ok(Task::batch([
                         list,
                         Task::perform(

@@ -164,6 +164,10 @@ impl VaultStore {
             .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
             .collect::<Result<Vec<_>, _>>()?;
         let migrated = !rows.is_empty();
+        // Only cache "nothing pending" for this open once every row is
+        // sealed. A row left behind (transient write failure) must be
+        // retried on the next call, or its plaintext sits at rest forever.
+        let mut all_sealed = true;
         for (id, conn, cmd) in rows {
             let hash = command_hash(key, &conn, &cmd);
             let sealed = self.seal_chunk(cmd.as_bytes())?;
@@ -171,10 +175,33 @@ impl VaultStore {
                 "UPDATE command_history SET command = ?2, command_enc = ?3 WHERE id = ?1",
                 params![id, hash, sealed],
             ) {
-                tracing::warn!("command-history: migrating row {id} failed: {e}");
+                // A sealed sibling already carries this command (its
+                // `command` is the same keyed hash), so the UPDATE trips
+                // UNIQUE(connection_id, command). The plaintext row is now
+                // redundant: fold its use_count into the sibling and drop
+                // it. Leaving it would keep the plaintext at rest AND
+                // re-collide on every future open (a permanent leak).
+                let folded = self
+                    .db
+                    .execute(
+                        "UPDATE command_history SET use_count = use_count + \
+                         (SELECT use_count FROM command_history WHERE id = ?1) \
+                         WHERE connection_id = ?2 AND command = ?3 AND id != ?1",
+                        params![id, conn, hash],
+                    )
+                    .unwrap_or(0);
+                if folded > 0 {
+                    let _ = self.db.execute(
+                        "DELETE FROM command_history WHERE id = ?1",
+                        params![id],
+                    );
+                } else {
+                    tracing::warn!("command-history: migrating row {id} failed: {e}");
+                    all_sealed = false;
+                }
             }
         }
-        if migrated {
+        if migrated && all_sealed {
             // The overwritten plaintext lingers on SQLite free pages
             // until they are reused; compact once so the migrated
             // secrets actually leave the file (same rationale as the
@@ -186,7 +213,9 @@ impl VaultStore {
             }
             tracing::info!("command-history: legacy plaintext rows sealed");
         }
-        self.command_history_migrated.store(true, Ordering::Release);
+        if all_sealed {
+            self.command_history_migrated.store(true, Ordering::Release);
+        }
         Ok(())
     }
 

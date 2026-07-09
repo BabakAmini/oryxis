@@ -269,8 +269,7 @@ impl Oryxis {
                     &tab.files_state
                 };
             if st.transfer.is_some() {
-                self.toast =
-                    Some(crate::i18n::t("tab_detach_sftp_busy").to_string());
+                self.set_toast(crate::i18n::t("tab_detach_sftp_busy").to_string());
                 return Ok(Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(

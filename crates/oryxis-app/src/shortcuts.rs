@@ -546,16 +546,14 @@ impl Oryxis {
                 }
                 let Some(binding) = crate::hotkeys::binding_from_event(key, modifiers, true)
                 else {
-                    self.toast =
-                        Some(crate::i18n::t("hotkey_must_have_modifier").to_string());
+                    self.set_toast(crate::i18n::t("hotkey_must_have_modifier").to_string());
                     return Some(toast_clear_after_secs(2));
                 };
                 // Plain Ctrl+letter belongs to the shell; a snippet
                 // hotkey only ever fires inside a terminal, so binding
                 // one would shadow readline/SIGINT keys.
                 if binding.is_terminal_control_sequence() {
-                    self.toast =
-                        Some(crate::i18n::t("snippet_hotkey_reserved").to_string());
+                    self.set_toast(crate::i18n::t("snippet_hotkey_reserved").to_string());
                     return Some(toast_clear_after_secs(2));
                 }
                 // Conflicts: the static table and other snippets.
@@ -566,8 +564,7 @@ impl Oryxis {
                             == Some(binding.serialize()).as_deref()
                 });
                 if in_table || in_snippets {
-                    self.toast =
-                        Some(crate::i18n::t("snippet_hotkey_in_use").to_string());
+                    self.set_toast(crate::i18n::t("snippet_hotkey_in_use").to_string());
                     return Some(toast_clear_after_secs(2));
                 }
                 self.snippet_hotkey = Some(binding);

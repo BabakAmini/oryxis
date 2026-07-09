@@ -234,8 +234,7 @@ impl Oryxis {
             // up to 30s after the disconnect was first detected). Focus is
             // left alone: a manual reconnect is already on the active tab,
             // and a background auto-reconnect shouldn't yank the user away.
-            self.toast =
-                Some(crate::i18n::t("disconnected_reconnecting").to_string());
+            self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
             let spawn = match target {
                 ReuseTarget::Saved(conn_idx) => {
                     self.spawn_ssh_for_pane(conn_idx, idx, new_pane_id)

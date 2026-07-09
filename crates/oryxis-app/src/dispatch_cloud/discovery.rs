@@ -319,7 +319,12 @@ impl Oryxis {
                 // instead of minting a duplicate; the bare form cannot be
                 // checked post-fetch (the returned context is composite),
                 // so it must be recognized here.
-                let composite = format!("{cluster}-{resource_group}");
+                // Must match `aks::context_name` in the azure plugin (the
+                // source of truth; the plugin boundary keeps us from
+                // importing it). `.` separator, not `-`: a cluster name
+                // can't contain a dot, so `cluster.rg` never collides the
+                // way `cluster-rg` did across hyphenated resource groups.
+                let composite = format!("{cluster}.{resource_group}");
                 let already = self.cloud_profiles.iter().any(|p| {
                     p.provider == "k8s"
                         && serde_json::from_str::<serde_json::Value>(&p.config)

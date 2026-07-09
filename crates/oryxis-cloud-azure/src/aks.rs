@@ -69,21 +69,27 @@ impl AksCluster {
 }
 
 /// The kubeconfig context name Oryxis asks `az aks get-credentials` to
-/// write for a cluster: `<cluster>-<resource_group>`. az's own default is
+/// write for a cluster: `<cluster>.<resource_group>`. az's own default is
 /// the bare cluster name, which collides when two resource groups carry
 /// same-named clusters (the dup-check would grey the second one forever,
 /// and `--overwrite-existing` would silently repoint the first cluster's
 /// context), so we pass an explicit `--context` compounding the resource
-/// group, mirroring how GKE compounds project + location. No live
-/// resolution is needed, the name is deterministic. A helper so the
-/// dup-check and the credential fetch agree by construction. A blank
-/// resource group (never emitted by `az aks list`, but tolerated) falls
-/// back to the bare cluster name rather than minting a trailing dash.
+/// group, mirroring how GKE compounds project + location. The separator
+/// is `.` on purpose: an AKS cluster name is restricted to letters,
+/// digits, `-` and `_` (no dot), so the first `.` unambiguously splits
+/// cluster from resource group even though both fields may themselves
+/// contain `-` and `_`. A `-` separator was ambiguous (`app-prod` in rg
+/// `eastus` and `app` in rg `prod-eastus` both yielded `app-prod-eastus`
+/// and collided). No live resolution is needed, the name is
+/// deterministic. A helper so the dup-check and the credential fetch
+/// agree by construction. A blank resource group (never emitted by
+/// `az aks list`, but tolerated) falls back to the bare cluster name
+/// rather than minting a trailing dot.
 pub fn context_name(cluster: &str, resource_group: &str) -> String {
     if resource_group.trim().is_empty() {
         cluster.to_string()
     } else {
-        format!("{cluster}-{resource_group}")
+        format!("{cluster}.{resource_group}")
     }
 }
 
@@ -170,9 +176,16 @@ mod tests {
 
     #[test]
     fn context_name_compounds_cluster_and_resource_group() {
-        assert_eq!(context_name("prod", "rg-prod"), "prod-rg-prod");
+        assert_eq!(context_name("prod", "rg-prod"), "prod.rg-prod");
         // Same cluster name in two resource groups must not collide.
         assert_ne!(context_name("prod", "rg-a"), context_name("prod", "rg-b"));
+        // The `.` separator resolves the hyphen-boundary ambiguity that a
+        // `-` separator had: these two distinct clusters used to both
+        // render `app-prod-eastus`; now they stay distinct.
+        assert_ne!(
+            context_name("app-prod", "eastus"),
+            context_name("app", "prod-eastus")
+        );
         // A blank resource group falls back to the bare cluster name.
         assert_eq!(context_name("prod", ""), "prod");
         assert_eq!(context_name("prod", "  "), "prod");

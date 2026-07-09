@@ -624,8 +624,7 @@ impl Oryxis {
                     );
                     // Drop the guard so a later switch can retry.
                     self.loaded_cjk_fonts.remove(&code);
-                    self.toast =
-                        Some(crate::i18n::t("cjk_font_failed").to_string());
+                    self.set_toast(crate::i18n::t("cjk_font_failed").to_string());
                     return Ok(Task::perform(
                         async {
                             tokio::time::sleep(
@@ -1050,8 +1049,7 @@ impl Oryxis {
                             // a silently dead sink would defeat the whole
                             // point of the feature.
                             tracing::warn!("failed to enable debug logging: {e}");
-                            self.toast =
-                                Some(format!("{}: {e}", crate::i18n::t("debug_logging")));
+                            self.set_toast(format!("{}: {e}", crate::i18n::t("debug_logging")));
                             return Ok(toast_clear_task());
                         }
                     }
