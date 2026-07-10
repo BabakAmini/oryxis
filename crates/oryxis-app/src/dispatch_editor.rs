@@ -386,13 +386,9 @@ impl Oryxis {
         // or a `proxy_identity_id` reference. Validates host /
         // port / command up-front so the user gets an error
         // instead of a silently-broken proxy entry.
-        match build_proxy_resolution(&self.editor_form) {
-            Ok(r) => {
-                conn.proxy = r.proxy;
-                conn.proxy_identity_id = r.proxy_identity_id;
-            }
-            Err(msg) => return Err(msg),
-        }
+        let proxy_resolution = build_proxy_resolution(&self.editor_form)?;
+        conn.proxy = proxy_resolution.proxy;
+        conn.proxy_identity_id = proxy_resolution.proxy_identity_id;
         conn.updated_at = chrono::Utc::now();
 
         // Track user edits on cloud-imported hosts so the next
