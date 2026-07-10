@@ -57,6 +57,29 @@ fn main() {
 /// stable channel uses the embedded channel to offer a clean stable
 /// build when a user on a nightly binary switches back.
 fn stamp_build_metadata() {
+    // Cargo can't see these env reads on its own: without the directives
+    // a cached build-script run keeps stale values baked in (a restored
+    // CI `target/` cache across commits would ship a nightly whose
+    // ORYXIS_GIT_SHA is the previous run's commit, so the in-app updater
+    // re-offers the "new" build forever). `.git/HEAD` covers the local
+    // `git rev-parse` fallback across checkouts. Note that emitting any
+    // rerun-if directive replaces cargo's default rerun-on-any-change
+    // rule, hence the explicit resource paths below.
+    println!("cargo:rerun-if-env-changed=ORYXIS_GIT_SHA");
+    println!("cargo:rerun-if-env-changed=ORYXIS_BUILD_CHANNEL");
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+    // On a branch checkout HEAD only holds "ref: refs/heads/<branch>";
+    // a plain `git commit` rewrites the ref file, not HEAD, so track the
+    // resolved ref too. Detached HEAD (CI checkouts) stores the raw SHA
+    // in HEAD itself and needs no extra path.
+    if let Ok(head) = std::fs::read_to_string("../../.git/HEAD")
+        && let Some(r) = head.strip_prefix("ref: ")
+    {
+        println!("cargo:rerun-if-changed=../../.git/{}", r.trim());
+    }
+    println!("cargo:rerun-if-changed=../../resources/manifest.xml");
+    println!("cargo:rerun-if-changed=../../resources/logo.ico");
+
     // Full commit SHA: prefer a CI-provided value, then `git`, else a
     // sentinel the updater treats as "can't compare, don't nag".
     let sha = std::env::var("ORYXIS_GIT_SHA").ok().filter(|s| !s.is_empty()).or_else(|| {

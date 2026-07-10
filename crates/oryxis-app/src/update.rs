@@ -643,6 +643,19 @@ fn windows_self_replace(
         }
     };
 
+    // Failure contract: the helper runs after this process has exited,
+    // so there is no UI left to report to. We drop a marker file before
+    // handing off; every `move` attempt overwrites it with the real
+    // error text, the success path deletes it, and the failure path
+    // leaves the last error behind after relaunching the old binary.
+    // If the marker still exists on the next boot the swap did not
+    // land, whatever the failure shape (helper never ran, move kept
+    // failing), and `take_update_failure` surfaces it (a QA'd loop:
+    // the elevated swap once failed silently and the app just kept
+    // re-offering the same nightly with no hint why).
+    let marker = update_failure_marker();
+    let _ = std::fs::write(&marker, "update helper did not run");
+
     // `enabledelayedexpansion` + `!tries!` so the retry counter updates
     // across loop iterations (plain `%tries%` is frozen at parse time).
     let script = format!(
@@ -656,51 +669,94 @@ fn windows_self_replace(
          )\r\n\
          set tries=0\r\n\
          :move\r\n\
-         move /Y \"{src}\" \"{dst}\" >nul 2>&1\r\n\
-         if not errorlevel 1 goto done\r\n\
+         move /Y \"{src}\" \"{dst}\" >\"{marker}\" 2>&1\r\n\
+         if not errorlevel 1 goto ok\r\n\
          set /a tries+=1\r\n\
          if !tries! lss 15 (\r\n\
          timeout /t 1 /nobreak >nul\r\n\
          goto move\r\n\
          )\r\n\
-         :done\r\n\
+         del \"{src}\" >nul 2>&1\r\n\
+         goto launch\r\n\
+         :ok\r\n\
+         del \"{marker}\" >nul 2>&1\r\n\
+         :launch\r\n\
          start \"\" \"{dst}\"\r\n\
          del \"%~f0\" >nul 2>&1\r\n",
         pid = pid,
         src = staged.display(),
         dst = current.display(),
+        marker = marker.display(),
     );
 
-    let script_path = std::env::temp_dir().join(format!("oryxis-update-{pid}.cmd"));
-    {
-        let mut f = std::fs::File::create(&script_path).map_err(|e| {
-            tracing::warn!(target = "oryxis::update", error = %e, "write helper script failed");
-            fail()
-        })?;
-        f.write_all(script.as_bytes()).map_err(|e| {
-            tracing::warn!(target = "oryxis::update", error = %e, "write helper script failed");
-            fail()
-        })?;
-    }
-
-    if elevated {
-        // Protected dir: run the helper via ShellExecuteW "runas" so the
-        // OS shows one UAC prompt (mirroring the system installer). The
-        // relaunched app inherits the elevated token in this rare path;
-        // the next manual launch returns to normal privileges.
-        run_elevated_cmd(&script_path)?;
-    } else {
-        std::process::Command::new("cmd.exe")
-            .arg("/c")
-            .arg(&script_path)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| {
-                tracing::warn!(target = "oryxis::update", error = %e, "spawn helper failed");
+    // Everything from here until the helper is running still executes
+    // inside the live app, so failures are reported inline in the modal;
+    // consume the marker on those paths or the next boot would re-report
+    // an error the user already saw.
+    let handoff = (|| -> Result<(), String> {
+        let script_path = std::env::temp_dir().join(format!("oryxis-update-{pid}.cmd"));
+        {
+            let mut f = std::fs::File::create(&script_path).map_err(|e| {
+                tracing::warn!(target = "oryxis::update", error = %e, "write helper script failed");
                 fail()
             })?;
+            f.write_all(script.as_bytes()).map_err(|e| {
+                tracing::warn!(target = "oryxis::update", error = %e, "write helper script failed");
+                fail()
+            })?;
+        }
+
+        if elevated {
+            // Protected dir: run the helper via ShellExecuteW "runas" so the
+            // OS shows one UAC prompt (mirroring the system installer). The
+            // relaunched app inherits the elevated token in this rare path;
+            // the next manual launch returns to normal privileges.
+            run_elevated_cmd(&script_path)?;
+        } else {
+            std::process::Command::new("cmd.exe")
+                .arg("/c")
+                .arg(&script_path)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| {
+                    tracing::warn!(target = "oryxis::update", error = %e, "spawn helper failed");
+                    fail()
+                })?;
+        }
+        Ok(())
+    })();
+    if handoff.is_err() {
+        let _ = std::fs::remove_file(&marker);
     }
-    Ok(())
+    handoff
+}
+
+/// Path of the marker file the self-replace helper uses to report a
+/// post-exit failure (see the contract note in [`windows_self_replace`]).
+/// Lives in TEMP under a name the leftover sweep won't touch (it only
+/// removes `.tmp.exe` / `.cmd`), so it survives until consumed.
+#[cfg(windows)]
+fn update_failure_marker() -> PathBuf {
+    std::env::temp_dir().join("oryxis-update-failed.log")
+}
+
+/// Check-and-consume the failure marker a previous run's self-replace
+/// left behind. Returns the helper's captured error text (e.g.
+/// "Access is denied.") for logging; the caller shows the generic
+/// localized message. Always `None` outside Windows, the Unix swap is
+/// synchronous and reports its errors inline.
+pub fn take_update_failure() -> Option<String> {
+    #[cfg(windows)]
+    {
+        let marker = update_failure_marker();
+        let detail = std::fs::read_to_string(&marker).ok()?;
+        let _ = std::fs::remove_file(&marker);
+        Some(detail.trim().to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        None
+    }
 }
 
 /// Run `cmd.exe /c <script>` elevated through `ShellExecuteW`'s "runas"

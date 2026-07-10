@@ -671,6 +671,19 @@ impl Oryxis {
         // after boot. When the vault is locked, we defer until VaultUnlock
         // succeeds (handled in that branch).
         let mut tasks = vec![task, Task::done(Message::CheckForUpdate)];
+        // A Windows nightly self-replace that fails after the app has
+        // exited has no UI left to report to; the helper leaves a marker
+        // in TEMP instead. Surface it here so a failed swap is never
+        // silent (the boot check above re-offers the same build, so the
+        // user can just try again).
+        if let Some(detail) = crate::update::take_update_failure() {
+            tracing::warn!(
+                target = "oryxis::update",
+                detail = %detail,
+                "previous self-update failed after exit",
+            );
+            app.set_toast(crate::i18n::t("update_replace_failed").to_string());
+        }
         if app.vault_ui.state == VaultState::Unlocked
             && let Some(connect_id) = app.pending_auto_connect.take()
             && let Some(idx) = app
