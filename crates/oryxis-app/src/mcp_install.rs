@@ -93,9 +93,11 @@ pub(crate) fn sync_launcher_from_cache() -> Result<PathBuf, PluginError> {
 /// legacy `~/.claude/.mcp.json` dead-letter file older releases
 /// wrote), rewrites the config too so its `command` points at the
 /// launcher path the new version landed at (which also migrates a
-/// legacy entry to the correct file). Best-effort: failures are
+/// legacy entry to the correct file). `vault_pw` carries the master
+/// password when the user opted in to embedding it, so the refresh
+/// doesn't strip it from the config. Best-effort: failures are
 /// logged but don't roll back the install.
-pub(crate) fn post_install_refresh(token: &str) {
+pub(crate) fn post_install_refresh(token: &str, vault_pw: Option<&str>) {
     if let Err(e) = sync_launcher_from_cache() {
         tracing::warn!(
             target = "oryxis::mcp",
@@ -107,7 +109,7 @@ pub(crate) fn post_install_refresh(token: &str) {
     if !crate::mcp::mcp_config_installed() {
         return;
     }
-    if let Err(msg) = crate::mcp::install_mcp_config_to_file(token) {
+    if let Err(msg) = crate::mcp::install_mcp_config_to_file(token, vault_pw) {
         tracing::warn!(
             target = "oryxis::mcp",
             error = %msg,

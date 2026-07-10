@@ -1339,6 +1339,14 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mcp_token_copy" => "Copy",
         "mcp_token_regenerate" => "Regenerate",
         "mcp_token_desc" => "Required by every MCP client. Regenerating invalidates the previous value, re-run Install to refresh the Claude Code config.",
+        "mcp_vault_pw_note" => "This vault has a master password. The MCP server needs it (env ORYXIS_VAULT_PASSWORD) or it exits at startup and the client reports the connection as failed.",
+        "mcp_vault_pw_include" => "Include vault password",
+        "mcp_vault_pw_confirm_prompt" => "Type your master password to include it in the config:",
+        "mcp_vault_pw_placeholder" => "Master password",
+        "mcp_vault_pw_confirm" => "Confirm",
+        "mcp_vault_pw_wrong" => "Wrong password",
+        "mcp_vault_pw_included" => "Vault password included in the config.",
+        "mcp_vault_pw_plaintext_warning" => "It is written as plain text; anyone who can read the config file can unlock your vault.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS plugin not installed",

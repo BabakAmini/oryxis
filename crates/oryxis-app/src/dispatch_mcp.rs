@@ -103,23 +103,25 @@ impl Oryxis {
             }
             Message::CopyMcpConfig => {
                 self.mcp.config_copied = true;
+                let vault_pw = self.mcp_vault_pw();
                 let json = if self.mcp.target_wsl {
-                    mcp_config_json_wsl(&self.mcp.server_token)
+                    mcp_config_json_wsl(&self.mcp.server_token, vault_pw.as_deref())
                 } else {
-                    mcp_config_json(&self.mcp.server_token)
+                    mcp_config_json(&self.mcp.server_token, vault_pw.as_deref())
                 };
                 return Ok(iced::clipboard::write(json).discard());
             }
             Message::InstallMcpConfig => {
                 self.mcp.install_status = None;
                 let token = self.mcp.server_token.clone();
+                let vault_pw = self.mcp_vault_pw();
                 let wsl = self.mcp.target_wsl;
                 return Ok(Task::perform(
                     async move {
                         if wsl {
-                            install_mcp_config_to_wsl(&token)
+                            install_mcp_config_to_wsl(&token, vault_pw.as_deref())
                         } else {
-                            install_mcp_config_to_file(&token)
+                            install_mcp_config_to_file(&token, vault_pw.as_deref())
                         }
                     },
                     Message::InstallMcpConfigResult,
@@ -159,6 +161,58 @@ impl Oryxis {
             }
             Message::CopyMcpToken => {
                 return Ok(iced::clipboard::write(self.mcp.server_token.clone()).discard());
+            }
+            Message::McpVaultPwPromptOpen => {
+                self.mcp.vault_pw_prompt = Some(String::new());
+                self.mcp.vault_pw_error = false;
+            }
+            Message::McpVaultPwPromptCancel => {
+                self.mcp.vault_pw_prompt = None;
+                self.mcp.vault_pw_error = false;
+            }
+            Message::McpVaultPwInput(v) => {
+                if let Some(buf) = &mut self.mcp.vault_pw_prompt {
+                    *buf = v;
+                }
+            }
+            Message::McpVaultPwConfirm => {
+                let Some(typed) = self.mcp.vault_pw_prompt.clone() else {
+                    return Ok(Task::none());
+                };
+                let ok = self
+                    .vault
+                    .as_ref()
+                    .map(|v| v.verify_password(&typed).unwrap_or(false))
+                    .unwrap_or(false);
+                if ok {
+                    // Persist the CONSENT, never the password: snippets
+                    // and installs read it from `master_password` at use
+                    // time. Refresh that copy from the verified input so
+                    // the embed can't go stale.
+                    self.mcp.include_vault_password = true;
+                    self.persist_setting("mcp_config_vault_pw", "true");
+                    self.master_password = Some(typed);
+                    self.mcp.vault_pw_prompt = None;
+                    self.mcp.vault_pw_error = false;
+                    // The snippet content changed; stale Copy / Install
+                    // feedback would claim the on-disk config already
+                    // carries it.
+                    self.mcp.config_copied = false;
+                    self.mcp.install_status = None;
+                } else {
+                    self.mcp.vault_pw_error = true;
+                    if let Some(buf) = &mut self.mcp.vault_pw_prompt {
+                        buf.clear();
+                    }
+                }
+            }
+            Message::McpVaultPwRemove => {
+                self.mcp.include_vault_password = false;
+                self.persist_setting("mcp_config_vault_pw", "false");
+                self.mcp.config_copied = false;
+                // Prompt a re-install: the config on disk still carries
+                // the password until Install rewrites it without one.
+                self.mcp.install_status = None;
             }
 
             m => return Err(m),

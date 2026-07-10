@@ -1030,13 +1030,7 @@ impl Oryxis {
         if self.mcp.show_info {
             mcp_col = mcp_col
                 .push(Space::new().height(12))
-                .push(mcp_info_panel(
-                    self.mcp.config_copied,
-                    &self.mcp.install_status,
-                    &self.mcp.server_token,
-                    self.mcp.token_visible,
-                    self.mcp.target_wsl,
-                ));
+                .push(mcp_info_panel(self));
         }
 
         scrollable(

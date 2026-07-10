@@ -291,6 +291,43 @@ impl Oryxis {
                     .push(text(status.as_str()).size(12).color(OryxisColors::t().text_muted));
             }
 
+            // Persistent P2P health under the (transient) status line:
+            // LAN discovery count plus the LAST signaling outcome, which
+            // survives later events overwriting `status`, so "signaling
+            // has been failing" stays visible instead of flashing once.
+            if !is_sftp {
+                options_section = options_section.push(Space::new().height(8)).push(
+                    text(format!(
+                        "{} {}",
+                        self.sync.discovered.len(),
+                        crate::i18n::t("sync_health_lan"),
+                    ))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                );
+                if let Some(sig) = &self.sync.signaling_last {
+                    let (txt, color) = match sig {
+                        Ok(addr) => (
+                            format!(
+                                "{}: {addr}",
+                                crate::i18n::t("sync_status_signaling_registered"),
+                            ),
+                            OryxisColors::t().text_muted,
+                        ),
+                        Err(reason) => (
+                            format!(
+                                "{}: {reason}",
+                                crate::i18n::t("sync_status_signaling_failed"),
+                            ),
+                            OryxisColors::t().error,
+                        ),
+                    };
+                    options_section = options_section
+                        .push(Space::new().height(4))
+                        .push(text(txt).size(11).color(color));
+                }
+            }
+
             content_col = content_col
                 .push(Space::new().height(12))
                 .push(transport_section)
@@ -828,13 +865,222 @@ impl Oryxis {
                     port_input,
                 ]);
 
+                // "Set up your own relay" wizard: generates ready-to-paste
+                // server files for the self-hosted oryxis-relay and adopts
+                // the endpoint (signaling URL + token settings) once the
+                // reachability test passes. The in-app fast path for what
+                // SELF_HOSTING.md documents long-form.
+                let w = &self.sync.relay_wizard;
+                let mut wizard_col: iced::widget::Column<'_, Message> =
+                    column![self.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::SyncWizardToggle),
+                        6.0,
+                        styled_button(
+                            crate::i18n::t("sync_wizard_button"),
+                            Message::SyncWizardToggle,
+                            OryxisColors::t().button_bg,
+                        ),
+                    )];
+                if w.open {
+                    wizard_col = wizard_col
+                        .push(Space::new().height(8))
+                        .push(
+                            text(crate::i18n::t("sync_wizard_intro"))
+                                .size(11)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .push(Space::new().height(10))
+                        .push(
+                            text(crate::i18n::t("sync_wizard_domain"))
+                                .size(12)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .push(Space::new().height(4))
+                        .push(self.settings_nav_slot(
+                            crate::keynav::RowAction::input(iced::widget::Id::new(
+                                "set-sync-wizard-domain",
+                            )),
+                            10.0,
+                            text_input("relay.example.com", &w.domain)
+                                .id(iced::widget::Id::new("set-sync-wizard-domain"))
+                                .on_input(Message::SyncWizardDomainChanged)
+                                .padding(8)
+                                .width(320)
+                                .style(crate::widgets::rounded_input_style)
+                                .align_x(dir_align_x())
+                                .into(),
+                        ))
+                        .push(Space::new().height(8))
+                        .push(
+                            text(crate::i18n::t("sync_wizard_public_port"))
+                                .size(12)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .push(Space::new().height(4))
+                        .push(self.settings_nav_slot(
+                            crate::keynav::RowAction::input(iced::widget::Id::new(
+                                "set-sync-wizard-port",
+                            )),
+                            10.0,
+                            text_input("443", &w.port)
+                                .id(iced::widget::Id::new("set-sync-wizard-port"))
+                                .on_input(Message::SyncWizardPortChanged)
+                                .padding(8)
+                                .width(120)
+                                .style(crate::widgets::rounded_input_style)
+                                .align_x(dir_align_x())
+                                .into(),
+                        ))
+                        .push(Space::new().height(8))
+                        .push(
+                            text(format!(
+                                "{}: {}",
+                                crate::i18n::t("sync_wizard_token"),
+                                w.token,
+                            ))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted),
+                        )
+                        .push(Space::new().height(6))
+                        .push(self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::SyncWizardRegenToken,
+                            ),
+                            6.0,
+                            styled_button(
+                                crate::i18n::t("sync_wizard_regen"),
+                                Message::SyncWizardRegenToken,
+                                OryxisColors::t().button_bg,
+                            ),
+                        ));
+                    // Artifact format selector: three plain buttons (the
+                    // labels are proper nouns, identical in every locale),
+                    // accent marks the selected one.
+                    let fmt_btn = |label: &'static str,
+                                   fmt: crate::state::RelayWizardFormat|
+                     -> Element<'_, Message> {
+                        let selected = w.format == fmt;
+                        self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::SyncWizardFormatChanged(fmt),
+                            ),
+                            6.0,
+                            styled_button(
+                                label,
+                                Message::SyncWizardFormatChanged(fmt),
+                                if selected {
+                                    OryxisColors::t().accent
+                                } else {
+                                    OryxisColors::t().button_bg
+                                },
+                            ),
+                        )
+                    };
+                    wizard_col = wizard_col.push(Space::new().height(12)).push(dir_row(vec![
+                        fmt_btn("Docker Compose", crate::state::RelayWizardFormat::Compose),
+                        Space::new().width(8).into(),
+                        fmt_btn("systemd", crate::state::RelayWizardFormat::Systemd),
+                        Space::new().width(8).into(),
+                        fmt_btn("Caddy", crate::state::RelayWizardFormat::Caddy),
+                    ]));
+                    let artifact = w.artifact();
+                    wizard_col = wizard_col
+                        .push(Space::new().height(10))
+                        .push(
+                            text(crate::i18n::t("sync_wizard_files"))
+                                .size(12)
+                                .color(OryxisColors::t().text_secondary),
+                        )
+                        .push(Space::new().height(4))
+                        .push(
+                            container(
+                                text(artifact.clone())
+                                    .size(10)
+                                    .font(iced::Font::MONOSPACE)
+                                    .color(OryxisColors::t().text_secondary),
+                            )
+                            .width(Length::Fill)
+                            .padding(10)
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(
+                                    OryxisColors::t().bg_surface,
+                                )),
+                                border: Border {
+                                    radius: Radius::from(6.0),
+                                    color: OryxisColors::t().border,
+                                    width: 1.0,
+                                },
+                                ..Default::default()
+                            }),
+                        )
+                        .push(Space::new().height(6))
+                        .push(self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::CopyToClipboard(artifact.clone()),
+                            ),
+                            6.0,
+                            styled_button(
+                                crate::i18n::t("terminal_copy"),
+                                Message::CopyToClipboard(artifact),
+                                OryxisColors::t().button_bg,
+                            ),
+                        ))
+                        .push(Space::new().height(10))
+                        .push(
+                            text(crate::i18n::t("sync_wizard_steps"))
+                                .size(11)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .push(Space::new().height(10));
+                    // Test button only fires with a domain typed and no
+                    // probe in flight; recorded only when enabled so
+                    // keyboard Enter can't double-fire a probe.
+                    let test_msg = (!w.testing && w.base_url().is_some())
+                        .then_some(Message::SyncWizardTest);
+                    let test_btn = styled_button_opt(
+                        crate::i18n::t("sync_wizard_test"),
+                        test_msg.clone(),
+                        OryxisColors::t().accent,
+                    );
+                    let test_btn: Element<'_, Message> = if let Some(m) = test_msg {
+                        self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(m),
+                            6.0,
+                            test_btn,
+                        )
+                    } else {
+                        test_btn
+                    };
+                    wizard_col = wizard_col.push(test_btn);
+                    if let Some(result) = &w.result {
+                        let (txt, color) = match result {
+                            Ok(()) => (
+                                crate::i18n::t("sync_wizard_test_ok").to_string(),
+                                OryxisColors::t().text_muted,
+                            ),
+                            Err(e) => (
+                                format!(
+                                    "{}: {e}",
+                                    crate::i18n::t("sync_wizard_test_err"),
+                                ),
+                                OryxisColors::t().error,
+                            ),
+                        };
+                        wizard_col = wizard_col
+                            .push(Space::new().height(8))
+                            .push(text(txt).size(11).color(color));
+                    }
+                }
+
                 content_col = content_col
                     .push(Space::new().height(12))
                     .push(device_section)
                     .push(Space::new().height(12))
                     .push(panel_section(pairing_section))
                     .push(Space::new().height(12))
-                    .push(advanced_section);
+                    .push(advanced_section)
+                    .push(Space::new().height(12))
+                    .push(panel_section(wizard_col));
             }
         }
         content_col = content_col.push(Space::new().height(24));

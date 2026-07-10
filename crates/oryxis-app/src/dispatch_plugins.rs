@@ -449,6 +449,9 @@ impl Oryxis {
 
             Message::PluginInstallDone(id, result) => {
                 let token = self.mcp.server_token.clone();
+                // Carried into the config refresh so a plugin update
+                // doesn't strip an opted-in vault password from it.
+                let vault_pw = self.mcp_vault_pw();
                 let rebind_provider = self.plugin_providers.get(&id).cloned();
                 if let Some(entry) =
                     self.plugins.iter_mut().find(|p| p.provider_id == id)
@@ -467,6 +470,7 @@ impl Oryxis {
                                     if id == "mcp" {
                                         crate::mcp_install::post_install_refresh(
                                             &token,
+                                            vault_pw.as_deref(),
                                         );
                                     }
                                     PluginUiStatus::Installed(version)

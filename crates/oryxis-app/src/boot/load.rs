@@ -210,6 +210,11 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("mcp_server_token") {
                 self.mcp.server_token = v;
             }
+            // Consent flag only; the password itself is read from
+            // `master_password` at snippet/install time.
+            if let Ok(Some(v)) = vault.get_setting("mcp_config_vault_pw") {
+                self.mcp.include_vault_password = v == "true";
+            }
 
             // Sync settings
             if let Ok(Some(v)) = vault.get_setting("sync_enabled") {
