@@ -708,7 +708,10 @@ pub(crate) fn list_windows_drives_cached() -> Vec<String> {
     use std::time::{Duration, Instant};
     const TTL: Duration = Duration::from_secs(5);
     static CACHE: Mutex<Option<(Instant, Vec<String>)>> = Mutex::new(None);
-    let mut guard = CACHE.lock().unwrap();
+    // Shrug off poisoning: the cache is a plain probe result, safe to
+    // reuse, and a panic inside view() while unwinding another panic
+    // would turn a recoverable crash into an abort.
+    let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((probed_at, drives)) = guard.as_ref()
         && probed_at.elapsed() < TTL
     {
