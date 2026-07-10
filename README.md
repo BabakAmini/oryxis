@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/wilsonglasser/oryxis/actions/workflows/ci.yml"><img src="https://github.com/wilsonglasser/oryxis/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/wilsonglasser/oryxis/releases/latest"><img src="https://img.shields.io/github/v/release/wilsonglasser/oryxis?color=green" alt="Release"></a>
-  <img src="https://img.shields.io/badge/rust-1.90%2B-orange?logo=rust" alt="Rust">
+  <a href="https://github.com/wilsonglasser/oryxis/releases"><img src="https://img.shields.io/github/downloads/wilsonglasser/oryxis/total?color=blue" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/platforms-linux%20%7C%20macos%20%7C%20windows-blue" alt="Platforms">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License"></a>
   <a href="https://oryxis.app"><img src="https://img.shields.io/badge/website-oryxis.app-3CBBB1" alt="Website"></a>
@@ -20,54 +20,117 @@
 </p>
 
 <p align="center">
-  🌐 English · Português · Español · Français · Deutsch · Italiano · 简体中文 · 繁體中文 · 日本語 · Русский · فارسی · العربية · עברית · 한국어 · Polski · Türkçe · Bahasa Indonesia · Tiếng Việt · Українська · ไทย · हिन्दी · Čeština · Ελληνικά
+  <img src="resources/screen_1.gif" width="720" alt="Oryxis in action: connecting, running snippets, browsing SFTP">
 </p>
 
----
+## What is Oryxis?
 
-## Download
+Oryxis is an open-source alternative to [Termius](https://termius.com/): a
+desktop SSH client with a modern UI, an encrypted local vault for
+credentials, and no cloud account anywhere in the loop. No Electron, no
+webview, no vendor servers. Just a single native binary.
 
-**Windows (winget):**
+Most SSH clients make you pick two out of three: powerful but dated
+(PuTTY), pretty but Electron-heavy (Termius, Tabby), or minimal and
+terminal-only (OpenSSH). Oryxis aims at all three: **beautiful, fast, and
+native**.
+
+|  | Oryxis | Termius | PuTTY | Tabby |
+|--|--------|---------|-------|-------|
+| UI stack | Native Rust (iced + wgpu) | Electron | Native | Electron |
+| License | AGPL-3.0, open source | Proprietary | MIT | MIT |
+| Credential storage | Local encrypted vault | Vendor cloud account | None | Local config files |
+| Device sync | P2P, E2E encrypted, optionally self-hosted relay | Vendor cloud (subscription) | None | Via Tabby Web |
+| SFTP GUI | Dual-pane, built in | Paid plan | CLI only | Basic panel |
+| Price | Free | Free tier + subscription | Free | Free |
+
+## Install
+
+**Windows**
 
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```
 
-Pre-built binaries are also available on the [Releases](https://github.com/wilsonglasser/oryxis/releases/latest) page:
+**Arch Linux (AUR)**
+
+```bash
+yay -S oryxis-bin
+```
+
+**Direct downloads** from the [latest release](https://github.com/wilsonglasser/oryxis/releases/latest):
 
 | Platform | Architecture | Download |
 |----------|-------------|----------|
-| Linux | x86_64 | [`oryxis-linux-x86_64.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.tar.gz) · [`.deb`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.deb) · [`.AppImage`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.AppImage) |
-| Linux | ARM64 | [`oryxis-linux-aarch64.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.tar.gz) · [`.deb`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.deb) · [`.AppImage`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.AppImage) |
-| macOS | Apple Silicon | [`oryxis-macos-aarch64.dmg`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-macos-aarch64.dmg) · [`.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-macos-aarch64.tar.gz) |
-| Windows | x86_64 | [`oryxis-setup-x86_64.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-setup-x86_64.exe) (system installer, requires UAC) · [`oryxis-user-setup-x86_64.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-user-setup-x86_64.exe) (per-user, no UAC) · [`oryxis-windows-x86_64.zip`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-windows-x86_64.zip) (portable) |
-| Windows | ARM64 | [`oryxis-setup-aarch64.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-setup-aarch64.exe) (system installer, requires UAC) · [`oryxis-user-setup-aarch64.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-user-setup-aarch64.exe) (per-user, no UAC) · [`oryxis-windows-aarch64.zip`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-windows-aarch64.zip) (portable) |
+| Linux | x86_64 | [`.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.tar.gz) · [`.deb`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.deb) · [`.AppImage`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-x86_64.AppImage) |
+| Linux | ARM64 | [`.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.tar.gz) · [`.deb`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.deb) · [`.AppImage`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-linux-aarch64.AppImage) |
+| macOS | Apple Silicon | [`.dmg`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-macos-aarch64.dmg) · [`.tar.gz`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-macos-aarch64.tar.gz) |
+| Windows | x86_64 | [`setup.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-setup-x86_64.exe) · [`user-setup.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-user-setup-x86_64.exe) · [`.zip` portable](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-windows-x86_64.zip) |
+| Windows | ARM64 | [`setup.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-setup-aarch64.exe) · [`user-setup.exe`](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-user-setup-aarch64.exe) · [`.zip` portable](https://github.com/wilsonglasser/oryxis/releases/latest/download/oryxis-windows-aarch64.zip) |
 
-The two Windows installer flavors mirror VSCode's pattern:
+<details>
+<summary><b>Which Windows installer?</b> (system vs per-user, VSCode-style)</summary>
 
-- **System** (`oryxis-setup-*.exe`): installs to `Program Files`, registers under `HKLM`, requires UAC. Use this for shared machines or when all Windows users should share the install. This is the build `winget install` targets.
-- **Per-user** (`oryxis-user-setup-*.exe`): installs to `%LOCALAPPDATA%\Programs\Oryxis`, registers under `HKCU`, no admin rights. Use this on locked-down machines or when you don't want UAC prompts on every update.
+- **System** (`oryxis-setup-*.exe`): installs to `Program Files`, registers
+  under `HKLM`, requires UAC. Use this for shared machines or when all
+  Windows users should share the install. This is the build
+  `winget install` targets.
+- **Per-user** (`oryxis-user-setup-*.exe`): installs to
+  `%LOCALAPPDATA%\Programs\Oryxis`, registers under `HKCU`, no admin
+  rights. Use this on locked-down machines or when you don't want UAC
+  prompts on every update.
 
-Both register `oryxis` and `oryxis-mcp` on `PATH` so they resolve from any shell. The auto-updater detects the install scope and downloads the matching installer.
+Both register `oryxis` and `oryxis-mcp` on `PATH` so they resolve from any
+shell. The auto-updater detects the install scope and downloads the
+matching installer. Windows binaries are Authenticode-signed (see
+[Code signing policy](#code-signing-policy)).
 
----
+</details>
 
-## What is Oryxis?
+## Highlights
 
-Oryxis is an open-source alternative to [Termius](https://termius.com/): a desktop SSH client with a modern UI, an encrypted vault for credentials, and a Termius-inspired design. No Electron, no webview, no cloud servers. Just a single native binary.
+- **Native and fast.** Pure Rust, GPU-accelerated [iced](https://iced.rs)
+  UI, single binary. No Electron, no webview.
+- **Encrypted local vault.** Argon2id + ChaCha20-Poly1305 per field,
+  optional master password, biometric unlock (Windows Hello / Touch ID /
+  Linux keyring), idle auto-lock, and TOTP autofill for 2FA hosts.
+- **The full SSH pipeline.** Auto-auth, multi-hop jump chains, SOCKS /
+  HTTP / command proxies, agent forwarding, standalone `-L`/`-R`/`-D` port
+  forwarding, and `~/.ssh/config` import.
+- **More than SSH.** Telnet and serial consoles for the gear that never
+  learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
+  through an SSH tunnel.
+- **A real terminal.** alacritty-based emulator, split panes, session
+  groups, per-host themes, bundled Nerd Fonts, smart tabs that flag
+  long-running commands, and per-host command history.
+- **Files everywhere.** Dual-pane SFTP with drag-and-drop, edit-in-place
+  and server-to-server copy; every SSH tab also carries a Files sidebar
+  that follows your shell's working directory.
+- **Session recording.** Encrypted at rest; exports to asciinema `.cast`
+  (theme embedded) or plain transcript, output-only by design.
+- **Cloud accounts.** AWS, Google Cloud, Azure and Kubernetes discovery
+  and connect (EC2, SSM, ECS Exec, GKE, AKS, `kubectl`), shipped as
+  signed on-demand plugins.
+- **AI where you work.** A per-tab assistant (bring your own key:
+  Anthropic, OpenAI, Gemini, or compatible) with layered auto-exec safety,
+  plus an [MCP server](docs/FEATURES.md#mcp-server) that exposes your
+  hosts to AI clients like Claude Code.
+- **P2P sync, no cloud.** End-to-end encrypted (X25519 +
+  XChaCha20-Poly1305) over QUIC; mDNS on the LAN, optional
+  [self-hosted](SELF_HOSTING.md) signaling/relay across networks. No
+  account, no vendor server.
+- **Keyboard-first.** `user@host` quick connect (Ctrl+K), MRU tab
+  switching, full keyboard navigation down to the last toggle, every
+  hotkey rebindable.
+- **Private by design.** No telemetry, Privacy Mode masking, a paste guard
+  that reads what you're pasting, and 23 languages with full RTL support.
 
-### Why?
-
-Most SSH clients are either powerful but ugly (PuTTY), pretty but Electron-heavy (Termius, Tabby), or terminal-only (OpenSSH). Oryxis aims to be all three: **beautiful, fast, and native**.
+The complete inventory lives in the **[feature tour](docs/FEATURES.md)**.
 
 ## Screenshots
 
-<p align="center">
-  <img src="resources/screen_1.gif" width="720" alt="Oryxis in action: connecting, running snippets, browsing SFTP">
-</p>
-<p align="center">
-  <em>Oryxis in motion</em>
-</p>
+<details>
+<summary><b>Show the gallery</b></summary>
 
 <p align="center">
   <img src="resources/screen_1.png" width="720" alt="Hosts dashboard with cards, groups, and quick search">
@@ -94,7 +157,7 @@ Most SSH clients are either powerful but ugly (PuTTY), pretty but Electron-heavy
   <img src="resources/screen_2.png" width="720" alt="ECS dynamic group expanded with running container task">
 </p>
 <p align="center">
-  <em>Cloud Accounts (AWS). Dynamic ECS groups expand to live tasks; multi-container Lens, Copy CLI per row.</em>
+  <em>Cloud Accounts. Dynamic groups expand to live tasks; multi-container Lens, Copy CLI per row.</em>
 </p>
 
 <p align="center">
@@ -105,319 +168,49 @@ Most SSH clients are either powerful but ugly (PuTTY), pretty but Electron-heavy
 </p>
 
 <p align="center">
-  <img src="resources/screen_8.png" width="720" alt="Terminal theme picker with 13 palette previews">
+  <img src="resources/screen_8.png" width="720" alt="Terminal theme picker with palette previews">
 </p>
 <p align="center">
-  <em>13 terminal palettes with inline swatch previews.</em>
+  <em>Terminal palettes with inline swatch previews, plus custom schemes.</em>
 </p>
 
 <p align="center">
   <img src="resources/screen_6.png" width="720" alt="Settings Interface section with tab styling and the app theme grid">
 </p>
 <p align="center">
-  <em>Settings → Interface. Navigation orientation, tab styling with live preview, top-bar accent wash, and the app theme grid.</em>
+  <em>Settings → Interface. Navigation orientation, tab styling with live preview, and the app theme grid.</em>
 </p>
 
-## Features
+</details>
 
-### SSH & Connectivity
-- **Auto-authentication.** Tries key, agent, password, and keyboard-interactive in order.
-- **Full SSH pipeline.** Direct, SOCKS4/5, HTTP CONNECT, ProxyCommand, multi-hop jump host chaining, and port forwarding via [russh 0.61](https://github.com/warp-tech/russh).
-- **Standalone port forwarding.** Local (`-L`), Remote (`-R`) and Dynamic SOCKS5 (`-D`) forwards live as their own entities with per-row on/off toggles, auto-start at boot, and no terminal required.
-- **Authenticated proxies.** SOCKS5 and HTTP CONNECT Basic auth, with proxy passwords in their own encrypted column.
-- **Proxy + jump host stacking.** A jump host behind a proxy dials through it on the first hop.
-- **Reusable Proxy Identities.** Save SOCKS5 / HTTP / SOCKS4 configs once and link them from any host.
-- **SSH agent forwarding.** Per-host opt-in; bridges the local ssh-agent socket through the channel.
-- **Rich `~/.ssh/config` import.** `ProxyCommand` and `ProxyJump` resolved automatically.
-- **RSA SHA-2 support**, step-by-step connection progress, TOFU host key verification, and integration tests against real OpenSSH containers.
+## Quick start
 
-### Terminal
-- **Embedded emulator.** [alacritty_terminal 0.26](https://github.com/alacritty/alacritty) with 256-color, truecolor, mouse selection, scrollback.
-- **Split panes.** Split a tab into a tmux/iTerm-style grid; each pane is its own session (saved host or local shell), with keyboard / paste / snippets / AI targeting the focused pane.
-- **Session groups.** Save a split arrangement (panes + split tree + per-pane startup scripts) as a reusable, credential-free entity.
-- **Pinned & reorderable tabs.** Pin tabs (restored on next launch, lazy reconnect) and drag to reorder, browser-style.
-- **Syntax highlighting.** IPs, URLs, and file paths auto-detected and colored.
-- **13 terminal palettes plus custom schemes.** Picker with inline swatch previews, global or per-host; build your own or import iTerm / Windows Terminal / base16.
-- **Bundled Nerd Fonts.** SauceCodePro plus a Symbols Nerd Font fallback so Powerline and icon glyphs always render.
-- **System mono font enumeration**, configurable font size (10-24px, `Ctrl + = / - / 0`), bold-to-bright colors, and full session recording.
+1. **First launch:** choose a master password or continue without one
+   (you can enable it, plus biometric unlock, later in Settings).
+2. **Add hosts:** click `+ HOST`, or just type `user@host` (Ctrl+K) to
+   connect without saving. `~/.ssh/config` imports in one click.
+3. **Connect:** click a host card. Split panes, the Files sidebar, SFTP
+   and snippets are one keystroke away.
+4. **Optional extras:** AI chat (Settings > AI), MCP server
+   (Settings > Security, [setup guide](docs/FEATURES.md#mcp-server)),
+   P2P sync between your devices (Settings > Sync,
+   [self-hosting guide](SELF_HOSTING.md)).
 
-### SFTP File Browser
-- **Dual-pane layout.** Local and remote side by side, with sortable columns.
-- **Drag-and-drop uploads.** Drop files from any OS file manager onto the remote pane.
-- **Internal drag.** Drag rows between panes to upload or download.
-- **Multi-select.** Ctrl/Cmd-click and Shift-range; batch Delete / Download / Duplicate / Upload.
-- **Edit-in-place.** Opens a remote file in your OS editor and prompts to upload on save.
-- **Properties dialog.** Per-row chmod grid, size, mtime, owner.
-- **Server-to-server copy.** Transfer files directly between two remote hosts, streamed host-to-host with no local round-trip and a live byte-level progress bar.
-- **Overwrite handling**, configurable parallelism (1-8 channels), `rm -rf` over exec, a live progress bar, and tunable timeouts.
-
-### AI Chat Assistant
-- **Integrated AI sidebar.** Collapsible chat panel per terminal session.
-- **Streaming responses.** Tokens land as the model emits them; markdown re-renders progressively.
-- **Runs commands for you.** The assistant drives the focused pane through an `execute_command` tool and reads the output back, instead of printing commands to copy.
-- **Three-layer auto-exec safety.** A deterministic floor force-prompts catastrophic commands, an independent fail-safe LLM judge vets the rest, and the "always run" allow-list refuses chained / piped / substituted commands so a trusted name can't smuggle a destructive payload.
-- **Multiple providers.** Anthropic, OpenAI, Google Gemini, or any OpenAI-compatible endpoint.
-- **Terminal context**, smart output capture, and a custom system prompt option.
-
-### Cloud Accounts (AWS & Kubernetes)
-- **First-class AWS provider.** Encrypted profiles (named profile, static keys, or IAM Identity Center / SSO) with a "Test credentials" button.
-- **Discovery & import.** Lists EC2 instances and ECS services grouped by region and cluster, with live filter and per-row import.
-- **Provider folder layout.** Imports nest under a folder named after the profile; ECS services become dynamic groups.
-- **EC2 Instance Connect.** One-shot key push with AMI-aware OS user inference.
-- **SSM Session.** Reach private instances with no open ports via Session Manager.
-- **ECS Exec.** Expand a dynamic group to its live tasks and exec into a container.
-- **Kubernetes provider.** Kubeconfig auth (path + context), discovers Deployments / StatefulSets / DaemonSets across namespaces, imports them as dynamic groups that resolve to live pods, and opens an interactive shell via `kubectl exec -it`. A thin `kubectl`-CLI wrapper, no heavy SDK.
-- **Brand SVG icons** for providers, dynamic groups, and distros.
-
-### Identity System
-- **Reusable credentials.** Identities (username + password + key) linked to many hosts.
-- **Autocomplete.** Type a username to find and link matching identities.
-- **Keychain view.** Keys and Identities side by side with search and context menus.
-- **Proxy Identities.** Same shape for proxy configs, password stored encrypted.
-- **Encrypted SSH key import.** Passphrase-protected keys are decrypted on import; the vault master password protects them at rest.
-
-### Themes & Internationalization
-- **13 global themes plus custom UI schemes.** Switch the entire UI instantly, or build your own (21 colors) with a built-in graphical color picker and live preview.
-- **Per-theme button colors** with WCAG contrast guards enforced in CI.
-- **23 languages.** English, Português, Español, Français, Deutsch, Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית, 한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย, हिन्दी, Čeština, Ελληνικά.
-- **RTL layout support.** Persian, Arabic and Hebrew flip the chrome; `Settings → Theme → Layout direction` overrides with Auto / LTR / RTL.
-- **Theme + language on the lock screen**, plus floating overlay context menus.
-
-### Vault & Security
-- **No password by default.** Opens instantly; enable a master password in Settings.
-- **Argon2id + ChaCha20Poly1305** with a per-field salt and nonce.
-- **Re-encryption** of all secrets when the password changes.
-- **Vault reset** option from the lock screen.
-- **No telemetry.** No data leaves your machine.
-
-### Export / Import
-- **Single encrypted file.** Export your whole vault as a password-protected `.oryxis` file.
-- **Selective export.** Include SSH private keys or only host configs.
-- **Smart merge.** Import merges by UUID, keeping the newer record (LWW).
-- **Round-trips proxy data** so a fresh device gets working proxy auth.
-
-### Plugin Subsystem
-- **Out-of-process plugins.** Cloud providers and the MCP server run as subprocess binaries over JSON-RPC stdio.
-- **Signed binaries.** Every plugin is Ed25519-signed and verified against a baked-in key before execution.
-- **Manifest + cache.** The right asset for the host arch is downloaded on demand and verified (signature + sha256).
-- **Install errors translated** across all 23 languages.
-
-### MCP Server
-- **AI integration.** Expose your SSH hosts to AI assistants via the [Model Context Protocol](https://modelcontextprotocol.io/).
-- **5 tools.** `list_hosts`, `get_host`, `ssh_execute`, `list_groups`, `list_keys`.
-- **Per-host control.** Toggle MCP exposure per connection.
-- **Disabled by default.** Enable in Settings > Security.
-- **Distributed as a plugin.** Downloaded on demand since v0.7, with a stable launcher path for external clients.
-
-### P2P Sync
-- **Decentralized.** Sync vault data between devices over QUIC, no cloud dependency.
-- **LAN discovery.** Automatic peer discovery via mDNS with one-click pair.
-- **Cross-network discovery.** Self-hostable signaling (Cloudflare Worker or `oryxis-relay`) plus STUN for NAT traversal.
-- **Pairing.** 6-digit code then Ed25519 challenge/response; `oryxis://pair/...` link and QR code.
-- **E2E encrypted.** Payloads sealed with X25519 + ChaCha20Poly1305.
-- **Tombstone-driven deletes** with a 30-day TTL gated by active-peer catch-up.
-- **Audit hardening.** Signed register/unregister with TOFU pinning, replay rejection, bounded session maps, and `verify_strict` across client and server.
-- **Optional relay** (ciphertext-only) and **opt-in password sync**, off by default.
-
-### Windows System Tray
-- **Tray icon + menu.** Show / Hide to tray / Quit with dynamic submenus.
-- **Active sessions submenu.** One item per open terminal tab.
-- **Recent hosts submenu.** Top 10 connections by last used.
-- **Opt-in tray gestures.** Close-to-tray and minimize-to-tray, both off by default.
-- **Single-instance.** Named-mutex guard with primary/child IPC and auto-promotion.
-
-### UI / UX
-- **Native GPU-accelerated UI.** [Iced 0.14](https://iced.rs) on the wgpu backend.
-- **Termius-inspired design.** Card grid, slide-in editors, sidebar navigation.
-- **Workspace layout mode.** Sidebar hides when a tab is open so the terminal fills the canvas; Classic mode stays a one-click opt-out.
-- **Customizable host icons.** Circular / Square / Outline / Initials, global or per-host.
-- **Dynamic accent on the chrome** from the host's color.
-- **Editable hotkeys.** Every binding is rebindable with a live capture mode.
-- **Responsive card grid.** Column count reflows to the available width; long labels truncate cleanly.
-- **Multi-tab sessions** with tab overflow, a scrollable strip, and a `Ctrl+J` jump-to modal.
-- **Snippets**, folder organization, search, empty states, a Settings sidebar, and persistent settings.
-
-## Architecture
-
-```
-+--------------------------------------------------------------------+
-| Iced Application (wgpu, GPU-accelerated)      oryxis-app           |
-| Sidebar / Tab bar / Card grid / Terminal / SFTP / AI               |
-| Slide-in editors . Split panes . Modals & overlays                 |
-+------------------------------+-------------------------------------+
-| SSH engine                   | Encrypted vault                     |
-| oryxis-ssh                   | oryxis-vault                        |
-| russh 0.61, auto-auth,       | SQLite, Argon2id,                   |
-| jump hosts, SOCKS/HTTP/      | ChaCha20Poly1305 per-field,         |
-| Command proxy, -L/-R/-D,     | .oryxis export / import             |
-| SFTP, TOFU                   |                                     |
-+--------------------------------------------------------------------+
-| Cloud providers + plugin subsystem                                 |
-| oryxis-cloud            provider trait (discover +                 |
-|                         transport)                                 |
-| oryxis-cloud-aws/-k8s   AWS & Kubernetes impls                     |
-| *-aws-plugin/-k8s-plugin  subprocess (JSON-RPC 2.0)                |
-| oryxis-plugin-protocol  stdio wire contract                        |
-| oryxis-plugin-signer    Ed25519 sign + SHA-256                     |
-+------------------------------+-------------------------------------+
-| P2P sync                     | AI / automation                     |
-| oryxis-sync                  | oryxis-mcp                          |
-| quinn QUIC, mDNS, STUN,      | JSON-RPC 2.0 over stdio,            |
-| signaling + relay,           | list / get / exec SSH hosts         |
-| Ed25519/X25519, LWW          | for AI assistants                   |
-| oryxis-relay (self-host)     |                                     |
-+------------------------------+-------------------------------------+
-| Terminal                     | Core model types                    |
-| oryxis-terminal              | oryxis-core                         |
-| alacritty_terminal 0.26,     | Connection, Key, Identity,          |
-| custom widget + PTY,         | ProxyIdentity, Group, Snippet,      |
-| 13 themes + custom themes    | KnownHost, PortForwardRule,         |
-|                              | SessionGroup, CloudAccount, ...     |
-+--------------------------------------------------------------------+
-```
-
-| Crate | Purpose |
-|-------|---------|
-| `oryxis-app` | Iced app: views, themes, i18n, AI chat, SFTP browser, cloud UI, split panes, overlays |
-| `oryxis-core` | Shared model types: Connection, SshKey, Identity, ProxyIdentity, Group, Snippet, KnownHost, PortForwardRule, SessionGroup, CloudAccount, custom themes, LogEntry |
-| `oryxis-terminal` | Terminal widget: alacritty_terminal 0.26 + custom canvas widget + PTY + 13 themes + custom themes + URL/IP/path detection |
-| `oryxis-ssh` | SSH engine: auto-auth, jump hosts, SOCKS/HTTP/Command proxy, Local/Remote/Dynamic forwarding, SFTP, TOFU, RSA-SHA2 |
-| `oryxis-vault` | Encrypted vault: SQLite + Argon2id + ChaCha20Poly1305 per-field + session logs + `.oryxis` export/import |
-| `oryxis-sync` | P2P sync engine: QUIC (quinn) + mDNS + STUN + signaling + HTTP relay fallback + Ed25519/X25519 + LWW conflict resolution |
-| `oryxis-relay` | Self-hostable signaling + relay HTTP server (axum + in-memory queues) |
-| `oryxis-mcp` | MCP server binary: JSON-RPC 2.0 over stdio, exposes SSH hosts to AI assistants. Distributed as a plugin, not bundled in the OS installers |
-| `oryxis-cloud` | Cloud provider abstraction: a `CloudProvider` trait split into discovery (list resources) and transport (open a channel: SSH / SSM / ECS Exec / kubectl exec) |
-| `oryxis-cloud-aws` | AWS provider: named profiles, static keys, IAM Identity Center (SSO), EC2 + ECS discovery |
-| `oryxis-cloud-k8s` | Kubernetes provider: kubeconfig auth, workload discovery and pod shells driven through the `kubectl` CLI |
-| `oryxis-cloud-aws-plugin` | AWS provider packaged as a standalone subprocess (JSON-RPC 2.0 over stdio) |
-| `oryxis-cloud-k8s-plugin` | Kubernetes provider packaged as a standalone subprocess (JSON-RPC 2.0 over stdio) |
-| `oryxis-plugin-protocol` | Wire protocol for cloud-provider plugins: line-delimited JSON-RPC 2.0 over stdio |
-| `oryxis-plugin-signer` | CLI that signs a plugin binary with the Ed25519 key and computes the SHA-256 the manifest needs |
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| UI | Iced (wilsonglasser fork, branch `oryxis`, wgpu GPU-accelerated) |
-| Icons | Lucide + Codicon (iced_fonts) + brand SVG icons |
-| Fonts | Noto Sans (UI, CJK on demand) + SauceCodePro / Symbols Nerd Font (terminal) |
-| Terminal | alacritty_terminal 0.26 |
-| SSH | russh 0.61 (async, pure Rust, RSA-SHA2) |
-| Cloud | AWS (EC2/ECS, SSM, EC2 Instance Connect) + Kubernetes (kubectl), as Ed25519-signed subprocess plugins |
-| AI | reqwest + Anthropic / OpenAI-compatible / Gemini APIs |
-| MCP | JSON-RPC 2.0 over stdio |
-| P2P Sync | quinn (QUIC), mDNS, STUN, HTTP relay fallback, Ed25519/X25519 |
-| Encryption | Argon2id + ChaCha20Poly1305 |
-| Storage | SQLite (rusqlite) |
-| Clipboard | arboard |
-| File picker | rfd (native OS dialog) |
-| Async | Tokio |
-
-## Building from Source
-
-### Prerequisites
-
-- Rust 1.90+ (install via [rustup](https://rustup.rs/))
-
-**Linux:**
-```bash
-sudo apt install -y build-essential pkg-config libssl-dev libgtk-3-dev libwayland-dev libxkbcommon-dev
-```
-
-**macOS:** Xcode Command Line Tools (`xcode-select --install`)
-
-**Windows:** Visual Studio Build Tools with C++ workload
-
-### Build & Run
-
-```bash
-git clone https://github.com/wilsonglasser/oryxis.git
-cd oryxis
-cargo run            # Debug
-cargo build --release # Release
-cargo test --workspace
-```
-
-## Usage
-
-1. **First launch.** Choose to set a master password or continue without one.
-2. **Add hosts.** Click `+ HOST`, fill in hostname and credentials.
-3. **Identities.** Create reusable credential bundles in the Keychain.
-4. **Connect.** Click a host card to open an SSH session.
-5. **AI Chat.** Enable in Settings > AI, click the chat bubble in the terminal to ask questions.
-6. **Export/Import.** Settings > Security to export the vault or import from another device.
-7. **MCP Server.** Enable in Settings > Security, configure in your AI client.
-8. **P2P Sync.** Settings > Sync to pair devices and sync vault data.
-9. **Themes.** Switch in Settings (Oryxis Dark, Light, Dracula, Nord).
-10. **Language.** Change in Settings > Theme (23 languages available, including Persian, Arabic and Hebrew with RTL layout).
-
-### MCP Server Setup
-
-The MCP server (`oryxis-mcp`) exposes your SSH hosts to AI assistants like Claude Code.
-
-1. Enable MCP in Settings > Security
-2. Add to your Claude Code config (`~/.claude.json`):
-
-```json
-{
-  "mcpServers": {
-    "oryxis": {
-      "command": "oryxis-mcp",
-      "env": {
-        "ORYXIS_VAULT_PASSWORD": "your-vault-password"
-      }
-    }
-  }
-}
-```
-
-If your vault has no password, omit the `env` field.
-
-### Signaling + relay (for P2P Sync over the internet)
-
-LAN sync works out of the box via mDNS, no server needed.
-
-For cross-network sync (different ISPs, mobile networks, behind double NAT), Oryxis needs a small HTTP server that does two things:
-
-1. **Signaling:** `device_id -> ip:port` lookup so peers can find each other.
-2. **Relay:** carries sync traffic as fallback when QUIC direct can't punch through NAT.
-
-**We don't run a central server**; you self-host. The server sees ciphertext only (payloads are sealed end-to-end with ChaCha20-Poly1305 from an X25519 DH at pairing time).
-
-Three deployment options:
-
-- **Cloudflare Workers** (free tier covers normal use): `signaling-worker/worker.js`
-- **Docker:** `ghcr.io/wilsonglasser/oryxis-relay:latest`
-- **Standalone binary:** `cargo install --path crates/oryxis-relay`
-
-Full step-by-step in [SELF_HOSTING.md](SELF_HOSTING.md).
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+Shift+C` | Copy from terminal |
-| `Ctrl+Shift+V` | Paste to terminal |
-| `Ctrl+Shift+W` | Close tab |
-| `Ctrl+1...9` | Switch to tab 1-9 |
-| `Ctrl+L` | Open local terminal |
-| `Ctrl+N` | New host |
-| `Ctrl+= / Ctrl++` | Increase terminal font size |
-| `Ctrl+-` | Decrease terminal font size |
-| `Ctrl+0` | Reset terminal font size |
-| `Ctrl+Wheel` | Adjust terminal font size |
+Questions? Check the
+[FAQ](https://github.com/wilsonglasser/oryxis/discussions/66) or open a
+[Discussion](https://github.com/wilsonglasser/oryxis/discussions).
 
 ## Security
 
-- **Argon2id + ChaCha20Poly1305.** Memory-hard KDF plus AEAD encryption.
-- **Per-field encryption.** Unique 32-byte salt + 12-byte nonce per secret.
-- **Optional master password.** Disabled by default, enable in Settings.
-- **TOFU.** Server fingerprints verified on every connection.
-- **Pure Rust.** No C dependencies in the crypto path.
-- **No telemetry.** No data leaves your machine.
-- **AI keys encrypted.** API keys stored encrypted in the vault.
+Everything sensitive is encrypted per-field at rest (Argon2id +
+ChaCha20-Poly1305), host keys are TOFU-pinned, sync payloads are
+end-to-end encrypted, plugins are Ed25519-signature-verified before
+execution, and there is no telemetry of any kind.
 
-## Code signing policy
+The full security model and the vulnerability disclosure policy live in
+[SECURITY.md](SECURITY.md). Please report vulnerabilities privately.
+
+### Code signing policy
 
 Free code signing provided by [SignPath.io](https://about.signpath.io),
 certificate by [SignPath Foundation](https://signpath.org).
@@ -429,28 +222,91 @@ information is collected or shared as part of this process.
 
 ## Roadmap
 
-Oryxis ships small and often. This table is forward-looking: what's in
-flight and what's planned next. For the full history of released versions,
-see [CHANGELOG.md](CHANGELOG.md).
+Oryxis ships small and often. This section is forward-looking: what's
+planned next. Latest stable is **v0.9.0**; [CHANGELOG.md](CHANGELOG.md)
+has the full history, and the
+[roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
+tracks it interactively.
 
-Latest stable: **v0.9.0**; see [CHANGELOG.md](CHANGELOG.md) for the
-full notes on everything it shipped.
+**v1.0 (planned): the stable release**
 
-| Version | Status | Scope |
-|---------|--------|-------|
-| **v1.0** | Planned | **Stable 1.0**. Advanced authentication: SSH certificate auth (signed user certs), FIDO2 / security-key keys (`sk-ssh-ed25519`, `sk-ecdsa-sk`), and PKCS#11 / smartcard / YubiKey hardware-backed keys; in-app SSH key generation (Ed25519 / RSA / ECDSA with optional passphrase). Terminal: scrollback search (Ctrl+F find-in-buffer with match highlighting), broadcast / synchronized input across split panes (with independent broadcast channels for distinct server groups, and optional synchronized scrolling), **X11 forwarding** (`-X` / `-Y` trusted / untrusted, opening `x11-req` channels to the local display; works on Wayland desktops via Xwayland, native Wayland / `waypipe` is out of scope), OSC 8 hyperlinks, keyword highlighting with triggers (user-defined regex rules that colour matches such as ERROR lines or a production hostname, and can optionally fire an action on match: a notification, a sound, or sending a stored snippet), quick-connect OS integration (the shipped `user@host` quick connect registered as the OS `ssh://` URL handler and exposed as an `oryxis user@host` CLI entrypoint), and a command palette. **GIF export of session recordings** (render a v0.9 `.cast` session recording into a shareable GIF, planned as an optional downloadable plugin so font rendering and GIF encoding stay out of the core binary). **In-app session player** (play a recorded session back right inside the app, on the same terminal emulator and theme it was captured with: play / pause, seek and speed controls, no re-typing risk since playback is output-only). **Mosh protocol** (roaming + predictive echo: a native Rust implementation of mosh's State Synchronization Protocol, client side, interoperating with the standard `mosh-server` shipped in every distro; sessions survive IP changes, sleep / resume and flaky links, with mosh's predictive local echo ported as an overlay on the terminal grid. No Rust implementation of the protocol exists today and other GUI clients embed the C++ code instead, so this would also make Oryxis the first mosh client that runs natively on Windows). **Config importers** (PuTTY registry sessions, WinSCP, mRemoteNG and Termius exports, alongside the existing `~/.ssh/config` import); **Wake-on-LAN** (send a magic packet to a sleeping host from its card); **network tools panel** (optional and off by default, all in-app: DNS record lookups, ping / traceroute, TCP port test, HTTP / TLS certificate check, SMTP test, WHOIS and RBL blacklist checks); **SFTP archive operations** (compress / extract zip and tar.gz, the remote side running over the existing SSH connection); **auto-tuned vault key derivation** (Argon2id calibrated to your machine at vault creation, targeting ~1 second to unlock); **curated theme collection + theme file import** (a hand-picked, contrast-verified set of terminal themes, and the existing iTerm2 / Windows Terminal / base16 paste-import gains a file picker); **extra sync backends** (the encrypted sync snapshot can also live in a private GitHub repo, signed in with a one-time device code, or on any WebDAV server such as Nextcloud, alongside the existing peer-to-peer and SFTP modes; every backend only ever stores ciphertext); **connection health** (a per-tab latency indicator, plus reusing an already-open SSH connection when a second tab to the same host opens); **group settings inheritance** (groups carry per-parameter defaults, credentials, proxy, environment variables, theme, startup snippet, that hosts and subgroups inherit unless overridden, Termius-style fleet management); **legacy keyboard modes** (per-host backspace ^H / ^?, rxvt Home / End and function-key styles for the same network-appliance audience as Telnet and serial, plus per-host toggles to disable mouse reporting / remote resizing / title changes). **AI ops toolkit** (the terminal AI assistant graduates from generating shell commands to calling typed, structured operations: service status / restart, log queries, process and disk inspection, file operations, each synthesized for the host's actual OS and init system from a per-host facts model, so no more Ubuntu-flavoured commands on an Alpine box; read-only operations run freely, every state-changing operation shows a human-readable dry-run preview and asks first, and an audit journal records everything the agent did; local-first and bring-your-own-key, no hosted backend, secrets never enter the model's context). Consistency + stability: a unified form system (shared field / footer / inline-error helpers adopted across every editor) and portable export/import test hardening |
-| **Beyond 1.0** | Exploring | **Team vaults over P2P sync** (share a vault with teammates with no hosted server involved: replication rides the existing QUIC + mDNS + relay sync engine, secrets stay end-to-end encrypted with per-member key wrapping, removing a member re-keys the vault, and an optional self-hosted relay mailbox covers teams whose devices are never online at the same time); **multi-host AI agent** (the v1.0 typed-operation agent detached from a single tab: a workspace chat that investigates across your vault's hosts over ad-hoc SSH channels, reusing live connections where they exist, gated by an explicit per-host opt-in; runs only while the app is open, by design, there is no background daemon and no alert pipeline) |
+- **Advanced authentication:** SSH certificate auth, FIDO2 / security-key
+  keys (`sk-ssh-ed25519`, `sk-ecdsa-sk`), PKCS#11 / smartcard / YubiKey,
+  and in-app SSH key generation (Ed25519 / RSA / ECDSA).
+- **Terminal:** scrollback search, broadcast input across split panes,
+  X11 forwarding (`-X` / `-Y`), OSC 8 hyperlinks, keyword highlighting
+  with user-defined trigger actions, and a command palette.
+- **Session recordings:** an in-app player (play / pause, seek, speed) and
+  GIF export as an optional plugin.
+- **Mosh:** a native Rust client for mosh's State Synchronization
+  Protocol, interoperating with the stock `mosh-server`; sessions survive
+  IP changes and sleep, with predictive local echo. This would be the
+  first mosh client to run natively on Windows.
+- **Quick-connect OS integration:** register as the `ssh://` URL handler
+  and accept `oryxis user@host` on the CLI.
+- **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
+  importers, Wake-on-LAN, an optional network tools panel (DNS, ping /
+  traceroute, port test, TLS check, WHOIS, RBL), and SFTP zip / tar.gz
+  compress and extract.
+- **Vault & sync:** Argon2id auto-tuned to your machine, a curated
+  terminal theme collection plus theme file import, extra sync snapshot
+  backends (private GitHub repo via device code, any WebDAV server;
+  ciphertext only, as always), connection health indicators with
+  connection reuse, and group settings inheritance (per-parameter
+  defaults hosts inherit, Termius-style).
+- **Legacy keyboard modes:** per-host backspace / Home / End /
+  function-key styles and per-host toggles for mouse reporting, remote
+  resize and title changes.
+- **AI ops toolkit:** the assistant graduates from generating shell
+  strings to typed, structured operations synthesized for the host's
+  actual OS, with dry-run previews on every state change, an audit
+  journal, and secrets structurally excluded from model context.
+  Local-first, bring-your-own-key, no hosted backend.
+- **Consistency & stability:** a unified form system across all editors
+  and portable export/import test hardening.
+
+**Beyond 1.0 (exploring)**
+
+- **Team vaults over P2P sync:** share a vault with teammates with no
+  hosted server; per-member key wrapping, re-key on member removal,
+  optional self-hosted relay mailbox for teams never online together.
+- **Multi-host AI agent:** the typed-operation agent detached from a
+  single tab, investigating across vault hosts over ad-hoc SSH channels,
+  gated by explicit per-host opt-in.
+
+## Building from source
+
+Rust stable (via [rustup](https://rustup.rs/)), plus:
+
+- **Linux:** `sudo apt install -y build-essential pkg-config libssl-dev libgtk-3-dev libwayland-dev libxkbcommon-dev`
+- **macOS:** Xcode Command Line Tools (`xcode-select --install`)
+- **Windows:** Visual Studio Build Tools with the C++ workload
+
+```bash
+git clone https://github.com/wilsonglasser/oryxis.git
+cd oryxis
+cargo run             # debug
+cargo build --release # release
+cargo test --workspace
+```
+
+The workspace layout is documented in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Contributing
 
-Contributions welcome. Open an issue to discuss before submitting large PRs.
+Contributions are welcome. Open an issue to discuss before starting large
+PRs, and see [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, quality
+gates and project conventions (i18n, keyboard navigation, secret
+handling).
 
 ## License
 
-Copyright (C) 2026 Wilson Glasser. Licensed under [AGPL-3.0-or-later](LICENSE).
-Free and open-source forever: anyone can use, modify, and distribute Oryxis, but
-any modified version made available over a network must also share its source
-code under the same license. See [NOTICE](NOTICE) for details.
+Copyright (C) 2026 Wilson Glasser. Licensed under
+[AGPL-3.0-or-later](LICENSE). Free and open-source forever: anyone can
+use, modify, and distribute Oryxis, but any modified version made
+available over a network must also share its source code under the same
+license. See [NOTICE](NOTICE) for details.
 
 ---
 
