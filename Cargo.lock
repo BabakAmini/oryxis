@@ -3167,7 +3167,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.18",
- "windows 0.62.2",
+ "windows 0.61.3",
 ]
 
 [[package]]
@@ -3532,7 +3532,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -3565,7 +3565,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -3717,6 +3717,30 @@ dependencies = [
  "bytes",
  "iced_core",
  "iced_futures",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "iced_selector"
+version = "0.15.0-dev"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#074b09cca016a16df1f12dc4ca5bf6c7fad326a3"
+dependencies = [
+ "iced_core",
+]
+
+[[package]]
+name = "iced_test"
+version = "0.15.0-dev"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#074b09cca016a16df1f12dc4ca5bf6c7fad326a3"
+dependencies = [
+ "iced_futures",
+ "iced_program",
+ "iced_renderer",
+ "iced_runtime",
+ "iced_selector",
+ "nom",
+ "png 0.18.1",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
 ]
 
@@ -5506,6 +5530,7 @@ dependencies = [
  "futures-util",
  "iced",
  "iced_fonts",
+ "iced_test",
  "image",
  "notify-rust",
  "open",
@@ -5907,7 +5932,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -6614,7 +6639,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -6653,7 +6678,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -9641,7 +9666,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

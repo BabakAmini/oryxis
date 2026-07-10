@@ -81,6 +81,13 @@ dirs = "6"
 # SDK reports "dispatch failure" on the first STS call.
 rustls = { workspace = true }
 iced = { workspace = true }
+# Headless end-to-end harness (`--features harness`). The `iced_test`
+# crate lives in the same wilsonglasser/iced fork the app renders
+# with, so Cargo resolves it to the exact locked revision; its
+# Emulator runs the real program (subscriptions, tasks, side effects)
+# without a window and renders screenshots via wgpu-headless or
+# tiny-skia. See src/harness.rs and docs/HARNESS.md.
+iced_test = { git = "https://github.com/wilsonglasser/iced", branch = "oryxis", optional = true }
 # Boot-time GPU adapter probe (renderer_probe.rs). Same wgpu the iced
 # fork renders with (one build in the tree via feature unification),
 # so the probe sees exactly the adapters iced's compositor will.
@@ -170,3 +177,10 @@ fontdb = "0.23"
 # CJK language-picker name (한국어 / 中文 / 日本語), so those entries are
 # always renderable from the bundle, even before the on-demand CJK font.
 ttf-parser = "0.25"
+
+[features]
+# Headless end-to-end harness: `cargo run --features harness -- --harness-repl`
+# drives the full app (real vault, real subscriptions) without a window,
+# executing .ice instructions and dumping PNG screenshots. Dev-only; never
+# enabled in release/CI artifact builds.
+harness = ["dep:iced_test"]
