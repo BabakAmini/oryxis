@@ -21,6 +21,65 @@ use sha2::{Digest, Sha256};
 use crate::i18n::Language;
 use crate::messages::Message;
 
+/// Every font baked into the binary, in load order. `main.rs` feeds
+/// these to the iced application builder one `.font()` call at a
+/// time; the headless harness (`harness.rs`, feature `harness`) loads
+/// the same list straight into the global font system, since the
+/// emulator path never runs the shell's boot-time font loading.
+///
+/// The set, and why each entry is bundled:
+/// - Lucide: the app's icon glyphs. Codicon: window chrome glyphs
+///   (chrome-minimize/maximize/restore/close) matching the native
+///   Windows title bar look that VS Code uses. Brand glyphs are
+///   per-brand SVGs (`os_icon::BRAND_ICONS`), no font needed.
+/// - Noto Sans (Regular / SemiBold / Bold): the single bundled UI
+///   font across every platform, one standard look instead of per-OS
+///   system fonts. Covers Latin, Latin Extended, Cyrillic, Greek and
+///   Vietnamese, so most shipped languages render from the bundle
+///   with no system font dependency. The three weights share the
+///   "Noto Sans" typographic family (name ID 16), so weight selection
+///   resolves to the right file. SIL OFL 1.1 (resources/fonts/OFL.txt).
+/// - Noto Sans Arabic / Hebrew / Thai / Devanagari: small script
+///   fonts (17-185 KB per weight) bundled so Arabic, Persian, Hebrew,
+///   Thai and Hindi render offline; cosmic-text falls back to them
+///   per-codepoint. CJK is the genuinely large script set and is
+///   downloaded on demand instead (see this module).
+/// - MenuCJK: tiny (~4 KB) subset holding only the glyphs of the
+///   language-picker names (한국어 / 简体中文 / 繁體中文 / 日本語) so those
+///   entries always render before the full CJK font is downloaded.
+///   Distinct family ("Oryxis Menu CJK"), pure per-codepoint fallback.
+/// - SauceCodePro Nerd Font (Regular / Medium): default terminal
+///   font, Source Code Pro patched with the full Nerd Font glyph set
+///   so Starship / Powerline prompts render out of the box. System
+///   mono fonts lacking the PUA glyphs fall back to it per-codepoint
+///   via the terminal widget's symbol_map.
+/// - Symbols Nerd Font: same PUA set with no Latin coverage,
+///   fallback-only so proportional text (chat, host labels, snippets)
+///   can show Powerline/Devicon glyphs without going monospace.
+pub static BUNDLED_FONTS: &[&[u8]] = &[
+    iced_fonts::LUCIDE_FONT_BYTES,
+    iced_fonts::CODICON_FONT_BYTES,
+    include_bytes!("../../../resources/fonts/NotoSans-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSans-SemiBold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSans-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansArabic-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansArabic-SemiBold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansArabic-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansHebrew-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansHebrew-SemiBold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansHebrew-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansThai-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansThai-SemiBold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansThai-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansDevanagari-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansDevanagari-SemiBold.ttf"),
+    include_bytes!("../../../resources/fonts/NotoSansDevanagari-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/MenuCJK.ttf"),
+    include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Regular.ttf"),
+    include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Medium.ttf"),
+    include_bytes!("../../../resources/fonts/SymbolsNerdFont-Regular.ttf"),
+];
+
 /// One downloadable CJK font, keyed by language. Each is a Noto Sans
 /// regional variable TTF (all weights in one file) pinned to an
 /// immutable `google/fonts` commit *and* to its SHA-256. To re-pin or

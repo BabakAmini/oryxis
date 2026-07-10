@@ -55,6 +55,8 @@ mod dispatch_telnet;
 mod dispatch_terminal;
 mod dispatch_zmodem;
 mod fonts;
+#[cfg(feature = "harness")]
+mod harness;
 mod i18n;
 mod keynav;
 mod logging;
@@ -109,6 +111,19 @@ const MIN_WIDTH: f32 = 800.0;
 const MIN_HEIGHT: f32 = 500.0;
 
 fn main() -> iced::Result {
+    // Headless E2E harness argument pickup (feature `harness`). Must
+    // run before anything else touches the vault or the environment:
+    // when a harness mode is requested it redirects $HOME to a sandbox
+    // directory, so a harness run can never read or write the real
+    // ~/.oryxis. Still single-threaded here, so the env mutation is
+    // sound under the Rust 2024 contract.
+    #[cfg(feature = "harness")]
+    let harness_options = harness::options_from_args();
+    #[cfg(feature = "harness")]
+    let harness_active = harness_options.is_some();
+    #[cfg(not(feature = "harness"))]
+    let harness_active = false;
+
     // rustls 0.23 requires a crypto provider to be installed before
     // any TLS connection, without it, the AWS SDK's HTTPS client
     // fails with a generic "dispatch failure". The workspace pins
@@ -338,7 +353,12 @@ fn main() -> iced::Result {
     // child. Retry for up to ~2 s so the intended in-place restart
     // comes back as primary. No-op where there is no mutex (Linux/macOS
     // report not-running immediately).
-    let is_primary = if relaunching {
+    let is_primary = if harness_active {
+        // Headless harness: no tray, no IPC registry, no single-instance
+        // coordination. The emulator process is self-contained and must
+        // never demote a real running Oryxis to a child (or vice versa).
+        true
+    } else if relaunching {
         let mut primary = !tray::another_instance_running();
         let mut waited = 0;
         while !primary && waited < 2000 {
@@ -351,102 +371,42 @@ fn main() -> iced::Result {
         !tray::another_instance_running()
     };
     app::APP_IS_PRIMARY.store(is_primary, std::sync::atomic::Ordering::Relaxed);
-    tray_ipc::init_runtime_dirs();
 
-    if is_primary {
-        // Install the Windows system tray icon. No-op on macOS/Linux
-        // until those platforms get their own backends. Failure here
-        // is logged but non-fatal: the app still runs without a tray.
-        if let Err(e) = tray::install() {
-            tracing::warn!("tray icon registration failed: {e}");
+    if !harness_active {
+        tray_ipc::init_runtime_dirs();
+
+        if is_primary {
+            // Install the Windows system tray icon. No-op on macOS/Linux
+            // until those platforms get their own backends. Failure here
+            // is logged but non-fatal: the app still runs without a tray.
+            if let Err(e) = tray::install() {
+                tracing::warn!("tray icon registration failed: {e}");
+            }
+        } else {
+            // Child: announce ourselves to the primary's registry.
+            // Title is the default app title; per-window state updates
+            // refine it later via tray_ipc::Child::write_state.
+            tray_ipc::Child::register("Oryxis");
+            tracing::info!("running as tray IPC child (primary already up)");
         }
-    } else {
-        // Child: announce ourselves to the primary's registry.
-        // Title is the default app title; per-window state updates
-        // refine it later via tray_ipc::Child::write_state.
-        tray_ipc::Child::register("Oryxis");
-        tracing::info!("running as tray IPC child (primary already up)");
     }
 
     // Load window icon from PNG
     let icon = load_icon();
 
-    iced::application(app::Oryxis::boot, app::Oryxis::update, app::Oryxis::view)
-        .title(app::Oryxis::title)
-        .theme(app::Oryxis::theme)
-        .subscription(app::Oryxis::subscription)
-        .font(iced_fonts::LUCIDE_FONT_BYTES)
-        // Codicon, used for window chrome glyphs (chrome-minimize/maximize/
-        // restore/close) which match the native Windows title bar look that
-        // VS Code uses.
-        .font(iced_fonts::CODICON_FONT_BYTES)
-        // Brand glyphs are bundled per-brand as SVGs in
-        // `resources/icons/brand/`, no additional font needed. See
-        // `os_icon::BRAND_ICONS`.
-        // Noto Sans, the single bundled UI font across every platform (one
-        // standard look instead of per-OS system fonts). Covers Latin,
-        // Latin Extended, Cyrillic, Greek and Vietnamese in one family, so
-        // English, Portuguese, Spanish, French, German, Italian, Russian,
-        // Polish, Turkish, Indonesian, Vietnamese, Ukrainian, Czech and
-        // Greek all render from the bundle with no system font
-        // dependency. Regular (400),
-        // SemiBold (600) and Bold (700) share the "Noto Sans" typographic
-        // family (name ID 16), so weight selection resolves to the right
-        // file. Licensed under SIL OFL 1.1 (see resources/fonts/OFL.txt).
-        .font(include_bytes!("../../../resources/fonts/NotoSans-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSans-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSans-Bold.ttf").as_slice())
-        // Noto Sans Arabic, bundled so the already-shipped Arabic and
-        // Persian languages render offline. cosmic-text falls back to it
-        // per-codepoint for Arabic-script glyphs the Latin Noto lacks.
-        // CJK (Chinese / Japanese / Korean) is the genuinely large script
-        // set and is downloaded on demand instead (see mcp_install-style
-        // font cache), not bundled here.
-        .font(include_bytes!("../../../resources/fonts/NotoSansArabic-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansArabic-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansArabic-Bold.ttf").as_slice())
-        // Noto Sans Hebrew / Thai / Devanagari, bundled like Arabic so
-        // the Hebrew, Thai and Hindi languages render offline. All three
-        // scripts are small (17-185 KB per weight), nowhere near the CJK
-        // sizes that justify the on-demand download path.
-        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansHebrew-Bold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansThai-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansThai-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansThai-Bold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-SemiBold.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/NotoSansDevanagari-Bold.ttf").as_slice())
-        // Tiny (~4 KB) CJK subset holding only the glyphs for the
-        // language-picker names (한국어 / 简体中文 / 繁體中文 / 日本語).
-        // Bundling it means those entries always render, even on a fresh
-        // install before the full CJK font has been downloaded on demand,
-        // so the user can always read and pick a CJK language. Distinct
-        // family ("Oryxis Menu CJK") so it is a pure per-codepoint
-        // fallback and never shadows the full Noto Sans / downloaded CJK
-        // faces.
-        .font(include_bytes!("../../../resources/fonts/MenuCJK.ttf").as_slice())
-        // SauceCodePro Nerd Font, default terminal font (Source Code
-        // Pro patched with the full Nerd Font glyph set: Powerline,
-        // Font Awesome, Devicons, Octicons, Codicons, Material). One
-        // bundled mono font covers both regular text and the Private
-        // Use Area symbol ranges, so prompts using Starship / Powerline
-        // segments render correctly out of the box without a system
-        // install. Additional mono fonts the user picks are resolved
-        // by name from the system; for any system font that lacks the
-        // PUA glyphs, the terminal widget's symbol_map falls back to
-        // this family per-codepoint.
-        .font(include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Regular.ttf").as_slice())
-        .font(include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Medium.ttf").as_slice())
-        // Symbols Nerd Font: same PUA glyph set as SauceCodePro Nerd
-        // but with no Latin coverage, purpose-built as a fallback-only
-        // font. Loaded into the iced fontdb so cosmic-text picks it up
-        // automatically for nerd glyph codepoints in proportional text
-        // (Noto Sans / system fonts have no PUA coverage). Keeps prose
-        // proportional while still rendering Powerline/Devicon/etc.
-        // characters in chat messages, host labels, snippets, etc.
-        .font(include_bytes!("../../../resources/fonts/SymbolsNerdFont-Regular.ttf").as_slice())
+    let mut application =
+        iced::application(app::Oryxis::boot, app::Oryxis::update, app::Oryxis::view)
+            .title(app::Oryxis::title)
+            .theme(app::Oryxis::theme)
+            .subscription(app::Oryxis::subscription);
+    // Every bundled font, from the Lucide icon glyphs to the Nerd Font
+    // terminal faces. The list (and the rationale for each entry) lives
+    // in `fonts::BUNDLED_FONTS` so the headless harness can load the
+    // exact same set into its windowless renderer.
+    for font in fonts::BUNDLED_FONTS {
+        application = application.font(*font);
+    }
+    let application = application
         // Default UI font is the bundled Noto Sans on every platform, so
         // the UI looks identical everywhere and never depends on a system
         // font being installed.
@@ -494,8 +454,17 @@ fn main() -> iced::Result {
             },
             ..Default::default()
         })
-        .antialiasing(true)
-        .run()
+        .antialiasing(true);
+
+    // Headless E2E harness (feature `harness`): hand the fully
+    // configured application to the emulator-backed driver instead of
+    // opening a window. See `harness.rs` / docs/HARNESS.md.
+    #[cfg(feature = "harness")]
+    if let Some(options) = harness_options {
+        return harness::run(application, options);
+    }
+
+    application.run()
 }
 
 fn load_icon() -> Option<window::Icon> {

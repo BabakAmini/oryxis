@@ -1,0 +1,165 @@
+# Headless E2E harness
+
+Oryxis ships a headless end-to-end harness behind the `harness` cargo
+feature. It runs the **real application**, real vault, real
+subscriptions, real SSH side effects, inside `iced_test`'s `Emulator`
+(from the same wilsonglasser/iced fork the app renders with), with no
+window and no display server, and renders PNG screenshots on demand.
+Think "Playwright for the iced UI".
+
+The feature is dev-only: release and CI artifact builds never enable
+it, so it adds zero weight to shipped binaries.
+
+## Isolation
+
+Both modes redirect `$HOME` (and `%USERPROFILE%` on Windows) to a
+sandbox directory **before anything reads the vault**, so a harness
+run can never touch your real `~/.oryxis`.
+
+- Default sandbox: `<system tmp>/oryxis-harness`. It persists across
+  runs on purpose: a master password set in one session is still
+  there in the next, which keeps iterative QA cheap.
+- Override with `--home <dir>`. Batch runs in CI should always pass a
+  fresh directory so first-boot flows (onboarding) are reproducible.
+
+## Batch mode (CI): `--harness-run <dir>`
+
+```bash
+cargo run -p oryxis-app --features harness -- \
+    --harness-run crates/oryxis-app/tests/e2e --home "$(mktemp -d)"
+```
+
+Runs every `.ice` file in `<dir>`. A failing instruction dumps a PNG
+screenshot plus a truncated reproduction `.ice` into `<dir>/errors/`
+and exits non-zero.
+
+The `.ice` format (experimental upstream, syntax may change):
+
+```text
+viewport: 1200x750
+mode: Zen
+-----
+expect "Welcome to Oryxis"
+click "Skip"
+expect "Protect your vault"
+click "Continue without password"
+expect "Create host"
+```
+
+`mode` is required: `Zen` waits for all tasks an instruction spawns
+(including indirect ones), `Patient` only for direct ones,
+`Immediate` never waits. See `crates/oryxis-app/tests/e2e/` for the
+committed suite.
+
+## Interactive mode (agent/manual QA): `--harness-repl`
+
+```bash
+cargo run -p oryxis-app --features harness -- --harness-repl
+```
+
+A line protocol on stdin/stdout. Every response line is prefixed with
+`== ` so it can be told apart from tracing output on the same stream.
+A convenient way to drive it from another process is a `tail -f`'d
+command file:
+
+```bash
+: > /tmp/cmds.txt
+tail -f -n +1 /tmp/cmds.txt | oryxis --harness-repl > /tmp/out.log 2> /tmp/err.log &
+echo 'screenshot boot' >> /tmp/cmds.txt
+grep '^== ' /tmp/out.log
+```
+
+### Commands
+
+Any `.ice` instruction works as a command:
+
+| Command | Meaning |
+|---------|---------|
+| `click "Text"` / `click #id` / `click (x, y)` | click a target (`click right ...` for right-click) |
+| `press` / `release` / `move <target>` | lower-level mouse steps |
+| `scroll (dx, dy) [<target>]` | mouse wheel in lines (negative y = down); `scroll pixels (dx, dy)` for pixel deltas; the optional target moves the cursor first |
+| `type "some text"` | typewrite into the focused widget |
+| `type enter` / `escape` / `tab` / `backspace` | named keys (`press enter` / `release tab` for the halves) |
+| `type ctrl+k` / `type ctrl+shift+f` / `type alt+enter` | modifier chords; reach the app's global hotkeys |
+| `expect "Text"` | fail unless a widget currently shows `Text` |
+
+Plus harness meta-commands:
+
+| Command | Meaning |
+|---------|---------|
+| `screenshot [name]` | render the UI to `<shots>/<name>.png`, print the path |
+| `texts` | dump every visible text widget with bounds (reading order) |
+| `find "Text"` | like `texts`, filtered to matches |
+| `clipboard` / `clipboard "text"` | read / seed the emulated clipboard (see below) |
+| `wait <ms>` | pump emulator events for a fixed duration |
+| `settle [idle_ms]` | pump until the event stream stays quiet (default 250 ms, 30 s cap) |
+| `timeout <ms>` | set the per-instruction completion timeout (default 20 s) |
+| `help` / `quit` | self-explanatory |
+
+Responses: `== ok`, `== fail <instruction>`, `== timeout ...`,
+`== shot <path>`, `== error <reason>`, plus `== text ...` entry lines
+for `texts`/`find`. Lines starting with `#` and blank lines are
+ignored, so a command file can be annotated.
+
+### Flags (both modes)
+
+| Flag | Default | Meaning |
+|------|---------|---------|
+| `--home <dir>` | `<tmp>/oryxis-harness` | sandbox `$HOME` |
+| `--shots <dir>` | `<home>/shots` | where screenshots land |
+| `--viewport <WxH>` | `1200x750` | logical window size |
+| `--scale <f>` | `1` | screenshot scale factor (0.25..=4) |
+| `--mode zen\|patient\|immediate` | `zen` | task-waiting strategy |
+| `--timeout-ms <ms>` | `20000` | REPL per-instruction timeout |
+
+## How it works / limitations
+
+The harness relies on harness-grade emulator work that lives in the
+wilsonglasser/iced fork's `oryxis` branch (landed 2026-07-10 via the
+`oryxis-harness` feature branch): a fixed `Emulator::screenshot` (the
+upstream one loses the widget cache and poisons the next
+instruction), a public `Emulator::operate` (backs `texts`/`find`), an
+in-memory emulated clipboard (runtime tasks + widget-level paste,
+fulfilled per event so a `ctrl+v` chord's key release can't cancel
+the pending read), interaction-event broadcast to subscriptions
+(this is what makes global hotkeys like `Ctrl+K` work), and the
+`scroll`/chord grammar.
+
+- The emulator boots `Oryxis::boot` through the same
+  `iced::application(...)` builder `main()` uses (fonts, theme,
+  subscriptions), so behavior matches the windowed app. Tray,
+  single-instance IPC and the window itself are skipped.
+- Rendering picks wgpu-headless when a GPU adapter exists and falls
+  back to tiny-skia (CPU) otherwise, no display needed either way.
+- Screenshots come straight from the emulator's renderer and
+  widget-state cache: scroll offsets, focus rings and carets all
+  show, exactly like the windowed app.
+- Text selectors see iced text widgets only. The terminal grid is a
+  custom canvas, so `expect` cannot match terminal output; verify
+  terminal content visually via `screenshot`. Typing into the PTY
+  works normally (events flow through the widget). Text *inputs*
+  expose their value visually, not to `expect` (it matches text
+  widgets, not input values).
+- The emulated clipboard covers everything that goes through iced
+  (widget paste, `iced::clipboard` tasks). App code that talks to
+  the system clipboard directly via `arboard` (e.g. the copy
+  actions behind `Message::CopyToClipboard`) bypasses it and hits
+  the real system clipboard of the machine running the harness.
+- Real window/WM concerns (multi-monitor geometry, DPI, tray) stay
+  manual QA.
+
+## Recording tests from the real app
+
+```bash
+cargo run -p oryxis-app --features tester
+```
+
+Runs the real windowed app with iced's tester overlay: F12 opens a
+record/play panel that captures your interactions as `.ice` files,
+which this harness replays headless. Chorded shortcuts and wheel
+scrolls record through the same grammar the harness executes
+(`type ctrl+k`, `scroll (0, -3)`). Dev-only, like `harness`; never
+enabled in release builds. Recording against your real `~/.oryxis`
+is fine (it is a windowed run like any other), but replaying the
+recorded `.ice` needs a sandbox `--home` prepared with the same
+state the recording assumed.
