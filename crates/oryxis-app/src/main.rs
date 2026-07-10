@@ -250,7 +250,9 @@ fn main() -> iced::Result {
     // iced_wgpu's shader capabilities (VMs, old drivers, software Vulkan):
     // catch the wgpu panic and relaunch with a safer backend. Installed after
     // the vault-driven backend env above so it escalates from whatever backend
-    // is currently active.
+    // is currently active. The debug-log hook goes in first so every panic is
+    // stamped into the log file before any self-heal relaunch happens.
+    install_panic_log_hook();
     install_renderer_fallback_hook();
 
     // CLI arg pickup, flags set when another Oryxis instance spawned
@@ -553,6 +555,19 @@ fn renderer_fallback_action(
 /// panic, escalate the renderer (see [`renderer_fallback_action`]), persist the
 /// choice in the `renderer_backend` setting so the next cold launch skips the
 /// crash, and re-exec.
+/// Chain a hook that stamps every panic into the debug-log file (when
+/// the Settings > Advanced toggle is on). See [`logging::log_panic`]
+/// for why stderr alone isn't enough on Windows GUI builds. Both this
+/// and the renderer fallback hook call the previous hook, so they
+/// compose in installation order.
+fn install_panic_log_hook() {
+    let prev = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        logging::log_panic(info);
+        prev(info);
+    }));
+}
+
 fn install_renderer_fallback_hook() {
     let Ok(exe) = std::env::current_exe() else {
         return;

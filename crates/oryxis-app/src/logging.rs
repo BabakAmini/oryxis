@@ -131,6 +131,37 @@ fn write_session_header(file: &mut File) -> io::Result<()> {
     file.flush()
 }
 
+/// Stamp a panic into the debug-log file (no-op while the toggle is
+/// off). Wired into the process panic hook in `main.rs`: the default
+/// hook prints to stderr, which a `windows_subsystem = "windows"` GUI
+/// build silently drops, so without this a user-reported crash leaves
+/// nothing to attach to an issue. Best-effort by design, diagnostics
+/// must never take the app down with them.
+pub(crate) fn log_panic(info: &std::panic::PanicHookInfo<'_>) {
+    if !is_enabled() {
+        return;
+    }
+    let msg = info
+        .payload()
+        .downcast_ref::<&str>()
+        .map(|s| (*s).to_string())
+        .or_else(|| info.payload().downcast_ref::<String>().cloned())
+        .unwrap_or_else(|| "<non-string panic payload>".to_string());
+    let location = info
+        .location()
+        .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+        .unwrap_or_else(|| "<unknown location>".to_string());
+    // Forced capture: the hook must not depend on RUST_BACKTRACE being
+    // set in the crashing user's environment.
+    let backtrace = std::backtrace::Backtrace::force_capture();
+    let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S%.3f");
+    if let Some(file) = sink().as_mut() {
+        let _ = writeln!(file, "{now} PANIC at {location}: {msg}");
+        let _ = writeln!(file, "{backtrace}");
+        let _ = file.flush();
+    }
+}
+
 /// `MakeWriter` handed to the file `fmt` layer in `main.rs`. Zero-sized;
 /// all state lives in the module statics so the writer created per event
 /// is free.
