@@ -45,8 +45,15 @@
 
 const TTL = 300; // 5 minutes — applies to both register entries and relay queue items.
 const MAX_FRAME_BYTES = 256 * 1024;
-const MAX_WAIT_MS = 30_000;
-const POLL_INTERVAL_MS = 500;
+const MAX_WAIT_MS = 120_000;
+// In-window poll schedule for the long-poll GET. Every KV `list()` is
+// a billable read, so a flat 500ms cadence costs ~172k reads/day per
+// idle device (2/s), which alone blows the KV free tier. The schedule
+// starts fast (pairing handshakes are latency-sensitive right after a
+// frame lands) and decays to a slow idle cadence: ~26 reads per 110s
+// window instead of ~220.
+const POLL_INTERVAL_START_MS = 500;
+const POLL_INTERVAL_MAX_MS = 5_000;
 
 // Must match `oryxis_sync::crypto::REGISTER_SIGN_LABEL` and the Rust
 // relay (`oryxis-relay::main::REGISTER_SIGN_LABEL`) byte-for-byte;
@@ -202,6 +209,7 @@ export default {
           );
           const deadline = Date.now() + waitMs;
           const prefix = `relay:${recipientId}:`;
+          let pollInterval = POLL_INTERVAL_START_MS;
           while (true) {
             const list = await env.SYNC_KV.list({ prefix, limit: 1 });
             if (list.keys.length > 0) {
@@ -226,7 +234,8 @@ export default {
             if (Date.now() >= deadline) {
               return new Response(null, { status: 204, headers: corsHeaders });
             }
-            await sleep(POLL_INTERVAL_MS);
+            await sleep(pollInterval);
+            pollInterval = Math.min(pollInterval * 2, POLL_INTERVAL_MAX_MS);
           }
         }
       }

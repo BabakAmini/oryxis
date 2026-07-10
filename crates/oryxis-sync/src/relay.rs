@@ -19,8 +19,13 @@ use crate::error::SyncError;
 use crate::protocol::SyncMessage;
 
 /// Default long-poll window used by `recv` between empty responses.
-/// Picked to match the worker's `MAX_WAIT_MS`; bigger doesn't help.
-const RECV_WAIT_MS: u32 = 30_000;
+/// Matches the servers' `MAX_WAIT_MS` (worker.js + oryxis-relay);
+/// bigger doesn't help. Kept long on purpose: every empty window is
+/// one billable request on a hosted relay, so 110s costs ~785 idle
+/// requests/day/device versus ~2880 at the old 30s. A server still
+/// clamping to its own smaller cap just answers 204 sooner, which is
+/// harmless.
+const RECV_WAIT_MS: u32 = 110_000;
 
 /// Soft cap on a single relayed frame, matches the worker's
 /// `MAX_FRAME_BYTES` (256 KiB). Engine-side payloads stay well below.
