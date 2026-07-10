@@ -26,6 +26,11 @@ pub(crate) struct PaneState {
     // Local (used when `!is_remote`).
     pub local_path: std::path::PathBuf,
     pub local_entries: Vec<LocalEntry>,
+    /// Sequence for in-flight async local listings: bumped on every
+    /// `spawn_local_listing`, carried by `SftpLocalListed`, and results
+    /// with a stale seq are dropped. Prevents a slow cold-path listing
+    /// from overwriting (or hijacking the path of) a newer navigation.
+    pub local_list_seq: u64,
     /// Whether the Windows-style drive picker dropdown is open. Only
     /// rendered on Windows hosts.
     pub drives_open: bool,
@@ -96,6 +101,10 @@ pub(crate) struct SftpState {
     /// remote-pane drop highlight; cleared on `FilesHoveredLeft` or
     /// `FileDropped`.
     pub drop_active: bool,
+    /// OS-drop burst collector: Windows delivers one FileDropped per
+    /// file of a multi-select drop, so they're accumulated here and
+    /// flushed as a single batch by `SftpDropFlush` (150ms debounce).
+    pub pending_drops: Vec<std::path::PathBuf>,
     /// Currently hovered row across both panes. Updated continuously
     /// from MouseArea on_enter / on_exit on every visible row, and
     /// consumed by both the OS drop target picker and the internal
@@ -250,6 +259,7 @@ impl Default for SftpState {
             delete_confirm: Vec::new(),
             new_entry: None,
             drop_active: false,
+            pending_drops: Vec::new(),
             hovered_row: None,
             drag: None,
             transfer: None,

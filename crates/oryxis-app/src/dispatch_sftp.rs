@@ -701,7 +701,9 @@ impl Oryxis {
                     // SftpRemoteLoaded): a same-path navigate keeps the
                     // scrollable id and its preserved scroll position.
                     let changed_dir = pane.local_path != path;
-                    pane.local_path = path;
+                    pane.local_path = path.clone();
+                    pane.local_entries.clear();
+                    pane.error = None;
                     pane.drives_open = false;
                     pane.actions_open = false;
                     if changed_dir {
@@ -713,11 +715,52 @@ impl Oryxis {
                 self.sftp.selected_rows.clear();
                 self.sftp.selection_anchor = None;
                 self.sftp.parent_cursor = false;
-                self.refresh_sftp_local(side);
-                // Folder descent into a local folder: the (synchronous)
-                // listing is populated, so land the queued cursor now.
-                if let Some(task) = self.sftp_take_pending_focus(side) {
-                    return Ok(task);
+                // Listing runs off-thread: a cold path (network drive,
+                // spun-down disk) can block read_dir for seconds and a
+                // synchronous call here froze the whole UI (Windows then
+                // offers to kill the "not responding" window, which read
+                // as a crash in the field). SftpLocalListed applies the
+                // rows and lands any queued folder-descent focus.
+                return Ok(self.spawn_local_listing(side, path));
+            }
+            Message::SftpLocalListed(side, seq, path, result) => {
+                // Stale guard: only the most recently spawned listing
+                // for this pane may apply; anything older is a leftover
+                // from a navigation the user already moved past.
+                if self.sftp.pane(side).local_list_seq != seq {
+                    return Ok(Task::none());
+                }
+                match result {
+                    Ok(mut entries) => {
+                        let sort = self.sftp.pane(side).sort;
+                        crate::sftp_helpers::sort_local_entries(&mut entries, sort);
+                        let pane = self.sftp.pane_mut(side);
+                        if pane.is_remote {
+                            return Ok(Task::none());
+                        }
+                        if pane.local_path != path {
+                            // Typed/pasted path commit: adopt it now that
+                            // it's proven listable.
+                            pane.local_path = path;
+                            pane.list_scroll_y = 0.0;
+                        }
+                        pane.local_entries = entries;
+                        pane.error = None;
+                        if let Some(task) = self.sftp_take_pending_focus(side) {
+                            return Ok(task);
+                        }
+                    }
+                    Err(e) => {
+                        let pane = self.sftp.pane_mut(side);
+                        if pane.is_remote {
+                            return Ok(Task::none());
+                        }
+                        // Navigate case (path already adopted): show the
+                        // error in place, the ".." row remains the way
+                        // out. Commit case (path not adopted): keep the
+                        // current listing and surface the error.
+                        pane.error = Some(e);
+                    }
                 }
             }
             Message::SftpRefreshLocal(side) => {
@@ -991,14 +1034,14 @@ impl Oryxis {
                 if self.sftp.pane(side).is_remote {
                     return Ok(Task::done(Message::SftpNavigateRemote(side, input)));
                 }
-                let p = std::path::PathBuf::from(input);
-                if p.is_dir() {
-                    self.sftp.pane_mut(side).local_path = p;
-                    self.refresh_sftp_local(side);
-                } else {
-                    self.sftp.pane_mut(side).error =
-                        Some(format!("Not a directory: {}", p.display()));
-                }
+                // Probe + list off-thread; the path is only adopted by
+                // SftpLocalListed once it proves listable. A synchronous
+                // is_dir()/read_dir here froze the UI on cold paths
+                // (network drives, spun-down disks) long enough for
+                // Windows to kill the window.
+                return Ok(
+                    self.spawn_local_listing(side, std::path::PathBuf::from(input))
+                );
             }
             Message::SftpCancelEditPath => {
                 self.sftp.left.path_editing = None;
