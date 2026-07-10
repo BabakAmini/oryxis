@@ -23,6 +23,13 @@ enum HighlightKind {
     /// `install.sh` are FQDN-shaped), so the known values are matched
     /// literally instead. Privacy-only, never colored.
     KnownHost,
+    /// A range-valid quad-dot token classified as a version string
+    /// (`3.9.0.2` in a winget upgrade table) rather than an address, per
+    /// issue #53. Colors exactly like [`HighlightKind::Ip`] but is
+    /// excluded from Privacy Mode masking; the classification is
+    /// [`quad_dot_is_version_like`], with vault-term and private-range
+    /// overrides forcing `Ip` before the heuristics run.
+    VersionQuad,
 }
 
 impl HighlightKind {
@@ -63,6 +70,176 @@ pub fn looks_like_ipv6(run: &str) -> bool {
     } else {
         bytes.iter().filter(|b| **b == b':').count() == 7 && groups.len() == 8
     }
+}
+
+/// Byte spans (`start..end`, end exclusive) of range-valid IPv4-shaped
+/// tokens in a row: exactly 4 dot-separated groups of 1-3 digits, each
+/// `<= 255`, not glued to an alphanumeric or `.` on either side. This is
+/// the syntactic candidate set of the IPv4 highlight pass; whether a
+/// candidate masks as an address or stays readable as a version string is
+/// decided per candidate by the version classifier and its overrides.
+pub fn scan_quad_dot_candidates(row: &str) -> Vec<(usize, usize)> {
+    let bytes = row.as_bytes();
+    let len = bytes.len();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < len {
+        if bytes[i].is_ascii_digit() {
+            if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'.') {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            let mut groups = 0u8;
+            let mut j = i;
+            loop {
+                let group_start = j;
+                while j < len && bytes[j].is_ascii_digit() {
+                    j += 1;
+                }
+                let group_len = j - group_start;
+                if group_len == 0 || group_len > 3 {
+                    break;
+                }
+                if let Ok(val) = row[group_start..j].parse::<u16>() {
+                    if val > 255 { break; }
+                } else {
+                    break;
+                }
+                groups += 1;
+                if groups == 4 { break; }
+                if j < len && bytes[j] == b'.' {
+                    j += 1;
+                } else {
+                    break;
+                }
+            }
+            if groups == 4 {
+                if j < len && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'.') {
+                    i += 1;
+                    continue;
+                }
+                out.push((start, j));
+                i = j;
+                continue;
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
+/// Count of DISTINCT version-shaped dotted-numeric tokens on the row: 3
+/// or more dot-separated all-digit groups (of up to 5 digits, so build
+/// numbers like `2365` count), token-bounded like the candidate scan. A
+/// winget upgrade table row carries `3.9.0.2` next to `3.13.0` (and
+/// Edge-style `122.0.2365.106`); two such tokens on one row read as a
+/// version table, not an address list. Distinct values only: a repeated
+/// address (`PING 8.8.8.8 (8.8.8.8)`) is one endpoint echoed, while an
+/// installed/available version pair always differs.
+fn dotted_numeric_tokens(row: &str) -> usize {
+    let bytes = row.as_bytes();
+    let len = bytes.len();
+    let mut seen: Vec<&str> = Vec::new();
+    let mut i = 0;
+    while i < len {
+        if !bytes[i].is_ascii_digit()
+            || (i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'.'))
+        {
+            i += 1;
+            continue;
+        }
+        let mut groups = 0usize;
+        let mut j = i;
+        loop {
+            let group_start = j;
+            while j < len && bytes[j].is_ascii_digit() {
+                j += 1;
+            }
+            if j - group_start == 0 || j - group_start > 5 {
+                break;
+            }
+            groups += 1;
+            if j < len && bytes[j] == b'.' && j + 1 < len && bytes[j + 1].is_ascii_digit() {
+                j += 1;
+            } else {
+                break;
+            }
+        }
+        // A glued tail (`1.2.3.4beta`, `1.2.3.`) is an identifier or
+        // prose, not a version token.
+        if groups >= 3 && (j >= len || !(bytes[j].is_ascii_alphanumeric() || bytes[j] == b'.')) {
+            let tok = &row[i..j];
+            if !seen.contains(&tok) {
+                seen.push(tok);
+            }
+        }
+        i = j.max(i + 1);
+    }
+    seen.len()
+}
+
+/// Version-context signals for a range-valid quad-dot candidate at
+/// `row[start..end]` (issue #53). `multiple` is precomputed by the caller
+/// (>= 2 version-shaped tokens on the row, see [`dotted_numeric_tokens`])
+/// so the highlight pass counts once per row instead of once per
+/// candidate.
+fn quad_dot_version_context(row: &str, start: usize, end: usize, multiple: bool) -> bool {
+    if multiple {
+        return true;
+    }
+    // A version keyword anywhere else on the row, case-insensitive.
+    // Short English-plus-obvious list; a heuristic, not an i18n surface.
+    const KEYWORDS: [&str; 7] =
+        ["version", "versão", "available", "installed", "release", "upgrade", "update"];
+    let before = row[..start].to_lowercase();
+    let after = row[end..].to_lowercase();
+    if KEYWORDS.iter().any(|k| before.contains(k) || after.contains(k)) {
+        return true;
+    }
+    // A version-prefix token right before the candidate: `v 1.2.3.4`,
+    // `ver 1.2.3.4`, `Version: 1.2.3.4`, or a `product/1.2.3.4` agent
+    // string. A directly-attached `v3.9.0.2` never reaches here, the
+    // scanner's glue rule already dropped it.
+    let trimmed = row[..start].trim_end_matches(' ');
+    let tok = &trimmed[trimmed.rfind(' ').map(|p| p + 1).unwrap_or(0)..];
+    if !tok.is_empty() {
+        let lower = tok.to_ascii_lowercase();
+        if lower == "v" || lower == "ver" || lower == "version:" {
+            return true;
+        }
+        let tb = tok.as_bytes();
+        if tb.len() >= 2 && tb[tb.len() - 1] == b'/' && tb[tb.len() - 2].is_ascii_alphabetic() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Whether the range-valid quad-dot at `row[start..end]` reads as a
+/// version string rather than an address. Shared with the app-side
+/// session-log redaction (`redact_for_display`) so live terminal and
+/// recorded output classify identically. Callers apply the two masking
+/// overrides FIRST (vault-term hit, [`ipv4_is_private_or_loopback`]);
+/// those always win over version context.
+pub fn quad_dot_is_version_like(row: &str, start: usize, end: usize) -> bool {
+    quad_dot_version_context(row, start, end, dotted_numeric_tokens(row) >= 2)
+}
+
+/// Whether an IPv4 candidate sits in private/loopback/link-local space
+/// (10/8, 127/8, 169.254/16, 172.16/12, 192.168/16). Privacy Mode always
+/// masks these even in a version-like row: a version string colliding
+/// with RFC1918 space is rare and masking is the safe error.
+pub fn ipv4_is_private_or_loopback(candidate: &str) -> bool {
+    let mut octets = candidate.split('.').map(|g| g.parse::<u8>().ok());
+    let (Some(Some(a)), Some(Some(b))) = (octets.next(), octets.next()) else {
+        return false;
+    };
+    a == 10
+        || a == 127
+        || (a == 169 && b == 254)
+        || (a == 172 && (16..=31).contains(&b))
+        || (a == 192 && b == 168)
 }
 
 pub(crate) struct Highlight {
@@ -151,62 +328,37 @@ pub(crate) fn detect_highlights(
             }
         }
 
-        // --- IPv4: digit groups separated by dots (4 groups, each 0-255) ---
+        // --- IPv4: digit groups separated by dots (4 groups, each 0-255).
+        // Version-shaped candidates (winget/rustc tables, issue #53)
+        // classify as VersionQuad: same keyword color, excluded from
+        // Privacy masking. Vault-saved addresses and private/loopback
+        // ranges always stay Ip, overrides win over version context.
         {
-            let mut i = 0;
-            while i < len {
-                if bytes[i].is_ascii_digit() {
-                    if i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'.') {
-                        i += 1;
-                        continue;
-                    }
-                    let start = i;
-                    let mut groups = 0u8;
-                    let mut j = i;
-                    loop {
-                        let group_start = j;
-                        while j < len && bytes[j].is_ascii_digit() {
-                            j += 1;
-                        }
-                        let group_len = j - group_start;
-                        if group_len == 0 || group_len > 3 {
-                            break;
-                        }
-                        if let Ok(val) = row_str[group_start..j].parse::<u16>() {
-                            if val > 255 { break; }
-                        } else {
-                            break;
-                        }
-                        groups += 1;
-                        if groups == 4 { break; }
-                        if j < len && bytes[j] == b'.' {
-                            j += 1;
-                        } else {
-                            break;
-                        }
-                    }
-                    if groups == 4 {
-                        if j < len && (bytes[j].is_ascii_alphanumeric() || bytes[j] == b'.') {
-                            i += 1;
-                            continue;
-                        }
-                        let dominated = highlights.iter().any(|h| {
-                            h.row == row && start as u16 >= h.start_col && (start as u16) <= h.end_col
-                        });
-                        if !dominated {
-                            highlights.push(Highlight {
-                                row,
-                                start_col: start as u16,
-                                end_col: (j - 1) as u16,
-                                color: ip_color,
-                                kind: HighlightKind::Ip,
-                            });
-                        }
-                        i = j;
-                        continue;
-                    }
+            let candidates = scan_quad_dot_candidates(&row_str);
+            let multiple = dotted_numeric_tokens(&row_str) >= 2;
+            for &(start, end) in &candidates {
+                let dominated = highlights.iter().any(|h| {
+                    h.row == row && start as u16 >= h.start_col && (start as u16) <= h.end_col
+                });
+                if dominated {
+                    continue;
                 }
-                i += 1;
+                let text = &row_str[start..end];
+                let kind = if privacy_terms.iter().any(|t| t == text)
+                    || ipv4_is_private_or_loopback(text)
+                    || !quad_dot_version_context(&row_str, start, end, multiple)
+                {
+                    HighlightKind::Ip
+                } else {
+                    HighlightKind::VersionQuad
+                };
+                highlights.push(Highlight {
+                    row,
+                    start_col: start as u16,
+                    end_col: (end - 1) as u16,
+                    color: ip_color,
+                    kind,
+                });
             }
         }
 
@@ -1079,5 +1231,139 @@ mod tests {
         let terms = vec!["web01".to_string()];
         let hs = detect_highlights(&rows, &TerminalPalette::default(), false, &terms);
         assert!(hs.iter().all(|h| h.kind != HighlightKind::KnownHost));
+    }
+
+    /// Texts of VersionQuad-kind highlights detected in `s`.
+    fn version_quad_texts(s: &str, terms: &[&str]) -> Vec<String> {
+        let rows = rows_from(s);
+        let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+            .into_iter()
+            .filter(|h| h.kind == HighlightKind::VersionQuad)
+            .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
+            .collect()
+    }
+
+    /// Ip-kind texts with privacy on and vault terms, the maskable set.
+    fn masked_ip_texts(s: &str, terms: &[&str]) -> Vec<String> {
+        let rows = rows_from(s);
+        let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+            .into_iter()
+            .filter(|h| h.kind == HighlightKind::Ip)
+            .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
+            .collect()
+    }
+
+    #[test]
+    fn winget_table_versions_not_masked() {
+        // The issue #53 shapes: a quad-dot next to a 3-part version
+        // (Python row) and an installed/available quad-dot pair (VS Code
+        // row). Both classify VersionQuad: colored, never privacy-masked.
+        let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
+        assert!(masked_ip_texts(s, &[]).is_empty());
+        assert_eq!(version_quad_texts(s, &[]), vec!["3.9.0.2"]);
+
+        let s2 = "Visual Studio Code  XP9KhM4BK9fz7Q  1.96.0.0  1.96.0.1";
+        assert!(masked_ip_texts(s2, &[]).is_empty());
+        assert_eq!(version_quad_texts(s2, &[]), vec!["1.96.0.0", "1.96.0.1"]);
+    }
+
+    #[test]
+    fn version_keyword_and_prefix_rows_not_masked() {
+        assert!(masked_ip_texts("pandoc version 3.9.0.2 installed", &[]).is_empty());
+        assert!(masked_ip_texts("rustc 1.96.0.0 available", &[]).is_empty());
+        assert!(masked_ip_texts("agent curl/8.4.0.1 sent", &[]).is_empty());
+        assert!(masked_ip_texts("ver 1.2.3.4", &[]).is_empty());
+        assert_eq!(version_quad_texts("ver 1.2.3.4", &[]), vec!["1.2.3.4"]);
+    }
+
+    #[test]
+    fn oversized_octet_never_matched() {
+        // `2365` fails the 3-digit/255 caps: no Ip and no VersionQuad
+        // span, the current escape stays locked in.
+        let s = "Microsoft Edge 122.0.2365.106 here";
+        assert!(masked_ip_texts(s, &[]).is_empty());
+        assert!(version_quad_texts(s, &[]).is_empty());
+    }
+
+    #[test]
+    fn real_ips_still_masked() {
+        assert_eq!(masked_ip_texts("ping 8.8.8.8", &[]), vec!["8.8.8.8"]);
+        assert_eq!(masked_ip_texts("ssh 203.0.113.7", &[]), vec!["203.0.113.7"]);
+        // Private/loopback ranges override version context.
+        assert_eq!(
+            masked_ip_texts("update available at 192.168.1.10", &[]),
+            vec!["192.168.1.10"]
+        );
+        assert_eq!(masked_ip_texts("upgrade via 10.0.0.1 now", &[]), vec!["10.0.0.1"]);
+    }
+
+    #[test]
+    fn repeated_address_is_not_a_version_table() {
+        // `PING 8.8.8.8 (8.8.8.8)` carries two quad-dots but only one
+        // DISTINCT value: an echoed endpoint, not an installed/available
+        // pair, so it must stay masked (found by harness QA).
+        assert_eq!(
+            masked_ip_texts("PING 8.8.8.8 (8.8.8.8) 56(84) bytes of data.", &[]),
+            vec!["8.8.8.8", "8.8.8.8"]
+        );
+    }
+
+    #[test]
+    fn vault_hostname_quad_dot_always_masked() {
+        // A saved connection address wins over any version context.
+        assert_eq!(
+            masked_ip_texts("installed 3.9.0.2 available", &["3.9.0.2"]),
+            vec!["3.9.0.2"]
+        );
+        assert!(version_quad_texts("installed 3.9.0.2 available", &["3.9.0.2"]).is_empty());
+    }
+
+    #[test]
+    fn version_quads_keep_the_keyword_color_and_skip_privacy() {
+        let s = "installed 3.9.0.2 ok";
+        let rows = rows_from(s);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let start = s.find("3.9.0.2").unwrap() as u16;
+        // Colored like an Ip span...
+        assert_eq!(
+            highlight_color_at(&hs, 0, start),
+            Some(TerminalPalette::default().ansi[5])
+        );
+        // ...but never a privacy cell.
+        for col in start..start + 7 {
+            assert!(!is_privacy_cell(&hs, 0, col), "col {col} must not mask");
+        }
+        assert_eq!(privacy_span_at(&hs, 0, start), None);
+    }
+
+    #[test]
+    fn version_classification_is_privacy_flag_independent() {
+        // With Privacy Mode off the same span exists with the same color,
+        // so toggling privacy changes masking only, never coloring.
+        let s = "installed 3.9.0.2 ok";
+        let rows = rows_from(s);
+        let start = s.find("3.9.0.2").unwrap() as u16;
+        let on = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let off = detect_highlights(&rows, &TerminalPalette::default(), false, &[]);
+        assert_eq!(
+            highlight_color_at(&on, 0, start),
+            highlight_color_at(&off, 0, start)
+        );
+    }
+
+    #[test]
+    fn private_or_loopback_validator_edges() {
+        assert!(ipv4_is_private_or_loopback("10.1.2.3"));
+        assert!(ipv4_is_private_or_loopback("127.0.0.1"));
+        assert!(ipv4_is_private_or_loopback("169.254.0.5"));
+        assert!(ipv4_is_private_or_loopback("172.16.0.1"));
+        assert!(ipv4_is_private_or_loopback("172.31.255.1"));
+        assert!(ipv4_is_private_or_loopback("192.168.0.4"));
+        assert!(!ipv4_is_private_or_loopback("172.32.0.1"));
+        assert!(!ipv4_is_private_or_loopback("8.8.8.8"));
+        assert!(!ipv4_is_private_or_loopback("169.253.0.1"));
+        assert!(!ipv4_is_private_or_loopback("not.an.ip.at.all"));
     }
 }

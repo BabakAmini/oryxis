@@ -68,7 +68,7 @@ pub(crate) use clipboard::{open_url, set_clipboard_text};
 pub(crate) use highlight::*;
 // Shared with the app-side session-log redaction so both sides agree on
 // what is IPv6-shaped.
-pub use highlight::looks_like_ipv6;
+pub use highlight::{ipv4_is_private_or_loopback, looks_like_ipv6, quad_dot_is_version_like};
 pub(crate) use perf::*;
 pub(crate) use selection::{next_click_count, union_selection, SelectGranularity};
 

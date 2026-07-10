@@ -29,15 +29,17 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
         // Home dirs and `user@host` first so their tokens win over a bare
-        // IP that might sit inside them. IPv4 is shape-only (octet range
-        // isn't validated) and home dirs aren't URL-aware: display masking
-        // is reversible via Reveal, so erring toward hiding is acceptable.
+        // IP that might sit inside them. Home dirs aren't URL-aware:
+        // display masking is reversible via Reveal, so erring toward
+        // hiding is acceptable. The IPv4 candidate is shape-only here and
+        // validated in code below (octet range plus the shared version-
+        // string classifier, issue #53), mirroring the terminal widget.
         // The IPv6 candidate is loose (any hex/colon run with 2+ colons,
         // plus an optional dotted-quad tail for `::ffff:192.0.2.1`) and is
         // validated in code below, regex alternation alone can't express
         // "has `::` or exactly 7 colons" without exploding.
         regex::Regex::new(
-            r"(?i:[\\/](?:users|home)[\\/])(?P<hd>[A-Za-z0-9._-]+)|[A-Za-z0-9._-]+@[A-Za-z0-9._-]+|(?P<v6>[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,}(?:\.\d{1,3}\.\d{1,3}\.\d{1,3})?)|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b",
+            r"(?i:[\\/](?:users|home)[\\/])(?P<hd>[A-Za-z0-9._-]+)|[A-Za-z0-9._-]+@[A-Za-z0-9._-]+|(?P<v6>[0-9A-Fa-f]{0,4}(?::[0-9A-Fa-f]{0,4}){2,}(?:\.\d{1,3}\.\d{1,3}\.\d{1,3})?)|(?P<v4>\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b)",
         )
         .expect("privacy display pattern")
     });
@@ -80,6 +82,26 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
                 }
                 last = whole.end();
                 continue;
+            } else if let Some(m) = caps.name("v4") {
+                // Quad-dot candidate: adopt the widget's octet-range check
+                // (the shape-only regex over-masked `999.1.1.1` before),
+                // then classify version string vs address with the shared
+                // helper (issue #53). Vault terms and private/loopback
+                // ranges always mask, overrides win over version context.
+                let text = m.as_str();
+                let range_valid = text
+                    .split('.')
+                    .all(|g| g.parse::<u16>().is_ok_and(|v| v <= 255));
+                let mask = range_valid
+                    && (terms.iter().any(|t| t == text)
+                        || oryxis_terminal::ipv4_is_private_or_loopback(text)
+                        || !version_like_in_line(s, m.start(), m.end()));
+                if mask {
+                    out.push_str(&s[last..m.start()]);
+                    out.push_str(&mask_blocks(text));
+                } else {
+                    out.push_str(&s[last..m.end()]);
+                }
             } else {
                 out.push_str(&s[last..whole.start()]);
                 out.push_str(&mask_blocks(whole.as_str()));
@@ -95,6 +117,19 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
         out = mask_terms(&out, terms);
     }
     out
+}
+
+/// Line-scoped adapter for the shared version-string classifier: the
+/// session-log viewer redacts whole recorded blobs, so the row context the
+/// terminal widget classifies against is the line around the match here.
+fn version_like_in_line(s: &str, start: usize, end: usize) -> bool {
+    let line_start = s[..start].rfind(['\n', '\r']).map(|p| p + 1).unwrap_or(0);
+    let line_end = s[end..].find(['\n', '\r']).map(|p| end + p).unwrap_or(s.len());
+    oryxis_terminal::quad_dot_is_version_like(
+        &s[line_start..line_end],
+        start - line_start,
+        end - line_start,
+    )
 }
 
 /// Mask exact, case-insensitive, token-bounded occurrences of `terms`
@@ -308,6 +343,59 @@ mod tests {
         assert_eq!(
             redact_for_display("web01.prod.internal-backup", &terms),
             "web01.prod.internal-backup"
+        );
+    }
+
+    #[test]
+    fn winget_table_versions_not_redacted() {
+        // Issue #53 shapes through the log-viewer path: same classifier
+        // as the live terminal, so recorded output stays readable too.
+        let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
+        assert_eq!(redact_for_display(s, &[]), s);
+        let s2 = "Visual Studio Code  XP9KhM4BK9fz7Q  1.96.0.0  1.96.0.1";
+        assert_eq!(redact_for_display(s2, &[]), s2);
+        assert_eq!(
+            redact_for_display("pandoc version 3.9.0.2 installed", &[]),
+            "pandoc version 3.9.0.2 installed"
+        );
+    }
+
+    #[test]
+    fn version_context_is_line_scoped() {
+        // The keyword on line 1 must not classify the address on line 2.
+        let s = "checking for updates\nconnected to 203.0.113.7 ok";
+        assert_eq!(
+            redact_for_display(s, &[]),
+            format!("checking for updates\nconnected to {} ok", mask_blocks("203.0.113.7"))
+        );
+    }
+
+    #[test]
+    fn range_invalid_quad_dot_not_redacted() {
+        // The regex arm was shape-only; it now adopts the widget's octet
+        // range check, so `999.1.1.1` stops over-masking.
+        assert_eq!(redact_for_display("token 999.1.1.1 raw", &[]), "token 999.1.1.1 raw");
+    }
+
+    #[test]
+    fn real_ips_still_redacted() {
+        assert_eq!(
+            redact_for_display("ping 8.8.8.8", &[]),
+            format!("ping {}", mask_blocks("8.8.8.8"))
+        );
+        // Private ranges override version context.
+        assert_eq!(
+            redact_for_display("update available at 192.168.1.10", &[]),
+            format!("update available at {}", mask_blocks("192.168.1.10"))
+        );
+    }
+
+    #[test]
+    fn vault_term_quad_dot_always_redacted() {
+        let terms = vec!["3.9.0.2".to_string()];
+        assert_eq!(
+            redact_for_display("installed 3.9.0.2 available", &terms),
+            format!("installed {} available", mask_blocks("3.9.0.2"))
         );
     }
 
