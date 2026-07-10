@@ -184,3 +184,7 @@ ttf-parser = "0.25"
 # executing .ice instructions and dumping PNG screenshots. Dev-only; never
 # enabled in release/CI artifact builds.
 harness = ["dep:iced_test"]
+# In-app test recorder: `cargo run --features tester` runs the real windowed
+# app with iced's tester overlay; F12 opens a record/play panel that captures
+# interactions as .ice files the harness replays headless. Dev-only.
+tester = ["iced/tester"]

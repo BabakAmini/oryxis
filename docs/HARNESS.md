@@ -114,9 +114,9 @@ ignored, so a command file can be annotated.
 
 ## How it works / limitations
 
-The harness depends on the iced fork's `oryxis-harness` branch (see
-the `[patch]` section in the workspace `Cargo.toml`), which carries
-harness-grade emulator work: a fixed `Emulator::screenshot` (the
+The harness relies on harness-grade emulator work that lives in the
+wilsonglasser/iced fork's `oryxis` branch (landed 2026-07-10 via the
+`oryxis-harness` feature branch): a fixed `Emulator::screenshot` (the
 upstream one loses the widget cache and poisons the next
 instruction), a public `Emulator::operate` (backs `texts`/`find`), an
 in-memory emulated clipboard (runtime tasks + widget-level paste,
@@ -150,9 +150,16 @@ the pending read), interaction-event broadcast to subscriptions
 
 ## Recording tests from the real app
 
-The iced fork also ships a `tester` feature (`iced/tester`) that
-overlays a record/play panel on F12 in a real windowed run. It can
-record interactions into `.ice` files that this harness replays
-headless. Not wired into a cargo feature here yet; enable it ad hoc
-by adding `"tester"` to the iced features in the workspace
-`Cargo.toml` for a local dev build.
+```bash
+cargo run -p oryxis-app --features tester
+```
+
+Runs the real windowed app with iced's tester overlay: F12 opens a
+record/play panel that captures your interactions as `.ice` files,
+which this harness replays headless. Chorded shortcuts and wheel
+scrolls record through the same grammar the harness executes
+(`type ctrl+k`, `scroll (0, -3)`). Dev-only, like `harness`; never
+enabled in release builds. Recording against your real `~/.oryxis`
+is fine (it is a windowed run like any other), but replaying the
+recorded `.ice` needs a sandbox `--home` prepared with the same
+state the recording assumed.
