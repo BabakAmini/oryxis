@@ -112,6 +112,39 @@ ignored, so a command file can be annotated.
 | `--mode zen\|patient\|immediate` | `zen` | task-waiting strategy |
 | `--timeout-ms <ms>` | `20000` | REPL per-instruction timeout |
 
+## MCP mode (AI agents): `--harness-mcp`
+
+```bash
+oryxis --harness-mcp            # MCP server over stdio
+```
+
+Exposes the same driving surface as MCP tools, so an AI agent (Claude
+Code or any MCP client) interacts with the emulated app directly,
+either to validate changes visually or to build automated tests. The
+repo's `.mcp.json` registers it as the `oryxis-harness` server
+(building the feature on demand), so agent sessions in this repo get
+the tools automatically.
+
+| Tool | Meaning |
+|------|---------|
+| `run { script }` | execute `.ice` instructions, one per line; stops at the first failure; executed lines are recorded |
+| `screenshot { name? }` | render the UI and return the PNG **inline** as MCP image content (also saved under shots) |
+| `texts { filter? }` | visible text widgets + bounds (the inspector) |
+| `settle { idle_ms? }` / `wait { ms }` | let async work land |
+| `set_timeout { ms }` | per-instruction timeout (500 once a terminal is open) |
+| `clipboard_get` / `clipboard_set { text }` | emulated clipboard |
+| `history { clear? }` | instructions recorded so far |
+| `save_ice { path }` | write the recorded session as a replayable `.ice` test |
+| `reset { wipe? }` | reboot the app in place; `wipe` clears the sandbox for a first-run state |
+
+Typical loops:
+
+- **Visual validation**: `reset {wipe:true}` → `run` a flow →
+  `screenshot` and inspect the returned image.
+- **Producing a test**: same, then `save_ice {path}` and commit the
+  file into `crates/oryxis-app/tests/e2e/`; replay with
+  `--harness-run`.
+
 ## Driving a terminal session
 
 Typing into the terminal works end to end (the canvas receives the

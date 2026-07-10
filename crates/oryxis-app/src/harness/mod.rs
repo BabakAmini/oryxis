@@ -2,7 +2,7 @@
 //!
 //! Runs the real application (vault, subscriptions, SSH tasks, side
 //! effects) inside `iced_test`'s [`Emulator`], with no window and no
-//! display server, and exposes two entry points parsed from the CLI
+//! display server, and exposes three entry points parsed from the CLI
 //! before anything else in `main()`:
 //!
 //! - `oryxis --harness-run <dir>`: batch-runs every `.ice` test file
@@ -10,38 +10,29 @@
 //!   instruction dumps a PNG screenshot plus a reproduction `.ice`
 //!   into `<dir>/errors/` and exits non-zero. This is the CI mode.
 //! - `oryxis --harness-repl`: an interactive line protocol on
-//!   stdin/stdout for driving the app step by step. Every `.ice`
-//!   instruction works as a command (`click "Hosts"`, `type "ls"`,
-//!   `type enter`, `type ctrl+shift+f`, `scroll (0, -3)`,
-//!   `expect "Connected"`, `move (100, 200)`, ...), plus harness
-//!   meta-commands:
+//!   stdin/stdout for driving the app step by step (see `repl.rs`).
+//! - `oryxis --harness-mcp`: an MCP (Model Context Protocol) server
+//!   over stdio exposing the same driving surface as typed tools, so
+//!   an AI agent can interact with the app, validate it visually
+//!   (screenshots come back inline as image content) and save the
+//!   interaction as a replayable `.ice` test (see `mcp.rs`).
 //!
-//!   - `screenshot [name]`: render the current UI to a PNG under the
-//!     shots directory and print its path.
-//!   - `texts`: dump every visible text widget with its bounds, a
-//!     poor man's DOM inspector for picking click targets.
-//!   - `find "text"`: bounds of the text widgets containing `text`.
-//!   - `clipboard ["text"]`: read, or seed, the emulated clipboard.
-//!   - `wait <ms>`: pump emulator events for a fixed duration (lets
-//!     async work like a vault unlock or an SSH dial settle).
-//!   - `settle [idle_ms]`: pump until the event stream stays quiet
-//!     for `idle_ms` (default 250, capped at 5000).
-//!   - `timeout <ms>`: set the per-instruction completion timeout.
-//!   - `help`, `quit`.
+//! Both interactive modes execute `.ice` instructions (`click
+//! "Hosts"`, `type "ls"`, `type enter`, `type ctrl+shift+f`,
+//! `scroll (0, -3)`, `expect "Connected"`, `move (100, 200)`, ...)
+//! and record the ones that execute into a session history that
+//! `save_ice` turns into a test file.
 //!
-//!   Responses are single lines prefixed with `== ` so they can be
-//!   told apart from tracing output sharing stdout: `== ok`,
-//!   `== fail <instruction>`, `== timeout ...`, `== shot <path>`,
-//!   `== error <reason>`.
-//!
-//! Isolation: both modes redirect `$HOME` to a sandbox directory
+//! Isolation: every mode redirects `$HOME` to a sandbox directory
 //! (default `<tmp>/oryxis-harness`, override with `--home <dir>`)
 //! *before* anything reads the vault, so a harness run can never
 //! touch the real `~/.oryxis`. The sandbox persists across runs by
-//! design: a master password set in one REPL session is still there
-//! in the next, which keeps iterative QA cheap.
+//! design: a master password set in one session is still there in
+//! the next, which keeps iterative QA cheap. `reset` (REPL command /
+//! MCP tool) reboots the emulated app in place, optionally wiping
+//! the sandbox's `.oryxis` first for a first-run state.
 //!
-//! Flags shared by both modes: `--home <dir>`, `--shots <dir>`,
+//! Flags shared by all modes: `--home <dir>`, `--shots <dir>`,
 //! `--viewport <WxH>` (default 1200x750), `--scale <factor>`
 //! (default 1), `--mode zen|patient|immediate` (default zen, see
 //! [`emulator::Mode`]) and `--timeout-ms <ms>` (default 20000).
@@ -52,15 +43,16 @@
 //! renders as tofu and text selectors still match but screenshots
 //! are useless.
 
+mod mcp;
+mod repl;
+
 use std::borrow::Cow;
-use std::io::{BufRead as _, Write as _};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use iced::{Program, Size};
 use iced_test::Instruction;
 use iced_test::core::Rectangle;
-use iced_test::core::clipboard::Content;
 use iced_test::core::theme;
 use iced_test::core::widget::Id;
 use iced_test::core::widget::operation::Operation;
@@ -68,17 +60,25 @@ use iced_test::emulator::{self, Emulator, Event};
 use iced_test::futures::futures::channel::mpsc::{self, TryRecvError};
 
 /// How long the initial boot (vault open, font tasks, update check)
-/// may take before the REPL gives up waiting and hands over control
-/// anyway. Generous because a cold tokio + headless-renderer start
-/// under a software rasterizer can be slow.
+/// may take before the interactive modes give up waiting and hand
+/// control over anyway. Generous because a cold tokio +
+/// headless-renderer start under a software rasterizer can be slow.
 const BOOT_TIMEOUT: Duration = Duration::from_secs(120);
+
+/// Which harness front-end was requested on the CLI.
+enum Frontend {
+    /// `--harness-repl`: line protocol on stdin/stdout.
+    Repl,
+    /// `--harness-run <dir>`: batch `.ice` runner.
+    Batch(PathBuf),
+    /// `--harness-mcp`: MCP server over stdio.
+    Mcp,
+}
 
 /// A parsed harness invocation. Returned by [`options_from_args`]
 /// and consumed by [`run`].
 pub struct Options {
-    /// `--harness-run <dir>`: batch mode over `.ice` files. `None`
-    /// means REPL mode.
-    batch: Option<PathBuf>,
+    frontend: Frontend,
     /// The sandbox directory `$HOME` was redirected to.
     home: PathBuf,
     /// Where `screenshot` PNGs land.
@@ -89,7 +89,7 @@ pub struct Options {
     scale: f32,
     /// Task-waiting strategy for the emulator.
     mode: emulator::Mode,
-    /// Per-instruction completion timeout in the REPL.
+    /// Per-instruction completion timeout in the interactive modes.
     timeout: Duration,
 }
 
@@ -136,6 +136,7 @@ pub fn options_from_args() -> Option<Options> {
 /// be unit-tested without touching the environment.
 fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let mut repl = false;
+    let mut mcp = false;
     let mut batch: Option<PathBuf> = None;
     let mut home: Option<PathBuf> = None;
     let mut shots: Option<PathBuf> = None;
@@ -155,6 +156,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         };
         match arg.as_str() {
             "--harness-repl" => repl = true,
+            "--harness-mcp" => mcp = true,
             "--harness-run" => {
                 batch = Some(PathBuf::from(value("--harness-run")?));
             }
@@ -215,23 +217,34 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         }
     }
 
-    if !repl && batch.is_none() {
+    let requested = usize::from(repl) + usize::from(mcp) + usize::from(batch.is_some());
+    if requested == 0 {
         if let Some(flag) = harness_flags.first() {
             return Err(format!(
-                "{flag} only makes sense with --harness-repl or --harness-run"
+                "{flag} only makes sense with --harness-repl, --harness-mcp or --harness-run"
             ));
         }
         return Ok(None);
     }
-    if repl && batch.is_some() {
-        return Err("--harness-repl and --harness-run are mutually exclusive".into());
+    if requested > 1 {
+        return Err(
+            "--harness-repl, --harness-mcp and --harness-run are mutually exclusive".into(),
+        );
     }
+
+    let frontend = if let Some(dir) = batch {
+        Frontend::Batch(dir)
+    } else if mcp {
+        Frontend::Mcp
+    } else {
+        Frontend::Repl
+    };
 
     let home = home.unwrap_or_else(|| std::env::temp_dir().join("oryxis-harness"));
     let shots = shots.unwrap_or_else(|| home.join("shots"));
 
     Ok(Some(Options {
-        batch,
+        frontend,
         home,
         shots,
         viewport,
@@ -251,20 +264,23 @@ where
 {
     load_bundled_fonts();
 
-    if let Some(dir) = options.batch.clone() {
-        return match iced_test::run(program, &dir) {
-            Ok(()) => {
-                println!("== ok all ice tests passed in {}", dir.display());
-                Ok(())
+    match &options.frontend {
+        Frontend::Batch(dir) => {
+            let dir = dir.clone();
+            match iced_test::run(program, &dir) {
+                Ok(()) => {
+                    println!("== ok all ice tests passed in {}", dir.display());
+                    Ok(())
+                }
+                Err(error) => {
+                    eprintln!("oryxis harness: ice run failed: {error}");
+                    std::process::exit(1);
+                }
             }
-            Err(error) => {
-                eprintln!("oryxis harness: ice run failed: {error}");
-                std::process::exit(1);
-            }
-        };
+        }
+        Frontend::Repl => repl::serve(program, options),
+        Frontend::Mcp => mcp::serve(program, options),
     }
-
-    repl(program, options)
 }
 
 /// The emulator never runs the shell's boot-time font loading (and
@@ -289,196 +305,139 @@ enum Pump {
     Closed,
 }
 
-/// One interactive REPL session over a booted emulator.
+/// Outcome of executing one instruction line.
+enum RunOutcome {
+    /// Executed and quiesced.
+    Done,
+    /// The instruction could not be executed (target not found /
+    /// expectation not met).
+    Failed(Instruction),
+    /// Executed, but tasks were still pending when the instruction
+    /// timeout passed (normal once a live terminal session exists).
+    Timeout,
+    /// The emulator died.
+    Closed,
+    /// The line is not a valid `.ice` instruction.
+    Parse(String),
+}
+
+/// One interactive session over a booted emulator, shared by the
+/// REPL and MCP front-ends.
 struct Session<P>
 where
     P: Program + 'static,
 {
     emulator: Emulator<P>,
     receiver: mpsc::Receiver<Event<P>>,
-    scale: f32,
+    home: PathBuf,
     shots: PathBuf,
+    viewport: Size,
+    scale: f32,
+    mode: emulator::Mode,
     timeout: Duration,
     shot_counter: u32,
+    /// Every instruction that executed (including timed-out ones,
+    /// which did run; excluding failures and parse errors), in
+    /// order. [`Session::save_ice`] turns this into a test file.
+    history: Vec<Instruction>,
 }
-
-fn repl<P>(program: P, options: Options) -> iced::Result
-where
-    P: Program + 'static,
-{
-    let (sender, receiver) = mpsc::channel(256);
-    let mut session = Session {
-        emulator: Emulator::new(sender, &program, options.mode, options.viewport),
-        receiver,
-        scale: options.scale,
-        shots: options.shots,
-        timeout: options.timeout,
-        shot_counter: 0,
-    };
-
-    match session.pump_until_ready(&program, BOOT_TIMEOUT) {
-        Pump::Ready => {}
-        Pump::Timeout => respond("boot timeout (continuing; try `settle` or `wait`)"),
-        Pump::Failed(instruction) => respond(format!("boot fail {instruction}")),
-        Pump::Closed => {
-            respond("error emulator channel closed during boot");
-            return Ok(());
-        }
-    }
-    respond(format!(
-        "harness ready home={} shots={} viewport={}x{} mode={:?}",
-        options.home.display(),
-        session.shots.display(),
-        options.viewport.width,
-        options.viewport.height,
-        options.mode,
-    ));
-
-    let stdin = std::io::stdin();
-    let mut line = String::new();
-    loop {
-        // Absorb whatever the subscriptions produced while we were
-        // blocked on stdin, so commands act on fresh state.
-        session.drain(&program);
-
-        line.clear();
-        match stdin.lock().read_line(&mut line) {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {}
-        }
-        let command = line.trim();
-        if command.is_empty() || command.starts_with('#') {
-            continue;
-        }
-
-        let (head, rest) = match command.split_once(char::is_whitespace) {
-            Some((head, rest)) => (head, rest.trim()),
-            None => (command, ""),
-        };
-
-        match head {
-            "quit" | "exit" => break,
-            "help" => {
-                for line in HELP.lines() {
-                    respond(line);
-                }
-            }
-            "screenshot" => match session.screenshot(&program, rest) {
-                Ok(path) => respond(format!("shot {}", path.display())),
-                Err(reason) => respond(format!("error {reason}")),
-            },
-            "texts" => match session.texts(&program) {
-                Ok(entries) => {
-                    let count = entries.len();
-                    for (text, bounds) in entries {
-                        respond(format_text_entry(&text, bounds));
-                    }
-                    respond(format!("ok {count} texts"));
-                }
-                Err(reason) => respond(format!("error {reason}")),
-            },
-            "find" => match parse_quoted(rest) {
-                Some(needle) => match session.texts(&program) {
-                    Ok(entries) => {
-                        let matches: Vec<_> = entries
-                            .into_iter()
-                            .filter(|(text, _)| text.contains(&needle))
-                            .collect();
-                        let count = matches.len();
-                        for (text, bounds) in matches {
-                            respond(format_text_entry(&text, bounds));
-                        }
-                        respond(format!("ok {count} matches"));
-                    }
-                    Err(reason) => respond(format!("error {reason}")),
-                },
-                None => respond("error find wants a quoted string: find \"Hosts\""),
-            },
-            "wait" => match rest.parse::<u64>() {
-                Ok(ms) => {
-                    session.wait(&program, Duration::from_millis(ms.min(600_000)));
-                    respond("ok");
-                }
-                Err(_) => respond("error wait wants milliseconds: wait 500"),
-            },
-            "settle" => {
-                let idle = rest.parse::<u64>().unwrap_or(250).clamp(10, 5_000);
-                session.settle(
-                    &program,
-                    Duration::from_millis(idle),
-                    Duration::from_secs(30),
-                );
-                respond("ok");
-            }
-            "timeout" => match rest.parse::<u64>() {
-                Ok(ms) => {
-                    session.timeout = Duration::from_millis(ms.clamp(100, 600_000));
-                    respond("ok");
-                }
-                Err(_) => respond("error timeout wants milliseconds: timeout 30000"),
-            },
-            "clipboard" => {
-                if rest.is_empty() {
-                    match session.emulator.clipboard() {
-                        Some(Content::Text(text)) => respond(format!("clipboard {text:?}")),
-                        Some(Content::Html(html)) => {
-                            respond(format!("clipboard html {html:?}"));
-                        }
-                        Some(Content::Files(files)) => {
-                            respond(format!("clipboard files {files:?}"));
-                        }
-                        Some(_) => respond("clipboard <non-text content>"),
-                        None => respond("clipboard empty"),
-                    }
-                } else {
-                    match parse_quoted(rest) {
-                        Some(text) => {
-                            session.emulator.set_clipboard(Some(Content::Text(text)));
-                            respond("ok");
-                        }
-                        None => respond(
-                            "error clipboard wants a quoted string: clipboard \"secret\"",
-                        ),
-                    }
-                }
-            }
-            _ => match Instruction::parse(command) {
-                Ok(instruction) => {
-                    session.emulator.run(&program, &instruction);
-                    match session.pump_until_ready(&program, session.timeout) {
-                        Pump::Ready => respond("ok"),
-                        Pump::Failed(instruction) => respond(format!("fail {instruction}")),
-                        Pump::Timeout => {
-                            respond("timeout (tasks still pending; `settle` may absorb them)");
-                        }
-                        Pump::Closed => {
-                            respond("error emulator channel closed");
-                            break;
-                        }
-                    }
-                }
-                Err(error) => respond(format!("error {error}")),
-            },
-        }
-    }
-
-    respond("bye");
-    Ok(())
-}
-
-const HELP: &str = "\
-instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target>
-              scroll [pixels] (dx, dy) [<target>] / type \"text\"
-              type enter|escape|tab|backspace / type ctrl+k / type ctrl+shift+f
-              press enter / release tab / expect \"Text\"
-harness:      screenshot [name] / texts / find \"Text\" / clipboard [\"text\"]
-              wait <ms> / settle [idle_ms] / timeout <ms> / help / quit
-responses:    == ok | == fail <instr> | == timeout | == shot <path> | == error <..>";
 
 impl<P> Session<P>
 where
     P: Program + 'static,
 {
+    /// Boots the emulated application and pumps until the boot task
+    /// settles (or [`BOOT_TIMEOUT`] passes).
+    fn new(program: &P, options: &Options) -> (Self, Pump) {
+        let (sender, receiver) = mpsc::channel(256);
+        let mut session = Self {
+            emulator: Emulator::new(sender, program, options.mode, options.viewport),
+            receiver,
+            home: options.home.clone(),
+            shots: options.shots.clone(),
+            viewport: options.viewport,
+            scale: options.scale,
+            mode: options.mode,
+            timeout: options.timeout,
+            shot_counter: 0,
+            history: Vec::new(),
+        };
+        let boot = session.pump_until_ready(program, BOOT_TIMEOUT);
+        (session, boot)
+    }
+
+    /// Reboots the emulated application in place. With `wipe`, the
+    /// sandbox's `.oryxis` directory is removed first so the app
+    /// comes back in its first-run state (onboarding). Clears the
+    /// instruction history.
+    ///
+    /// The old emulator (and its runtime) is dropped before the new
+    /// one boots; on Unix the wipe also works while the old vault
+    /// handle is still open, since unlinking open files is allowed.
+    fn reset(&mut self, program: &P, wipe: bool) -> Result<Pump, String> {
+        if wipe {
+            let oryxis_dir = self.home.join(".oryxis");
+            if oryxis_dir.exists() {
+                std::fs::remove_dir_all(&oryxis_dir)
+                    .map_err(|e| format!("wiping {}: {e}", oryxis_dir.display()))?;
+            }
+        }
+
+        let (sender, receiver) = mpsc::channel(256);
+        self.receiver = receiver;
+        self.emulator = Emulator::new(sender, program, self.mode, self.viewport);
+        self.history.clear();
+        Ok(self.pump_until_ready(program, BOOT_TIMEOUT))
+    }
+
+    /// Parses and executes one `.ice` instruction line, recording it
+    /// in the session history when it actually ran.
+    fn run_line(&mut self, program: &P, line: &str) -> RunOutcome {
+        let instruction = match Instruction::parse(line) {
+            Ok(instruction) => instruction,
+            Err(error) => return RunOutcome::Parse(error.to_string()),
+        };
+
+        self.emulator.run(program, &instruction);
+        match self.pump_until_ready(program, self.timeout) {
+            Pump::Ready => {
+                self.history.push(instruction);
+                RunOutcome::Done
+            }
+            Pump::Timeout => {
+                self.history.push(instruction);
+                RunOutcome::Timeout
+            }
+            Pump::Failed(instruction) => RunOutcome::Failed(instruction),
+            Pump::Closed => RunOutcome::Closed,
+        }
+    }
+
+    /// Serializes the session history as an `.ice` test file and
+    /// writes it to `path`, returning the content.
+    fn save_ice(&self, path: &std::path::Path) -> Result<String, String> {
+        use std::fmt::Write as _;
+
+        if self.history.is_empty() {
+            return Err("no instructions recorded yet".into());
+        }
+
+        let mut content = String::new();
+        let _ = writeln!(
+            content,
+            "viewport: {}x{}",
+            self.viewport.width as u32, self.viewport.height as u32
+        );
+        let _ = writeln!(content, "mode: {}", self.mode);
+        let _ = writeln!(content, "-----");
+        for instruction in &self.history {
+            let _ = writeln!(content, "{instruction}");
+        }
+
+        std::fs::write(path, &content).map_err(|e| format!("writing {}: {e}", path.display()))?;
+        Ok(content)
+    }
+
     /// Pumps the event channel, performing emulator actions, until a
     /// Ready/Failed for the in-flight instruction arrives or the
     /// timeout passes. Mirrors the loop in `iced_test::run`, with a
@@ -557,10 +516,11 @@ where
         }
     }
 
-    /// Renders the current UI into a PNG under the shots directory,
-    /// straight from the emulator's own renderer and widget-state
-    /// cache (scroll offsets, focus, carets all included).
-    fn screenshot(&mut self, program: &P, name: &str) -> Result<PathBuf, String> {
+    /// Renders the current UI straight from the emulator's own
+    /// renderer and widget-state cache (scroll offsets, focus,
+    /// carets all included), writes it as a PNG under the shots
+    /// directory and returns both the path and the encoded bytes.
+    fn screenshot(&mut self, program: &P, name: &str) -> Result<(PathBuf, Vec<u8>), String> {
         self.shot_counter += 1;
         let name = if name.is_empty() {
             format!("shot-{:04}", self.shot_counter)
@@ -574,12 +534,17 @@ where
             .unwrap_or_else(|| <P::Theme as theme::Base>::default(theme::Mode::None));
         let shot = self.emulator.screenshot(program, &theme, self.scale);
 
-        let path = self.shots.join(format!("{name}.png"));
         let image =
             image::RgbaImage::from_raw(shot.size.width, shot.size.height, shot.rgba.to_vec())
                 .ok_or("screenshot buffer size mismatch")?;
-        image.save(&path).map_err(|e| e.to_string())?;
-        Ok(path)
+        let mut png = Vec::new();
+        image
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
+
+        let path = self.shots.join(format!("{name}.png"));
+        std::fs::write(&path, &png).map_err(|e| e.to_string())?;
+        Ok((path, png))
     }
 
     /// Collects every visible text widget with its bounds, sorted in
@@ -652,15 +617,6 @@ fn sanitize_name(name: &str) -> String {
         .collect()
 }
 
-/// Protocol response: one line, `== ` prefixed (so it can't be
-/// confused with tracing output on the same stream), flushed
-/// immediately because stdout is block-buffered when piped.
-fn respond(message: impl AsRef<str>) {
-    let mut stdout = std::io::stdout().lock();
-    let _ = writeln!(stdout, "== {}", message.as_ref());
-    let _ = stdout.flush();
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -678,9 +634,15 @@ mod tests {
     #[test]
     fn repl_mode_with_defaults() {
         let options = parse(&args(&["--harness-repl"])).unwrap().unwrap();
-        assert!(options.batch.is_none());
+        assert!(matches!(options.frontend, Frontend::Repl));
         assert_eq!(options.viewport, Size::new(1200.0, 750.0));
         assert_eq!(options.mode, emulator::Mode::Zen);
+    }
+
+    #[test]
+    fn mcp_mode_parses() {
+        let options = parse(&args(&["--harness-mcp"])).unwrap().unwrap();
+        assert!(matches!(options.frontend, Frontend::Mcp));
     }
 
     #[test]
@@ -695,7 +657,10 @@ mod tests {
         ]))
         .unwrap()
         .unwrap();
-        assert_eq!(options.batch.as_deref(), Some(std::path::Path::new("tests/e2e")));
+        assert!(matches!(
+            &options.frontend,
+            Frontend::Batch(dir) if dir == std::path::Path::new("tests/e2e")
+        ));
         assert_eq!(options.viewport, Size::new(800.0, 600.0));
         assert_eq!(options.mode, emulator::Mode::Immediate);
     }
@@ -706,8 +671,10 @@ mod tests {
     }
 
     #[test]
-    fn repl_and_run_are_mutually_exclusive() {
+    fn frontends_are_mutually_exclusive() {
         assert!(parse(&args(&["--harness-repl", "--harness-run", "d"])).is_err());
+        assert!(parse(&args(&["--harness-repl", "--harness-mcp"])).is_err());
+        assert!(parse(&args(&["--harness-mcp", "--harness-run", "d"])).is_err());
     }
 
     #[test]

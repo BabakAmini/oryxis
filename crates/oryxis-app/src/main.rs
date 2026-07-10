@@ -322,7 +322,13 @@ fn main() -> iced::Result {
         // that one target so copy-on-select doesn't spam the log on every
         // click; everything else stays at info.
         .with(tracing_subscriber::EnvFilter::new("oryxis=debug,info,arboard=error"))
-        .with(tracing_subscriber::fmt::layer())
+        // In harness mode stdout belongs to the driving protocol (the
+        // REPL's `== ` lines, MCP's JSON-RPC messages), so logs go to
+        // stderr there; the normal app keeps stdout.
+        .with((!harness_active).then(tracing_subscriber::fmt::layer))
+        .with(harness_active.then(|| {
+            tracing_subscriber::fmt::layer().with_writer(std::io::stderr)
+        }))
         // Second sink for the Settings > Advanced debug-log file. Always
         // installed; the writer discards everything while the feature is
         // off, so the toggle works at runtime without rebuilding the
