@@ -1258,7 +1258,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "숨기기",
         "mcp_token_copy" => "복사",
         "mcp_token_regenerate" => "재생성",
-        "mcp_token_desc" => "모든 MCP 클라이언트에 필요합니다. 재생성하면 이전 값이 무효화되므로, Claude Desktop 구성을 새로 고치려면 설치를 다시 실행하세요.",
+        "mcp_token_desc" => "모든 MCP 클라이언트에 필요합니다. 재생성하면 이전 값이 무효화되므로, Claude Code 구성을 새로 고치려면 설치를 다시 실행하세요.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS 플러그인이 설치되지 않음",

@@ -1326,7 +1326,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Skrýt",
         "mcp_token_copy" => "Kopírovat",
         "mcp_token_regenerate" => "Znovu vygenerovat",
-        "mcp_token_desc" => "Vyžadován každým MCP klientem. Nové vygenerování zneplatní předchozí hodnotu, spusťte znovu Instalaci pro obnovení konfigurace Claude Desktop.",
+        "mcp_token_desc" => "Vyžadován každým MCP klientem. Nové vygenerování zneplatní předchozí hodnotu, spusťte znovu Instalaci pro obnovení konfigurace Claude Code.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS není nainstalován",

@@ -1181,7 +1181,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "非表示",
         "mcp_token_copy" => "コピー",
         "mcp_token_regenerate" => "再生成",
-        "mcp_token_desc" => "すべての MCP クライアントで必要です。再生成すると以前の値は無効になります。Claude Desktop の設定を更新するためにインストールを再実行してください。",
+        "mcp_token_desc" => "すべての MCP クライアントで必要です。再生成すると以前の値は無効になります。Claude Code の設定を更新するためにインストールを再実行してください。",
 
         // Cloud Accounts のプラグイン未インストールバナー
         "cloud_plugin_missing_title" => "AWS プラグインが未インストール",

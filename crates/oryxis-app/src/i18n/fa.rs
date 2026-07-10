@@ -1247,7 +1247,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "پنهان",
         "mcp_token_copy" => "کپی",
         "mcp_token_regenerate" => "تولید دوباره",
-        "mcp_token_desc" => "برای هر کلاینت MCP لازم است. تولید دوباره مقدار قبلی را باطل می‌کند، برای به‌روزرسانی پیکربندی Claude Desktop دوباره Install را اجرا کنید.",
+        "mcp_token_desc" => "برای هر کلاینت MCP لازم است. تولید دوباره مقدار قبلی را باطل می‌کند، برای به‌روزرسانی پیکربندی Claude Code دوباره Install را اجرا کنید.",
 
         // بنر افزونه نصب‌نشده در Cloud Accounts
         "cloud_plugin_missing_title" => "افزونه AWS نصب نشده",

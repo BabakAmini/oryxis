@@ -1327,7 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "ซ่อน",
         "mcp_token_copy" => "คัดลอก",
         "mcp_token_regenerate" => "สร้างใหม่",
-        "mcp_token_desc" => "ไคลเอนต์ MCP ทุกตัวต้องใช้ การสร้างใหม่จะทำให้ค่าเดิมใช้ไม่ได้ รันติดตั้งอีกครั้งเพื่อรีเฟรชการกำหนดค่า Claude Desktop",
+        "mcp_token_desc" => "ไคลเอนต์ MCP ทุกตัวต้องใช้ การสร้างใหม่จะทำให้ค่าเดิมใช้ไม่ได้ รันติดตั้งอีกครั้งเพื่อรีเฟรชการกำหนดค่า Claude Code",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "ยังไม่ได้ติดตั้งปลั๊กอิน AWS",

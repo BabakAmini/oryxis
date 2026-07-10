@@ -1179,7 +1179,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "隱藏",
         "mcp_token_copy" => "複製",
         "mcp_token_regenerate" => "重新產生",
-        "mcp_token_desc" => "每個 MCP 用戶端都需要。重新產生會使舊值失效，請再次執行安裝以重新整理 Claude Desktop 設定。",
+        "mcp_token_desc" => "每個 MCP 用戶端都需要。重新產生會使舊值失效，請再次執行安裝以重新整理 Claude Code 設定。",
 
         // Plugin-missing banner in Cloud Accounts
         "cloud_plugin_missing_title" => "AWS 外掛程式未安裝",

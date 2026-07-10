@@ -88,11 +88,13 @@ pub(crate) fn sync_launcher_from_cache() -> Result<PathBuf, PluginError> {
 
 /// Called from the plugin install completion handler when `mcp`
 /// finishes. Refreshes the stable launcher from the freshly-activated
-/// cached version and, if the user previously ran "Install MCP
-/// Config" (so `~/.claude/.mcp.json` exists), rewrites that file too
-/// so its `command` points at the launcher path the new version
-/// landed at. Best-effort: failures are logged but don't roll back
-/// the install.
+/// cached version and, if the user previously ran "Install to Claude
+/// Code" (an `oryxis` entry exists in `~/.claude.json`, or in the
+/// legacy `~/.claude/.mcp.json` dead-letter file older releases
+/// wrote), rewrites the config too so its `command` points at the
+/// launcher path the new version landed at (which also migrates a
+/// legacy entry to the correct file). Best-effort: failures are
+/// logged but don't roll back the install.
 pub(crate) fn post_install_refresh(token: &str) {
     if let Err(e) = sync_launcher_from_cache() {
         tracing::warn!(
@@ -102,16 +104,14 @@ pub(crate) fn post_install_refresh(token: &str) {
         );
         return;
     }
-    let Some(home) = dirs::home_dir() else { return };
-    let claude_config = home.join(".claude").join(".mcp.json");
-    if !claude_config.exists() {
+    if !crate::mcp::mcp_config_installed() {
         return;
     }
     if let Err(msg) = crate::mcp::install_mcp_config_to_file(token) {
         tracing::warn!(
             target = "oryxis::mcp",
             error = %msg,
-            "failed to refresh ~/.claude/.mcp.json after install"
+            "failed to refresh ~/.claude.json after install"
         );
     }
 }

@@ -1176,7 +1176,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Ocultar",
         "mcp_token_copy" => "Copiar",
         "mcp_token_regenerate" => "Regenerar",
-        "mcp_token_desc" => "Requerido por todo cliente MCP. Regenerarlo invalida el valor anterior, ejecuta Instalar de nuevo para refrescar la configuración de Claude Desktop.",
+        "mcp_token_desc" => "Requerido por todo cliente MCP. Regenerarlo invalida el valor anterior, ejecuta Instalar de nuevo para refrescar la configuración de Claude Code.",
 
         // Banner de plugin ausente en Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS no instalado",

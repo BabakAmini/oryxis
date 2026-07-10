@@ -1326,7 +1326,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Απόκρυψη",
         "mcp_token_copy" => "Αντιγραφή",
         "mcp_token_regenerate" => "Αναδημιουργία",
-        "mcp_token_desc" => "Απαιτείται από κάθε client MCP. Η αναδημιουργία ακυρώνει την προηγούμενη τιμή. Εκτελέστε ξανά την Εγκατάσταση για ανανέωση της διαμόρφωσης του Claude Desktop.",
+        "mcp_token_desc" => "Απαιτείται από κάθε client MCP. Η αναδημιουργία ακυρώνει την προηγούμενη τιμή. Εκτελέστε ξανά την Εγκατάσταση για ανανέωση της διαμόρφωσης του Claude Code.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Το plugin AWS δεν είναι εγκατεστημένο",
