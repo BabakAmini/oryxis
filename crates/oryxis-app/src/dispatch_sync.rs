@@ -87,6 +87,86 @@ impl Oryxis {
                     let _ = vault.set_setting("sync_listen_port", &v);
                 }
             }
+            Message::SyncWizardToggle => {
+                let w = &mut self.sync.relay_wizard;
+                w.open = !w.open;
+                if w.open && w.token.is_empty() {
+                    w.token = fresh_relay_token();
+                }
+            }
+            Message::SyncWizardDomainChanged(v) => {
+                self.sync.relay_wizard.domain = v;
+                self.sync.relay_wizard.result = None;
+            }
+            Message::SyncWizardPortChanged(v) => {
+                self.sync.relay_wizard.port = v;
+                self.sync.relay_wizard.result = None;
+            }
+            Message::SyncWizardFormatChanged(f) => {
+                self.sync.relay_wizard.format = f;
+            }
+            Message::SyncWizardRegenToken => {
+                self.sync.relay_wizard.token = fresh_relay_token();
+                self.sync.relay_wizard.result = None;
+            }
+            Message::SyncWizardTest => {
+                let Some(base) = self.sync.relay_wizard.base_url() else {
+                    return Ok(Task::none());
+                };
+                if self.sync.relay_wizard.testing {
+                    return Ok(Task::none());
+                }
+                self.sync.relay_wizard.testing = true;
+                self.sync.relay_wizard.result = None;
+                return Ok(Task::perform(
+                    async move {
+                        // `/healthz` is unauthenticated on both servers
+                        // (oryxis-relay and worker.js), so this probes
+                        // reachability + TLS without leaking the token.
+                        let client = reqwest::Client::builder()
+                            .timeout(std::time::Duration::from_secs(8))
+                            .build()
+                            .map_err(|e| e.to_string())?;
+                        let resp = client
+                            .get(format!("{base}/healthz"))
+                            .send()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        if resp.status().is_success() {
+                            Ok(())
+                        } else {
+                            Err(format!("HTTP {}", resp.status()))
+                        }
+                    },
+                    Message::SyncWizardTestResult,
+                ));
+            }
+            Message::SyncWizardTestResult(r) => {
+                self.sync.relay_wizard.testing = false;
+                let ok = r.is_ok();
+                self.sync.relay_wizard.result = Some(r);
+                if ok {
+                    // Reachable: adopt the relay as this device's
+                    // signaling endpoint, exactly as if the user had
+                    // filled the Advanced fields by hand.
+                    if let Some(base) = self.sync.relay_wizard.base_url() {
+                        let token = self.sync.relay_wizard.token.clone();
+                        self.sync.signaling_url = base.clone();
+                        self.sync.signaling_token = token.clone();
+                        if let Some(vault) = &self.vault {
+                            let _ = vault.set_setting("sync_signaling_url", &base);
+                            let _ =
+                                vault.set_setting("sync_signaling_token", &token);
+                        }
+                        // A running engine keeps its old config; bounce
+                        // it so the new endpoint takes effect now.
+                        if self.sync.engine_running {
+                            self.stop_sync_engine();
+                            return Ok(self.start_sync_engine());
+                        }
+                    }
+                }
+            }
             Message::SyncStartPairing => {
                 // Host a real pairing code on the engine. The engine
                 // also emits `PairingCodeGenerated`, but we set the
@@ -454,6 +534,7 @@ impl Oryxis {
                         // is stable.
                         self.sync.signaling_tick =
                             self.sync.signaling_tick.saturating_add(1);
+                        self.sync.signaling_last = Some(Ok(format!("{ip}:{port}")));
                         self.sync.status = Some(format!(
                             "{} ({}): {ip}:{port}",
                             crate::i18n::t("sync_status_signaling_registered"),
@@ -461,6 +542,7 @@ impl Oryxis {
                         ));
                     }
                     SyncEvent::SignalingFailed { reason } => {
+                        self.sync.signaling_last = Some(Err(reason.clone()));
                         self.sync.status = Some(format!(
                             "{}: {reason}",
                             crate::i18n::t("sync_status_signaling_failed"),
@@ -490,4 +572,16 @@ impl Oryxis {
         }
         Ok(Task::none())
     }
+}
+
+/// Random bearer token for a wizard-generated relay: two UUIDs' worth
+/// of hex (256 bits), long enough that the token is never the weak
+/// link (the relay token only gates "can talk to the relay"; payloads
+/// stay end-to-end encrypted above it).
+fn fresh_relay_token() -> String {
+    format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    )
 }

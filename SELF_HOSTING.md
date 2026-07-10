@@ -92,9 +92,9 @@ server {
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
-        # Long-poll: the GET inbox waits up to 30s, so keep the
+        # Long-poll: the GET inbox waits up to 120s, so keep the
         # upstream timeout above that.
-        proxy_read_timeout 60s;
+        proxy_read_timeout 150s;
         proxy_buffering off;
     }
 }

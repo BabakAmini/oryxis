@@ -65,6 +65,86 @@ pub(crate) struct SyncState {
     /// path, group passphrase, host picker) plus the in-flight round's
     /// progress + last outcome.
     pub(crate) sftp: SftpSyncForm,
+    /// "Set up your own relay" wizard (Settings > Sync > P2P): inputs,
+    /// generated-artifact format, and the reachability test state.
+    pub(crate) relay_wizard: RelayWizardForm,
+    /// Last signaling outcome, kept separately from `status` (which any
+    /// later event overwrites) so the panel can show a persistent
+    /// signaling health line: `Ok(addr)` / `Err(reason)`.
+    pub(crate) signaling_last: Option<Result<String, String>>,
+}
+
+/// Which deployment artifact the relay wizard renders.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum RelayWizardFormat {
+    #[default]
+    Compose,
+    Systemd,
+    Caddy,
+}
+
+/// State for the "Set up your own relay" wizard. Everything transient;
+/// the outcome that persists is the signaling URL + token written to
+/// settings when the reachability test passes.
+#[derive(Default)]
+pub(crate) struct RelayWizardForm {
+    pub open: bool,
+    /// Bare domain (no scheme), e.g. `relay.example.com`.
+    pub domain: String,
+    /// Public HTTPS port; empty or `443` keeps the URL portless.
+    pub port: String,
+    /// Bearer token baked into the generated artifacts; generated on
+    /// first open, regenerable.
+    pub token: String,
+    pub format: RelayWizardFormat,
+    /// Reachability test in flight (disables the Test button).
+    pub testing: bool,
+    /// Last test outcome; `Err` carries the reason line.
+    pub result: Option<Result<(), String>>,
+}
+
+impl RelayWizardForm {
+    /// `https://domain[:port]` from the form, `None` while the domain
+    /// is empty. Scheme prefixes typed by the user are tolerated.
+    pub fn base_url(&self) -> Option<String> {
+        let domain = self
+            .domain
+            .trim()
+            .trim_start_matches("https://")
+            .trim_start_matches("http://")
+            .trim_end_matches('/')
+            .to_string();
+        if domain.is_empty() {
+            return None;
+        }
+        let port = self.port.trim();
+        if port.is_empty() || port == "443" {
+            Some(format!("https://{domain}"))
+        } else {
+            Some(format!("https://{domain}:{port}"))
+        }
+    }
+
+    /// The ready-to-paste server file for the selected format. Content
+    /// mirrors SELF_HOSTING.md; comments stay English like any file we
+    /// generate for a server.
+    pub fn artifact(&self) -> String {
+        let domain = self.domain.trim().trim_start_matches("https://").trim_start_matches("http://").trim_end_matches('/');
+        let domain = if domain.is_empty() { "relay.example.com" } else { domain };
+        match self.format {
+            RelayWizardFormat::Compose => format!(
+                "# docker-compose.yml\nservices:\n  oryxis-relay:\n    image: ghcr.io/wilsonglasser/oryxis-relay:latest\n    restart: unless-stopped\n    ports:\n      - \"127.0.0.1:8080:8080\"\n    environment:\n      ORYXIS_RELAY_TOKEN: \"{token}\"\n",
+                token = self.token
+            ),
+            RelayWizardFormat::Systemd => format!(
+                "# /etc/systemd/system/oryxis-relay.service\n# Binary: grab the relay-v* asset from the GitHub releases page\n# (or `cargo build --release -p oryxis-relay`).\n[Unit]\nDescription=Oryxis sync relay\nAfter=network.target\n\n[Service]\nType=simple\nUser=oryxis\nExecStart=/usr/local/bin/oryxis-relay --port 8080\nEnvironment=ORYXIS_RELAY_TOKEN={token}\nRestart=always\nRestartSec=5\n\n[Install]\nWantedBy=multi-user.target\n",
+                token = self.token
+            ),
+            RelayWizardFormat::Caddy => format!(
+                "# Caddyfile (TLS via Let's Encrypt is automatic)\n# Long-poll: keep proxy read timeouts above 150s if you front\n# this with nginx instead (proxy_read_timeout 150s).\n{domain} {{\n    reverse_proxy 127.0.0.1:8080\n}}\n"
+            ),
+        }
+    }
 }
 
 impl Default for SyncState {
@@ -96,6 +176,8 @@ impl Default for SyncState {
             signaling_tick: 0,
             transport: "p2p".into(),
             sftp: SftpSyncForm::default(),
+            relay_wizard: RelayWizardForm::default(),
+            signaling_last: None,
         }
     }
 }

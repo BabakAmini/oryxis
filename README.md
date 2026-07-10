@@ -238,7 +238,9 @@ tracks it interactively.
 - **Vault & sync:** Argon2id auto-tuned to your machine, a curated
   terminal theme collection plus theme file import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;
-  ciphertext only, as always), connection health indicators with
+  ciphertext only, as always), one-click relay deploy (the app installs
+  `oryxis-relay` on a host from your vault over SSH, with the script
+  shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
 - **Legacy keyboard modes:** per-host backspace / Home / End /
