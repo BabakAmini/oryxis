@@ -209,13 +209,14 @@ information is collected or shared as part of this process.
 
 ## Roadmap
 
-Oryxis ships small and often. This section is forward-looking: what's
-planned next. Latest stable is **v0.9.0**; [CHANGELOG.md](CHANGELOG.md)
-has the full history, and the
+Oryxis ships small and often (roughly weekly). This section is
+forward-looking: items land incrementally as they are ready rather than
+being tied to a specific version. Latest stable is **v0.9.0**;
+[CHANGELOG.md](CHANGELOG.md) has the full history, and the
 [roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 tracks it interactively.
 
-**v1.0 (planned): the stable release**
+**Planned**
 
 - **Advanced authentication:** SSH certificate auth, FIDO2 / security-key
   keys (`sk-ssh-ed25519`, `sk-ecdsa-sk`), PKCS#11 / smartcard / YubiKey,
@@ -228,7 +229,8 @@ tracks it interactively.
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
-  first mosh client to run natively on Windows.
+  first open-source mosh client to run natively on Windows (no Cygwin or
+  WSL layer).
 - **Quick-connect OS integration:** register as the `ssh://` URL handler
   and accept `oryxis user@host` on the CLI.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
@@ -246,6 +248,13 @@ tracks it interactively.
 - **Legacy keyboard modes:** per-host backspace / Home / End /
   function-key styles and per-host toggles for mouse reporting, remote
   resize and title changes.
+- **Host monitoring:** agentless CPU / memory / disk / network gauges
+  over the SSH connection you already have: a per-session panel plus a
+  multi-host dashboard, opt-in per host, nothing installed on servers.
+- **China & CJK:** a download mirror setting so fonts, plugins and
+  updates work on mainland networks, Alibaba Cloud (ECS) and Tencent
+  Cloud (CVM) providers, an East Asian ambiguous-width option, terminal
+  background images, and a Chinese README.
 - **AI ops toolkit:** the assistant graduates from generating shell
   strings to typed, structured operations synthesized for the host's
   actual OS, with dry-run previews on every state change, an audit
@@ -254,7 +263,7 @@ tracks it interactively.
 - **Consistency & stability:** a unified form system across all editors
   and portable export/import test hardening.
 
-**Beyond 1.0 (exploring)**
+**Exploring**
 
 - **Team vaults over P2P sync:** share a vault with teammates with no
   hosted server; per-member key wrapping, re-key on member removal,
