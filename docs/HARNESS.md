@@ -112,6 +112,45 @@ ignored, so a command file can be annotated.
 | `--mode zen\|patient\|immediate` | `zen` | task-waiting strategy |
 | `--timeout-ms <ms>` | `20000` | REPL per-instruction timeout |
 
+## Driving a terminal session
+
+Typing into the terminal works end to end (the canvas receives the
+simulated keyboard through the same event path as the windowed app,
+and the PTY is real). Verified recipe, local shell:
+
+```text
+timeout 500
+type ctrl+k
+click "Local Shell"
+settle 800
+screenshot shell-open
+click (600, 400)
+type "echo HARNESS-OK"
+type enter
+settle 800
+screenshot shell-output
+expect "● bash (default), connected"
+```
+
+(`timeout 500` goes first: the connect click itself already leaves
+the never-ending PTY task pending, so it would otherwise burn the
+full default timeout before responding.)
+
+Two things to know:
+
+- **Set `timeout 500` (or use `--mode patient`) once a session is
+  open.** A live PTY keeps a never-ending reader task around, so the
+  default `zen` mode ("wait for every task") never quiesces and each
+  instruction burns the full instruction timeout before handing
+  control back. Everything still executes; it is only wasted
+  wall-clock. `settle` remains the right way to let output arrive.
+- **Assert terminal output visually.** The grid is a canvas, so
+  `expect` cannot match text inside it; take a `screenshot` instead.
+  The status bar is a regular text widget, so
+  `expect "● bash (default), connected"` works for connection state
+  (the status dot lives inside the same text widget, and the selector
+  matches exact text).
+
 ## How it works / limitations
 
 The harness relies on harness-grade emulator work that lives in the
