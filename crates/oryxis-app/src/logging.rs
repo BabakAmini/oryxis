@@ -212,6 +212,8 @@ fn os_summary() -> &'static str {
     static SUMMARY: OnceLock<String> = OnceLock::new();
     SUMMARY.get_or_init(|| {
         let info = os_info::get();
+        // Only the Linux arm below appends to it.
+        #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
         let mut summary =
             format!("{} {} ({})", info.os_type(), info.version(), std::env::consts::ARCH);
         #[cfg(target_os = "linux")]
