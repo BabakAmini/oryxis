@@ -546,6 +546,17 @@ pub(crate) struct TransferState {
     /// True while a conflict modal is up, workers exit on Next instead
     /// of popping more items, then get re-spawned by Resolve.
     pub paused: bool,
+    /// Slot currently running a *directory* item. Directory items are
+    /// ordering barriers: the tree walks enqueue a dir before its
+    /// children (and after its own parent), so a dir may only start
+    /// once every earlier item finished, and nothing behind it may
+    /// start until it exists. While this is `Some`, Next dispatches
+    /// nothing; ItemDone for the slot clears it and refills the pool.
+    /// Without the barrier two slots would run `mkdir a` and
+    /// `mkdir a/b` concurrently: the child mkdir fails on the missing
+    /// parent and every upload into it dies with "No such file"
+    /// (issue #63).
+    pub dir_slot: Option<u8>,
 }
 
 impl TransferState {
@@ -578,6 +589,7 @@ impl TransferState {
             dest_side,
             busy_slots: vec![false; slots as usize],
             paused: false,
+            dir_slot: None,
         }
     }
 }

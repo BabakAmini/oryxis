@@ -596,6 +596,22 @@ impl Oryxis {
                     // each slot then.
                     return Ok(Task::none());
                 }
+                if transfer.dir_slot.is_some() {
+                    // A directory item is in flight. It's an ordering
+                    // barrier (see `TransferState::dir_slot`): nothing
+                    // queued behind it may start until it exists. Its
+                    // ItemDone refills the pool.
+                    return Ok(Task::none());
+                }
+                if transfer.queue.front().is_some_and(|i| i.is_dir)
+                    && transfer.busy_slots.iter().any(|b| *b)
+                {
+                    // Next up is a directory: drain the in-flight items
+                    // first so everything queued before it (its own
+                    // parent dir included) has finished. The pending
+                    // ItemDones re-dispatch Next.
+                    return Ok(Task::none());
+                }
                 let Some(slot) = transfer
                     .busy_slots
                     .iter()
@@ -647,6 +663,9 @@ impl Oryxis {
                     return Ok(Task::none());
                 };
                 transfer.busy_slots[slot as usize] = true;
+                if item.is_dir {
+                    transfer.dir_slot = Some(slot);
+                }
                 transfer.current = Some(transfer_item_label(&item));
                 let kind = transfer.kind;
                 let overwrite_default = transfer.overwrite_default;
@@ -732,17 +751,29 @@ impl Oryxis {
                 // (exact at the relay's concurrency of 1; an approximation
                 // at higher concurrency, good enough for a status list).
                 let finished = self.sftp.transfer.as_ref().and_then(|t| t.current.clone());
+                let mut refill = 1usize;
                 if let Some(transfer) = self.sftp.transfer.as_mut() {
                     transfer.completed += 1;
                     transfer.current = None;
                     if (slot as usize) < transfer.busy_slots.len() {
                         transfer.busy_slots[slot as usize] = false;
                     }
+                    if transfer.dir_slot == Some(slot) {
+                        // Barrier lifted: the dir exists now, so refill
+                        // the whole pool (Next dispatched nothing while
+                        // it was in flight; extra Nexts drop harmlessly
+                        // on the all-busy guard).
+                        transfer.dir_slot = None;
+                        refill = transfer.busy_slots.len().max(1);
+                    }
                 }
                 if let Some(label) = finished {
                     self.sftp.transfer_done_log.push(label);
                 }
-                return Ok(Task::done(Message::SftpTransferNext(owner)));
+                let next: Vec<Task<Message>> = (0..refill)
+                    .map(|_| Task::done(Message::SftpTransferNext(owner)))
+                    .collect();
+                return Ok(Task::batch(next));
             }
             Message::SftpToggleTransferPanel => {
                 self.sftp.transfer_panel_open = !self.sftp.transfer_panel_open;

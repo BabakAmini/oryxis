@@ -274,9 +274,15 @@ pub(crate) async fn do_relay_item(
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 ) -> Result<(), String> {
     if item.is_dir {
-        // create_dir errors when the dir already exists; harmless for a
-        // recursive relay since later child writes need it present.
-        let _ = dst_client.create_dir(&item.dst).await;
+        // A pre-existing directory is fine (the relay merges into it);
+        // anything else (permission denied, path taken by a file) poisons
+        // every child below it, so surface the mkdir error itself instead
+        // of the cascade of child failures it would cause.
+        if let Err(e) = dst_client.create_dir(&item.dst).await
+            && dst_client.list_dir(&item.dst).await.is_err()
+        {
+            return Err(e.to_string());
+        }
         Ok(())
     } else {
         src_client
@@ -298,11 +304,17 @@ pub(crate) async fn do_upload_item(
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 ) -> Result<UploadStepOutcome, String> {
     if item.is_dir {
-        // `create_dir` errors when the dir already exists; harmless for
-        // recursive uploads since later child writes need it to be
-        // present. Real "no such parent" failures surface via the
-        // child write_file calls.
-        let _ = client.create_dir(&item.dst).await;
+        // A pre-existing directory is fine (batch uploads merge into it,
+        // confirmed by the list_dir probe); anything else (permission
+        // denied, path taken by a file) poisons every child below it, so
+        // surface the mkdir error itself instead of the cascade of child
+        // failures it would cause. The queue runner's dir barrier
+        // guarantees the parent already exists at this point.
+        if let Err(e) = client.create_dir(&item.dst).await
+            && client.list_dir(&item.dst).await.is_err()
+        {
+            return Err(e.to_string());
+        }
         return Ok(UploadStepOutcome::Done);
     }
     let parent = parent_path(&item.dst);
@@ -602,4 +614,65 @@ pub(crate) fn sort_local_entries(
         };
         if sort.ascending { cmp } else { cmp.reverse() }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The transfer queue's dir barrier (`TransferState::dir_slot`)
+    /// relies on the walk enqueueing every directory before anything
+    /// inside it. If this ordering ever breaks, parallel slots race
+    /// child uploads against their parent's mkdir again (issue #63).
+    #[test]
+    fn upload_walk_enqueues_dirs_before_their_children() {
+        let root = std::env::temp_dir()
+            .join(format!("oryxis-walk-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("sub/deep")).unwrap();
+        std::fs::write(root.join("a.txt"), b"a").unwrap();
+        std::fs::write(root.join("sub/b.txt"), b"b").unwrap();
+        std::fs::write(root.join("sub/deep/c.txt"), b"c").unwrap();
+
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(crate::state::TransferItem {
+            src: root.to_string_lossy().into_owned(),
+            dst: "/dst/root".to_string(),
+            is_dir: true,
+            size: None,
+        });
+        walk_local_for_upload(&root, "/dst/root", &mut queue).unwrap();
+        let items: Vec<_> = queue.into_iter().collect();
+
+        assert_eq!(items.len(), 6, "root + sub + deep + 3 files");
+        for (i, item) in items.iter().enumerate() {
+            if !item.is_dir {
+                continue;
+            }
+            let prefix = format!("{}/", item.dst);
+            for earlier in &items[..i] {
+                assert!(
+                    !earlier.dst.starts_with(&prefix),
+                    "{} enqueued before its parent dir {}",
+                    earlier.dst,
+                    item.dst
+                );
+            }
+        }
+        // Every file's parent dir is present as an earlier dir item.
+        for (i, item) in items.iter().enumerate() {
+            if item.is_dir {
+                continue;
+            }
+            let parent = parent_path(&item.dst);
+            assert!(
+                items[..i].iter().any(|d| d.is_dir && d.dst == parent),
+                "file {} has no earlier dir item for {}",
+                item.dst,
+                parent
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
