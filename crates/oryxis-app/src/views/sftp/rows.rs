@@ -11,10 +11,14 @@ pub(crate) fn parent_row<'a>(
     layout: ColLayout,
 ) -> Element<'a, Message> {
     let msg = Message::SftpUp(side);
-    let icon = iced_fonts::lucide::folder()
-        .size(13)
-        .color(OryxisColors::t().text_muted)
-        .into();
+    // Same fixed slot as the file rows so the name column aligns; no
+    // one-click affordance needed, the whole ".." row is single-click.
+    let icon = icon_slot(
+        iced_fonts::lucide::folder()
+            .size(13)
+            .color(OryxisColors::t().text_muted),
+        None,
+    );
     let label = text("..")
         .size(12)
         .color(OryxisColors::t().text_muted)
@@ -280,6 +284,13 @@ pub(crate) fn file_row_local<'a>(
 ) -> Element<'a, Message> {
     use crate::state::SftpColumn;
     let icon = file_icon(&name, is_dir, false);
+    // Folder icons open on a single click (see `icon_slot`); disabled
+    // mid-rename so a click near the input can't navigate away.
+    let icon = icon_slot(
+        icon,
+        (is_dir && rename_input.is_none())
+            .then(|| Message::SftpNavigateLocal(side, path.clone())),
+    );
     let kind = format_kind(&name, is_dir, false);
     let modified_s = format_modified_local(modified);
     let perms_s = format_perms(mode, is_dir, false);
@@ -289,7 +300,7 @@ pub(crate) fn file_row_local<'a>(
     // icon + columns stay put so the row geometry doesn't jump.
     let (label_widget, tooltip_name) = name_label_widget(&name, rename_input, widths);
 
-    let children = row_cells(visible, widths, icon.into(), label_widget, tooltip_name, |c| {
+    let children = row_cells(visible, widths, icon, label_widget, tooltip_name, |c| {
         match c {
             SftpColumn::Modified => modified_s.clone(),
             SftpColumn::Size => size_str.clone(),
@@ -378,6 +389,13 @@ pub(crate) fn file_row_remote<'a>(
 ) -> Element<'a, Message> {
     use crate::state::SftpColumn;
     let icon = file_icon(&name, is_dir, is_symlink);
+    // Folder (and symlink, treated as nav target) icons open on a single
+    // click, mirroring the local rows.
+    let icon = icon_slot(
+        icon,
+        ((is_dir || is_symlink) && rename_input.is_none())
+            .then(|| Message::SftpNavigateRemote(side, full_path.clone())),
+    );
     let kind = format_kind(&name, is_dir, is_symlink);
     let modified_s = format_modified_remote(mtime);
     let perms_s = format_perms(permissions, is_dir, is_symlink);
@@ -398,7 +416,7 @@ pub(crate) fn file_row_remote<'a>(
             is_dir || is_symlink,
         ))
     };
-    let children = row_cells(visible, widths, icon.into(), label_widget, tooltip_name, |c| {
+    let children = row_cells(visible, widths, icon, label_widget, tooltip_name, |c| {
         match c {
         SftpColumn::Modified => modified_s.clone(),
         SftpColumn::Size => size_str.clone(),
@@ -448,6 +466,50 @@ pub(crate) fn file_row_remote<'a>(
         .on_enter(Message::SftpRowEnter(side, full_path, is_dir))
         .on_exit(Message::SftpRowExit)
         .into()
+}
+
+/// Fixed-width slot for a row's type icon. Folder rows turn it into a
+/// one-click "open" affordance: a single click on the icon navigates
+/// straight in, the fast path next to the row's select-then-double-click
+/// (which stays untouched for selection, drag and rename). File rows
+/// and rows mid-rename keep the plain glyph. Both variants share the
+/// same slot width so the name column aligns across rows.
+pub(crate) fn icon_slot<'a>(
+    icon: iced::widget::Text<'a>,
+    open: Option<Message>,
+) -> Element<'a, Message> {
+    const SLOT_W: f32 = 20.0;
+    let Some(msg) = open else {
+        return container(icon)
+            .width(Length::Fixed(SLOT_W))
+            .align_x(iced::alignment::Horizontal::Center)
+            .into();
+    };
+    let btn = button(
+        container(icon)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+    )
+    .padding(Padding { top: 2.0, right: 0.0, bottom: 2.0, left: 0.0 })
+    .width(Length::Fixed(SLOT_W))
+    .on_press(msg)
+    .style(|_, status| {
+        let bg = match status {
+            BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        }
+    });
+    iced::widget::tooltip(
+        btn,
+        tooltip_chip(crate::i18n::t("open")),
+        iced::widget::tooltip::Position::Top,
+    )
+    .into()
 }
 
 pub(crate) fn file_icon<'a>(name: &str, is_dir: bool, is_symlink: bool) -> iced::widget::Text<'a> {

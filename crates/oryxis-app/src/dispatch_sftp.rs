@@ -26,11 +26,16 @@ use std::time::Duration;
 /// How long a transient error toast stays on screen before auto-clearing.
 const TOAST_DURATION: Duration = Duration::from_millis(2600);
 /// Max gap between two clicks on the same folder to count as a double-click.
-const DOUBLE_CLICK_WINDOW: Duration = Duration::from_millis(400);
-/// A second click on an already-selected row this long after the first (i.e.
-/// slower than a double-click, but still a deliberate gesture) arms an inline
-/// rename, mirroring Explorer / Finder slow-click-to-rename.
-const SLOW_RENAME_WINDOW: Duration = Duration::from_millis(1500);
+/// Matches the Windows system default so slow double-clickers still land an
+/// "open" instead of falling through to selection (or worse, rename).
+const DOUBLE_CLICK_WINDOW: Duration = Duration::from_millis(500);
+/// Slow-click-to-rename only arms inside [MIN, MAX) after the previous click
+/// on the same row. The gap between DOUBLE_CLICK_WINDOW and MIN is a
+/// deliberate dead zone: second clicks there just re-select, so a sluggish
+/// double-click (intent: open) can never be misread as a rename. QA showed
+/// arming right at the double-click boundary caught real open attempts.
+const SLOW_RENAME_MIN: Duration = Duration::from_millis(900);
+const SLOW_RENAME_WINDOW: Duration = Duration::from_millis(2500);
 /// Idle gap after which type-ahead starts a fresh search instead of
 /// appending to the previous one.
 const TYPE_AHEAD_RESET: Duration = Duration::from_millis(900);
@@ -970,6 +975,19 @@ impl Oryxis {
                 let Some(input) = self.sftp.pane_mut(side).path_editing.take() else {
                     return Ok(Task::none());
                 };
+                // Pasted paths arrive decorated: Explorer's "Copy as path"
+                // wraps them in double quotes and stray whitespace rides
+                // along from terminals / chat. Strip both so a paste lands
+                // on the directory instead of a "Not a directory" error.
+                let input = input.trim();
+                let input = input
+                    .strip_prefix('"')
+                    .and_then(|s| s.strip_suffix('"'))
+                    .unwrap_or(input)
+                    .to_string();
+                if input.is_empty() {
+                    return Ok(Task::none());
+                }
                 if self.sftp.pane(side).is_remote {
                     return Ok(Task::done(Message::SftpNavigateRemote(side, input)));
                 }
@@ -1465,7 +1483,7 @@ impl Oryxis {
                     && self.sftp.last_click.as_ref().is_some_and(|(s, p, t)| {
                         *s == side
                             && p == &path
-                            && now.duration_since(*t) >= DOUBLE_CLICK_WINDOW
+                            && now.duration_since(*t) >= SLOW_RENAME_MIN
                             && now.duration_since(*t) < SLOW_RENAME_WINDOW
                     });
                 self.sftp.pending_rename =
