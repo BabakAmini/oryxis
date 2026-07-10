@@ -1067,9 +1067,10 @@ impl Oryxis {
                 // The string arrives already side-formatted (POSIX for a
                 // remote entry, OS-native for a local one), so this is a
                 // straight clipboard write via the shared toast path.
-                // Fired from the SFTP row menu AND the sidebar Files row
-                // menu; dismiss whichever is open.
-                self.sftp.row_menu = None;
+                // Fired from the SFTP row menu, the pane's actions (kebab)
+                // menu AND the sidebar Files row menu; dismiss whichever
+                // is open.
+                self.sftp.close_menus();
                 self.overlay = None;
                 return Ok(self.update(Message::CopyToClipboard(path)));
             }
@@ -1596,6 +1597,16 @@ impl Oryxis {
                             return Ok(Task::none());
                         }
                         if self.sftp.new_entry.take().is_some() {
+                            return Ok(Task::none());
+                        }
+                        // Path-bar editing: Esc reverts to the breadcrumb
+                        // discarding the typed text (Enter, via on_submit,
+                        // is the only commit path).
+                        if self.sftp.left.path_editing.is_some()
+                            || self.sftp.right.path_editing.is_some()
+                        {
+                            self.sftp.left.path_editing = None;
+                            self.sftp.right.path_editing = None;
                             return Ok(Task::none());
                         }
                     }
