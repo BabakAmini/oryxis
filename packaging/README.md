@@ -9,27 +9,39 @@ each manifest to match the new release artifacts.
 ## AUR (Arch Linux) — `aur/`
 
 `oryxis-bin` installs the prebuilt `oryxis-linux-<arch>.tar.gz` release
-artifact. The AUR is its own git server (one repo per package), so this is
-published with a push to `aur.archlinux.org`, not through GitHub.
+artifact. The AUR is its own git server (one repo per package), reached
+over SSH at `aur.archlinux.org`.
 
-One-time setup:
+**Publishing is automated.** The `aur` job in
+`.github/workflows/release.yml` runs on every `v*` tag after the GitHub
+release is created: it stamps `pkgver` and the `sha256sums` into the
+`PKGBUILD` template kept here, regenerates `.SRCINFO` with `makepkg`
+inside an Arch container, and pushes to the AUR
+(KSXGitHub/github-actions-deploy-aur). The in-repo `PKGBUILD` therefore
+carries the *last manually stamped* version; CI overrides the volatile
+fields at release time.
 
-1. Create an account at https://aur.archlinux.org/register
-2. Add your public SSH key under My Account -> SSH Public Key
+One-time setup for the automation:
 
-Publish (run from a checkout of the AUR repo, not this repo):
+1. Generate a dedicated key: `ssh-keygen -t ed25519 -f aur -C aur@ci`
+2. Add the **public** key at https://aur.archlinux.org/ under
+   My Account -> SSH Public Key.
+3. Add the **private** key as the `AUR_SSH_PRIVATE_KEY` repo secret.
+
+Manual fallback (run from a checkout of the AUR repo, not this repo):
 
 ```bash
 git clone ssh://aur@aur.archlinux.org/oryxis-bin.git
 cp /path/to/oryxis/packaging/aur/{PKGBUILD,.SRCINFO} oryxis-bin/
 cd oryxis-bin
 git add PKGBUILD .SRCINFO
-git commit -m "Update to 0.8.0"
+git commit -m "Update to X.Y.Z"
 git push
 ```
 
-`.SRCINFO` is kept in sync with `PKGBUILD` by hand here. On an Arch machine
-it is normally regenerated with `makepkg --printsrcinfo > .SRCINFO`.
+For a manual push, bump `pkgver` / `sha256sums` in both files first; on an
+Arch machine `.SRCINFO` is regenerated with
+`makepkg --printsrcinfo > .SRCINFO`.
 
 ## Scoop (Windows) — `scoop/`
 

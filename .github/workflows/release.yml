@@ -668,6 +668,48 @@ jobs:
             oryxis-user-setup-aarch64.exe
             oryxis-*.sig
 
+  aur:
+    name: Publish to AUR
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # The exact tarballs the release job just published; hashing these
+      # (instead of re-downloading from GitHub) keeps the sums honest even
+      # if the release assets are replaced later.
+      - uses: actions/download-artifact@v8
+        with:
+          name: oryxis-linux-x86_64
+      - uses: actions/download-artifact@v8
+        with:
+          name: oryxis-linux-aarch64
+
+      - name: Stamp PKGBUILD
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA_X86=$(sha256sum oryxis-linux-x86_64.tar.gz | awk '{print $1}')
+          SHA_ARM=$(sha256sum oryxis-linux-aarch64.tar.gz | awk '{print $1}')
+          sed -i \
+            -e "s/^pkgver=.*/pkgver=$VERSION/" \
+            -e "s/^pkgrel=.*/pkgrel=1/" \
+            -e "s/^sha256sums_x86_64=.*/sha256sums_x86_64=('$SHA_X86')/" \
+            -e "s/^sha256sums_aarch64=.*/sha256sums_aarch64=('$SHA_ARM')/" \
+            packaging/aur/PKGBUILD
+
+      # Regenerates .SRCINFO via makepkg inside an Arch container and
+      # pushes PKGBUILD + .SRCINFO to ssh://aur@aur.archlinux.org/oryxis-bin.
+      - name: Push to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v4
+        with:
+          pkgname: oryxis-bin
+          pkgbuild: packaging/aur/PKGBUILD
+          commit_username: Wilson Glasser
+          commit_email: wilsonglasser@gmail.com
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: Update to ${{ github.ref_name }}
+
   winget:
     name: Publish to winget
     needs: [release]
