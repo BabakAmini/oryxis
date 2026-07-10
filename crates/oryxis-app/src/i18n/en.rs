@@ -365,6 +365,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "shortcuts" => "Shortcuts",
         "ai_assistant" => "AI Assistant",
         "language" => "Language",
+        "language_auto_os" => "Auto (OS)",
 
         // Settings toggles
         "copy_on_select" => "Select text to copy & Right click to paste",

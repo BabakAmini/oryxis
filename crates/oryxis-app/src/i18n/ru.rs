@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Горячие клавиши",
         "ai_assistant" => "ИИ-ассистент",
         "language" => "Язык",
+        "language_auto_os" => "Автоматически (система)",
 
         "copy_on_select" => "Копировать при выделении, вставка правой кнопкой",
         "middle_click_paste" => "Вставка средней кнопкой",

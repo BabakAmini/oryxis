@@ -365,6 +365,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "शॉर्टकट",
         "ai_assistant" => "AI असिस्टेंट",
         "language" => "भाषा",
+        "language_auto_os" => "ऑटो (सिस्टम)",
 
         // Settings toggles
         "copy_on_select" => "टेक्स्ट चुनते ही कॉपी और राइट क्लिक से पेस्ट",

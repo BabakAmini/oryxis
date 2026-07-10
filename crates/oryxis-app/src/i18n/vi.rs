@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Phím tắt",
         "ai_assistant" => "Trợ lý AI",
         "language" => "Ngôn ngữ",
+        "language_auto_os" => "Tự động (hệ thống)",
 
         // Settings toggles
         "copy_on_select" => "Chọn văn bản để chép và nhấp chuột phải để dán",

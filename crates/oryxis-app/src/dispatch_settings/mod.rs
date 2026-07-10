@@ -581,29 +581,40 @@ impl Oryxis {
                     self.repaint_all_terminal_palettes();
                 }
             }
-            Message::LanguageChanged(name) => {
+            Message::LanguageChanged(token) => {
                 use crate::i18n::Language;
-                if let Some(lang) =
-                    Language::ALL.iter().find(|l| l.name() == name).copied()
+                // Token-as-value from the picker: "auto" follows the
+                // OS locale, anything else is a concrete language code.
+                let lang = if token == "auto" {
+                    crate::i18n::detect_os_language()
+                } else {
+                    Language::from_code(&token)
+                };
+                self.setting_language_choice = if token == "auto" {
+                    token
+                } else {
+                    // Persist the canonical code (`from_code` may have
+                    // normalized an unknown token to English).
+                    lang.code().to_string()
+                };
+                Language::set_active(lang);
+                if let Some(vault) = &self.vault {
+                    let _ = vault
+                        .set_setting("language", &self.setting_language_choice);
+                }
+                // Switching to a CJK language pulls its font on
+                // demand (once per session). Show a hint while it
+                // downloads; a cached font loads silently.
+                if let Some(code) = crate::fonts::asset_code(lang)
+                    && !self.loaded_cjk_fonts.contains(code)
                 {
-                    Language::set_active(lang);
-                    if let Some(vault) = &self.vault {
-                        let _ = vault.set_setting("language", lang.code());
+                    self.loaded_cjk_fonts.insert(code.to_string());
+                    if !crate::fonts::is_language_cached(lang) {
+                        self.set_toast(
+                            crate::i18n::t("cjk_font_downloading").to_string(),
+                        );
                     }
-                    // Switching to a CJK language pulls its font on
-                    // demand (once per session). Show a hint while it
-                    // downloads; a cached font loads silently.
-                    if let Some(code) = crate::fonts::asset_code(lang)
-                        && !self.loaded_cjk_fonts.contains(code)
-                    {
-                        self.loaded_cjk_fonts.insert(code.to_string());
-                        if !crate::fonts::is_language_cached(lang) {
-                            self.set_toast(
-                                crate::i18n::t("cjk_font_downloading").to_string(),
-                            );
-                        }
-                        return Ok(crate::fonts::ensure_task(lang));
-                    }
+                    return Ok(crate::fonts::ensure_task(lang));
                 }
             }
             Message::CjkFontReady(code, result) => match result {

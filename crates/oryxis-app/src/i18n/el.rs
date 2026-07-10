@@ -365,6 +365,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Συντομεύσεις",
         "ai_assistant" => "Βοηθός AI",
         "language" => "Γλώσσα",
+        "language_auto_os" => "Αυτόματα (σύστημα)",
 
         // Settings toggles
         "copy_on_select" => "Επιλογή κειμένου για αντιγραφή & δεξί κλικ για επικόλληση",

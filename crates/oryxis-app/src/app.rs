@@ -1111,6 +1111,13 @@ pub struct Oryxis {
     /// both. Replaces the old classic/workspace `layout_mode` duality
     /// (classic users migrate to `"vertical"` on first load).
     pub(crate) setting_nav_orientation: String,
+    /// Language picker choice as persisted in the `language` setting:
+    /// `"auto"` (default, follow the OS locale) or a concrete language
+    /// code ("en", "pt-BR", ...). The *resolved* language always lives
+    /// in `i18n::Language::active()`; this field only drives the
+    /// Settings picker selection so "Auto (OS)" survives restarts as a
+    /// choice instead of collapsing into the detected language.
+    pub(crate) setting_language_choice: String,
     /// When the vertical nav rail is showing, expand it to show section
     /// labels (wide rail) instead of the icon-only rail. Persisted so the
     /// choice sticks.

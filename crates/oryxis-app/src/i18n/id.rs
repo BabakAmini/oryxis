@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Pintasan",
         "ai_assistant" => "Asisten AI",
         "language" => "Bahasa",
+        "language_auto_os" => "Otomatis (sistem)",
 
         // Settings toggles
         "copy_on_select" => "Pilih teks untuk menyalin & klik kanan untuk menempel",

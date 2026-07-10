@@ -81,6 +81,22 @@ pub fn is_rtl_layout() -> bool {
     }
 }
 
+/// Resolve the OS locale to a supported language, English when nothing
+/// matches. Walks the OS preference *list* (macOS exposes several;
+/// Windows / Linux typically one) so a user whose first choice we don't
+/// ship still lands on their second instead of English. Cached for the
+/// session: the boot path and the Settings picker share one lookup, and
+/// an OS locale change takes effect on the next launch.
+pub fn detect_os_language() -> Language {
+    use std::sync::OnceLock;
+    static DETECTED: OnceLock<Language> = OnceLock::new();
+    *DETECTED.get_or_init(|| {
+        sys_locale::get_locales()
+            .find_map(|tag| Language::for_locale(&tag))
+            .unwrap_or(Language::English)
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Language {
     English,
@@ -195,6 +211,49 @@ impl Language {
     /// `LayoutDirection::Auto` setting to decide if the UI should mirror.
     pub fn is_rtl(&self) -> bool {
         matches!(self, Self::Persian | Self::Arabic | Self::Hebrew)
+    }
+
+    /// Map a BCP-47 locale tag from the OS (e.g. "pt-BR", "es_MX",
+    /// "zh-Hant-TW") to a supported language, or `None` when nothing
+    /// matches so the caller can walk the OS preference list before
+    /// falling back to English. Matching order: Chinese first (the
+    /// script / region subtag decides Simplified vs Traditional, a
+    /// primary-subtag match would collapse zh-HK into Simplified),
+    /// then the exact tag, then the primary subtag alone ("es-MX" ->
+    /// Spanish; "pt-PT" -> the only Portuguese we ship).
+    pub fn for_locale(tag: &str) -> Option<Self> {
+        let norm = tag.trim().replace('_', "-").to_ascii_lowercase();
+        let mut parts = norm.split('-');
+        let primary = match parts.next().unwrap_or("") {
+            // Legacy ISO-639 codes some platforms still report.
+            "iw" => "he",
+            "in" => "id",
+            p => p,
+        };
+        if primary.is_empty() {
+            return None;
+        }
+        if primary == "zh" {
+            let traditional =
+                parts.any(|p| matches!(p, "hant" | "tw" | "hk" | "mo"));
+            return Some(if traditional {
+                Self::ChineseTraditional
+            } else {
+                Self::Chinese
+            });
+        }
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|l| l.code().eq_ignore_ascii_case(&norm))
+            .or_else(|| {
+                Self::ALL.iter().copied().find(|l| {
+                    l.code()
+                        .split('-')
+                        .next()
+                        .is_some_and(|c| c.eq_ignore_ascii_case(primary))
+                })
+            })
     }
 
     pub fn from_code(code: &str) -> Self {
@@ -347,5 +406,93 @@ fn translate(key: &str, lang: Language) -> &'static str {
         Language::Hindi => hi::lookup(key).unwrap_or_else(|| en::lookup(key)),
         Language::Czech => cs::lookup(key).unwrap_or_else(|| en::lookup(key)),
         Language::Greek => el::lookup(key).unwrap_or_else(|| en::lookup(key)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Language;
+
+    /// Every supported code resolves to itself, regardless of case or
+    /// the `_` separator some platforms use.
+    #[test]
+    fn for_locale_roundtrips_every_supported_code() {
+        for lang in Language::ALL {
+            assert_eq!(Language::for_locale(lang.code()), Some(*lang));
+            assert_eq!(
+                Language::for_locale(&lang.code().to_ascii_uppercase()),
+                Some(*lang)
+            );
+            assert_eq!(
+                Language::for_locale(&lang.code().replace('-', "_")),
+                Some(*lang)
+            );
+        }
+    }
+
+    /// Region / script variants fall back to the primary subtag.
+    #[test]
+    fn for_locale_matches_primary_subtag() {
+        assert_eq!(Language::for_locale("en-GB"), Some(Language::English));
+        assert_eq!(Language::for_locale("es-MX"), Some(Language::Spanish));
+        assert_eq!(Language::for_locale("fr-CA"), Some(Language::French));
+        assert_eq!(Language::for_locale("de-AT"), Some(Language::German));
+        // pt-BR is the only Portuguese we ship; European Portuguese
+        // must land on it, not on English.
+        assert_eq!(
+            Language::for_locale("pt-PT"),
+            Some(Language::PortugueseBR)
+        );
+        assert_eq!(
+            Language::for_locale("pt_PT"),
+            Some(Language::PortugueseBR)
+        );
+    }
+
+    /// Chinese needs the script / region subtag: a primary-only match
+    /// would collapse Hong Kong / Taiwan into Simplified.
+    #[test]
+    fn for_locale_disambiguates_chinese() {
+        assert_eq!(Language::for_locale("zh"), Some(Language::Chinese));
+        assert_eq!(Language::for_locale("zh-CN"), Some(Language::Chinese));
+        assert_eq!(Language::for_locale("zh-SG"), Some(Language::Chinese));
+        assert_eq!(
+            Language::for_locale("zh-Hans-SG"),
+            Some(Language::Chinese)
+        );
+        assert_eq!(
+            Language::for_locale("zh-TW"),
+            Some(Language::ChineseTraditional)
+        );
+        assert_eq!(
+            Language::for_locale("zh-HK"),
+            Some(Language::ChineseTraditional)
+        );
+        assert_eq!(
+            Language::for_locale("zh-MO"),
+            Some(Language::ChineseTraditional)
+        );
+        assert_eq!(
+            Language::for_locale("zh-Hant-HK"),
+            Some(Language::ChineseTraditional)
+        );
+    }
+
+    /// Legacy ISO-639 codes still reported by some platforms.
+    #[test]
+    fn for_locale_maps_legacy_codes() {
+        assert_eq!(Language::for_locale("iw-IL"), Some(Language::Hebrew));
+        assert_eq!(Language::for_locale("in-ID"), Some(Language::Indonesian));
+    }
+
+    /// Unsupported / degenerate tags yield None so the caller can try
+    /// the next OS preference before defaulting to English.
+    #[test]
+    fn for_locale_rejects_unsupported_tags() {
+        assert_eq!(Language::for_locale(""), None);
+        assert_eq!(Language::for_locale("C"), None);
+        assert_eq!(Language::for_locale("POSIX"), None);
+        assert_eq!(Language::for_locale("xx-XX"), None);
+        assert_eq!(Language::for_locale("gsw-CH"), None);
     }
 }

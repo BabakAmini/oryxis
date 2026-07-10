@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "快速鍵",
         "ai_assistant" => "AI 助理",
         "language" => "語言",
+        "language_auto_os" => "自動（跟隨系統）",
 
         "copy_on_select" => "選取文字自動複製，右鍵貼上",
         "middle_click_paste" => "中鍵貼上",

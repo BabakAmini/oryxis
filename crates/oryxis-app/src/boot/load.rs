@@ -128,10 +128,25 @@ impl Oryxis {
     fn load_vault_locale_ai_sync(&mut self) {
         if let Some(vault) = &self.vault {
 
-            // Language
-            if let Ok(Some(v)) = vault.get_setting("language") {
+            // Language: "auto" (the default, also what a missing row
+            // means) follows the OS locale; a concrete code is an
+            // explicit user choice. The choice string feeds the
+            // Settings picker so "Auto (OS)" shows as selected instead
+            // of the language it resolved to.
+            {
                 use crate::i18n::Language;
-                Language::set_active(Language::from_code(&v));
+                let choice = vault
+                    .get_setting("language")
+                    .ok()
+                    .flatten()
+                    .unwrap_or_else(|| "auto".to_string());
+                let lang = if choice == "auto" {
+                    crate::i18n::detect_os_language()
+                } else {
+                    Language::from_code(&choice)
+                };
+                Language::set_active(lang);
+                self.setting_language_choice = choice;
             }
 
             // Layout direction (Auto / LTR / RTL). Re-hydrated after

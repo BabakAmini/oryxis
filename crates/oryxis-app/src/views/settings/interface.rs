@@ -13,17 +13,34 @@ impl Oryxis {
         self.keynav_settings_reset();
 
         // ── General ──
-        // Language picker
-        let lang_options: Vec<String> = crate::i18n::Language::ALL
-            .iter()
-            .map(|l| l.name().to_string())
-            .collect();
-        let active_lang_name = crate::i18n::Language::active().name().to_string();
+        // Language picker. Token-as-value ("auto" or a language code)
+        // like the close-button picker; the display closure resolves
+        // codes to the native language name. "Auto (OS)" leads the
+        // list and is the first-run default.
+        let mut lang_options: Vec<String> = vec!["auto".to_string()];
+        lang_options.extend(
+            crate::i18n::Language::ALL
+                .iter()
+                .map(|l| l.code().to_string()),
+        );
+        let active_lang_token = if self.setting_language_choice == "auto" {
+            "auto".to_string()
+        } else {
+            // Normalize through the resolver so a stale persisted code
+            // still highlights the language it falls back to.
+            crate::i18n::Language::active().code().to_string()
+        };
         let language_section = panel_section(column![self.nav_pick_row(
             crate::i18n::t("language"),
             lang_options,
-            active_lang_name,
-            |s: &String| s.clone(),
+            active_lang_token,
+            |s: &String| {
+                if s == "auto" {
+                    crate::i18n::t("language_auto_os").to_string()
+                } else {
+                    crate::i18n::Language::from_code(s).name().to_string()
+                }
+            },
             200.0,
             Message::LanguageChanged,
         )]);

@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "단축키",
         "ai_assistant" => "AI 어시스턴트",
         "language" => "언어",
+        "language_auto_os" => "자동 (시스템)",
 
         // Settings toggles
         "copy_on_select" => "텍스트를 선택하여 복사하고 우클릭하여 붙여넣기",

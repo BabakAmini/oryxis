@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Kısayollar",
         "ai_assistant" => "Yapay Zeka Asistanı",
         "language" => "Dil",
+        "language_auto_os" => "Otomatik (sistem)",
 
         // Settings toggles
         "copy_on_select" => "Kopyalamak için metin seçin ve yapıştırmak için sağ tıklayın",

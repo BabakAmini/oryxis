@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "میانبرها",
         "ai_assistant" => "دستیار هوش مصنوعی",
         "language" => "زبان",
+        "language_auto_os" => "خودکار (سیستم‌عامل)",
 
         // Settings toggles
         "copy_on_select" => "انتخاب متن برای کپی و کلیک راست برای جای‌گذاری",

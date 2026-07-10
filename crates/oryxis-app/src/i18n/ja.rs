@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "ショートカット",
         "ai_assistant" => "AIアシスタント",
         "language" => "言語",
+        "language_auto_os" => "自動（システムに従う）",
 
         "copy_on_select" => "テキスト選択でコピー、右クリックでペースト",
         "middle_click_paste" => "中クリックで貼り付け",

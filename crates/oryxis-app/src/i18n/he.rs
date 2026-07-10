@@ -365,6 +365,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "קיצורי דרך",
         "ai_assistant" => "עוזר AI",
         "language" => "שפה",
+        "language_auto_os" => "אוטומטי (מערכת)",
 
         // Settings toggles
         "copy_on_select" => "בחירת טקסט מעתיקה ולחיצה ימנית מדביקה",

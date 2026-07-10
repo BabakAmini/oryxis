@@ -346,6 +346,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Skróty",
         "ai_assistant" => "Asystent AI",
         "language" => "Język",
+        "language_auto_os" => "Auto (system)",
 
         // Settings toggles
         "copy_on_select" => "Zaznacz tekst, aby skopiować, kliknij prawym, aby wkleić",

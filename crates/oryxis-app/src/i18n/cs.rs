@@ -365,6 +365,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "shortcuts" => "Zkratky",
         "ai_assistant" => "AI asistent",
         "language" => "Jazyk",
+        "language_auto_os" => "Automaticky (systém)",
 
         // Settings toggles
         "copy_on_select" => "Výběr textu kopíruje a pravé kliknutí vkládá",

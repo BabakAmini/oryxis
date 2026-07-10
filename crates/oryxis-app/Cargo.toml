@@ -39,6 +39,9 @@ assets = [
 [dependencies]
 # Native OS notifications (OSC 9): Windows toast, macOS, Linux libnotify/D-Bus.
 notify-rust = "4"
+# OS locale detection for the "Auto (OS)" language default (BCP-47
+# tags on all three platforms; the preference *list* on macOS).
+sys-locale = "0.3"
 oryxis-core = { workspace = true }
 oryxis-ssh = { workspace = true }
 oryxis-telnet = { workspace = true }

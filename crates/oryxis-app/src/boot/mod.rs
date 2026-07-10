@@ -54,6 +54,13 @@ impl Oryxis {
         let mut auto_check_updates = true;
         let mut update_channel = crate::update::UpdateChannel::default();
 
+        // Language baseline before any vault read: follow the OS locale
+        // (English when unsupported), so the very first boot, the setup
+        // screen and even a vault that failed to open render localized
+        // from the first frame. A persisted concrete choice overrides
+        // it below; the persisted "auto" keeps it.
+        crate::i18n::Language::set_active(crate::i18n::detect_os_language());
+
         if let Some(v) = &mut vault {
             if !v.is_initialized() {
                 // Brand new vault, show setup screen
@@ -123,9 +130,23 @@ impl Oryxis {
                 use crate::theme::AppTheme;
                 AppTheme::set_active(AppTheme::from_name(&name));
             }
-            if let Ok(Some(code)) = v.get_setting("language") {
+            {
                 use crate::i18n::Language;
-                Language::set_active(Language::from_code(&code));
+                // "auto" keeps the OS-locale baseline set above; a
+                // concrete code is an explicit user choice. A missing
+                // row (first run, or a pre-0.10 vault that never
+                // touched the picker) reads as Auto and is made
+                // explicit so the Settings picker shows the saved
+                // "Auto (OS)" state.
+                match v.get_setting("language").ok().flatten() {
+                    Some(code) if code != "auto" => {
+                        Language::set_active(Language::from_code(&code));
+                    }
+                    Some(_) => {}
+                    None => {
+                        let _ = v.set_setting("language", "auto");
+                    }
+                }
             }
             if let Ok(Some(code)) = v.get_setting("layout_direction") {
                 use crate::i18n::LayoutDirection;
@@ -533,6 +554,7 @@ impl Oryxis {
                 // this default on next launch (no migration row
                 // Vault nav orientation: horizontal pill strip by default.
                 setting_nav_orientation: "horizontal".into(),
+                setting_language_choice: "auto".into(),
                 setting_nav_rail_expanded: false,
                 setting_default_host_icon: "circular".into(),
                 setting_keepalive_interval: "30".into(),
