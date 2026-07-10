@@ -129,59 +129,46 @@ The complete inventory lives in the **[feature tour](docs/FEATURES.md)**.
 
 ## Screenshots
 
-<details>
-<summary><b>Show the gallery</b></summary>
+Click any thumbnail for the full-size image.
 
-<p align="center">
-  <img src="resources/screen_1.png" width="720" alt="Hosts dashboard with cards, groups, and quick search">
-</p>
-<p align="center">
-  <em>Hosts dashboard. Vertical navigation rail, card grid with groups, distro auto-detection, keyboard-driven selection.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_9.png" width="720" alt="SFTP dual-pane browser, local on the left, remote on the right">
-</p>
-<p align="center">
-  <em>SFTP browser. Dual-pane layout with drag-and-drop, multi-select transfers, edit-in-place.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_3.png" width="720" alt="Terminal session with streaming AI Chat sidebar">
-</p>
-<p align="center">
-  <em>Streaming AI sidebar. Token-by-token responses, per-code-block Copy / Play, bash tool execution.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_2.png" width="720" alt="ECS dynamic group expanded with running container task">
-</p>
-<p align="center">
-  <em>Cloud Accounts. Dynamic groups expand to live tasks; multi-container Lens, Copy CLI per row.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_4.png" width="720" alt="Keychain with keys and reusable identities">
-</p>
-<p align="center">
-  <em>Keychain. Keys and reusable Identities side by side, linked to many hosts.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_8.png" width="720" alt="Terminal theme picker with palette previews">
-</p>
-<p align="center">
-  <em>Terminal palettes with inline swatch previews, plus custom schemes.</em>
-</p>
-
-<p align="center">
-  <img src="resources/screen_6.png" width="720" alt="Settings Interface section with tab styling and the app theme grid">
-</p>
-<p align="center">
-  <em>Settings → Interface. Navigation orientation, tab styling with live preview, and the app theme grid.</em>
-</p>
-
-</details>
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <a href="resources/screen_1.png"><img src="resources/screen_1.png" width="390" alt="Hosts dashboard with cards, groups, and quick search"></a>
+      <br><em>Hosts dashboard: card grid, groups, distro auto-detection</em>
+    </td>
+    <td align="center" width="50%">
+      <a href="resources/screen_9.png"><img src="resources/screen_9.png" width="390" alt="SFTP dual-pane browser, local on the left, remote on the right"></a>
+      <br><em>Dual-pane SFTP: drag-and-drop, multi-select, edit-in-place</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="resources/screen_3.png"><img src="resources/screen_3.png" width="390" alt="Terminal session with streaming AI Chat sidebar"></a>
+      <br><em>Streaming AI sidebar with per-block Copy / Play</em>
+    </td>
+    <td align="center">
+      <a href="resources/screen_2.png"><img src="resources/screen_2.png" width="390" alt="ECS dynamic group expanded with running container task"></a>
+      <br><em>Cloud Accounts: dynamic groups resolve to live tasks</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <a href="resources/screen_4.png"><img src="resources/screen_4.png" width="390" alt="Keychain with keys and reusable identities"></a>
+      <br><em>Keychain: keys and reusable Identities side by side</em>
+    </td>
+    <td align="center">
+      <a href="resources/screen_8.png"><img src="resources/screen_8.png" width="390" alt="Terminal theme picker with palette previews"></a>
+      <br><em>Terminal palettes with inline previews, plus custom schemes</em>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
+      <a href="resources/screen_6.png"><img src="resources/screen_6.png" width="390" alt="Settings Interface section with tab styling and the app theme grid"></a>
+      <br><em>Settings → Interface: tab styling with live preview, app theme grid</em>
+    </td>
+  </tr>
+</table>
 
 ## Quick start
 
