@@ -1435,7 +1435,21 @@ impl Oryxis {
                 // drag. Armed here (on the real button press) rather than in
                 // SelectTab, so programmatic SelectTab dispatches (the
                 // tab-jump modal, etc.) can't trigger a phantom drag.
-                if let Some(idx) = self.hovered_tab
+                // Geometric guard on top of the hover flag: `hovered_tab`
+                // comes from MouseArea enter/exit and the exit can be lost
+                // (cursor sliding straight into the terminal canvas), after
+                // which ANY press, e.g. starting a terminal text selection,
+                // armed a phantom drag whose ghost chip then chased the
+                // cursor (field report). The tab strip lives in the
+                // top BAR_HEIGHT band, so a press below it can never be a
+                // tab press.
+                let in_tab_strip =
+                    self.mouse_position.y <= crate::views::tab_bar::BAR_HEIGHT;
+                if !in_tab_strip {
+                    self.hovered_tab = None;
+                    self.hovered_sftp_tab = None;
+                }
+                if let Some(idx) = self.hovered_tab.filter(|_| in_tab_strip)
                     && let Some(tab) = self.tabs.get(idx)
                 {
                     self.tab_drag = Some(crate::state::TabDrag {
@@ -1443,7 +1457,7 @@ impl Oryxis {
                         start: self.mouse_position,
                         active: false,
                     });
-                } else if let Some(idx) = self.hovered_sftp_tab
+                } else if let Some(idx) = self.hovered_sftp_tab.filter(|_| in_tab_strip)
                     && let Some(tab) = self.sftp_tabs.get(idx)
                 {
                     // SFTP tabs arm the same unified reorder drag.
