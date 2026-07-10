@@ -1546,6 +1546,9 @@ impl Oryxis {
                     // set-password form must not survive the soft lock.
                     self.vault_ui.new_password.clear();
                     self.vault_ui.confirm_password.clear();
+                    // Same for the MCP panel's master-password confirm.
+                    self.mcp.vault_pw_prompt = None;
+                    self.mcp.vault_pw_error = false;
                     // SFTP modals carry remote paths and live action buttons;
                     // root_view already stops rendering them while locked, but
                     // sweep the state so none reappears after unlock. A dirty
@@ -1674,6 +1677,14 @@ impl Oryxis {
                     vault.lock();
                     if self.vault_ui.has_user_password {
                         self.vault_ui.state = VaultState::Locked;
+                        // The in-memory master password dies with the
+                        // lock, like the soft lock already does (it
+                        // feeds biometric enroll and the MCP config
+                        // embed; neither may outlive the vault key).
+                        self.master_password = None;
+                        // And the MCP panel's typed confirm buffer.
+                        self.mcp.vault_pw_prompt = None;
+                        self.mcp.vault_pw_error = false;
                         // Same reset as the soft lock: lead with biometrics.
                         self.vault_ui.password_fallback = false;
                         self.connections.clear();

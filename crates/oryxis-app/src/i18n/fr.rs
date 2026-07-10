@@ -1198,6 +1198,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Copier",
         "mcp_token_regenerate" => "Régénérer",
         "mcp_token_desc" => "Requis par tout client MCP. La régénération invalide la valeur précédente, relancez Installer pour rafraîchir la configuration de Claude Code.",
+        "mcp_vault_pw_note" => "Ce coffre a un mot de passe maître. Le serveur MCP en a besoin (env ORYXIS_VAULT_PASSWORD), sinon il se ferme au démarrage et le client signale la connexion comme échouée.",
+        "mcp_vault_pw_include" => "Inclure le mot de passe du coffre",
+        "mcp_vault_pw_confirm_prompt" => "Saisissez votre mot de passe maître pour l'inclure dans la configuration :",
+        "mcp_vault_pw_placeholder" => "Mot de passe maître",
+        "mcp_vault_pw_confirm" => "Confirmer",
+        "mcp_vault_pw_wrong" => "Mot de passe incorrect",
+        "mcp_vault_pw_included" => "Mot de passe du coffre inclus dans la configuration.",
+        "mcp_vault_pw_plaintext_warning" => "Il est écrit en clair ; quiconque peut lire le fichier de configuration peut déverrouiller votre coffre.",
 
         // Bannière plugin absent dans Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS non installé",

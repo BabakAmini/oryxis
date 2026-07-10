@@ -1327,6 +1327,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "העתקה",
         "mcp_token_regenerate" => "יצירה מחדש",
         "mcp_token_desc" => "נדרש על ידי כל לקוח MCP. יצירה מחדש מבטלת את הערך הקודם, הריצו שוב התקנה כדי לרענן את תצורת Claude Code.",
+        "mcp_vault_pw_note" => "לכספת הזו יש סיסמה ראשית. שרת ה-MCP זקוק לה (משתנה ORYXIS_VAULT_PASSWORD), אחרת הוא נסגר בהפעלה והלקוח מדווח שהחיבור נכשל.",
+        "mcp_vault_pw_include" => "כלול את סיסמת הכספת",
+        "mcp_vault_pw_confirm_prompt" => "הקלד את הסיסמה הראשית כדי לכלול אותה בתצורה:",
+        "mcp_vault_pw_placeholder" => "סיסמה ראשית",
+        "mcp_vault_pw_confirm" => "אישור",
+        "mcp_vault_pw_wrong" => "סיסמה שגויה",
+        "mcp_vault_pw_included" => "סיסמת הכספת נכללה בתצורה.",
+        "mcp_vault_pw_plaintext_warning" => "היא נכתבת כטקסט גלוי; כל מי שיכול לקרוא את קובץ התצורה יכול לפתוח את הכספת שלך.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "תוסף AWS לא מותקן",

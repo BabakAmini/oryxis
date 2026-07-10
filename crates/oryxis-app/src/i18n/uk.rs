@@ -1258,6 +1258,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Копіювати",
         "mcp_token_regenerate" => "Перегенерувати",
         "mcp_token_desc" => "Потрібен кожному MCP-клієнту. Перегенерація робить попереднє значення недійсним, повторно запустіть Install, щоб оновити конфігурацію Claude Code.",
+        "mcp_vault_pw_note" => "Це сховище має майстер-пароль. MCP-серверу він потрібен (env ORYXIS_VAULT_PASSWORD), інакше сервер завершується під час запуску, а клієнт повідомляє про невдале з'єднання.",
+        "mcp_vault_pw_include" => "Додати пароль сховища",
+        "mcp_vault_pw_confirm_prompt" => "Введіть майстер-пароль, щоб додати його до конфігурації:",
+        "mcp_vault_pw_placeholder" => "Майстер-пароль",
+        "mcp_vault_pw_confirm" => "Підтвердити",
+        "mcp_vault_pw_wrong" => "Неправильний пароль",
+        "mcp_vault_pw_included" => "Пароль сховища додано до конфігурації.",
+        "mcp_vault_pw_plaintext_warning" => "Він записується відкритим текстом; будь-хто, хто може прочитати файл конфігурації, зможе розблокувати ваше сховище.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Плагін AWS не встановлено",

@@ -1265,6 +1265,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Kopiuj",
         "mcp_token_regenerate" => "Wygeneruj ponownie",
         "mcp_token_desc" => "Wymagany przez każdego klienta MCP. Ponowne wygenerowanie unieważnia poprzednią wartość, uruchom ponownie Zainstaluj, aby odświeżyć konfigurację Claude Code.",
+        "mcp_vault_pw_note" => "Ten sejf ma hasło główne. Serwer MCP go potrzebuje (zmienna ORYXIS_VAULT_PASSWORD), inaczej kończy działanie przy starcie, a klient zgłasza nieudane połączenie.",
+        "mcp_vault_pw_include" => "Dołącz hasło sejfu",
+        "mcp_vault_pw_confirm_prompt" => "Wpisz hasło główne, aby dołączyć je do konfiguracji:",
+        "mcp_vault_pw_placeholder" => "Hasło główne",
+        "mcp_vault_pw_confirm" => "Potwierdź",
+        "mcp_vault_pw_wrong" => "Nieprawidłowe hasło",
+        "mcp_vault_pw_included" => "Hasło sejfu dołączone do konfiguracji.",
+        "mcp_vault_pw_plaintext_warning" => "Jest zapisywane jawnym tekstem; każdy, kto może odczytać plik konfiguracyjny, może odblokować Twój sejf.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Wtyczka AWS niezainstalowana",

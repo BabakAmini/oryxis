@@ -1258,6 +1258,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Salin",
         "mcp_token_regenerate" => "Buat ulang",
         "mcp_token_desc" => "Diperlukan oleh setiap klien MCP. Membuat ulang membatalkan nilai sebelumnya, jalankan ulang Pasang untuk menyegarkan konfigurasi Claude Code.",
+        "mcp_vault_pw_note" => "Vault ini memiliki kata sandi master. Server MCP membutuhkannya (env ORYXIS_VAULT_PASSWORD), jika tidak server keluar saat mulai dan klien melaporkan koneksi gagal.",
+        "mcp_vault_pw_include" => "Sertakan kata sandi vault",
+        "mcp_vault_pw_confirm_prompt" => "Ketik kata sandi master Anda untuk menyertakannya di konfigurasi:",
+        "mcp_vault_pw_placeholder" => "Kata sandi master",
+        "mcp_vault_pw_confirm" => "Konfirmasi",
+        "mcp_vault_pw_wrong" => "Kata sandi salah",
+        "mcp_vault_pw_included" => "Kata sandi vault disertakan dalam konfigurasi.",
+        "mcp_vault_pw_plaintext_warning" => "Disimpan sebagai teks biasa; siapa pun yang dapat membaca berkas konfigurasi dapat membuka vault Anda.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS tidak terpasang",

@@ -1327,6 +1327,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Kopírovat",
         "mcp_token_regenerate" => "Znovu vygenerovat",
         "mcp_token_desc" => "Vyžadován každým MCP klientem. Nové vygenerování zneplatní předchozí hodnotu, spusťte znovu Instalaci pro obnovení konfigurace Claude Code.",
+        "mcp_vault_pw_note" => "Tento trezor má hlavní heslo. MCP server je potřebuje (proměnná ORYXIS_VAULT_PASSWORD), jinak se při startu ukončí a klient nahlásí selhání připojení.",
+        "mcp_vault_pw_include" => "Vložit heslo trezoru",
+        "mcp_vault_pw_confirm_prompt" => "Zadejte hlavní heslo, aby se vložilo do konfigurace:",
+        "mcp_vault_pw_placeholder" => "Hlavní heslo",
+        "mcp_vault_pw_confirm" => "Potvrdit",
+        "mcp_vault_pw_wrong" => "Nesprávné heslo",
+        "mcp_vault_pw_included" => "Heslo trezoru je součástí konfigurace.",
+        "mcp_vault_pw_plaintext_warning" => "Ukládá se jako prostý text; kdokoli, kdo může číst konfigurační soubor, může trezor odemknout.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS není nainstalován",

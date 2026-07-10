@@ -1282,6 +1282,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "نسخ",
         "mcp_token_regenerate" => "إعادة توليد",
         "mcp_token_desc" => "مطلوب لكل عميل MCP. إعادة التوليد تُبطل القيمة السابقة، شغّل التثبيت مجددًا لتحديث إعدادات Claude Code.",
+        "mcp_vault_pw_note" => "هذه الخزنة لها كلمة مرور رئيسية. يحتاجها خادم MCP (المتغير ORYXIS_VAULT_PASSWORD) وإلا فسيتوقف عند بدء التشغيل وسيبلغ العميل عن فشل الاتصال.",
+        "mcp_vault_pw_include" => "تضمين كلمة مرور الخزنة",
+        "mcp_vault_pw_confirm_prompt" => "اكتب كلمة المرور الرئيسية لتضمينها في الإعدادات:",
+        "mcp_vault_pw_placeholder" => "كلمة المرور الرئيسية",
+        "mcp_vault_pw_confirm" => "تأكيد",
+        "mcp_vault_pw_wrong" => "كلمة مرور خاطئة",
+        "mcp_vault_pw_included" => "تم تضمين كلمة مرور الخزنة في الإعدادات.",
+        "mcp_vault_pw_plaintext_warning" => "تُكتب كنص عادي؛ أي شخص يمكنه قراءة ملف الإعدادات يمكنه فتح خزنتك.",
 
         // شعار الإضافة المفقودة في Cloud Accounts
         "cloud_plugin_missing_title" => "إضافة AWS غير مثبتة",

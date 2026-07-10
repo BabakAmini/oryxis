@@ -1825,6 +1825,22 @@ pub enum Message {
     /// Put the active MCP token on the clipboard. Logs nothing, the
     /// toast tells the user it was copied.
     CopyMcpToken,
+    /// Open the master-password confirm row in the MCP setup panel
+    /// (consent gate for embedding `ORYXIS_VAULT_PASSWORD` in the
+    /// client config).
+    McpVaultPwPromptOpen,
+    /// Close the confirm row, discarding whatever was typed.
+    McpVaultPwPromptCancel,
+    /// Keystrokes into the master-password confirm input.
+    McpVaultPwInput(String),
+    /// Verify the typed master password; on success persist the
+    /// consent flag so the snippet / Copy / Install embed the vault
+    /// password from then on.
+    McpVaultPwConfirm,
+    /// Withdraw the consent: the snippet / Copy / Install stop
+    /// embedding the vault password (re-run Install to strip it from
+    /// the config on disk).
+    McpVaultPwRemove,
 
     // Sync
     SyncToggleEnabled,

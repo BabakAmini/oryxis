@@ -1180,6 +1180,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "複製",
         "mcp_token_regenerate" => "重新產生",
         "mcp_token_desc" => "每個 MCP 用戶端都需要。重新產生會使舊值失效，請再次執行安裝以重新整理 Claude Code 設定。",
+        "mcp_vault_pw_note" => "此保險庫設有主密碼。MCP 伺服器需要它（環境變數 ORYXIS_VAULT_PASSWORD），否則會在啟動時結束，用戶端將回報連線失敗。",
+        "mcp_vault_pw_include" => "包含保險庫密碼",
+        "mcp_vault_pw_confirm_prompt" => "輸入主密碼以將其寫入設定：",
+        "mcp_vault_pw_placeholder" => "主密碼",
+        "mcp_vault_pw_confirm" => "確認",
+        "mcp_vault_pw_wrong" => "密碼錯誤",
+        "mcp_vault_pw_included" => "保險庫密碼已包含在設定中。",
+        "mcp_vault_pw_plaintext_warning" => "密碼以明文寫入；任何能讀取該設定檔的人都能解鎖您的保險庫。",
 
         // Plugin-missing banner in Cloud Accounts
         "cloud_plugin_missing_title" => "AWS 外掛程式未安裝",

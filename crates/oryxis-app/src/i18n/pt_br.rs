@@ -1240,6 +1240,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Copiar",
         "mcp_token_regenerate" => "Regenerar",
         "mcp_token_desc" => "Exigido por todo cliente MCP. Regenerar invalida o valor anterior, rode Instalar de novo pra atualizar o config do Claude Code.",
+        "mcp_vault_pw_note" => "Este cofre tem senha mestre. O servidor MCP precisa dela (env ORYXIS_VAULT_PASSWORD) ou encerra na inicialização e o cliente reporta a conexão como falha.",
+        "mcp_vault_pw_include" => "Incluir senha do cofre",
+        "mcp_vault_pw_confirm_prompt" => "Digite sua senha mestre para incluí-la na configuração:",
+        "mcp_vault_pw_placeholder" => "Senha mestre",
+        "mcp_vault_pw_confirm" => "Confirmar",
+        "mcp_vault_pw_wrong" => "Senha incorreta",
+        "mcp_vault_pw_included" => "Senha do cofre incluída na configuração.",
+        "mcp_vault_pw_plaintext_warning" => "Ela é gravada em texto puro; quem puder ler o arquivo de configuração consegue desbloquear seu cofre.",
 
         // Banner de plugin ausente em Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS não instalado",

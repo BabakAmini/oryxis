@@ -1248,6 +1248,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "کپی",
         "mcp_token_regenerate" => "تولید دوباره",
         "mcp_token_desc" => "برای هر کلاینت MCP لازم است. تولید دوباره مقدار قبلی را باطل می‌کند، برای به‌روزرسانی پیکربندی Claude Code دوباره Install را اجرا کنید.",
+        "mcp_vault_pw_note" => "این صندوقچه گذرواژه اصلی دارد. سرور MCP به آن نیاز دارد (متغیر ORYXIS_VAULT_PASSWORD)، وگرنه هنگام راه‌اندازی خارج می‌شود و کلاینت اتصال را ناموفق گزارش می‌کند.",
+        "mcp_vault_pw_include" => "افزودن گذرواژه صندوقچه",
+        "mcp_vault_pw_confirm_prompt" => "برای افزودن به پیکربندی، گذرواژه اصلی خود را وارد کنید:",
+        "mcp_vault_pw_placeholder" => "گذرواژه اصلی",
+        "mcp_vault_pw_confirm" => "تأیید",
+        "mcp_vault_pw_wrong" => "گذرواژه اشتباه است",
+        "mcp_vault_pw_included" => "گذرواژه صندوقچه در پیکربندی گنجانده شد.",
+        "mcp_vault_pw_plaintext_warning" => "به صورت متن ساده نوشته می‌شود؛ هر کسی که بتواند فایل پیکربندی را بخواند می‌تواند صندوقچه شما را باز کند.",
 
         // بنر افزونه نصب‌نشده در Cloud Accounts
         "cloud_plugin_missing_title" => "افزونه AWS نصب نشده",

@@ -1327,6 +1327,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "कॉपी करें",
         "mcp_token_regenerate" => "फिर से बनाएं",
         "mcp_token_desc" => "हर MCP क्लाइंट के लिए आवश्यक। फिर से बनाने पर पिछला मान अमान्य हो जाता है, Claude Code कॉन्फ़िग ताज़ा करने के लिए Install दोबारा चलाएं।",
+        "mcp_vault_pw_note" => "इस वॉल्ट में मास्टर पासवर्ड है। MCP सर्वर को यह चाहिए (env ORYXIS_VAULT_PASSWORD), वरना वह शुरू होते ही बंद हो जाता है और क्लाइंट कनेक्शन विफल बताता है।",
+        "mcp_vault_pw_include" => "वॉल्ट पासवर्ड शामिल करें",
+        "mcp_vault_pw_confirm_prompt" => "कॉन्फ़िगरेशन में शामिल करने के लिए अपना मास्टर पासवर्ड लिखें:",
+        "mcp_vault_pw_placeholder" => "मास्टर पासवर्ड",
+        "mcp_vault_pw_confirm" => "पुष्टि करें",
+        "mcp_vault_pw_wrong" => "गलत पासवर्ड",
+        "mcp_vault_pw_included" => "वॉल्ट पासवर्ड कॉन्फ़िगरेशन में शामिल है।",
+        "mcp_vault_pw_plaintext_warning" => "यह सादे टेक्स्ट में लिखा जाता है; जो भी कॉन्फ़िगरेशन फ़ाइल पढ़ सकता है, वह आपका वॉल्ट खोल सकता है।",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS प्लगिन इंस्टॉल नहीं है",

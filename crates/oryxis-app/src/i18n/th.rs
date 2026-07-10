@@ -1328,6 +1328,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "คัดลอก",
         "mcp_token_regenerate" => "สร้างใหม่",
         "mcp_token_desc" => "ไคลเอนต์ MCP ทุกตัวต้องใช้ การสร้างใหม่จะทำให้ค่าเดิมใช้ไม่ได้ รันติดตั้งอีกครั้งเพื่อรีเฟรชการกำหนดค่า Claude Code",
+        "mcp_vault_pw_note" => "Vault นี้มีรหัสผ่านหลัก เซิร์ฟเวอร์ MCP ต้องใช้ (ตัวแปร ORYXIS_VAULT_PASSWORD) ไม่เช่นนั้นจะปิดตัวตอนเริ่มต้นและไคลเอนต์จะรายงานว่าการเชื่อมต่อล้มเหลว",
+        "mcp_vault_pw_include" => "รวมรหัสผ่าน Vault",
+        "mcp_vault_pw_confirm_prompt" => "พิมพ์รหัสผ่านหลักของคุณเพื่อรวมไว้ในการตั้งค่า:",
+        "mcp_vault_pw_placeholder" => "รหัสผ่านหลัก",
+        "mcp_vault_pw_confirm" => "ยืนยัน",
+        "mcp_vault_pw_wrong" => "รหัสผ่านไม่ถูกต้อง",
+        "mcp_vault_pw_included" => "รวมรหัสผ่าน Vault ไว้ในการตั้งค่าแล้ว",
+        "mcp_vault_pw_plaintext_warning" => "ถูกบันทึกเป็นข้อความธรรมดา ใครก็ตามที่อ่านไฟล์การตั้งค่าได้จะปลดล็อก Vault ของคุณได้",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "ยังไม่ได้ติดตั้งปลั๊กอิน AWS",

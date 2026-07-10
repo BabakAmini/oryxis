@@ -1171,6 +1171,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Kopieren",
         "mcp_token_regenerate" => "Neu generieren",
         "mcp_token_desc" => "Wird von jedem MCP-Client benötigt. Neu generieren invalidiert den alten Wert; führe Installieren erneut aus, um die Claude-Code-Konfiguration zu aktualisieren.",
+        "mcp_vault_pw_note" => "Dieser Tresor hat ein Master-Passwort. Der MCP-Server braucht es (env ORYXIS_VAULT_PASSWORD), sonst beendet er sich beim Start und der Client meldet die Verbindung als fehlgeschlagen.",
+        "mcp_vault_pw_include" => "Tresor-Passwort einbetten",
+        "mcp_vault_pw_confirm_prompt" => "Geben Sie Ihr Master-Passwort ein, um es in die Konfiguration aufzunehmen:",
+        "mcp_vault_pw_placeholder" => "Master-Passwort",
+        "mcp_vault_pw_confirm" => "Bestätigen",
+        "mcp_vault_pw_wrong" => "Falsches Passwort",
+        "mcp_vault_pw_included" => "Tresor-Passwort in der Konfiguration enthalten.",
+        "mcp_vault_pw_plaintext_warning" => "Es wird im Klartext gespeichert; wer die Konfigurationsdatei lesen kann, kann Ihren Tresor entsperren.",
 
         // Plugin-fehlt-Banner in Cloud Accounts
         "cloud_plugin_missing_title" => "AWS-Plugin nicht installiert",

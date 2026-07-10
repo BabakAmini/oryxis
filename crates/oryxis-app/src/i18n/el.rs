@@ -1327,6 +1327,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Αντιγραφή",
         "mcp_token_regenerate" => "Αναδημιουργία",
         "mcp_token_desc" => "Απαιτείται από κάθε client MCP. Η αναδημιουργία ακυρώνει την προηγούμενη τιμή. Εκτελέστε ξανά την Εγκατάσταση για ανανέωση της διαμόρφωσης του Claude Code.",
+        "mcp_vault_pw_note" => "Αυτό το vault έχει κύριο κωδικό. Ο διακομιστής MCP τον χρειάζεται (μεταβλητή ORYXIS_VAULT_PASSWORD), αλλιώς τερματίζει κατά την εκκίνηση και ο πελάτης αναφέρει αποτυχία σύνδεσης.",
+        "mcp_vault_pw_include" => "Συμπερίληψη κωδικού vault",
+        "mcp_vault_pw_confirm_prompt" => "Πληκτρολογήστε τον κύριο κωδικό σας για να συμπεριληφθεί στη ρύθμιση:",
+        "mcp_vault_pw_placeholder" => "Κύριος κωδικός",
+        "mcp_vault_pw_confirm" => "Επιβεβαίωση",
+        "mcp_vault_pw_wrong" => "Λάθος κωδικός",
+        "mcp_vault_pw_included" => "Ο κωδικός του vault συμπεριλήφθηκε στη ρύθμιση.",
+        "mcp_vault_pw_plaintext_warning" => "Αποθηκεύεται ως απλό κείμενο· όποιος μπορεί να διαβάσει το αρχείο ρυθμίσεων μπορεί να ξεκλειδώσει το vault σας.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Το plugin AWS δεν είναι εγκατεστημένο",

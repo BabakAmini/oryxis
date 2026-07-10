@@ -1170,6 +1170,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Copia",
         "mcp_token_regenerate" => "Rigenera",
         "mcp_token_desc" => "Richiesto da ogni client MCP. Rigenerarlo invalida il valore precedente, esegui di nuovo Installa per aggiornare la configurazione di Claude Code.",
+        "mcp_vault_pw_note" => "Questo vault ha una password principale. Il server MCP ne ha bisogno (env ORYXIS_VAULT_PASSWORD), altrimenti termina all'avvio e il client segnala la connessione come non riuscita.",
+        "mcp_vault_pw_include" => "Includi password del vault",
+        "mcp_vault_pw_confirm_prompt" => "Digita la tua password principale per includerla nella configurazione:",
+        "mcp_vault_pw_placeholder" => "Password principale",
+        "mcp_vault_pw_confirm" => "Conferma",
+        "mcp_vault_pw_wrong" => "Password errata",
+        "mcp_vault_pw_included" => "Password del vault inclusa nella configurazione.",
+        "mcp_vault_pw_plaintext_warning" => "Viene salvata in chiaro; chiunque possa leggere il file di configurazione può sbloccare il tuo vault.",
 
         // Banner plugin mancante in Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS non installato",

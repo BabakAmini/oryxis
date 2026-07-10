@@ -1258,6 +1258,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Kopyala",
         "mcp_token_regenerate" => "Yeniden oluştur",
         "mcp_token_desc" => "Her MCP istemcisi tarafından gereklidir. Yeniden oluşturmak önceki değeri geçersiz kılar, Claude Code yapılandırmasını yenilemek için Kur'u yeniden çalıştırın.",
+        "mcp_vault_pw_note" => "Bu kasanın bir ana parolası var. MCP sunucusu buna ihtiyaç duyar (ORYXIS_VAULT_PASSWORD ortam değişkeni), yoksa başlangıçta kapanır ve istemci bağlantıyı başarısız olarak bildirir.",
+        "mcp_vault_pw_include" => "Kasa parolasını dahil et",
+        "mcp_vault_pw_confirm_prompt" => "Yapılandırmaya eklemek için ana parolanızı yazın:",
+        "mcp_vault_pw_placeholder" => "Ana parola",
+        "mcp_vault_pw_confirm" => "Onayla",
+        "mcp_vault_pw_wrong" => "Yanlış parola",
+        "mcp_vault_pw_included" => "Kasa parolası yapılandırmaya dahil edildi.",
+        "mcp_vault_pw_plaintext_warning" => "Düz metin olarak yazılır; yapılandırma dosyasını okuyabilen herkes kasanızın kilidini açabilir.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS eklentisi kurulu değil",

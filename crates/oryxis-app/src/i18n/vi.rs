@@ -1258,6 +1258,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "Chép",
         "mcp_token_regenerate" => "Tạo lại",
         "mcp_token_desc" => "Bắt buộc với mọi client MCP. Tạo lại sẽ vô hiệu giá trị trước, chạy lại Cài đặt để làm mới cấu hình Claude Code.",
+        "mcp_vault_pw_note" => "Kho này có mật khẩu chính. Máy chủ MCP cần nó (biến ORYXIS_VAULT_PASSWORD), nếu không sẽ thoát khi khởi động và ứng dụng khách báo kết nối thất bại.",
+        "mcp_vault_pw_include" => "Kèm mật khẩu kho",
+        "mcp_vault_pw_confirm_prompt" => "Nhập mật khẩu chính để đưa vào cấu hình:",
+        "mcp_vault_pw_placeholder" => "Mật khẩu chính",
+        "mcp_vault_pw_confirm" => "Xác nhận",
+        "mcp_vault_pw_wrong" => "Mật khẩu sai",
+        "mcp_vault_pw_included" => "Mật khẩu kho đã được đưa vào cấu hình.",
+        "mcp_vault_pw_plaintext_warning" => "Được ghi dưới dạng văn bản thuần; bất kỳ ai đọc được tệp cấu hình đều có thể mở khóa kho của bạn.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS chưa được cài",

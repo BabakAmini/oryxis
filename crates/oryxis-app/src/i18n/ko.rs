@@ -1259,6 +1259,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "복사",
         "mcp_token_regenerate" => "재생성",
         "mcp_token_desc" => "모든 MCP 클라이언트에 필요합니다. 재생성하면 이전 값이 무효화되므로, Claude Code 구성을 새로 고치려면 설치를 다시 실행하세요.",
+        "mcp_vault_pw_note" => "이 볼트에는 마스터 비밀번호가 설정되어 있습니다. MCP 서버에는 이 값이 필요하며(환경 변수 ORYXIS_VAULT_PASSWORD), 없으면 시작 시 종료되어 클라이언트가 연결 실패로 보고합니다.",
+        "mcp_vault_pw_include" => "볼트 비밀번호 포함",
+        "mcp_vault_pw_confirm_prompt" => "설정에 포함하려면 마스터 비밀번호를 입력하세요:",
+        "mcp_vault_pw_placeholder" => "마스터 비밀번호",
+        "mcp_vault_pw_confirm" => "확인",
+        "mcp_vault_pw_wrong" => "비밀번호가 올바르지 않습니다",
+        "mcp_vault_pw_included" => "볼트 비밀번호가 설정에 포함되었습니다.",
+        "mcp_vault_pw_plaintext_warning" => "비밀번호는 평문으로 기록됩니다. 설정 파일을 읽을 수 있는 사람은 누구나 볼트를 잠금 해제할 수 있습니다.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS 플러그인이 설치되지 않음",

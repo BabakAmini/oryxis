@@ -1182,6 +1182,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_copy" => "コピー",
         "mcp_token_regenerate" => "再生成",
         "mcp_token_desc" => "すべての MCP クライアントで必要です。再生成すると以前の値は無効になります。Claude Code の設定を更新するためにインストールを再実行してください。",
+        "mcp_vault_pw_note" => "このボールトにはマスターパスワードが設定されています。MCP サーバーには（環境変数 ORYXIS_VAULT_PASSWORD として）それが必要で、ないと起動時に終了し、クライアントは接続失敗と報告します。",
+        "mcp_vault_pw_include" => "ボールトのパスワードを含める",
+        "mcp_vault_pw_confirm_prompt" => "設定に含めるにはマスターパスワードを入力してください：",
+        "mcp_vault_pw_placeholder" => "マスターパスワード",
+        "mcp_vault_pw_confirm" => "確認",
+        "mcp_vault_pw_wrong" => "パスワードが違います",
+        "mcp_vault_pw_included" => "ボールトのパスワードが設定に含まれています。",
+        "mcp_vault_pw_plaintext_warning" => "パスワードは平文で書き込まれます。設定ファイルを読める人は誰でもボールトを解錠できます。",
 
         // Cloud Accounts のプラグイン未インストールバナー
         "cloud_plugin_missing_title" => "AWS プラグインが未インストール",

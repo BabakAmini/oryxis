@@ -26,4 +26,15 @@ pub(crate) struct McpState {
     /// client (`false`) or one running inside WSL (`true`). Only reachable on
     /// Windows, where the toggle that flips it renders.
     pub(crate) target_wsl: bool,
+    /// Consent flag (persisted as the `mcp_config_vault_pw` setting): the
+    /// user confirmed their master password and wants it embedded in the
+    /// client config as `ORYXIS_VAULT_PASSWORD`. The password itself is
+    /// never stored here; it is read from `Oryxis.master_password` at
+    /// snippet/install time, so a vault lock naturally revokes access.
+    pub(crate) include_vault_password: bool,
+    /// Buffer of the master-password confirm input; `Some` while the
+    /// confirm row is open. Swept on vault lock like every typed secret.
+    pub(crate) vault_pw_prompt: Option<String>,
+    /// The last confirm attempt failed (wrong password).
+    pub(crate) vault_pw_error: bool,
 }

@@ -77,18 +77,43 @@ pub(crate) fn mcp_config_path() -> &'static str {
 }
 
 /// JSON entry for the `oryxis` MCP server: the `command` path plus
-/// the optional `env` block carrying the auth token. Shared between
-/// the copy-to-clipboard snippet and the on-disk merge so backslash
-/// escaping stays consistent on Windows.
-fn oryxis_mcp_entry(cmd: &str, token: &str) -> serde_json::Value {
-    if token.is_empty() {
+/// the optional `env` block carrying the auth token and, when the
+/// user confirmed their master password in the setup panel, the
+/// `ORYXIS_VAULT_PASSWORD` a password-protected vault needs (without
+/// it the server exits at startup and the client reports a failed
+/// connection). Shared between the copy-to-clipboard snippet and the
+/// on-disk merge so escaping stays consistent on Windows.
+fn oryxis_mcp_entry(cmd: &str, token: &str, vault_pw: Option<&str>) -> serde_json::Value {
+    let mut env = serde_json::Map::new();
+    if !token.is_empty() {
+        env.insert("ORYXIS_MCP_TOKEN".into(), serde_json::json!(token));
+    }
+    if let Some(pw) = vault_pw {
+        env.insert("ORYXIS_VAULT_PASSWORD".into(), serde_json::json!(pw));
+    }
+    if env.is_empty() {
         serde_json::json!({ "command": cmd })
     } else {
-        serde_json::json!({
-            "command": cmd,
-            "env": { "ORYXIS_MCP_TOKEN": token },
-        })
+        serde_json::json!({ "command": cmd, "env": env })
     }
+}
+
+/// Escape a value for a `set VAR=value` segment inside a `cmd /c`
+/// string: cmd metacharacters are neutralized with `^`. Two characters
+/// have no reliable escape in this position and stay as-is: `%`
+/// (cmd expands `%VAR%` even inside quotes) and `"` (the WSL argv ->
+/// Windows command-line translation rewrites embedded quotes to `\"`,
+/// which cmd rejects). A vault password containing those can't ride
+/// the WSL wrapper; the native env block handles every character.
+fn cmd_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len());
+    for c in value.chars() {
+        if matches!(c, '^' | '&' | '|' | '<' | '>' | '(' | ')') {
+            out.push('^');
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// MCP entry for an AI client running *inside* WSL on a Windows host.
@@ -111,16 +136,32 @@ fn oryxis_mcp_entry(cmd: &str, token: &str) -> serde_json::Value {
 /// in `C:\Users\<name>` is the one unsupported case; standard profile
 /// folders have none.
 ///
-/// With no token, auth is off and the plain `/mnt/c/...exe` launch
-/// already works, so we keep `wsl_exe` for that path.
-fn oryxis_mcp_entry_wsl(wsl_exe: &str, win_exe: &str, token: &str) -> serde_json::Value {
-    if token.is_empty() {
+/// With neither a token nor a vault password, the plain
+/// `/mnt/c/...exe` launch already works, so we keep `wsl_exe` for that
+/// path. The vault password rides the same cmd.exe wrapper as the
+/// token (an `env` block would never cross the WSL boundary either),
+/// escaped for cmd; see [`cmd_escape`] for the two characters that
+/// can't be carried.
+fn oryxis_mcp_entry_wsl(
+    wsl_exe: &str,
+    win_exe: &str,
+    token: &str,
+    vault_pw: Option<&str>,
+) -> serde_json::Value {
+    if token.is_empty() && vault_pw.is_none() {
         return serde_json::json!({ "command": wsl_exe });
     }
     // cmd.exe lives under the Windows root; the WSL mount is the only
     // path the Linux-side client can exec it through.
     const CMD: &str = "/mnt/c/Windows/System32/cmd.exe";
-    let inner = format!("set ORYXIS_MCP_TOKEN={token}&& {win_exe}");
+    let mut inner = String::new();
+    if !token.is_empty() {
+        inner.push_str(&format!("set ORYXIS_MCP_TOKEN={token}&& "));
+    }
+    if let Some(pw) = vault_pw {
+        inner.push_str(&format!("set ORYXIS_VAULT_PASSWORD={}&& ", cmd_escape(pw)));
+    }
+    inner.push_str(win_exe);
     serde_json::json!({
         "command": CMD,
         "args": ["/c", inner],
@@ -131,12 +172,14 @@ fn oryxis_mcp_entry_wsl(wsl_exe: &str, win_exe: &str, token: &str) -> serde_json
 /// the snippet includes an `env` block that passes
 /// `ORYXIS_MCP_TOKEN` to the spawned MCP server; the server refuses
 /// every call when the token mismatches the value stored in the
-/// vault. Empty token keeps the legacy unauth path.
-pub(crate) fn mcp_config_json(token: &str) -> String {
+/// vault. Empty token keeps the legacy unauth path. `vault_pw` is the
+/// master password of a password-protected vault, embedded only after
+/// the user confirmed it in the setup panel.
+pub(crate) fn mcp_config_json(token: &str, vault_pw: Option<&str>) -> String {
     let cmd = mcp_binary_command();
     let root = serde_json::json!({
         "mcpServers": {
-            "oryxis": oryxis_mcp_entry(&cmd, token),
+            "oryxis": oryxis_mcp_entry(&cmd, token, vault_pw),
         }
     });
     serde_json::to_string_pretty(&root).unwrap_or_else(|_| String::from("{}"))
@@ -145,10 +188,11 @@ pub(crate) fn mcp_config_json(token: &str) -> String {
 /// Same as [`mcp_config_json`] but for an AI client (Claude Code,
 /// Cursor) running *inside* a WSL distro on a Windows host. See
 /// [`oryxis_mcp_entry_wsl`] for the cmd.exe wrapper that carries the
-/// token across the WSL -> Windows boundary; the Windows app produces
-/// this so the user doesn't have to assemble it by hand.
-pub(crate) fn mcp_config_json_wsl(token: &str) -> String {
-    let entry = oryxis_mcp_entry_wsl(&mcp_wsl_command(), &mcp_binary_command(), token);
+/// token and vault password across the WSL -> Windows boundary; the
+/// Windows app produces this so the user doesn't have to assemble it
+/// by hand.
+pub(crate) fn mcp_config_json_wsl(token: &str, vault_pw: Option<&str>) -> String {
+    let entry = oryxis_mcp_entry_wsl(&mcp_wsl_command(), &mcp_binary_command(), token, vault_pw);
     let root = serde_json::json!({
         "mcpServers": {
             "oryxis": entry,
@@ -255,9 +299,13 @@ pub(crate) fn mcp_config_installed() -> bool {
 /// place `claude mcp add -s user` writes). Claude Code does NOT read
 /// `~/.claude/.mcp.json`, the path earlier releases wrote to; any
 /// stale `oryxis` entry there is swept as part of the install.
-/// Threads `token` through so the on-disk config always carries
-/// whatever the vault setting holds.
-pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> {
+/// Threads `token` and the opt-in vault password through so the
+/// on-disk config always carries whatever the current settings hold
+/// (a `None` password strips a previously installed one).
+pub(crate) fn install_mcp_config_to_file(
+    token: &str,
+    vault_pw: Option<&str>,
+) -> Result<String, String> {
     let config_path = claude_code_config_path()?;
 
     // `~/.claude.json` is Claude Code's main state file: merge into it,
@@ -273,7 +321,7 @@ pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> 
     };
 
     let cmd = mcp_binary_command();
-    merge_oryxis_entry(&mut root, oryxis_mcp_entry(&cmd, token))?;
+    merge_oryxis_entry(&mut root, oryxis_mcp_entry(&cmd, token, vault_pw))?;
 
     let output = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
@@ -298,10 +346,13 @@ pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> 
 ///
 /// Only meaningful on Windows; returns an error elsewhere, where there
 /// is no `wsl.exe` to talk to.
-pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
+pub(crate) fn install_mcp_config_to_wsl(
+    token: &str,
+    vault_pw: Option<&str>,
+) -> Result<String, String> {
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = token;
+        let _ = (token, vault_pw);
         Err("WSL install is only available on the Windows build".to_string())
     }
     #[cfg(target_os = "windows")]
@@ -340,7 +391,8 @@ pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
                 .map_err(|e| format!("Failed to parse WSL ~/.claude.json: {e}"))?
         };
 
-        let entry = oryxis_mcp_entry_wsl(&mcp_wsl_command(), &mcp_binary_command(), token);
+        let entry =
+            oryxis_mcp_entry_wsl(&mcp_wsl_command(), &mcp_binary_command(), token, vault_pw);
         merge_oryxis_entry(&mut root, entry)?;
 
         let output =
@@ -419,22 +471,39 @@ pub(crate) fn code_block<'a>(content: &str) -> Element<'a, Message> {
     .into()
 }
 
-/// The expandable MCP info panel shown inside the Security settings.
-pub(crate) fn mcp_info_panel<'a>(
-    copied: bool,
-    install_status: &'a Option<Result<String, String>>,
-    token: &'a str,
-    token_visible: bool,
-    target_wsl: bool,
-) -> Element<'a, Message> {
+impl crate::app::Oryxis {
+    /// The vault master password to embed in MCP client configs, or
+    /// `None` when the user hasn't opted in via the setup panel (or
+    /// the vault has no password). Read fresh from `master_password`
+    /// at every use: the password is never copied into MCP state, so
+    /// a vault lock naturally revokes access to it.
+    pub(crate) fn mcp_vault_pw(&self) -> Option<String> {
+        (self.mcp.include_vault_password && self.vault_ui.has_user_password)
+            .then(|| self.master_password.clone())
+            .flatten()
+    }
+}
+
+/// The expandable MCP info panel shown inside the MCP Server settings.
+/// Takes the app so every interactive control can record a settings
+/// keynav slot, which also means construction below strictly follows
+/// visual order.
+pub(crate) fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
+    let copied = app.mcp.config_copied;
+    let install_status = &app.mcp.install_status;
+    let token: &str = &app.mcp.server_token;
+    let token_visible = app.mcp.token_visible;
+    let target_wsl = app.mcp.target_wsl;
+    let vault_pw = app.mcp_vault_pw();
+
     // `target_wsl` switches the snippet (and the Copy / Install button
     // targets, handled in dispatch) between the native client and a
     // Claude Code / Cursor running inside WSL. The toggle that flips it
     // is Windows-only, so on other platforms this stays false.
     let json_text = if target_wsl {
-        mcp_config_json_wsl(token)
+        mcp_config_json_wsl(token, vault_pw.as_deref())
     } else {
-        mcp_config_json(token)
+        mcp_config_json(token, vault_pw.as_deref())
     };
     let path_hint: &str = if target_wsl {
         "~/.claude.json (WSL)"
@@ -552,50 +621,6 @@ pub(crate) fn mcp_info_panel<'a>(
         .into()
     }
 
-    let mut token_items: Vec<Element<'_, Message>> = vec![
-        text(crate::i18n::t("mcp_token_label"))
-            .size(11)
-            .color(OryxisColors::t().text_muted)
-            .into(),
-        Space::new().width(8).into(),
-        container(
-            text(token_display)
-                .size(11)
-                .selectable(true)
-                .font(iced::Font::MONOSPACE)
-                .color(token_color),
-        )
-        .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
-        .style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_primary)),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
-            ..Default::default()
-        })
-        .into(),
-    ];
-    if !token.is_empty() {
-        token_items.push(Space::new().width(8).into());
-        token_items.push(token_action_btn(
-            toggle_label,
-            OryxisColors::t().text_secondary,
-            Message::ToggleMcpTokenVisibility,
-        ));
-        token_items.push(Space::new().width(6).into());
-        token_items.push(token_action_btn(
-            crate::i18n::t("mcp_token_copy"),
-            OryxisColors::t().accent,
-            Message::CopyMcpToken,
-        ));
-    }
-    token_items.push(Space::new().width(6).into());
-    token_items.push(token_action_btn(
-        crate::i18n::t("mcp_token_regenerate"),
-        OryxisColors::t().warning,
-        Message::RegenerateMcpToken,
-    ));
-    let token_row = crate::widgets::dir_row(token_items)
-        .align_y(iced::Alignment::Center);
-
     let mut info_col = column![
         text(crate::i18n::t("mcp_info_title")).size(14).color(OryxisColors::t().text_primary),
         Space::new().height(8),
@@ -642,14 +667,80 @@ pub(crate) fn mcp_info_panel<'a>(
                 .color(OryxisColors::t().text_muted)
                 .into(),
             Space::new().width(8).into(),
-            target_btn(crate::i18n::t("mcp_target_native"), !target_wsl, Message::SetMcpTarget(false)),
+            app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::SetMcpTarget(false)),
+                6.0,
+                target_btn(crate::i18n::t("mcp_target_native"), !target_wsl, Message::SetMcpTarget(false)),
+            ),
             Space::new().width(6).into(),
-            target_btn(crate::i18n::t("mcp_target_wsl"), target_wsl, Message::SetMcpTarget(true)),
+            app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::SetMcpTarget(true)),
+                6.0,
+                target_btn(crate::i18n::t("mcp_target_wsl"), target_wsl, Message::SetMcpTarget(true)),
+            ),
         ])
         .align_y(iced::Alignment::Center);
 
         info_col = info_col.push(Space::new().height(12)).push(target_row);
     }
+
+    // Token row, built after the target row so the keynav slots the
+    // action buttons record land in visual order.
+    let mut token_items: Vec<Element<'_, Message>> = vec![
+        text(crate::i18n::t("mcp_token_label"))
+            .size(11)
+            .color(OryxisColors::t().text_muted)
+            .into(),
+        Space::new().width(8).into(),
+        container(
+            text(token_display)
+                .size(11)
+                .selectable(true)
+                .font(iced::Font::MONOSPACE)
+                .color(token_color),
+        )
+        .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_primary)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        })
+        .into(),
+    ];
+    if !token.is_empty() {
+        token_items.push(Space::new().width(8).into());
+        token_items.push(app.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ToggleMcpTokenVisibility),
+            6.0,
+            token_action_btn(
+                toggle_label,
+                OryxisColors::t().text_secondary,
+                Message::ToggleMcpTokenVisibility,
+            ),
+        ));
+        token_items.push(Space::new().width(6).into());
+        token_items.push(app.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::CopyMcpToken),
+            6.0,
+            token_action_btn(
+                crate::i18n::t("mcp_token_copy"),
+                OryxisColors::t().accent,
+                Message::CopyMcpToken,
+            ),
+        ));
+    }
+    token_items.push(Space::new().width(6).into());
+    token_items.push(app.settings_nav_slot(
+        crate::keynav::RowAction::activate(Message::RegenerateMcpToken),
+        6.0,
+        token_action_btn(
+            crate::i18n::t("mcp_token_regenerate"),
+            OryxisColors::t().warning,
+            Message::RegenerateMcpToken,
+        ),
+    ));
+    let token_row = crate::widgets::dir_row(token_items)
+        .align_y(iced::Alignment::Center);
 
     info_col = info_col
         .push(Space::new().height(12))
@@ -692,16 +783,150 @@ pub(crate) fn mcp_info_panel<'a>(
             .push(text(format!("{} {path}", crate::i18n::t("mcp_installed_to"))).size(11).color(OryxisColors::t().success));
     }
 
+    // ── Vault password (ORYXIS_VAULT_PASSWORD) ──
+    // A password-protected vault makes the MCP server exit at startup
+    // unless the client passes the master password, which MCP clients
+    // report as a failed connection (issue #72). Surface that here and
+    // offer to embed the password after an explicit typed confirmation;
+    // without a master password the static note still explains the
+    // variable for users who add one later.
+    info_col = info_col.push(Space::new().height(8));
+    if !app.vault_ui.has_user_password {
+        info_col = info_col.push(
+            text(crate::i18n::t("mcp_info_vault_password_note"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        );
+    } else if app.mcp.include_vault_password {
+        info_col = info_col
+            .push(
+                crate::widgets::dir_row(vec![
+                    text(crate::i18n::t("mcp_vault_pw_included"))
+                        .size(11)
+                        .color(OryxisColors::t().success)
+                        .into(),
+                    Space::new().width(8).into(),
+                    app.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::McpVaultPwRemove),
+                        6.0,
+                        token_action_btn(
+                            crate::i18n::t("remove"),
+                            OryxisColors::t().warning,
+                            Message::McpVaultPwRemove,
+                        ),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .push(Space::new().height(4))
+            .push(
+                text(crate::i18n::t("mcp_vault_pw_plaintext_warning"))
+                    .size(10)
+                    .color(OryxisColors::t().warning),
+            );
+    } else if let Some(typed) = &app.mcp.vault_pw_prompt {
+        // Typed confirmation: embedding only happens after the user
+        // proves they know the master password, so an unattended
+        // unlocked app can't be used to exfiltrate it into a file.
+        let input_id = iced::widget::Id::new("mcp-vault-pw");
+        let pw_input = app.settings_nav_slot(
+            crate::keynav::RowAction::input(input_id.clone()),
+            6.0,
+            iced::widget::text_input(crate::i18n::t("mcp_vault_pw_placeholder"), typed)
+                .id(input_id)
+                .secure(true)
+                .on_input(Message::McpVaultPwInput)
+                .on_submit(Message::McpVaultPwConfirm)
+                .padding(8)
+                .size(12)
+                .width(240)
+                .style(crate::widgets::rounded_input_style)
+                .into(),
+        );
+        info_col = info_col
+            .push(
+                text(crate::i18n::t("mcp_vault_pw_confirm_prompt"))
+                    .size(11)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .push(Space::new().height(6))
+            .push(
+                crate::widgets::dir_row(vec![
+                    pw_input,
+                    Space::new().width(6).into(),
+                    app.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::McpVaultPwConfirm),
+                        6.0,
+                        token_action_btn(
+                            crate::i18n::t("mcp_vault_pw_confirm"),
+                            OryxisColors::t().success,
+                            Message::McpVaultPwConfirm,
+                        ),
+                    ),
+                    Space::new().width(6).into(),
+                    app.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::McpVaultPwPromptCancel),
+                        6.0,
+                        token_action_btn(
+                            crate::i18n::t("cancel"),
+                            OryxisColors::t().text_secondary,
+                            Message::McpVaultPwPromptCancel,
+                        ),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center),
+            );
+        if app.mcp.vault_pw_error {
+            info_col = info_col.push(Space::new().height(4)).push(
+                text(crate::i18n::t("mcp_vault_pw_wrong"))
+                    .size(11)
+                    .color(OryxisColors::t().error),
+            );
+        }
+        info_col = info_col.push(Space::new().height(4)).push(
+            text(crate::i18n::t("mcp_vault_pw_plaintext_warning"))
+                .size(10)
+                .color(OryxisColors::t().text_muted),
+        );
+    } else {
+        info_col = info_col
+            .push(
+                text(crate::i18n::t("mcp_vault_pw_note"))
+                    .size(11)
+                    .color(OryxisColors::t().warning),
+            )
+            .push(Space::new().height(6))
+            .push(app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::McpVaultPwPromptOpen),
+                6.0,
+                token_action_btn(
+                    crate::i18n::t("mcp_vault_pw_include"),
+                    OryxisColors::t().accent,
+                    Message::McpVaultPwPromptOpen,
+                ),
+            ));
+    }
+
     info_col = info_col
-        .push(Space::new().height(8))
-        .push(text(crate::i18n::t("mcp_info_vault_password_note")).size(11).color(OryxisColors::t().text_muted))
         .push(Space::new().height(12))
         .push(crate::widgets::dir_row(vec![
-            install_btn.into(),
+            app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::InstallMcpConfig),
+                6.0,
+                install_btn.into(),
+            ),
             Space::new().width(8).into(),
-            copy_btn.into(),
+            app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::CopyMcpConfig),
+                6.0,
+                copy_btn.into(),
+            ),
             Space::new().width(8).into(),
-            close_btn.into(),
+            app.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideMcpInfo),
+                6.0,
+                close_btn.into(),
+            ),
         ]));
 
     container(info_col)
@@ -717,7 +942,10 @@ pub(crate) fn mcp_info_panel<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::{merge_oryxis_entry, oryxis_mcp_entry_wsl, strip_oryxis_entry};
+    use super::{
+        cmd_escape, merge_oryxis_entry, oryxis_mcp_entry, oryxis_mcp_entry_wsl,
+        strip_oryxis_entry,
+    };
 
     const WSL: &str = "/mnt/c/Users/wilso/.oryxis/bin/oryxis-mcp.exe";
     const WIN: &str = "C:\\Users\\wilso\\.oryxis\\bin\\oryxis-mcp.exe";
@@ -728,7 +956,7 @@ mod tests {
     // would see an empty token and reject every call.
     #[test]
     fn wsl_entry_with_token_wraps_through_cmd() {
-        let v = oryxis_mcp_entry_wsl(WSL, WIN, "deadbeef");
+        let v = oryxis_mcp_entry_wsl(WSL, WIN, "deadbeef", None);
         assert_eq!(v["command"], "/mnt/c/Windows/System32/cmd.exe");
         let args = v["args"].as_array().expect("args array");
         assert_eq!(args[0], "/c");
@@ -741,9 +969,56 @@ mod tests {
     // works, so no cmd.exe wrapper is emitted.
     #[test]
     fn wsl_entry_without_token_stays_direct() {
-        let v = oryxis_mcp_entry_wsl(WSL, WIN, "");
+        let v = oryxis_mcp_entry_wsl(WSL, WIN, "", None);
         assert_eq!(v["command"], WSL);
         assert!(v.get("args").is_none());
+        assert!(v.get("env").is_none());
+    }
+
+    // The vault password rides the same cmd.exe wrapper as the token
+    // (env blocks never cross the WSL boundary), chained with `set`,
+    // and cmd metacharacters in the password are ^-escaped.
+    #[test]
+    fn wsl_entry_with_vault_password_chains_sets() {
+        let v = oryxis_mcp_entry_wsl(WSL, WIN, "deadbeef", Some("p&ss|word"));
+        let args = v["args"].as_array().expect("args array");
+        assert_eq!(
+            args[1],
+            format!(
+                "set ORYXIS_MCP_TOKEN=deadbeef&& set ORYXIS_VAULT_PASSWORD=p^&ss^|word&& {WIN}"
+            )
+        );
+    }
+
+    // Password without a token still needs the wrapper: the direct
+    // launch has no way to carry the env var across the boundary.
+    #[test]
+    fn wsl_entry_with_only_vault_password_wraps_through_cmd() {
+        let v = oryxis_mcp_entry_wsl(WSL, WIN, "", Some("hunter2"));
+        assert_eq!(v["command"], "/mnt/c/Windows/System32/cmd.exe");
+        let args = v["args"].as_array().expect("args array");
+        assert_eq!(args[1], format!("set ORYXIS_VAULT_PASSWORD=hunter2&& {WIN}"));
+    }
+
+    #[test]
+    fn cmd_escape_neutralizes_metacharacters() {
+        assert_eq!(cmd_escape("a&b|c<d>e^f(g)h"), "a^&b^|c^<d^>e^^f^(g^)h");
+        assert_eq!(cmd_escape("plain"), "plain");
+    }
+
+    // The native entry carries the vault password in the env block next
+    // to the token; without either the env block is omitted entirely.
+    #[test]
+    fn native_entry_env_block_shapes() {
+        let v = oryxis_mcp_entry("oryxis-mcp", "tok", Some("pw"));
+        assert_eq!(v["env"]["ORYXIS_MCP_TOKEN"], "tok");
+        assert_eq!(v["env"]["ORYXIS_VAULT_PASSWORD"], "pw");
+
+        let v = oryxis_mcp_entry("oryxis-mcp", "", Some("pw"));
+        assert!(v["env"].get("ORYXIS_MCP_TOKEN").is_none());
+        assert_eq!(v["env"]["ORYXIS_VAULT_PASSWORD"], "pw");
+
+        let v = oryxis_mcp_entry("oryxis-mcp", "", None);
         assert!(v.get("env").is_none());
     }
 
