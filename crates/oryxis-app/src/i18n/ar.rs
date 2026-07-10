@@ -1281,7 +1281,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "إخفاء",
         "mcp_token_copy" => "نسخ",
         "mcp_token_regenerate" => "إعادة توليد",
-        "mcp_token_desc" => "مطلوب لكل عميل MCP. إعادة التوليد تُبطل القيمة السابقة، شغّل التثبيت مجددًا لتحديث إعدادات Claude Desktop.",
+        "mcp_token_desc" => "مطلوب لكل عميل MCP. إعادة التوليد تُبطل القيمة السابقة، شغّل التثبيت مجددًا لتحديث إعدادات Claude Code.",
 
         // شعار الإضافة المفقودة في Cloud Accounts
         "cloud_plugin_missing_title" => "إضافة AWS غير مثبتة",

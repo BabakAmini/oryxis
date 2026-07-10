@@ -43,18 +43,32 @@ pub struct SyncConfig {
 
 impl Default for SyncConfig {
     fn default() -> Self {
-        // `option_env!` is the non-panicking counterpart to `env!`: a
-        // release build that sets the env vars ships the hosted Worker
-        // URL out of the box; a dev / fork build without them just
-        // returns `None` and the engine starts LAN-only.
+        // No implicit hosted endpoint: a fresh install is LAN-only
+        // until the user picks an internet backend (SFTP snapshot or
+        // a self-hosted relay). The hosted Worker URL that release
+        // builds used to bake in survives only as the grandfather
+        // source in [`legacy_hosted_signaling`].
         Self {
             enabled: false,
             mode: SyncMode::Manual,
             relay_url: None,
-            signaling_url: option_env!("ORYXIS_SIGNALING_URL").map(str::to_string),
-            signaling_token: option_env!("ORYXIS_SIGNALING_TOKEN").map(str::to_string),
+            signaling_url: None,
+            signaling_token: None,
             listen_port: 0,
             auto_interval_secs: 300,
         }
     }
+}
+
+/// The hosted signaling endpoint release builds shipped as an implicit
+/// default up to v0.9.x, baked from CI env (`option_env!` so dev/fork
+/// builds simply return `None`). Referenced ONLY by the app's one-time
+/// migration that writes it into the settings of devices that were
+/// actually syncing through it, as if the user had configured it by
+/// hand; it must never flow into `SyncConfig::default()` again.
+pub fn legacy_hosted_signaling() -> (Option<String>, Option<String>) {
+    (
+        option_env!("ORYXIS_SIGNALING_URL").map(str::to_string),
+        option_env!("ORYXIS_SIGNALING_TOKEN").map(str::to_string),
+    )
 }

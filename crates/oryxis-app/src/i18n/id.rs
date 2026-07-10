@@ -1257,7 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Sembunyikan",
         "mcp_token_copy" => "Salin",
         "mcp_token_regenerate" => "Buat ulang",
-        "mcp_token_desc" => "Diperlukan oleh setiap klien MCP. Membuat ulang membatalkan nilai sebelumnya, jalankan ulang Pasang untuk menyegarkan konfigurasi Claude Desktop.",
+        "mcp_token_desc" => "Diperlukan oleh setiap klien MCP. Membuat ulang membatalkan nilai sebelumnya, jalankan ulang Pasang untuk menyegarkan konfigurasi Claude Code.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS tidak terpasang",

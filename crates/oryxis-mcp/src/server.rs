@@ -6,6 +6,26 @@ use crate::handlers;
 use crate::protocol::JsonRpcResponse;
 use crate::tools;
 
+/// Protocol revisions this server implements. Tools-only over stdio is
+/// wire-identical across all three; listing them lets version
+/// negotiation echo whatever the client asked for instead of forcing a
+/// downgrade to the oldest revision.
+const SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &["2024-11-05", "2025-03-26", "2025-06-18"];
+
+/// Version negotiation per the MCP spec: echo the client's requested
+/// version when we support it, otherwise answer with the latest one we
+/// do (the client then decides whether to proceed or disconnect).
+fn negotiate_protocol_version(params: Option<&Value>) -> &'static str {
+    let requested = params
+        .and_then(|p| p.get("protocolVersion"))
+        .and_then(|v| v.as_str());
+    SUPPORTED_PROTOCOL_VERSIONS
+        .iter()
+        .find(|v| Some(**v) == requested)
+        .copied()
+        .unwrap_or(SUPPORTED_PROTOCOL_VERSIONS[SUPPORTED_PROTOCOL_VERSIONS.len() - 1])
+}
+
 pub async fn handle_request(
     method: &str,
     id: Value,
@@ -16,16 +36,20 @@ pub async fn handle_request(
         "initialize" => JsonRpcResponse::success(
             id,
             json!({
-                "protocolVersion": "2024-11-05",
+                "protocolVersion": negotiate_protocol_version(params),
                 "capabilities": {
                     "tools": {}
                 },
                 "serverInfo": {
                     "name": "oryxis-mcp",
-                    "version": "0.1.0"
+                    "version": env!("CARGO_PKG_VERSION")
                 }
             }),
         ),
+
+        // Mandatory in every MCP revision: reply with an empty result so
+        // health checks don't read a -32601 as a dead server.
+        "ping" => JsonRpcResponse::success(id, json!({})),
 
         "tools/list" => {
             let tools = tools::tool_definitions();

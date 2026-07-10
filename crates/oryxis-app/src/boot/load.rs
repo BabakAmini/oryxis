@@ -258,6 +258,41 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sync_device_name") {
                 self.sync.device_name = v;
             }
+            // One-time grandfather of the hosted relay (v0.9 -> v0.10):
+            // release builds used to bake a hosted signaling URL in as an
+            // implicit default, so a syncing device could be using it with
+            // an ABSENT sync_signaling_url setting. Write the baked URL
+            // into the settings once, as if the user had configured it by
+            // hand, then never touch it again: existing sync setups keep
+            // working, while fresh installs (and vaults that never enabled
+            // sync) start LAN-only with no hosted endpoint anywhere.
+            // Present-but-empty means the user explicitly cleared the
+            // field; that choice is respected and not migrated over.
+            if vault.get_setting("sync_hosted_migrated").ok().flatten().is_none() {
+                let was_syncing = matches!(
+                    vault.get_setting("sync_enabled"),
+                    Ok(Some(v)) if v == "true"
+                );
+                let url_absent =
+                    matches!(vault.get_setting("sync_signaling_url"), Ok(None));
+                if was_syncing && url_absent {
+                    let (url, token) =
+                        oryxis_sync::config::legacy_hosted_signaling();
+                    if let Some(url) = url {
+                        let _ = vault.set_setting("sync_signaling_url", &url);
+                        if let Some(token) = token
+                            && matches!(
+                                vault.get_setting("sync_signaling_token"),
+                                Ok(None)
+                            )
+                        {
+                            let _ =
+                                vault.set_setting("sync_signaling_token", &token);
+                        }
+                    }
+                }
+                let _ = vault.set_setting("sync_hosted_migrated", "true");
+            }
             if let Ok(Some(v)) = vault.get_setting("sync_signaling_url") {
                 self.sync.signaling_url = v;
             }

@@ -77,12 +77,12 @@ impl Default for SyncState {
             // The engine config exposes `signaling_url` / `signaling_token`
             // as `Option<String>`; the app state uses a plain `String`
             // (empty == not set) so a Settings text input can drive it.
-            signaling_url: oryxis_sync::SyncConfig::default()
-                .signaling_url
-                .unwrap_or_default(),
-            signaling_token: oryxis_sync::SyncConfig::default()
-                .signaling_token
-                .unwrap_or_default(),
+            // Empty by default: fresh installs are LAN-only, internet
+            // backends are an explicit choice. Devices that were riding
+            // the old baked-in hosted URL get it written into their
+            // settings once by the boot migration (see boot/load.rs).
+            signaling_url: String::new(),
+            signaling_token: String::new(),
             relay_url: String::new(),
             listen_port: "0".into(),
             peers: Vec::new(),

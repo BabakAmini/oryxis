@@ -184,6 +184,17 @@ pub(super) const MAX_PAIRING_SOURCES: usize = 1024;
 /// the table won't grow forever in exchange).
 const TOMBSTONE_TTL_DAYS: u32 = 30;
 
+/// Delay before the signaling heartbeat's next attempt after `n`
+/// consecutive failures: 2min, 4min, 8min, ... capped at 30min. Keeps
+/// an unreachable endpoint (blocked domain, dead server) from being
+/// probed every 60s tick forever; a success resets the ladder.
+fn heartbeat_backoff(consecutive_failures: u32) -> std::time::Duration {
+    let base = 120u64;
+    let cap = 1800u64;
+    let exp = consecutive_failures.saturating_sub(1).min(6);
+    std::time::Duration::from_secs((base << exp).min(cap))
+}
+
 mod manifest;
 mod pairing;
 mod relay_glue;
@@ -369,9 +380,20 @@ impl SyncEngine {
                 // against the TTL even when our public IP is stable.
                 let refresh_interval = std::time::Duration::from_secs(180);
                 let mut last_register_at: Option<std::time::Instant> = None;
+                // Failure backoff: consecutive STUN/register failures
+                // stretch the next attempt (2min, 4min, ... capped at
+                // 30min) instead of retrying every tick forever, an
+                // unreachable endpoint (e.g. a blocked domain) would
+                // otherwise be probed 1440x/day for nothing. Any
+                // success resets the ladder.
+                let mut consecutive_failures: u32 = 0;
+                let mut next_attempt_at = std::time::Instant::now();
                 loop {
                     tokio::select! {
                         _ = ticker.tick() => {
+                            if std::time::Instant::now() < next_attempt_at {
+                                continue;
+                            }
                             // Fresh ephemeral UDP socket per probe; the STUN
                             // server's reply tells us the NAT mapping it sees.
                             let socket = match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
@@ -380,6 +402,9 @@ impl SyncEngine {
                                     let reason = format!("STUN bind failed: {e}");
                                     tracing::warn!("signaling: {reason}");
                                     let _ = heartbeat_tx.send(SyncEvent::SignalingFailed { reason });
+                                    consecutive_failures += 1;
+                                    next_attempt_at = std::time::Instant::now()
+                                        + heartbeat_backoff(consecutive_failures);
                                     continue;
                                 }
                             };
@@ -389,6 +414,9 @@ impl SyncEngine {
                                     let reason = format!("STUN failed: {e}");
                                     tracing::warn!("signaling: {reason}");
                                     let _ = heartbeat_tx.send(SyncEvent::SignalingFailed { reason });
+                                    consecutive_failures += 1;
+                                    next_attempt_at = std::time::Instant::now()
+                                        + heartbeat_backoff(consecutive_failures);
                                     continue;
                                 }
                             };
@@ -413,6 +441,7 @@ impl SyncEngine {
                                     );
                                     last_public_ip = Some(ip.clone());
                                     last_register_at = Some(std::time::Instant::now());
+                                    consecutive_failures = 0;
                                     let _ = heartbeat_tx.send(SyncEvent::SignalingRegistered {
                                         ip,
                                         port: bound_port,
@@ -422,6 +451,9 @@ impl SyncEngine {
                                     let reason = format!("register failed: {e}");
                                     tracing::warn!("signaling: {reason}");
                                     let _ = heartbeat_tx.send(SyncEvent::SignalingFailed { reason });
+                                    consecutive_failures += 1;
+                                    next_attempt_at = std::time::Instant::now()
+                                        + heartbeat_backoff(consecutive_failures);
                                 }
                             }
                         }
@@ -522,13 +554,23 @@ impl SyncEngine {
                 // senders trigger a fresh server-side session.
                 let sessions: Arc<std::sync::Mutex<BoundedSessionMap>> =
                     Arc::new(std::sync::Mutex::new(BoundedSessionMap::new()));
+                // Transient-error backoff, doubling up to 5 minutes.
+                // An unreachable relay (blocked endpoint, machine
+                // offline, server gone) must not be hammered every
+                // couple of seconds forever; a success resets it.
+                let mut retry_delay = std::time::Duration::from_secs(2);
+                const RETRY_DELAY_MAX: std::time::Duration =
+                    std::time::Duration::from_secs(300);
                 loop {
                     tokio::select! {
                         biased;
                         _ = shutdown_rx.recv() => break,
                         recvd = client.recv(my_id) => {
                             let (from, msg) = match recvd {
-                                Ok(pair) => pair,
+                                Ok(pair) => {
+                                    retry_delay = std::time::Duration::from_secs(2);
+                                    pair
+                                }
                                 Err(crate::SyncError::RelayUnavailable(detail)) => {
                                     // Permanent server-side condition
                                     // (404/410/501). Retrying just burns
@@ -550,13 +592,22 @@ impl SyncEngine {
                                     break;
                                 }
                                 Err(e) => {
-                                    tracing::debug!("relay inbox: {e}");
-                                    // Backoff a touch before retrying;
-                                    // long-poll errors usually mean
-                                    // transient network glitches.
-                                    tokio::time::sleep(
-                                        std::time::Duration::from_secs(2),
-                                    ).await;
+                                    tracing::debug!(
+                                        "relay inbox: {e} (retrying in {}s)",
+                                        retry_delay.as_secs()
+                                    );
+                                    // Exponential backoff between
+                                    // retries: a one-off glitch retries
+                                    // quickly, a dead/blocked endpoint
+                                    // settles at one attempt per 5min
+                                    // instead of hammering forever.
+                                    // Still shutdown-responsive.
+                                    tokio::select! {
+                                        _ = shutdown_rx.recv() => break,
+                                        _ = tokio::time::sleep(retry_delay) => {}
+                                    }
+                                    retry_delay =
+                                        (retry_delay * 2).min(RETRY_DELAY_MAX);
                                     continue;
                                 }
                             };

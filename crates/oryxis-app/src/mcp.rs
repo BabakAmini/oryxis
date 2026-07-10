@@ -1,6 +1,7 @@
 //! MCP (Model Context Protocol) setup helpers, command path resolution, config
-//! JSON generation, installation into `~/.claude/.mcp.json`, and the info panel
-//! widget that walks the user through the setup in the Security settings.
+//! JSON generation, installation into Claude Code's user-scope config
+//! (`~/.claude.json`), and the info panel widget that walks the user through
+//! the setup in the Security settings.
 
 use iced::border::Radius;
 use iced::widget::button::Status as BtnStatus;
@@ -59,16 +60,19 @@ pub(crate) fn mcp_wsl_command() -> String {
     s.into_owned()
 }
 
-/// Config file path hint for the native client per platform. The WSL
-/// target has its own hint, built inline in the info panel, so this no
-/// longer needs to mention WSL on Windows.
+/// Config file path hint for the native client per platform. Claude
+/// Code reads MCP servers from `~/.claude.json` (user scope) or a
+/// project-root `.mcp.json`; it explicitly does NOT read files inside
+/// `~/.claude/`. Claude Desktop uses `claude_desktop_config.json`. The
+/// WSL target has its own hint, built inline in the info panel, so
+/// this no longer needs to mention WSL on Windows.
 pub(crate) fn mcp_config_path() -> &'static str {
     if cfg!(target_os = "windows") {
-        "%APPDATA%\\Claude\\claude_desktop_config.json  or  ~/.claude/.mcp.json"
+        "~/.claude.json (Claude Code)  or  %APPDATA%\\Claude\\claude_desktop_config.json"
     } else if cfg!(target_os = "macos") {
-        "~/Library/Application Support/Claude/claude_desktop_config.json  or  ~/.claude/settings.json"
+        "~/.claude.json (Claude Code)  or  ~/Library/Application Support/Claude/claude_desktop_config.json"
     } else {
-        "~/.claude/settings.json"
+        "~/.claude.json (Claude Code)"
     }
 }
 
@@ -153,56 +157,144 @@ pub(crate) fn mcp_config_json_wsl(token: &str) -> String {
     serde_json::to_string_pretty(&root).unwrap_or_else(|_| String::from("{}"))
 }
 
-/// Write/merge the oryxis MCP entry into `~/.claude/.mcp.json`.
-/// Threads `token` through so the on-disk config always carries
-/// whatever the vault setting holds.
-pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> {
+/// Home directory resolved the way external clients see it.
+fn home_dir_for_config() -> Result<std::path::PathBuf, String> {
     let home_str = if cfg!(target_os = "windows") {
         std::env::var("USERPROFILE").map_err(|_| "USERPROFILE not set")?
     } else {
         std::env::var("HOME").map_err(|_| "HOME not set")?
     };
-    let home = std::path::PathBuf::from(home_str);
-    let claude_dir = home.join(".claude");
-    let mcp_path = claude_dir.join(".mcp.json");
+    Ok(std::path::PathBuf::from(home_str))
+}
 
-    std::fs::create_dir_all(&claude_dir)
-        .map_err(|e| format!("Failed to create ~/.claude/: {e}"))?;
+/// Path this app wrote MCP config to before it was corrected: Claude
+/// Code never reads `~/.claude/.mcp.json` (only `~/.claude.json` and a
+/// project-root `.mcp.json`), so entries installed there were dead.
+/// Kept only so installs can sweep the stale `oryxis` entry (issue #72).
+fn legacy_mcp_config_path() -> Result<std::path::PathBuf, String> {
+    Ok(home_dir_for_config()?.join(".claude").join(".mcp.json"))
+}
 
-    let mut root: serde_json::Map<String, serde_json::Value> = if mcp_path.exists() {
-        let content = std::fs::read_to_string(&mcp_path)
-            .map_err(|e| format!("Failed to read {}: {e}", mcp_path.display()))?;
-        serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse {}: {e}", mcp_path.display()))?
-    } else {
-        serde_json::Map::new()
-    };
+/// Where Claude Code reads its user-scope config from. Claude Code
+/// relocates `.claude.json` into `$CLAUDE_CONFIG_DIR` when that
+/// variable is set, so honor it; the plain home profile is the
+/// default. Best-effort: a GUI launch may not carry a shell-only
+/// export, in which case the default path is what Claude Code
+/// launched the same way would read anyway.
+fn claude_code_config_path() -> Result<std::path::PathBuf, String> {
+    if let Ok(dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        let dir = dir.trim();
+        if !dir.is_empty() {
+            return Ok(std::path::PathBuf::from(dir).join(".claude.json"));
+        }
+    }
+    Ok(home_dir_for_config()?.join(".claude.json"))
+}
 
+/// Merge the given oryxis server entry into a parsed config root,
+/// creating the `mcpServers` object when absent. Every unrelated key
+/// in the file is preserved untouched.
+fn merge_oryxis_entry(
+    root: &mut serde_json::Map<String, serde_json::Value>,
+    entry: serde_json::Value,
+) -> Result<(), String> {
     let servers = root
         .entry("mcpServers")
         .or_insert_with(|| serde_json::json!({}));
     let servers_map = servers
         .as_object_mut()
         .ok_or("mcpServers is not an object")?;
+    servers_map.insert("oryxis".to_string(), entry);
+    Ok(())
+}
+
+/// Remove the `oryxis` entry from a parsed config root. Returns
+/// whether anything was actually removed.
+fn strip_oryxis_entry(root: &mut serde_json::Map<String, serde_json::Value>) -> bool {
+    root.get_mut("mcpServers")
+        .and_then(|s| s.as_object_mut())
+        .map(|m| m.remove("oryxis").is_some())
+        .unwrap_or(false)
+}
+
+/// Remove the `oryxis` entry from the legacy dead-letter config, if
+/// present, so it can't mislead anyone debugging their MCP setup.
+/// Best-effort: unparsable or missing files are left alone.
+fn sweep_legacy_mcp_config() {
+    let Ok(path) = legacy_mcp_config_path() else { return };
+    let Ok(content) = std::fs::read_to_string(&path) else { return };
+    let Ok(mut root) = serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(&content)
+    else {
+        return;
+    };
+    if strip_oryxis_entry(&mut root)
+        && let Ok(output) = serde_json::to_string_pretty(&root)
+    {
+        let _ = std::fs::write(&path, output);
+    }
+}
+
+/// Whether Claude Code's user config already carries an `oryxis` MCP
+/// entry (or the legacy dead-letter file does), i.e. the user ran
+/// "Install to Claude Code" at some point and a plugin update should
+/// refresh the entry.
+pub(crate) fn mcp_config_installed() -> bool {
+    let has_oryxis_entry = |path: &std::path::Path| {
+        std::fs::read_to_string(path)
+            .ok()
+            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+            .map(|v| v.get("mcpServers").and_then(|s| s.get("oryxis")).is_some())
+            .unwrap_or(false)
+    };
+    claude_code_config_path().is_ok_and(|p| has_oryxis_entry(&p))
+        || legacy_mcp_config_path().is_ok_and(|p| has_oryxis_entry(&p))
+}
+
+/// Write/merge the oryxis MCP entry into Claude Code's user-scope
+/// config, `~/.claude.json` (top-level `mcpServers` key, the same
+/// place `claude mcp add -s user` writes). Claude Code does NOT read
+/// `~/.claude/.mcp.json`, the path earlier releases wrote to; any
+/// stale `oryxis` entry there is swept as part of the install.
+/// Threads `token` through so the on-disk config always carries
+/// whatever the vault setting holds.
+pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> {
+    let config_path = claude_code_config_path()?;
+
+    // `~/.claude.json` is Claude Code's main state file: merge into it,
+    // never replace it. A parse failure aborts rather than clobbering
+    // whatever Claude Code has stored there.
+    let mut root: serde_json::Map<String, serde_json::Value> = if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read {}: {e}", config_path.display()))?;
+        serde_json::from_str(&content)
+            .map_err(|e| format!("Failed to parse {}: {e}", config_path.display()))?
+    } else {
+        serde_json::Map::new()
+    };
 
     let cmd = mcp_binary_command();
-    servers_map.insert("oryxis".to_string(), oryxis_mcp_entry(&cmd, token));
+    merge_oryxis_entry(&mut root, oryxis_mcp_entry(&cmd, token))?;
 
     let output = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
-    std::fs::write(&mcp_path, &output)
-        .map_err(|e| format!("Failed to write {}: {e}", mcp_path.display()))?;
+    std::fs::write(&config_path, &output)
+        .map_err(|e| format!("Failed to write {}: {e}", config_path.display()))?;
 
-    Ok(mcp_path.display().to_string())
+    sweep_legacy_mcp_config();
+
+    Ok(config_path.display().to_string())
 }
 
 /// Write/merge the oryxis MCP entry into the WSL distro's
-/// `~/.claude/.mcp.json`, for a Claude Code / Cursor instance running
-/// inside WSL on a Windows host. Shells out to `wsl.exe` (default
-/// distro): reads the current config, merges in Rust so the JSON stays
-/// well-formed, and writes the result back through stdin so the
-/// payload never has to survive shell quoting. The entry shape comes
-/// from [`oryxis_mcp_entry_wsl`] (cmd.exe wrapper when a token is set).
+/// `~/.claude.json` (Claude Code's user-scope config), for a Claude
+/// Code instance running inside WSL on a Windows host. Shells out to
+/// `wsl.exe` (default distro): reads the current config, merges in
+/// Rust so the JSON stays well-formed, and writes the result back
+/// through stdin so the payload never has to survive shell quoting.
+/// The entry shape comes from [`oryxis_mcp_entry_wsl`] (cmd.exe
+/// wrapper when a token is set). The legacy dead-letter
+/// `~/.claude/.mcp.json` gets its `oryxis` entry swept, mirroring the
+/// native install.
 ///
 /// Only meaningful on Windows; returns an error elsewhere, where there
 /// is no `wsl.exe` to talk to.
@@ -228,12 +320,7 @@ pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
         // code at 0 when the file doesn't exist yet (first install),
         // otherwise `cat`'s failure would look like a WSL error.
         let read = Command::new("wsl.exe")
-            .args([
-                "--",
-                "bash",
-                "-c",
-                "mkdir -p ~/.claude && cat ~/.claude/.mcp.json 2>/dev/null || true",
-            ])
+            .args(["--", "bash", "-c", "cat ~/.claude.json 2>/dev/null || true"])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .map_err(|e| format!("Could not run wsl.exe ({e}). Is WSL installed?"))?;
@@ -243,21 +330,18 @@ pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
         }
 
         let existing = String::from_utf8_lossy(&read.stdout);
+        // `~/.claude.json` is Claude Code's main state file: merge into
+        // it, never replace it. A parse failure aborts rather than
+        // clobbering whatever Claude Code has stored there.
         let mut root: serde_json::Map<String, serde_json::Value> = if existing.trim().is_empty() {
             serde_json::Map::new()
         } else {
             serde_json::from_str(existing.trim())
-                .map_err(|e| format!("Failed to parse WSL ~/.claude/.mcp.json: {e}"))?
+                .map_err(|e| format!("Failed to parse WSL ~/.claude.json: {e}"))?
         };
 
-        let servers = root
-            .entry("mcpServers")
-            .or_insert_with(|| serde_json::json!({}));
-        let servers_map = servers
-            .as_object_mut()
-            .ok_or("mcpServers is not an object")?;
         let entry = oryxis_mcp_entry_wsl(&mcp_wsl_command(), &mcp_binary_command(), token);
-        servers_map.insert("oryxis".to_string(), entry);
+        merge_oryxis_entry(&mut root, entry)?;
 
         let output =
             serde_json::to_string_pretty(&root).map_err(|e| format!("Failed to serialize: {e}"))?;
@@ -265,7 +349,7 @@ pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
         // Pipe the merged JSON back through stdin so it never has to be
         // escaped into a shell argument.
         let mut child = Command::new("wsl.exe")
-            .args(["--", "bash", "-c", "mkdir -p ~/.claude && cat > ~/.claude/.mcp.json"])
+            .args(["--", "bash", "-c", "cat > ~/.claude.json"])
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -282,10 +366,38 @@ pub(crate) fn install_mcp_config_to_wsl(token: &str) -> Result<String, String> {
             .wait()
             .map_err(|e| format!("wsl.exe did not finish: {e}"))?;
         if !status.success() {
-            return Err("wsl.exe could not write ~/.claude/.mcp.json".to_string());
+            return Err("wsl.exe could not write ~/.claude.json".to_string());
         }
 
-        Ok("~/.claude/.mcp.json (WSL)".to_string())
+        // Sweep a stale `oryxis` entry out of the dead-letter path this
+        // app used to write inside the distro. Best-effort, jq-free:
+        // read, strip in Rust, write back only when something changed.
+        let legacy = Command::new("wsl.exe")
+            .args(["--", "bash", "-c", "cat ~/.claude/.mcp.json 2>/dev/null || true"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+        if let Ok(legacy) = legacy {
+            let content = String::from_utf8_lossy(&legacy.stdout);
+            if let Ok(mut root) =
+                serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(content.trim())
+                && strip_oryxis_entry(&mut root)
+                && let Ok(stripped) = serde_json::to_string_pretty(&root)
+                && let Ok(mut child) = Command::new("wsl.exe")
+                    .args(["--", "bash", "-c", "cat > ~/.claude/.mcp.json"])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .spawn()
+            {
+                if let Some(mut stdin) = child.stdin.take() {
+                    let _ = stdin.write_all(stripped.as_bytes());
+                }
+                let _ = child.wait();
+            }
+        }
+
+        Ok("~/.claude.json (WSL)".to_string())
     }
 }
 
@@ -325,7 +437,7 @@ pub(crate) fn mcp_info_panel<'a>(
         mcp_config_json(token)
     };
     let path_hint: &str = if target_wsl {
-        "~/.claude/.mcp.json (WSL)"
+        "~/.claude.json (WSL)"
     } else {
         mcp_config_path()
     };
@@ -605,7 +717,7 @@ pub(crate) fn mcp_info_panel<'a>(
 
 #[cfg(test)]
 mod tests {
-    use super::oryxis_mcp_entry_wsl;
+    use super::{merge_oryxis_entry, oryxis_mcp_entry_wsl, strip_oryxis_entry};
 
     const WSL: &str = "/mnt/c/Users/wilso/.oryxis/bin/oryxis-mcp.exe";
     const WIN: &str = "C:\\Users\\wilso\\.oryxis\\bin\\oryxis-mcp.exe";
@@ -633,5 +745,48 @@ mod tests {
         assert_eq!(v["command"], WSL);
         assert!(v.get("args").is_none());
         assert!(v.get("env").is_none());
+    }
+
+    // `~/.claude.json` is Claude Code's main state file: the install
+    // merge must leave every unrelated key (and sibling MCP servers)
+    // untouched while inserting/replacing only the `oryxis` entry.
+    #[test]
+    fn merge_preserves_unrelated_config() {
+        let mut root: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+            r#"{
+                "numStartups": 42,
+                "projects": {"/home/u/proj": {"allowedTools": []}},
+                "mcpServers": {"other": {"command": "other-mcp"}, "oryxis": {"command": "stale"}}
+            }"#,
+        )
+        .unwrap();
+        merge_oryxis_entry(&mut root, serde_json::json!({"command": "fresh"})).unwrap();
+        assert_eq!(root["numStartups"], 42);
+        assert!(root["projects"]["/home/u/proj"].is_object());
+        assert_eq!(root["mcpServers"]["other"]["command"], "other-mcp");
+        assert_eq!(root["mcpServers"]["oryxis"]["command"], "fresh");
+    }
+
+    #[test]
+    fn merge_creates_servers_object_when_absent() {
+        let mut root = serde_json::Map::new();
+        merge_oryxis_entry(&mut root, serde_json::json!({"command": "fresh"})).unwrap();
+        assert_eq!(root["mcpServers"]["oryxis"]["command"], "fresh");
+    }
+
+    // The legacy-file sweep must remove only the `oryxis` entry and
+    // report whether anything changed (an unchanged file is not
+    // rewritten).
+    #[test]
+    fn strip_removes_only_oryxis() {
+        let mut root: serde_json::Map<String, serde_json::Value> = serde_json::from_str(
+            r#"{"mcpServers": {"other": {"command": "other-mcp"}, "oryxis": {"command": "x"}}}"#,
+        )
+        .unwrap();
+        assert!(strip_oryxis_entry(&mut root));
+        assert!(root["mcpServers"].get("oryxis").is_none());
+        assert_eq!(root["mcpServers"]["other"]["command"], "other-mcp");
+        // Second pass: nothing left to remove.
+        assert!(!strip_oryxis_entry(&mut root));
     }
 }

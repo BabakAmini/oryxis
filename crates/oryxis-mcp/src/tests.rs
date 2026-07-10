@@ -40,8 +40,47 @@ mod tests {
         let resp = handle_request("initialize", json!(1), None, &vault).await;
         let result = resp.result.unwrap();
         assert_eq!(result["serverInfo"]["name"], "oryxis-mcp");
-        assert_eq!(result["protocolVersion"], "2024-11-05");
+        assert_eq!(result["serverInfo"]["version"], env!("CARGO_PKG_VERSION"));
+        // No requested version in params: answer with the latest supported.
+        assert_eq!(result["protocolVersion"], "2025-06-18");
         assert!(result["capabilities"]["tools"].is_object());
+    }
+
+    #[tokio::test]
+    async fn initialize_echoes_supported_requested_version() {
+        let vault = test_vault();
+        for requested in ["2024-11-05", "2025-03-26", "2025-06-18"] {
+            let params = json!({
+                "protocolVersion": requested,
+                "capabilities": {},
+                "clientInfo": {"name": "test", "version": "1.0"}
+            });
+            let resp = handle_request("initialize", json!(1), Some(&params), &vault).await;
+            let result = resp.result.unwrap();
+            assert_eq!(result["protocolVersion"], requested);
+        }
+    }
+
+    #[tokio::test]
+    async fn initialize_unknown_version_falls_back_to_latest() {
+        let vault = test_vault();
+        let params = json!({
+            "protocolVersion": "2099-01-01",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"}
+        });
+        let resp = handle_request("initialize", json!(1), Some(&params), &vault).await;
+        let result = resp.result.unwrap();
+        assert_eq!(result["protocolVersion"], "2025-06-18");
+    }
+
+    #[tokio::test]
+    async fn ping_returns_empty_result() {
+        let vault = test_vault();
+        let resp = handle_request("ping", json!(11), None, &vault).await;
+        assert!(resp.error.is_none());
+        let result = resp.result.unwrap();
+        assert_eq!(result, json!({}));
     }
 
     #[tokio::test]

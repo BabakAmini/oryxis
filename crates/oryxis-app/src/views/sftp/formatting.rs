@@ -119,8 +119,32 @@ pub(crate) fn approx_text_width(s: &str, size: f32) -> f32 {
 
 pub(crate) fn format_modified_local(modified: Option<std::time::SystemTime>) -> String {
     let Some(t) = modified else { return String::new() };
-    let dt: chrono::DateTime<chrono::Local> = t.into();
-    dt.format("%Y-%m-%d %H:%M").to_string()
+    // NOT `DateTime::from(SystemTime)`: that conversion panics when the
+    // timestamp falls outside chrono's representable range, and corrupt
+    // NTFS mtimes really do land there (an invalid FILETIME reads as
+    // year 30828+), which took the whole app down just for listing the
+    // folder that contained the file. Convert checked; garbage renders
+    // as a dash instead of a crash.
+    let (secs, nanos) = match t.duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => (i64::try_from(d.as_secs()).ok(), d.subsec_nanos()),
+        // Pre-epoch: negative seconds with nanos counted forward from
+        // the previous whole second, chrono's convention.
+        Err(e) => {
+            let d = e.duration();
+            let s = i64::try_from(d.as_secs()).ok();
+            if d.subsec_nanos() == 0 {
+                (s.and_then(i64::checked_neg), 0)
+            } else {
+                (
+                    s.and_then(|s| s.checked_add(1)).and_then(i64::checked_neg),
+                    1_000_000_000 - d.subsec_nanos(),
+                )
+            }
+        }
+    };
+    secs.and_then(|s| chrono::DateTime::<chrono::Utc>::from_timestamp(s, nanos))
+        .map(|dt| dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| "-".to_string())
 }
 
 pub(crate) fn format_modified_remote(mtime: Option<u32>) -> String {
@@ -146,5 +170,32 @@ pub(crate) fn format_size(bytes: u64) -> String {
         format!("{} {}", bytes, UNITS[0])
     } else {
         format!("{:.1} {}", value, UNITS[idx])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, UNIX_EPOCH};
+
+    /// Corrupt NTFS mtimes (invalid FILETIMEs read as year 30828+) land
+    /// outside chrono's range; formatting must degrade to a dash, not
+    /// panic mid-render (this crashed the whole app on listing such a
+    /// folder, issue #63).
+    #[test]
+    fn format_modified_local_survives_out_of_range_mtimes() {
+        // ~year 318,000, past chrono's +262,143 ceiling. Some platforms
+        // can't even represent it in SystemTime; nothing to assert there.
+        if let Some(t) = UNIX_EPOCH.checked_add(Duration::from_secs(10_000_000_000_000)) {
+            assert_eq!(format_modified_local(Some(t)), "-");
+        }
+        // A sane modern date still formats.
+        let recent = UNIX_EPOCH + Duration::from_secs(1_700_000_000);
+        assert!(format_modified_local(Some(recent)).starts_with("2023-11-1"));
+        // Pre-epoch is a real date, not garbage: 1901 formats too.
+        if let Some(t) = UNIX_EPOCH.checked_sub(Duration::from_secs(2_147_483_648)) {
+            assert!(format_modified_local(Some(t)).starts_with("1901-"));
+        }
+        assert_eq!(format_modified_local(None), "");
     }
 }

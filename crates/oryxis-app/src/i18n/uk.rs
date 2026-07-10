@@ -1257,7 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Сховати",
         "mcp_token_copy" => "Копіювати",
         "mcp_token_regenerate" => "Перегенерувати",
-        "mcp_token_desc" => "Потрібен кожному MCP-клієнту. Перегенерація робить попереднє значення недійсним, повторно запустіть Install, щоб оновити конфігурацію Claude Desktop.",
+        "mcp_token_desc" => "Потрібен кожному MCP-клієнту. Перегенерація робить попереднє значення недійсним, повторно запустіть Install, щоб оновити конфігурацію Claude Code.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Плагін AWS не встановлено",

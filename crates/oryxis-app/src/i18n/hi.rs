@@ -1326,7 +1326,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "छिपाएं",
         "mcp_token_copy" => "कॉपी करें",
         "mcp_token_regenerate" => "फिर से बनाएं",
-        "mcp_token_desc" => "हर MCP क्लाइंट के लिए आवश्यक। फिर से बनाने पर पिछला मान अमान्य हो जाता है, Claude Desktop कॉन्फ़िग ताज़ा करने के लिए Install दोबारा चलाएं।",
+        "mcp_token_desc" => "हर MCP क्लाइंट के लिए आवश्यक। फिर से बनाने पर पिछला मान अमान्य हो जाता है, Claude Code कॉन्फ़िग ताज़ा करने के लिए Install दोबारा चलाएं।",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS प्लगिन इंस्टॉल नहीं है",

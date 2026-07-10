@@ -1264,7 +1264,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "Ukryj",
         "mcp_token_copy" => "Kopiuj",
         "mcp_token_regenerate" => "Wygeneruj ponownie",
-        "mcp_token_desc" => "Wymagany przez każdego klienta MCP. Ponowne wygenerowanie unieważnia poprzednią wartość, uruchom ponownie Zainstaluj, aby odświeżyć konfigurację Claude Desktop.",
+        "mcp_token_desc" => "Wymagany przez każdego klienta MCP. Ponowne wygenerowanie unieważnia poprzednią wartość, uruchom ponownie Zainstaluj, aby odświeżyć konfigurację Claude Code.",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Wtyczka AWS niezainstalowana",
