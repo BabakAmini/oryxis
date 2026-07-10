@@ -576,6 +576,35 @@ impl Oryxis {
                     self.sftp_columns_template = self.sftp.pane(side).columns.clone();
                     self.persist_sftp_columns();
                 }
+                // Ends a tab reorder drag. The live-slide already moved
+                // the tab into place during the drag (see TabHovered); on
+                // drop we just persist the new pinned order (if the dragged
+                // tab is pinned) and clear. A plain click (never promoted to
+                // `active`) clears with no persist. Runs BEFORE any early
+                // return below: a release that also finished a column
+                // sort / SFTP drag / armed a rename used to skip this,
+                // leaving the ghost chip stuck on screen (field report).
+                if let Some(drag) = self.tab_drag.take()
+                    && drag.active
+                {
+                    // Persist when the dragged tab (terminal or SFTP) is pinned,
+                    // so the rearranged pinned order survives a relaunch.
+                    let pinned = self
+                        .tabs
+                        .iter()
+                        .find(|t| t._id == drag.from_id)
+                        .map(|t| t.pinned)
+                        .or_else(|| {
+                            self.sftp_tabs
+                                .iter()
+                                .find(|t| t.id == drag.from_id)
+                                .map(|t| t.pinned)
+                        })
+                        .unwrap_or(false);
+                    if pinned {
+                        self.persist_pinned_tabs();
+                    }
+                }
                 // End a column reorder. If the drag went active, move the
                 // dragged column before whichever header the cursor is over;
                 // a release without movement is a plain click that sorts.
@@ -612,32 +641,6 @@ impl Oryxis {
                 }
                 if let Some((side, path)) = self.sftp.pending_rename.take() {
                     return Ok(Task::done(Message::SftpStartRename(side, path)));
-                }
-                // And ends a tab reorder drag. The live-slide already moved
-                // the tab into place during the drag (see TabHovered); on
-                // drop we just persist the new pinned order (if the dragged
-                // tab is pinned) and clear. A plain click (never promoted to
-                // `active`) clears with no persist.
-                if let Some(drag) = self.tab_drag.take()
-                    && drag.active
-                {
-                    // Persist when the dragged tab (terminal or SFTP) is pinned,
-                    // so the rearranged pinned order survives a relaunch.
-                    let pinned = self
-                        .tabs
-                        .iter()
-                        .find(|t| t._id == drag.from_id)
-                        .map(|t| t.pinned)
-                        .or_else(|| {
-                            self.sftp_tabs
-                                .iter()
-                                .find(|t| t.id == drag.from_id)
-                                .map(|t| t.pinned)
-                        })
-                        .unwrap_or(false);
-                    if pinned {
-                        self.persist_pinned_tabs();
-                    }
                 }
             }
             Message::SendChat => {

@@ -237,6 +237,18 @@ impl Oryxis {
 
     pub(super) fn handle_window_focus_changed(&mut self, focused: bool) -> Result<Task<Message>, Message> {
         self.window_focused = focused;
+        if !focused {
+            // A mouse release OUTSIDE the window never reaches us, so a
+            // drag that leaves the window would keep its ghost chip
+            // floating forever (field report: a stuck tab ghost parked
+            // over the title bar). Losing focus is the reliable signal
+            // that the gesture ended elsewhere: cancel any in-flight
+            // drag state. The live-slide reorder already applied, so
+            // cancelling loses nothing but the ghost.
+            self.tab_drag = None;
+            self.sftp.drag = None;
+            self.sftp_col_drag = None;
+        }
         if focused {
             // Refocusing the window means the active tab is being
             // looked at again, IF the terminal view is on screen
