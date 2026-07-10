@@ -175,6 +175,22 @@ fn legacy_mcp_config_path() -> Result<std::path::PathBuf, String> {
     Ok(home_dir_for_config()?.join(".claude").join(".mcp.json"))
 }
 
+/// Where Claude Code reads its user-scope config from. Claude Code
+/// relocates `.claude.json` into `$CLAUDE_CONFIG_DIR` when that
+/// variable is set, so honor it; the plain home profile is the
+/// default. Best-effort: a GUI launch may not carry a shell-only
+/// export, in which case the default path is what Claude Code
+/// launched the same way would read anyway.
+fn claude_code_config_path() -> Result<std::path::PathBuf, String> {
+    if let Ok(dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        let dir = dir.trim();
+        if !dir.is_empty() {
+            return Ok(std::path::PathBuf::from(dir).join(".claude.json"));
+        }
+    }
+    Ok(home_dir_for_config()?.join(".claude.json"))
+}
+
 /// Merge the given oryxis server entry into a parsed config root,
 /// creating the `mcpServers` object when absent. Every unrelated key
 /// in the file is preserved untouched.
@@ -223,7 +239,6 @@ fn sweep_legacy_mcp_config() {
 /// "Install to Claude Code" at some point and a plugin update should
 /// refresh the entry.
 pub(crate) fn mcp_config_installed() -> bool {
-    let Ok(home) = home_dir_for_config() else { return false };
     let has_oryxis_entry = |path: &std::path::Path| {
         std::fs::read_to_string(path)
             .ok()
@@ -231,8 +246,8 @@ pub(crate) fn mcp_config_installed() -> bool {
             .map(|v| v.get("mcpServers").and_then(|s| s.get("oryxis")).is_some())
             .unwrap_or(false)
     };
-    has_oryxis_entry(&home.join(".claude.json"))
-        || has_oryxis_entry(&home.join(".claude").join(".mcp.json"))
+    claude_code_config_path().is_ok_and(|p| has_oryxis_entry(&p))
+        || legacy_mcp_config_path().is_ok_and(|p| has_oryxis_entry(&p))
 }
 
 /// Write/merge the oryxis MCP entry into Claude Code's user-scope
@@ -243,7 +258,7 @@ pub(crate) fn mcp_config_installed() -> bool {
 /// Threads `token` through so the on-disk config always carries
 /// whatever the vault setting holds.
 pub(crate) fn install_mcp_config_to_file(token: &str) -> Result<String, String> {
-    let config_path = home_dir_for_config()?.join(".claude.json");
+    let config_path = claude_code_config_path()?;
 
     // `~/.claude.json` is Claude Code's main state file: merge into it,
     // never replace it. A parse failure aborts rather than clobbering
