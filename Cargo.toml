@@ -131,3 +131,18 @@ strip = true
 inherits = "release"
 debug = "line-tables-only"
 split-debuginfo = "packed"
+
+# TEMPORARY (harness branch only): consume the local iced fork clone
+# carrying the oryxis-harness branch (Emulator screenshot cache fix,
+# operate(), emulated clipboard, subscription broadcast, scroll +
+# modifier-chord ice grammar). Before merging to main: push the fork
+# branch, merge it into the fork's `oryxis` branch, drop this [patch]
+# and refresh Cargo.lock to the new revision.
+[patch."https://github.com/wilsonglasser/iced"]
+iced = { path = "/home/wilson/iced" }
+iced_test = { path = "/home/wilson/iced/test" }
+# iced_fonts (a separate git repo) pulls these two straight from the
+# fork URL, so they must be redirected too or the graph ends up with
+# two `iced_core`s.
+iced_core = { path = "/home/wilson/iced/core" }
+iced_widget = { path = "/home/wilson/iced/widget" }

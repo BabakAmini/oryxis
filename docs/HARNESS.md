@@ -77,8 +77,10 @@ Any `.ice` instruction works as a command:
 |---------|---------|
 | `click "Text"` / `click #id` / `click (x, y)` | click a target (`click right ...` for right-click) |
 | `press` / `release` / `move <target>` | lower-level mouse steps |
+| `scroll (dx, dy) [<target>]` | mouse wheel in lines (negative y = down); `scroll pixels (dx, dy)` for pixel deltas; the optional target moves the cursor first |
 | `type "some text"` | typewrite into the focused widget |
-| `type enter` / `escape` / `tab` / `backspace` | named keys |
+| `type enter` / `escape` / `tab` / `backspace` | named keys (`press enter` / `release tab` for the halves) |
+| `type ctrl+k` / `type ctrl+shift+f` / `type alt+enter` | modifier chords; reach the app's global hotkeys |
 | `expect "Text"` | fail unless a widget currently shows `Text` |
 
 Plus harness meta-commands:
@@ -88,6 +90,7 @@ Plus harness meta-commands:
 | `screenshot [name]` | render the UI to `<shots>/<name>.png`, print the path |
 | `texts` | dump every visible text widget with bounds (reading order) |
 | `find "Text"` | like `texts`, filtered to matches |
+| `clipboard` / `clipboard "text"` | read / seed the emulated clipboard (see below) |
 | `wait <ms>` | pump emulator events for a fixed duration |
 | `settle [idle_ms]` | pump until the event stream stays quiet (default 250 ms, 30 s cap) |
 | `timeout <ms>` | set the per-instruction completion timeout (default 20 s) |
@@ -111,26 +114,37 @@ ignored, so a command file can be annotated.
 
 ## How it works / limitations
 
+The harness depends on the iced fork's `oryxis-harness` branch (see
+the `[patch]` section in the workspace `Cargo.toml`), which carries
+harness-grade emulator work: a fixed `Emulator::screenshot` (the
+upstream one loses the widget cache and poisons the next
+instruction), a public `Emulator::operate` (backs `texts`/`find`), an
+in-memory emulated clipboard (runtime tasks + widget-level paste,
+fulfilled per event so a `ctrl+v` chord's key release can't cancel
+the pending read), interaction-event broadcast to subscriptions
+(this is what makes global hotkeys like `Ctrl+K` work), and the
+`scroll`/chord grammar.
+
 - The emulator boots `Oryxis::boot` through the same
   `iced::application(...)` builder `main()` uses (fonts, theme,
   subscriptions), so behavior matches the windowed app. Tray,
   single-instance IPC and the window itself are skipped.
 - Rendering picks wgpu-headless when a GPU adapter exists and falls
   back to tiny-skia (CPU) otherwise, no display needed either way.
+- Screenshots come straight from the emulator's renderer and
+  widget-state cache: scroll offsets, focus rings and carets all
+  show, exactly like the windowed app.
 - Text selectors see iced text widgets only. The terminal grid is a
   custom canvas, so `expect` cannot match terminal output; verify
   terminal content visually via `screenshot`. Typing into the PTY
-  works normally (events flow through the widget).
-- `screenshot`/`texts`/`find` render through a harness-owned probe
-  renderer + widget-state cache, not the emulator's (upstream
-  `Emulator::screenshot` loses the widget cache, poisoning the next
-  instruction; the probe pair sidesteps that). Consequence: widget
-  state that lives outside app state, scroll offsets, focus rings,
-  carets, does not show in screenshots. App-state-driven content
-  (values, layout, text) is always truthful.
-- Clipboard and a few runtime actions are still TODO upstream in the
-  emulator; instructions relying on them will time out rather than
-  work.
+  works normally (events flow through the widget). Text *inputs*
+  expose their value visually, not to `expect` (it matches text
+  widgets, not input values).
+- The emulated clipboard covers everything that goes through iced
+  (widget paste, `iced::clipboard` tasks). App code that talks to
+  the system clipboard directly via `arboard` (e.g. the copy
+  actions behind `Message::CopyToClipboard`) bypasses it and hits
+  the real system clipboard of the machine running the harness.
 - Real window/WM concerns (multi-monitor geometry, DPI, tray) stay
   manual QA.
 

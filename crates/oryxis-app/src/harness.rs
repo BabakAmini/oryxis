@@ -12,14 +12,16 @@
 //! - `oryxis --harness-repl`: an interactive line protocol on
 //!   stdin/stdout for driving the app step by step. Every `.ice`
 //!   instruction works as a command (`click "Hosts"`, `type "ls"`,
-//!   `type enter`, `expect "Connected"`, `move (100, 200)`, ...),
-//!   plus harness meta-commands:
+//!   `type enter`, `type ctrl+shift+f`, `scroll (0, -3)`,
+//!   `expect "Connected"`, `move (100, 200)`, ...), plus harness
+//!   meta-commands:
 //!
 //!   - `screenshot [name]`: render the current UI to a PNG under the
 //!     shots directory and print its path.
 //!   - `texts`: dump every visible text widget with its bounds, a
 //!     poor man's DOM inspector for picking click targets.
 //!   - `find "text"`: bounds of the text widgets containing `text`.
+//!   - `clipboard ["text"]`: read, or seed, the emulated clipboard.
 //!   - `wait <ms>`: pump emulator events for a fixed duration (lets
 //!     async work like a vault unlock or an SSH dial settle).
 //!   - `settle [idle_ms]`: pump until the event stream stays quiet
@@ -57,15 +59,13 @@ use std::time::{Duration, Instant};
 
 use iced::{Program, Size};
 use iced_test::Instruction;
-use iced_test::core::renderer::{self as core_renderer, Headless as _};
+use iced_test::core::Rectangle;
+use iced_test::core::clipboard::Content;
 use iced_test::core::theme;
 use iced_test::core::widget::Id;
 use iced_test::core::widget::operation::Operation;
-use iced_test::core::{Rectangle, mouse, shell, window};
 use iced_test::emulator::{self, Emulator, Event};
 use iced_test::futures::futures::channel::mpsc::{self, TryRecvError};
-use iced_test::futures::futures::executor::block_on;
-use iced_test::runtime::{UserInterface, user_interface};
 
 /// How long the initial boot (vault open, font tasks, update check)
 /// may take before the REPL gives up waiting and hands over control
@@ -296,25 +296,6 @@ where
 {
     emulator: Emulator<P>,
     receiver: mpsc::Receiver<Event<P>>,
-    /// Window id handed to `Program::view`. Single-window
-    /// applications ignore it, any unique id works.
-    window: window::Id,
-    /// Lazily created second headless renderer that backs
-    /// `screenshot`, `texts` and `find`. The emulator has its own
-    /// renderer, but its `screenshot()` never restores the widget
-    /// cache it takes (upstream bug: `cache.take().unwrap()` with no
-    /// write-back poisons the next instruction), so the harness keeps
-    /// probing strictly on its own renderer + cache pair and never
-    /// touches the emulator's.
-    probe_renderer: Option<P::Renderer>,
-    /// Widget-state cache paired with `probe_renderer`. Persistent
-    /// across probe calls so consecutive screenshots stay coherent;
-    /// note it does NOT see widget state the emulator's interactions
-    /// build up (scroll offsets, focus rings), those live in the
-    /// emulator's private cache. Values, layout and text all come
-    /// from app state, so screenshots stay truthful for QA.
-    probe_cache: Option<user_interface::Cache>,
-    viewport: Size,
     scale: f32,
     shots: PathBuf,
     timeout: Duration,
@@ -329,10 +310,6 @@ where
     let mut session = Session {
         emulator: Emulator::new(sender, &program, options.mode, options.viewport),
         receiver,
-        window: window::Id::unique(),
-        probe_renderer: None,
-        probe_cache: Some(user_interface::Cache::default()),
-        viewport: options.viewport,
         scale: options.scale,
         shots: options.shots,
         timeout: options.timeout,
@@ -440,6 +417,31 @@ where
                 }
                 Err(_) => respond("error timeout wants milliseconds: timeout 30000"),
             },
+            "clipboard" => {
+                if rest.is_empty() {
+                    match session.emulator.clipboard() {
+                        Some(Content::Text(text)) => respond(format!("clipboard {text:?}")),
+                        Some(Content::Html(html)) => {
+                            respond(format!("clipboard html {html:?}"));
+                        }
+                        Some(Content::Files(files)) => {
+                            respond(format!("clipboard files {files:?}"));
+                        }
+                        Some(_) => respond("clipboard <non-text content>"),
+                        None => respond("clipboard empty"),
+                    }
+                } else {
+                    match parse_quoted(rest) {
+                        Some(text) => {
+                            session.emulator.set_clipboard(Some(Content::Text(text)));
+                            respond("ok");
+                        }
+                        None => respond(
+                            "error clipboard wants a quoted string: clipboard \"secret\"",
+                        ),
+                    }
+                }
+            }
             _ => match Instruction::parse(command) {
                 Ok(instruction) => {
                     session.emulator.run(&program, &instruction);
@@ -466,9 +468,11 @@ where
 
 const HELP: &str = "\
 instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target>
-              type \"text\" / type enter|escape|tab|backspace / expect \"Text\"
-harness:      screenshot [name] / texts / find \"Text\" / wait <ms>
-              settle [idle_ms] / timeout <ms> / help / quit
+              scroll [pixels] (dx, dy) [<target>] / type \"text\"
+              type enter|escape|tab|backspace / type ctrl+k / type ctrl+shift+f
+              press enter / release tab / expect \"Text\"
+harness:      screenshot [name] / texts / find \"Text\" / clipboard [\"text\"]
+              wait <ms> / settle [idle_ms] / timeout <ms> / help / quit
 responses:    == ok | == fail <instr> | == timeout | == shot <path> | == error <..>";
 
 impl<P> Session<P>
@@ -553,27 +557,9 @@ where
         }
     }
 
-    /// Creates the probe renderer on first use. Split from the
-    /// callers so they can re-borrow `self` field-by-field afterwards.
-    fn ensure_probe_renderer(&mut self, program: &P) -> Result<(), String> {
-        if self.probe_renderer.is_none() {
-            let settings = program.settings();
-            let renderer = block_on(P::Renderer::new(
-                core_renderer::Settings::from(&settings),
-                None,
-            ))
-            .ok_or("could not create a headless probe renderer")?;
-            self.probe_renderer = Some(renderer);
-        }
-        Ok(())
-    }
-
-    /// Renders the current UI into a PNG under the shots directory.
-    ///
-    /// Mirrors `Emulator::screenshot` (build, redraw-update, draw,
-    /// read pixels) but on the probe renderer/cache pair, see the
-    /// `probe_renderer` field docs for why the emulator's own
-    /// screenshot path is off limits.
+    /// Renders the current UI into a PNG under the shots directory,
+    /// straight from the emulator's own renderer and widget-state
+    /// cache (scroll offsets, focus, carets all included).
     fn screenshot(&mut self, program: &P, name: &str) -> Result<PathBuf, String> {
         self.shot_counter += 1;
         let name = if name.is_empty() {
@@ -582,87 +568,25 @@ where
             sanitize_name(name)
         };
 
-        self.ensure_probe_renderer(program)?;
-        let Session {
-            emulator,
-            probe_renderer,
-            probe_cache,
-            window,
-            viewport,
-            scale,
-            shots,
-            ..
-        } = self;
-        let renderer = probe_renderer.as_mut().expect("probe renderer ensured");
-
-        let theme = emulator
+        let theme = self
+            .emulator
             .theme(program)
             .unwrap_or_else(|| <P::Theme as theme::Base>::default(theme::Mode::None));
-        let style = program.style(emulator.state(), &theme);
+        let shot = self.emulator.screenshot(program, &theme, self.scale);
 
-        let mut ui = UserInterface::build(
-            program.view(emulator.state(), *window),
-            *viewport,
-            probe_cache.take().unwrap_or_default(),
-            renderer,
-        );
-        let _ = ui.update(
-            &window::Headless,
-            &shell::Waker::noop(),
-            &[iced_test::core::Event::Window(window::Event::RedrawRequested(
-                Instant::now(),
-            ))],
-            mouse::Cursor::Unavailable,
-            renderer,
-            &mut Vec::new(),
-        );
-        ui.draw(
-            renderer,
-            &theme,
-            &core_renderer::Style {
-                text_color: style.text_color,
-            },
-            mouse::Cursor::Unavailable,
-        );
-        *probe_cache = Some(ui.into_cache());
-
-        let physical = iced_test::core::Size::new(
-            (viewport.width * *scale).round() as u32,
-            (viewport.height * *scale).round() as u32,
-        );
-        let rgba = renderer.screenshot(physical, *scale, style.background_color);
-
-        let path = shots.join(format!("{name}.png"));
-        let image = image::RgbaImage::from_raw(physical.width, physical.height, rgba)
-            .ok_or("screenshot buffer size mismatch")?;
+        let path = self.shots.join(format!("{name}.png"));
+        let image =
+            image::RgbaImage::from_raw(shot.size.width, shot.size.height, shot.rgba.to_vec())
+                .ok_or("screenshot buffer size mismatch")?;
         image.save(&path).map_err(|e| e.to_string())?;
         Ok(path)
     }
 
-    /// Lays the current view out with the probe renderer and collects
-    /// every visible text widget with its bounds, sorted in reading
-    /// order.
+    /// Collects every visible text widget with its bounds, sorted in
+    /// reading order, from the emulator's live widget tree.
     fn texts(&mut self, program: &P) -> Result<Vec<(String, Rectangle)>, String> {
-        self.ensure_probe_renderer(program)?;
-        let Session {
-            emulator,
-            probe_renderer,
-            probe_cache,
-            window,
-            viewport,
-            ..
-        } = self;
-        let renderer = probe_renderer.as_mut().expect("probe renderer ensured");
-
-        let mut ui = UserInterface::build(
-            program.view(emulator.state(), *window),
-            *viewport,
-            probe_cache.take().unwrap_or_default(),
-            renderer,
-        );
         let mut dump = DumpTexts::default();
-        ui.operate(renderer, &mut dump);
-        *probe_cache = Some(ui.into_cache());
+        self.emulator.operate(program, &mut dump);
 
         let mut entries = dump.entries;
         entries.sort_by(|(_, a), (_, b)| {
