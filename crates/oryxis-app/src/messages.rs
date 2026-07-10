@@ -402,6 +402,16 @@ pub enum Message {
     SftpFileHovered,
     SftpFilesHoveredLeft,
     SftpFileDropped(std::path::PathBuf),
+    SftpDropFlush,
+    /// Async local-directory listing landed (side, pane listing seq,
+    /// listed path, rows or error). Emitted by `spawn_local_listing`;
+    /// stale seqs are dropped.
+    SftpLocalListed(
+        crate::state::SftpPaneSide,
+        u64,
+        std::path::PathBuf,
+        Result<Vec<crate::state::LocalEntry>, String>,
+    ),
     SftpRowEnter(crate::state::SftpPaneSide, String, bool),
     SftpRowExit,
     SftpMouseLeftPressed,

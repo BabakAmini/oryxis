@@ -338,7 +338,6 @@ impl Oryxis {
                 self.sftp.drop_active = false;
             }
             Message::SftpFileDropped(path) => {
-                let was_active = self.sftp.drop_active;
                 // OS drops only land in a remote folder when the
                 // hovered row is on the remote pane AND a folder.
                 let target_folder = self
@@ -348,7 +347,16 @@ impl Oryxis {
                     .filter(|(s, _, is_dir)| *s == remote_side && *is_dir)
                     .map(|(_, p, _)| p.clone());
                 self.sftp.drop_active = false;
-                if !was_active || !self.sftp_surface_visible() {
+                // Deliberately NOT gated on `drop_active`: a FileDropped
+                // only ever arrives from a genuine OS drop, and requiring
+                // the hover flag broke real gestures twice over. A
+                // multi-file drop delivers one FileDropped per file, so
+                // the first file consumed the flag and the rest were
+                // silently ignored; and a missed/late FileHovered
+                // (observed on Windows after a previous drop) killed the
+                // whole next gesture. The flag now only powers the drop
+                // highlight.
+                if !self.sftp_surface_visible() {
                     return Ok(Task::none());
                 }
                 let in_remote_pane =
@@ -360,15 +368,42 @@ impl Oryxis {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
                     return Ok(Task::none());
                 }
+                // A multi-select drop arrives as one FileDropped per
+                // file. Collect the burst and flush once, so it becomes
+                // a single batch transfer instead of N transfers racing
+                // for the queue UI. The first file of the gesture pins
+                // the destination (folder row vs pane dir) for them all.
+                if self.sftp.pending_drops.is_empty() {
+                    self.sftp.upload_dest_override = target_folder;
+                    self.sftp.pending_drops.push(path);
+                    return Ok(Task::perform(
+                        async {
+                            tokio::time::sleep(std::time::Duration::from_millis(
+                                150,
+                            ))
+                            .await;
+                        },
+                        |_| Message::SftpDropFlush,
+                    ));
+                }
+                self.sftp.pending_drops.push(path);
+            }
+            Message::SftpDropFlush => {
+                let mut paths = std::mem::take(&mut self.sftp.pending_drops);
                 // The upload handlers below consume `upload_dest_override`
-                // before falling back to `remote_path`. Drops onto a
-                // specific folder row land inside that folder; otherwise
-                // the active remote dir is used.
-                self.sftp.upload_dest_override = target_folder;
-                return Ok(if path.is_dir() {
-                    Task::done(Message::SftpUploadFolder(path))
-                } else {
-                    Task::done(Message::SftpUpload(path))
+                // (set when the burst started) before falling back to the
+                // pane's remote dir.
+                return Ok(match paths.len() {
+                    0 => Task::none(),
+                    1 => {
+                        let p = paths.remove(0);
+                        if p.is_dir() {
+                            Task::done(Message::SftpUploadFolder(p))
+                        } else {
+                            Task::done(Message::SftpUpload(p))
+                        }
+                    }
+                    _ => Task::done(Message::SftpUploadBatch(paths)),
                 });
             }
             Message::SftpUploadFolder(local_root) => {

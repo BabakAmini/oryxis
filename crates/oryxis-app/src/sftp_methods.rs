@@ -17,68 +17,55 @@ impl Oryxis {
         }
         let sort = self.sftp.pane(side).sort;
         let local_path = self.sftp.pane(side).local_path.clone();
-        {
-            let pane = self.sftp.pane_mut(side);
-            pane.local_entries.clear();
-            pane.error = None;
-        }
-
-        // Bare WSL UNC roots (`\\wsl$`, `\\wsl.localhost`) can't be
-        // enumerated via `read_dir`, Windows treats them as servers
-        // with no share and returns ERROR_PATH_NOT_FOUND. Synthesize
-        // distro entries from `wsl.exe -l -q` instead so the user can
-        // step into a distro just by clicking it.
-        if is_wsl_root(&local_path) {
-            let pane = self.sftp.pane_mut(side);
-            for distro in list_wsl_distros_for_pane() {
-                pane.local_entries.push(crate::state::LocalEntry {
-                    name: distro,
-                    is_dir: true,
-                    size: 0,
-                    modified: None,
-                    mode: None,
-                    uid: None,
-                    gid: None,
-                });
+        // In-place refresh of a directory that was just listed: the OS
+        // caches are warm, so the synchronous call is fine here. First
+        // ENTRY into a directory goes through the async
+        // `spawn_local_listing` path instead; a cold path (network
+        // drive, spun-down disk) can block `read_dir` for many seconds
+        // and a synchronous call here froze the whole UI until Windows
+        // declared the window dead.
+        match list_local_dir_blocking(&local_path) {
+            Ok(mut entries) => {
+                sort_local_entries(&mut entries, sort);
+                let pane = self.sftp.pane_mut(side);
+                pane.local_entries = entries;
+                pane.error = None;
             }
-            sort_local_entries(&mut pane.local_entries, sort);
-            return;
-        }
-
-        let read = match std::fs::read_dir(&local_path) {
-            Ok(r) => r,
             Err(e) => {
-                self.sftp.pane_mut(side).error = Some(e.to_string());
-                return;
+                let pane = self.sftp.pane_mut(side);
+                pane.local_entries.clear();
+                pane.error = Some(e);
             }
-        };
-        let pane = self.sftp.pane_mut(side);
-        for entry in read.flatten() {
-            let metadata = match entry.metadata() {
-                Ok(m) => m,
-                Err(_) => continue,
-            };
-            let name = entry.file_name().to_string_lossy().into_owned();
-            // POSIX mode / owner are Unix-only; on Windows these stay
-            // `None` and the Permissions / Owner columns render a dash.
-            #[cfg(unix)]
-            let (mode, uid, gid) = {
-                use std::os::unix::fs::MetadataExt;
-                (Some(metadata.mode()), Some(metadata.uid()), Some(metadata.gid()))
-            };
-            #[cfg(not(unix))]
-            let (mode, uid, gid) = (None, None, None);
-            pane.local_entries.push(crate::state::LocalEntry {
-                name,
-                is_dir: metadata.is_dir(),
-                size: metadata.len(),
-                modified: metadata.modified().ok(),
-                mode,
-                uid,
-                gid,
-            });
         }
-        sort_local_entries(&mut pane.local_entries, sort);
+    }
+
+    /// List `path` on a blocking worker thread and deliver the outcome
+    /// as `SftpLocalListed`. The entry path for NEW directories (row
+    /// click, breadcrumb, drive picker, typed/pasted path): the update
+    /// loop never touches the filesystem, so a cold path can't freeze
+    /// the UI.
+    pub(crate) fn spawn_local_listing(
+        &mut self,
+        side: crate::state::SftpPaneSide,
+        path: std::path::PathBuf,
+    ) -> Task<Message> {
+        // Bump the pane's listing seq so a slower, earlier listing
+        // (cold network path) can't overwrite this one when it finally
+        // lands; SftpLocalListed drops stale seqs.
+        let pane = self.sftp.pane_mut(side);
+        pane.local_list_seq = pane.local_list_seq.wrapping_add(1);
+        let seq = pane.local_list_seq;
+        let list_path = path.clone();
+        Task::perform(
+            async move {
+                tokio::task::spawn_blocking(move || {
+                    list_local_dir_blocking(&list_path)
+                })
+                .await
+                .unwrap_or_else(|e| Err(e.to_string()))
+            },
+            move |result| Message::SftpLocalListed(side, seq, path.clone(), result),
+        )
     }
 
     /// Append one line to the active SFTP tab's message log, stamping it
@@ -1031,6 +1018,61 @@ impl Oryxis {
         }
         self.active_sftp = Some(idx);
     }
+}
+
+/// Enumerate a local directory into `LocalEntry` rows, unsorted. Pure
+/// and blocking: callers pick the thread (`spawn_blocking` for first
+/// entry into a path, inline for warm in-place refreshes).
+pub(crate) fn list_local_dir_blocking(
+    local_path: &std::path::Path,
+) -> Result<Vec<crate::state::LocalEntry>, String> {
+    // Bare WSL UNC roots (`\\wsl$`, `\\wsl.localhost`) can't be
+    // enumerated via `read_dir`, Windows treats them as servers
+    // with no share and returns ERROR_PATH_NOT_FOUND. Synthesize
+    // distro entries from `wsl.exe -l -q` instead so the user can
+    // step into a distro just by clicking it.
+    if is_wsl_root(local_path) {
+        return Ok(list_wsl_distros_for_pane()
+            .into_iter()
+            .map(|distro| crate::state::LocalEntry {
+                name: distro,
+                is_dir: true,
+                size: 0,
+                modified: None,
+                mode: None,
+                uid: None,
+                gid: None,
+            })
+            .collect());
+    }
+    let read = std::fs::read_dir(local_path).map_err(|e| e.to_string())?;
+    let mut entries = Vec::new();
+    for entry in read.flatten() {
+        let metadata = match entry.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let name = entry.file_name().to_string_lossy().into_owned();
+        // POSIX mode / owner are Unix-only; on Windows these stay
+        // `None` and the Permissions / Owner columns render a dash.
+        #[cfg(unix)]
+        let (mode, uid, gid) = {
+            use std::os::unix::fs::MetadataExt;
+            (Some(metadata.mode()), Some(metadata.uid()), Some(metadata.gid()))
+        };
+        #[cfg(not(unix))]
+        let (mode, uid, gid) = (None, None, None);
+        entries.push(crate::state::LocalEntry {
+            name,
+            is_dir: metadata.is_dir(),
+            size: metadata.len(),
+            modified: metadata.modified().ok(),
+            mode,
+            uid,
+            gid,
+        });
+    }
+    Ok(entries)
 }
 
 /// Detects the synthetic WSL roots (`\\wsl$` / `\\wsl.localhost`).
