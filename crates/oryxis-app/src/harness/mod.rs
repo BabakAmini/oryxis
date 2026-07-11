@@ -6,9 +6,13 @@
 //! before anything else in `main()`:
 //!
 //! - `oryxis --harness-run <dir>`: batch-runs every `.ice` test file
-//!   in `<dir>` (see [`iced_test::Ice`] for the format). A failing
-//!   instruction dumps a PNG screenshot plus a reproduction `.ice`
-//!   into `<dir>/errors/` and exits non-zero. This is the CI mode.
+//!   in `<dir>`, in file-name order, each on a freshly wiped sandbox
+//!   (first-run state), with the harness line grammar (instructions
+//!   plus `settle` / `wait` / `timeout` / `screenshot` / `#`
+//!   comments) and a per-instruction timeout so a live PTY can't
+//!   deadlock a test. A failing instruction dumps a PNG screenshot
+//!   plus a reproduction `.ice` into `<dir>/errors/` and exits
+//!   non-zero. This is the CI mode (see `batch.rs`).
 //! - `oryxis --harness-repl`: an interactive line protocol on
 //!   stdin/stdout for driving the app step by step (see `repl.rs`).
 //! - `oryxis --harness-mcp`: an MCP (Model Context Protocol) server
@@ -43,6 +47,7 @@
 //! renders as tofu and text selectors still match but screenshots
 //! are useless.
 
+mod batch;
 mod mcp;
 mod repl;
 
@@ -267,16 +272,7 @@ where
     match &options.frontend {
         Frontend::Batch(dir) => {
             let dir = dir.clone();
-            match iced_test::run(program, &dir) {
-                Ok(()) => {
-                    println!("== ok all ice tests passed in {}", dir.display());
-                    Ok(())
-                }
-                Err(error) => {
-                    eprintln!("oryxis harness: ice run failed: {error}");
-                    std::process::exit(1);
-                }
-            }
+            batch::serve(program, options, &dir)
         }
         Frontend::Repl => repl::serve(program, options),
         Frontend::Mcp => mcp::serve(program, options),
@@ -336,10 +332,13 @@ where
     mode: emulator::Mode,
     timeout: Duration,
     shot_counter: u32,
-    /// Every instruction that executed (including timed-out ones,
+    /// Every line that executed (including timed-out instructions,
     /// which did run; excluding failures and parse errors), in
-    /// order. [`Session::save_ice`] turns this into a test file.
-    history: Vec<Instruction>,
+    /// order: `.ice` instructions in their normalized form plus the
+    /// harness lines the batch runner understands (`settle`, `wait`,
+    /// `timeout`, `screenshot`), recorded by the front-ends.
+    /// [`Session::save_ice`] turns this into a test file.
+    history: Vec<String>,
 }
 
 impl<P> Session<P>
@@ -401,16 +400,24 @@ where
         self.emulator.run(program, &instruction);
         match self.pump_until_ready(program, self.timeout) {
             Pump::Ready => {
-                self.history.push(instruction);
+                self.history.push(instruction.to_string());
                 RunOutcome::Done
             }
             Pump::Timeout => {
-                self.history.push(instruction);
+                self.history.push(instruction.to_string());
                 RunOutcome::Timeout
             }
             Pump::Failed(instruction) => RunOutcome::Failed(instruction),
             Pump::Closed => RunOutcome::Closed,
         }
+    }
+
+    /// Records a harness line (`settle`, `wait`, `timeout`,
+    /// `screenshot`) in the session history so `save_ice` writes a
+    /// test the batch runner replays with the same pacing. Instruction
+    /// lines record themselves in [`Session::run_line`].
+    fn record(&mut self, line: impl Into<String>) {
+        self.history.push(line.into());
     }
 
     /// Serializes the session history as an `.ice` test file and

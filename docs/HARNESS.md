@@ -29,16 +29,21 @@ cargo run -p oryxis-app --features harness -- \
     --harness-run crates/oryxis-app/tests/e2e --home "$(mktemp -d)"
 ```
 
-Runs every `.ice` file in `<dir>`. A failing instruction dumps a PNG
-screenshot plus a truncated reproduction `.ice` into `<dir>/errors/`
-and exits non-zero.
+Runs every `.ice` file in `<dir>` in file-name order (`fs::read_dir`
+order is not deterministic, so the runner sorts), each one on a
+freshly wiped sandbox: the `.oryxis` directory is removed before
+every test, so every test starts from the first-run (onboarding)
+state and never depends on what ran before it. A failing instruction
+dumps a PNG screenshot plus a truncated reproduction `.ice` into
+`<dir>/errors/` and exits non-zero.
 
-The `.ice` format (experimental upstream, syntax may change):
+The `.ice` format:
 
 ```text
 viewport: 1200x750
 mode: Zen
 -----
+# comments and blank lines are skipped
 expect "Welcome to Oryxis"
 click "Skip"
 expect "Protect your vault"
@@ -50,6 +55,26 @@ expect "Create host"
 (including indirect ones), `Patient` only for direct ones,
 `Immediate` never waits. See `crates/oryxis-app/tests/e2e/` for the
 committed suite.
+
+The batch runner executes instructions with the same per-instruction
+timeout as the interactive modes (`--timeout-ms`, default 20 s), so a
+live PTY cannot deadlock a test: a timed-out instruction still
+executed and the test moves on. It also understands the harness
+pacing lines, which makes terminal-session tests batchable:
+
+```text
+timeout 500        # per-instruction timeout (use once a PTY is open)
+settle 800         # pump until the event stream stays quiet
+wait 250           # pump for a fixed duration
+screenshot name    # PNG into the shots dir, printed as `== shot ...`
+```
+
+Screenshots taken by a test land in the shots directory (`--shots`,
+default `<home>/shots`) and are the way to validate canvas content
+(the terminal grid is invisible to `expect`); collect them as CI
+artifacts for visual review. `save_ice` in the interactive modes
+records these pacing lines too, so a recorded terminal flow replays
+with the same rhythm.
 
 ## Interactive mode (agent/manual QA): `--harness-repl`
 

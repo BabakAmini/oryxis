@@ -77,7 +77,10 @@ where
                 }
             }
             "screenshot" => match session.screenshot(&program, rest) {
-                Ok((path, _png)) => respond(format!("shot {}", path.display())),
+                Ok((path, _png)) => {
+                    session.record(command);
+                    respond(format!("shot {}", path.display()));
+                }
                 Err(reason) => respond(format!("error {reason}")),
             },
             "texts" => match session.texts(&program) {
@@ -110,6 +113,7 @@ where
             "wait" => match rest.parse::<u64>() {
                 Ok(ms) => {
                     session.wait(&program, Duration::from_millis(ms.min(600_000)));
+                    session.record(command);
                     respond("ok");
                 }
                 Err(_) => respond("error wait wants milliseconds: wait 500"),
@@ -121,11 +125,13 @@ where
                     Duration::from_millis(idle),
                     Duration::from_secs(30),
                 );
+                session.record(format!("settle {idle}"));
                 respond("ok");
             }
             "timeout" => match rest.parse::<u64>() {
                 Ok(ms) => {
                     session.timeout = Duration::from_millis(ms.clamp(100, 600_000));
+                    session.record(command);
                     respond("ok");
                 }
                 Err(_) => respond("error timeout wants milliseconds: timeout 30000"),

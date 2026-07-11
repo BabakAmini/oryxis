@@ -262,7 +262,7 @@ fn tool_definitions() -> Value {
         },
         {
             "name": "save_ice",
-            "description": "Write the recorded instruction history as a .ice test file replayable with `oryxis --harness-run <dir>`. Timing is handled by the mode header (zen waits for tasks), so settle/wait calls are not part of the file.",
+            "description": "Write the recorded instruction history as a .ice test file replayable with `oryxis --harness-run <dir>`. Harness pacing lines (settle / wait / timeout / screenshot) are recorded too, so terminal-session flows replay with the same rhythm.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -326,16 +326,23 @@ where
                 .and_then(Value::as_str)
                 .unwrap_or_default();
             match session.screenshot(program, name) {
-                Ok((path, png)) => json!({
-                    "content": [
-                        {
-                            "type": "image",
-                            "data": base64::engine::general_purpose::STANDARD.encode(&png),
-                            "mimeType": "image/png"
-                        },
-                        { "type": "text", "text": format!("saved to {}", path.display()) }
-                    ]
-                }),
+                Ok((path, png)) => {
+                    session.record(if name.is_empty() {
+                        "screenshot".to_owned()
+                    } else {
+                        format!("screenshot {name}")
+                    });
+                    json!({
+                        "content": [
+                            {
+                                "type": "image",
+                                "data": base64::engine::general_purpose::STANDARD.encode(&png),
+                                "mimeType": "image/png"
+                            },
+                            { "type": "text", "text": format!("saved to {}", path.display()) }
+                        ]
+                    })
+                }
                 Err(reason) => error_result(&reason),
             }
         }
@@ -368,6 +375,7 @@ where
                 Duration::from_millis(idle),
                 Duration::from_secs(30),
             );
+            session.record(format!("settle {idle}"));
             text_result("settled")
         }
         "wait" => {
@@ -375,6 +383,7 @@ where
                 return error_result("wait wants `ms`");
             };
             session.wait(program, Duration::from_millis(ms.min(600_000)));
+            session.record(format!("wait {}", ms.min(600_000)));
             text_result("waited")
         }
         "set_timeout" => {
@@ -382,6 +391,7 @@ where
                 return error_result("set_timeout wants `ms`");
             };
             session.timeout = Duration::from_millis(ms.clamp(100, 600_000));
+            session.record(format!("timeout {}", ms.clamp(100, 600_000)));
             text_result(&format!("instruction timeout set to {ms} ms"))
         }
         "clipboard_get" => match session.emulator.clipboard() {
