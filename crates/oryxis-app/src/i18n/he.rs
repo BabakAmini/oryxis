@@ -785,7 +785,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "מתקדם",
         "download_mirror" => "שרת מראה להורדות",
-        "download_mirror_desc" => "מנתב הורדות של גופנים, תוספים ועדכונים דרך שרת מראה כאשר GitHub חסום או איטי ברשת שלך (נפוץ ברשתות בסין). כל הורדה ממשיכה להיות מאומתת ב-SHA-256 או Ed25519, כך שאין צורך לתת אמון במראה. אוטומטי משתמש במראה המובנית אם קיימת וחוזר ל-GitHub.",
+        "download_mirror_desc" => "מנתב הורדות של גופנים, תוספים ועדכונים דרך שרת מראה כאשר GitHub חסום או איטי ברשת שלך (נפוץ ברשתות בסין). כל הורדה ממשיכה להיות מאומתת ב-SHA-256 או Ed25519, כך שאין צורך לתת אמון במראה. אוטומטי משתמש קודם ב-GitHub ועובר למראה של הפרויקט כאשר GitHub אינו נגיש.",
         "download_mirror_auto" => "אוטומטי",
         "download_mirror_github" => "GitHub בלבד",
         "download_mirror_custom" => "מראה מותאמת אישית",

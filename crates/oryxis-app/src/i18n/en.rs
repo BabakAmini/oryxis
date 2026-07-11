@@ -785,7 +785,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Advanced",
         "download_mirror" => "Download mirror",
-        "download_mirror_desc" => "Route font, plugin and update downloads through a mirror when GitHub is blocked or slow on your network (common on mainland-China networks). Every download stays SHA-256 or Ed25519 verified, so the mirror never has to be trusted. Automatic uses the bundled mirror when one is available and falls back to GitHub.",
+        "download_mirror_desc" => "Route font, plugin and update downloads through a mirror when GitHub is blocked or slow on your network (common on mainland-China networks). Every download stays SHA-256 or Ed25519 verified, so the mirror never has to be trusted. Automatic uses GitHub and falls back to the project's mirror when GitHub is unreachable.",
         "download_mirror_auto" => "Automatic",
         "download_mirror_github" => "GitHub only",
         "download_mirror_custom" => "Custom mirror",

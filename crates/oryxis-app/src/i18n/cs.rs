@@ -785,7 +785,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Pokročilé",
         "download_mirror" => "Zrcadlo stahování",
-        "download_mirror_desc" => "Směruje stahování písem, pluginů a aktualizací přes zrcadlo, když je GitHub ve vaší síti blokovaný nebo pomalý (běžné v sítích pevninské Číny). Každé stažení je dál ověřeno pomocí SHA-256 nebo Ed25519, zrcadlu tedy není třeba důvěřovat. Automaticky použije vestavěné zrcadlo, pokud existuje, a vrátí se ke GitHubu.",
+        "download_mirror_desc" => "Směruje stahování písem, pluginů a aktualizací přes zrcadlo, když je GitHub ve vaší síti blokovaný nebo pomalý (běžné v sítích pevninské Číny). Každé stažení je dál ověřeno pomocí SHA-256 nebo Ed25519, zrcadlu tedy není třeba důvěřovat. Automaticky použije GitHub a přepne se na zrcadlo projektu, když je GitHub nedostupný.",
         "download_mirror_auto" => "Automaticky",
         "download_mirror_github" => "Pouze GitHub",
         "download_mirror_custom" => "Vlastní zrcadlo",

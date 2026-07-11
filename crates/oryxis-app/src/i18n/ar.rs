@@ -797,7 +797,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "متقدم",
         "download_mirror" => "مرآة التنزيل",
-        "download_mirror_desc" => "يوجّه تنزيلات الخطوط والإضافات والتحديثات عبر مرآة عندما يكون GitHub محجوباً أو بطيئاً على شبكتك (شائع في شبكات الصين). تبقى كل التنزيلات موثّقة عبر SHA-256 أو Ed25519، لذا لا حاجة للثقة بالمرآة. الوضع التلقائي يستخدم المرآة المدمجة إن وُجدت ويعود إلى GitHub عند عدم توفرها.",
+        "download_mirror_desc" => "يوجّه تنزيلات الخطوط والإضافات والتحديثات عبر مرآة عندما يكون GitHub محجوباً أو بطيئاً على شبكتك (شائع في شبكات الصين). تبقى كل التنزيلات موثّقة عبر SHA-256 أو Ed25519، لذا لا حاجة للثقة بالمرآة. الوضع التلقائي يستخدم GitHub أولاً ويتحول إلى مرآة المشروع عندما يتعذر الوصول إلى GitHub.",
         "download_mirror_auto" => "تلقائي",
         "download_mirror_github" => "GitHub فقط",
         "download_mirror_custom" => "مرآة مخصصة",

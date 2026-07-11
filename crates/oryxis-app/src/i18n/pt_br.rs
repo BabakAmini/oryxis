@@ -753,7 +753,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Avançado",
         "download_mirror" => "Espelho de download",
-        "download_mirror_desc" => "Roteia downloads de fontes, plugins e atualizações por um espelho quando o GitHub está bloqueado ou lento na sua rede (comum em redes da China continental). Todo download continua verificado por SHA-256 ou Ed25519, então o espelho nunca precisa ser confiável. Automático usa o espelho embutido quando disponível e recorre ao GitHub.",
+        "download_mirror_desc" => "Roteia downloads de fontes, plugins e atualizações por um espelho quando o GitHub está bloqueado ou lento na sua rede (comum em redes da China continental). Todo download continua verificado por SHA-256 ou Ed25519, então o espelho nunca precisa ser confiável. Automático usa o GitHub e recorre ao espelho do projeto quando o GitHub está inacessível.",
         "download_mirror_auto" => "Automático",
         "download_mirror_github" => "Somente GitHub",
         "download_mirror_custom" => "Espelho personalizado",

@@ -625,7 +625,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Avanzado",
         "download_mirror" => "Espejo de descargas",
-        "download_mirror_desc" => "Encamina las descargas de fuentes, plugins y actualizaciones a través de un espejo cuando GitHub está bloqueado o lento en tu red (habitual en redes de China continental). Cada descarga sigue verificada con SHA-256 o Ed25519, así que nunca hace falta confiar en el espejo. Automático usa el espejo integrado cuando existe y recurre a GitHub.",
+        "download_mirror_desc" => "Encamina las descargas de fuentes, plugins y actualizaciones a través de un espejo cuando GitHub está bloqueado o lento en tu red (habitual en redes de China continental). Cada descarga sigue verificada con SHA-256 o Ed25519, así que nunca hace falta confiar en el espejo. Automático usa GitHub y recurre al espejo del proyecto cuando GitHub no está accesible.",
         "download_mirror_auto" => "Automático",
         "download_mirror_github" => "Solo GitHub",
         "download_mirror_custom" => "Espejo personalizado",

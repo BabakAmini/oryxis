@@ -628,7 +628,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Avancé",
         "download_mirror" => "Miroir de téléchargement",
-        "download_mirror_desc" => "Achemine les téléchargements de polices, plugins et mises à jour via un miroir quand GitHub est bloqué ou lent sur votre réseau (courant en Chine continentale). Chaque téléchargement reste vérifié par SHA-256 ou Ed25519, le miroir n'a donc jamais besoin d'être de confiance. Automatique utilise le miroir intégré s'il existe et retombe sur GitHub.",
+        "download_mirror_desc" => "Achemine les téléchargements de polices, plugins et mises à jour via un miroir quand GitHub est bloqué ou lent sur votre réseau (courant en Chine continentale). Chaque téléchargement reste vérifié par SHA-256 ou Ed25519, le miroir n'a donc jamais besoin d'être de confiance. Automatique utilise GitHub et retombe sur le miroir du projet quand GitHub est injoignable.",
         "download_mirror_auto" => "Automatique",
         "download_mirror_github" => "GitHub uniquement",
         "download_mirror_custom" => "Miroir personnalisé",

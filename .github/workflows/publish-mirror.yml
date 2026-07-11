@@ -1,0 +1,118 @@
+# Publishes release assets and API-metadata snapshots to the download
+# mirror bucket (Cloudflare R2 `oryxis-dl`, served as dl.oryxis.app and
+# fronted for mainland China by Tencent EdgeOne at dl-cn.oryxis.app).
+#
+# The app's `net_mirror::asset_path` maps GitHub URLs onto this layout;
+# keep the two in lockstep:
+#
+#   fonts/<file>              pinned CJK fonts (from google/fonts)
+#   releases/<tag>/<asset>    release assets incl. .sig sidecars
+#   releases/latest.json      snapshot of GET repos/.../releases/latest
+#   releases/nightly.json     snapshot of GET repos/.../releases/tags/nightly
+#   releases/index.json       snapshot of GET repos/.../releases?per_page=30
+#
+# Mirror content never needs to be trusted by clients: every asset is
+# SHA-256 and/or Ed25519 verified against keys baked into the app.
+#
+# Reusable: every release workflow calls this with its tag after the
+# GitHub release is published, so the snapshots always reflect the
+# post-release API state.
+
+name: Publish to download mirror
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag whose assets are synced to the mirror
+        required: true
+        type: string
+  # Manual runs seed the mirror with releases that predate this
+  # workflow (v0.9.0, mcp-v0.1.2, ...): one dispatch per tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose assets are synced to the mirror
+        required: true
+        type: string
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      BUCKET: oryxis-dl
+      # The account id is not a secret (it is visible in every R2 URL);
+      # the credentials below are.
+      AWS_ENDPOINT_URL: https://acd6c60770173234a03c6311de016dff.r2.cloudflarestorage.com
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag }}
+    steps:
+      - name: Download release assets
+        run: |
+          set -euo pipefail
+          mkdir -p "assets/releases/$TAG"
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "assets/releases/$TAG"
+          ls -la "assets/releases/$TAG"
+
+      - name: Snapshot release metadata
+        run: |
+          set -euo pipefail
+          api="repos/$GITHUB_REPOSITORY/releases"
+          gh api "$api?per_page=30" > assets/releases/index.json
+          # latest / nightly may 404 before the first matching release
+          # exists; skip rather than publish an error body.
+          gh api "$api/latest" > assets/releases/latest.json || rm -f assets/releases/latest.json
+          gh api "$api/tags/nightly" > assets/releases/nightly.json || rm -f assets/releases/nightly.json
+
+      - name: Mirror the pinned CJK fonts
+        run: |
+          set -euo pipefail
+          # Keys match the (percent-encoded) file names of the pinned
+          # raw.githubusercontent URLs in crates/oryxis-app/src/fonts.rs.
+          commit=c89741abbf4eeabce432c3ed2fd7dc28b022701e
+          base="https://raw.githubusercontent.com/google/fonts/$commit/ofl"
+          mkdir -p assets/fonts
+          declare -A fonts=(
+            ["NotoSansKR%5Bwght%5D.ttf"]="$base/notosanskr/NotoSansKR%5Bwght%5D.ttf"
+            ["NotoSansSC%5Bwght%5D.ttf"]="$base/notosanssc/NotoSansSC%5Bwght%5D.ttf"
+            ["NotoSansJP%5Bwght%5D.ttf"]="$base/notosansjp/NotoSansJP%5Bwght%5D.ttf"
+            ["NotoSansTC%5Bwght%5D.ttf"]="$base/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+          )
+          for key in "${!fonts[@]}"; do
+            # Immutable, commit-pinned content: skip when already there.
+            if aws s3api head-object --bucket "$BUCKET" --key "fonts/$key" >/dev/null 2>&1; then
+              echo "fonts/$key already mirrored"
+              continue
+            fi
+            curl -fsSL "${fonts[$key]}" -o "assets/fonts/$key"
+            aws s3 cp "assets/fonts/$key" "s3://$BUCKET/fonts/$key"
+          done
+
+      - name: Upload to the mirror bucket
+        run: |
+          set -euo pipefail
+          aws s3 sync "assets/releases/$TAG" "s3://$BUCKET/releases/$TAG"
+          for f in index.json latest.json nightly.json; do
+            if [ -f "assets/releases/$f" ]; then
+              aws s3 cp "assets/releases/$f" "s3://$BUCKET/releases/$f" \
+                --content-type application/json \
+                --cache-control "public, max-age=300"
+            fi
+          done
+
+      - name: Verify through the public endpoint
+        run: |
+          set -euo pipefail
+          # One asset fetched back through dl.oryxis.app proves the
+          # bucket -> custom domain chain end to end.
+          probe=$(ls "assets/releases/$TAG" | head -1)
+          curl -fsSI "https://dl.oryxis.app/releases/$TAG/$probe" | head -3
+          curl -fsS "https://dl.oryxis.app/releases/index.json" | head -c 200 >/dev/null
+          echo "mirror OK"

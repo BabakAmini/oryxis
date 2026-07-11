@@ -619,7 +619,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Avanzate",
         "download_mirror" => "Mirror di download",
-        "download_mirror_desc" => "Instrada i download di font, plugin e aggiornamenti attraverso un mirror quando GitHub è bloccato o lento sulla tua rete (comune nelle reti della Cina continentale). Ogni download resta verificato con SHA-256 o Ed25519, quindi non serve mai fidarsi del mirror. Automatico usa il mirror integrato quando disponibile e ripiega su GitHub.",
+        "download_mirror_desc" => "Instrada i download di font, plugin e aggiornamenti attraverso un mirror quando GitHub è bloccato o lento sulla tua rete (comune nelle reti della Cina continentale). Ogni download resta verificato con SHA-256 o Ed25519, quindi non serve mai fidarsi del mirror. Automatico usa GitHub e ripiega sul mirror del progetto quando GitHub non è raggiungibile.",
         "download_mirror_auto" => "Automatico",
         "download_mirror_github" => "Solo GitHub",
         "download_mirror_custom" => "Mirror personalizzato",

@@ -628,7 +628,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "高级",
         "download_mirror" => "下载镜像",
-        "download_mirror_desc" => "当你的网络无法访问 GitHub 或速度很慢时（中国大陆网络常见），通过镜像下载字体、插件和更新。所有下载仍经过 SHA-256 或 Ed25519 校验，因此无需信任镜像本身。自动模式在有内置镜像时优先使用镜像，否则回退到 GitHub。",
+        "download_mirror_desc" => "当你的网络无法访问 GitHub 或速度很慢时（中国大陆网络常见），通过镜像下载字体、插件和更新。所有下载仍经过 SHA-256 或 Ed25519 校验，因此无需信任镜像本身。自动模式优先使用 GitHub，无法访问时回退到项目镜像。",
         "download_mirror_auto" => "自动",
         "download_mirror_github" => "仅 GitHub",
         "download_mirror_custom" => "自定义镜像",

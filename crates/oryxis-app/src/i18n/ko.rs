@@ -779,7 +779,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "고급",
         "download_mirror" => "다운로드 미러",
-        "download_mirror_desc" => "네트워크에서 GitHub가 차단되었거나 느릴 때(중국 본토 네트워크에서 흔함) 글꼴, 플러그인, 업데이트 다운로드를 미러를 통해 처리합니다. 모든 다운로드는 계속 SHA-256 또는 Ed25519로 검증되므로 미러를 신뢰할 필요가 없습니다. 자동은 내장 미러가 있으면 사용하고 없으면 GitHub로 돌아갑니다.",
+        "download_mirror_desc" => "네트워크에서 GitHub가 차단되었거나 느릴 때(중국 본토 네트워크에서 흔함) 글꼴, 플러그인, 업데이트 다운로드를 미러를 통해 처리합니다. 모든 다운로드는 계속 SHA-256 또는 Ed25519로 검증되므로 미러를 신뢰할 필요가 없습니다. 자동은 GitHub를 우선 사용하고, 접속할 수 없을 때만 프로젝트 미러로 전환합니다.",
         "download_mirror_auto" => "자동",
         "download_mirror_github" => "GitHub만",
         "download_mirror_custom" => "사용자 지정 미러",

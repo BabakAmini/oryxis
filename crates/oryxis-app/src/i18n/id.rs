@@ -779,7 +779,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Lanjutan",
         "download_mirror" => "Cermin unduhan",
-        "download_mirror_desc" => "Mengarahkan unduhan fon, plugin, dan pembaruan melalui cermin saat GitHub diblokir atau lambat di jaringan Anda (umum di jaringan Tiongkok daratan). Semua unduhan tetap diverifikasi dengan SHA-256 atau Ed25519, jadi cermin tidak perlu dipercaya. Otomatis memakai cermin bawaan bila ada dan kembali ke GitHub.",
+        "download_mirror_desc" => "Mengarahkan unduhan fon, plugin, dan pembaruan melalui cermin saat GitHub diblokir atau lambat di jaringan Anda (umum di jaringan Tiongkok daratan). Semua unduhan tetap diverifikasi dengan SHA-256 atau Ed25519, jadi cermin tidak perlu dipercaya. Otomatis memakai GitHub lebih dulu dan beralih ke cermin proyek saat GitHub tidak terjangkau.",
         "download_mirror_auto" => "Otomatis",
         "download_mirror_github" => "Hanya GitHub",
         "download_mirror_custom" => "Cermin kustom",

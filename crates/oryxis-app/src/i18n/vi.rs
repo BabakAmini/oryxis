@@ -779,7 +779,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Nâng cao",
         "download_mirror" => "Máy chủ gương tải xuống",
-        "download_mirror_desc" => "Chuyển tải xuống phông chữ, plugin và bản cập nhật qua máy chủ gương khi GitHub bị chặn hoặc chậm trên mạng của bạn (phổ biến ở mạng Trung Quốc đại lục). Mọi tải xuống vẫn được xác minh bằng SHA-256 hoặc Ed25519, nên không cần tin cậy máy chủ gương. Tự động dùng gương tích hợp nếu có và quay về GitHub.",
+        "download_mirror_desc" => "Chuyển tải xuống phông chữ, plugin và bản cập nhật qua máy chủ gương khi GitHub bị chặn hoặc chậm trên mạng của bạn (phổ biến ở mạng Trung Quốc đại lục). Mọi tải xuống vẫn được xác minh bằng SHA-256 hoặc Ed25519, nên không cần tin cậy máy chủ gương. Tự động ưu tiên GitHub và chuyển sang gương của dự án khi GitHub không truy cập được.",
         "download_mirror_auto" => "Tự động",
         "download_mirror_github" => "Chỉ GitHub",
         "download_mirror_custom" => "Gương tùy chỉnh",

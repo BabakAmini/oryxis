@@ -785,7 +785,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Zaawansowane",
         "download_mirror" => "Serwer lustrzany pobierania",
-        "download_mirror_desc" => "Kieruje pobieranie czcionek, wtyczek i aktualizacji przez serwer lustrzany, gdy GitHub jest zablokowany lub wolny w twojej sieci (typowe w sieciach Chin kontynentalnych). Każde pobranie pozostaje weryfikowane przez SHA-256 lub Ed25519, więc lustru nie trzeba ufać. Automatycznie używa wbudowanego lustra, jeśli istnieje, i wraca do GitHuba.",
+        "download_mirror_desc" => "Kieruje pobieranie czcionek, wtyczek i aktualizacji przez serwer lustrzany, gdy GitHub jest zablokowany lub wolny w twojej sieci (typowe w sieciach Chin kontynentalnych). Każde pobranie pozostaje weryfikowane przez SHA-256 lub Ed25519, więc lustru nie trzeba ufać. Automatycznie używa GitHuba i przełącza się na lustro projektu, gdy GitHub jest niedostępny.",
         "download_mirror_auto" => "Automatycznie",
         "download_mirror_github" => "Tylko GitHub",
         "download_mirror_custom" => "Własne lustro",

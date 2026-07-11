@@ -727,3 +727,15 @@ jobs:
           # deliberately excluded; winget targets the system installer.
           installers-regex: 'oryxis-setup-(x86_64|aarch64)\.exe$'
           token: ${{ secrets.WINGET_TOKEN }}
+
+  # Sync the published assets + API snapshots to the download mirror
+  # (dl.oryxis.app / dl-cn.oryxis.app), the Auto fallback for networks
+  # where GitHub is blocked (mainland China). Layout contract lives in
+  # publish-mirror.yml and net_mirror.rs.
+  mirror:
+    name: Publish to download mirror
+    needs: [release]
+    uses: ./.github/workflows/publish-mirror.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

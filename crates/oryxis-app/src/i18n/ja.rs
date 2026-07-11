@@ -628,7 +628,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "詳細設定",
         "download_mirror" => "ダウンロードミラー",
-        "download_mirror_desc" => "ネットワークで GitHub がブロックされている、または遅い場合（中国本土のネットワークでよくある）、フォント・プラグイン・更新のダウンロードをミラー経由にします。すべてのダウンロードは SHA-256 または Ed25519 で検証されるため、ミラー自体を信頼する必要はありません。自動は内蔵ミラーがあればそれを使い、なければ GitHub に戻ります。",
+        "download_mirror_desc" => "ネットワークで GitHub がブロックされている、または遅い場合（中国本土のネットワークでよくある）、フォント・プラグイン・更新のダウンロードをミラー経由にします。すべてのダウンロードは SHA-256 または Ed25519 で検証されるため、ミラー自体を信頼する必要はありません。自動は GitHub を優先し、接続できない場合のみプロジェクトのミラーに切り替えます。",
         "download_mirror_auto" => "自動",
         "download_mirror_github" => "GitHub のみ",
         "download_mirror_custom" => "カスタムミラー",

@@ -779,7 +779,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Gelişmiş",
         "download_mirror" => "İndirme yansısı",
-        "download_mirror_desc" => "Ağınızda GitHub engelli veya yavaş olduğunda (Çin anakarası ağlarında yaygın) yazı tipi, eklenti ve güncelleme indirmelerini bir yansı üzerinden yönlendirir. Her indirme SHA-256 veya Ed25519 ile doğrulanmaya devam eder, bu yüzden yansıya güvenmek gerekmez. Otomatik, varsa yerleşik yansıyı kullanır ve GitHub'a geri döner.",
+        "download_mirror_desc" => "Ağınızda GitHub engelli veya yavaş olduğunda (Çin anakarası ağlarında yaygın) yazı tipi, eklenti ve güncelleme indirmelerini bir yansı üzerinden yönlendirir. Her indirme SHA-256 veya Ed25519 ile doğrulanmaya devam eder, bu yüzden yansıya güvenmek gerekmez. Otomatik önce GitHub'ı kullanır, erişilemezse projenin yansısına geçer.",
         "download_mirror_auto" => "Otomatik",
         "download_mirror_github" => "Yalnızca GitHub",
         "download_mirror_custom" => "Özel yansı",

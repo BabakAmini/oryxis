@@ -619,7 +619,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Erweitert",
         "download_mirror" => "Download-Spiegel",
-        "download_mirror_desc" => "Leitet Schriftart-, Plugin- und Update-Downloads über einen Spiegelserver, wenn GitHub in deinem Netz blockiert oder langsam ist (üblich in Festlandchina). Jeder Download bleibt per SHA-256 oder Ed25519 verifiziert, dem Spiegel muss also nie vertraut werden. Automatisch nutzt den mitgelieferten Spiegel, falls vorhanden, und fällt auf GitHub zurück.",
+        "download_mirror_desc" => "Leitet Schriftart-, Plugin- und Update-Downloads über einen Spiegelserver, wenn GitHub in deinem Netz blockiert oder langsam ist (üblich in Festlandchina). Jeder Download bleibt per SHA-256 oder Ed25519 verifiziert, dem Spiegel muss also nie vertraut werden. Automatisch nutzt GitHub und fällt auf den Projektspiegel zurück, wenn GitHub nicht erreichbar ist.",
         "download_mirror_auto" => "Automatisch",
         "download_mirror_github" => "Nur GitHub",
         "download_mirror_custom" => "Eigener Spiegel",
