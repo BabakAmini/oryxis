@@ -522,25 +522,34 @@ impl Oryxis {
             } else {
                 crate::i18n::t("proxy_password_placeholder")
             };
+            // Keyboard rows: the field, then its reveal eye.
+            self.panel_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("editor-proxy-password"),
+            ));
             col = col
                 .push(Space::new().height(8))
                 .push(panel_field(
                     crate::i18n::t("proxy_password"),
-                    self.panel_nav_slot(
-                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-proxy-password")),
+                    crate::widgets::password_input_with_eye_nav(
+                        placeholder,
+                        &self.editor_form.proxy_password,
+                        Message::EditorProxyPasswordChanged,
+                        Some(Message::EditorSave),
+                        self.revealed_secrets
+                            .contains(&crate::state::SecretField::ProxyPassword),
+                        Message::ToggleSecretVisibility(
+                            crate::state::SecretField::ProxyPassword,
+                        ),
                         10.0,
-                        crate::widgets::password_input_with_eye_id(
-                            placeholder,
-                            &self.editor_form.proxy_password,
-                            Message::EditorProxyPasswordChanged,
-                            Some(Message::EditorSave),
-                            self.revealed_secrets
-                                .contains(&crate::state::SecretField::ProxyPassword),
-                            Message::ToggleSecretVisibility(
-                                crate::state::SecretField::ProxyPassword,
+                        Some(iced::widget::Id::new("editor-proxy-password")),
+                        |eye| self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::ToggleSecretVisibility(
+                                    crate::state::SecretField::ProxyPassword,
+                                ),
                             ),
-                            10.0,
-                            Some(iced::widget::Id::new("editor-proxy-password")),
+                            6.0,
+                            eye,
                         ),
                     ),
                 ));

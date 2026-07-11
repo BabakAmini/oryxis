@@ -166,6 +166,17 @@ impl crate::app::Oryxis {
         }
     }
 
+    /// Record one modal-layer row WITHOUT wrapping an element, for
+    /// call sites whose ring wrapper must be applied later than the
+    /// recording (an inner slot records during construction, e.g. the
+    /// password reveal eye inside its field). Pair with
+    /// [`Self::modal_nav_ring_at`].
+    pub(crate) fn modal_nav_record(&self, action: RowAction) -> usize {
+        let mut items = self.keynav.modal.items.borrow_mut();
+        items.push(action);
+        items.len() - 1
+    }
+
     /// Record one actionable row and ring it when selected. `radius`
     /// matches the row's own corner radius; `contrast` picks the
     /// text_primary ring for accent/danger-filled buttons (an accent
@@ -177,11 +188,19 @@ impl crate::app::Oryxis {
         contrast: bool,
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
-        let idx = {
-            let mut items = self.keynav.modal.items.borrow_mut();
-            items.push(action);
-            items.len() - 1
-        };
+        let idx = self.modal_nav_record(action);
+        self.modal_nav_ring_at(idx, radius, contrast, el)
+    }
+
+    /// The ring/hover wrapper half of [`Self::modal_nav_slot`], keyed
+    /// by an index returned from [`Self::modal_nav_record`].
+    pub(crate) fn modal_nav_ring_at<'a>(
+        &self,
+        idx: usize,
+        radius: f32,
+        contrast: bool,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
         // Hover converges the ring with the mouse position.
         let el: iced::Element<'a, Message> = iced::widget::MouseArea::new(el)
             .on_enter(Message::ModalNavHover(idx))
@@ -261,6 +280,16 @@ impl crate::app::Oryxis {
         // while a pick_list menu was open, the widget never gets to
         // publish on_close, so drop the flag here too.
         self.keynav.pick_open = false;
+    }
+
+    /// Record one side-panel row WITHOUT wrapping an element. For
+    /// input rows whose element embeds an inner slot that records
+    /// during construction (the password reveal eye): the field's row
+    /// is recorded first so recording order stays display order, and
+    /// since input rows never draw the panel ring, skipping the
+    /// wrapper changes nothing visually.
+    pub(crate) fn panel_nav_record(&self, action: RowAction) {
+        self.keynav.panel_items.borrow_mut().push(action);
     }
 
     /// Record one actionable side-panel row and ring it when it is
@@ -383,6 +412,24 @@ impl crate::app::Oryxis {
         *self.keynav.content_section_starts.borrow_mut() = vec![0];
     }
 
+    /// Record one Settings content row WITHOUT wrapping an element,
+    /// for call sites whose ring wrapper must be applied later than
+    /// the recording (an inner slot records during construction, e.g.
+    /// the password reveal eye inside its field). Pair with
+    /// [`Self::settings_nav_ring_at`].
+    pub(crate) fn settings_nav_record(&self, action: RowAction) -> usize {
+        let idx = {
+            let mut actions = self.keynav.settings_row_actions.borrow_mut();
+            actions.push(action);
+            actions.len() - 1
+        };
+        self.keynav
+            .content_rows
+            .borrow_mut()
+            .push(vec![super::NavItem::SettingsRow(idx)]);
+        idx
+    }
+
     /// Record one actionable Settings content row (single-column) and
     /// ring it when selected. Read-only rows are simply not recorded,
     /// so arrows only stop on things Enter/Space/Left/Right can act
@@ -393,13 +440,19 @@ impl crate::app::Oryxis {
         radius: f32,
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
-        let idx = {
-            let mut actions = self.keynav.settings_row_actions.borrow_mut();
-            actions.push(action);
-            actions.len() - 1
-        };
+        let idx = self.settings_nav_record(action);
+        self.settings_nav_ring_at(idx, radius, el)
+    }
+
+    /// The ring wrapper half of [`Self::settings_nav_slot`], keyed by
+    /// an index returned from [`Self::settings_nav_record`].
+    pub(crate) fn settings_nav_ring_at<'a>(
+        &self,
+        idx: usize,
+        radius: f32,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
         let item = super::NavItem::SettingsRow(idx);
-        self.keynav.content_rows.borrow_mut().push(vec![item]);
         // Always wrapped (transparent when unringed): see
         // select_ring_opt for why the wrapper must be shape-stable.
         let ringed = self.keynav.selected_in(super::FocusZone::Content) == Some(item);

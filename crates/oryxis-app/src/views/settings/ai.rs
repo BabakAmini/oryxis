@@ -91,14 +91,21 @@ impl Oryxis {
             } else {
                 "sk-..."
             };
-            // Keyboard row: Tab focuses the inner input via its id.
-            // Built here, after the Custom API-URL row, so the rows
-            // record in visual order.
-            let key_input: Element<'_, Message> = self.settings_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-key")),
+            // Keyboard rows: Enter on the ringed row focuses the input
+            // via its id; the reveal eye is the next arrow stop. The
+            // field row is recorded before the widget is built (the
+            // eye slot records during construction). Built here, after
+            // the Custom API-URL row, so the rows record in visual
+            // order.
+            let key_row_idx = self
+                .settings_nav_record(crate::keynav::RowAction::input(
+                    iced::widget::Id::new("set-ai-key"),
+                ));
+            let key_input: Element<'_, Message> = self.settings_nav_ring_at(
+                key_row_idx,
                 10.0,
                 container(
-                    crate::widgets::password_input_with_eye_id(
+                    crate::widgets::password_input_with_eye_nav(
                         key_placeholder,
                         &self.ai.api_key,
                         Message::AiApiKeyChanged,
@@ -110,6 +117,15 @@ impl Oryxis {
                         ),
                         10.0,
                         Some(iced::widget::Id::new("set-ai-key")),
+                        |eye| self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::ToggleSecretVisibility(
+                                    crate::state::SecretField::AiApiKey,
+                                ),
+                            ),
+                            6.0,
+                            eye,
+                        ),
                     ),
                 )
                 .width(280)

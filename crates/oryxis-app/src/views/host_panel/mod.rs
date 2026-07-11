@@ -15,7 +15,7 @@ use crate::theme::OryxisColors;
 use crate::app::PANEL_WIDTH;
 use crate::widgets::{
     dir_align_x, dir_row, panel_divider, panel_field, panel_option_row,
-    panel_section, password_input_with_eye_id,
+    panel_section,
 };
 
 const GROUP_GAP: f32 = 16.0;

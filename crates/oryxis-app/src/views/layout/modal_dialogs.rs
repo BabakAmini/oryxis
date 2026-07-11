@@ -10,6 +10,45 @@ impl Oryxis {
     /// per-folder checklist, include-keys toggle, Share + Cancel).
     pub(crate) fn build_share_dialog(&self) -> Element<'_, Message> {
         let share_include_keys = self.share.include_keys;
+        // Keyboard rows in visual order: the password field (Enter
+        // focuses it), its reveal eye, the per-folder checkboxes, the
+        // keys toggle, then Share as the default (Enter shares) and
+        // Cancel. The field row is recorded before the widget is
+        // built (its eye slot records during construction).
+        self.modal_nav_reset();
+        let pw_idx = self.modal_nav_record(crate::keynav::RowAction::input(
+            iced::widget::Id::new("share-password"),
+        ));
+        let pw_input = self.modal_nav_ring_at(
+            pw_idx,
+            10.0,
+            false,
+            container(crate::widgets::password_input_with_eye_nav(
+                crate::i18n::t("export_password"),
+                &self.share.password,
+                Message::SharePasswordChanged,
+                None,
+                self.revealed_secrets
+                    .contains(&crate::state::SecretField::SharePassword),
+                Message::ToggleSecretVisibility(
+                    crate::state::SecretField::SharePassword,
+                ),
+                10.0,
+                Some(iced::widget::Id::new("share-password")),
+                |eye| self.modal_nav_slot(
+                    crate::keynav::RowAction::activate(
+                        Message::ToggleSecretVisibility(
+                            crate::state::SecretField::SharePassword,
+                        ),
+                    ),
+                    6.0,
+                    false,
+                    eye,
+                ),
+            ))
+            .width(280)
+            .into(),
+        );
         // Group-mode export: a per-folder include/exclude checklist
         // sits between the password and the keys toggle. A single-host
         // share skips it (no folder choice to make).
@@ -20,21 +59,29 @@ impl Oryxis {
             .spacing(6);
             for g in &self.groups {
                 let id = g.id;
-                list = list.push(
+                list = list.push(self.modal_nav_slot(
+                    crate::keynav::RowAction::activate(Message::ShareToggleGroup(id)),
+                    4.0,
+                    false,
                     iced::widget::checkbox(self.share.groups.contains(&id))
                         .label(g.label.as_str())
                         .on_toggle(move |_| Message::ShareToggleGroup(id))
                         .size(16)
-                        .text_size(13),
-                );
+                        .text_size(13)
+                        .into(),
+                ));
             }
-            list = list.push(
+            list = list.push(self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::ShareToggleUngrouped),
+                4.0,
+                false,
                 iced::widget::checkbox(self.share.include_ungrouped)
                     .label(crate::i18n::t("export_ungrouped"))
                     .on_toggle(|_| Message::ShareToggleUngrouped)
                     .size(16)
-                    .text_size(13),
-            );
+                    .text_size(13)
+                    .into(),
+            ));
             column![
                 iced::widget::container(
                     iced::widget::scrollable(list)
@@ -56,44 +103,27 @@ impl Oryxis {
             column![
                 text(dialog_title).size(16).color(OryxisColors::t().text_primary),
                 Space::new().height(12),
-                container(crate::widgets::password_input_with_eye(
-                    crate::i18n::t("export_password"),
-                    &self.share.password,
-                    Message::SharePasswordChanged,
-                    None,
-                    self.revealed_secrets
-                        .contains(&crate::state::SecretField::SharePassword),
-                    Message::ToggleSecretVisibility(
-                        crate::state::SecretField::SharePassword,
-                    ),
-                    10.0,
-                ))
-                .width(280),
+                pw_input,
                 Space::new().height(8),
                 group_picker,
                 row![
                     text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary),
                     Space::new().width(Length::Fill),
-                    // Keyboard rows: keys toggle, then Share as the
-                    // default (Enter shares), then Cancel.
-                    {
-                        self.modal_nav_reset();
-                        self.modal_nav_slot(
-                            crate::keynav::RowAction::activate(Message::ShareToggleKeys),
-                            4.0,
-                            false,
-                            button(
-                                text(if share_include_keys { "ON" } else { "OFF" }).size(12)
-                            ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
-                                button::Style {
-                                    background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
-                                    border: Border { radius: Radius::from(4.0), ..Default::default() },
-                                    text_color: OryxisColors::t().text_primary,
-                                    ..Default::default()
-                                }
-                            }).into(),
-                        )
-                    },
+                    self.modal_nav_slot(
+                        crate::keynav::RowAction::activate(Message::ShareToggleKeys),
+                        4.0,
+                        false,
+                        button(
+                            text(if share_include_keys { "ON" } else { "OFF" }).size(12)
+                        ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
+                            button::Style {
+                                background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: OryxisColors::t().text_primary,
+                                ..Default::default()
+                            }
+                        }).into(),
+                    ),
                 ].align_y(iced::Alignment::Center).width(280),
                 Space::new().height(12),
                 row![

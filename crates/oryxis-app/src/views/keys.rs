@@ -16,7 +16,7 @@ use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
-    card_grid_columns, dir_align_x, dir_row, distribute_card_grid, password_input_with_eye_id,
+    card_grid_columns, dir_align_x, dir_row, distribute_card_grid,
 };
 
 impl Oryxis {
@@ -746,28 +746,35 @@ impl Oryxis {
         // Recorded only when rendered, so the keyboard row appears in
         // place between the content editor and the Save button.
         let passphrase_section: Element<'_, Message> = if self.key_import_form.passphrase_required {
+            // Keyboard rows: the field, then its reveal eye.
+            self.panel_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("panel-key-import-passphrase"),
+            ));
             column![
                 Space::new().height(12),
                 text(t("key_passphrase_label")).size(12).color(OryxisColors::t().text_secondary),
                 Space::new().height(6),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-passphrase")),
-                    10.0,
-                    dir_row(vec![
-                        iced_fonts::lucide::lock().size(13).color(OryxisColors::t().text_muted).into(),
-                        Space::new().width(10).into(),
-                        password_input_with_eye_id(
-                            t("key_passphrase_placeholder"),
-                            &self.key_import_form.passphrase,
-                            Message::KeyImportPassphraseChanged,
-                            Some(Message::ImportKey),
-                            self.key_import_form.passphrase_visible,
-                            Message::KeyImportPassphraseToggleVisibility,
-                            10.0,
-                            Some(iced::widget::Id::new("panel-key-import-passphrase")),
+                dir_row(vec![
+                    iced_fonts::lucide::lock().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    crate::widgets::password_input_with_eye_nav(
+                        t("key_passphrase_placeholder"),
+                        &self.key_import_form.passphrase,
+                        Message::KeyImportPassphraseChanged,
+                        Some(Message::ImportKey),
+                        self.key_import_form.passphrase_visible,
+                        Message::KeyImportPassphraseToggleVisibility,
+                        10.0,
+                        Some(iced::widget::Id::new("panel-key-import-passphrase")),
+                        |eye| self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::KeyImportPassphraseToggleVisibility,
+                            ),
+                            6.0,
+                            eye,
                         ),
-                    ]).align_y(iced::Alignment::Center).into(),
-                ),
+                    ),
+                ]).align_y(iced::Alignment::Center),
                 Space::new().height(6),
                 text(t("key_passphrase_hint")).size(11).color(OryxisColors::t().text_muted),
             ]
@@ -922,24 +929,31 @@ impl Oryxis {
         } else {
             t("password")
         };
+        // Keyboard rows: the field, then its reveal eye.
+        self.panel_nav_record(crate::keynav::RowAction::input(
+            iced::widget::Id::new("panel-identity-password"),
+        ));
         let password_field = column![
             text(t("password")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(6),
             dir_row(vec![
                 iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(10).into(),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new("panel-identity-password")),
+                crate::widgets::password_input_with_eye_nav(
+                    identity_pw_placeholder,
+                    &self.identity_form.password,
+                    Message::IdentityPasswordChanged,
+                    None,
+                    self.identity_form.password_visible,
+                    Message::IdentityTogglePasswordVisibility,
                     10.0,
-                    password_input_with_eye_id(
-                        identity_pw_placeholder,
-                        &self.identity_form.password,
-                        Message::IdentityPasswordChanged,
-                        None,
-                        self.identity_form.password_visible,
-                        Message::IdentityTogglePasswordVisibility,
-                        10.0,
-                        Some(iced::widget::Id::new("panel-identity-password")),
+                    Some(iced::widget::Id::new("panel-identity-password")),
+                    |eye| self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(
+                            Message::IdentityTogglePasswordVisibility,
+                        ),
+                        6.0,
+                        eye,
                     ),
                 ),
             ]).align_y(iced::Alignment::Center),

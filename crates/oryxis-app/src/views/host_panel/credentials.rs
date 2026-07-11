@@ -170,14 +170,17 @@ impl Oryxis {
             } else {
                 t("password")
             };
-            // Keyboard row: Tab focuses the inner input via its id.
-            cred_items = cred_items.push(self.panel_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new("editor-password")),
-                10.0,
+            // Keyboard rows: Tab focuses the inner input via its id;
+            // the reveal eye is the next stop (recorded inside the
+            // widget, hence the field row is recorded first).
+            self.panel_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("editor-password"),
+            ));
+            cred_items = cred_items.push(
                 dir_row(vec![
                     iced_fonts::lucide::keyboard().size(13).color(OryxisColors::t().text_muted).into(),
                     Space::new().width(10).into(),
-                    password_input_with_eye_id(
+                    crate::widgets::password_input_with_eye_nav(
                         pw_placeholder,
                         &self.editor_form.password,
                         Message::EditorPasswordChanged,
@@ -186,9 +189,16 @@ impl Oryxis {
                         Message::EditorTogglePasswordVisibility,
                         10.0,
                         Some(iced::widget::Id::new("editor-password")),
+                        |eye| self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::EditorTogglePasswordVisibility,
+                            ),
+                            6.0,
+                            eye,
+                        ),
                     ),
-                ]).align_y(iced::Alignment::Center).into(),
-            ));
+                ]).align_y(iced::Alignment::Center),
+            );
         }
 
         // TOTP secret (2FA autofill). Shown for every auth method: a
@@ -204,14 +214,16 @@ impl Oryxis {
             } else {
                 t("totp_secret")
             };
-            // Keyboard row: Tab focuses the inner input via its id.
-            cred_items = cred_items.push(self.panel_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new("editor-totp")),
-                10.0,
+            // Keyboard rows: Tab focuses the inner input via its id;
+            // the reveal eye is the next stop.
+            self.panel_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("editor-totp"),
+            ));
+            cred_items = cred_items.push(
                 dir_row(vec![
                     iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
                     Space::new().width(10).into(),
-                    password_input_with_eye_id(
+                    crate::widgets::password_input_with_eye_nav(
                         totp_placeholder,
                         &self.editor_form.totp_secret,
                         Message::EditorTotpChanged,
@@ -220,9 +232,16 @@ impl Oryxis {
                         Message::EditorToggleTotpVisibility,
                         10.0,
                         Some(iced::widget::Id::new("editor-totp")),
+                        |eye| self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::EditorToggleTotpVisibility,
+                            ),
+                            6.0,
+                            eye,
+                        ),
                     ),
-                ]).align_y(iced::Alignment::Center).into(),
-            ));
+                ]).align_y(iced::Alignment::Center),
+            );
         }
         cred_items.into()
         };

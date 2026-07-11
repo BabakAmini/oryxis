@@ -805,21 +805,42 @@ impl Oryxis {
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                 );
-                let signaling_token_input = container(
-                    crate::widgets::password_input_with_eye(
-                        crate::i18n::t("sync_signaling_token_placeholder"),
-                        &self.sync.signaling_token,
-                        Message::SyncSignalingTokenChanged,
-                        None,
-                        self.revealed_secrets
-                            .contains(&crate::state::SecretField::SyncSignalingToken),
-                        Message::ToggleSecretVisibility(
-                            crate::state::SecretField::SyncSignalingToken,
+                // Keyboard rows (audit fix: this field recorded
+                // nothing): the field, then its reveal eye.
+                let signaling_token_idx = self
+                    .settings_nav_record(crate::keynav::RowAction::input(
+                        iced::widget::Id::new("set-sync-signaling-token"),
+                    ));
+                let signaling_token_input = self.settings_nav_ring_at(
+                    signaling_token_idx,
+                    10.0,
+                    container(
+                        crate::widgets::password_input_with_eye_nav(
+                            crate::i18n::t("sync_signaling_token_placeholder"),
+                            &self.sync.signaling_token,
+                            Message::SyncSignalingTokenChanged,
+                            None,
+                            self.revealed_secrets
+                                .contains(&crate::state::SecretField::SyncSignalingToken),
+                            Message::ToggleSecretVisibility(
+                                crate::state::SecretField::SyncSignalingToken,
+                            ),
+                            8.0,
+                            Some(iced::widget::Id::new("set-sync-signaling-token")),
+                            |eye| self.settings_nav_slot(
+                                crate::keynav::RowAction::activate(
+                                    Message::ToggleSecretVisibility(
+                                        crate::state::SecretField::SyncSignalingToken,
+                                    ),
+                                ),
+                                6.0,
+                                eye,
+                            ),
                         ),
-                        8.0,
-                    ),
-                )
-                .width(300);
+                    )
+                    .width(300)
+                    .into(),
+                );
                 let relay_input = self.settings_nav_slot(
                     crate::keynav::RowAction::input(iced::widget::Id::new("set-sync-relay-url")),
                     10.0,

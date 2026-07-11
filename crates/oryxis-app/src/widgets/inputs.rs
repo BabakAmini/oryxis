@@ -114,6 +114,41 @@ pub(crate) fn password_input_with_eye_id<'a, F>(
 where
     F: Fn(String) -> Message + 'a,
 {
+    password_input_with_eye_nav(
+        placeholder,
+        value,
+        on_input,
+        on_submit,
+        visible,
+        on_toggle,
+        inner_padding,
+        id,
+        |eye| eye,
+    )
+}
+
+/// `password_input_with_eye_id` whose eye button is wrapped by the
+/// caller's keynav slot (`wrap_eye`), making the toggle a stop of the
+/// surface's keyboard walk right after the field itself. The closure
+/// runs during construction, so call sites must record the FIELD's
+/// input row before building this widget to keep recording order equal
+/// to display order.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn password_input_with_eye_nav<'a, F, W>(
+    placeholder: &'a str,
+    value: &'a str,
+    on_input: F,
+    on_submit: Option<Message>,
+    visible: bool,
+    on_toggle: Message,
+    inner_padding: f32,
+    id: Option<iced::widget::Id>,
+    wrap_eye: W,
+) -> Element<'a, Message>
+where
+    F: Fn(String) -> Message + 'a,
+    W: FnOnce(Element<'a, Message>) -> Element<'a, Message>,
+{
     let rtl = crate::i18n::is_rtl_layout();
     // Reserve ~32 px on the trailing edge so the eye icon doesn't overlap
     // typed text. Leading edge keeps the requested inner padding.
@@ -150,10 +185,44 @@ where
     .size(14)
     .color(OryxisColors::t().text_muted);
 
+    // Hover/press feedback carried by the background (convention:
+    // every clickable affordance branches on button::Status), plus the
+    // icon-only tooltip, reusing the Privacy Mode Reveal/Hide strings.
     let toggle = button(icon)
         .on_press(on_toggle)
-        .style(|_t, _s| button::Style::default())
+        .style(|_t, status| {
+            let bg = match status {
+                button::Status::Hovered => Color::from_rgba(1.0, 1.0, 1.0, 0.08),
+                button::Status::Pressed => Color::from_rgba(1.0, 1.0, 1.0, 0.12),
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }
+        })
         .padding(4);
+    let tip_key = if visible { "privacy_hide" } else { "privacy_reveal" };
+    let toggle = iced::widget::tooltip(
+        toggle,
+        container(text(crate::i18n::t(tip_key)).size(11))
+            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }),
+        iced::widget::tooltip::Position::Bottom,
+    );
+    let toggle = wrap_eye(toggle.into());
 
     let (align, overlay_pad) = if rtl {
         (

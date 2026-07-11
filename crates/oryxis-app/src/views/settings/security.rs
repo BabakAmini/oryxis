@@ -603,19 +603,39 @@ impl Oryxis {
 
         // Show export dialog inline
         if self.show_export_dialog {
-            let pw_input = container(crate::widgets::password_input_with_eye(
-                crate::i18n::t("export_password"),
-                &self.export_password,
-                Message::ExportPasswordChanged,
-                None,
-                self.revealed_secrets
-                    .contains(&crate::state::SecretField::ExportPassword),
-                Message::ToggleSecretVisibility(
-                    crate::state::SecretField::ExportPassword,
-                ),
+            // Keyboard rows (audit fix: the field recorded nothing
+            // while its neighbors did): the field, then its eye.
+            let pw_idx = self.settings_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("set-export-password"),
+            ));
+            let pw_input = self.settings_nav_ring_at(
+                pw_idx,
                 10.0,
-            ))
-            .width(300);
+                container(crate::widgets::password_input_with_eye_nav(
+                    crate::i18n::t("export_password"),
+                    &self.export_password,
+                    Message::ExportPasswordChanged,
+                    None,
+                    self.revealed_secrets
+                        .contains(&crate::state::SecretField::ExportPassword),
+                    Message::ToggleSecretVisibility(
+                        crate::state::SecretField::ExportPassword,
+                    ),
+                    10.0,
+                    Some(iced::widget::Id::new("set-export-password")),
+                    |eye| self.settings_nav_slot(
+                        crate::keynav::RowAction::activate(
+                            Message::ToggleSecretVisibility(
+                                crate::state::SecretField::ExportPassword,
+                            ),
+                        ),
+                        6.0,
+                        eye,
+                    ),
+                ))
+                .width(300)
+                .into(),
+            );
             // One checkbox per category, all checked by default.
             let mut categories: iced::widget::Column<'_, Message> =
                 column![text(crate::i18n::t("export_select_what"))
@@ -688,24 +708,43 @@ impl Oryxis {
 
         // Show import dialog inline
         if self.show_import_dialog {
-            let pw_input = container(crate::widgets::password_input_with_eye(
-                crate::i18n::t("import_password"),
-                &self.import_password,
-                Message::ImportPasswordChanged,
-                // Enter inspects in phase 1, imports in phase 2.
-                Some(if self.import_summary.is_some() {
-                    Message::ImportConfirm
-                } else {
-                    Message::ImportInspect
-                }),
-                self.revealed_secrets
-                    .contains(&crate::state::SecretField::ImportPassword),
-                Message::ToggleSecretVisibility(
-                    crate::state::SecretField::ImportPassword,
-                ),
+            // Keyboard rows (audit fix, same as the export dialog).
+            let pw_idx = self.settings_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("set-import-password"),
+            ));
+            let pw_input = self.settings_nav_ring_at(
+                pw_idx,
                 10.0,
-            ))
-            .width(300);
+                container(crate::widgets::password_input_with_eye_nav(
+                    crate::i18n::t("import_password"),
+                    &self.import_password,
+                    Message::ImportPasswordChanged,
+                    // Enter inspects in phase 1, imports in phase 2.
+                    Some(if self.import_summary.is_some() {
+                        Message::ImportConfirm
+                    } else {
+                        Message::ImportInspect
+                    }),
+                    self.revealed_secrets
+                        .contains(&crate::state::SecretField::ImportPassword),
+                    Message::ToggleSecretVisibility(
+                        crate::state::SecretField::ImportPassword,
+                    ),
+                    10.0,
+                    Some(iced::widget::Id::new("set-import-password")),
+                    |eye| self.settings_nav_slot(
+                        crate::keynav::RowAction::activate(
+                            Message::ToggleSecretVisibility(
+                                crate::state::SecretField::ImportPassword,
+                            ),
+                        ),
+                        6.0,
+                        eye,
+                    ),
+                ))
+                .width(300)
+                .into(),
+            );
             export_import_section = export_import_section
                 .push(Space::new().height(12))
                 .push(text(crate::i18n::t("import_password_hint")).size(12).color(OryxisColors::t().text_muted))
@@ -844,8 +883,14 @@ impl Oryxis {
             // already has it in the dialog above), so both flows ask
             // for the password before the confirm button.
             let import_pw: Option<Element<'_, Message>> = if is_import {
-                Some(
-                    container(crate::widgets::password_input_with_eye(
+                // Keyboard rows (audit fix): the field, then its eye.
+                let pw_idx = self.settings_nav_record(crate::keynav::RowAction::input(
+                    iced::widget::Id::new("set-sftp-restore-password"),
+                ));
+                Some(self.settings_nav_ring_at(
+                    pw_idx,
+                    10.0,
+                    container(crate::widgets::password_input_with_eye_nav(
                         crate::i18n::t("import_password"),
                         &self.import_password,
                         Message::ImportPasswordChanged,
@@ -856,10 +901,20 @@ impl Oryxis {
                             crate::state::SecretField::ImportPassword,
                         ),
                         10.0,
+                        Some(iced::widget::Id::new("set-sftp-restore-password")),
+                        |eye| self.settings_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::ToggleSecretVisibility(
+                                    crate::state::SecretField::ImportPassword,
+                                ),
+                            ),
+                            6.0,
+                            eye,
+                        ),
                     ))
                     .width(300)
                     .into(),
-                )
+                ))
             } else {
                 None
             };
