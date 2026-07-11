@@ -111,8 +111,12 @@ jobs:
         run: |
           set -euo pipefail
           # One asset fetched back through dl.oryxis.app proves the
-          # bucket -> custom domain chain end to end.
+          # bucket -> custom domain chain end to end. No pipes into
+          # head here: closing curl's stdout early is a SIGPIPE (exit
+          # 23) under pipefail.
           probe=$(ls "assets/releases/$TAG" | head -1)
-          curl -fsSI "https://dl.oryxis.app/releases/$TAG/$probe" | head -3
-          curl -fsS "https://dl.oryxis.app/releases/index.json" | head -c 200 >/dev/null
+          curl -fsSI -o /dev/null -w "asset: HTTP %{http_code}\n" \
+            "https://dl.oryxis.app/releases/$TAG/$probe"
+          curl -fsS --range 0-199 -o /dev/null -w "index: HTTP %{http_code}\n" \
+            "https://dl.oryxis.app/releases/index.json"
           echo "mirror OK"
