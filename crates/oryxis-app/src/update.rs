@@ -163,15 +163,20 @@ async fn fetch_release(path: &str) -> Result<serde_json::Value, UpdateError> {
         .https_only(true)
         .build()
         .map_err(|e| UpdateError::Network(concise_cause(&e)))?;
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| UpdateError::Network(concise_cause(&e)))?;
-    if !resp.status().is_success() {
-        return Err(UpdateError::Http(resp.status().as_u16()));
+    // Mirror-aware: configured mirror first, direct as the fallback
+    // (see `crate::net_mirror`); the Ed25519 gate in the download
+    // path keeps any mirror untrusted.
+    let mut last = UpdateError::Parse;
+    for candidate in crate::net_mirror::candidates(&url) {
+        match client.get(&candidate).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                return resp.json().await.map_err(|_| UpdateError::Parse);
+            }
+            Ok(resp) => last = UpdateError::Http(resp.status().as_u16()),
+            Err(e) => last = UpdateError::Network(concise_cause(&e)),
+        }
     }
-    resp.json().await.map_err(|_| UpdateError::Parse)
+    Err(last)
 }
 
 /// Stable channel: the newest tagged release. Normally only offered when
@@ -463,10 +468,21 @@ pub async fn download_installer(
         .map_err(|e| e.to_string())?;
 
     progress(0.0);
-    let mut resp = client.get(url).send().await.map_err(|e| e.to_string())?;
-    if !resp.status().is_success() {
-        return Err(format!("HTTP {}", resp.status()));
+    // Mirror-aware: configured mirror first, direct fallback; the
+    // Ed25519 check below keeps any mirror untrusted.
+    let mut resp = None;
+    let mut last = String::new();
+    for candidate in crate::net_mirror::candidates(url) {
+        match client.get(&candidate).send().await {
+            Ok(r) if r.status().is_success() => {
+                resp = Some(r);
+                break;
+            }
+            Ok(r) => last = format!("HTTP {}", r.status()),
+            Err(e) => last = e.to_string(),
+        }
     }
+    let mut resp = resp.ok_or(last)?;
     let total = resp.content_length().unwrap_or(0);
     let dest = std::env::temp_dir().join(file_name);
     let mut file = tokio::fs::File::create(&dest)
@@ -484,14 +500,24 @@ pub async fn download_installer(
     drop(file);
 
     let sig_url = format!("{url}.sig");
-    let sig_resp = client.get(&sig_url).send().await.map_err(|e| e.to_string())?;
-    if !sig_resp.status().is_success() {
+    let mut sig_resp = None;
+    let mut sig_last = String::new();
+    for candidate in crate::net_mirror::candidates(&sig_url) {
+        match client.get(&candidate).send().await {
+            Ok(r) if r.status().is_success() => {
+                sig_resp = Some(r);
+                break;
+            }
+            Ok(r) => sig_last = format!("HTTP {}", r.status()),
+            Err(e) => sig_last = e.to_string(),
+        }
+    }
+    let Some(sig_resp) = sig_resp else {
         let _ = tokio::fs::remove_file(&dest).await;
         return Err(format!(
-            "update signature missing ({} on {file_name}.sig)",
-            sig_resp.status()
+            "update signature missing ({sig_last} on {file_name}.sig)"
         ));
-    }
+    };
     let sig_b64 = sig_resp.text().await.map_err(|e| e.to_string())?;
     let bytes = tokio::fs::read(&dest).await.map_err(|e| e.to_string())?;
     if let Err(e) = crate::plugins::verify::verify(&bytes, sig_b64.trim()) {

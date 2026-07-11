@@ -478,6 +478,14 @@ impl Oryxis {
                         }
                     };
             }
+            if let Ok(Some(v)) = vault.get_setting("download_mirror") {
+                let choice = crate::net_mirror::MirrorChoice::from_setting(&v);
+                if let crate::net_mirror::MirrorChoice::Custom(url) = &choice {
+                    self.download_mirror.url_input = url.clone();
+                }
+                self.download_mirror.choice = choice.clone();
+                crate::net_mirror::set_choice(choice);
+            }
             if let Ok(Some(v)) = vault.get_setting("close_to_tray") {
                 self.setting_close_to_tray = v == "true";
             }

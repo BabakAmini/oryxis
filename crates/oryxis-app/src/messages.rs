@@ -1166,6 +1166,17 @@ pub enum Message {
     /// Flip the Settings > Advanced debug logging (tracing events also
     /// written to the exportable `~/.oryxis/oryxis-debug.log`).
     SettingToggleDebugLogging,
+    /// Settings > Advanced: download-mirror picker changed
+    /// ("auto" / "github" / "custom").
+    DownloadMirrorPicked(String),
+    /// Custom mirror URL field edited (live value).
+    DownloadMirrorUrlEdited(String),
+    /// Custom mirror URL committed (Enter / Save): validate + persist.
+    DownloadMirrorUrlCommitted,
+    /// Run the mirror reachability probe against the entered URL.
+    DownloadMirrorTest,
+    /// Probe outcome: latency in ms, or the failure cause.
+    DownloadMirrorTestResult(Result<u64, String>),
     /// Reveal the debug log file in the OS file manager (falls back to
     /// the `~/.oryxis` folder while no log file exists yet).
     RevealDebugLog,

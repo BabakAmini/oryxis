@@ -37,17 +37,9 @@ pub async fn fetch_manifest(provider_id: &str) -> Result<PluginManifest, PluginE
     // releases without paginating.
     let releases_url =
         format!("https://api.github.com/repos/{RELEASE_REPO}/releases?per_page=30");
-    let resp = client
-        .get(&releases_url)
-        .send()
-        .await
-        .map_err(|e| PluginError::Download(e.to_string()))?;
-    if !resp.status().is_success() {
-        return Err(PluginError::Manifest(format!(
-            "github releases api returned HTTP {} for {RELEASE_REPO}",
-            resp.status()
-        )));
-    }
+    let resp = get_github(&client, &releases_url).await.map_err(|e| {
+        PluginError::Manifest(format!("github releases api for {RELEASE_REPO}: {e}"))
+    })?;
     // 1 MB cap on the releases listing: 30 entries × ~5 KB of metadata
     // is ~150 KB in practice; anything past 1 MB is either a server
     // glitch or hostile data and we'd rather fail clean than OOM.
@@ -103,11 +95,9 @@ pub async fn fetch_manifest(provider_id: &str) -> Result<PluginManifest, PluginE
             PluginError::Manifest("asset url missing on release payload".into())
         })?;
 
-    let resp = client
-        .get(download_url)
-        .send()
+    let resp = get_github(&client, download_url)
         .await
-        .map_err(|e| PluginError::Download(e.to_string()))?;
+        .map_err(PluginError::Download)?;
     // 1 MB cap mirrors the releases listing above. A real manifest is
     // a few hundred bytes; anything bigger is broken or hostile.
     let body = read_capped(resp, 1024 * 1024)
@@ -116,6 +106,25 @@ pub async fn fetch_manifest(provider_id: &str) -> Result<PluginManifest, PluginE
     let body = std::str::from_utf8(&body)
         .map_err(|e| PluginError::Download(format!("manifest not utf-8: {e}")))?;
     PluginManifest::parse(body)
+}
+
+/// Mirror-aware GET for GitHub-bound URLs: try each candidate
+/// (configured mirror first, direct as the per-request fallback, see
+/// `crate::net_mirror`) until one answers with a success status. The
+/// SHA-256 + Ed25519 gates downstream keep any mirror untrusted.
+async fn get_github(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<reqwest::Response, String> {
+    let mut last = String::new();
+    for candidate in crate::net_mirror::candidates(url) {
+        match client.get(&candidate).send().await {
+            Ok(resp) if resp.status().is_success() => return Ok(resp),
+            Ok(resp) => last = format!("HTTP {}", resp.status()),
+            Err(e) => last = e.to_string(),
+        }
+    }
+    Err(last)
 }
 
 /// Read a `reqwest::Response` body into a `Vec<u8>` up to `max_bytes`.
@@ -255,14 +264,9 @@ async fn download_bytes(
         .https_only(true)
         .build()
         .map_err(|e| PluginError::Download(e.to_string()))?;
-    let resp = client
-        .get(&binary.url)
-        .send()
+    let resp = get_github(&client, &binary.url)
         .await
-        .map_err(|e| PluginError::Download(e.to_string()))?;
-    if !resp.status().is_success() {
-        return Err(PluginError::Download(format!("HTTP {}", resp.status())));
-    }
+        .map_err(PluginError::Download)?;
 
     // Hard cap on the body size: a malicious or mistakenly-large
     // Content-Length (or the manifest's `size` field if Content-Length

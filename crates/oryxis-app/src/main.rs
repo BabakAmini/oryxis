@@ -60,6 +60,7 @@ mod harness;
 mod i18n;
 mod keynav;
 mod logging;
+mod net_mirror;
 mod mcp;
 mod mcp_install;
 mod messages;

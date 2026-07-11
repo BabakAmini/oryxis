@@ -204,13 +204,21 @@ async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
         .timeout(std::time::Duration::from_secs(90))
         .build()
         .map_err(|e| e.to_string())?;
-    let resp = client
-        .get(asset.url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?;
+    // Mirror-aware: try each candidate URL (mirror first when one is
+    // configured, then direct) until one answers. The SHA-256 gate
+    // below keeps any mirror untrusted.
+    let mut resp = None;
+    let mut last_err = String::new();
+    for url in crate::net_mirror::candidates(asset.url) {
+        match client.get(&url).send().await.and_then(|r| r.error_for_status()) {
+            Ok(r) => {
+                resp = Some(r);
+                break;
+            }
+            Err(e) => last_err = e.to_string(),
+        }
+    }
+    let resp = resp.ok_or(last_err)?;
 
     // Cap a little above the pinned length so a wrong/redirected body
     // can't exhaust memory; the SHA-256 below is the real gate.

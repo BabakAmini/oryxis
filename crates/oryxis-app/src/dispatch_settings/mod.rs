@@ -1070,6 +1070,73 @@ impl Oryxis {
                     if self.setting_debug_logging { "true" } else { "false" },
                 );
             }
+            Message::DownloadMirrorPicked(which) => {
+                use crate::net_mirror::MirrorChoice;
+                self.download_mirror.test_result = None;
+                match which.as_str() {
+                    "custom" => {
+                        // Open the URL field; nothing persists until a
+                        // valid https URL is committed.
+                        self.download_mirror.custom_pending = true;
+                        if let MirrorChoice::Custom(url) = &self.download_mirror.choice {
+                            self.download_mirror.url_input = url.clone();
+                        }
+                    }
+                    token => {
+                        let choice = if token == "github" {
+                            MirrorChoice::GitHubDirect
+                        } else {
+                            MirrorChoice::Auto
+                        };
+                        self.download_mirror.custom_pending = false;
+                        self.download_mirror.url_error = false;
+                        self.download_mirror.choice = choice.clone();
+                        crate::net_mirror::set_choice(choice.clone());
+                        self.persist_setting("download_mirror", &choice.as_setting());
+                    }
+                }
+            }
+            Message::DownloadMirrorUrlEdited(url) => {
+                self.download_mirror.url_input = url;
+                self.download_mirror.url_error = false;
+                self.download_mirror.test_result = None;
+            }
+            Message::DownloadMirrorUrlCommitted => {
+                use crate::net_mirror::MirrorChoice;
+                match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
+                    Ok(base) => {
+                        let choice = MirrorChoice::Custom(base.clone());
+                        self.download_mirror.url_input = base;
+                        self.download_mirror.url_error = false;
+                        self.download_mirror.custom_pending = false;
+                        self.download_mirror.choice = choice.clone();
+                        crate::net_mirror::set_choice(choice.clone());
+                        self.persist_setting("download_mirror", &choice.as_setting());
+                    }
+                    Err(()) => {
+                        self.download_mirror.url_error = true;
+                    }
+                }
+            }
+            Message::DownloadMirrorTest => {
+                match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
+                    Ok(base) => {
+                        self.download_mirror.testing = true;
+                        self.download_mirror.test_result = None;
+                        return Ok(iced::Task::perform(
+                            crate::net_mirror::probe(base),
+                            Message::DownloadMirrorTestResult,
+                        ));
+                    }
+                    Err(()) => {
+                        self.download_mirror.url_error = true;
+                    }
+                }
+            }
+            Message::DownloadMirrorTestResult(result) => {
+                self.download_mirror.testing = false;
+                self.download_mirror.test_result = Some(result);
+            }
             Message::RevealDebugLog => {
                 if let Some(path) = crate::logging::log_path() {
                     // Fall back to the data folder when nothing was

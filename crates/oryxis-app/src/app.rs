@@ -1013,6 +1013,11 @@ pub struct Oryxis {
     /// setting, true while tracing events are also written to the
     /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
     pub(crate) setting_debug_logging: bool,
+    /// Download-mirror block state (Settings > Advanced): persisted
+    /// choice + custom-URL editing + probe outcome. The effective
+    /// choice also lives in `net_mirror`'s process-wide slot so the
+    /// download tasks can read it without `&Oryxis`.
+    pub(crate) download_mirror: crate::net_mirror::MirrorUi,
     /// When on, clicking the window's close button hides to the
     /// system tray instead of quitting. Only honoured on Windows
     /// (the tray module is a no-op everywhere else). Default off
