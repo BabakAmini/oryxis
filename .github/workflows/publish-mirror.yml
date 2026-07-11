@@ -74,16 +74,18 @@ jobs:
       - name: Mirror the pinned CJK fonts
         run: |
           set -euo pipefail
-          # Keys match the (percent-encoded) file names of the pinned
-          # raw.githubusercontent URLs in crates/oryxis-app/src/fonts.rs.
+          # Bucket keys are the DECODED file names ([wght], not %5B):
+          # the server percent-decodes the request path before matching
+          # keys, so the app's %5B URLs resolve to these objects. The
+          # pinned source URLs live in crates/oryxis-app/src/fonts.rs.
           commit=c89741abbf4eeabce432c3ed2fd7dc28b022701e
           base="https://raw.githubusercontent.com/google/fonts/$commit/ofl"
           mkdir -p assets/fonts
           declare -A fonts=(
-            ["NotoSansKR%5Bwght%5D.ttf"]="$base/notosanskr/NotoSansKR%5Bwght%5D.ttf"
-            ["NotoSansSC%5Bwght%5D.ttf"]="$base/notosanssc/NotoSansSC%5Bwght%5D.ttf"
-            ["NotoSansJP%5Bwght%5D.ttf"]="$base/notosansjp/NotoSansJP%5Bwght%5D.ttf"
-            ["NotoSansTC%5Bwght%5D.ttf"]="$base/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+            ["NotoSansKR[wght].ttf"]="$base/notosanskr/NotoSansKR%5Bwght%5D.ttf"
+            ["NotoSansSC[wght].ttf"]="$base/notosanssc/NotoSansSC%5Bwght%5D.ttf"
+            ["NotoSansJP[wght].ttf"]="$base/notosansjp/NotoSansJP%5Bwght%5D.ttf"
+            ["NotoSansTC[wght].ttf"]="$base/notosanstc/NotoSansTC%5Bwght%5D.ttf"
           )
           for key in "${!fonts[@]}"; do
             # Immutable, commit-pinned content: skip when already there.
