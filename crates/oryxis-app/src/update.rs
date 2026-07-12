@@ -170,13 +170,50 @@ async fn fetch_release(path: &str) -> Result<serde_json::Value, UpdateError> {
     for candidate in crate::net_mirror::candidates(&url) {
         match client.get(&candidate).send().await {
             Ok(resp) if resp.status().is_success() => {
-                return resp.json().await.map_err(|_| UpdateError::Parse);
+                // A 200 with a bad or oversized body (a captive portal /
+                // block page answering 200, or a hostile mirror serving a
+                // giant payload to OOM us) must fall through to the next
+                // candidate, not abort the whole check: that is exactly
+                // the network the Auto fallback exists for.
+                match read_capped_text(resp, MAX_RELEASE_JSON).await {
+                    Ok(body) => match serde_json::from_str(&body) {
+                        Ok(v) => return Ok(v),
+                        Err(_) => last = UpdateError::Parse,
+                    },
+                    Err(e) => last = e,
+                }
             }
             Ok(resp) => last = UpdateError::Http(resp.status().as_u16()),
             Err(e) => last = UpdateError::Network(concise_cause(&e)),
         }
     }
     Err(last)
+}
+
+/// Release JSON is a few KB; cap the read at 1 MiB so an untrusted
+/// mirror can't stream an unbounded body as an OOM lever.
+const MAX_RELEASE_JSON: usize = 1024 * 1024;
+
+/// Read a response body to a `String` with a hard byte cap, streaming so
+/// the cap bites before the whole payload is buffered. Over-cap or
+/// non-UTF-8 is reported as `Parse` (the caller then tries the next
+/// mirror candidate).
+async fn read_capped_text(
+    mut resp: reqwest::Response,
+    cap: usize,
+) -> Result<String, UpdateError> {
+    let mut buf = Vec::new();
+    while let Some(chunk) = resp
+        .chunk()
+        .await
+        .map_err(|e| UpdateError::Network(concise_cause(&e)))?
+    {
+        if buf.len() + chunk.len() > cap {
+            return Err(UpdateError::Parse);
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    String::from_utf8(buf).map_err(|_| UpdateError::Parse)
 }
 
 /// Stable channel: the newest tagged release. Normally only offered when
@@ -484,7 +521,18 @@ pub async fn download_installer(
     }
     let mut resp = resp.ok_or(last)?;
     let total = resp.content_length().unwrap_or(0);
-    let dest = std::env::temp_dir().join(file_name);
+    // The asset name comes from unsigned release metadata (a hostile or
+    // untrusted mirror can pick it), so it must never steer the write out
+    // of the temp dir. Collapse to a bare file name and confirm the joined
+    // path stays inside temp before creating/truncating anything.
+    let temp = std::env::temp_dir();
+    let base = std::path::Path::new(file_name)
+        .file_name()
+        .ok_or_else(|| format!("invalid update asset name: {file_name}"))?;
+    let dest = temp.join(base);
+    if dest.parent() != Some(temp.as_path()) {
+        return Err(format!("invalid update asset name: {file_name}"));
+    }
     let mut file = tokio::fs::File::create(&dest)
         .await
         .map_err(|e| e.to_string())?;
@@ -669,6 +717,15 @@ fn windows_self_replace(
         }
     };
 
+    // `copy` (CopyFileEx) preserves the SOURCE mtime, so the staged file
+    // inherits the download's timestamp, which can already be well past
+    // the boot sweep's staleness threshold. Stamp it to now so its age
+    // reflects staging time and a live helper's staged binary isn't swept
+    // out from under it right after staging.
+    if let Ok(f) = std::fs::File::options().write(true).open(&staged) {
+        let _ = f.set_modified(std::time::SystemTime::now());
+    }
+
     // Failure contract: the helper runs after this process has exited,
     // so there is no UI left to report to. We drop a marker file before
     // handing off; every `move` attempt overwrites it with the real
@@ -682,6 +739,18 @@ fn windows_self_replace(
     let marker = update_failure_marker();
     let _ = std::fs::write(&marker, "update helper did not run");
 
+    // Volume-safe swap: never write over the LIVE exe directly. `move`
+    // across volumes (staged in TEMP, install dir on another volume:
+    // redirected TEMP, RAM disk) degrades to copy+delete and truncates
+    // `{dst}` mid-copy, so a failed attempt would leave a corrupt binary
+    // with no recovery. Instead copy into a same-volume sibling
+    // `{dst}.new`, then atomically rename it over `{dst}`; the rename is a
+    // same-volume MoveFileEx(REPLACE_EXISTING), so it either lands whole
+    // or leaves the old `{dst}` intact. On any exhausted retry we clean up
+    // `{dst}.new`, KEEP `{src}`, and relaunch the still-intact old `{dst}`
+    // (never a half-written one); the marker keeps the last error for the
+    // next-boot report.
+    //
     // `enabledelayedexpansion` + `!tries!` so the retry counter updates
     // across loop iterations (plain `%tries%` is frozen at parse time).
     let script = format!(
@@ -694,17 +763,30 @@ fn windows_self_replace(
          goto wait\r\n\
          )\r\n\
          set tries=0\r\n\
-         :move\r\n\
-         move /Y \"{src}\" \"{dst}\" >\"{marker}\" 2>&1\r\n\
+         :copy\r\n\
+         copy /Y \"{src}\" \"{dst}.new\" >\"{marker}\" 2>&1\r\n\
+         if not errorlevel 1 goto swap\r\n\
+         set /a tries+=1\r\n\
+         if !tries! lss 15 (\r\n\
+         timeout /t 1 /nobreak >nul\r\n\
+         goto copy\r\n\
+         )\r\n\
+         del \"{dst}.new\" >nul 2>&1\r\n\
+         goto launch\r\n\
+         :swap\r\n\
+         set tries=0\r\n\
+         :swaploop\r\n\
+         move /Y \"{dst}.new\" \"{dst}\" >\"{marker}\" 2>&1\r\n\
          if not errorlevel 1 goto ok\r\n\
          set /a tries+=1\r\n\
          if !tries! lss 15 (\r\n\
          timeout /t 1 /nobreak >nul\r\n\
-         goto move\r\n\
+         goto swaploop\r\n\
          )\r\n\
-         del \"{src}\" >nul 2>&1\r\n\
+         del \"{dst}.new\" >nul 2>&1\r\n\
          goto launch\r\n\
          :ok\r\n\
+         del \"{src}\" >nul 2>&1\r\n\
          del \"{marker}\" >nul 2>&1\r\n\
          :launch\r\n\
          start \"\" \"{dst}\"\r\n\
@@ -820,16 +902,23 @@ fn run_elevated_cmd(script: &std::path::Path) -> Result<(), String> {
 }
 
 /// Clean up the leftovers a Windows nightly self-update can leave
-/// behind: the legacy `.old.exe` (older renaming scheme) plus the
-/// `oryxis-update-*` staged binary and helper script the current
-/// scheme stages beside the exe and in TEMP. All are consumed on a
-/// successful update; this sweeps the remains of a failed or declined
-/// one. Best-effort and a no-op everywhere else, called once on boot.
+/// behind: the legacy `.old.exe` (older renaming scheme), the aborted
+/// `oryxis.exe.new` swap sibling, plus the `oryxis-update-*` staged
+/// binary and helper script the current scheme stages beside the exe
+/// and in TEMP. All are consumed on a successful update; this sweeps the
+/// remains of a failed or declined one. Best-effort and a no-op
+/// everywhere else, called once on boot.
 pub fn sweep_stale_binary() {
     #[cfg(windows)]
     {
         if let Ok(current) = std::env::current_exe() {
             let _ = std::fs::remove_file(current.with_extension("old.exe"));
+            // The swap sibling from the volume-safe helper. Only touch it
+            // when it's clearly stale, so a helper still mid-swap after a
+            // manual relaunch isn't robbed of its new binary.
+            let mut swap = current.clone().into_os_string();
+            swap.push(".new");
+            remove_if_stale(std::path::Path::new(&swap));
             if let Some(dir) = current.parent() {
                 sweep_update_leftovers(dir);
             }
@@ -838,8 +927,30 @@ pub fn sweep_stale_binary() {
     }
 }
 
+/// A helper that is still alive after this app relaunched can be in its
+/// (max ~30s) wait/retry loop; a leftover from a genuinely dead run is
+/// minutes old. Only sweep files older than this so a live self-replace
+/// isn't robbed of its staged binary or script out from under it.
+#[cfg(windows)]
+const UPDATE_LEFTOVER_MIN_AGE: std::time::Duration = std::time::Duration::from_secs(300);
+
+#[cfg(windows)]
+fn remove_if_stale(path: &std::path::Path) {
+    let stale = std::fs::metadata(path)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .map(|age| age >= UPDATE_LEFTOVER_MIN_AGE)
+        // No mtime / clock skew: leave it rather than risk killing a live one.
+        .unwrap_or(false);
+    if stale {
+        let _ = std::fs::remove_file(path);
+    }
+}
+
 /// Remove `oryxis-update-*.tmp.exe` / `oryxis-update-*.cmd` files a
-/// stalled self-replace left in `dir`.
+/// stalled self-replace left in `dir`, but only ones old enough to be
+/// from a dead run (see [`remove_if_stale`]).
 #[cfg(windows)]
 fn sweep_update_leftovers(dir: &std::path::Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -849,7 +960,7 @@ fn sweep_update_leftovers(dir: &std::path::Path) {
         if name.starts_with("oryxis-update-")
             && (name.ends_with(".tmp.exe") || name.ends_with(".cmd"))
         {
-            let _ = std::fs::remove_file(entry.path());
+            remove_if_stale(&entry.path());
         }
     }
 }

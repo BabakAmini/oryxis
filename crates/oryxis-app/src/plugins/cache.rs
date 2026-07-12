@@ -39,7 +39,26 @@ pub fn provider_dir(provider_id: &str) -> Result<PathBuf, PluginError> {
 }
 
 /// Per-version directory: `~/.oryxis/plugins/<provider>/<version>/`.
+///
+/// `version` comes from the plugin MANIFEST, which is not itself signed
+/// (only each binary is sha256 + Ed25519 verified at install), so an
+/// untrusted mirror can pick it freely. Confine it to a single normal
+/// path component so it can never escape the provider dir via `..`, an
+/// absolute path, or an embedded separator, since every version-derived
+/// path (binary, current pointer, prune walk) flows through here. Same
+/// traversal class as the update installer name.
 pub fn version_dir(provider_id: &str, version: &str) -> Result<PathBuf, PluginError> {
+    let mut comps = std::path::Path::new(version).components();
+    let single_component = matches!(
+        (comps.next(), comps.next()),
+        (Some(std::path::Component::Normal(c)), None)
+            if c == std::ffi::OsStr::new(version)
+    );
+    if !single_component {
+        return Err(PluginError::Io(std::io::Error::other(format!(
+            "invalid plugin version component: {version}"
+        ))));
+    }
     Ok(provider_dir(provider_id)?.join(version))
 }
 
