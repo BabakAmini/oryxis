@@ -278,3 +278,111 @@ pub(crate) mod mock {
         }
     }
 }
+
+/// Integration tests for the production [`VaultKeySource`] against a
+/// real on-disk vault, exercising the two-handle model the runtime
+/// uses (the app writes through one `VaultStore`, the agent reads
+/// through its own). These cover the runtime guarantees the protocol
+/// tests only prove on the mock: a live `expose_via_agent` toggle
+/// crossing handles, and the lock gate.
+#[cfg(test)]
+mod vault_source_tests {
+    use super::*;
+    use oryxis_vault::{generate_key, GenerateSpec, VaultStore};
+
+    /// Open a fresh password-protected vault, save one exposed key
+    /// through the "app" handle, and return the temp dir (kept alive),
+    /// the db path, and the key id.
+    fn seed_vault() -> (tempfile::TempDir, std::path::PathBuf, uuid::Uuid) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("vault.db");
+        let mut app = VaultStore::open(&path).unwrap();
+        app.set_master_password("master").unwrap();
+        let generated = generate_key("agent-key", "", GenerateSpec::Ed25519).unwrap();
+        let id = generated.key.id;
+        app.save_key(&generated.key, Some(&generated.private_pem)).unwrap();
+        (dir, path, id)
+    }
+
+    /// A second handle on the same file, unlocked, wrapped as the
+    /// production source, mirroring `AgentRuntime::spawn`.
+    fn agent_source(path: &std::path::Path) -> VaultKeySource {
+        let mut agent = VaultStore::open(path).unwrap();
+        agent.unlock("master").unwrap();
+        VaultKeySource::new(agent)
+    }
+
+    #[test]
+    fn exposed_key_lists_and_signs() {
+        use signature::Verifier;
+        use ssh_encoding::Decode;
+
+        let (_dir, path, _id) = seed_vault();
+        let source = agent_source(&path);
+
+        let listed = source.list();
+        assert_eq!(listed.len(), 1, "the exposed key is advertised");
+
+        // The advertised blob signs, and the signature verifies against
+        // the same public key: the decrypt-at-sign path is real crypto.
+        let blob = listed[0].blob.clone();
+        let data = b"cross-handle sign";
+        let sig_blob = source.sign(&blob, data, SignHash::Default).unwrap();
+        let sig = ssh_key::Signature::decode(&mut sig_blob.as_slice()).unwrap();
+        let key_data = ssh_key::public::KeyData::decode(&mut blob.as_slice()).unwrap();
+        key_data.verify(data, &sig).expect("signature verifies");
+    }
+
+    #[test]
+    fn expose_toggle_crosses_handles_live() {
+        let (_dir, path, id) = seed_vault();
+        let source = agent_source(&path);
+        assert_eq!(source.list().len(), 1);
+        let blob = source.list()[0].blob.clone();
+
+        // Flip the flag through a SEPARATE app handle (the write path
+        // the UI uses), then confirm the already-running agent source
+        // drops the key on its very next read. This is the guarantee
+        // the "Hidden from agent" menu item makes.
+        let app = {
+            let mut v = VaultStore::open(&path).unwrap();
+            v.unlock("master").unwrap();
+            v
+        };
+        let mut key = app.list_keys().unwrap().into_iter().find(|k| k.id == id).unwrap();
+        key.expose_via_agent = false;
+        app.save_key(&key, None).unwrap();
+
+        assert!(source.list().is_empty(), "hidden key is no longer advertised");
+        // The sign path re-checks the flag independently: even a stale
+        // blob from a client that listed earlier cannot sign now.
+        assert!(
+            matches!(source.sign(&blob, b"x", SignHash::Default), Err(AgentSignError::UnknownKey)),
+            "a hidden key refuses to sign",
+        );
+
+        // Re-expose: the key comes back on the next read, no restart.
+        key.expose_via_agent = true;
+        app.save_key(&key, None).unwrap();
+        assert_eq!(source.list().len(), 1, "re-exposed key is advertised again");
+    }
+
+    #[test]
+    fn lock_gate_hides_and_restores_roster() {
+        let (_dir, path, _id) = seed_vault();
+        let source = agent_source(&path);
+        assert_eq!(source.list().len(), 1);
+        let blob = source.list()[0].blob.clone();
+
+        source.lock();
+        assert!(source.list().is_empty(), "a locked vault serves no identities");
+        assert!(
+            matches!(source.sign(&blob, b"x", SignHash::Default), Err(AgentSignError::Unavailable)),
+            "a locked vault cannot sign",
+        );
+
+        source.unlock(Some("master"));
+        assert_eq!(source.list().len(), 1, "unlock restores the roster");
+        assert!(source.sign(&blob, b"x", SignHash::Default).is_ok(), "unlock restores signing");
+    }
+}
