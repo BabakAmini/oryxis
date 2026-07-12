@@ -7,11 +7,20 @@ use iced::Task;
 use crate::app::{Message, Oryxis};
 use crate::sftp_helpers::sort_local_entries;
 
-/// Process-global monotonic source for `PaneFiles::local_list_seq` /
-/// `SftpPane::local_list_seq`. Global (not per-pane) so a seq is unique
-/// across every SFTP surface, even the ones swapped in and out of the
-/// live buffer by the hybrid-tab park/hoist. See `spawn_local_listing`.
-static NEXT_LOCAL_LIST_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+/// Process-global monotonic source for `SftpPane::local_list_seq` and
+/// `SftpPane::remote_list_seq`. Global (not per-pane, and shared between
+/// local and remote) so a seq is unique across every SFTP surface and
+/// direction, even the ones swapped in and out of the live buffer by the
+/// hybrid-tab park/hoist. See `spawn_local_listing` and the remote
+/// listing spawn in `dispatch_sftp`.
+static NEXT_LIST_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// Next value of the shared listing sequence. Both the local and remote
+/// listing spawns pull from here so a stale result can never match
+/// another pane's current seq.
+pub(crate) fn next_list_seq() -> u64 {
+    NEXT_LIST_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
 
 impl Oryxis {
     /// Refresh a local pane from its `local_path`. Errors (missing dir,
@@ -65,7 +74,7 @@ impl Oryxis {
         // surface would then match (and clobber) the live pane of the
         // other. A global monotonic seq is unique across every surface, so
         // only the pane that actually spawned a listing can match it.
-        let seq = NEXT_LOCAL_LIST_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let seq = next_list_seq();
         self.sftp.pane_mut(side).local_list_seq = seq;
         let list_path = path.clone();
         Task::perform(

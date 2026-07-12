@@ -604,21 +604,34 @@ impl Oryxis {
                         return Ok(Task::none());
                     }
                 };
+                // Stamp a fresh listing seq (shared global counter) so a
+                // slower earlier listing can't overwrite this navigation
+                // when it lands, and a listing can't land on the wrong
+                // surface's pane after a hybrid park/hoist swap.
+                let seq = crate::sftp_methods::next_list_seq();
                 {
                     let pane = self.sftp.pane_mut(side);
                     pane.remote_loading = true;
+                    pane.remote_list_seq = seq;
                     pane.error = None;
                 }
                 let target = path.clone();
                 return Ok(Task::perform(
                     async move { client.list_dir(&target).await.map_err(|e| e.to_string()) },
                     move |result| match result {
-                        Ok(entries) => Message::SftpRemoteLoaded(side, path.clone(), entries),
+                        Ok(entries) => Message::SftpRemoteLoaded(side, seq, path.clone(), entries),
                         Err(e) => Message::SftpRemoteError(side, e),
                     },
                 ));
             }
-            Message::SftpRemoteLoaded(side, path, entries) => {
+            Message::SftpRemoteLoaded(side, seq, path, entries) => {
+                // Drop a stale listing: only the most recently spawned
+                // navigation for this pane may apply (mirrors the local
+                // path). A global seq also means a listing from another
+                // surface, swapped out by park/hoist, can never match.
+                if self.sftp.pane(side).remote_list_seq != seq {
+                    return Ok(Task::none());
+                }
                 let sort = self.sftp.pane(side).sort;
                 let mut entries = entries;
                 sort_remote_entries(&mut entries, sort);

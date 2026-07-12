@@ -165,7 +165,7 @@ pub enum Message {
     // SFTP behaviour.
     SftpPickHost(usize),
     SftpHostMounted(crate::state::SftpPaneSide, String, Arc<SshSession>, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
-    SftpRemoteLoaded(crate::state::SftpPaneSide, String, Vec<oryxis_ssh::SftpEntry>),
+    SftpRemoteLoaded(crate::state::SftpPaneSide, u64, String, Vec<oryxis_ssh::SftpEntry>),
     SftpRemoteError(crate::state::SftpPaneSide, String),
     /// Owner-routing envelope for SFTP async completions whose payload has no
     /// owner stamp of its own (the mount pipeline: `SftpHostMounted` /

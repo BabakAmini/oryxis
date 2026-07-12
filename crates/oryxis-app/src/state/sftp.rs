@@ -23,6 +23,14 @@ pub(crate) struct PaneState {
     pub remote_path: String,
     pub remote_entries: Vec<SftpEntry>,
     pub remote_loading: bool,
+    /// Sequence for in-flight async remote listings, mirroring
+    /// `local_list_seq`: stamped on every `SftpNavigateRemote` spawn from
+    /// the same process-global counter, carried by `SftpRemoteLoaded`, and
+    /// results with a stale seq are dropped. Prevents a slow network
+    /// listing from overwriting a newer navigation, and (because the
+    /// counter is global) prevents a listing from clobbering the wrong
+    /// surface's pane after a hybrid park/hoist swap.
+    pub remote_list_seq: u64,
     // Local (used when `!is_remote`).
     pub local_path: std::path::PathBuf,
     pub local_entries: Vec<LocalEntry>,
