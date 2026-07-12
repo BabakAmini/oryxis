@@ -1432,13 +1432,19 @@ pub enum Message {
     KeyImportLabelChanged(String),
     KeyContentAction(text_editor::Action),
     BrowseKeyFile,
-    // (filename, content, auto-probed `<file>-cert.pub` if present)
-    KeyFileLoaded(String, String, Option<String>),
+    // (filename, content, auto-probed `<file>.pub` and `<file>-cert.pub`
+    // if present and parseable)
+    KeyFileLoaded(String, String, Option<String>, Option<String>),
     KeyFileBrowseError(String),
     KeyImportPassphraseChanged(String),
     KeyImportPassphraseToggleVisibility,
+    /// The editable public-key line changed (B2.1).
+    KeyImportPublicChanged(String),
     /// The attached-certificate paste field changed (B2).
     KeyImportCertChanged(String),
+    /// Open the key import panel with the certificate field focused
+    /// (the keychain ADD menu's "Certificate" entry, B2.1).
+    ShowKeyPanelCertFocus,
     /// Pick a `.pub` certificate file for the key import form.
     BrowseCertFile,
     /// A certificate file was read; its contents fill the paste field.
@@ -1512,6 +1518,7 @@ pub enum Message {
     ProxyIdentityFormPortChanged(String),
     ProxyIdentityFormUsernameChanged(String),
     ProxyIdentityFormPasswordChanged(String),
+    ProxyIdentityFormPasswordToggleVisibility,
     SaveProxyIdentity,
     DeleteProxyIdentity(Uuid),
 
@@ -1915,9 +1922,13 @@ pub enum Message {
     /// password from then on.
     McpVaultPwConfirm,
     /// Withdraw the consent: the snippet / Copy / Install stop
-    /// embedding the vault password (re-run Install to strip it from
-    /// the config on disk).
+    /// embedding the vault password; the config(s) on disk are scrubbed
+    /// in place in the background.
     McpVaultPwRemove,
+    /// Outcome of that background scrub: `Ok(())` when every config that
+    /// carried the password was rewritten without it, `Err(msg)` on a
+    /// rewrite failure.
+    McpVaultPwStripResult(Result<(), String>),
 
     // Sync
     SyncToggleEnabled,

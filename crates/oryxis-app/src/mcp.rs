@@ -294,6 +294,71 @@ pub(crate) fn mcp_config_installed() -> bool {
         || legacy_mcp_config_path().is_ok_and(|p| has_oryxis_entry(&p))
 }
 
+/// Whether the ACTIVE Claude Code config (`~/.claude.json` only, never
+/// the legacy dead-letter) currently carries an `oryxis` MCP entry. The
+/// vault-password removal gates on this so it rewrites a live config in
+/// place and can never promote a dead legacy entry into an active one,
+/// nor create a config where none existed.
+fn active_config_has_oryxis() -> bool {
+    claude_code_config_path().is_ok_and(|p| {
+        std::fs::read_to_string(&p)
+            .ok()
+            .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
+            .map(|v| v.get("mcpServers").and_then(|s| s.get("oryxis")).is_some())
+            .unwrap_or(false)
+    })
+}
+
+/// Whether the WSL distro's `~/.claude.json` carries an `oryxis` entry.
+/// Same gate as [`active_config_has_oryxis`] for the WSL target, so a
+/// removal never creates a config inside a distro that never had one.
+#[cfg(target_os = "windows")]
+fn wsl_config_has_oryxis() -> bool {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let Ok(out) = Command::new("wsl.exe")
+        .args(["--", "bash", "-c", "cat ~/.claude.json 2>/dev/null || true"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+    else {
+        return false;
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    serde_json::from_str::<serde_json::Value>(text.trim())
+        .ok()
+        .map(|v| v.get("mcpServers").and_then(|s| s.get("oryxis")).is_some())
+        .unwrap_or(false)
+}
+
+/// Scrub the embedded `ORYXIS_VAULT_PASSWORD` from every Claude Code
+/// config that actually carries an `oryxis` entry, in place, WITHOUT
+/// creating one anywhere. Covers both the native config and (on Windows)
+/// the WSL distro's config, because the password may have been installed
+/// into either regardless of the currently selected target. Blocking
+/// I/O; call from a background task. `Ok(())` means nothing failed; the
+/// caller surfaces any `Err` so a "revoked" claim never hides a
+/// plaintext credential still on disk.
+pub(crate) fn strip_vault_password_everywhere(token: &str) -> Result<(), String> {
+    let mut errors: Vec<String> = Vec::new();
+    if active_config_has_oryxis()
+        && let Err(e) = install_mcp_config_to_file(token, None)
+    {
+        errors.push(e);
+    }
+    #[cfg(target_os = "windows")]
+    if wsl_config_has_oryxis()
+        && let Err(e) = install_mcp_config_to_wsl(token, None)
+    {
+        errors.push(e);
+    }
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
 /// Write/merge the oryxis MCP entry into Claude Code's user-scope
 /// config, `~/.claude.json` (top-level `mcpServers` key, the same
 /// place `claude mcp add -s user` writes). Claude Code does NOT read
@@ -325,12 +390,42 @@ pub(crate) fn install_mcp_config_to_file(
 
     let output = serde_json::to_string_pretty(&root)
         .map_err(|e| format!("Failed to serialize: {e}"))?;
-    std::fs::write(&config_path, &output)
-        .map_err(|e| format!("Failed to write {}: {e}", config_path.display()))?;
+    write_config_private(&config_path, &output)?;
 
     sweep_legacy_mcp_config();
 
     Ok(config_path.display().to_string())
+}
+
+/// Write `~/.claude.json` with owner-only permissions (0600) on Unix.
+/// The opt-in vault password embed puts a plaintext credential in this
+/// file, so it must never be left world-readable under the default
+/// umask (0644). On non-Unix the ACL story differs and there is no
+/// mode bit to set, so this is a plain write there.
+fn write_config_private(path: &std::path::Path, contents: &str) -> Result<(), String> {
+    #[cfg(unix)]
+    {
+        use std::io::Write as _;
+        use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+        // `mode` only bites on creation; tighten an existing looser file too.
+        let perms = std::fs::Permissions::from_mode(0o600);
+        let _ = file.set_permissions(perms);
+        file.write_all(contents.as_bytes())
+            .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::write(path, contents)
+            .map_err(|e| format!("Failed to write {}: {e}", path.display()))
+    }
 }
 
 /// Write/merge the oryxis MCP entry into the WSL distro's
@@ -399,9 +494,18 @@ pub(crate) fn install_mcp_config_to_wsl(
             serde_json::to_string_pretty(&root).map_err(|e| format!("Failed to serialize: {e}"))?;
 
         // Pipe the merged JSON back through stdin so it never has to be
-        // escaped into a shell argument.
+        // escaped into a shell argument. `umask 077` births the temp 0600,
+        // then an atomic `mv` swaps it in: the opt-in vault password embed
+        // writes a plaintext credential, so the real config must never be
+        // left world-readable nor partially written (a chmod-after-write
+        // would leave a loose window, permanently if `cat` died mid-pipe).
         let mut child = Command::new("wsl.exe")
-            .args(["--", "bash", "-c", "cat > ~/.claude.json"])
+            .args([
+                "--",
+                "bash",
+                "-c",
+                "umask 077 && cat > ~/.claude.json.tmp && mv ~/.claude.json.tmp ~/.claude.json",
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
@@ -905,6 +1009,29 @@ pub(crate) fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
                     Message::McpVaultPwPromptOpen,
                 ),
             ));
+        // Outcome of the last Remove: confirm the scrub, or surface a
+        // failure so the user is never told the credential is gone while
+        // it lingers on disk.
+        match &app.mcp.vault_pw_strip_status {
+            Some(Ok(())) => {
+                info_col = info_col.push(Space::new().height(6)).push(
+                    text(crate::i18n::t("mcp_vault_pw_removed"))
+                        .size(10)
+                        .color(OryxisColors::t().text_muted),
+                );
+            }
+            Some(Err(e)) => {
+                info_col = info_col.push(Space::new().height(6)).push(
+                    text(format!(
+                        "{} {e}",
+                        crate::i18n::t("mcp_vault_pw_remove_failed")
+                    ))
+                    .size(10)
+                    .color(OryxisColors::t().error),
+                );
+            }
+            None => {}
+        }
     }
 
     info_col = info_col

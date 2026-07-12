@@ -37,4 +37,10 @@ pub(crate) struct McpState {
     pub(crate) vault_pw_prompt: Option<String>,
     /// The last confirm attempt failed (wrong password).
     pub(crate) vault_pw_error: bool,
+    /// Outcome of the last "Remove" of the embedded vault password:
+    /// `Ok(())` once the on-disk config(s) were scrubbed, `Err(msg)` if a
+    /// rewrite failed (so the UI never claims a revoke that left the
+    /// plaintext credential behind). Distinct from `install_status` so a
+    /// removal never renders install-success text.
+    pub(crate) vault_pw_strip_status: Option<Result<(), String>>,
 }

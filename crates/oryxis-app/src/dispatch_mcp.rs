@@ -210,9 +210,23 @@ impl Oryxis {
                 self.mcp.include_vault_password = false;
                 self.persist_setting("mcp_config_vault_pw", "false");
                 self.mcp.config_copied = false;
-                // Prompt a re-install: the config on disk still carries
-                // the password until Install rewrites it without one.
-                self.mcp.install_status = None;
+                self.mcp.vault_pw_strip_status = None;
+                // Actively scrub the plaintext password from EVERY config
+                // that carries it (native + WSL), in place and off the UI
+                // thread. Flipping the consent alone would leave the
+                // credential in `~/.claude.json` while the UI claims it was
+                // revoked; and scrubbing only the currently-selected target
+                // would miss a copy installed into the other one. The strip
+                // is presence-gated per target, so it never creates a
+                // config nor promotes the legacy dead-letter.
+                let token = self.mcp.server_token.clone();
+                return Ok(Task::perform(
+                    async move { crate::mcp::strip_vault_password_everywhere(&token) },
+                    Message::McpVaultPwStripResult,
+                ));
+            }
+            Message::McpVaultPwStripResult(res) => {
+                self.mcp.vault_pw_strip_status = Some(res);
             }
 
             m => return Err(m),
