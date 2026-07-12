@@ -115,7 +115,7 @@ Plus harness meta-commands:
 | `screenshot [name]` | render the UI to `<shots>/<name>.png`, print the path |
 | `texts` | dump every visible text widget with bounds (reading order) |
 | `find "Text"` | like `texts`, filtered to matches |
-| `clipboard` / `clipboard "text"` | read / seed the emulated clipboard (see below) |
+| `clipboard` / `clipboard "text"` | read / seed the emulated clipboard; `\n` / `\t` / `\"` / `\\` escapes decode, so multi-line content (PEM blocks) fits the line protocol |
 | `wait <ms>` | pump emulator events for a fixed duration |
 | `settle [idle_ms]` | pump until the event stream stays quiet (default 250 ms, 30 s cap) |
 | `timeout <ms>` | set the per-instruction completion timeout (default 20 s) |
