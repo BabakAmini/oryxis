@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  English | <a href="README.zh-CN.md">简体中文</a>
+</p>
+
+<p align="center">
   <a href="https://github.com/wilsonglasser/oryxis/actions/workflows/ci.yml"><img src="https://github.com/wilsonglasser/oryxis/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/wilsonglasser/oryxis/releases/latest"><img src="https://img.shields.io/github/v/release/wilsonglasser/oryxis?color=green" alt="Release"></a>
   <a href="https://github.com/wilsonglasser/oryxis/releases"><img src="https://img.shields.io/github/downloads/wilsonglasser/oryxis/total?color=blue" alt="Downloads"></a>

@@ -14,6 +14,10 @@ that ships small and often; the guidelines below keep reviews fast.
   [Discussion](https://github.com/wilsonglasser/oryxis/discussions)) first.
   The [roadmap](README.md#roadmap) is deliberate; agreeing on scope before
   code avoids wasted work on both sides.
+- **Language:** issues and discussions written in Chinese are welcome
+  (中文 issue 也欢迎); the maintainer reads them (translated when needed)
+  and replies in English or Chinese as able. Code, commit messages and
+  code comments remain English.
 - **Security issues:** never a public issue, see [SECURITY.md](SECURITY.md).
 
 ## Development setup
