@@ -10,42 +10,60 @@ use oryxis_core::models::connection::{AuthMethod, Connection};
 use crate::app::Oryxis;
 
 impl Oryxis {
-    /// Resolve `(password, private_key_pem)` for a connection, same
-    /// rules as `Message::ConnectSsh`: prefer identity-linked credentials,
-    /// fall back to per-connection vault entries.
+    /// The OpenSSH certificate attached to key `kid`, if any (B2). Read
+    /// from the in-memory key list; resolved alongside the private key so
+    /// a certificate can never be paired with the wrong key.
+    pub(crate) fn key_certificate(&self, kid: &uuid::Uuid) -> Option<String> {
+        self.keys
+            .iter()
+            .find(|k| k.id == *kid)
+            .and_then(|k| k.certificate.clone())
+    }
+
+    /// Resolve `(password, private_key_pem, certificate)` for a connection,
+    /// same rules as `Message::ConnectSsh`: prefer identity-linked
+    /// credentials, fall back to per-connection vault entries. The
+    /// certificate is resolved from the SAME key as the pem.
     pub(crate) fn resolve_credentials(
         &self,
         conn: &Connection,
-    ) -> (Option<String>, Option<String>) {
+    ) -> (Option<String>, Option<String>, Option<String>) {
         if let Some(iid) = conn.identity_id {
             let id_pw = self
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_identity_password(&iid).ok().flatten());
-            let identity = self.identities.iter().find(|i| i.id == iid);
-            let id_key = identity.and_then(|i| i.key_id).and_then(|kid| {
+            let kid = self
+                .identities
+                .iter()
+                .find(|i| i.id == iid)
+                .and_then(|i| i.key_id);
+            let id_key = kid.and_then(|kid| {
                 self.vault
                     .as_ref()
                     .and_then(|v| v.get_key_private(&kid).ok().flatten())
             });
-            (id_pw, id_key)
+            let id_cert = kid.and_then(|kid| self.key_certificate(&kid));
+            (id_pw, id_key, id_cert)
         } else {
             let pw = self
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_connection_password(&conn.id).ok().flatten());
-            let pk = if conn.auth_method == AuthMethod::Key
+            let (pk, cert) = if conn.auth_method == AuthMethod::Key
                 || conn.auth_method == AuthMethod::Auto
             {
-                conn.key_id.and_then(|kid| {
+                let pk = conn.key_id.and_then(|kid| {
                     self.vault
                         .as_ref()
                         .and_then(|v| v.get_key_private(&kid).ok().flatten())
-                })
+                });
+                let cert = conn.key_id.and_then(|kid| self.key_certificate(&kid));
+                (pk, cert)
             } else {
-                None
+                (None, None)
             };
-            (pw, pk)
+            (pw, pk, cert)
         }
     }
 
@@ -60,6 +78,7 @@ impl Oryxis {
         }
         let mut passwords = std::collections::HashMap::new();
         let mut keys = std::collections::HashMap::new();
+        let mut certificates = std::collections::HashMap::new();
         let mut proxies = std::collections::HashMap::new();
         for jid in &conn.jump_chain {
             if let Some(vault) = &self.vault
@@ -69,10 +88,16 @@ impl Oryxis {
             }
             if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
                 && let Some(kid) = jconn.key_id
-                && let Some(vault) = &self.vault
-                && let Ok(Some(pk)) = vault.get_key_private(&kid)
             {
-                keys.insert(*jid, pk);
+                if let Some(vault) = &self.vault
+                    && let Ok(Some(pk)) = vault.get_key_private(&kid)
+                {
+                    keys.insert(*jid, pk);
+                }
+                // The hop's certificate (if any), resolved from the same key.
+                if let Some(cert) = self.key_certificate(&kid) {
+                    certificates.insert(*jid, cert);
+                }
             }
             // Resolve the jump host's effective proxy (identity-based or
             // inline) so the engine's first-hop dial can route through it.
@@ -89,6 +114,7 @@ impl Oryxis {
             connections: self.connections.clone(),
             passwords,
             private_keys: keys,
+            certificates,
             proxies,
         })
     }

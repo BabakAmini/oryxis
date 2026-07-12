@@ -27,6 +27,9 @@ windows-sys = { version = "0.59", features = [
 ] }
 
 [dev-dependencies]
+# Build in-process certificates for the cert-auth unit tests via
+# ssh_key's Builder (rand 0.10 = the rand_core russh/ssh_key pull).
+rand = { version = "0.10", features = ["thread_rng"] }
 # Spin up an ephemeral OpenSSH container per test for hermetic SFTP /
 # SSH integration coverage, no real credentials, no shared state, no
 # need for a running daemon on the dev machine.

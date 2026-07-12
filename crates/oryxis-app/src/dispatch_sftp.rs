@@ -308,7 +308,7 @@ impl Oryxis {
                 // No existing tab, open a brand-new SSH session, just
                 // for SFTP. Same credential pipeline as Message::ConnectSsh,
                 // but without spawning a terminal tab.
-                let (password, private_key) = self.resolve_credentials(&conn);
+                let (password, private_key, certificate) = self.resolve_credentials(&conn);
                 let resolver = self.make_jump_resolver(&conn);
                 let host_key_check = self.make_host_key_check();
                 let keepalive = self.effective_keepalive(&conn);
@@ -376,7 +376,9 @@ impl Oryxis {
                             .connect_with_resolver(
                                 &conn,
                                 password.as_deref(),
-                                private_key.as_deref(),
+                                private_key
+                                    .as_deref()
+                                    .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
                                 80,
                                 24,
                                 resolver.as_ref(),

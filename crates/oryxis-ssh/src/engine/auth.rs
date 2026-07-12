@@ -11,18 +11,18 @@ impl SshEngine {
         handle: &mut client::Handle<ClientHandler>,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
     ) -> Result<(), SshError> {
         let username = connection.username.as_deref().unwrap_or("root");
         let has_pw = password.is_some();
-        let has_key = private_key_pem.is_some();
+        let has_key = key_material.is_some();
         tracing::info!(
             "Auth for {}@{} method={:?} has_password={} has_key={}",
             username, connection.hostname, connection.auth_method, has_pw, has_key,
         );
 
         match self
-            .do_auth(handle, username, &connection.auth_method, password, private_key_pem)
+            .do_auth(handle, username, &connection.auth_method, password, key_material)
             .await
         {
             Ok(true) => {
@@ -43,17 +43,17 @@ impl SshEngine {
         username: &str,
         auth_method: &AuthMethod,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
     ) -> Result<bool, SshError> {
         match auth_method {
             AuthMethod::Auto => {
                 let mut tried: Vec<&str> = Vec::new();
 
                 // 1. Try publickey if a key is provided
-                if let Some(pem) = private_key_pem {
+                if let Some(km) = key_material {
                     tried.push("publickey");
                     tracing::info!("Auto: trying publickey auth for {}", username);
-                    match self.try_publickey_auth(handle, username, pem).await {
+                    match self.try_publickey_auth(handle, username, km).await {
                         Ok(true) => return Ok(true),
                         Ok(false) => tracing::info!("Auto: publickey rejected"),
                         Err(e) => tracing::info!("Auto: publickey error: {}", e),
@@ -157,11 +157,11 @@ impl SshEngine {
                 Ok(true)
             }
             AuthMethod::Key => {
-                let pem = private_key_pem
+                let km = key_material
                     .ok_or_else(|| SshError::Key("No private key selected".into()))?;
 
                 tracing::info!("Trying publickey auth for {}", username);
-                if self.try_publickey_auth(handle, username, pem).await? {
+                if self.try_publickey_auth(handle, username, km).await? {
                     return Ok(true);
                 }
 
@@ -286,18 +286,85 @@ impl SshEngine {
         &self,
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
-        pem: &str,
+        material: KeyMaterial<'_>,
     ) -> Result<bool, SshError> {
-        let private_key = russh::keys::decode_secret_key(pem, None)
+        let private_key = russh::keys::decode_secret_key(material.private_pem, None)
             .map_err(|e| SshError::Key(format!("Failed to decode key: {}", e)))?;
+        let private_key = Arc::new(private_key);
+
+        // If a certificate is attached, offer it first. Anything wrong with
+        // the cert itself (unparseable, not this key's cert) degrades to a
+        // plain publickey attempt instead of failing the whole auth: a bad
+        // cert must never brick a host that could still authenticate with
+        // the bare key. This matters because `AuthMethod::Key` propagates a
+        // returned `Err` (skipping its password fallback), so cert trouble
+        // is signalled by falling through, never by `Err`. Only a decode or
+        // transport failure is a real `Err` here.
+        if let Some(cert_line) = material.certificate {
+            match self
+                .try_certificate_auth(handle, username, &private_key, cert_line)
+                .await?
+            {
+                Some(true) => return Ok(true),
+                // Offered but the server rejected the cert, or the cert was
+                // unusable: fall through to the bare key (OpenSSH treats
+                // the cert and the plain key as separate identities).
+                Some(false) | None => {
+                    tracing::info!("Falling back to bare public key for {}", username);
+                }
+            }
+        }
+
+        // Plain publickey, signing RSA with the hash the server accepts.
         let hash = if private_key.algorithm().is_rsa() {
             server_rsa_hash(handle).await
         } else {
             None
         };
-        let key = PrivateKeyWithHashAlg::new(Arc::new(private_key), hash);
+        let key = PrivateKeyWithHashAlg::new(private_key, hash);
         let res = handle.authenticate_publickey(username, key).await?;
         Ok(res.success())
+    }
+
+    /// Offer an OpenSSH certificate during publickey auth. Returns:
+    /// - `Ok(Some(true))` the server accepted the certificate;
+    /// - `Ok(Some(false))` offered, but the server rejected it;
+    /// - `Ok(None)` the cert is unusable (unparseable, or it does not certify
+    ///   this key) so the caller should try the bare key;
+    /// - `Err(..)` a transport failure (propagated like plain auth).
+    ///
+    /// Expiry is advisory only: the server's clock is authoritative, so an
+    /// expired cert is logged as a warning and still offered.
+    async fn try_certificate_auth(
+        &self,
+        handle: &mut client::Handle<ClientHandler>,
+        username: &str,
+        private_key: &Arc<russh::keys::PrivateKey>,
+        cert_line: &str,
+    ) -> Result<Option<bool>, SshError> {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let cert = match check_certificate(cert_line, private_key, now) {
+            CertCheck::Unusable(why) => {
+                tracing::warn!("Attached certificate unusable ({why}); using bare key");
+                return Ok(None);
+            }
+            CertCheck::Offer { cert, expired } => {
+                if expired {
+                    tracing::warn!(
+                        "Certificate for {} is expired; offering anyway (the server clock is authoritative)",
+                        username,
+                    );
+                }
+                cert
+            }
+        };
+        let res = handle
+            .authenticate_openssh_cert(username, private_key.clone(), *cert)
+            .await?;
+        Ok(Some(res.success()))
     }
 
     /// Drive a keyboard-interactive exchange to completion.
@@ -504,7 +571,7 @@ impl SshEngine {
         mut handle: client::Handle<ClientHandler>,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
         cols: u32,
         rows: u32,
     ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
@@ -514,7 +581,7 @@ impl SshEngine {
         // default ceilings. Auth honours the Interactive exemption (human
         // input isn't a network stall) via `authenticate_handle_bounded`.
         let session_timeout = self.session_timeout;
-        self.authenticate_handle_bounded(&mut handle, connection, password, private_key_pem)
+        self.authenticate_handle_bounded(&mut handle, connection, password, key_material)
             .await?;
         let listeners = bind_port_forward_listeners(&connection.port_forwards).await?;
         let (mut session, rx) = tokio::time::timeout(
@@ -530,5 +597,105 @@ impl SshEngine {
         })??;
         session.sftp_open_timeout = session_timeout;
         Ok((session, rx))
+    }
+}
+
+/// The result of validating an attached certificate against its private
+/// key, before any network round-trip. Pure so it is unit-testable
+/// without a live server (the `authenticate_openssh_cert` call is not).
+enum CertCheck {
+    /// Parsed and certifies this key; offer it. `expired` drives an
+    /// advisory warning only (the server's clock is authoritative). The
+    /// certificate is boxed (it dwarfs the `Unusable` variant).
+    Offer {
+        cert: Box<russh::keys::Certificate>,
+        expired: bool,
+    },
+    /// Unusable (unparseable, or it does not certify this key): the
+    /// caller should fall back to the bare public key.
+    Unusable(&'static str),
+}
+
+/// Validate `cert_line` against `private_key` at wall-clock `now_unix`
+/// (0 = unknown, skips the expiry check). Never fails: a bad cert is a
+/// `Unusable`, so the auth path can always degrade to the plain key.
+fn check_certificate(
+    cert_line: &str,
+    private_key: &russh::keys::PrivateKey,
+    now_unix: u64,
+) -> CertCheck {
+    let cert = match russh::keys::Certificate::from_openssh(cert_line) {
+        Ok(c) => c,
+        Err(_) => return CertCheck::Unusable("unparseable"),
+    };
+    // The certificate must certify exactly this private key.
+    if cert.public_key() != private_key.public_key().key_data() {
+        return CertCheck::Unusable("does not match the private key");
+    }
+    let expired = now_unix != 0 && cert.valid_before() != 0 && now_unix > cert.valid_before();
+    CertCheck::Offer { cert: Box::new(cert), expired }
+}
+
+#[cfg(test)]
+mod cert_tests {
+    use super::{check_certificate, CertCheck};
+    use russh::keys::ssh_key::{certificate, Algorithm, PrivateKey};
+
+    /// A CA-signed user certificate for `user_key`, valid across `now`,
+    /// as its OpenSSH public line.
+    fn make_cert(user_key: &PrivateKey, valid_before: u64) -> String {
+        let ca = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let mut builder = certificate::Builder::new_with_random_nonce(
+            &mut rand::rng(),
+            user_key.public_key(),
+            0, // valid_after: the beginning of time
+            valid_before,
+        )
+        .unwrap();
+        builder.serial(1).unwrap();
+        builder.key_id("t").unwrap();
+        builder.cert_type(certificate::CertType::User).unwrap();
+        builder.valid_principal("tester").unwrap();
+        builder.sign(&ca).unwrap().to_openssh().unwrap()
+    }
+
+    #[test]
+    fn matching_cert_is_offered() {
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let cert = make_cert(&key, 4_000_000_000); // far future
+        match check_certificate(&cert, &key, 1_700_000_000) {
+            CertCheck::Offer { expired, .. } => assert!(!expired),
+            CertCheck::Unusable(w) => panic!("expected offer, got {w}"),
+        }
+    }
+
+    #[test]
+    fn expired_cert_is_still_offered_flagged() {
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let cert = make_cert(&key, 1_000); // long past
+        match check_certificate(&cert, &key, 1_700_000_000) {
+            CertCheck::Offer { expired, .. } => assert!(expired, "should flag expiry"),
+            CertCheck::Unusable(w) => panic!("expired cert must still be offered, got {w}"),
+        }
+    }
+
+    #[test]
+    fn cert_for_another_key_is_unusable() {
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let other = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let cert = make_cert(&other, 4_000_000_000); // certifies `other`, not `key`
+        assert!(matches!(
+            check_certificate(&cert, &key, 1_700_000_000),
+            CertCheck::Unusable(_)
+        ));
+    }
+
+    #[test]
+    fn garbage_cert_line_is_unusable() {
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        assert!(matches!(
+            check_certificate("not a certificate", &key, 0),
+            CertCheck::Unusable(_)
+        ));
     }
 }

@@ -114,7 +114,7 @@ impl Oryxis {
         };
 
         // Credentials + connect parameters, resolved while we hold `&self`.
-        let (password, private_key) = self.resolve_credentials(&conn);
+        let (password, private_key, certificate) = self.resolve_credentials(&conn);
         let totp_secret = self
             .vault
             .as_ref()
@@ -171,7 +171,9 @@ impl Oryxis {
                         .connect_with_resolver(
                             &conn,
                             password.as_deref(),
-                            private_key.as_deref(),
+                            private_key
+                                .as_deref()
+                                .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
                             80,
                             24,
                             resolver.as_ref(),

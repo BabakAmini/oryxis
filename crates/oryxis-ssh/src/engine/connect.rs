@@ -11,11 +11,11 @@ impl SshEngine {
         &self,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
         cols: u32,
         rows: u32,
     ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
-        self.connect_with_resolver(connection, password, private_key_pem, cols, rows, None)
+        self.connect_with_resolver(connection, password, key_material, cols, rows, None)
             .await
     }
 
@@ -87,14 +87,14 @@ impl SshEngine {
         &self,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
         cols: u32,
         rows: u32,
         resolver: Option<&ConnectionResolver>,
     ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
         let handle = self.dial(connection, resolver).await?;
 
-        self.authenticate_and_open(handle, connection, password, private_key_pem, cols, rows)
+        self.authenticate_and_open(handle, connection, password, key_material, cols, rows)
             .await
     }
 
@@ -120,9 +120,9 @@ impl SshEngine {
         handle: &mut SshHandle,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
     ) -> Result<(), SshError> {
-        self.authenticate_handle_bounded(&mut handle.0, connection, password, private_key_pem)
+        self.authenticate_handle_bounded(&mut handle.0, connection, password, key_material)
             .await
     }
 
@@ -139,7 +139,7 @@ impl SshEngine {
         handle: &mut client::Handle<ClientHandler>,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
     ) -> Result<(), SshError> {
         // Interactive and PasswordPrompt both park on human input, which
         // routinely exceeds any network bound. Their network round-trips
@@ -154,13 +154,13 @@ impl SshEngine {
         ) || (connection.auth_method == AuthMethod::Auto && may_prompt)
         {
             return self
-                .authenticate_handle(handle, connection, password, private_key_pem)
+                .authenticate_handle(handle, connection, password, key_material)
                 .await;
         }
         let auth_timeout = self.auth_timeout;
         tokio::time::timeout(
             auth_timeout,
-            self.authenticate_handle(handle, connection, password, private_key_pem),
+            self.authenticate_handle(handle, connection, password, key_material),
         )
         .await
         .map_err(|_| {
@@ -220,7 +220,7 @@ impl SshEngine {
         self,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
         target_host: &str,
         target_port: u16,
         resolver: Option<&ConnectionResolver>,
@@ -228,7 +228,7 @@ impl SshEngine {
         let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
         let cancel_tx = Arc::new(cancel_tx);
         let mut handle = self.establish_transport(connection, resolver).await?;
-        self.do_authenticate(&mut handle, connection, password, private_key_pem)
+        self.do_authenticate(&mut handle, connection, password, key_material)
             .await?;
         let shared = Arc::new(tokio::sync::Mutex::new(handle.0));
 
@@ -274,7 +274,7 @@ impl SshEngine {
         mut self,
         connection: &Connection,
         password: Option<&str>,
-        private_key_pem: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
         rule: &PortForwardRule,
         resolver: Option<&ConnectionResolver>,
     ) -> Result<ForwardSession, SshError> {
@@ -292,7 +292,7 @@ impl SshEngine {
         };
 
         let mut handle = self.establish_transport(connection, resolver).await?;
-        self.do_authenticate(&mut handle, connection, password, private_key_pem)
+        self.do_authenticate(&mut handle, connection, password, key_material)
             .await?;
         let shared = Arc::new(tokio::sync::Mutex::new(handle.0));
 
@@ -641,14 +641,18 @@ impl SshEngine {
                 .map_err(|e| SshError::JumpHost(format!("Jump host {}: {}", first_addr, e)))?
         };
 
-        // Authenticate on first jump host
+        // Authenticate on first jump host (its own key + optional cert).
         let first_pw = resolver.passwords.get(&first_jump_id);
-        let first_key = resolver.private_keys.get(&first_jump_id);
+        let first_cert = resolver.certificates.get(&first_jump_id).map(String::as_str);
+        let first_km = resolver
+            .private_keys
+            .get(&first_jump_id)
+            .map(|pem| KeyMaterial::new(pem, first_cert));
         self.authenticate_handle(
             &mut current_handle,
             first_jump,
             first_pw.map(String::as_str),
-            first_key.map(String::as_str),
+            first_km,
         )
         .await?;
 
@@ -680,12 +684,16 @@ impl SshEngine {
                 .map_err(|e| SshError::JumpHost(format!("SSH handshake via jump: {}", e)))?;
 
             let jump_pw = resolver.passwords.get(&jump_id);
-            let jump_key = resolver.private_keys.get(&jump_id);
+            let jump_cert = resolver.certificates.get(&jump_id).map(String::as_str);
+            let jump_km = resolver
+                .private_keys
+                .get(&jump_id)
+                .map(|pem| KeyMaterial::new(pem, jump_cert));
             self.authenticate_handle(
                 &mut current_handle,
                 jump,
                 jump_pw.map(String::as_str),
-                jump_key.map(String::as_str),
+                jump_km,
             )
             .await?;
         }

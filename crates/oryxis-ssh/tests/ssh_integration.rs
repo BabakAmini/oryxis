@@ -128,7 +128,7 @@ async fn pubkey_auth_runs_exec_command() {
         .await
         .expect("transport");
     engine
-        .do_authenticate(&mut handle, &conn, None, Some(TEST_PRIVKEY))
+        .do_authenticate(&mut handle, &conn, None, Some(oryxis_ssh::KeyMaterial::plain(TEST_PRIVKEY)))
         .await
         .expect("authenticate via pubkey");
     let result = engine

@@ -266,7 +266,7 @@ impl Oryxis {
         if let Some(vault) = self.vault.as_ref() {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
         }
-        let (password, private_key) = self.resolve_forward_credentials(&conn);
+        let (password, private_key, certificate) = self.resolve_forward_credentials(&conn);
         let totp_secret = self
             .vault
             .as_ref()
@@ -296,7 +296,9 @@ impl Oryxis {
                         .connect_forward(
                             &conn,
                             password.as_deref(),
-                            private_key.as_deref(),
+                            private_key
+                                .as_deref()
+                                .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
                             &rule,
                             resolver.as_ref(),
                         )
@@ -349,7 +351,9 @@ impl Oryxis {
                 .connect_forward(
                     &conn,
                     password.as_deref(),
-                    private_key.as_deref(),
+                    private_key
+                        .as_deref()
+                        .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
                     &rule,
                     resolver.as_ref(),
                 )
@@ -406,39 +410,43 @@ impl Oryxis {
     pub(crate) fn resolve_forward_credentials(
         &self,
         conn: &Connection,
-    ) -> (Option<String>, Option<String>) {
+    ) -> (Option<String>, Option<String>, Option<String>) {
         if let Some(iid) = conn.identity_id {
             let id_pw = self
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_identity_password(&iid).ok().flatten());
-            let id_key = self
+            let kid = self
                 .identities
                 .iter()
                 .find(|i| i.id == iid)
-                .and_then(|i| i.key_id)
-                .and_then(|kid| {
-                    self.vault
-                        .as_ref()
-                        .and_then(|v| v.get_key_private(&kid).ok().flatten())
-                });
-            (id_pw, id_key)
+                .and_then(|i| i.key_id);
+            let id_key = kid.and_then(|kid| {
+                self.vault
+                    .as_ref()
+                    .and_then(|v| v.get_key_private(&kid).ok().flatten())
+            });
+            let id_cert = kid.and_then(|kid| self.key_certificate(&kid));
+            (id_pw, id_key, id_cert)
         } else {
             let pw = self
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_connection_password(&conn.id).ok().flatten());
-            let pk = if conn.auth_method == AuthMethod::Key || conn.auth_method == AuthMethod::Auto
+            let (pk, cert) = if conn.auth_method == AuthMethod::Key
+                || conn.auth_method == AuthMethod::Auto
             {
-                conn.key_id.and_then(|kid| {
+                let pk = conn.key_id.and_then(|kid| {
                     self.vault
                         .as_ref()
                         .and_then(|v| v.get_key_private(&kid).ok().flatten())
-                })
+                });
+                let cert = conn.key_id.and_then(|kid| self.key_certificate(&kid));
+                (pk, cert)
             } else {
-                None
+                (None, None)
             };
-            (pw, pk)
+            (pw, pk, cert)
         }
     }
 
@@ -450,6 +458,7 @@ impl Oryxis {
         }
         let mut passwords = std::collections::HashMap::new();
         let mut keys = std::collections::HashMap::new();
+        let mut certificates = std::collections::HashMap::new();
         let mut proxies = std::collections::HashMap::new();
         for jid in &conn.jump_chain {
             if let Some(vault) = &self.vault
@@ -458,11 +467,15 @@ impl Oryxis {
                 passwords.insert(*jid, pw);
             }
             if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid) {
-                if let Some(kid) = jconn.key_id
-                    && let Some(vault) = &self.vault
-                    && let Ok(Some(pk)) = vault.get_key_private(&kid)
-                {
-                    keys.insert(*jid, pk);
+                if let Some(kid) = jconn.key_id {
+                    if let Some(vault) = &self.vault
+                        && let Ok(Some(pk)) = vault.get_key_private(&kid)
+                    {
+                        keys.insert(*jid, pk);
+                    }
+                    if let Some(cert) = self.key_certificate(&kid) {
+                        certificates.insert(*jid, cert);
+                    }
                 }
                 if let Some(vault) = &self.vault
                     && let Ok(Some(p)) = vault.resolve_proxy(jconn)
@@ -472,6 +485,7 @@ impl Oryxis {
             }
         }
         Some(ConnectionResolver {
+            certificates,
             connections: self.connections.clone(),
             passwords,
             private_keys: keys,

@@ -144,25 +144,43 @@ pub async fn handle_ssh_execute(
         .find(|c| c.id == id)
         .ok_or_else(|| "Host not found or not MCP-enabled".to_string())?;
 
+    // The certificate (B2) is resolved from the SAME key as the pem, so
+    // it can never pair with the wrong key.
+    let all_keys = vault.list_keys().unwrap_or_default();
+    let cert_for = |kid: &uuid::Uuid| -> Option<String> {
+        all_keys
+            .iter()
+            .find(|k| k.id == *kid)
+            .and_then(|k| k.certificate.clone())
+    };
+
     // Resolve credentials
     let password = vault.get_connection_password(&conn.id).unwrap_or(None);
     let private_key = conn
         .key_id
         .and_then(|kid| vault.get_key_private(&kid).ok().flatten());
+    let conn_cert = conn.key_id.as_ref().and_then(&cert_for);
 
     // If identity linked, get identity credentials
-    let (ident_password, ident_key) = if let Some(iid) = conn.identity_id {
+    let (ident_password, ident_key, ident_cert) = if let Some(iid) = conn.identity_id {
         let ident_pw = vault.get_identity_password(&iid).unwrap_or(None);
         let identities = vault.list_identities().unwrap_or_default();
         let ident_key_id = identities.iter().find(|i| i.id == iid).and_then(|i| i.key_id);
         let ident_pk = ident_key_id.and_then(|kid| vault.get_key_private(&kid).ok().flatten());
-        (ident_pw, ident_pk)
+        let ident_cert = ident_key_id.as_ref().and_then(&cert_for);
+        (ident_pw, ident_pk, ident_cert)
     } else {
-        (None, None)
+        (None, None, None)
     };
 
     let final_password = password.or(ident_password);
-    let final_key = private_key.or(ident_key);
+    // Certificate follows the key that wins (conn-preferred, same as the
+    // key), so the pair never desyncs.
+    let (final_key, final_cert) = if private_key.is_some() {
+        (private_key, conn_cert)
+    } else {
+        (ident_key, ident_cert)
+    };
     let username = conn.username.clone().unwrap_or_else(|| "root".into());
 
     // Build a temporary Connection with resolved username for auth
@@ -203,7 +221,9 @@ pub async fn handle_ssh_execute(
             &mut handle,
             &auth_conn,
             final_password.as_deref(),
-            final_key.as_deref(),
+            final_key
+                .as_deref()
+                .map(|pem| oryxis_ssh::KeyMaterial::new(pem, final_cert.as_deref())),
         )
         .await
         .map_err(|e| format!("Authentication failed: {}", e))?;

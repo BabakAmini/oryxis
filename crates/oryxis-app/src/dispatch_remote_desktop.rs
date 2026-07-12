@@ -164,7 +164,7 @@ impl Oryxis {
         if let Some(vault) = self.vault.as_ref() {
             gw.proxy = vault.resolve_proxy(&gw).ok().flatten();
         }
-        let (password, private_key) = self.resolve_forward_credentials(&gw);
+        let (password, private_key, certificate) = self.resolve_forward_credentials(&gw);
         let totp_secret = self
             .vault
             .as_ref()
@@ -256,7 +256,9 @@ impl Oryxis {
                         .connect_local_forward_ephemeral(
                             &gw,
                             password.as_deref(),
-                            private_key.as_deref(),
+                            private_key
+                                .as_deref()
+                                .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
                             &target_host,
                             target_port,
                             resolver.as_ref(),

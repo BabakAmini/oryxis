@@ -38,11 +38,44 @@ use kbi::*;
 // SSH Engine
 // ---------------------------------------------------------------------------
 
+/// The key material offered during publickey auth: the private key PEM
+/// and, optionally, an OpenSSH user certificate to present alongside it
+/// (B2). Bundling the two guarantees the certificate travels with the
+/// exact key it was resolved from -- the caller builds this from a
+/// single key lookup, so a cert can never be paired with the wrong key.
+///
+/// `Copy` (both fields are references) so it forwards through the connect
+/// pipeline exactly like the `Option<&str>` it replaced.
+#[derive(Clone, Copy)]
+pub struct KeyMaterial<'a> {
+    /// The decrypted private key in OpenSSH/PEM form.
+    pub private_pem: &'a str,
+    /// The full `ssh-*-cert-v01@openssh.com AAAA... comment` public line,
+    /// when the key carries a certificate. `None` = plain publickey.
+    pub certificate: Option<&'a str>,
+}
+
+impl<'a> KeyMaterial<'a> {
+    /// A key with no certificate (plain publickey), the common case.
+    pub fn plain(private_pem: &'a str) -> Self {
+        Self { private_pem, certificate: None }
+    }
+
+    /// A key with an optional certificate.
+    pub fn new(private_pem: &'a str, certificate: Option<&'a str>) -> Self {
+        Self { private_pem, certificate }
+    }
+}
+
 /// Resolves connections for jump hosts.
 pub struct ConnectionResolver {
     pub connections: Vec<Connection>,
     pub passwords: std::collections::HashMap<uuid::Uuid, String>,
     pub private_keys: std::collections::HashMap<uuid::Uuid, String>,
+    /// Per-jump-host OpenSSH certificate (B2), keyed like `private_keys`.
+    /// Each hop authenticates with its own key, so its cert follows the
+    /// same per-hop shape. Empty = no hop presents a certificate.
+    pub certificates: std::collections::HashMap<uuid::Uuid, String>,
     /// Effective proxy per jump-host id, hydrated by the caller via
     /// `Vault::resolve_proxy`. Only the first jump's entry is used
     /// subsequent hops travel inside an SSH-tunneled `direct-tcpip`
