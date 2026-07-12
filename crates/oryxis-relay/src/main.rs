@@ -600,7 +600,17 @@ async fn poll_inbox(
 }
 
 async fn healthz() -> Response {
-    (StatusCode::OK, "ok").into_response()
+    // The `x-oryxis-relay` header lets the in-app relay setup wizard
+    // positively identify a real Oryxis relay (and read its version),
+    // instead of adopting any host that merely answers 2xx on /healthz
+    // (a parked domain or CDN would otherwise pass). Body stays "ok" for
+    // plain curl / uptime probes.
+    (
+        StatusCode::OK,
+        [("x-oryxis-relay", env!("CARGO_PKG_VERSION"))],
+        "ok",
+    )
+        .into_response()
 }
 
 // ───── integration tests ─────

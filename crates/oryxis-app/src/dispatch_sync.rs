@@ -120,22 +120,52 @@ impl Oryxis {
                 self.sync.relay_wizard.result = None;
                 return Ok(Task::perform(
                     async move {
-                        // `/healthz` is unauthenticated on both servers
-                        // (oryxis-relay and worker.js), so this probes
-                        // reachability + TLS without leaking the token.
+                        // The wizard sets up a self-hosted `oryxis-relay`
+                        // binary, whose `/healthz` is unauthenticated
+                        // (the Worker backend authenticates every route,
+                        // so it is not a wizard target). Probe reachability
+                        // + TLS without leaking the token, but require the
+                        // relay to identify itself: a parked domain or CDN
+                        // will answer 2xx on any path, and adopting it
+                        // would silently overwrite a working endpoint. The
+                        // `x-oryxis-relay` header is the positive signal;
+                        // an exact `ok` body is the fallback for relays
+                        // that predate the header.
                         let client = reqwest::Client::builder()
                             .timeout(std::time::Duration::from_secs(8))
                             .build()
                             .map_err(|e| e.to_string())?;
-                        let resp = client
+                        let mut resp = client
                             .get(format!("{base}/healthz"))
                             .send()
                             .await
                             .map_err(|e| e.to_string())?;
-                        if resp.status().is_success() {
+                        if !resp.status().is_success() {
+                            return Err(format!("HTTP {}", resp.status()));
+                        }
+                        // The header alone confirms an Oryxis relay; short
+                        // circuit so a confirmed relay's body is never read.
+                        if resp.headers().contains_key("x-oryxis-relay") {
+                            return Ok(());
+                        }
+                        // Fallback for relays predating the header: the body
+                        // must be exactly "ok". Cap the read at 4 KiB so a
+                        // mistyped or hostile URL streaming a huge body can't
+                        // OOM the app (the 8s timeout bounds time, not bytes).
+                        let mut body = Vec::new();
+                        while let Some(chunk) =
+                            resp.chunk().await.map_err(|e| e.to_string())?
+                        {
+                            if body.len() + chunk.len() > 4096 {
+                                return Err(crate::i18n::t("sync_relay_not_recognized")
+                                    .to_string());
+                            }
+                            body.extend_from_slice(&chunk);
+                        }
+                        if String::from_utf8_lossy(&body).trim() == "ok" {
                             Ok(())
                         } else {
-                            Err(format!("HTTP {}", resp.status()))
+                            Err(crate::i18n::t("sync_relay_not_recognized").to_string())
                         }
                     },
                     Message::SyncWizardTestResult,

@@ -141,7 +141,7 @@ impl RelayWizardForm {
                 token = self.token
             ),
             RelayWizardFormat::Caddy => format!(
-                "# Caddyfile (TLS via Let's Encrypt is automatic)\n# Long-poll: keep proxy read timeouts above 150s if you front\n# this with nginx instead (proxy_read_timeout 150s).\n{domain} {{\n    reverse_proxy 127.0.0.1:8080\n}}\n"
+                "# Caddyfile (TLS via Let's Encrypt is automatic)\n# Long-poll: keep proxy read timeouts above 150s if you front\n# this with nginx instead (proxy_read_timeout 180s).\n{domain} {{\n    reverse_proxy 127.0.0.1:8080\n}}\n"
             ),
         }
     }

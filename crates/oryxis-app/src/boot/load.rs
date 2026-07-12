@@ -280,6 +280,7 @@ impl Oryxis {
                 );
                 let url_absent =
                     matches!(vault.get_setting("sync_signaling_url"), Ok(None));
+                let mut mark_done = true;
                 if was_syncing && url_absent {
                     let (url, token) =
                         oryxis_sync::config::legacy_hosted_signaling();
@@ -294,9 +295,19 @@ impl Oryxis {
                             let _ =
                                 vault.set_setting("sync_signaling_token", &token);
                         }
+                    } else {
+                        // A user WAS syncing on the hosted default, but this
+                        // binary has no baked-in hosted URL to migrate (a
+                        // self-built / fork build without the CI secret).
+                        // Leave the flag unset so a later official build can
+                        // still complete the migration instead of silently
+                        // dropping the user's internet sync.
+                        mark_done = false;
                     }
                 }
-                let _ = vault.set_setting("sync_hosted_migrated", "true");
+                if mark_done {
+                    let _ = vault.set_setting("sync_hosted_migrated", "true");
+                }
             }
             if let Ok(Some(v)) = vault.get_setting("sync_signaling_url") {
                 self.sync.signaling_url = v;
