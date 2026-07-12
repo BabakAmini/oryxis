@@ -64,7 +64,15 @@ impl Oryxis {
         });
         let default_key = self
             .setting_default_key_id
-            .and_then(|id| self.keys.iter().find(|k| k.id == id).map(|k| k.label.clone()));
+            .and_then(|id| self.keys.iter().find(|k| k.id == id))
+            // A Certificate default only accepts cert-carrying keys (the
+            // combo filters them out, so a bare default would be stuck).
+            .filter(|k| {
+                self.setting_default_auth_method
+                    != oryxis_core::models::connection::AuthMethod::Certificate
+                    || k.certificate.is_some()
+            })
+            .map(|k| k.label.clone());
         let default_group = self
             .setting_default_group_id
             .and_then(|id| self.groups.iter().find(|g| g.id == id).map(|g| g.label.clone()))
@@ -162,11 +170,16 @@ impl Oryxis {
     }
 
     /// Option list for the SSH Key combo: the `(none)` sentinel first,
-    /// then every saved key's label.
+    /// then every saved key's label. Under `AuthMethod::Certificate`
+    /// (B2.1) only keys carrying a certificate are listed, the method
+    /// offers the cert and nothing else, so a bare key is never a valid
+    /// pick there.
     fn editor_key_options(&self) -> Vec<String> {
-        let mut opts = vec!["(none)".to_string()];
-        opts.extend(self.keys.iter().map(|k| k.label.clone()));
-        opts
+        key_combo_options(
+            &self.keys,
+            self.editor_form.auth_method
+                == oryxis_core::models::connection::AuthMethod::Certificate,
+        )
     }
 
     /// (Re)build the SSH Key combo with an empty typed value. Same
@@ -772,24 +785,22 @@ impl Oryxis {
                 self.editor_form.totp_visible = !self.editor_form.totp_visible;
             }
             Message::EditorAuthMethodChanged(v) => {
-                use crate::i18n::t;
-                // Match against the *localized* labels emitted by the
-                // pick_list. Falling back to English keeps stale-label
-                // dispatches (e.g. setting persisted in another locale)
-                // still resolvable.
-                self.editor_form.auth_method = if v == t("auth_password") || v == "Password" {
-                    AuthMethod::Password
-                } else if v == t("auth_key") || v == "Key" {
-                    AuthMethod::Key
-                } else if v == t("auth_agent") || v == "Agent" {
-                    AuthMethod::Agent
-                } else if v == t("auth_interactive") || v == "Interactive" {
-                    AuthMethod::Interactive
-                } else if v == t("auth_password_prompt") || v == "PasswordPrompt" {
-                    AuthMethod::PasswordPrompt
-                } else {
-                    AuthMethod::Auto
-                };
+                // Localized (or English) label -> enum, shared with the
+                // Settings default-auth picker.
+                self.editor_form.auth_method = crate::util::auth_method_from_label(&v);
+                // Certificate lists only keys that carry a cert: drop a
+                // selection that is no longer offerable and rebuild the
+                // combo with the filtered (or restored) option list.
+                if self.editor_form.auth_method == AuthMethod::Certificate
+                    && let Some(sel) = self.editor_form.selected_key.as_deref()
+                    && !self
+                        .keys
+                        .iter()
+                        .any(|k| k.label == sel && k.certificate.is_some())
+                {
+                    self.editor_form.selected_key = None;
+                }
+                self.reset_editor_key_combo();
             }
             Message::EditorGroupChanged(v) => self.editor_form.group_name = v,
             Message::EditorKeyChanged(v) => {
@@ -1270,6 +1281,23 @@ impl Oryxis {
     }
 }
 
+/// Option list for the host editor's SSH Key combo, pure so it
+/// unit-tests: the `(none)` sentinel first, then every key's label,
+/// filtered to certificate-carrying keys when `certificate_only`
+/// (the `AuthMethod::Certificate` picker, B2.1).
+fn key_combo_options(
+    keys: &[oryxis_core::models::key::SshKey],
+    certificate_only: bool,
+) -> Vec<String> {
+    let mut opts = vec!["(none)".to_string()];
+    opts.extend(
+        keys.iter()
+            .filter(|k| !certificate_only || k.certificate.is_some())
+            .map(|k| k.label.clone()),
+    );
+    opts
+}
+
 /// Result of resolving the editor form's proxy section into model
 /// fields. `Identity(_)` selections route to `proxy_identity_id`, the
 /// other static kinds populate the inline `ProxyConfig`. Note that
@@ -1341,5 +1369,37 @@ fn build_proxy_resolution(form: &ConnectionForm) -> Result<ProxyResolution, Stri
                 proxy_identity_id: None,
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod key_combo_tests {
+    use super::key_combo_options;
+    use oryxis_core::models::key::{KeyAlgorithm, SshKey};
+
+    fn key(label: &str, with_cert: bool) -> SshKey {
+        let mut k = SshKey::new(label, KeyAlgorithm::Ed25519);
+        if with_cert {
+            k.certificate = Some("ssh-ed25519-cert-v01@openssh.com AAAA... u@h".into());
+        }
+        k
+    }
+
+    #[test]
+    fn unfiltered_lists_every_key_after_the_sentinel() {
+        let keys = vec![key("bare", false), key("certified", true)];
+        assert_eq!(key_combo_options(&keys, false), vec!["(none)", "bare", "certified"]);
+    }
+
+    #[test]
+    fn certificate_mode_lists_only_cert_carrying_keys() {
+        let keys = vec![key("bare", false), key("certified", true), key("plain2", false)];
+        assert_eq!(key_combo_options(&keys, true), vec!["(none)", "certified"]);
+    }
+
+    #[test]
+    fn certificate_mode_with_no_certs_keeps_the_sentinel_only() {
+        let keys = vec![key("bare", false)];
+        assert_eq!(key_combo_options(&keys, true), vec!["(none)"]);
     }
 }

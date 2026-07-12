@@ -9,14 +9,7 @@ impl Oryxis {
         for idx in host_order.into_iter() {
             let conn = &self.connections[idx];
             let is_connected = self.tabs.iter().any(|t| t.label == conn.label);
-            let auth_label = match conn.auth_method {
-                AuthMethod::Auto => t("auth_auto"),
-                AuthMethod::Password => t("auth_password"),
-                AuthMethod::Key => t("auth_key"),
-                AuthMethod::Agent => t("auth_agent"),
-                AuthMethod::Interactive => t("auth_interactive"),
-                AuthMethod::PasswordPrompt => t("auth_password_prompt"),
-            };
+            let auth_label = crate::util::auth_method_label(&conn.auth_method);
             // Address shown only when the (off-by-default) setting is on,
             // so addresses stay out of screenshots / screen shares by
             // default. Port 22 is the SSH default, so it's always omitted.

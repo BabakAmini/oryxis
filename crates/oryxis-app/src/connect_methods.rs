@@ -50,9 +50,10 @@ impl Oryxis {
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_connection_password(&conn.id).ok().flatten());
-            let (pk, cert) = if conn.auth_method == AuthMethod::Key
-                || conn.auth_method == AuthMethod::Auto
-            {
+            let (pk, cert) = if matches!(
+                conn.auth_method,
+                AuthMethod::Key | AuthMethod::Auto | AuthMethod::Certificate
+            ) {
                 let pk = conn.key_id.and_then(|kid| {
                     self.vault
                         .as_ref()

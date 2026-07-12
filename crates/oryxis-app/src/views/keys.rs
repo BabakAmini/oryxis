@@ -305,8 +305,9 @@ impl Oryxis {
                 Padding { top: 13.0, right: card_pad_trailing, bottom: 13.0, left: 12.0 }
             };
 
-            // Subtitle line: the algorithm, plus a small "cert" pill when
-            // a certificate is attached (B2).
+            // Subtitle line: the algorithm, plus the "SSH Certificate"
+            // flag when one is attached (B2.1, Termius-style: the cert is
+            // part of the key entity, so the row reads as its type).
             let algo_text: Element<'_, Message> = text(algo)
                 .size(11)
                 .color(OryxisColors::t().text_muted)
@@ -315,17 +316,12 @@ impl Oryxis {
             let key_subtitle: Element<'_, Message> = if key.certificate.is_some() {
                 dir_row(vec![
                     algo_text,
-                    Space::new().width(6).into(),
-                    container(
-                        text(t("cert_badge")).size(9).color(OryxisColors::t().accent),
-                    )
-                    .padding(Padding { top: 1.0, right: 5.0, bottom: 1.0, left: 5.0 })
-                    .style(|_| container::Style {
-                        background: Some(Background::Color(Color { a: 0.14, ..OryxisColors::t().accent })),
-                        border: Border { radius: Radius::from(4.0), ..Default::default() },
-                        ..Default::default()
-                    })
-                    .into(),
+                    text(" · ").size(11).color(OryxisColors::t().text_muted).into(),
+                    text(t("cert_flag"))
+                        .size(11)
+                        .color(OryxisColors::t().accent)
+                        .wrapping(iced::widget::text::Wrapping::None)
+                        .into(),
                 ])
                 .align_y(iced::Alignment::Center)
                 .into()
@@ -819,6 +815,33 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
+        // Editable public-key line (B2.1, Termius parity): empty derives
+        // from the private key on save; a pasted / edited line must match
+        // the private key (the comment may differ, that is the point,
+        // it is what the ssh-agent serves). Prefilled from `<key>.pub`
+        // on browse and from the stored key on edit.
+        let public_section = column![
+            Space::new().height(16),
+            text(t("public_key")).size(12).color(OryxisColors::t().text_secondary),
+            Space::new().height(6),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-public")),
+                8.0,
+                text_input("ssh-ed25519 AAAA...", &self.key_import_form.public_key)
+                    .id(iced::widget::Id::new("panel-key-import-public"))
+                    .on_input(Message::KeyImportPublicChanged)
+                    .padding(10)
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .style(crate::widgets::rounded_input_style)
+                    .into(),
+            ),
+            Space::new().height(4),
+            text(t("public_key_auto_hint")).size(11).color(OryxisColors::t().text_muted),
+        ]
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+
         // Attached-certificate section (B2): a paste field + Browse
         // button for a signed `-cert.pub` user certificate. Optional; the
         // auto-probe on file pick prefills it and raises the hint below.
@@ -920,6 +943,7 @@ impl Oryxis {
                     Space::new().height(6),
                     editor,
                     passphrase_section,
+                    public_section,
                     cert_section,
                 ]
                 .width(Length::Fill)
@@ -1597,7 +1621,7 @@ impl Oryxis {
             );
         }
         body = body.push(Space::new().height(10)).push(info_row(
-            "CA SHA256".to_string(),
+            t("key_ca_sha256").to_string(),
             data.ca_fingerprint.clone(),
             true,
         ));

@@ -563,6 +563,12 @@ pub(crate) struct KeyImportForm {
     /// passphrase row in the import panel.
     pub passphrase_required: bool,
     pub passphrase_visible: bool,
+    /// The key's OpenSSH public line (`ssh-ed25519 AAAA... comment`),
+    /// editable (B2.1, Termius parity; it is also what the ssh-agent
+    /// serves). Empty = derived from the private key on save; non-empty
+    /// input must parse and certify the same key data as the private key
+    /// (editing the trailing comment is fine).
+    pub public_key: String,
     /// The attached OpenSSH certificate line (`ssh-*-cert-v01@... AAAA...`),
     /// B2. Public material, so it lives in plain form state like the
     /// public key. Empty = no certificate.

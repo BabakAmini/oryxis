@@ -37,6 +37,7 @@ impl VaultStore {
             AuthMethod::Agent => "agent",
             AuthMethod::Interactive => "interactive",
             AuthMethod::PasswordPrompt => "password_prompt",
+            AuthMethod::Certificate => "certificate",
         };
 
         let protocol_str = match conn.protocol {
@@ -184,6 +185,7 @@ impl VaultStore {
                     "agent" => AuthMethod::Agent,
                     "interactive" => AuthMethod::Interactive,
                     "password_prompt" => AuthMethod::PasswordPrompt,
+                    "certificate" => AuthMethod::Certificate,
                     _ => AuthMethod::Auto,
                 };
 

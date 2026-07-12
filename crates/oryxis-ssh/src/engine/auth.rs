@@ -160,6 +160,11 @@ impl SshEngine {
                 let km = key_material
                     .ok_or_else(|| SshError::Key("No private key selected".into()))?;
 
+                // Strictly the bare key (B2.1): the user picked "Key", so an
+                // attached certificate is never offered here. `Certificate`
+                // is the cert-only method and `Auto` the smart one.
+                let km = KeyMaterial::plain(km.private_pem);
+
                 tracing::info!("Trying publickey auth for {}", username);
                 if self.try_publickey_auth(handle, username, km).await? {
                     return Ok(true);
@@ -176,6 +181,51 @@ impl SshEngine {
                 }
 
                 Err(SshError::Key("Public key rejected by server".into()))
+            }
+            AuthMethod::Certificate => {
+                // Certificate-only (B2.1): offer the attached OpenSSH user
+                // certificate and nothing else. Unlike the degrade-friendly
+                // `try_publickey_auth`, everything here is a hard error: the
+                // user asked for exactly this credential, so a missing or
+                // unusable cert must surface instead of silently landing on
+                // a different auth path.
+                let km = key_material
+                    .ok_or_else(|| SshError::Key("No key selected".into()))?;
+                let cert_line = km.certificate.ok_or_else(|| {
+                    SshError::Key("The selected key has no attached certificate".into())
+                })?;
+
+                let private_key = russh::keys::decode_secret_key(km.private_pem, None)
+                    .map_err(|e| SshError::Key(format!("Failed to decode key: {}", e)))?;
+                let private_key = Arc::new(private_key);
+
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                let cert = match check_certificate(cert_line, &private_key, now) {
+                    CertCheck::Unusable(why) => {
+                        return Err(SshError::Key(format!("Certificate unusable: {}", why)));
+                    }
+                    CertCheck::Offer { cert, expired } => {
+                        if expired {
+                            // Advisory only: the server's clock is authoritative.
+                            tracing::warn!(
+                                "Certificate for {} is expired; offering anyway",
+                                username,
+                            );
+                        }
+                        cert
+                    }
+                };
+                tracing::info!("Trying certificate auth for {}", username);
+                let res = handle
+                    .authenticate_openssh_cert(username, private_key, *cert)
+                    .await?;
+                if !res.success() {
+                    return Err(SshError::Key("Certificate rejected by server".into()));
+                }
+                Ok(true)
             }
             AuthMethod::Agent => {
                 tracing::info!("Trying agent auth for {}", username);

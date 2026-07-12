@@ -32,6 +32,7 @@ impl Oryxis {
                 self.key_import_form.passphrase.clear();
                 self.key_import_form.passphrase_required = false;
                 self.key_import_form.passphrase_visible = false;
+                self.key_import_form.public_key.clear();
                 self.key_import_form.certificate.clear();
                 self.key_import_form.cert_detected = false;
                 self.key_error = None;
@@ -40,12 +41,26 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
+            Message::ShowKeyPanelCertFocus => {
+                // The ADD menu's "Certificate" entry (B2.1): the same
+                // import panel (a certificate lives on its key, one
+                // entity), opened with the certificate field focused so
+                // the intent lands somewhere visible.
+                let open = self.handle_keys(Message::ShowKeyPanel)?;
+                return Ok(Task::batch([
+                    open,
+                    iced::widget::operation::focus(iced::widget::Id::new(
+                        "panel-key-import-cert",
+                    )),
+                ]));
+            }
             Message::HideKeyPanel => {
                 self.show_key_panel = false;
                 self.key_import_form.editing_id = None;
                 self.key_import_form.passphrase.clear();
                 self.key_import_form.passphrase_required = false;
                 self.key_import_form.passphrase_visible = false;
+                self.key_import_form.public_key.clear();
                 self.key_import_form.certificate.clear();
                 self.key_import_form.cert_detected = false;
                 // Errors raised inside the sidebar are scoped to it.
@@ -202,7 +217,8 @@ impl Oryxis {
                 let pem = match self.vault.as_ref().map(|v| v.get_key_private(&result.id)) {
                     Some(Ok(Some(pem))) => pem,
                     Some(Ok(None)) | None => {
-                        self.key_generate_form.error = Some("key not found".into());
+                        self.key_generate_form.error =
+                            Some(crate::i18n::t("key_not_found").into());
                         return Ok(Task::none());
                     }
                     Some(Err(e)) => {
@@ -283,12 +299,22 @@ impl Oryxis {
                                     .unwrap_or_else(|| "imported-key".into());
                                 let content = std::fs::read_to_string(&path)
                                     .map_err(|e| format!("Failed to read: {}", e))?;
-                                // OpenSSH's implicit lookup: a signed user
-                                // cert sits next to the key as
+                                // OpenSSH's implicit lookup: the public
+                                // line sits next to the key as `<key>.pub`
+                                // and a signed user cert as
                                 // `<key>-cert.pub`. Auto-probe and prefill
-                                // when it is there, and only when it parses
-                                // (a stray same-named file must not poison
-                                // the field).
+                                // both when present, and only when they
+                                // parse (a stray same-named file must not
+                                // poison the field). The public line keeps
+                                // the user's trailing comment, which
+                                // deriving from the private key would lose.
+                                let public = std::fs::read_to_string(
+                                    format!("{}.pub", path.display()),
+                                )
+                                .ok()
+                                .filter(|p| {
+                                    ssh_key::PublicKey::from_openssh(p.trim()).is_ok()
+                                });
                                 let cert = std::fs::read_to_string(
                                     format!("{}-cert.pub", path.display()),
                                 )
@@ -296,21 +322,21 @@ impl Oryxis {
                                 .filter(|c| {
                                     ssh_key::Certificate::from_openssh(c.trim()).is_ok()
                                 });
-                                Ok((filename, content, cert))
+                                Ok((filename, content, public, cert))
                             }
                             None => Err("cancelled".to_string()),
                         }
                     }),
                     |result| match result {
-                        Ok(Ok((filename, content, cert))) => {
-                            Message::KeyFileLoaded(filename, content, cert)
+                        Ok(Ok((filename, content, public, cert))) => {
+                            Message::KeyFileLoaded(filename, content, public, cert)
                         }
                         Ok(Err(e)) => Message::KeyFileBrowseError(e),
                         Err(e) => Message::KeyFileBrowseError(format!("Thread error: {}", e)),
                     },
                 ));
             }
-            Message::KeyFileLoaded(filename, content, cert) => {
+            Message::KeyFileLoaded(filename, content, public, cert) => {
                 if self.key_import_form.label.is_empty() {
                     self.key_import_form.label = filename;
                 }
@@ -321,6 +347,12 @@ impl Oryxis {
                 self.key_import_form.passphrase_required =
                     oryxis_vault::is_key_encrypted(&content);
                 self.key_import_form.pem = content;
+                // A sibling `<key>.pub` was found and parses: prefill the
+                // editable public line (it carries the user's comment,
+                // which deriving from the private key would lose).
+                if let Some(public) = public {
+                    self.key_import_form.public_key = public.trim().to_string();
+                }
                 // A sibling `<key>-cert.pub` was found and parses: prefill
                 // and flag the "certificate detected" hint.
                 if let Some(cert) = cert {
@@ -332,6 +364,10 @@ impl Oryxis {
                 // The sidebar already shows "Loaded (X bytes)"; surfacing
                 // a second toast in the main keychain area is just noise.
                 self.key_success = None;
+            }
+            Message::KeyImportPublicChanged(v) => {
+                self.key_import_form.public_key = v;
+                self.key_error = None;
             }
             Message::KeyImportCertChanged(v) => {
                 self.key_import_form.certificate = v;
@@ -396,7 +432,8 @@ impl Oryxis {
                         // rewrites the (now empty) certificate column.
                         let _ = vault.save_key(&key, None);
                         self.load_data_from_vault();
-                        self.key_success = Some("Certificate removed".into());
+                        self.key_success =
+                            Some(crate::i18n::t("key_certificate_removed").into());
                     }
                 }
                 self.cert_viewer = None;
@@ -410,7 +447,8 @@ impl Oryxis {
             }
             Message::ImportKey => {
                 if self.key_import_form.pem.is_empty() {
-                    self.key_error = Some("Select a key file first".into());
+                    self.key_error =
+                        Some(crate::i18n::t("key_select_file_first").into());
                     return Ok(Task::none());
                 }
                 // If we already know the key is encrypted but the user
@@ -433,9 +471,36 @@ impl Oryxis {
                 };
                 match oryxis_vault::import_key(&label, &self.key_import_form.pem, pass_opt) {
                     Ok(mut generated) => {
-                        // If editing an existing key, preserve its ID
+                        // If editing an existing key, preserve the fields
+                        // that live outside the import form. `import_key`
+                        // rebuilds a fresh `SshKey` (expose_via_agent = true,
+                        // created_at = now), so re-saving after an edit would
+                        // silently re-arm a key the user had removed from the
+                        // ssh-agent and reset its creation date (breaking the
+                        // by-date sort). Carry the id and both fields over.
                         if let Some(existing_id) = self.key_import_form.editing_id {
                             generated.key.id = existing_id;
+                            if let Some(existing) =
+                                self.keys.iter().find(|k| k.id == existing_id)
+                            {
+                                generated.key.expose_via_agent = existing.expose_via_agent;
+                                generated.key.created_at = existing.created_at;
+                            }
+                        }
+                        // Apply the editable public line (B2.1). Empty keeps
+                        // the derived one; non-empty must parse and carry the
+                        // private key's key data (a different comment is
+                        // fine, that is the point of the field).
+                        match validate_public_key(
+                            &self.key_import_form.public_key,
+                            &generated.key.public_key,
+                        ) {
+                            Ok(Some(public)) => generated.key.public_key = public,
+                            Ok(None) => {}
+                            Err(key) => {
+                                self.key_error = Some(crate::i18n::t(key).to_string());
+                                return Ok(Task::none());
+                            }
                         }
                         // Validate + attach the certificate. A mismatch or a
                         // host cert is an inline error, never a silent save
@@ -463,6 +528,9 @@ impl Oryxis {
                                     self.key_import_form.passphrase.clear();
                                     self.key_import_form.passphrase_required = false;
                                     self.key_import_form.passphrase_visible = false;
+                                    self.key_import_form.public_key.clear();
+                                    self.key_import_form.certificate.clear();
+                                    self.key_import_form.cert_detected = false;
                                     self.show_key_panel = false;
                                     self.key_import_form.editing_id = None;
                                     self.load_data_from_vault();
@@ -539,6 +607,7 @@ impl Oryxis {
                     self.key_import_form.passphrase.clear();
                     self.key_import_form.passphrase_required = false;
                     self.key_import_form.passphrase_visible = false;
+                    self.key_import_form.public_key = key.public_key.clone();
                     self.key_import_form.certificate =
                         key.certificate.clone().unwrap_or_default();
                     self.key_import_form.cert_detected = false;
@@ -768,6 +837,34 @@ fn validate_certificate(
     Ok(Some(trimmed.to_string()))
 }
 
+/// Validate the editable public-key line against the public key derived
+/// from the private key (B2.1). Returns `Ok(None)` when the field is
+/// empty (keep the derived line), `Ok(Some(line))` when the input parses
+/// and carries the same key data (a different trailing comment is fine,
+/// preserving it is the point of the field), or an i18n error key.
+fn validate_public_key(
+    public_input: &str,
+    derived_openssh: &str,
+) -> Result<Option<String>, &'static str> {
+    let trimmed = public_input.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    // A pasted private key block is never a public line; reject it so
+    // secret material can never land in the plaintext public column.
+    if trimmed.contains("-----BEGIN") {
+        return Err("public_key_invalid_error");
+    }
+    let public = ssh_key::PublicKey::from_openssh(trimmed)
+        .map_err(|_| "public_key_invalid_error")?;
+    let derived = ssh_key::PublicKey::from_openssh(derived_openssh)
+        .map_err(|_| "public_key_invalid_error")?;
+    if public.key_data() != derived.key_data() {
+        return Err("public_key_mismatch_error");
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
 impl Oryxis {
     /// Parse the certificate attached to key `idx` into a display-ready
     /// [`crate::state::CertViewerData`]. `None` when the key has no cert
@@ -918,6 +1015,62 @@ mod cert_validation_tests {
         assert_eq!(
             validate_certificate(&cert, &public_line(&key)),
             Err("cert_wrong_type_error")
+        );
+    }
+}
+
+#[cfg(test)]
+mod public_key_validation_tests {
+    use super::validate_public_key;
+    use rand010 as rand;
+    use ssh_key::{Algorithm, PrivateKey};
+
+    fn public_line(key: &PrivateKey) -> String {
+        key.public_key().to_openssh().unwrap()
+    }
+
+    #[test]
+    fn empty_input_keeps_the_derived_line() {
+        assert_eq!(validate_public_key("   ", "irrelevant"), Ok(None));
+    }
+
+    #[test]
+    fn private_key_block_is_rejected() {
+        // The secret-leak guard: BEGIN-block material must never be
+        // accepted into the plaintext public-key column.
+        let pem = "-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----";
+        assert_eq!(validate_public_key(pem, "irrelevant"), Err("public_key_invalid_error"));
+    }
+
+    #[test]
+    fn garbage_is_rejected() {
+        assert_eq!(
+            validate_public_key("not a public key", "irrelevant"),
+            Err("public_key_invalid_error")
+        );
+    }
+
+    #[test]
+    fn matching_line_with_custom_comment_is_kept() {
+        // Editing the trailing comment is the field's use case (the
+        // comparison is on key data, not the string).
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let derived = public_line(&key);
+        let blob = derived.split_whitespace().take(2).collect::<Vec<_>>().join(" ");
+        let edited = format!("{blob} wilson@workstation");
+        assert_eq!(
+            validate_public_key(&edited, &derived),
+            Ok(Some(edited.clone()))
+        );
+    }
+
+    #[test]
+    fn another_keys_public_line_is_rejected() {
+        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let other = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        assert_eq!(
+            validate_public_key(&public_line(&other), &public_line(&key)),
+            Err("public_key_mismatch_error")
         );
     }
 }

@@ -725,6 +725,7 @@ pub(crate) fn auth_method_label(m: &oryxis_core::models::connection::AuthMethod)
         AuthMethod::Agent => t("auth_agent"),
         AuthMethod::Interactive => t("auth_interactive"),
         AuthMethod::PasswordPrompt => t("auth_password_prompt"),
+        AuthMethod::Certificate => t("auth_certificate"),
     }
     .to_string()
 }
@@ -745,6 +746,8 @@ pub(crate) fn auth_method_from_label(v: &str) -> oryxis_core::models::connection
         AuthMethod::Interactive
     } else if v == t("auth_password_prompt") || v == "PasswordPrompt" {
         AuthMethod::PasswordPrompt
+    } else if v == t("auth_certificate") || v == "Certificate" {
+        AuthMethod::Certificate
     } else {
         AuthMethod::Auto
     }
@@ -761,6 +764,7 @@ pub(crate) fn auth_method_to_setting(m: &oryxis_core::models::connection::AuthMe
         AuthMethod::Agent => "Agent",
         AuthMethod::Interactive => "Interactive",
         AuthMethod::PasswordPrompt => "PasswordPrompt",
+        AuthMethod::Certificate => "Certificate",
     }
     .to_string()
 }
@@ -775,6 +779,7 @@ pub(crate) fn auth_method_from_setting(v: &str) -> oryxis_core::models::connecti
         "Agent" => AuthMethod::Agent,
         "Interactive" => AuthMethod::Interactive,
         "PasswordPrompt" => AuthMethod::PasswordPrompt,
+        "Certificate" => AuthMethod::Certificate,
         _ => AuthMethod::Auto,
     }
 }

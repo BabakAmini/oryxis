@@ -14,8 +14,6 @@ use iced::widget::column;
 pub(crate) use uuid::Uuid;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use oryxis_core::models::connection::AuthMethod;
-
 pub(crate) use crate::app::{DashNavItem, Message, Oryxis, CARD_WIDTH};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::os_icon::BrandIcon;

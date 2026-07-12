@@ -348,6 +348,13 @@ pub enum AuthMethod {
     /// server. Falls back to any caller-provided password when no UI
     /// prompt channel is wired (headless / MCP).
     PasswordPrompt,
+    /// Certificate-only publickey auth (B2.1): the selected key's attached
+    /// OpenSSH user certificate is offered and nothing else. No bare-key
+    /// fallback, no password fallback; an unusable or missing certificate
+    /// is a hard auth error. `Key` is the strict opposite (bare key only)
+    /// and `Auto` remains the smart path (cert, then bare key, then the
+    /// other methods).
+    Certificate,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -641,5 +648,12 @@ mod tests {
         assert_eq!(serde_json::to_string(&AuthMethod::Agent).unwrap(), "\"Agent\"");
         assert_eq!(serde_json::to_string(&AuthMethod::Interactive).unwrap(), "\"Interactive\"");
         assert_eq!(serde_json::to_string(&AuthMethod::PasswordPrompt).unwrap(), "\"PasswordPrompt\"");
+        assert_eq!(serde_json::to_string(&AuthMethod::Certificate).unwrap(), "\"Certificate\"");
+        // And back: a synced payload from a newer peer must land on the
+        // same variant, not silently degrade.
+        assert_eq!(
+            serde_json::from_str::<AuthMethod>("\"Certificate\"").unwrap(),
+            AuthMethod::Certificate
+        );
     }
 }

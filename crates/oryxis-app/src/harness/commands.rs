@@ -136,7 +136,11 @@ where
             } else {
                 match parse_quoted(rest) {
                     Some(text) => {
-                        session.emulator.set_clipboard(Some(Content::Text(text)));
+                        // The wire protocol is line-based, so multi-line
+                        // content (PEM blocks) rides in as `\n` escapes.
+                        session
+                            .emulator
+                            .set_clipboard(Some(Content::Text(unescape_clipboard(&text))));
                         out("ok".into());
                     }
                     None => out(
@@ -189,4 +193,60 @@ where
         },
     }
     Control::Continue
+}
+
+/// Decode the `\n` / `\t` / `\"` / `\\` escapes of a `clipboard "..."`
+/// argument. The wire protocol is one command per line, so this is the
+/// only way multi-line content (PEM key blocks) can be seeded.
+fn unescape_clipboard(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let mut chars = text.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            result.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('n') => result.push('\n'),
+            Some('t') => result.push('\t'),
+            Some('"') => result.push('"'),
+            Some('\\') => result.push('\\'),
+            // Unknown escape: keep it verbatim, the caller probably
+            // meant a literal backslash.
+            Some(other) => {
+                result.push('\\');
+                result.push(other);
+            }
+            None => result.push('\\'),
+        }
+    }
+    result
+}
+
+#[cfg(test)]
+mod clipboard_escape_tests {
+    use super::unescape_clipboard;
+
+    #[test]
+    fn newlines_and_tabs_decode() {
+        assert_eq!(unescape_clipboard("a\\nb\\tc"), "a\nb\tc");
+    }
+
+    #[test]
+    fn literal_backslash_and_quote() {
+        assert_eq!(unescape_clipboard("a\\\\n"), "a\\n");
+        assert_eq!(unescape_clipboard("say \\\"hi\\\""), "say \"hi\"");
+    }
+
+    #[test]
+    fn unknown_escape_is_kept_verbatim() {
+        assert_eq!(unescape_clipboard("C:\\x\\y"), "C:\\x\\y");
+        assert_eq!(unescape_clipboard("trailing\\"), "trailing\\");
+    }
+
+    #[test]
+    fn plain_text_passes_through() {
+        let pem = "-----BEGIN OPENSSH PRIVATE KEY-----";
+        assert_eq!(unescape_clipboard(pem), pem);
+    }
 }

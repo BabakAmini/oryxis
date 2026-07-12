@@ -4,26 +4,18 @@ use super::*;
 
 impl Oryxis {
     pub(super) fn hp_row_auth_method(&self, is_ssh: bool) -> Element<'_, Message> {
-        let auth_value = match self.editor_form.auth_method {
-            AuthMethod::Auto => t("auth_auto"),
-            AuthMethod::Password => t("auth_password"),
-            AuthMethod::Key => t("auth_key"),
-            AuthMethod::Agent => t("auth_agent"),
-            AuthMethod::Interactive => t("auth_interactive"),
-            AuthMethod::PasswordPrompt => t("auth_password_prompt"),
-        };
-
         // Auth method (SSH > Authentication). Left/Right cycle the same
         // options the pick_list offers.
         let auth_options = vec![
             t("auth_auto").to_string(),
             t("auth_password").to_string(),
             t("auth_key").to_string(),
+            t("auth_certificate").to_string(),
             t("auth_agent").to_string(),
             t("auth_interactive").to_string(),
             t("auth_password_prompt").to_string(),
         ];
-        let auth_selected = auth_value.to_string();
+        let auth_selected = crate::util::auth_method_label(&self.editor_form.auth_method);
         // Focusable select: Tab reaches it, Enter/Space open it, the
         // widget owns arrows/Esc while focused (fork support).
         let row_auth_method: Element<'_, Message> = if is_ssh {
@@ -54,22 +46,34 @@ impl Oryxis {
 
     pub(super) fn hp_ssh_key_row(&self, is_ssh: bool) -> Option<Element<'_, Message>> {
         // Key row (SSH > Authentication): only when Auth Method is `Key`
-        // (the chosen-method's field) and no identity is set (an identity
-        // provides its own key). Layout is [key icon] [combo] [+ Key].
-        // Built after the auth-method row so its keyboard rows record
-        // right below it, matching the layout.
+        // or `Certificate` (the chosen-method's field) and no identity is
+        // set (an identity provides its own key). Layout is
+        // [key icon] [combo] [+ Key]. Built after the auth-method row so
+        // its keyboard rows record right below it, matching the layout.
+        // Under `Certificate` the combo lists only keys that carry a
+        // certificate (`editor_key_options` filters) and the hint below
+        // surfaces the cert's validity; under `Key` no hint is shown, the
+        // method is strictly the bare key.
+        let cert_mode = self.editor_form.auth_method == AuthMethod::Certificate;
         let ssh_key_row: Option<Element<'_, Message>> = if is_ssh
             && self.editor_form.selected_identity.is_none()
-            && self.editor_form.auth_method == AuthMethod::Key
+            && (self.editor_form.auth_method == AuthMethod::Key || cert_mode)
         {
-            // "+ Key" is clickable, opens the existing key import panel.
+            // "+ Key" is clickable, opens the existing key import panel;
+            // under `Certificate` it lands with the cert field focused,
+            // since that is the missing piece the user came for.
+            let add_key_msg = if cert_mode {
+                Message::ShowKeyPanelCertFocus
+            } else {
+                Message::ShowKeyPanel
+            };
             let add_key_btn = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShowKeyPanel),
+                crate::keynav::RowAction::activate(add_key_msg.clone()),
                 6.0,
                 button(
                     text(t("add_key_btn")).size(12).color(OryxisColors::t().accent),
                 )
-                .on_press(Message::ShowKeyPanel)
+                .on_press(add_key_msg)
                 .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                 .style(|_, status| {
                     let bg = match status {
@@ -127,44 +131,86 @@ impl Oryxis {
             ])
             .align_y(iced::Alignment::Center);
 
-            // Certificate hint (B2): when the selected key carries a cert,
-            // show "attached, valid until <date>" (warning color if
-            // expired) so the user sees it will be offered at connect.
-            let cert_hint: Option<Element<'_, Message>> = self
-                .keys
-                .iter()
-                .find(|k| k.label == key_selected)
-                .and_then(|k| k.certificate.as_deref())
-                .and_then(|line| ssh_key::Certificate::from_openssh(line.trim()).ok())
-                .map(|cert| {
-                    let now = chrono::Utc::now().timestamp().max(0) as u64;
-                    let expired = cert.valid_before() != 0
-                        && cert.valid_before() != u64::MAX
-                        && now > cert.valid_before();
-                    let until = match chrono::DateTime::<chrono::Utc>::from_timestamp(
-                        cert.valid_before().min(i64::MAX as u64) as i64,
-                        0,
-                    ) {
-                        Some(dt) if cert.valid_before() != 0 && cert.valid_before() != u64::MAX => {
-                            dt.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string()
-                        }
-                        _ => String::new(),
-                    };
-                    let (label, color) = if expired {
-                        (format!("{} · {}", t("cert_attach"), t("cert_expired")), OryxisColors::t().warning)
-                    } else if until.is_empty() {
-                        (t("cert_attach").to_string(), OryxisColors::t().text_muted)
-                    } else {
-                        (
-                            format!("{} · {} {}", t("cert_attach"), t("cert_valid_until"), until),
-                            OryxisColors::t().text_muted,
+            // Certificate hint (B2.1): only under the `Certificate`
+            // method, where the cert is what actually authenticates.
+            // Three states: the selected key's cert with its validity
+            // (warning color if expired), a stale selection whose cert
+            // was removed since, or an empty filtered list (no key in
+            // the vault carries a cert yet).
+            let cert_hint: Option<Element<'_, Message>> = if !cert_mode {
+                None
+            } else if !self.keys.iter().any(|k| k.certificate.is_some()) {
+                Some(
+                    container(
+                        text(t("cert_no_keys_hint")).size(11).color(OryxisColors::t().warning),
+                    )
+                    .width(Length::Fill)
+                    .align_x(dir_align_x())
+                    .into(),
+                )
+            } else {
+                let selected = self.keys.iter().find(|k| k.label == key_selected);
+                match selected.and_then(|k| k.certificate.as_deref()) {
+                    Some(line) => ssh_key::Certificate::from_openssh(line.trim()).ok().map(
+                        |cert| {
+                            let now = chrono::Utc::now().timestamp().max(0) as u64;
+                            let expired = cert.valid_before() != 0
+                                && cert.valid_before() != u64::MAX
+                                && now > cert.valid_before();
+                            let until = match chrono::DateTime::<chrono::Utc>::from_timestamp(
+                                cert.valid_before().min(i64::MAX as u64) as i64,
+                                0,
+                            ) {
+                                Some(dt)
+                                    if cert.valid_before() != 0
+                                        && cert.valid_before() != u64::MAX =>
+                                {
+                                    dt.with_timezone(&chrono::Local)
+                                        .format("%Y-%m-%d")
+                                        .to_string()
+                                }
+                                _ => String::new(),
+                            };
+                            let (label, color) = if expired {
+                                (
+                                    format!("{} · {}", t("cert_attach"), t("cert_expired")),
+                                    OryxisColors::t().warning,
+                                )
+                            } else if until.is_empty() {
+                                (t("cert_attach").to_string(), OryxisColors::t().text_muted)
+                            } else {
+                                (
+                                    format!(
+                                        "{} · {} {}",
+                                        t("cert_attach"),
+                                        t("cert_valid_until"),
+                                        until
+                                    ),
+                                    OryxisColors::t().text_muted,
+                                )
+                            };
+                            container(text(label).size(11).color(color))
+                                .width(Length::Fill)
+                                .align_x(dir_align_x())
+                                .into()
+                        },
+                    ),
+                    // A selected key without a cert (removed after this
+                    // host was saved): warn instead of failing silently
+                    // at connect time.
+                    None if selected.is_some() => Some(
+                        container(
+                            text(t("cert_key_no_cert_hint"))
+                                .size(11)
+                                .color(OryxisColors::t().warning),
                         )
-                    };
-                    container(text(label).size(11).color(color))
                         .width(Length::Fill)
                         .align_x(dir_align_x())
-                        .into()
-                });
+                        .into(),
+                    ),
+                    None => None,
+                }
+            };
 
             let mut col = iced::widget::Column::new()
                 .push(key_row)
