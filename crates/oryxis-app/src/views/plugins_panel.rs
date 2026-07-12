@@ -79,8 +79,11 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
-                self.agent_server_rows(),
+                // Features holds only the enable toggle; the confirm +
+                // socket rows live in their own section below.
+                self.agent_server_toggle(),
             ]),
+            self.agent_server_config_section(),
             Space::new().height(18).into(),
             // Plugins list header: subtitle on the leading edge, the
             // global auto-update toggle on the trailing edge, one line.
@@ -291,15 +294,15 @@ impl Oryxis {
         dialog.into()
     }
 
-    /// The ssh-agent feature rows: the enable toggle, and (when on) the
-    /// per-signature confirm toggle plus the socket path and two setup
-    /// snippets with copy buttons. Off unix (pre-Phase-3 Windows) the
-    /// whole block is hidden.
-    fn agent_server_rows(&self) -> Element<'_, Message> {
+    /// The ssh-agent ENABLE toggle, shown in the Features section. Any
+    /// runtime error is surfaced inline under it. Off unix (pre-Phase-3
+    /// Windows) with no listener, the whole row is hidden. The confirm +
+    /// socket rows live in [`Self::agent_server_config_section`].
+    fn agent_server_toggle(&self) -> Element<'_, Message> {
         // No socket path means no listener on this platform: hide it.
-        let Some(socket) = crate::agent_server::listener_socket_display() else {
+        if crate::agent_server::listener_socket_display().is_none() {
             return Space::new().height(0).into();
-        };
+        }
 
         let toggle = self.settings_nav_slot(
             crate::keynav::RowAction::activate(Message::AgentServerToggled(!self.agent.enabled)),
@@ -312,14 +315,28 @@ impl Oryxis {
             ),
         );
 
+        if let Some(err) = &self.agent.error {
+            return column![
+                toggle,
+                Space::new().height(6),
+                text(err.clone()).size(11).color(OryxisColors::t().error),
+            ]
+            .into();
+        }
+        toggle
+    }
+
+    /// The ssh-agent configuration section: the per-signature confirm
+    /// toggle plus the socket path and two setup snippets, in their own
+    /// titled `panel_section` below Features. Rendered only while the
+    /// agent is enabled (toggle-hidden rule); collapses to nothing
+    /// otherwise, so Features stays the single on/off surface.
+    fn agent_server_config_section(&self) -> Element<'_, Message> {
+        let Some(socket) = crate::agent_server::listener_socket_display() else {
+            return Space::new().height(0).into();
+        };
         if !self.agent.enabled {
-            // Toggle-hidden rule: only the enable row shows when off.
-            let mut col = column![toggle];
-            if let Some(err) = &self.agent.error {
-                col = col.push(Space::new().height(6));
-                col = col.push(text(err.clone()).size(11).color(OryxisColors::t().error));
-            }
-            return col.into();
+            return Space::new().height(0).into();
         }
 
         let confirm = self.settings_nav_slot(
@@ -356,9 +373,7 @@ impl Oryxis {
         ])
         .align_y(iced::Alignment::Center);
 
-        column![
-            toggle,
-            Space::new().height(12),
+        let body = panel_section(column![
             confirm,
             Space::new().height(12),
             crate::widgets::panel_field(crate::i18n::t("agent_server_path"), path_row.into()),
@@ -381,6 +396,17 @@ impl Oryxis {
                 }
                 dir_row(row)
             },
+        ]);
+
+        // Leading gap separates this section from the Features block; the
+        // trailing gap before the plugins list is added by the caller.
+        column![
+            Space::new().height(18),
+            text(crate::i18n::t("agent_server"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(8),
+            body,
         ]
         .width(Length::Fill)
         .align_x(dir_align_x())
