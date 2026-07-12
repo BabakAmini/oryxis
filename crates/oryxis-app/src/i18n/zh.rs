@@ -711,7 +711,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "正在连接...",
         "disconnected_reconnecting" => "连接已断开，正在重新连接...",
         "disconnected_idle" => "连接已断开。",
-        "select_file" => "选择文件...",
         "start_over" => "重新开始",
         "hk_add_question" => "您要将其添加到已知主机列表中吗？",
 
@@ -935,7 +934,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "编辑密钥",
         "add_key" => "添加密钥",
         "private_key" => "私钥",
-        "key_content" => "密钥内容",
         "key_passphrase_label" => "密钥口令",
         "key_passphrase_placeholder" => "口令",
         "key_passphrase_hint" => "此密钥已加密。请输入一次口令：它将用于解密密钥，然后被丢弃。解密后的密钥存储在保险库中，保险库已由主密码保护。",
@@ -1438,6 +1436,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "那是主机证书；请附加用户证书。",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "证书",
+        "add_certificate_btn" => "+ 证书",
         "cert_flag" => "SSH 证书",
         "public_key_auto_hint" => "留空时将从私钥派生。",
         "public_key_invalid_error" => "这不是有效的 OpenSSH 公钥行。",

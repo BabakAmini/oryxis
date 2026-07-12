@@ -869,7 +869,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "מתחבר...",
         "disconnected_reconnecting" => "החיבור אבד. מתחבר מחדש...",
         "disconnected_idle" => "החיבור אבד.",
-        "select_file" => "בחירת קובץ...",
         "start_over" => "התחלה מחדש",
         "hk_add_question" => "להוסיף אותו לרשימת המארחים המוכרים?",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "עריכת מפתח",
         "add_key" => "הוספת מפתח",
         "private_key" => "מפתח פרטי",
-        "key_content" => "תוכן המפתח",
         "key_passphrase_label" => "משפט סיסמה של המפתח",
         "key_passphrase_placeholder" => "משפט סיסמה",
         "key_passphrase_hint" => "המפתח הזה מוצפן. הזינו את משפט הסיסמה פעם אחת: הוא ישמש לפענוח המפתח ואז יושלך. המפתח המפוענח נשמר בתוך הכספת, שכבר מוצפנת בסיסמה הראשית שלכם.",
@@ -1475,6 +1473,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "זוהי תעודת מארח; יש לצרף תעודת משתמש.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "תעודה",
+        "add_certificate_btn" => "+ תעודה",
         "cert_flag" => "תעודת SSH",
         "public_key_auto_hint" => "נגזר מהמפתח הפרטי כאשר נשאר ריק.",
         "public_key_invalid_error" => "זו אינה שורת מפתח ציבורי חוקית בפורמט OpenSSH.",

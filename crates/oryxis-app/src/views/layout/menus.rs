@@ -27,6 +27,8 @@ impl Oryxis {
             OverlayContent::SidebarFilesRow { .. }
             | OverlayContent::SidebarFilesBackground { .. } => 220.0,
             OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
+            // "Exposed to agent" / "Remove certificate" must not wrap.
+            OverlayContent::KeyActions(_) => 210.0,
             OverlayContent::CloudDiscoverGroupPicker => {
                 let b = self.cloud_discover_default_group_combo_bounds.get();
                 if b.width > 0.0 { b.width } else { 308.0 }

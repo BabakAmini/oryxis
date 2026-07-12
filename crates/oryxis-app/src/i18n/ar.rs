@@ -881,7 +881,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "جارٍ الاتصال...",
         "disconnected_reconnecting" => "انقطع الاتصال. جاري إعادة الاتصال...",
         "disconnected_idle" => "انقطع الاتصال.",
-        "select_file" => "اختر ملفًا...",
         "start_over" => "البدء من جديد",
         "hk_add_question" => "هل تريد إضافته إلى قائمة المضيفين المعروفين؟",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "تعديل المفتاح",
         "add_key" => "إضافة مفتاح",
         "private_key" => "المفتاح الخاص",
-        "key_content" => "محتوى المفتاح",
         "key_passphrase_label" => "عبارة مرور المفتاح",
         "key_passphrase_placeholder" => "عبارة المرور",
         "key_passphrase_hint" => "هذا المفتاح مشفر. أدخل عبارة المرور مرة واحدة: ستُستخدم لفك تشفير المفتاح ثم يتم تجاهلها. يتم تخزين المفتاح المفكوك التشفير داخل الخزنة، المحمية بالفعل بكلمة المرور الرئيسية.",
@@ -1456,6 +1454,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "هذه شهادة مضيف؛ أرفق شهادة مستخدم.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "شهادة",
+        "add_certificate_btn" => "+ شهادة",
         "cert_flag" => "شهادة SSH",
         "public_key_auto_hint" => "يُشتق من المفتاح الخاص عند تركه فارغًا.",
         "public_key_invalid_error" => "هذا ليس سطر مفتاح عام صالحًا بصيغة OpenSSH.",

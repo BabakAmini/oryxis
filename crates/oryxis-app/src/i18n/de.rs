@@ -702,7 +702,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Verbinde...",
         "disconnected_reconnecting" => "Verbindung verloren. Verbindung wird wiederhergestellt...",
         "disconnected_idle" => "Verbindung verloren.",
-        "select_file" => "Datei auswählen...",
         "start_over" => "Neu starten",
         "hk_add_question" => "Möchten Sie ihn zur Liste der bekannten Hosts hinzufügen?",
 
@@ -926,7 +925,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Schlüssel bearbeiten",
         "add_key" => "Schlüssel hinzufügen",
         "private_key" => "Privater Schlüssel",
-        "key_content" => "Schlüsselinhalt",
         "key_passphrase_label" => "Schlüssel-Passphrase",
         "key_passphrase_placeholder" => "Passphrase",
         "key_passphrase_hint" => "Dieser Schlüssel ist verschlüsselt. Geben Sie die Passphrase einmal ein: sie wird zum Entschlüsseln des Schlüssels verwendet und danach verworfen. Der entschlüsselte Schlüssel wird im Tresor gespeichert, der bereits mit Ihrem Master-Passwort geschützt ist.",
@@ -1439,6 +1437,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Das ist ein Hostzertifikat; hängen Sie ein Benutzerzertifikat an.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Zertifikat",
+        "add_certificate_btn" => "+ Zertifikat",
         "cert_flag" => "SSH-Zertifikat",
         "public_key_auto_hint" => "Wird aus dem privaten Schlüssel abgeleitet, wenn das Feld leer bleibt.",
         "public_key_invalid_error" => "Das ist keine gültige Zeile eines öffentlichen OpenSSH-Schlüssels.",

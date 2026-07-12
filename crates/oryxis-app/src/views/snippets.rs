@@ -314,18 +314,19 @@ impl Oryxis {
         let mut grid_col = column![].spacing(12);
         for (header_key, cards) in section_blocks {
             if let Some(key) = header_key {
+                // Same section-header treatment as the keychain's
+                // "Keys" / "Identities" (size 14, regular weight,
+                // muted, 4/8 vertical padding), so every vault view
+                // titles its sections identically.
                 grid_col = grid_col.push(
                     container(
-                        text(t(key))
-                            .size(12)
-                            .font(iced::Font {
-                                weight: iced::font::Weight::Bold,
-                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                            })
-                            .color(OryxisColors::t().text_muted),
+                        container(
+                            text(t(key)).size(14).color(OryxisColors::t().text_muted),
+                        )
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
                     )
-                    .width(Length::Fill)
-                    .align_x(dir_align_x()),
+                    .padding(Padding { top: 4.0, right: 0.0, bottom: 8.0, left: 0.0 }),
                 );
             }
             grid_col = grid_col.push(distribute_card_grid(cards, cols, 12.0, 12.0));

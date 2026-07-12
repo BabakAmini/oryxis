@@ -1620,6 +1620,8 @@ impl Oryxis {
                     self.show_key_panel = false;
                     self.key_import_form = crate::state::KeyImportForm::default();
                     self.key_import_content = iced::widget::text_editor::Content::new();
+                    self.key_import_public_content = iced::widget::text_editor::Content::new();
+                    self.key_import_cert_content = iced::widget::text_editor::Content::new();
                     self.cert_viewer = None;
                     // The ssh-agent goes dark (keys ungated) while locked;
                     // the listener stays up so a `git` sees an empty agent.
@@ -1810,6 +1812,8 @@ impl Oryxis {
                         self.show_key_panel = false;
                         self.key_import_form = crate::state::KeyImportForm::default();
                         self.key_import_content = iced::widget::text_editor::Content::new();
+                        self.key_import_public_content = iced::widget::text_editor::Content::new();
+                        self.key_import_cert_content = iced::widget::text_editor::Content::new();
                         self.cert_viewer = None;
                         self.vault_ui.new_password.clear();
                         self.vault_ui.confirm_password.clear();

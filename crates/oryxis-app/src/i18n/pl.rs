@@ -869,7 +869,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Łączenie...",
         "disconnected_reconnecting" => "Utracono połączenie. Ponowne łączenie...",
         "disconnected_idle" => "Utracono połączenie.",
-        "select_file" => "Wybierz plik...",
         "start_over" => "Zacznij od nowa",
         "hk_add_question" => "Czy chcesz dodać go do listy znanych hostów?",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Edytuj klucz",
         "add_key" => "Dodaj klucz",
         "private_key" => "Klucz prywatny",
-        "key_content" => "Treść klucza",
         "key_passphrase_label" => "Hasło klucza",
         "key_passphrase_placeholder" => "Hasło",
         "key_passphrase_hint" => "Ten klucz jest zaszyfrowany. Wprowadź hasło raz: zostanie użyte do odszyfrowania klucza, a następnie odrzucone. Odszyfrowany klucz jest przechowywany w sejfie, który jest już zaszyfrowany hasłem głównym.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "To jest certyfikat hosta; dołącz certyfikat użytkownika.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Certyfikat",
+        "add_certificate_btn" => "+ Certyfikat",
         "cert_flag" => "Certyfikat SSH",
         "public_key_auto_hint" => "Wyprowadzany z klucza prywatnego, gdy pole pozostanie puste.",
         "public_key_invalid_error" => "To nie jest prawidłowy wiersz klucza publicznego OpenSSH.",

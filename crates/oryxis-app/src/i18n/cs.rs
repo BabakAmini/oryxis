@@ -869,7 +869,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Připojování...",
         "disconnected_reconnecting" => "Spojení ztraceno. Opětovné připojování...",
         "disconnected_idle" => "Spojení ztraceno.",
-        "select_file" => "Vybrat soubor...",
         "start_over" => "Začít znovu",
         "hk_add_question" => "Chcete jej přidat do seznamu známých hostitelů?",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Upravit klíč",
         "add_key" => "Přidat klíč",
         "private_key" => "Privátní klíč",
-        "key_content" => "Obsah klíče",
         "key_passphrase_label" => "Přístupová fráze klíče",
         "key_passphrase_placeholder" => "Přístupová fráze",
         "key_passphrase_hint" => "Tento klíč je zašifrovaný. Zadejte frázi jednou: použije se k dešifrování klíče a poté se zahodí. Dešifrovaný klíč se uloží do trezoru, který je již šifrován vaším hlavním heslem.",
@@ -1475,6 +1473,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Toto je certifikát hostitele; připojte uživatelský certifikát.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Certifikát",
+        "add_certificate_btn" => "+ Certifikát",
         "cert_flag" => "SSH certifikát",
         "public_key_auto_hint" => "Pokud pole zůstane prázdné, odvodí se z privátního klíče.",
         "public_key_invalid_error" => "Toto není platný řádek veřejného klíče OpenSSH.",

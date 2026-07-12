@@ -60,18 +60,19 @@ impl Oryxis {
             && (self.editor_form.auth_method == AuthMethod::Key || cert_mode)
         {
             // "+ Key" is clickable, opens the existing key import panel;
-            // under `Certificate` it lands with the cert field focused,
-            // since that is the missing piece the user came for.
-            let add_key_msg = if cert_mode {
-                Message::ShowKeyPanelCertFocus
+            // under `Certificate` it reads "+ Certificate" and lands with
+            // the cert field focused, since that is the missing piece the
+            // user came for.
+            let (add_key_msg, add_key_label) = if cert_mode {
+                (Message::ShowKeyPanelCertFocus, t("add_certificate_btn"))
             } else {
-                Message::ShowKeyPanel
+                (Message::ShowKeyPanel, t("add_key_btn"))
             };
             let add_key_btn = self.panel_nav_slot(
                 crate::keynav::RowAction::activate(add_key_msg.clone()),
                 6.0,
                 button(
-                    text(t("add_key_btn")).size(12).color(OryxisColors::t().accent),
+                    text(add_key_label).size(12).color(OryxisColors::t().accent),
                 )
                 .on_press(add_key_msg)
                 .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })

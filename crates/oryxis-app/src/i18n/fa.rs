@@ -865,7 +865,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "در حال اتصال...",
         "disconnected_reconnecting" => "اتصال قطع شد. در حال اتصال مجدد...",
         "disconnected_idle" => "اتصال قطع شد.",
-        "select_file" => "انتخاب فایل...",
         "start_over" => "شروع دوباره",
         "hk_add_question" => "می‌خواهید آن را به فهرست میزبان‌های شناخته‌شده اضافه کنید؟",
 
@@ -1003,7 +1002,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "ویرایش کلید",
         "add_key" => "افزودن کلید",
         "private_key" => "کلید خصوصی",
-        "key_content" => "محتوای کلید",
         "key_passphrase_label" => "عبارت عبور کلید",
         "key_passphrase_placeholder" => "عبارت عبور",
         "key_passphrase_hint" => "این کلید رمزگذاری شده است. عبارت عبور را یک بار وارد کنید: برای رمزگشایی کلید استفاده می‌شود و سپس دور انداخته می‌شود. کلید رمزگشایی‌شده در گاوصندوق ذخیره می‌شود که از قبل با رمز اصلی شما محافظت شده است.",
@@ -1457,6 +1455,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "این یک گواهی میزبان است؛ یک گواهی کاربر پیوست کنید.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "گواهی",
+        "add_certificate_btn" => "+ گواهی",
         "cert_flag" => "گواهی SSH",
         "public_key_auto_hint" => "در صورت خالی ماندن، از کلید خصوصی استخراج می‌شود.",
         "public_key_invalid_error" => "این یک خط کلید عمومی معتبر OpenSSH نیست.",

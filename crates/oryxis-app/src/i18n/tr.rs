@@ -863,7 +863,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Bağlanılıyor...",
         "disconnected_reconnecting" => "Bağlantı koptu. Yeniden bağlanılıyor...",
         "disconnected_idle" => "Bağlantı koptu.",
-        "select_file" => "Dosya Seç...",
         "start_over" => "Baştan başla",
         "hk_add_question" => "Bilinen sunucular listesine eklemek ister misiniz?",
 
@@ -1013,7 +1012,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Anahtarı Düzenle",
         "add_key" => "Anahtar Ekle",
         "private_key" => "Özel Anahtar",
-        "key_content" => "Anahtar İçeriği",
         "key_passphrase_label" => "Anahtar Parolası",
         "key_passphrase_placeholder" => "Parola ifadesi",
         "key_passphrase_hint" => "Bu anahtar şifrelenmiş. Parola ifadesini bir kez girin: anahtarın şifresini çözmek için kullanılıp sonra atılır. Şifresi çözülmüş anahtar, zaten ana parolanızla şifrelenmiş olan kasanın içinde saklanır.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Bu bir sunucu sertifikası; kullanıcı sertifikası ekleyin.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Sertifika",
+        "add_certificate_btn" => "+ Sertifika",
         "cert_flag" => "SSH Sertifikası",
         "public_key_auto_hint" => "Boş bırakıldığında özel anahtardan türetilir.",
         "public_key_invalid_error" => "Bu geçerli bir OpenSSH genel anahtar satırı değil.",

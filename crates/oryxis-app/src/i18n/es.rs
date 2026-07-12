@@ -708,7 +708,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Conectando...",
         "disconnected_reconnecting" => "Conexión perdida. Reconectando...",
         "disconnected_idle" => "Conexión perdida.",
-        "select_file" => "Seleccionar archivo...",
         "start_over" => "Empezar de nuevo",
         "hk_add_question" => "¿Desea agregarlo a la lista de hosts conocidos?",
 
@@ -932,7 +931,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Editar Clave",
         "add_key" => "Agregar Clave",
         "private_key" => "Clave Privada",
-        "key_content" => "Contenido de la Clave",
         "key_passphrase_label" => "Frase de Acceso",
         "key_passphrase_placeholder" => "Frase de acceso",
         "key_passphrase_hint" => "Esta clave está cifrada. Introduce la frase de acceso una vez: se usará para descifrar la clave y luego se descartará. La clave descifrada se guarda dentro de la bóveda, que ya está protegida con tu contraseña maestra.",
@@ -1439,6 +1437,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Ese es un certificado de host; adjunta un certificado de usuario.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Certificado",
+        "add_certificate_btn" => "+ Certificado",
         "cert_flag" => "Certificado SSH",
         "public_key_auto_hint" => "Se deriva de la clave privada cuando se deja vacío.",
         "public_key_invalid_error" => "Eso no es una línea de clave pública OpenSSH válida.",

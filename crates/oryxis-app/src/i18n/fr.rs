@@ -711,7 +711,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Connexion...",
         "disconnected_reconnecting" => "Connexion perdue. Reconnexion...",
         "disconnected_idle" => "Connexion perdue.",
-        "select_file" => "Sélectionner un fichier...",
         "start_over" => "Recommencer",
         "hk_add_question" => "Voulez-vous l'ajouter à la liste des hôtes connus ?",
 
@@ -935,7 +934,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Modifier la clé",
         "add_key" => "Ajouter une clé",
         "private_key" => "Clé privée",
-        "key_content" => "Contenu de la clé",
         "key_passphrase_label" => "Phrase de passe",
         "key_passphrase_placeholder" => "Phrase de passe",
         "key_passphrase_hint" => "Cette clé est chiffrée. Saisissez la phrase de passe une seule fois : elle servira à déchiffrer la clé puis sera supprimée. La clé déchiffrée est stockée dans le coffre, déjà protégé par votre mot de passe principal.",
@@ -1438,6 +1436,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Il s'agit d'un certificat d'hôte ; joignez un certificat utilisateur.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Certificat",
+        "add_certificate_btn" => "+ Certificat",
         "cert_flag" => "Certificat SSH",
         "public_key_auto_hint" => "Dérivée de la clé privée si le champ est laissé vide.",
         "public_key_invalid_error" => "Ceci n'est pas une ligne de clé publique OpenSSH valide.",

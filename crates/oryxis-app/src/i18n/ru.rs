@@ -702,7 +702,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Подключение...",
         "disconnected_reconnecting" => "Соединение потеряно. Переподключение...",
         "disconnected_idle" => "Соединение потеряно.",
-        "select_file" => "Выбрать файл...",
         "start_over" => "Начать заново",
         "hk_add_question" => "Хотите добавить его в список известных хостов?",
 
@@ -926,7 +925,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Редактировать ключ",
         "add_key" => "Добавить ключ",
         "private_key" => "Приватный ключ",
-        "key_content" => "Содержимое ключа",
         "key_passphrase_label" => "Парольная фраза ключа",
         "key_passphrase_placeholder" => "Парольная фраза",
         "key_passphrase_hint" => "Этот ключ зашифрован. Введите парольную фразу один раз: она будет использована для расшифровки ключа, а затем удалена. Расшифрованный ключ хранится в хранилище, которое уже защищено вашим мастер-паролем.",
@@ -1439,6 +1437,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Это сертификат хоста; прикрепите сертификат пользователя.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Сертификат",
+        "add_certificate_btn" => "+ Сертификат",
         "cert_flag" => "SSH-сертификат",
         "public_key_auto_hint" => "Выводится из закрытого ключа, если поле оставлено пустым.",
         "public_key_invalid_error" => "Это не корректная строка открытого ключа OpenSSH.",

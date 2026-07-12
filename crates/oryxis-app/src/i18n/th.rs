@@ -870,7 +870,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "กำลังเชื่อมต่อ...",
         "disconnected_reconnecting" => "การเชื่อมต่อหลุด กำลังเชื่อมต่อใหม่...",
         "disconnected_idle" => "การเชื่อมต่อหลุด",
-        "select_file" => "เลือกไฟล์...",
         "start_over" => "เริ่มใหม่",
         "hk_add_question" => "ต้องการเพิ่มลงในรายการโฮสต์ที่รู้จักหรือไม่?",
 
@@ -1020,7 +1019,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "แก้ไขคีย์",
         "add_key" => "เพิ่มคีย์",
         "private_key" => "คีย์ส่วนตัว",
-        "key_content" => "เนื้อหาคีย์",
         "key_passphrase_label" => "วลีรหัสผ่านของคีย์",
         "key_passphrase_placeholder" => "วลีรหัสผ่าน",
         "key_passphrase_hint" => "คีย์นี้ถูกเข้ารหัสไว้ ป้อนวลีรหัสผ่านหนึ่งครั้ง: จะใช้ถอดรหัสคีย์แล้วทิ้งไป คีย์ที่ถอดรหัสแล้วจะเก็บใน Vault ซึ่งเข้ารหัสด้วยรหัสผ่านหลักของคุณอยู่แล้ว",
@@ -1476,6 +1474,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "นี่คือใบรับรองโฮสต์ โปรดแนบใบรับรองผู้ใช้",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "ใบรับรอง",
+        "add_certificate_btn" => "+ ใบรับรอง",
         "cert_flag" => "ใบรับรอง SSH",
         "public_key_auto_hint" => "จะสร้างจากกุญแจส่วนตัวโดยอัตโนมัติเมื่อเว้นว่างไว้",
         "public_key_invalid_error" => "นี่ไม่ใช่บรรทัดกุญแจสาธารณะ OpenSSH ที่ถูกต้อง",

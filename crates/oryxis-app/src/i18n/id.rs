@@ -863,7 +863,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Menghubungkan...",
         "disconnected_reconnecting" => "Koneksi terputus. Menghubungkan ulang...",
         "disconnected_idle" => "Koneksi terputus.",
-        "select_file" => "Pilih File...",
         "start_over" => "Mulai dari awal",
         "hk_add_question" => "Apakah Anda ingin menambahkannya ke daftar host dikenal?",
 
@@ -1013,7 +1012,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Edit Kunci",
         "add_key" => "Tambah Kunci",
         "private_key" => "Kunci Privat",
-        "key_content" => "Konten Kunci",
         "key_passphrase_label" => "Passphrase Kunci",
         "key_passphrase_placeholder" => "Passphrase",
         "key_passphrase_hint" => "Kunci ini terenkripsi. Masukkan passphrase sekali: itu akan dipakai untuk mendekripsi kunci, lalu dibuang. Kunci yang didekripsi disimpan di dalam vault, yang sudah terenkripsi dengan kata sandi master Anda.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Itu adalah sertifikat host; lampirkan sertifikat pengguna.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Sertifikat",
+        "add_certificate_btn" => "+ Sertifikat",
         "cert_flag" => "Sertifikat SSH",
         "public_key_auto_hint" => "Diturunkan dari kunci privat jika dibiarkan kosong.",
         "public_key_invalid_error" => "Itu bukan baris kunci publik OpenSSH yang valid.",

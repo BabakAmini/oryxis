@@ -1438,10 +1438,10 @@ pub enum Message {
     KeyFileBrowseError(String),
     KeyImportPassphraseChanged(String),
     KeyImportPassphraseToggleVisibility,
-    /// The editable public-key line changed (B2.1).
-    KeyImportPublicChanged(String),
-    /// The attached-certificate paste field changed (B2).
-    KeyImportCertChanged(String),
+    /// Edit action on the public-key textarea (B2.1).
+    KeyImportPublicAction(text_editor::Action),
+    /// Edit action on the attached-certificate textarea (B2).
+    KeyImportCertAction(text_editor::Action),
     /// Open the key import panel with the certificate field focused
     /// (the keychain ADD menu's "Certificate" entry, B2.1).
     ShowKeyPanelCertFocus,

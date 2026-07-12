@@ -863,7 +863,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Підключення...",
         "disconnected_reconnecting" => "Підключення втрачено. Перепідключення...",
         "disconnected_idle" => "Підключення втрачено.",
-        "select_file" => "Вибрати файл...",
         "start_over" => "Почати спочатку",
         "hk_add_question" => "Бажаєте додати його до списку відомих хостів?",
 
@@ -1013,7 +1012,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Редагувати ключ",
         "add_key" => "Додати ключ",
         "private_key" => "Приватний ключ",
-        "key_content" => "Вміст ключа",
         "key_passphrase_label" => "Парольна фраза ключа",
         "key_passphrase_placeholder" => "Парольна фраза",
         "key_passphrase_hint" => "Цей ключ зашифровано. Введіть парольну фразу один раз: вона буде використана для розшифрування ключа, а потім відкинута. Розшифрований ключ зберігається у сховищі, яке вже зашифроване вашим майстер-паролем.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Це сертифікат хоста; додайте сертифікат користувача.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Сертифікат",
+        "add_certificate_btn" => "+ Сертифікат",
         "cert_flag" => "SSH-сертифікат",
         "public_key_auto_hint" => "Виводиться із закритого ключа, якщо поле залишити порожнім.",
         "public_key_invalid_error" => "Це не коректний рядок відкритого ключа OpenSSH.",

@@ -863,7 +863,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "연결 중...",
         "disconnected_reconnecting" => "연결이 끊겼습니다. 재연결 중...",
         "disconnected_idle" => "연결이 끊겼습니다.",
-        "select_file" => "파일 선택...",
         "start_over" => "다시 시작",
         "hk_add_question" => "알려진 호스트 목록에 추가하시겠습니까?",
 
@@ -1013,7 +1012,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "키 편집",
         "add_key" => "키 추가",
         "private_key" => "개인 키",
-        "key_content" => "키 내용",
         "key_passphrase_label" => "키 암호",
         "key_passphrase_placeholder" => "암호",
         "key_passphrase_hint" => "이 키는 암호화되어 있습니다. 암호를 한 번 입력하세요: 키를 복호화하는 데 사용된 후 폐기됩니다. 복호화된 키는 이미 마스터 비밀번호로 암호화된 볼트 내부에 저장됩니다.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "호스트 인증서입니다. 사용자 인증서를 첨부하세요.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "인증서",
+        "add_certificate_btn" => "+ 인증서",
         "cert_flag" => "SSH 인증서",
         "public_key_auto_hint" => "비워 두면 개인 키에서 파생됩니다.",
         "public_key_invalid_error" => "유효한 OpenSSH 공개 키 줄이 아닙니다.",

@@ -869,7 +869,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Σύνδεση...",
         "disconnected_reconnecting" => "Η σύνδεση χάθηκε. Επανασύνδεση...",
         "disconnected_idle" => "Η σύνδεση χάθηκε.",
-        "select_file" => "Επιλογή αρχείου...",
         "start_over" => "Από την αρχή",
         "hk_add_question" => "Θέλετε να προστεθεί στη λίστα των γνωστών hosts;",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Επεξεργασία κλειδιού",
         "add_key" => "Προσθήκη κλειδιού",
         "private_key" => "Ιδιωτικό κλειδί",
-        "key_content" => "Περιεχόμενο κλειδιού",
         "key_passphrase_label" => "Φράση πρόσβασης κλειδιού",
         "key_passphrase_placeholder" => "Φράση πρόσβασης",
         "key_passphrase_hint" => "Αυτό το κλειδί είναι κρυπτογραφημένο. Εισαγάγετε τη φράση πρόσβασης μία φορά: θα χρησιμοποιηθεί για την αποκρυπτογράφηση του κλειδιού και μετά θα απορριφθεί. Το αποκρυπτογραφημένο κλειδί αποθηκεύεται στο vault, που είναι ήδη κρυπτογραφημένο με τον κύριο κωδικό σας.",
@@ -1475,6 +1473,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Αυτό είναι πιστοποιητικό host· επισυνάψτε πιστοποιητικό χρήστη.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Πιστοποιητικό",
+        "add_certificate_btn" => "+ Πιστοποιητικό",
         "cert_flag" => "Πιστοποιητικό SSH",
         "public_key_auto_hint" => "Παράγεται από το ιδιωτικό κλειδί όταν μείνει κενό.",
         "public_key_invalid_error" => "Αυτή δεν είναι έγκυρη γραμμή δημόσιου κλειδιού OpenSSH.",

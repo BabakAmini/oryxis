@@ -870,7 +870,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "connecting_status" => "Connecting...",
         "disconnected_reconnecting" => "Connection lost. Reconnecting...",
         "disconnected_idle" => "Connection lost.",
-        "select_file" => "Select File...",
         "start_over" => "Start over",
         "hk_add_question" => "Do you want to add it to the list of known hosts?",
 
@@ -1020,7 +1019,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "edit_key" => "Edit Key",
         "add_key" => "Add Key",
         "private_key" => "Private Key",
-        "key_content" => "Key Content",
         "key_passphrase_label" => "Key Passphrase",
         "key_passphrase_placeholder" => "Passphrase",
         "key_passphrase_hint" => "This key is encrypted. Enter the passphrase once: it will be used to decrypt the key, then discarded. The decrypted key is stored inside the vault, which is already encrypted with your master password.",
@@ -1477,6 +1475,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Certificate",
+        "add_certificate_btn" => "+ Certificate",
         "cert_flag" => "SSH Certificate",
         "public_key_auto_hint" => "Derived from the private key when left empty.",
         "public_key_invalid_error" => "That is not a valid OpenSSH public key line.",

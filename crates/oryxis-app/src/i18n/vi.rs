@@ -863,7 +863,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "Đang kết nối...",
         "disconnected_reconnecting" => "Mất kết nối. Đang kết nối lại...",
         "disconnected_idle" => "Mất kết nối.",
-        "select_file" => "Chọn tệp...",
         "start_over" => "Bắt đầu lại",
         "hk_add_question" => "Bạn có muốn thêm nó vào danh sách máy chủ đã biết không?",
 
@@ -1013,7 +1012,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "Sửa khóa",
         "add_key" => "Thêm khóa",
         "private_key" => "Khóa riêng",
-        "key_content" => "Nội dung khóa",
         "key_passphrase_label" => "Cụm mật khẩu của khóa",
         "key_passphrase_placeholder" => "Cụm mật khẩu",
         "key_passphrase_hint" => "Khóa này được mã hóa. Nhập cụm mật khẩu một lần: nó sẽ được dùng để giải mã khóa, rồi bị loại bỏ. Khóa đã giải mã được lưu bên trong kho, vốn đã được mã hóa bằng mật khẩu chính của bạn.",
@@ -1470,6 +1468,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "Đây là chứng chỉ máy chủ; hãy đính kèm chứng chỉ người dùng.",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "Chứng chỉ",
+        "add_certificate_btn" => "+ Chứng chỉ",
         "cert_flag" => "Chứng chỉ SSH",
         "public_key_auto_hint" => "Được suy ra từ khóa riêng khi để trống.",
         "public_key_invalid_error" => "Đây không phải là một dòng khóa công khai OpenSSH hợp lệ.",

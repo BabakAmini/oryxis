@@ -34,6 +34,8 @@ impl Oryxis {
                 self.key_import_form.passphrase_visible = false;
                 self.key_import_form.public_key.clear();
                 self.key_import_form.certificate.clear();
+                self.key_import_public_content = text_editor::Content::new();
+                self.key_import_cert_content = text_editor::Content::new();
                 self.key_import_form.cert_detected = false;
                 self.key_error = None;
                 self.key_success = None;
@@ -62,6 +64,8 @@ impl Oryxis {
                 self.key_import_form.passphrase_visible = false;
                 self.key_import_form.public_key.clear();
                 self.key_import_form.certificate.clear();
+                self.key_import_public_content = text_editor::Content::new();
+                self.key_import_cert_content = text_editor::Content::new();
                 self.key_import_form.cert_detected = false;
                 // Errors raised inside the sidebar are scoped to it.
                 // Closing the panel discards that context so the main
@@ -352,11 +356,15 @@ impl Oryxis {
                 // which deriving from the private key would lose).
                 if let Some(public) = public {
                     self.key_import_form.public_key = public.trim().to_string();
+                    self.key_import_public_content =
+                        text_editor::Content::with_text(public.trim());
                 }
                 // A sibling `<key>-cert.pub` was found and parses: prefill
                 // and flag the "certificate detected" hint.
                 if let Some(cert) = cert {
                     self.key_import_form.certificate = cert.trim().to_string();
+                    self.key_import_cert_content =
+                        text_editor::Content::with_text(cert.trim());
                     self.key_import_form.cert_detected = true;
                 }
                 self.show_key_panel = true;
@@ -365,14 +373,22 @@ impl Oryxis {
                 // a second toast in the main keychain area is just noise.
                 self.key_success = None;
             }
-            Message::KeyImportPublicChanged(v) => {
-                self.key_import_form.public_key = v;
-                self.key_error = None;
+            Message::KeyImportPublicAction(action) => {
+                let edited = action.is_edit();
+                self.key_import_public_content.perform(action);
+                if edited {
+                    self.key_import_form.public_key = self.key_import_public_content.text();
+                    self.key_error = None;
+                }
             }
-            Message::KeyImportCertChanged(v) => {
-                self.key_import_form.certificate = v;
-                self.key_import_form.cert_detected = false;
-                self.key_error = None;
+            Message::KeyImportCertAction(action) => {
+                let edited = action.is_edit();
+                self.key_import_cert_content.perform(action);
+                if edited {
+                    self.key_import_form.certificate = self.key_import_cert_content.text();
+                    self.key_import_form.cert_detected = false;
+                    self.key_error = None;
+                }
             }
             Message::BrowseCertFile => {
                 return Ok(Task::perform(
@@ -396,6 +412,8 @@ impl Oryxis {
             }
             Message::CertFileLoaded(content) => {
                 self.key_import_form.certificate = content.trim().to_string();
+                self.key_import_cert_content =
+                    text_editor::Content::with_text(content.trim());
                 // Explicitly picked, not auto-probed: no "detected" hint.
                 self.key_import_form.cert_detected = false;
                 self.key_error = None;
@@ -530,6 +548,10 @@ impl Oryxis {
                                     self.key_import_form.passphrase_visible = false;
                                     self.key_import_form.public_key.clear();
                                     self.key_import_form.certificate.clear();
+                                    self.key_import_public_content =
+                                        text_editor::Content::new();
+                                    self.key_import_cert_content =
+                                        text_editor::Content::new();
                                     self.key_import_form.cert_detected = false;
                                     self.show_key_panel = false;
                                     self.key_import_form.editing_id = None;
@@ -608,8 +630,13 @@ impl Oryxis {
                     self.key_import_form.passphrase_required = false;
                     self.key_import_form.passphrase_visible = false;
                     self.key_import_form.public_key = key.public_key.clone();
+                    self.key_import_public_content =
+                        text_editor::Content::with_text(&key.public_key);
                     self.key_import_form.certificate =
                         key.certificate.clone().unwrap_or_default();
+                    self.key_import_cert_content = text_editor::Content::with_text(
+                        self.key_import_form.certificate.as_str(),
+                    );
                     self.key_import_form.cert_detected = false;
                     self.show_key_panel = true;
                     self.key_error = None;

@@ -869,7 +869,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "कनेक्ट हो रहा है...",
         "disconnected_reconnecting" => "कनेक्शन टूट गया। दोबारा कनेक्ट हो रहा है...",
         "disconnected_idle" => "कनेक्शन टूट गया।",
-        "select_file" => "फ़ाइल चुनें...",
         "start_over" => "फिर से शुरू करें",
         "hk_add_question" => "क्या इसे ज्ञात होस्टों की सूची में जोड़ना चाहते हैं?",
 
@@ -1019,7 +1018,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "कुंजी एडिट करें",
         "add_key" => "कुंजी जोड़ें",
         "private_key" => "निजी कुंजी",
-        "key_content" => "कुंजी सामग्री",
         "key_passphrase_label" => "कुंजी पासफ़्रेज़",
         "key_passphrase_placeholder" => "पासफ़्रेज़",
         "key_passphrase_hint" => "यह कुंजी एन्क्रिप्टेड है। पासफ़्रेज़ एक बार डालें: इससे कुंजी डिक्रिप्ट होगी, फिर पासफ़्रेज़ हटा दिया जाएगा। डिक्रिप्ट की गई कुंजी वॉल्ट में रखी जाती है, जो पहले से आपके मास्टर पासवर्ड से एन्क्रिप्टेड है।",
@@ -1475,6 +1473,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "यह एक होस्ट प्रमाणपत्र है; उपयोगकर्ता प्रमाणपत्र संलग्न करें।",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "प्रमाणपत्र",
+        "add_certificate_btn" => "+ प्रमाणपत्र",
         "cert_flag" => "SSH प्रमाणपत्र",
         "public_key_auto_hint" => "खाली छोड़ने पर निजी कुंजी से प्राप्त की जाती है।",
         "public_key_invalid_error" => "यह एक मान्य OpenSSH सार्वजनिक कुंजी लाइन नहीं है।",

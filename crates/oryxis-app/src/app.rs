@@ -539,6 +539,13 @@ pub struct Oryxis {
     /// Live multi-line PEM editor buffer. Stays on `Oryxis` (not in
     /// `key_import_form`) because `text_editor::Content` is not `Clone`.
     pub(crate) key_import_content: text_editor::Content,
+    /// Editor buffers for the public-key / certificate fields (multi-line
+    /// like the PEM: OpenSSH lines are far wider than the panel, so a
+    /// wrapping textarea beats a one-line input). The canonical values
+    /// live in `key_import_form` (synced on every action) because
+    /// `Content` is not `Clone`.
+    pub(crate) key_import_public_content: text_editor::Content,
+    pub(crate) key_import_cert_content: text_editor::Content,
     pub(crate) key_import_form: crate::state::KeyImportForm,
     /// Parsed certificate on display in the read-only cert viewer modal
     /// (B2). `Some` = modal open; keyed to `Modal::CertificateViewer`.

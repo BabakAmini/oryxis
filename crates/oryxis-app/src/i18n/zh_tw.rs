@@ -711,7 +711,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "正在連線...",
         "disconnected_reconnecting" => "連線已中斷，正在重新連線...",
         "disconnected_idle" => "連線已中斷。",
-        "select_file" => "選擇檔案...",
         "start_over" => "重新開始",
         "hk_add_question" => "您要將它加入已知主機清單嗎？",
 
@@ -935,7 +934,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "編輯金鑰",
         "add_key" => "新增金鑰",
         "private_key" => "私鑰",
-        "key_content" => "金鑰內容",
         "key_passphrase_label" => "金鑰通關密語",
         "key_passphrase_placeholder" => "通關密語",
         "key_passphrase_hint" => "此金鑰已加密。請輸入一次通關密語：它將用於解密金鑰，然後即被捨棄。解密後的金鑰儲存在保險庫中，保險庫已由主密碼保護。",
@@ -1438,6 +1436,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "那是主機憑證；請附加使用者憑證。",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "憑證",
+        "add_certificate_btn" => "+ 憑證",
         "cert_flag" => "SSH 憑證",
         "public_key_auto_hint" => "留空時將從私鑰推導。",
         "public_key_invalid_error" => "這不是有效的 OpenSSH 公鑰行。",

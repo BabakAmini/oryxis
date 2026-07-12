@@ -717,34 +717,28 @@ impl Oryxis {
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        // File selector button
+        // File selector: the same small "Browse..." affordance the
+        // Certificate section header uses, so all three sections share
+        // one visual pattern (label leading, Browse trailing).
         let browse_btn = self.panel_nav_slot(
             crate::keynav::RowAction::activate(Message::BrowseKeyFile),
-            8.0,
-            button(
-                container(
-                    dir_row(vec![
-                        text(t("select_file"))
-                            .size(13)
-                            .font(iced::Font {
-                                weight: iced::font::Weight::Semibold,
-                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                            })
-                            .color(crate::theme::contrast_text_for(OryxisColors::t().accent))
-                            .into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                )
-                .padding(Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 }),
-            )
-            .on_press(Message::BrowseKeyFile)
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().accent)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            })
-            .into(),
+            6.0,
+            button(text(t("cert_browse")).size(12).color(OryxisColors::t().accent))
+                .on_press(Message::BrowseKeyFile)
+                .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
+                        BtnStatus::Pressed => Color { a: 0.18, ..OryxisColors::t().accent },
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(6.0), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+                .into(),
         );
 
         // Status indicator
@@ -833,21 +827,25 @@ impl Oryxis {
         // from the private key on save; a pasted / edited line must match
         // the private key (the comment may differ, that is the point,
         // it is what the ssh-agent serves). Prefilled from `<key>.pub`
-        // on browse and from the stored key on edit.
+        // on browse and from the stored key on edit. A wrapping textarea
+        // rather than a one-line input: OpenSSH public lines are far
+        // wider than the panel.
         let public_section = column![
             Space::new().height(16),
             text(t("public_key")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(6),
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-public")),
-                8.0,
-                text_input("ssh-ed25519 AAAA...", &self.key_import_form.public_key)
+                10.0,
+                text_editor(&self.key_import_public_content)
                     .id(iced::widget::Id::new("panel-key-import-public"))
-                    .on_input(Message::KeyImportPublicChanged)
+                    .on_action(Message::KeyImportPublicAction)
+                    .placeholder("ssh-ed25519 AAAA...")
                     .padding(10)
-                    .size(11)
+                    .height(72)
                     .font(iced::Font::MONOSPACE)
-                    .style(crate::widgets::rounded_input_style)
+                    .size(11)
+                    .style(crate::widgets::rounded_editor_style)
                     .into(),
             ),
             Space::new().height(4),
@@ -890,14 +888,16 @@ impl Oryxis {
             Space::new().height(6),
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-cert")),
-                8.0,
-                text_input("ssh-ed25519-cert-v01@openssh.com AAAA...", &self.key_import_form.certificate)
+                10.0,
+                text_editor(&self.key_import_cert_content)
                     .id(iced::widget::Id::new("panel-key-import-cert"))
-                    .on_input(Message::KeyImportCertChanged)
+                    .on_action(Message::KeyImportCertAction)
+                    .placeholder("ssh-ed25519-cert-v01@openssh.com AAAA...")
                     .padding(10)
-                    .size(11)
+                    .height(72)
                     .font(iced::Font::MONOSPACE)
-                    .style(crate::widgets::rounded_input_style)
+                    .size(11)
+                    .style(crate::widgets::rounded_editor_style)
                     .into(),
             ),
         ]
@@ -947,15 +947,21 @@ impl Oryxis {
                 column![
                     name_field,
                     Space::new().height(16),
-                    text(t("private_key")).size(12).color(OryxisColors::t().text_secondary),
-                    Space::new().height(6),
-                    browse_btn,
-                    Space::new().height(8),
-                    file_status,
-                    Space::new().height(8),
-                    text(t("key_content")).size(12).color(OryxisColors::t().text_secondary),
+                    // Section header matches the Certificate one: label
+                    // leading, small Browse trailing.
+                    dir_row(vec![
+                        text(t("private_key"))
+                            .size(12)
+                            .color(OryxisColors::t().text_secondary)
+                            .into(),
+                        Space::new().width(Length::Fill).into(),
+                        browse_btn,
+                    ])
+                    .align_y(iced::Alignment::Center),
                     Space::new().height(6),
                     editor,
+                    Space::new().height(4),
+                    file_status,
                     passphrase_section,
                     public_section,
                     cert_section,

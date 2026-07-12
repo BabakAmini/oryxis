@@ -711,7 +711,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connecting_status" => "接続中...",
         "disconnected_reconnecting" => "接続が切れました。再接続しています...",
         "disconnected_idle" => "接続が切れました。",
-        "select_file" => "ファイルを選択...",
         "start_over" => "やり直す",
         "hk_add_question" => "既知のホストのリストに追加しますか？",
 
@@ -935,7 +934,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "edit_key" => "鍵を編集",
         "add_key" => "鍵を追加",
         "private_key" => "秘密鍵",
-        "key_content" => "鍵の内容",
         "key_passphrase_label" => "鍵のパスフレーズ",
         "key_passphrase_placeholder" => "パスフレーズ",
         "key_passphrase_hint" => "この鍵は暗号化されています。一度だけパスフレーズを入力してください。鍵を復号するために使用され、その後破棄されます。復号された鍵は、すでにマスターパスワードで保護されている保管庫に保存されます。",
@@ -1439,6 +1437,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_wrong_type_error" => "それはホスト証明書です。ユーザー証明書を添付してください。",
         // Certificate as a first-class keychain type (B2.1)
         "auth_certificate" => "証明書",
+        "add_certificate_btn" => "+ 証明書",
         "cert_flag" => "SSH 証明書",
         "public_key_auto_hint" => "空欄の場合は秘密鍵から導出されます。",
         "public_key_invalid_error" => "有効な OpenSSH 公開鍵の行ではありません。",
