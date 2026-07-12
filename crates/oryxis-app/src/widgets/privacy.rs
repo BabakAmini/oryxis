@@ -347,16 +347,59 @@ mod tests {
     }
 
     #[test]
-    fn winget_table_versions_not_redacted() {
-        // Issue #53 shapes through the log-viewer path: same classifier
-        // as the live terminal, so recorded output stays readable too.
-        let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
-        assert_eq!(redact_for_display(s, &[]), s);
-        let s2 = "Visual Studio Code  XP9KhM4BK9fz7Q  1.96.0.0  1.96.0.1";
-        assert_eq!(redact_for_display(s2, &[]), s2);
+    fn version_with_local_marker_not_redacted() {
+        // A version-word glued to the token keeps it readable: this is
+        // per-candidate evidence, not a row-wide keyword (issue #53).
         assert_eq!(
             redact_for_display("pandoc version 3.9.0.2 installed", &[]),
             "pandoc version 3.9.0.2 installed"
+        );
+        assert_eq!(redact_for_display("running v1.2.3.4 now", &[]), "running v1.2.3.4 now");
+        // A slash-terminated agent product string is a local marker too.
+        assert_eq!(redact_for_display("Server nginx/1.2.3.4 x", &[]), "Server nginx/1.2.3.4 x");
+    }
+
+    #[test]
+    fn ambiguous_quad_table_masks_in_privacy() {
+        // A bare four-octet all-<=255 quad with NO marker glued to it is
+        // byte-for-byte an IP; Privacy Mode masks it. A winget version
+        // table (`3.9.0.2  3.13.0`) and two IPs on an `ip route` line are
+        // the SAME shape, so the safe error is to mask. Versions that
+        // carry a local marker (see the test above) stay readable.
+        let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
+        assert_eq!(
+            redact_for_display(s, &[]),
+            format!("Python 3  Python.3  {}  3.13.0  winget", mask_blocks("3.9.0.2"))
+        );
+        let s2 = "Visual Studio Code  1.96.0.0  1.96.0.1";
+        assert_eq!(
+            redact_for_display(s2, &[]),
+            format!(
+                "Visual Studio Code  {}  {}",
+                mask_blocks("1.96.0.0"),
+                mask_blocks("1.96.0.1")
+            )
+        );
+    }
+
+    #[test]
+    fn sibling_ip_not_unmasked_by_a_version_on_the_line() {
+        // The leak class per-candidate scoping closes: a real public IP
+        // sharing a line with a genuine version token must still mask.
+        let s = "app 5.6.7 listening on 8.8.8.8";
+        assert_eq!(
+            redact_for_display(s, &[]),
+            format!("app 5.6.7 listening on {}", mask_blocks("8.8.8.8"))
+        );
+        // Two distinct public IPs on one route line: both mask.
+        let s2 = "default via 203.0.113.1 dev eth0 src 203.0.113.55";
+        assert_eq!(
+            redact_for_display(s2, &[]),
+            format!(
+                "default via {} dev eth0 src {}",
+                mask_blocks("203.0.113.1"),
+                mask_blocks("203.0.113.55")
+            )
         );
     }
 

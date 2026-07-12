@@ -129,91 +129,42 @@ pub fn scan_quad_dot_candidates(row: &str) -> Vec<(usize, usize)> {
     out
 }
 
-/// Count of DISTINCT version-shaped dotted-numeric tokens on the row: 3
-/// or more dot-separated all-digit groups (of up to 5 digits, so build
-/// numbers like `2365` count), token-bounded like the candidate scan. A
-/// winget upgrade table row carries `3.9.0.2` next to `3.13.0` (and
-/// Edge-style `122.0.2365.106`); two such tokens on one row read as a
-/// version table, not an address list. Distinct values only: a repeated
-/// address (`PING 8.8.8.8 (8.8.8.8)`) is one endpoint echoed, while an
-/// installed/available version pair always differs.
-fn dotted_numeric_tokens(row: &str) -> usize {
-    let bytes = row.as_bytes();
-    let len = bytes.len();
-    let mut seen: Vec<&str> = Vec::new();
-    let mut i = 0;
-    while i < len {
-        if !bytes[i].is_ascii_digit()
-            || (i > 0 && (bytes[i - 1].is_ascii_alphanumeric() || bytes[i - 1] == b'.'))
-        {
-            i += 1;
-            continue;
-        }
-        let mut groups = 0usize;
-        let mut j = i;
-        loop {
-            let group_start = j;
-            while j < len && bytes[j].is_ascii_digit() {
-                j += 1;
-            }
-            if j - group_start == 0 || j - group_start > 5 {
-                break;
-            }
-            groups += 1;
-            if j < len && bytes[j] == b'.' && j + 1 < len && bytes[j + 1].is_ascii_digit() {
-                j += 1;
-            } else {
-                break;
-            }
-        }
-        // A glued tail (`1.2.3.4beta`, `1.2.3.`) is an identifier or
-        // prose, not a version token.
-        if groups >= 3 && (j >= len || !(bytes[j].is_ascii_alphanumeric() || bytes[j] == b'.')) {
-            let tok = &row[i..j];
-            if !seen.contains(&tok) {
-                seen.push(tok);
-            }
-        }
-        i = j.max(i + 1);
-    }
-    seen.len()
-}
-
 /// Version-context signals for a range-valid quad-dot candidate at
-/// `row[start..end]` (issue #53). `multiple` is precomputed by the caller
-/// (>= 2 version-shaped tokens on the row, see [`dotted_numeric_tokens`])
-/// so the highlight pass counts once per row instead of once per
-/// candidate.
-fn quad_dot_version_context(row: &str, start: usize, end: usize, multiple: bool) -> bool {
-    if multiple {
+/// `row[start..]` (issue #53). PER-CANDIDATE only: the evidence must be
+/// glued to THIS token, never merely somewhere on the row. A masking
+/// candidate is by definition a valid all-<=255 dotted quad, so it is
+/// byte-for-byte indistinguishable from an IPv4 address; only a marker
+/// attached to the token itself tells the two apart, either a
+/// version-word right before it (`v` / `ver` / `version` / `versão`,
+/// with or without a trailing colon: `v 1.2.3.4`, `version: 1.2.3.4`,
+/// `pandoc version 1.2.3.4`) or a `product/1.2.3.4` agent string
+/// (slash-terminated word).
+///
+/// Row-wide signals (a keyword anywhere on the line, or a sibling
+/// version token elsewhere) are deliberately NOT used: they would
+/// unmask an unrelated public IP that happens to share the line (an
+/// access-log or `ip route` row), which is the exact leak class #53's
+/// masking exists to prevent. In Privacy Mode the safe error is to mask,
+/// so a bare `3.9.0.2` with no local marker classifies as an address.
+/// A directly-attached `v3.9.0.2` never reaches here; the scanner's glue
+/// rule already dropped it.
+fn quad_dot_version_context(row: &str, start: usize) -> bool {
+    // The token immediately before the candidate, split on ANY ASCII
+    // whitespace (a tab-separated `version:\t1.2.3.4` is still glued).
+    let trimmed = row[..start].trim_end_matches([' ', '\t']);
+    let tok = &trimmed[trimmed.rfind([' ', '\t']).map(|p| p + 1).unwrap_or(0)..];
+    if tok.is_empty() {
+        return false;
+    }
+    // Unicode-aware lowercase so `VERSÃO` folds to `versão` (the ASCII
+    // fold would leave `Ã` and miss the pt-BR keyword).
+    let lower = tok.to_lowercase();
+    let word = lower.strip_suffix(':').unwrap_or(&lower);
+    if matches!(word, "v" | "ver" | "version" | "versão") {
         return true;
     }
-    // A version keyword anywhere else on the row, case-insensitive.
-    // Short English-plus-obvious list; a heuristic, not an i18n surface.
-    const KEYWORDS: [&str; 7] =
-        ["version", "versão", "available", "installed", "release", "upgrade", "update"];
-    let before = row[..start].to_lowercase();
-    let after = row[end..].to_lowercase();
-    if KEYWORDS.iter().any(|k| before.contains(k) || after.contains(k)) {
-        return true;
-    }
-    // A version-prefix token right before the candidate: `v 1.2.3.4`,
-    // `ver 1.2.3.4`, `Version: 1.2.3.4`, or a `product/1.2.3.4` agent
-    // string. A directly-attached `v3.9.0.2` never reaches here, the
-    // scanner's glue rule already dropped it.
-    let trimmed = row[..start].trim_end_matches(' ');
-    let tok = &trimmed[trimmed.rfind(' ').map(|p| p + 1).unwrap_or(0)..];
-    if !tok.is_empty() {
-        let lower = tok.to_ascii_lowercase();
-        if lower == "v" || lower == "ver" || lower == "version:" {
-            return true;
-        }
-        let tb = tok.as_bytes();
-        if tb.len() >= 2 && tb[tb.len() - 1] == b'/' && tb[tb.len() - 2].is_ascii_alphabetic() {
-            return true;
-        }
-    }
-    false
+    let tb = tok.as_bytes();
+    tb.len() >= 2 && tb[tb.len() - 1] == b'/' && tb[tb.len() - 2].is_ascii_alphabetic()
 }
 
 /// Whether the range-valid quad-dot at `row[start..end]` reads as a
@@ -222,8 +173,8 @@ fn quad_dot_version_context(row: &str, start: usize, end: usize, multiple: bool)
 /// recorded output classify identically. Callers apply the two masking
 /// overrides FIRST (vault-term hit, [`ipv4_is_private_or_loopback`]);
 /// those always win over version context.
-pub fn quad_dot_is_version_like(row: &str, start: usize, end: usize) -> bool {
-    quad_dot_version_context(row, start, end, dotted_numeric_tokens(row) >= 2)
+pub fn quad_dot_is_version_like(row: &str, start: usize, _end: usize) -> bool {
+    quad_dot_version_context(row, start)
 }
 
 /// Whether an IPv4 candidate sits in private/loopback/link-local space
@@ -335,7 +286,6 @@ pub(crate) fn detect_highlights(
         // ranges always stay Ip, overrides win over version context.
         {
             let candidates = scan_quad_dot_candidates(&row_str);
-            let multiple = dotted_numeric_tokens(&row_str) >= 2;
             for &(start, end) in &candidates {
                 let dominated = highlights.iter().any(|h| {
                     h.row == row && start as u16 >= h.start_col && (start as u16) <= h.end_col
@@ -346,7 +296,7 @@ pub(crate) fn detect_highlights(
                 let text = &row_str[start..end];
                 let kind = if privacy_terms.iter().any(|t| t == text)
                     || ipv4_is_private_or_loopback(text)
-                    || !quad_dot_version_context(&row_str, start, end, multiple)
+                    || !quad_dot_version_context(&row_str, start)
                 {
                     HighlightKind::Ip
                 } else {
@@ -1256,26 +1206,47 @@ mod tests {
     }
 
     #[test]
-    fn winget_table_versions_not_masked() {
-        // The issue #53 shapes: a quad-dot next to a 3-part version
-        // (Python row) and an installed/available quad-dot pair (VS Code
-        // row). Both classify VersionQuad: colored, never privacy-masked.
+    fn unmarked_quad_table_masks_in_privacy() {
+        // Issue #53 narrowed (per-candidate scoping): a bare four-octet
+        // all-<=255 quad with NO marker glued to it is byte-for-byte an
+        // IP, so Privacy Mode masks it. A winget version table and an
+        // `ip route` address list are the same shape; the safe error is
+        // to mask. Locally-marked versions stay VersionQuad (next test).
+        // The 3-part `3.13.0` is not a quad candidate, so it never masks.
         let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
-        assert!(masked_ip_texts(s, &[]).is_empty());
-        assert_eq!(version_quad_texts(s, &[]), vec!["3.9.0.2"]);
+        assert_eq!(masked_ip_texts(s, &[]), vec!["3.9.0.2"]);
+        assert!(version_quad_texts(s, &[]).is_empty());
 
-        let s2 = "Visual Studio Code  XP9KhM4BK9fz7Q  1.96.0.0  1.96.0.1";
-        assert!(masked_ip_texts(s2, &[]).is_empty());
-        assert_eq!(version_quad_texts(s2, &[]), vec!["1.96.0.0", "1.96.0.1"]);
+        let s2 = "Visual Studio Code  1.96.0.0  1.96.0.1";
+        assert_eq!(masked_ip_texts(s2, &[]), vec!["1.96.0.0", "1.96.0.1"]);
     }
 
     #[test]
     fn version_keyword_and_prefix_rows_not_masked() {
+        // A version-word or product-slash glued to the token keeps it
+        // readable (per-candidate evidence).
         assert!(masked_ip_texts("pandoc version 3.9.0.2 installed", &[]).is_empty());
-        assert!(masked_ip_texts("rustc 1.96.0.0 available", &[]).is_empty());
         assert!(masked_ip_texts("agent curl/8.4.0.1 sent", &[]).is_empty());
         assert!(masked_ip_texts("ver 1.2.3.4", &[]).is_empty());
         assert_eq!(version_quad_texts("ver 1.2.3.4", &[]), vec!["1.2.3.4"]);
+        // A row-wide keyword is NOT local evidence: `available` sits away
+        // from the quad, and unmasking on it would leak a sibling public
+        // IP on an access-log line, so the quad masks.
+        assert_eq!(masked_ip_texts("rustc 1.96.0.0 available", &[]), vec!["1.96.0.0"]);
+    }
+
+    #[test]
+    fn sibling_ip_not_unmasked_by_a_row_version() {
+        // A genuine version token on the line must not unmask an
+        // unrelated public IP sharing it (the per-candidate leak class).
+        assert_eq!(
+            masked_ip_texts("app 5.6.7 listening on 8.8.8.8", &[]),
+            vec!["8.8.8.8"]
+        );
+        assert_eq!(
+            masked_ip_texts("default via 203.0.113.1 dev eth0 src 203.0.113.55", &[]),
+            vec!["203.0.113.1", "203.0.113.55"]
+        );
     }
 
     #[test]
@@ -1322,7 +1293,7 @@ mod tests {
 
     #[test]
     fn version_quads_keep_the_keyword_color_and_skip_privacy() {
-        let s = "installed 3.9.0.2 ok";
+        let s = "version 3.9.0.2 ok";
         let rows = rows_from(s);
         let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
         let start = s.find("3.9.0.2").unwrap() as u16;
@@ -1342,7 +1313,7 @@ mod tests {
     fn version_classification_is_privacy_flag_independent() {
         // With Privacy Mode off the same span exists with the same color,
         // so toggling privacy changes masking only, never coloring.
-        let s = "installed 3.9.0.2 ok";
+        let s = "version 3.9.0.2 ok";
         let rows = rows_from(s);
         let start = s.find("3.9.0.2").unwrap() as u16;
         let on = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
