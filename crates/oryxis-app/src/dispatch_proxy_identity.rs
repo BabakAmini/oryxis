@@ -103,6 +103,10 @@ impl Oryxis {
                 self.proxy_identity_form.password_touched = true;
                 self.proxy_identity_form.password = v;
             }
+            Message::ProxyIdentityFormPasswordToggleVisibility => {
+                self.proxy_identity_form.password_visible =
+                    !self.proxy_identity_form.password_visible;
+            }
             Message::SaveProxyIdentity => {
                 let label = self.proxy_identity_form.label.trim().to_string();
                 if label.is_empty() {

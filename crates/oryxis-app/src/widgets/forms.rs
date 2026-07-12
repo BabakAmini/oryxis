@@ -81,7 +81,11 @@ pub(crate) fn form_footer<'a>(
 pub(crate) fn form_error<'a>(error: Option<&'a str>) -> Element<'a, Message> {
     match error {
         Some(err) => container(
-            text(err).size(12).color(OryxisColors::t().error).width(Length::Fill),
+            text(err)
+                .size(12)
+                .color(OryxisColors::t().error)
+                .width(Length::Fill)
+                .align_x(crate::widgets::dir_align_x()),
         )
         .padding(Padding { top: 0.0, right: 16.0, bottom: 8.0, left: 16.0 })
         .into(),

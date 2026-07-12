@@ -1088,14 +1088,6 @@ impl Oryxis {
             crate::i18n::t("proxy_password_placeholder"),
         );
 
-        // A plain secure text_input (not password_input_with_eye), so
-        // it can carry a focus id and be a keyboard row.
-        let pw_input = text_input(pw_placeholder, &self.proxy_identity_form.password)
-            .id(iced::widget::Id::new("panel-proxy-identity-password"))
-            .on_input(Message::ProxyIdentityFormPasswordChanged)
-            .secure(!self.proxy_identity_form.password_visible)
-            .padding(10)
-            .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
 
         let save_label = if self.proxy_identity_form.editing_id.is_some() {
             crate::i18n::t("save")
@@ -1194,16 +1186,33 @@ impl Oryxis {
                 ),
             ),
             Space::new().height(12),
-            panel_field(
-                crate::i18n::t("proxy_password"),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new(
-                        "panel-proxy-identity-password",
-                    )),
+            panel_field(crate::i18n::t("proxy_password"), {
+                // Keyboard rows: the field, then its reveal eye (#52). The
+                // field row is recorded first so the walk hits it before
+                // the eye slot the wrap closure records.
+                self.panel_nav_record(crate::keynav::RowAction::input(
+                    iced::widget::Id::new("panel-proxy-identity-password"),
+                ));
+                crate::widgets::password_input_with_eye_nav(
+                    pw_placeholder,
+                    &self.proxy_identity_form.password,
+                    Message::ProxyIdentityFormPasswordChanged,
+                    Some(Message::SaveProxyIdentity),
+                    self.proxy_identity_form.password_visible,
+                    Message::ProxyIdentityFormPasswordToggleVisibility,
                     10.0,
-                    pw_input.into(),
-                ),
-            ),
+                    Some(iced::widget::Id::new("panel-proxy-identity-password")),
+                    |eye| {
+                        self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(
+                                Message::ProxyIdentityFormPasswordToggleVisibility,
+                            ),
+                            6.0,
+                            eye,
+                        )
+                    },
+                )
+            }),
         ];
 
         // ── Header (title + close), matching the host / session-group

@@ -7,6 +7,12 @@ use iced::Task;
 use crate::app::{Message, Oryxis};
 use crate::sftp_helpers::sort_local_entries;
 
+/// Process-global monotonic source for `PaneFiles::local_list_seq` /
+/// `SftpPane::local_list_seq`. Global (not per-pane) so a seq is unique
+/// across every SFTP surface, even the ones swapped in and out of the
+/// live buffer by the hybrid-tab park/hoist. See `spawn_local_listing`.
+static NEXT_LOCAL_LIST_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
 impl Oryxis {
     /// Refresh a local pane from its `local_path`. Errors (missing dir,
     /// permission denied) surface as a user-visible string instead of a
@@ -49,12 +55,18 @@ impl Oryxis {
         side: crate::state::SftpPaneSide,
         path: std::path::PathBuf,
     ) -> Task<Message> {
-        // Bump the pane's listing seq so a slower, earlier listing
-        // (cold network path) can't overwrite this one when it finally
-        // lands; SftpLocalListed drops stale seqs.
-        let pane = self.sftp.pane_mut(side);
-        pane.local_list_seq = pane.local_list_seq.wrapping_add(1);
-        let seq = pane.local_list_seq;
+        // Stamp the pane's listing seq from a PROCESS-GLOBAL counter so a
+        // slower, earlier listing (cold network path) can't overwrite this
+        // one when it finally lands; SftpLocalListed drops stale seqs. The
+        // counter must be global, not per-pane: `local_list_seq` lives
+        // inside `SftpState`, which is swapped whole on the standalone <->
+        // hybrid park/hoist, so two surfaces bumping independent per-pane
+        // counters could reach the SAME value and a stale listing from one
+        // surface would then match (and clobber) the live pane of the
+        // other. A global monotonic seq is unique across every surface, so
+        // only the pane that actually spawned a listing can match it.
+        let seq = NEXT_LOCAL_LIST_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.sftp.pane_mut(side).local_list_seq = seq;
         let list_path = path.clone();
         Task::perform(
             async move {

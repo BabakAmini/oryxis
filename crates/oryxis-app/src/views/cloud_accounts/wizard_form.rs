@@ -366,21 +366,31 @@ impl Oryxis {
                         .size(12)
                         .color(OryxisColors::t().text_secondary),
                     Space::new().height(4),
-                    // A plain secure text_input (not password_input_with_eye),
-                    // so it can carry a focus id and be a keyboard row.
-                    self.panel_nav_slot(
-                        crate::keynav::RowAction::input(iced::widget::Id::new(
-                            "panel-cloud-aws-key-secret",
-                        )),
-                        10.0,
-                        text_input(secret_placeholder, &self.cloud_form.aws_access_key_secret)
-                            .id(iced::widget::Id::new("panel-cloud-aws-key-secret"))
-                            .on_input(Message::CloudFormAwsAccessKeySecretChanged)
-                            .secure(!self.cloud_form.aws_access_key_secret_visible)
-                            .padding(10)
-                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                            .into(),
-                    ),
+                    // Keyboard rows: the field, then its reveal eye (#52).
+                    {
+                        self.panel_nav_record(crate::keynav::RowAction::input(
+                            iced::widget::Id::new("panel-cloud-aws-key-secret"),
+                        ));
+                        crate::widgets::password_input_with_eye_nav(
+                            secret_placeholder,
+                            &self.cloud_form.aws_access_key_secret,
+                            Message::CloudFormAwsAccessKeySecretChanged,
+                            None,
+                            self.cloud_form.aws_access_key_secret_visible,
+                            Message::CloudFormAwsAccessKeySecretToggleVisibility,
+                            10.0,
+                            Some(iced::widget::Id::new("panel-cloud-aws-key-secret")),
+                            |eye| {
+                                self.panel_nav_slot(
+                                    crate::keynav::RowAction::activate(
+                                        Message::CloudFormAwsAccessKeySecretToggleVisibility,
+                                    ),
+                                    6.0,
+                                    eye,
+                                )
+                            },
+                        )
+                    },
                     Space::new().height(14),
                     text(t("cloud_aws_access_key_session_token"))
                         .size(12)

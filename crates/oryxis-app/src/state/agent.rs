@@ -28,6 +28,19 @@ impl AgentConfirmCard {
             let _ = tx.send(allow);
         }
     }
+
+    /// Whether the sign side is still waiting on this card. A queued card
+    /// whose receiver was dropped (its 60s sign-side timeout already
+    /// fired) must not be promoted to the screen: the prompt would ask
+    /// about a request that already failed, and an "always" click would
+    /// still record a session grant for it.
+    pub fn is_live(&self) -> bool {
+        self.responder
+            .lock()
+            .ok()
+            .and_then(|slot| slot.as_ref().map(|tx| !tx.is_closed()))
+            .unwrap_or(false)
+    }
 }
 
 /// Which generated setup snippet a Copy button targets.
@@ -105,6 +118,11 @@ impl AgentState {
             return None;
         }
         while let Some(card) = self.confirm_queue.pop_front() {
+            // The sign side already gave up on this one; drop it instead
+            // of prompting for a dead request (and recording its grant).
+            if !card.is_live() {
+                continue;
+            }
             if self.session_grants.contains(&card.key_fingerprint) {
                 card.respond(true);
                 continue;
