@@ -671,6 +671,10 @@ jobs:
   aur:
     name: Publish to AUR
     needs: [release]
+    # Skip prerelease tags: Arch pkgver forbids hyphens, so v1.0.0-rc.1
+    # would fail makepkg, and a hyphen-free scheme would wrongly publish
+    # the RC to every AUR user. Stable tags only.
+    if: ${{ !contains(github.ref_name, '-') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -701,7 +705,10 @@ jobs:
       # Regenerates .SRCINFO via makepkg inside an Arch container and
       # pushes PKGBUILD + .SRCINFO to ssh://aur@aur.archlinux.org/oryxis-bin.
       - name: Push to AUR
-        uses: KSXGitHub/github-actions-deploy-aur@v4
+        # Pinned to the v4.1.3 commit SHA: this maintainer publishes no
+        # major-version alias tag (@v4 does not resolve), and a Docker
+        # action handling the AUR push key must not ride a mutable ref.
+        uses: KSXGitHub/github-actions-deploy-aur@da03e160361ce01bf087e790b6ffd196d7dccff7
         with:
           pkgname: oryxis-bin
           pkgbuild: packaging/aur/PKGBUILD
@@ -716,7 +723,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Submit to winget-pkgs
-        uses: vedantmgoyal9/winget-releaser@v2
+        # Pinned to the v2 commit SHA: this action carries WINGET_TOKEN,
+        # so it must not ride a mutable major tag.
+        uses: vedantmgoyal9/winget-releaser@4ffc7888bffd451b357355dc214d43bb9f23917e
         with:
           identifier: WilsonGlasser.Oryxis
           # Match both x86_64 and aarch64 system installers in a single
