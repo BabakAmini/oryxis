@@ -1067,6 +1067,26 @@ impl Oryxis {
                 {
                     return Ok(Task::done(Message::BiometricUnlockRequested));
                 }
+                // Lock / setup / onboarding screens own the keyboard
+                // exclusively: their inputs receive keys through the
+                // widget tree, and every consumer below (keynav routers,
+                // the hotkey table, PTY routing) belongs to the unlocked
+                // app. `LockVault` leaves `active_view = Dashboard`, so
+                // without this gate those consumers ran against stale
+                // vault-area state from behind the lock screen; a key
+                // they claimed could steal iced focus from the unlock
+                // input mid-typing (field report 2026-07-12). The one
+                // exception: an app-level modal rendered over the lock
+                // screen (update / plugin install / KBI / host key) keeps
+                // its keyboard layer, so its Enter / Esc / arrows work.
+                if self.vault_ui.state != crate::state::VaultState::Unlocked {
+                    if self.any_modal_blocks_input()
+                        && let Some(task) = self.handle_modal_nav_key(&event)
+                    {
+                        return Ok(task);
+                    }
+                    return Ok(Task::none());
+                }
                 // An open pick_list dropdown owns the keyboard: the
                 // widget itself handles Enter/Space (confirm), Up/Down
                 // (move the hovered option) and Esc (close). The global

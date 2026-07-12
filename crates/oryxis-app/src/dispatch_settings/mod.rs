@@ -1791,6 +1791,51 @@ impl Oryxis {
                         self.active_tab = None;
                         self.clear_terminal_tab_memory();
                         self.active_view = View::Dashboard;
+                        // Mirror the soft-lock UI sweep: the manual lock
+                        // used to leave overlays, side panels, revealed
+                        // secrets and pending auth prompts armed behind
+                        // the lock screen (stale state a stray key or a
+                        // late async completion could act on, and typed
+                        // or revealed secrets have no business surviving
+                        // an explicit "I'm done").
+                        self.revealed_secrets.clear();
+                        self.overlay = None;
+                        self.card_context_menu = None;
+                        self.error_dialog = None;
+                        self.show_host_panel = false;
+                        self.host_panel_error = None;
+                        self.editor_form = crate::state::ConnectionForm::default();
+                        self.show_key_generate_panel = false;
+                        self.key_generate_form = crate::state::KeyGenerateForm::default();
+                        self.show_key_panel = false;
+                        self.key_import_form = crate::state::KeyImportForm::default();
+                        self.key_import_content = iced::widget::text_editor::Content::new();
+                        self.cert_viewer = None;
+                        self.vault_ui.new_password.clear();
+                        self.vault_ui.confirm_password.clear();
+                        self.sftp.picker_open = false;
+                        self.sftp.new_entry = None;
+                        self.sftp.delete_confirm.clear();
+                        self.sftp.edit_session = None;
+                        self.sftp.overwrite_prompt = None;
+                        self.sftp.properties = None;
+                        // Cancel a pending keyboard-interactive / host-key
+                        // prompt from an in-flight connect (the sessions
+                        // were just torn down; the engine treats `None` /
+                        // `false` as a clean abort).
+                        if self.pending_kbi_prompt.take().is_some() {
+                            self.kbi_inputs.clear();
+                            if let Some(ref tx) = self.kbi_response_tx {
+                                let _ = tx.try_send(None);
+                            }
+                        }
+                        if self.pending_host_key.take().is_some()
+                            && let Some(tx) = self.active_host_key_tx.take()
+                        {
+                            let _ = tx.try_send(false);
+                        }
+                        self.pending_kbi_quick = None;
+                        self.pending_auth_switch = None;
                         // Same auto-focus as the soft lock: the unlock
                         // field is the only thing to interact with.
                         return Ok(iced::widget::operation::focus(iced::widget::Id::new(
