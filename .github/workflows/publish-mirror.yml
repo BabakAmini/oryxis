@@ -20,6 +20,12 @@
 
 name: Publish to download mirror
 
+# Least privilege: the job only READS the repo (release assets + API
+# snapshots); everything it writes goes to the R2 bucket via the S3
+# credentials, never through the GitHub token.
+permissions:
+  contents: read
+
 on:
   workflow_call:
     inputs:
