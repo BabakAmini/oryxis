@@ -202,6 +202,10 @@ async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
         // "downloading" toast and the in-memory guard stuck forever.
         .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(90))
+        // Never let a mirror redirect the font fetch to plaintext http.
+        // The sha256 pin already guards integrity; this keeps the fetch
+        // consistent with the update / plugin surfaces.
+        .https_only(true)
         .build()
         .map_err(|e| e.to_string())?;
     // Mirror-aware: try each candidate URL (mirror first when one is
@@ -241,14 +245,29 @@ async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
         ));
     }
 
-    // Atomic install: write a sibling .tmp, fsync, rename into place so
-    // an interrupted download never leaves a partial file the cache-hit
-    // path would trust.
+    // Atomic install: write a sibling .tmp, fsync it, then rename into
+    // place so an interrupted download or a power loss never leaves a
+    // partial file the cache-hit path would trust.
     if let Some(dir) = cache_dir() {
         let _ = tokio::fs::create_dir_all(&dir).await;
         let tmp = dir.join(format!("{}.tmp", asset.file));
-        if tokio::fs::write(&tmp, &buf).await.is_ok() {
+        let wrote = async {
+            use tokio::io::AsyncWriteExt as _;
+            let mut f = tokio::fs::File::create(&tmp).await.ok()?;
+            f.write_all(&buf).await.ok()?;
+            f.sync_all().await.ok()?;
+            Some(())
+        }
+        .await;
+        if wrote.is_some() {
             let _ = tokio::fs::rename(&tmp, &path).await;
+            // fsync the directory so the rename itself survives a power
+            // loss (the durability step download.rs documents as required).
+            if let Ok(d) = tokio::fs::File::open(&dir).await {
+                let _ = d.sync_all().await;
+            }
+        } else {
+            let _ = tokio::fs::remove_file(&tmp).await;
         }
     }
 

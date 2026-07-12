@@ -130,8 +130,10 @@ fn asset_path(url: &str) -> Option<String> {
     let path = parsed.path();
     let repo = crate::plugins::RELEASE_REPO;
     match host {
-        // The pinned CJK fonts: keyed by their (percent-encoded) file
-        // name, exactly as it appears in the pinned raw URL.
+        // The pinned CJK fonts. The client path keeps the percent-encoded
+        // file name from the pinned raw URL; the mirror/bucket key is the
+        // DECODED name (the server decodes request paths before matching),
+        // so publish-mirror.yml stores decoded keys (see a038c67).
         "raw.githubusercontent.com" if path.starts_with("/google/fonts/") => {
             let file = url.rsplit('/').next()?;
             (!file.is_empty()).then(|| format!("fonts/{file}"))
