@@ -1432,10 +1432,24 @@ pub enum Message {
     KeyImportLabelChanged(String),
     KeyContentAction(text_editor::Action),
     BrowseKeyFile,
-    KeyFileLoaded(String, String), // (filename, content)
+    // (filename, content, auto-probed `<file>-cert.pub` if present)
+    KeyFileLoaded(String, String, Option<String>),
     KeyFileBrowseError(String),
     KeyImportPassphraseChanged(String),
     KeyImportPassphraseToggleVisibility,
+    /// The attached-certificate paste field changed (B2).
+    KeyImportCertChanged(String),
+    /// Pick a `.pub` certificate file for the key import form.
+    BrowseCertFile,
+    /// A certificate file was read; its contents fill the paste field.
+    CertFileLoaded(String),
+    /// Open the read-only certificate viewer for key at index.
+    ViewKeyCertificate(usize),
+    CloseCertViewer,
+    /// Ask for confirmation before detaching a key's certificate.
+    RequestRemoveKeyCertificate(usize),
+    /// Detach the certificate from key at index (post-confirm).
+    RemoveKeyCertificate(usize),
     ImportKey,
     /// Ask for confirmation before removing a key.
     RequestDeleteKey(usize),

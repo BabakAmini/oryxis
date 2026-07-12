@@ -175,6 +175,10 @@ tray-icon = { version = "0.24", default-features = false, features = ["common-co
 # russh AgentClient drives the agent_server protocol tests (proves
 # our wire encoding against a real client).
 russh = { workspace = true }
+# Build in-process certificates for the cert-validation tests via
+# ssh-key's Builder (rand 0.10 = the rand_core ssh-key 0.7 wants).
+# Renamed because the crate's normal `rand` dep is still 0.8.
+rand010 = { package = "rand", version = "0.10", features = ["thread_rng"] }
 tempfile = "3"
 # Property-based fuzzing for path/name helpers, generates random
 # inputs to flush out edge cases the hand-written cases missed.

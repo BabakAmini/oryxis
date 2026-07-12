@@ -1447,6 +1447,26 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "מוריד גופן שפה...",
         "cjk_font_failed" => "לא ניתן היה להוריד את גופן השפה, נעשה שימוש בגופן המערכת.",
 
+        // SSH certificate auth (B2)
+        "certificate" => "תעודה",
+        "certificate_desc" => "תעודת משתמש חתומה אופציונלית (שורת -cert.pub בפורמט OpenSSH) המוצעת במהלך אימות מפתח ציבורי.",
+        "cert_attach" => "תעודה מצורפת",
+        "cert_browse" => "עיון...",
+        "cert_detected_hint" => "זוהתה תעודה לצד קובץ המפתח",
+        "cert_badge" => "תעודה",
+        "cert_view" => "הצגת תעודה",
+        "cert_remove" => "הסרת תעודה",
+        "cert_key_id" => "מזהה מפתח",
+        "cert_serial" => "מספר סידורי",
+        "cert_type_user" => "תעודת משתמש",
+        "cert_type_host" => "תעודת מארח",
+        "cert_principals" => "מורשים",
+        "cert_valid_from" => "בתוקף מ־",
+        "cert_valid_until" => "בתוקף עד",
+        "cert_expired" => "פג תוקף",
+        "cert_expired_warn" => "תוקף התעודה פג.",
+        "cert_mismatch_error" => "התעודה אינה תואמת למפתח זה.",
+        "cert_wrong_type_error" => "זוהי תעודת מארח; יש לצרף תעודת משתמש.",
         _ => return None,
     })
 }

@@ -1180,6 +1180,16 @@ impl Oryxis {
         // (shared helper, which also resolves the key's certificate for B2).
         let (password, private_key, certificate) = self.resolve_credentials(&conn);
 
+        // Advisory expired-certificate toast (B2). The engine still offers
+        // the cert (the server clock is authoritative), but flag it here at
+        // connect time so the user knows why a rejection might follow. The
+        // clock check is the app's, deliberately: this is a hint, not a gate.
+        if let Some(cert) = certificate.as_deref()
+            && certificate_is_expired(cert)
+        {
+            let _ = self.show_toast_secs(crate::i18n::t("cert_expired_warn").to_string(), 6);
+        }
+
         // Per-connection TOTP secret for keyboard-interactive
         // autofill. Independent of the identity indirection
         // above, 2FA enrollment is per-host.
@@ -2180,4 +2190,21 @@ impl Oryxis {
             PaneConnMsg::Error(e) => Message::PaneConnectError(pane_id, e),
         })
     }
+}
+
+/// Whether an attached OpenSSH certificate line is past its validity
+/// window against the local clock (B2). Advisory only, drives the
+/// connect-time toast; the server clock remains authoritative and the
+/// engine offers the cert regardless. Unparseable / unbounded certs are
+/// never reported as expired.
+pub(crate) fn certificate_is_expired(cert_line: &str) -> bool {
+    let Ok(cert) = ssh_key::Certificate::from_openssh(cert_line.trim()) else {
+        return false;
+    };
+    let before = cert.valid_before();
+    if before == 0 || before == u64::MAX {
+        return false;
+    }
+    let now = chrono::Utc::now().timestamp().max(0) as u64;
+    now > before
 }

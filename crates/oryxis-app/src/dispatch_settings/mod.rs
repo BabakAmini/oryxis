@@ -1613,6 +1613,14 @@ impl Oryxis {
                     // completion by the locked-vault check).
                     self.show_key_generate_panel = false;
                     self.key_generate_form = crate::state::KeyGenerateForm::default();
+                    // The key import panel (holds a pasted cert / PEM) and
+                    // the cert viewer are vault-area surfaces; drop them.
+                    // The live PEM editor buffer is private material, so it
+                    // is reset too, matching the generate-panel sweep.
+                    self.show_key_panel = false;
+                    self.key_import_form = crate::state::KeyImportForm::default();
+                    self.key_import_content = iced::widget::text_editor::Content::new();
+                    self.cert_viewer = None;
                     // The ssh-agent goes dark (keys ungated) while locked;
                     // the listener stays up so a `git` sees an empty agent.
                     self.agent_on_lock();

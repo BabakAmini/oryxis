@@ -1447,6 +1447,26 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "भाषा फ़ॉन्ट डाउनलोड हो रहा है...",
         "cjk_font_failed" => "भाषा फ़ॉन्ट डाउनलोड नहीं हो सका, सिस्टम फ़ॉन्ट उपयोग हो रहा है।",
 
+        // SSH certificate auth (B2)
+        "certificate" => "प्रमाणपत्र",
+        "certificate_desc" => "वैकल्पिक हस्ताक्षरित उपयोगकर्ता प्रमाणपत्र (एक OpenSSH -cert.pub लाइन) जो पब्लिक-की प्रमाणीकरण के दौरान प्रस्तुत किया जाता है।",
+        "cert_attach" => "प्रमाणपत्र संलग्न",
+        "cert_browse" => "ब्राउज़ करें...",
+        "cert_detected_hint" => "कुंजी फ़ाइल के पास प्रमाणपत्र मिला",
+        "cert_badge" => "प्रमाणपत्र",
+        "cert_view" => "प्रमाणपत्र देखें",
+        "cert_remove" => "प्रमाणपत्र हटाएँ",
+        "cert_key_id" => "कुंजी ID",
+        "cert_serial" => "सीरियल नंबर",
+        "cert_type_user" => "उपयोगकर्ता प्रमाणपत्र",
+        "cert_type_host" => "होस्ट प्रमाणपत्र",
+        "cert_principals" => "अधिकृत उपयोगकर्ता",
+        "cert_valid_from" => "इससे मान्य",
+        "cert_valid_until" => "इस तक मान्य",
+        "cert_expired" => "समाप्त",
+        "cert_expired_warn" => "यह प्रमाणपत्र समाप्त हो चुका है।",
+        "cert_mismatch_error" => "प्रमाणपत्र इस कुंजी से मेल नहीं खाता।",
+        "cert_wrong_type_error" => "यह एक होस्ट प्रमाणपत्र है; उपयोगकर्ता प्रमाणपत्र संलग्न करें।",
         _ => return None,
     })
 }

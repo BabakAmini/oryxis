@@ -61,6 +61,11 @@ impl Oryxis {
             // Host-key prompt for a backgrounded action (a manually toggled
             // port forward). No outside-click dismiss for the same reason.
             crate::widgets::modal_overlay(base, self.view_host_key_modal(), None, 40.0)
+        } else if self.cert_viewer.is_some() && matches!(self.vault_ui.state, VaultState::Unlocked) {
+            // Read-only certificate viewer (B2). Vault-area modal: gated on
+            // Unlocked, and swept by the soft-lock so it can't linger over
+            // the lock screen. Backdrop click closes it.
+            crate::widgets::modal_overlay(base, self.view_cert_viewer_modal(), Some(Message::CloseCertViewer), 40.0)
         } else {
             base
         };

@@ -1447,6 +1447,26 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "Stahování jazykového písma...",
         "cjk_font_failed" => "Jazykové písmo se nepodařilo stáhnout, používá se systémové písmo.",
 
+        // SSH certificate auth (B2)
+        "certificate" => "Certifikát",
+        "certificate_desc" => "Volitelný podepsaný uživatelský certifikát (řádek -cert.pub OpenSSH) nabízený při ověřování veřejným klíčem.",
+        "cert_attach" => "Certifikát připojen",
+        "cert_browse" => "Procházet...",
+        "cert_detected_hint" => "Certifikát nalezen vedle souboru klíče",
+        "cert_badge" => "cert",
+        "cert_view" => "Zobrazit certifikát",
+        "cert_remove" => "Odebrat certifikát",
+        "cert_key_id" => "ID klíče",
+        "cert_serial" => "Sériové číslo",
+        "cert_type_user" => "Uživatelský certifikát",
+        "cert_type_host" => "Certifikát hostitele",
+        "cert_principals" => "Principals",
+        "cert_valid_from" => "Platný od",
+        "cert_valid_until" => "Platný do",
+        "cert_expired" => "Vypršel",
+        "cert_expired_warn" => "Platnost tohoto certifikátu vypršela.",
+        "cert_mismatch_error" => "Certifikát neodpovídá tomuto klíči.",
+        "cert_wrong_type_error" => "Toto je certifikát hostitele; připojte uživatelský certifikát.",
         _ => return None,
     })
 }

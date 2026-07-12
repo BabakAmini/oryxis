@@ -1448,6 +1448,27 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cjk_font_downloading" => "Downloading language font...",
         "cjk_font_failed" => "Couldn't download the language font, using the system font.",
 
+        // SSH certificate auth (B2)
+        "certificate" => "Certificate",
+        "certificate_desc" => "Optional signed user certificate (an OpenSSH -cert.pub line) offered during publickey auth.",
+        "cert_attach" => "Certificate attached",
+        "cert_browse" => "Browse...",
+        "cert_detected_hint" => "Certificate detected next to the key file",
+        "cert_badge" => "cert",
+        "cert_view" => "View certificate",
+        "cert_remove" => "Remove certificate",
+        "cert_key_id" => "Key ID",
+        "cert_serial" => "Serial",
+        "cert_type_user" => "User certificate",
+        "cert_type_host" => "Host certificate",
+        "cert_principals" => "Principals",
+        "cert_valid_from" => "Valid from",
+        "cert_valid_until" => "Valid until",
+        "cert_expired" => "Expired",
+        "cert_expired_warn" => "This certificate has expired.",
+        "cert_mismatch_error" => "The certificate does not match this key.",
+        "cert_wrong_type_error" => "That is a host certificate; attach a user certificate.",
+
         _ => "???",
     }
 }

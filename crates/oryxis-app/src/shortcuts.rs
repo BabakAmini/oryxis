@@ -168,6 +168,7 @@ impl Oryxis {
             Modal::SftpProperties => self.sftp.properties.is_some(),
             Modal::SftpOverwrite => self.sftp.overwrite_prompt.is_some(),
             Modal::SftpPicker => self.sftp.picker_open,
+            Modal::CertificateViewer => self.cert_viewer.is_some(),
         }
     }
 
@@ -268,6 +269,7 @@ impl Oryxis {
             Modal::SftpProperties => self.sftp.properties = None,
             Modal::SftpOverwrite => self.sftp.overwrite_prompt = None,
             Modal::SftpPicker => self.sftp.picker_open = false,
+            Modal::CertificateViewer => self.cert_viewer = None,
         }
     }
 

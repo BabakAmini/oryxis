@@ -563,8 +563,37 @@ pub(crate) struct KeyImportForm {
     /// passphrase row in the import panel.
     pub passphrase_required: bool,
     pub passphrase_visible: bool,
+    /// The attached OpenSSH certificate line (`ssh-*-cert-v01@... AAAA...`),
+    /// B2. Public material, so it lives in plain form state like the
+    /// public key. Empty = no certificate.
+    pub certificate: String,
+    /// Set when the browse flow auto-probed a `<key>-cert.pub` next to the
+    /// picked private key and prefilled `certificate`; drives the
+    /// dismissible "certificate detected" hint. Cleared on manual edit.
+    pub cert_detected: bool,
     /// `Some` when editing an existing key (update in place).
     pub editing_id: Option<Uuid>,
+}
+
+/// Parsed, display-ready view of a key's attached OpenSSH certificate,
+/// built once when the viewer modal opens (B2) so `view()` never
+/// re-parses. All fields are already localized / formatted strings
+/// except the flags. `key_idx` targets the "Remove certificate" action
+/// back at the owning key.
+#[derive(Debug, Clone)]
+pub(crate) struct CertViewerData {
+    pub key_idx: usize,
+    pub key_label: String,
+    pub key_id: String,
+    pub serial: u64,
+    pub is_host: bool,
+    pub principals: Vec<String>,
+    /// Local-time validity bounds, preformatted (empty when unbounded).
+    pub valid_from: String,
+    pub valid_until: String,
+    /// SHA256 fingerprint of the signing CA key.
+    pub ca_fingerprint: String,
+    pub expired: bool,
 }
 
 /// Top-level algorithm choice in the key-generation panel; the

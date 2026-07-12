@@ -380,6 +380,7 @@ impl Oryxis {
                 show_key_panel: false,
                 key_import_content: text_editor::Content::new(),
                 key_import_form: crate::state::KeyImportForm::default(),
+                cert_viewer: None,
                 key_generate_form: crate::state::KeyGenerateForm::default(),
                 show_key_generate_panel: false,
                 key_error: None,

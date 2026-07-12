@@ -158,6 +158,23 @@ impl Oryxis {
                 OryxisColors::t().text_secondary,
             ));
         }
+        // Certificate actions, only when the key carries one (B2).
+        if let Some(key) = self.keys.get(idx)
+            && key.certificate.is_some()
+        {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::badge_check(),
+                crate::i18n::t("cert_view"),
+                Message::ViewKeyCertificate(idx),
+                OryxisColors::t().text_secondary,
+            ));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::badge_x(),
+                crate::i18n::t("cert_remove"),
+                Message::RequestRemoveKeyCertificate(idx),
+                OryxisColors::t().text_secondary,
+            ));
+        }
         items = items.push(self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error));
         items.into()
     }

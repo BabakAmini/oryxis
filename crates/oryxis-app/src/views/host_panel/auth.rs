@@ -115,18 +115,65 @@ impl Oryxis {
                 .width(Length::Fill)
                 .into(),
             );
-            Some(
-                dir_row(vec![
-                    iced_fonts::lucide::key_round()
-                        .size(13)
-                        .color(OryxisColors::t().text_muted)
-                        .into(),
-                    Space::new().width(10).into(),
-                    key_combo,
-                    Space::new().width(8).into(),
-                    add_key_btn,
-                ]).align_y(iced::Alignment::Center).into(),
-            )
+            let key_row = dir_row(vec![
+                iced_fonts::lucide::key_round()
+                    .size(13)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                Space::new().width(10).into(),
+                key_combo,
+                Space::new().width(8).into(),
+                add_key_btn,
+            ])
+            .align_y(iced::Alignment::Center);
+
+            // Certificate hint (B2): when the selected key carries a cert,
+            // show "attached, valid until <date>" (warning color if
+            // expired) so the user sees it will be offered at connect.
+            let cert_hint: Option<Element<'_, Message>> = self
+                .keys
+                .iter()
+                .find(|k| k.label == key_selected)
+                .and_then(|k| k.certificate.as_deref())
+                .and_then(|line| ssh_key::Certificate::from_openssh(line.trim()).ok())
+                .map(|cert| {
+                    let now = chrono::Utc::now().timestamp().max(0) as u64;
+                    let expired = cert.valid_before() != 0
+                        && cert.valid_before() != u64::MAX
+                        && now > cert.valid_before();
+                    let until = match chrono::DateTime::<chrono::Utc>::from_timestamp(
+                        cert.valid_before().min(i64::MAX as u64) as i64,
+                        0,
+                    ) {
+                        Some(dt) if cert.valid_before() != 0 && cert.valid_before() != u64::MAX => {
+                            dt.with_timezone(&chrono::Local).format("%Y-%m-%d").to_string()
+                        }
+                        _ => String::new(),
+                    };
+                    let (label, color) = if expired {
+                        (format!("{} · {}", t("cert_attach"), t("cert_expired")), OryxisColors::t().warning)
+                    } else if until.is_empty() {
+                        (t("cert_attach").to_string(), OryxisColors::t().text_muted)
+                    } else {
+                        (
+                            format!("{} · {} {}", t("cert_attach"), t("cert_valid_until"), until),
+                            OryxisColors::t().text_muted,
+                        )
+                    };
+                    container(text(label).size(11).color(color))
+                        .width(Length::Fill)
+                        .align_x(dir_align_x())
+                        .into()
+                });
+
+            let mut col = iced::widget::Column::new()
+                .push(key_row)
+                .width(Length::Fill)
+                .align_x(dir_align_x());
+            if let Some(hint) = cert_hint {
+                col = col.push(Space::new().height(4)).push(hint);
+            }
+            Some(col.into())
         } else {
             None
         };

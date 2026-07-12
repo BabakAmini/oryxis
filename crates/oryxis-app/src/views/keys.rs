@@ -305,6 +305,34 @@ impl Oryxis {
                 Padding { top: 13.0, right: card_pad_trailing, bottom: 13.0, left: 12.0 }
             };
 
+            // Subtitle line: the algorithm, plus a small "cert" pill when
+            // a certificate is attached (B2).
+            let algo_text: Element<'_, Message> = text(algo)
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into();
+            let key_subtitle: Element<'_, Message> = if key.certificate.is_some() {
+                dir_row(vec![
+                    algo_text,
+                    Space::new().width(6).into(),
+                    container(
+                        text(t("cert_badge")).size(9).color(OryxisColors::t().accent),
+                    )
+                    .padding(Padding { top: 1.0, right: 5.0, bottom: 1.0, left: 5.0 })
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(Color { a: 0.14, ..OryxisColors::t().accent })),
+                        border: Border { radius: Radius::from(4.0), ..Default::default() },
+                        ..Default::default()
+                    })
+                    .into(),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            } else {
+                algo_text
+            };
+
             let card = button(
                 dir_row(vec![
                     icon_box,
@@ -315,10 +343,7 @@ impl Oryxis {
                             .color(OryxisColors::t().text_primary)
                             .wrapping(iced::widget::text::Wrapping::None),
                         Space::new().height(2),
-                        text(algo)
-                            .size(11)
-                            .color(OryxisColors::t().text_muted)
-                            .wrapping(iced::widget::text::Wrapping::None),
+                        key_subtitle,
                     ]
                     .width(Length::Fill)
                     .align_x(crate::widgets::dir_align_x())
@@ -793,6 +818,70 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
+        // Attached-certificate section (B2): a paste field + Browse
+        // button for a signed `-cert.pub` user certificate. Optional; the
+        // auto-probe on file pick prefills it and raises the hint below.
+        // Keyboard rows record in build order: Browse, then the field.
+        let cert_browse_btn = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::BrowseCertFile),
+            6.0,
+            button(text(t("cert_browse")).size(12).color(OryxisColors::t().accent))
+                .on_press(Message::BrowseCertFile)
+                .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
+                        BtnStatus::Pressed => Color { a: 0.18, ..OryxisColors::t().accent },
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border { radius: Radius::from(6.0), ..Default::default() },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+        );
+        let mut cert_section = column![
+            Space::new().height(16),
+            dir_row(vec![
+                text(t("certificate")).size(12).color(OryxisColors::t().text_secondary).into(),
+                Space::new().width(Length::Fill).into(),
+                cert_browse_btn,
+            ]).align_y(iced::Alignment::Center),
+            Space::new().height(6),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("panel-key-import-cert")),
+                8.0,
+                text_input("ssh-ed25519-cert-v01@openssh.com AAAA...", &self.key_import_form.certificate)
+                    .id(iced::widget::Id::new("panel-key-import-cert"))
+                    .on_input(Message::KeyImportCertChanged)
+                    .padding(10)
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .style(crate::widgets::rounded_input_style)
+                    .into(),
+            ),
+        ]
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+        if self.key_import_form.cert_detected {
+            cert_section = cert_section.push(Space::new().height(6)).push(
+                dir_row(vec![
+                    iced_fonts::lucide::circle_check()
+                        .size(12)
+                        .color(OryxisColors::t().success)
+                        .into(),
+                    Space::new().width(6).into(),
+                    text(t("cert_detected_hint")).size(11).color(OryxisColors::t().success).into(),
+                ]).align_y(iced::Alignment::Center),
+            );
+        } else {
+            cert_section = cert_section.push(Space::new().height(4)).push(
+                text(t("certificate_desc")).size(11).color(OryxisColors::t().text_muted),
+            );
+        }
+
         // Shared form chrome: inline error above the footer, disabled
         // Save while there is no key content (structural gating
         // instead of the old color-only hint that still took clicks).
@@ -830,6 +919,7 @@ impl Oryxis {
                     Space::new().height(6),
                     editor,
                     passphrase_section,
+                    cert_section,
                 ]
                 .width(Length::Fill)
                 .align_x(dir_align_x()),
@@ -1412,5 +1502,158 @@ impl Oryxis {
                 ..Default::default()
             })
             .into()
+    }
+
+    /// Read-only viewer for a key's attached OpenSSH certificate (B2).
+    /// Renders the parsed [`crate::state::CertViewerData`]; offers Remove
+    /// (behind the standard confirm) and Close. Keynav rows record under
+    /// `Modal::CertificateViewer` (Confirm family: Close is the default).
+    pub(crate) fn view_cert_viewer_modal(&self) -> Element<'_, Message> {
+        let Some(data) = self.cert_viewer.as_ref() else {
+            return Space::new().into();
+        };
+        let c = OryxisColors::t();
+        self.modal_nav_reset();
+
+        // One label/value row; value in monospace for ids/fingerprints.
+        let info_row = |label: String, value: String, mono: bool| -> Element<'_, Message> {
+            let value_widget = text(value).size(12).color(c.text_primary);
+            let value_widget = if mono { value_widget.font(iced::Font::MONOSPACE) } else { value_widget };
+            column![
+                text(label).size(11).color(c.text_muted),
+                Space::new().height(2),
+                value_widget,
+            ]
+            .width(Length::Fill)
+            .align_x(dir_align_x())
+            .into()
+        };
+
+        let mut body = column![
+            dir_row(vec![
+                iced_fonts::lucide::badge_check().size(16).color(c.accent).into(),
+                Space::new().width(8).into(),
+                container(text(&data.key_label).size(16).color(c.text_primary))
+                    .width(Length::Fill)
+                    .align_x(dir_align_x())
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center),
+            Space::new().height(14),
+        ]
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+
+        if data.expired {
+            body = body.push(
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::triangle_alert().size(13).color(c.error).into(),
+                        Space::new().width(6).into(),
+                        text(t("cert_expired_warn")).size(12).color(c.error).into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+                .width(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.1, ..c.error })),
+                    border: Border { radius: Radius::from(6.0), ..Default::default() },
+                    ..Default::default()
+                }),
+            )
+            .push(Space::new().height(12));
+        }
+
+        // Type (a full phrase) as its own line, then serial + key id.
+        body = body
+            .push(
+                container(
+                    text(t(if data.is_host { "cert_type_host" } else { "cert_type_user" }))
+                        .size(12)
+                        .color(c.accent),
+                )
+                .width(Length::Fill)
+                .align_x(dir_align_x()),
+            )
+            .push(Space::new().height(12))
+            .push(info_row(
+                t("cert_serial").to_string(),
+                data.serial.to_string(),
+                false,
+            ));
+        if !data.key_id.is_empty() {
+            body = body.push(Space::new().height(10)).push(info_row(
+                t("cert_key_id").to_string(),
+                data.key_id.clone(),
+                false,
+            ));
+        }
+        let principals = if data.principals.is_empty() {
+            "*".to_string()
+        } else {
+            data.principals.join(", ")
+        };
+        body = body
+            .push(Space::new().height(10))
+            .push(info_row(t("cert_principals").to_string(), principals, false));
+        if !data.valid_from.is_empty() {
+            body = body.push(Space::new().height(10)).push(info_row(
+                t("cert_valid_from").to_string(),
+                data.valid_from.clone(),
+                false,
+            ));
+        }
+        let until_label = data.valid_until.clone();
+        if !until_label.is_empty() {
+            let until_value = text(until_label)
+                .size(12)
+                .color(if data.expired { c.error } else { c.text_primary });
+            body = body.push(Space::new().height(10)).push(
+                column![
+                    text(t("cert_valid_until")).size(11).color(c.text_muted),
+                    Space::new().height(2),
+                    until_value,
+                ]
+                .width(Length::Fill)
+                .align_x(dir_align_x()),
+            );
+        }
+        body = body.push(Space::new().height(10)).push(info_row(
+            "CA SHA256".to_string(),
+            data.ca_fingerprint.clone(),
+            true,
+        ));
+
+        let buttons = dir_row(vec![
+            self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::RequestRemoveKeyCertificate(data.key_idx)),
+                6.0,
+                false,
+                crate::widgets::styled_button(t("cert_remove"), Message::RequestRemoveKeyCertificate(data.key_idx), c.error),
+            ),
+            Space::new().width(Length::Fill).into(),
+            self.modal_nav_slot_default(
+                crate::keynav::RowAction::activate(Message::CloseCertViewer),
+                6.0,
+                false,
+                crate::widgets::styled_button(t("close"), Message::CloseCertViewer, c.accent),
+            ),
+        ])
+        .align_y(iced::Alignment::Center);
+
+        let card = container(
+            column![body, Space::new().height(18), buttons]
+                .width(Length::Fill)
+                .align_x(dir_align_x()),
+        )
+        .width(Length::Fixed(440.0))
+        .padding(24)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(c.bg_sidebar)),
+            border: Border { color: c.border, width: 1.0, radius: Radius::from(12.0) },
+            ..Default::default()
+        });
+        card.into()
     }
 }

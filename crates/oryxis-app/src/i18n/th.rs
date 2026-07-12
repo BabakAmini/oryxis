@@ -1448,6 +1448,26 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "กำลังดาวน์โหลดฟอนต์ภาษา...",
         "cjk_font_failed" => "ดาวน์โหลดฟอนต์ภาษาไม่ได้ จะใช้ฟอนต์ของระบบแทน",
 
+        // SSH certificate auth (B2)
+        "certificate" => "ใบรับรอง",
+        "certificate_desc" => "ใบรับรองผู้ใช้ที่ลงนามแล้ว (ไม่บังคับ) รูปแบบบรรทัด -cert.pub ของ OpenSSH ที่จะนำเสนอระหว่างการยืนยันตัวตนด้วยกุญแจสาธารณะ",
+        "cert_attach" => "แนบใบรับรองแล้ว",
+        "cert_browse" => "เรียกดู...",
+        "cert_detected_hint" => "ตรวจพบใบรับรองข้างไฟล์กุญแจ",
+        "cert_badge" => "ใบรับรอง",
+        "cert_view" => "ดูใบรับรอง",
+        "cert_remove" => "นำใบรับรองออก",
+        "cert_key_id" => "รหัสกุญแจ",
+        "cert_serial" => "หมายเลขซีเรียล",
+        "cert_type_user" => "ใบรับรองผู้ใช้",
+        "cert_type_host" => "ใบรับรองโฮสต์",
+        "cert_principals" => "ผู้ได้รับอนุญาต",
+        "cert_valid_from" => "ใช้ได้ตั้งแต่",
+        "cert_valid_until" => "ใช้ได้ถึง",
+        "cert_expired" => "หมดอายุ",
+        "cert_expired_warn" => "ใบรับรองนี้หมดอายุแล้ว",
+        "cert_mismatch_error" => "ใบรับรองไม่ตรงกับกุญแจนี้",
+        "cert_wrong_type_error" => "นี่คือใบรับรองโฮสต์ โปรดแนบใบรับรองผู้ใช้",
         _ => return None,
     })
 }

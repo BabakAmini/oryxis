@@ -71,6 +71,11 @@ pub(crate) enum Modal {
     /// the signature (the safe default). In `ESC_ORDER` next to `HostKey`
     /// so the Esc router and the modal-keynav router both reach it.
     AgentConfirm,
+    /// Read-only viewer for a key's attached OpenSSH certificate
+    /// (`cert_viewer`, B2). Carries no secret (public cert material), so
+    /// Esc simply closes it; it is in `ESC_ORDER` in the lightweight
+    /// group next to the other dismissible info dialogs.
+    CertificateViewer,
 }
 
 impl Modal {
@@ -104,6 +109,7 @@ impl Modal {
         Modal::SftpOverwrite,
         Modal::SftpPicker,
         Modal::AgentConfirm,
+        Modal::CertificateViewer,
     ];
 
     /// Modals Esc dismisses, in topmost-first priority order (the order
@@ -138,6 +144,8 @@ impl Modal {
         Modal::ShareDialog,
         Modal::CloudImportConfirm,
         Modal::SftpPicker,
+        // Read-only info dialog; Esc just closes it.
+        Modal::CertificateViewer,
     ];
 
     /// Whether this modal captures keyboard input, so keystrokes must not
@@ -172,7 +180,8 @@ impl Modal {
             | Modal::SftpProperties
             | Modal::SftpOverwrite
             | Modal::SftpPicker
-            | Modal::AgentConfirm => true,
+            | Modal::AgentConfirm
+            | Modal::CertificateViewer => true,
         }
     }
 }
@@ -213,10 +222,11 @@ mod tests {
                 | Modal::SftpProperties
                 | Modal::SftpOverwrite
                 | Modal::SftpPicker
-                | Modal::AgentConfirm => {}
+                | Modal::AgentConfirm
+                | Modal::CertificateViewer => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 27, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 28, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

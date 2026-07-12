@@ -540,6 +540,9 @@ pub struct Oryxis {
     /// `key_import_form`) because `text_editor::Content` is not `Clone`.
     pub(crate) key_import_content: text_editor::Content,
     pub(crate) key_import_form: crate::state::KeyImportForm,
+    /// Parsed certificate on display in the read-only cert viewer modal
+    /// (B2). `Some` = modal open; keyed to `Modal::CertificateViewer`.
+    pub(crate) cert_viewer: Option<crate::state::CertViewerData>,
     /// Key-generation panel state (keychain > ADD > Generate key).
     pub(crate) key_generate_form: crate::state::KeyGenerateForm,
     /// Whether the generation panel is open (mutually exclusive with

@@ -1447,6 +1447,26 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cjk_font_downloading" => "Λήψη γραμματοσειράς γλώσσας...",
         "cjk_font_failed" => "Αδύνατη η λήψη της γραμματοσειράς γλώσσας, χρήση της γραμματοσειράς συστήματος.",
 
+        // SSH certificate auth (B2)
+        "certificate" => "Πιστοποιητικό",
+        "certificate_desc" => "Προαιρετικό υπογεγραμμένο πιστοποιητικό χρήστη (μια γραμμή -cert.pub του OpenSSH) που προσφέρεται κατά τον έλεγχο ταυτότητας με δημόσιο κλειδί.",
+        "cert_attach" => "Το πιστοποιητικό επισυνάφθηκε",
+        "cert_browse" => "Αναζήτηση...",
+        "cert_detected_hint" => "Εντοπίστηκε πιστοποιητικό δίπλα στο αρχείο κλειδιού",
+        "cert_badge" => "πιστ.",
+        "cert_view" => "Προβολή πιστοποιητικού",
+        "cert_remove" => "Αφαίρεση πιστοποιητικού",
+        "cert_key_id" => "Αναγνωριστικό κλειδιού",
+        "cert_serial" => "Σειριακός αριθμός",
+        "cert_type_user" => "Πιστοποιητικό χρήστη",
+        "cert_type_host" => "Πιστοποιητικό host",
+        "cert_principals" => "Principals",
+        "cert_valid_from" => "Ισχύει από",
+        "cert_valid_until" => "Ισχύει έως",
+        "cert_expired" => "Έληξε",
+        "cert_expired_warn" => "Αυτό το πιστοποιητικό έχει λήξει.",
+        "cert_mismatch_error" => "Το πιστοποιητικό δεν ταιριάζει με αυτό το κλειδί.",
+        "cert_wrong_type_error" => "Αυτό είναι πιστοποιητικό host· επισυνάψτε πιστοποιητικό χρήστη.",
         _ => return None,
     })
 }
