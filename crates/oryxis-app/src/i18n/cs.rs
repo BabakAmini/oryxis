@@ -1480,6 +1480,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "Veřejný klíč neodpovídá privátnímu klíči.",
         "cert_no_keys_hint" => "Žádný klíč v trezoru zatím nemá připojený certifikát.",
         "cert_key_no_cert_hint" => "Vybraný klíč nemá připojený certifikát.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Importovat veřejný klíč",
+        "key_badge_security_key" => "Bezpečnostní klíč",
+        "preferred_agent_key" => "Volitelné: identita tohoto klíče v agentovi se při připojení nabízí jako první.",
+        "pkcs11_help" => "Hardwarové klíče se do agenta dostávají přes ssh-add: -K načte rezidentní klíče FIDO2, -s <module> načte čipové karty PKCS#11.",
+        "sk_agent_hint" => "Identity bezpečnostních klíčů je nejprve potřeba načíst do systémového ssh-agenta (ssh-add -K s připojeným tokenem).",
+        "public_key_only_error" => "Vypadá to jako materiál privátního klíče; vložte ho místo toho do pole Privátní klíč.",
         _ => return None,
     })
 }

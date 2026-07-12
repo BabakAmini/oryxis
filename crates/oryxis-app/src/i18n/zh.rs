@@ -1443,6 +1443,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "公钥与私钥不匹配。",
         "cert_no_keys_hint" => "保险库中还没有附加了证书的密钥。",
         "cert_key_no_cert_hint" => "所选密钥没有附加证书。",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "导入公钥",
+        "key_badge_security_key" => "安全密钥",
+        "preferred_agent_key" => "可选：连接时优先提供此密钥的代理身份。",
+        "pkcs11_help" => "硬件密钥通过 ssh-add 加载到代理：-K 加载 FIDO2 常驻密钥，-s <module> 加载 PKCS#11 智能卡。",
+        "sk_agent_hint" => "安全密钥身份必须先加载到操作系统的 ssh-agent（插入令牌后运行 ssh-add -K）。",
+        "public_key_only_error" => "这看起来是私钥内容；请将其粘贴到私钥字段中。",
 _ => return None,
     })
 }

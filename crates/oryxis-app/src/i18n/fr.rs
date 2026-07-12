@@ -1443,6 +1443,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "La clé publique ne correspond pas à la clé privée.",
         "cert_no_keys_hint" => "Aucune clé du coffre n'a encore de certificat joint.",
         "cert_key_no_cert_hint" => "La clé sélectionnée n'a pas de certificat joint.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Importer une clé publique",
+        "key_badge_security_key" => "Clé de sécurité",
+        "preferred_agent_key" => "Optionnel : l'identité de cette clé dans l'agent est proposée en premier à la connexion.",
+        "pkcs11_help" => "Les clés matérielles atteignent l'agent via ssh-add : -K charge les clés résidentes FIDO2, -s <module> charge les cartes à puce PKCS#11.",
+        "sk_agent_hint" => "Les identités de clé de sécurité doivent d'abord être chargées dans le ssh-agent du système (ssh-add -K avec le jeton branché).",
+        "public_key_only_error" => "Cela ressemble à du matériel de clé privée ; collez-le plutôt dans le champ Clé privée.",
 _ => return None,
     })
 }

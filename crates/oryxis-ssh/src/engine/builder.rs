@@ -26,7 +26,26 @@ impl SshEngine {
             auto_interactive_fallback: false,
             forwarded_channel_sink: None,
             banner_tx: None,
+            pinned_agent_key: None,
         }
+    }
+
+    /// Pin the agent identity to prefer (B3): the OpenSSH public line of
+    /// the vault key this connection references. A matching agent
+    /// identity is offered first during agent auth; the try-all fallback
+    /// stays. An unparseable line logs a warning and disables the pin
+    /// rather than failing the connect (mirrors `with_totp_secret`).
+    pub fn with_pinned_agent_key(mut self, public_line: Option<&str>) -> Self {
+        self.pinned_agent_key = public_line.and_then(|line| {
+            match russh::keys::PublicKey::from_openssh(line.trim()) {
+                Ok(k) => Some(k),
+                Err(e) => {
+                    tracing::warn!("pinned agent key unusable, ignoring: {e}");
+                    None
+                }
+            }
+        });
+        self
     }
 
     /// Pin per-host SSH algorithm overrides. Each `None` keeps russh's

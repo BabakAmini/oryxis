@@ -1443,6 +1443,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "公鑰與私鑰不符。",
         "cert_no_keys_hint" => "保險庫中還沒有附加憑證的金鑰。",
         "cert_key_no_cert_hint" => "所選金鑰沒有附加憑證。",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "匯入公鑰",
+        "key_badge_security_key" => "安全金鑰",
+        "preferred_agent_key" => "選用：連線時優先提供此金鑰的代理身分。",
+        "pkcs11_help" => "硬體金鑰透過 ssh-add 載入代理：-K 載入 FIDO2 常駐金鑰，-s <module> 載入 PKCS#11 智慧卡。",
+        "sk_agent_hint" => "安全金鑰身分必須先載入作業系統的 ssh-agent（插入權杖後執行 ssh-add -K）。",
+        "public_key_only_error" => "這看起來是私鑰內容；請改貼到私鑰欄位。",
         _ => return None,
     })
 }

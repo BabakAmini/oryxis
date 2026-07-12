@@ -1008,6 +1008,34 @@ impl Oryxis {
                     );
                     let _ = vault.add_log(&entry);
                 }
+                // Empty-agent diagnostics (B3): when the auth failure
+                // touched the agent and the host's referenced key is a
+                // security key, the almost-certain cause is that the sk-
+                // identity was never added to the OS agent. Append the
+                // localized hint so the fix is one line away.
+                let err = {
+                    let sk_pinned = self
+                        .connecting
+                        .as_ref()
+                        .and_then(|p| self.any_connection_by_label(&p.label))
+                        .and_then(|c| {
+                            c.key_id.or_else(|| {
+                                c.identity_id.and_then(|iid| {
+                                    self.identities
+                                        .iter()
+                                        .find(|i| i.id == iid)
+                                        .and_then(|i| i.key_id)
+                                })
+                            })
+                        })
+                        .and_then(|kid| self.keys.iter().find(|k| k.id == kid))
+                        .is_some_and(|k| k.algorithm.is_security_key());
+                    if sk_pinned && err.to_lowercase().contains("agent") {
+                        format!("{err}\n{}", crate::i18n::t("sk_agent_hint"))
+                    } else {
+                        err
+                    }
+                };
                 // Mark progress as failed (keep the view open with logs)
                 if let Some(ref mut progress) = self.connecting {
                     progress.failed = true;
@@ -1179,6 +1207,9 @@ impl Oryxis {
         // Resolve credentials: prefer identity if linked, otherwise inline
         // (shared helper, which also resolves the key's certificate for B2).
         let (password, private_key, certificate) = self.resolve_credentials(&conn);
+        // Agent-auth pin (B3): the referenced key's public line, offered
+        // first when agent auth runs (Agent method, or the Auto ladder).
+        let pinned_agent = self.pinned_agent_public(&conn);
 
         // Advisory expired-certificate toast (B2). The engine still offers
         // the cert (the server clock is authoritative), but flag it here at
@@ -1547,6 +1578,7 @@ impl Oryxis {
                             .with_terminal_type(terminal_type)
                             .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
                             .with_banner_sink(banner_tx)
+                            .with_pinned_agent_key(pinned_agent.as_deref())
                         .with_auto_interactive_fallback(is_quick);
 
                         // One-way banner bridge (no response leg): pre-auth
@@ -2020,6 +2052,8 @@ impl Oryxis {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
         }
         let (mut password, private_key, certificate) = self.resolve_forward_credentials(&conn);
+        // Agent-auth pin (B3), same rule as the tab connect.
+        let pinned_agent = self.pinned_agent_public(&conn);
         let mut totp_secret = self
             .vault
             .as_ref()
@@ -2122,6 +2156,7 @@ impl Oryxis {
                 .with_terminal_type(terminal_type)
                 .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
                 .with_banner_sink(banner_tx)
+                .with_pinned_agent_key(pinned_agent.as_deref())
                 .with_auto_interactive_fallback(is_quick);
 
             let mut sender_clone = sender.clone();

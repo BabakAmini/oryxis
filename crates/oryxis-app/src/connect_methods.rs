@@ -20,6 +20,24 @@ impl Oryxis {
             .and_then(|k| k.certificate.clone())
     }
 
+    /// The public line of the vault key this connection references
+    /// (its own `key_id`, or the linked identity's), for the agent-auth
+    /// pin (B3): agent auth offers a matching agent identity first. Any
+    /// key qualifies, not only security keys; a dangling reference is
+    /// simply no pin (mirrors the dangling proxy-identity rule).
+    pub(crate) fn pinned_agent_public(&self, conn: &Connection) -> Option<String> {
+        let kid = conn.key_id.or_else(|| {
+            conn.identity_id.and_then(|iid| {
+                self.identities.iter().find(|i| i.id == iid).and_then(|i| i.key_id)
+            })
+        })?;
+        self.keys
+            .iter()
+            .find(|k| k.id == kid)
+            .map(|k| k.public_key.clone())
+            .filter(|p| !p.trim().is_empty())
+    }
+
     /// Resolve `(password, private_key_pem, certificate)` for a connection,
     /// same rules as `Message::ConnectSsh`: prefer identity-linked
     /// credentials, fall back to per-connection vault entries. The

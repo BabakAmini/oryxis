@@ -1461,6 +1461,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "المفتاح العام لا يطابق المفتاح الخاص.",
         "cert_no_keys_hint" => "لا يوجد بعد أي مفتاح في الخزنة بشهادة مرفقة.",
         "cert_key_no_cert_hint" => "المفتاح المحدد ليست له شهادة مرفقة.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "استيراد المفتاح العام",
+        "key_badge_security_key" => "مفتاح أمان",
+        "preferred_agent_key" => "اختياري: عند الاتصال تُعرض هوية الوكيل لهذا المفتاح أولاً.",
+        "pkcs11_help" => "تصل المفاتيح العتادية إلى الوكيل عبر ssh-add: يحمّل -K مفاتيح FIDO2 المقيمة، ويحمّل -s <module> البطاقات الذكية PKCS#11.",
+        "sk_agent_hint" => "يجب أولاً تحميل هويات مفاتيح الأمان في ssh-agent الخاص بنظام التشغيل (ssh-add -K مع توصيل الرمز).",
+        "public_key_only_error" => "يبدو هذا محتوى مفتاح خاص؛ الصقه في حقل المفتاح الخاص بدلاً من ذلك.",
 _ => return None,
     })
 }

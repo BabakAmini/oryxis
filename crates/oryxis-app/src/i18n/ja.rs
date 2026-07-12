@@ -1444,6 +1444,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "公開鍵が秘密鍵と一致しません。",
         "cert_no_keys_hint" => "ボールト内に証明書が添付された鍵はまだありません。",
         "cert_key_no_cert_hint" => "選択した鍵には証明書が添付されていません。",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "公開鍵をインポート",
+        "key_badge_security_key" => "セキュリティキー",
+        "preferred_agent_key" => "任意: 接続時にこの鍵のエージェント ID を最初に提示します。",
+        "pkcs11_help" => "ハードウェアキーは ssh-add でエージェントに読み込みます: -K は FIDO2 レジデントキーを、-s <module> は PKCS#11 スマートカードを読み込みます。",
+        "sk_agent_hint" => "セキュリティキーの ID は先に OS の ssh-agent へ読み込む必要があります（トークンを接続した状態で ssh-add -K）。",
+        "public_key_only_error" => "これは秘密鍵の内容のようです。秘密鍵フィールドに貼り付けてください。",
 _ => return None,
     })
 }

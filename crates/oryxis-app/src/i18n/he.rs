@@ -1480,6 +1480,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "המפתח הציבורי אינו תואם למפתח הפרטי.",
         "cert_no_keys_hint" => "אין עדיין מפתח בכספת עם תעודה מצורפת.",
         "cert_key_no_cert_hint" => "למפתח שנבחר אין תעודה מצורפת.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "ייבוא מפתח ציבורי",
+        "key_badge_security_key" => "מפתח אבטחה",
+        "preferred_agent_key" => "אופציונלי: בעת ההתחברות, זהות הסוכן של מפתח זה מוצעת ראשונה.",
+        "pkcs11_help" => "מפתחות חומרה מגיעים לסוכן דרך ssh-add: -K טוען מפתחות FIDO2 שוכנים, -s <module> טוען כרטיסים חכמים של PKCS#11.",
+        "sk_agent_hint" => "יש לטעון זהויות של מפתח אבטחה תחילה אל ssh-agent של מערכת ההפעלה (ssh-add -K כשהאסימון מחובר).",
+        "public_key_only_error" => "זה נראה כמו תוכן של מפתח פרטי; הדבק אותו בשדה מפתח פרטי במקום.",
         _ => return None,
     })
 }

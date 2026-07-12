@@ -201,9 +201,28 @@ pub async fn handle_ssh_execute(
         .get_connection_totp_secret(&conn.id)
         .ok()
         .flatten();
+    // Agent-auth pin (B3): the referenced key's public line (connection
+    // key preferred, then the identity's), offered first when the Auto
+    // ladder reaches agent auth.
+    let pinned_agent = conn
+        .key_id
+        .or_else(|| {
+            conn.identity_id.and_then(|iid| {
+                vault
+                    .list_identities()
+                    .unwrap_or_default()
+                    .iter()
+                    .find(|i| i.id == iid)
+                    .and_then(|i| i.key_id)
+            })
+        })
+        .and_then(|kid| all_keys.iter().find(|k| k.id == kid))
+        .map(|k| k.public_key.clone())
+        .filter(|p| !p.trim().is_empty());
     let engine = SshEngine::new()
         .with_totp_secret(totp_secret.as_deref())
         .with_address_family(auth_conn.address_family)
+        .with_pinned_agent_key(pinned_agent.as_deref())
         .with_algorithm_overrides(
             auth_conn.ciphers.clone(),
             auth_conn.kex.clone(),

@@ -1475,6 +1475,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "공개 키가 개인 키와 일치하지 않습니다.",
         "cert_no_keys_hint" => "볼트에 인증서가 첨부된 키가 아직 없습니다.",
         "cert_key_no_cert_hint" => "선택한 키에 첨부된 인증서가 없습니다.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "공개 키 가져오기",
+        "key_badge_security_key" => "보안 키",
+        "preferred_agent_key" => "선택 사항: 연결 시 이 키의 에이전트 신원이 먼저 제시됩니다.",
+        "pkcs11_help" => "하드웨어 키는 ssh-add를 통해 에이전트에 로드됩니다: -K는 FIDO2 상주 키를, -s <module>은 PKCS#11 스마트카드를 로드합니다.",
+        "sk_agent_hint" => "보안 키 신원은 먼저 OS ssh-agent에 로드해야 합니다(토큰을 꽂은 상태에서 ssh-add -K).",
+        "public_key_only_error" => "개인 키 내용으로 보입니다. 개인 키 필드에 붙여넣으세요.",
 _ => return None,
     })
 }

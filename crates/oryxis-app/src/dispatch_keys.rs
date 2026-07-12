@@ -43,6 +43,19 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
+            Message::ShowKeyPanelPublicFocus => {
+                // The ADD menu's "Import public key" entry (B3): the same
+                // import panel, opened with the public-key field focused,
+                // the security-key delegation flow (paste the sk- line,
+                // no private material exists to import).
+                let open = self.handle_keys(Message::ShowKeyPanel)?;
+                return Ok(Task::batch([
+                    open,
+                    iced::widget::operation::focus(iced::widget::Id::new(
+                        "panel-key-import-public",
+                    )),
+                ]));
+            }
             Message::ShowKeyPanelCertFocus => {
                 // The ADD menu's "Certificate" entry (B2.1): the same
                 // import panel (a certificate lives on its key, one
@@ -464,9 +477,84 @@ impl Oryxis {
                 }
             }
             Message::ImportKey => {
-                if self.key_import_form.pem.is_empty() {
+                let pem_empty = self.key_import_form.pem.trim().is_empty();
+                if pem_empty && self.key_import_form.public_key.trim().is_empty() {
                     self.key_error =
                         Some(crate::i18n::t("key_select_file_first").into());
+                    return Ok(Task::none());
+                }
+                // Public-only import (B3): no private material at all, the
+                // security-key / delegation path. The row persists with an
+                // explicit NULL private column; edits of an existing row
+                // preserve whatever the column holds (`None`), so clearing
+                // the editor buffer can never silently drop a stored
+                // private key.
+                if pem_empty {
+                    let label = if self.key_import_form.label.is_empty() {
+                        "imported-key".to_string()
+                    } else {
+                        self.key_import_form.label.clone()
+                    };
+                    let input = self.key_import_form.public_key.trim().to_string();
+                    if input.contains("-----BEGIN") {
+                        self.key_error =
+                            Some(crate::i18n::t("public_key_only_error").to_string());
+                        return Ok(Task::none());
+                    }
+                    let mut key = match oryxis_vault::import_public_key(&label, &input) {
+                        Ok(key) => key,
+                        Err(_) => {
+                            self.key_error = Some(
+                                crate::i18n::t("public_key_invalid_error").to_string(),
+                            );
+                            return Ok(Task::none());
+                        }
+                    };
+                    let editing = self.key_import_form.editing_id.is_some();
+                    if let Some(existing_id) = self.key_import_form.editing_id {
+                        key.id = existing_id;
+                        if let Some(existing) =
+                            self.keys.iter().find(|k| k.id == existing_id)
+                        {
+                            key.expose_via_agent = existing.expose_via_agent;
+                            key.created_at = existing.created_at;
+                        }
+                    }
+                    // The certificate field wins over a cert embedded in
+                    // the public line (same validation as the private
+                    // path); empty keeps whatever the line carried.
+                    match validate_certificate(
+                        &self.key_import_form.certificate,
+                        &key.public_key,
+                    ) {
+                        Ok(Some(cert)) => key.certificate = Some(cert),
+                        Ok(None) => {}
+                        Err(err_key) => {
+                            self.key_error =
+                                Some(crate::i18n::t(err_key).to_string());
+                            return Ok(Task::none());
+                        }
+                    }
+                    if let Some(vault) = &self.vault {
+                        let private = if editing { None } else { Some("") };
+                        match vault.save_key(&key, private) {
+                            Ok(()) => {
+                                let verb = if editing { "updated" } else { "imported" };
+                                self.key_error = None;
+                                self.key_success =
+                                    Some(format!("Key '{}' {}", label, verb));
+                                self.key_import_form = crate::state::KeyImportForm::default();
+                                self.key_import_content = text_editor::Content::new();
+                                self.key_import_public_content =
+                                    text_editor::Content::new();
+                                self.key_import_cert_content =
+                                    text_editor::Content::new();
+                                self.show_key_panel = false;
+                                self.load_data_from_vault();
+                            }
+                            Err(e) => self.key_error = Some(e.to_string()),
+                        }
+                    }
                     return Ok(Task::none());
                 }
                 // If we already know the key is encrypted but the user

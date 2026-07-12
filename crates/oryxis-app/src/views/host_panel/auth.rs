@@ -45,19 +45,22 @@ impl Oryxis {
     }
 
     pub(super) fn hp_ssh_key_row(&self, is_ssh: bool) -> Option<Element<'_, Message>> {
-        // Key row (SSH > Authentication): only when Auth Method is `Key`
-        // or `Certificate` (the chosen-method's field) and no identity is
-        // set (an identity provides its own key). Layout is
+        // Key row (SSH > Authentication): only when Auth Method is `Key`,
+        // `Certificate` or `Agent` (the chosen-method's field) and no
+        // identity is set (an identity provides its own key). Layout is
         // [key icon] [combo] [+ Key]. Built after the auth-method row so
         // its keyboard rows record right below it, matching the layout.
         // Under `Certificate` the combo lists only keys that carry a
         // certificate (`editor_key_options` filters) and the hint below
-        // surfaces the cert's validity; under `Key` no hint is shown, the
-        // method is strictly the bare key.
+        // surfaces the cert's validity; under `Agent` the pick is the
+        // preferred agent identity (B3: offered first, security keys
+        // sorted to the top) with a delegation help line; under `Key` no
+        // hint is shown, the method is strictly the bare key.
         let cert_mode = self.editor_form.auth_method == AuthMethod::Certificate;
+        let agent_mode = self.editor_form.auth_method == AuthMethod::Agent;
         let ssh_key_row: Option<Element<'_, Message>> = if is_ssh
             && self.editor_form.selected_identity.is_none()
-            && (self.editor_form.auth_method == AuthMethod::Key || cert_mode)
+            && (self.editor_form.auth_method == AuthMethod::Key || cert_mode || agent_mode)
         {
             // "+ Key" is clickable, opens the existing key import panel;
             // under `Certificate` it reads "+ Certificate" and lands with
@@ -137,8 +140,35 @@ impl Oryxis {
             // Three states: the selected key's cert with its validity
             // (warning color if expired), a stale selection whose cert
             // was removed since, or an empty filtered list (no key in
-            // the vault carries a cert yet).
-            let cert_hint: Option<Element<'_, Message>> = if !cert_mode {
+            // the vault carries a cert yet). Under `Agent` (B3) the row
+            // explains the preferred-identity pick and how hardware keys
+            // reach the agent (FIDO2 / PKCS#11 delegation).
+            let cert_hint: Option<Element<'_, Message>> = if agent_mode {
+                Some(
+                    iced::widget::Column::new()
+                        .push(
+                            container(
+                                text(t("preferred_agent_key"))
+                                    .size(11)
+                                    .color(OryxisColors::t().text_muted),
+                            )
+                            .width(Length::Fill)
+                            .align_x(dir_align_x()),
+                        )
+                        .push(Space::new().height(2))
+                        .push(
+                            container(
+                                text(t("pkcs11_help"))
+                                    .size(11)
+                                    .color(OryxisColors::t().text_muted),
+                            )
+                            .width(Length::Fill)
+                            .align_x(dir_align_x()),
+                        )
+                        .width(Length::Fill)
+                        .into(),
+                )
+            } else if !cert_mode {
                 None
             } else if !self.keys.iter().any(|k| k.certificate.is_some()) {
                 Some(

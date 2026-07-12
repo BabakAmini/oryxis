@@ -1444,6 +1444,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "Der öffentliche Schlüssel passt nicht zum privaten Schlüssel.",
         "cert_no_keys_hint" => "Kein Schlüssel im Tresor hat bisher ein angehängtes Zertifikat.",
         "cert_key_no_cert_hint" => "Der ausgewählte Schlüssel hat kein angehängtes Zertifikat.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Öffentlichen Schlüssel importieren",
+        "key_badge_security_key" => "Sicherheitsschlüssel",
+        "preferred_agent_key" => "Optional: Die Agent-Identität dieses Schlüssels wird beim Verbinden zuerst angeboten.",
+        "pkcs11_help" => "Hardware-Schlüssel erreichen den Agent über ssh-add: -K lädt residente FIDO2-Schlüssel, -s <module> lädt PKCS#11-Smartcards.",
+        "sk_agent_hint" => "Sicherheitsschlüssel-Identitäten müssen zuerst in den ssh-agent des Betriebssystems geladen werden (ssh-add -K mit eingestecktem Token).",
+        "public_key_only_error" => "Das sieht nach privatem Schlüsselmaterial aus; fügen Sie es stattdessen in das Feld Privater Schlüssel ein.",
 _ => return None,
     })
 }

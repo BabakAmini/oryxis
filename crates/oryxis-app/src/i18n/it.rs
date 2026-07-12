@@ -1444,6 +1444,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "La chiave pubblica non corrisponde alla chiave privata.",
         "cert_no_keys_hint" => "Nessuna chiave nella cassaforte ha ancora un certificato allegato.",
         "cert_key_no_cert_hint" => "La chiave selezionata non ha alcun certificato allegato.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Importa chiave pubblica",
+        "key_badge_security_key" => "Chiave di sicurezza",
+        "preferred_agent_key" => "Opzionale: l'identità di questa chiave nell'agente viene proposta per prima alla connessione.",
+        "pkcs11_help" => "Le chiavi hardware raggiungono l'agente tramite ssh-add: -K carica le chiavi residenti FIDO2, -s <module> carica le smartcard PKCS#11.",
+        "sk_agent_hint" => "Le identità con chiave di sicurezza devono prima essere caricate nello ssh-agent del sistema (ssh-add -K con il token collegato).",
+        "public_key_only_error" => "Sembra materiale di chiave privata; incollalo invece nel campo Chiave Privata.",
 _ => return None,
     })
 }

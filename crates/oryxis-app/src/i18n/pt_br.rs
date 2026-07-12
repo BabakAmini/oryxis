@@ -1445,6 +1445,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "A chave pública não corresponde à chave privada.",
         "cert_no_keys_hint" => "Nenhuma chave no cofre tem um certificado anexado ainda.",
         "cert_key_no_cert_hint" => "A chave selecionada não tem certificado anexado.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Importar chave pública",
+        "key_badge_security_key" => "Chave de segurança",
+        "preferred_agent_key" => "Opcional: a identidade desta chave no agente é oferecida primeiro ao conectar.",
+        "pkcs11_help" => "Chaves de hardware chegam ao agente via ssh-add: -K carrega chaves residentes FIDO2, -s <module> carrega smartcards PKCS#11.",
+        "sk_agent_hint" => "Identidades de chave de segurança precisam ser carregadas primeiro no ssh-agent do sistema (ssh-add -K com o token conectado).",
+        "public_key_only_error" => "Isso parece material de chave privada; cole no campo Chave Privada.",
 _ => return None,
     })
 }

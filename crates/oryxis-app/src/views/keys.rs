@@ -319,19 +319,29 @@ impl Oryxis {
                 Padding { top: 13.0, right: card_pad_trailing, bottom: 13.0, left: 12.0 }
             };
 
-            // Subtitle line: the algorithm, plus the "SSH Certificate"
-            // flag when one is attached (B2.1, Termius-style: the cert is
-            // part of the key entity, so the row reads as its type).
+            // Subtitle line: the algorithm, plus a type flag (B2.1 /
+            // B3, Termius-style: the row reads as the key's kind). A
+            // security key wins over the certificate flag when both
+            // apply, it is the more load-bearing fact (signing happens
+            // on the hardware token via the agent; the cert shows in
+            // the editor).
             let algo_text: Element<'_, Message> = text(algo)
                 .size(11)
                 .color(OryxisColors::t().text_muted)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .into();
-            let key_subtitle: Element<'_, Message> = if key.certificate.is_some() {
+            let flag = if key.algorithm.is_security_key() {
+                Some(t("key_badge_security_key"))
+            } else if key.certificate.is_some() {
+                Some(t("cert_flag"))
+            } else {
+                None
+            };
+            let key_subtitle: Element<'_, Message> = if let Some(flag) = flag {
                 dir_row(vec![
                     algo_text,
                     text(" · ").size(11).color(OryxisColors::t().text_muted).into(),
-                    text(t("cert_flag"))
+                    text(flag)
                         .size(11)
                         .color(OryxisColors::t().accent)
                         .wrapping(iced::widget::text::Wrapping::None)
@@ -679,6 +689,10 @@ impl Oryxis {
         // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
         self.panel_nav_reset();
         let has_content = !self.key_import_form.pem.is_empty();
+        // Public-only rows (B3 security keys) save with no private
+        // material at all, so a filled public line also arms Save.
+        let can_save =
+            has_content || !self.key_import_form.public_key.trim().is_empty();
         let panel_title = if self.key_import_form.editing_id.is_some() { t("edit_key") } else { t("add_key") };
 
         // Panel header
@@ -936,7 +950,7 @@ impl Oryxis {
                 6.0,
                 crate::widgets::form_save_button(
                     save_label,
-                    has_content.then_some(Message::ImportKey),
+                    can_save.then_some(Message::ImportKey),
                 ),
             ),
         );

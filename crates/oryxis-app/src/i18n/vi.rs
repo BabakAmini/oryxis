@@ -1475,6 +1475,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "Khóa công khai không khớp với khóa riêng.",
         "cert_no_keys_hint" => "Chưa có khóa nào trong kho được đính kèm chứng chỉ.",
         "cert_key_no_cert_hint" => "Khóa đã chọn không có chứng chỉ đính kèm.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Nhập khóa công khai",
+        "key_badge_security_key" => "Khóa bảo mật",
+        "preferred_agent_key" => "Tùy chọn: danh tính agent của khóa này được đưa ra trước tiên khi kết nối.",
+        "pkcs11_help" => "Khóa phần cứng đến agent qua ssh-add: -K nạp khóa thường trú FIDO2, -s <module> nạp thẻ thông minh PKCS#11.",
+        "sk_agent_hint" => "Danh tính khóa bảo mật phải được nạp vào ssh-agent của hệ điều hành trước (ssh-add -K khi đã cắm token).",
+        "public_key_only_error" => "Nội dung này giống khóa riêng; hãy dán vào trường Khóa riêng.",
 _ => return None,
     })
 }

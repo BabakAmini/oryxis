@@ -1481,6 +1481,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "กุญแจสาธารณะไม่ตรงกับกุญแจส่วนตัว",
         "cert_no_keys_hint" => "ยังไม่มีกุญแจใน Vault ที่มีใบรับรองแนบอยู่",
         "cert_key_no_cert_hint" => "กุญแจที่เลือกไม่มีใบรับรองแนบอยู่",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "นำเข้ากุญแจสาธารณะ",
+        "key_badge_security_key" => "กุญแจความปลอดภัย",
+        "preferred_agent_key" => "ไม่บังคับ: ข้อมูลประจำตัวของ agent สำหรับกุญแจนี้จะถูกเสนอเป็นอันดับแรกเมื่อเชื่อมต่อ",
+        "pkcs11_help" => "กุญแจฮาร์ดแวร์เข้าถึง agent ผ่าน ssh-add: -K โหลดกุญแจ FIDO2 แบบ resident ส่วน -s <module> โหลดสมาร์ตการ์ด PKCS#11",
+        "sk_agent_hint" => "ต้องโหลดข้อมูลประจำตัวของกุญแจความปลอดภัยเข้า ssh-agent ของระบบปฏิบัติการก่อน (ssh-add -K ขณะเสียบโทเคนอยู่)",
+        "public_key_only_error" => "ดูเหมือนว่านี่คือเนื้อหาคีย์ส่วนตัว โปรดวางลงในช่องคีย์ส่วนตัวแทน",
         _ => return None,
     })
 }

@@ -173,13 +173,17 @@ impl Oryxis {
     /// then every saved key's label. Under `AuthMethod::Certificate`
     /// (B2.1) only keys carrying a certificate are listed, the method
     /// offers the cert and nothing else, so a bare key is never a valid
-    /// pick there.
+    /// pick there. Under `Agent` (B3) every key qualifies (the pick is
+    /// the preferred agent identity) with security keys sorted first,
+    /// they are the reason the pin exists.
     fn editor_key_options(&self) -> Vec<String> {
-        key_combo_options(
-            &self.keys,
-            self.editor_form.auth_method
-                == oryxis_core::models::connection::AuthMethod::Certificate,
-        )
+        use oryxis_core::models::connection::AuthMethod;
+        let filter = match self.editor_form.auth_method {
+            AuthMethod::Certificate => KeyComboFilter::CertificateOnly,
+            AuthMethod::Agent => KeyComboFilter::SecurityKeysFirst,
+            _ => KeyComboFilter::All,
+        };
+        key_combo_options(&self.keys, filter)
     }
 
     /// (Re)build the SSH Key combo with an empty typed value. Same
@@ -1281,20 +1285,47 @@ impl Oryxis {
     }
 }
 
+/// How the host editor's SSH Key combo narrows / orders the key list,
+/// per auth method.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum KeyComboFilter {
+    /// Every key, vault order (the `Key` method).
+    All,
+    /// Only certificate-carrying keys (the `Certificate` method, B2.1).
+    CertificateOnly,
+    /// Every key, security keys first (the `Agent` method's preferred-
+    /// identity pick, B3).
+    SecurityKeysFirst,
+}
+
 /// Option list for the host editor's SSH Key combo, pure so it
-/// unit-tests: the `(none)` sentinel first, then every key's label,
-/// filtered to certificate-carrying keys when `certificate_only`
-/// (the `AuthMethod::Certificate` picker, B2.1).
+/// unit-tests: the `(none)` sentinel first, then the key labels per
+/// the filter.
 fn key_combo_options(
     keys: &[oryxis_core::models::key::SshKey],
-    certificate_only: bool,
+    filter: KeyComboFilter,
 ) -> Vec<String> {
     let mut opts = vec!["(none)".to_string()];
-    opts.extend(
-        keys.iter()
-            .filter(|k| !certificate_only || k.certificate.is_some())
-            .map(|k| k.label.clone()),
-    );
+    match filter {
+        KeyComboFilter::All => opts.extend(keys.iter().map(|k| k.label.clone())),
+        KeyComboFilter::CertificateOnly => opts.extend(
+            keys.iter()
+                .filter(|k| k.certificate.is_some())
+                .map(|k| k.label.clone()),
+        ),
+        KeyComboFilter::SecurityKeysFirst => {
+            opts.extend(
+                keys.iter()
+                    .filter(|k| k.algorithm.is_security_key())
+                    .map(|k| k.label.clone()),
+            );
+            opts.extend(
+                keys.iter()
+                    .filter(|k| !k.algorithm.is_security_key())
+                    .map(|k| k.label.clone()),
+            );
+        }
+    }
     opts
 }
 
@@ -1374,7 +1405,7 @@ fn build_proxy_resolution(form: &ConnectionForm) -> Result<ProxyResolution, Stri
 
 #[cfg(test)]
 mod key_combo_tests {
-    use super::key_combo_options;
+    use super::{key_combo_options, KeyComboFilter};
     use oryxis_core::models::key::{KeyAlgorithm, SshKey};
 
     fn key(label: &str, with_cert: bool) -> SshKey {
@@ -1385,21 +1416,43 @@ mod key_combo_tests {
         k
     }
 
+    fn sk(label: &str) -> SshKey {
+        SshKey::new(label, KeyAlgorithm::SkEd25519)
+    }
+
     #[test]
     fn unfiltered_lists_every_key_after_the_sentinel() {
         let keys = vec![key("bare", false), key("certified", true)];
-        assert_eq!(key_combo_options(&keys, false), vec!["(none)", "bare", "certified"]);
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::All),
+            vec!["(none)", "bare", "certified"]
+        );
     }
 
     #[test]
     fn certificate_mode_lists_only_cert_carrying_keys() {
         let keys = vec![key("bare", false), key("certified", true), key("plain2", false)];
-        assert_eq!(key_combo_options(&keys, true), vec!["(none)", "certified"]);
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::CertificateOnly),
+            vec!["(none)", "certified"]
+        );
     }
 
     #[test]
     fn certificate_mode_with_no_certs_keeps_the_sentinel_only() {
         let keys = vec![key("bare", false)];
-        assert_eq!(key_combo_options(&keys, true), vec!["(none)"]);
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::CertificateOnly),
+            vec!["(none)"]
+        );
+    }
+
+    #[test]
+    fn agent_mode_lists_security_keys_first() {
+        let keys = vec![key("bare", false), sk("yubi"), key("other", true), sk("solo")];
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::SecurityKeysFirst),
+            vec!["(none)", "yubi", "solo", "bare", "other"]
+        );
     }
 }

@@ -163,6 +163,12 @@ pub struct SshEngine {
     /// Sink for pre-auth banners (RFC 4252 §5.4). See
     /// `ClientHandler::banner_tx`.
     banner_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,
+    /// The host's preferred agent identity (B3): the public key of the
+    /// vault key this connection references. Agent auth offers a matching
+    /// agent identity FIRST (then the rest, preserving the try-all
+    /// fallback), so a multi-key agent doesn't burn the server's
+    /// MaxAuthTries before reaching e.g. the security key.
+    pinned_agent_key: Option<russh::keys::PublicKey>,
 }
 
 impl Default for SshEngine {

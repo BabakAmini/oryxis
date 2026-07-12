@@ -146,7 +146,11 @@ impl AgentKeySource for VaultKeySource {
             .list_keys()
             .unwrap_or_default()
             .into_iter()
-            .filter(|k| k.expose_via_agent)
+            // Security-key rows (B3) are public-only: signing happens on
+            // the hardware token via the EXTERNAL agent, so listing them
+            // here would advertise identities this agent can never sign
+            // for (the `sign` lookup below would hit a NULL private).
+            .filter(|k| k.expose_via_agent && !k.algorithm.is_security_key())
             .filter_map(|k| {
                 Self::blob_of(&k.public_key).map(|blob| AgentPublicKey {
                     blob,

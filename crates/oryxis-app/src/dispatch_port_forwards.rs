@@ -267,6 +267,8 @@ impl Oryxis {
             conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
         }
         let (password, private_key, certificate) = self.resolve_forward_credentials(&conn);
+        // Agent-auth pin (B3), same rule as the tab connect.
+        let pinned_agent = self.pinned_agent_public(&conn);
         let totp_secret = self
             .vault
             .as_ref()
@@ -286,6 +288,7 @@ impl Oryxis {
                         .with_totp_secret(totp_secret.as_deref())
                         .with_keepalive(keepalive)
                         .with_address_family(conn.address_family)
+                        .with_pinned_agent_key(pinned_agent.as_deref())
                         .with_algorithm_overrides(
                             conn.ciphers.clone(),
                             conn.kex.clone(),
@@ -331,6 +334,7 @@ impl Oryxis {
                 .with_totp_secret(totp_secret.as_deref())
                 .with_keepalive(keepalive)
                 .with_address_family(conn.address_family)
+                .with_pinned_agent_key(pinned_agent.as_deref())
                 .with_algorithm_overrides(
                     conn.ciphers.clone(),
                     conn.kex.clone(),

@@ -559,21 +559,8 @@ impl SshEngine {
                     .request_identities()
                     .await
                     .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
-
-                // Server-advertised RSA hash is per-connection, resolved once
-                // (not per key) so a multi-key agent doesn't burn MaxAuthTries.
-                let rsa_hash = server_rsa_hash(handle).await;
-                for identity in identities {
-                    let pubkey = identity.public_key().into_owned();
-                    let hash = if pubkey.algorithm().is_rsa() { rsa_hash } else { None };
-                    if let Ok(res) = handle
-                        .authenticate_publickey_with(username, pubkey, hash, &mut agent)
-                        .await
-                    && res.success() {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
+                self.try_agent_identities(handle, username, identities, &mut agent)
+                    .await
             }
             Err(e) => Err(SshError::Key(format!("ssh-agent not available: {}", e))),
         }
@@ -593,27 +580,59 @@ impl SshEngine {
                     .request_identities()
                     .await
                     .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
-
-                // Server-advertised RSA hash is per-connection, resolved once
-                // (not per key) so a multi-key agent doesn't burn MaxAuthTries.
-                let rsa_hash = server_rsa_hash(handle).await;
-                for identity in identities {
-                    let pubkey = identity.public_key().into_owned();
-                    let hash = if pubkey.algorithm().is_rsa() { rsa_hash } else { None };
-                    if let Ok(res) = handle
-                        .authenticate_publickey_with(username, pubkey, hash, &mut agent)
-                        .await
-                    && res.success() {
-                        return Ok(true);
-                    }
-                }
-                Ok(false)
+                self.try_agent_identities(handle, username, identities, &mut agent)
+                    .await
             }
             Err(e) => Err(SshError::Key(format!(
                 "Windows ssh-agent not available ({}): {}",
                 pipe_path, e
             ))),
         }
+    }
+
+    /// The shared agent-auth loop: order the identities (the host's
+    /// pinned key first, B3), then try each until one succeeds.
+    /// Certificate identities (an sk- cert loaded via `ssh-add`, or any
+    /// agent-held cert) are offered as certificates; plain keys as
+    /// publickey. The agent does the signing either way, so security-key
+    /// signatures (authenticator flags + counter) pass through opaquely.
+    async fn try_agent_identities<S>(
+        &self,
+        handle: &mut client::Handle<ClientHandler>,
+        username: &str,
+        identities: Vec<russh::keys::agent::AgentIdentity>,
+        agent: &mut S,
+    ) -> Result<bool, SshError>
+    where
+        S: russh::Signer,
+    {
+        // Server-advertised RSA hash is per-connection, resolved once
+        // (not per key) so a multi-key agent doesn't burn MaxAuthTries.
+        let rsa_hash = server_rsa_hash(handle).await;
+        for identity in
+            select_agent_identities(identities, self.pinned_agent_key.as_ref())
+        {
+            let pubkey = identity.public_key().into_owned();
+            let hash = if pubkey.algorithm().is_rsa() { rsa_hash } else { None };
+            let res = match identity {
+                russh::keys::agent::AgentIdentity::Certificate { certificate, .. } => {
+                    handle
+                        .authenticate_certificate_with(username, certificate, hash, agent)
+                        .await
+                }
+                russh::keys::agent::AgentIdentity::PublicKey { .. } => {
+                    handle
+                        .authenticate_publickey_with(username, pubkey, hash, agent)
+                        .await
+                }
+            };
+            if let Ok(res) = res
+                && res.success()
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 
     pub(crate) async fn authenticate_and_open(
@@ -648,6 +667,26 @@ impl SshEngine {
         session.sftp_open_timeout = session_timeout;
         Ok((session, rx))
     }
+}
+
+/// Order agent identities so the pinned key (the host's referenced vault
+/// key, B3) is offered FIRST, preserving the try-all fallback after it.
+/// Comparison is on key data, so a certificate identity whose underlying
+/// key matches the pin also sorts first. A pin matching nothing (dangling
+/// `key_id`, key not loaded in the agent) leaves the order untouched.
+/// Pure, so it unit-tests without an agent socket.
+fn select_agent_identities(
+    identities: Vec<russh::keys::agent::AgentIdentity>,
+    pinned: Option<&russh::keys::PublicKey>,
+) -> Vec<russh::keys::agent::AgentIdentity> {
+    let Some(pinned) = pinned else {
+        return identities;
+    };
+    let (mut matching, rest): (Vec<_>, Vec<_>) = identities
+        .into_iter()
+        .partition(|id| id.public_key().key_data() == pinned.key_data());
+    matching.extend(rest);
+    matching
 }
 
 /// The result of validating an attached certificate against its private
@@ -747,5 +786,66 @@ mod cert_tests {
             check_certificate("not a certificate", &key, 0),
             CertCheck::Unusable(_)
         ));
+    }
+}
+
+#[cfg(test)]
+mod agent_pin_tests {
+    use super::select_agent_identities;
+    use russh::keys::agent::AgentIdentity;
+    use russh::keys::PublicKey;
+
+    // Public security-key fixture from the ssh-key crate's test suite
+    // (public material only, nothing secret).
+    const SK_ED25519_PUB: &str = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAICFo/k5LU8863u66YC9eUO2170QduohPURkQnbLa/dczAAAABHNzaDo= user@example.com";
+
+    fn plain(seed: u8) -> AgentIdentity {
+        // Deterministic distinct Ed25519 keys derived from a seed byte.
+        use russh::keys::ssh_key;
+        let secret = ssh_key::private::Ed25519Keypair::from_seed(&[seed; 32]);
+        AgentIdentity::PublicKey {
+            key: PublicKey::new(ssh_key::public::KeyData::Ed25519(secret.public), ""),
+            comment: format!("key-{seed}"),
+        }
+    }
+
+    fn sk_identity() -> AgentIdentity {
+        AgentIdentity::from(PublicKey::from_openssh(SK_ED25519_PUB).unwrap())
+    }
+
+    fn labels(ids: &[AgentIdentity]) -> Vec<String> {
+        ids.iter().map(|i| i.comment().to_string()).collect()
+    }
+
+    #[test]
+    fn no_pin_keeps_order() {
+        let ids = vec![plain(1), plain(2), sk_identity()];
+        let expect = labels(&ids);
+        let ordered = select_agent_identities(ids, None);
+        assert_eq!(labels(&ordered), expect);
+    }
+
+    #[test]
+    fn pinned_identity_moves_first_and_rest_follow() {
+        let pinned = PublicKey::from_openssh(SK_ED25519_PUB).unwrap();
+        let ids = vec![plain(1), plain(2), sk_identity(), plain(3)];
+        let ordered = select_agent_identities(ids, Some(&pinned));
+        assert_eq!(ordered.len(), 4);
+        assert_eq!(
+            ordered[0].public_key().key_data(),
+            pinned.key_data(),
+            "pinned identity must be offered first"
+        );
+        // Try-all fallback preserved in original relative order.
+        assert_eq!(labels(&ordered)[1..], ["key-1", "key-2", "key-3"]);
+    }
+
+    #[test]
+    fn dangling_pin_leaves_order_untouched() {
+        let pinned = PublicKey::from_openssh(SK_ED25519_PUB).unwrap();
+        let ids = vec![plain(1), plain(2)];
+        let expect = labels(&ids);
+        let ordered = select_agent_identities(ids, Some(&pinned));
+        assert_eq!(labels(&ordered), expect);
     }
 }

@@ -60,6 +60,20 @@ pub enum KeyAlgorithm {
     EcdsaP256,
     EcdsaP384,
     EcdsaP521,
+    /// FIDO2 security-key algorithms (B3). The private half is a handle
+    /// usable only through the authenticator, so these rows carry public
+    /// material only (NULL private column) and authenticate via an
+    /// external ssh-agent that talks to the hardware.
+    SkEd25519,
+    SkEcdsaP256,
+}
+
+impl KeyAlgorithm {
+    /// Whether this is a FIDO2 security-key algorithm: public-only in the
+    /// vault, signed by the hardware token through an external agent.
+    pub fn is_security_key(&self) -> bool {
+        matches!(self, Self::SkEd25519 | Self::SkEcdsaP256)
+    }
 }
 
 impl std::fmt::Display for KeyAlgorithm {
@@ -72,6 +86,8 @@ impl std::fmt::Display for KeyAlgorithm {
             Self::EcdsaP256 => write!(f, "ECDSA P-256"),
             Self::EcdsaP384 => write!(f, "ECDSA P-384"),
             Self::EcdsaP521 => write!(f, "ECDSA P-521"),
+            Self::SkEd25519 => write!(f, "Ed25519-SK"),
+            Self::SkEcdsaP256 => write!(f, "ECDSA-SK P-256"),
         }
     }
 }
@@ -99,6 +115,19 @@ mod tests {
         let key: SshKey = serde_json::from_str(json).unwrap();
         assert_eq!(key.certificate, None);
         assert!(key.expose_via_agent);
+    }
+
+    /// The security-key variants round-trip through serde by name, so
+    /// sync / portable payloads carry them without any wire change.
+    #[test]
+    fn sk_algorithms_serialize_round_trip() {
+        for algo in [KeyAlgorithm::SkEd25519, KeyAlgorithm::SkEcdsaP256] {
+            let json = serde_json::to_string(&algo).unwrap();
+            let back: KeyAlgorithm = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, algo);
+            assert!(back.is_security_key());
+        }
+        assert!(!KeyAlgorithm::Ed25519.is_security_key());
     }
 
     /// A certificate round-trips through serde as a plain string field.

@@ -1483,6 +1483,14 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cert_no_keys_hint" => "No key in the vault has a certificate attached yet.",
         "cert_key_no_cert_hint" => "The selected key has no attached certificate.",
 
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Import public key",
+        "key_badge_security_key" => "Security key",
+        "preferred_agent_key" => "Optional: this key's agent identity is offered first at connect.",
+        "pkcs11_help" => "Hardware keys reach the agent via ssh-add: -K loads FIDO2 resident keys, -s <module> loads PKCS#11 smartcards.",
+        "sk_agent_hint" => "Security-key identities must be loaded into the OS ssh-agent first (ssh-add -K with the token plugged in).",
+        "public_key_only_error" => "That looks like private key material; paste it into the Private Key field instead.",
+
         _ => "???",
     }
 }

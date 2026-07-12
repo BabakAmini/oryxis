@@ -1462,6 +1462,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "کلید عمومی با کلید خصوصی مطابقت ندارد.",
         "cert_no_keys_hint" => "هنوز هیچ کلیدی در صندوقچه گواهی پیوست‌شده ندارد.",
         "cert_key_no_cert_hint" => "کلید انتخاب‌شده گواهی پیوست‌شده ندارد.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "وارد کردن کلید عمومی",
+        "key_badge_security_key" => "کلید امنیتی",
+        "preferred_agent_key" => "اختیاری: هنگام اتصال، هویت عامل این کلید ابتدا ارائه می‌شود.",
+        "pkcs11_help" => "کلیدهای سخت‌افزاری از طریق ssh-add به عامل می‌رسند: -K کلیدهای مقیم FIDO2 را و -s <module> کارت‌های هوشمند PKCS#11 را بارگذاری می‌کند.",
+        "sk_agent_hint" => "هویت‌های کلید امنیتی باید ابتدا در ssh-agent سیستم‌عامل بارگذاری شوند (ssh-add -K با توکن متصل).",
+        "public_key_only_error" => "این محتوا شبیه کلید خصوصی است؛ آن را در فیلد کلید خصوصی جای‌گذاری کنید.",
 _ => return None,
     })
 }

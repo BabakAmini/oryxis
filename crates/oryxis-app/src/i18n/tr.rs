@@ -1475,6 +1475,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "Genel anahtar özel anahtarla eşleşmiyor.",
         "cert_no_keys_hint" => "Kasada henüz sertifika eklenmiş bir anahtar yok.",
         "cert_key_no_cert_hint" => "Seçilen anahtarın eklenmiş bir sertifikası yok.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Genel anahtarı içe aktar",
+        "key_badge_security_key" => "Güvenlik anahtarı",
+        "preferred_agent_key" => "İsteğe bağlı: bu anahtarın aracı kimliği bağlanırken ilk olarak sunulur.",
+        "pkcs11_help" => "Donanım anahtarları aracıya ssh-add üzerinden ulaşır: -K, FIDO2 yerleşik anahtarlarını yükler; -s <module>, PKCS#11 akıllı kartlarını yükler.",
+        "sk_agent_hint" => "Güvenlik anahtarı kimlikleri önce işletim sisteminin ssh-agent'ına yüklenmelidir (token takılıyken ssh-add -K).",
+        "public_key_only_error" => "Bu, özel anahtar malzemesine benziyor; bunun yerine Özel Anahtar alanına yapıştırın.",
 _ => return None,
     })
 }

@@ -1475,6 +1475,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "Kunci publik tidak cocok dengan kunci privat.",
         "cert_no_keys_hint" => "Belum ada kunci di vault yang memiliki sertifikat terlampir.",
         "cert_key_no_cert_hint" => "Kunci yang dipilih tidak memiliki sertifikat terlampir.",
+
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Impor kunci publik",
+        "key_badge_security_key" => "Kunci keamanan",
+        "preferred_agent_key" => "Opsional: identitas agen kunci ini ditawarkan lebih dulu saat terhubung.",
+        "pkcs11_help" => "Kunci perangkat keras mencapai agen melalui ssh-add: -K memuat kunci residen FIDO2, -s <module> memuat kartu pintar PKCS#11.",
+        "sk_agent_hint" => "Identitas kunci keamanan harus dimuat ke ssh-agent OS terlebih dahulu (ssh-add -K dengan token terpasang).",
+        "public_key_only_error" => "Itu tampak seperti materi kunci privat; tempelkan ke bidang Kunci Privat.",
 _ => return None,
     })
 }

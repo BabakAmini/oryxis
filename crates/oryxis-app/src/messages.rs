@@ -1445,6 +1445,9 @@ pub enum Message {
     /// Open the key import panel with the certificate field focused
     /// (the keychain ADD menu's "Certificate" entry, B2.1).
     ShowKeyPanelCertFocus,
+    /// Open the key import panel with the public-key field focused
+    /// (the keychain ADD menu's "Import public key" entry, B3).
+    ShowKeyPanelPublicFocus,
     /// Pick a `.pub` certificate file for the key import form.
     BrowseCertFile,
     /// A certificate file was read; its contents fill the paste field.

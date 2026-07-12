@@ -1444,6 +1444,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key_mismatch_error" => "La clave pública no coincide con la clave privada.",
         "cert_no_keys_hint" => "Ninguna clave de la bóveda tiene todavía un certificado adjunto.",
         "cert_key_no_cert_hint" => "La clave seleccionada no tiene ningún certificado adjunto.",
+        // FIDO2 / PKCS#11 delegation (B3)
+        "import_public_key" => "Importar clave pública",
+        "key_badge_security_key" => "Clave de seguridad",
+        "preferred_agent_key" => "Opcional: la identidad de esta clave en el agente se ofrece primero al conectar.",
+        "pkcs11_help" => "Las claves de hardware llegan al agente vía ssh-add: -K carga claves residentes FIDO2, -s <module> carga tarjetas inteligentes PKCS#11.",
+        "sk_agent_hint" => "Las identidades de clave de seguridad deben cargarse primero en el ssh-agent del sistema (ssh-add -K con el token conectado).",
+        "public_key_only_error" => "Eso parece material de clave privada; pégalo en el campo Clave Privada.",
 _ => return None,
     })
 }

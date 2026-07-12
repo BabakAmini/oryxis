@@ -37,6 +37,8 @@ impl VaultStore {
             KeyAlgorithm::EcdsaP256 => "ecdsa-p256",
             KeyAlgorithm::EcdsaP384 => "ecdsa-p384",
             KeyAlgorithm::EcdsaP521 => "ecdsa-p521",
+            KeyAlgorithm::SkEd25519 => "sk-ed25519",
+            KeyAlgorithm::SkEcdsaP256 => "sk-ecdsa-p256",
         };
 
         self.db.execute(
@@ -76,6 +78,8 @@ impl VaultStore {
                     "ecdsa-p256" => KeyAlgorithm::EcdsaP256,
                     "ecdsa-p384" => KeyAlgorithm::EcdsaP384,
                     "ecdsa-p521" => KeyAlgorithm::EcdsaP521,
+                    "sk-ed25519" => KeyAlgorithm::SkEd25519,
+                    "sk-ecdsa-p256" => KeyAlgorithm::SkEcdsaP256,
                     _ => KeyAlgorithm::Ed25519,
                 };
 

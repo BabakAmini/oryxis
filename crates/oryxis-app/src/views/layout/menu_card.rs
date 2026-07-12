@@ -143,8 +143,12 @@ impl Oryxis {
         // Expose-via-agent toggle: only offered while the agent server
         // is running, so it stays out of the menu for users who never
         // turned the feature on. A check glyph marks the current state.
+        // Security-key rows (B3) have no private half in the vault, so
+        // Oryxis's own agent can never serve them; the toggle would be
+        // a lie there and is hidden.
         if self.agent.enabled
             && let Some(key) = self.keys.get(idx)
+            && !key.algorithm.is_security_key()
         {
             let (glyph, label) = if key.expose_via_agent {
                 (iced_fonts::lucide::circle_check(), crate::i18n::t("agent_key_exposed"))
@@ -201,6 +205,7 @@ impl Oryxis {
         column![
             self.menu_item(iced_fonts::lucide::sparkles(), crate::i18n::t("generate_key"), Message::ShowKeyGeneratePanel, OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::ShowKeyPanel, OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::fingerprint(), crate::i18n::t("import_public_key"), Message::ShowKeyPanelPublicFocus, OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::badge_check(), crate::i18n::t("certificate"), Message::ShowKeyPanelCertFocus, OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::ShowIdentityPanel, OryxisColors::t().text_secondary),
         ].into()

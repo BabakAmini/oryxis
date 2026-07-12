@@ -14,6 +14,34 @@ fn key_private_clears_with_empty_string() {
 
 
 #[test]
+fn security_key_row_roundtrips_with_null_private() {
+    // B3 structural test: a security-key (public-only) row is persisted
+    // with an explicit NULL private column and lists back with its sk-
+    // algorithm intact. `import_public_key` has no private input path by
+    // construction; this pins the storage half of that invariant.
+    let vault = unlocked_vault();
+    let mut key = SshKey::new("yubi", KeyAlgorithm::SkEd25519);
+    key.public_key = "sk-ssh-ed25519@openssh.com AAAA... user@example.com".into();
+    key.fingerprint = "SHA256:stub".into();
+    vault.save_key(&key, Some("")).unwrap();
+
+    let listed = vault.list_keys().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].algorithm, KeyAlgorithm::SkEd25519);
+    assert!(listed[0].algorithm.is_security_key());
+    assert_eq!(vault.get_key_private(&key.id).unwrap(), None);
+
+    // The other sk- family maps through the same string pair.
+    let mut ec = SshKey::new("yubi-ec", KeyAlgorithm::SkEcdsaP256);
+    ec.public_key = "sk-ecdsa-sha2-nistp256@openssh.com AAAA...".into();
+    vault.save_key(&ec, Some("")).unwrap();
+    let listed = vault.list_keys().unwrap();
+    let ec_row = listed.iter().find(|k| k.label == "yubi-ec").unwrap();
+    assert_eq!(ec_row.algorithm, KeyAlgorithm::SkEcdsaP256);
+}
+
+
+#[test]
 fn save_and_list_keys() {
     let vault = unlocked_vault();
     let key = SshKey::new("my-key", KeyAlgorithm::Ed25519);

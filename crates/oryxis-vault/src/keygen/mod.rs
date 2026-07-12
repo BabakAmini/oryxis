@@ -261,6 +261,65 @@ fn finalize(label: &str, private_key: PrivateKey) -> Result<GeneratedKey, VaultE
     Ok(GeneratedKey { key, private_pem })
 }
 
+/// Map an `ssh_key::Algorithm` to the vault's `KeyAlgorithm`, covering
+/// the security-key families (B3) alongside the four private-importable
+/// ones. RSA size cannot be told from the algorithm name alone, so
+/// public-only RSA imports land in the 4096 bucket (display-only; the
+/// blob is stored verbatim).
+fn map_public_algorithm(algorithm: &Algorithm) -> Result<KeyAlgorithm, VaultError> {
+    Ok(match algorithm {
+        Algorithm::Ed25519 => KeyAlgorithm::Ed25519,
+        Algorithm::Rsa { .. } => KeyAlgorithm::Rsa4096,
+        Algorithm::Ecdsa { curve } => match curve {
+            ssh_key::EcdsaCurve::NistP256 => KeyAlgorithm::EcdsaP256,
+            ssh_key::EcdsaCurve::NistP384 => KeyAlgorithm::EcdsaP384,
+            ssh_key::EcdsaCurve::NistP521 => KeyAlgorithm::EcdsaP521,
+        },
+        Algorithm::SkEd25519 => KeyAlgorithm::SkEd25519,
+        Algorithm::SkEcdsaSha2NistP256 => KeyAlgorithm::SkEcdsaP256,
+        other => {
+            return Err(VaultError::UnsupportedKeyKind(other.as_str().to_string()));
+        }
+    })
+}
+
+/// Import a public-only key from an OpenSSH public line (B3): the entry
+/// point for FIDO2 security keys (`sk-ssh-ed25519@openssh.com` /
+/// `sk-ecdsa-sha2-nistp256@openssh.com`), whose private half is a handle
+/// living on the authenticator, and for any other bare `.pub` line. A
+/// certificate line is accepted too: the underlying public key is
+/// derived from it and the full line lands in `SshKey.certificate` (the
+/// B2 column), so an sk- cert identity round-trips in one paste.
+///
+/// The returned model carries NO private material by construction; the
+/// caller persists it with `save_key(&key, Some(""))` (explicit NULL).
+/// Private input is not accepted here at all: a `BEGIN` block fails the
+/// public-line parse, and the UI routes it to the private import first.
+pub fn import_public_key(label: &str, line: &str) -> Result<SshKey, VaultError> {
+    let trimmed = line.strip_prefix('\u{FEFF}').unwrap_or(line).trim();
+
+    // Certificate public line: derive the bare key, keep the cert.
+    if let Ok(cert) = ssh_key::Certificate::from_openssh(trimmed) {
+        let public = ssh_key::PublicKey::new(cert.public_key().clone(), cert.comment());
+        let algorithm = map_public_algorithm(&public.algorithm())?;
+        let mut key = SshKey::new(label, algorithm);
+        key.fingerprint = public.fingerprint(HashAlg::Sha256).to_string();
+        key.public_key = public
+            .to_openssh()
+            .map_err(|e| VaultError::Crypto(format!("Public key encoding failed: {}", e)))?;
+        key.certificate = Some(trimmed.to_string());
+        return Ok(key);
+    }
+
+    let public = ssh_key::PublicKey::from_openssh(trimmed)
+        .map_err(|e| VaultError::Crypto(format!("Not an OpenSSH public key line: {}", e)))?;
+    let algorithm = map_public_algorithm(&public.algorithm())?;
+    let mut key = SshKey::new(label, algorithm);
+    key.fingerprint = public.fingerprint(HashAlg::Sha256).to_string();
+    key.public_key = trimmed.to_string();
+    Ok(key)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -296,6 +355,58 @@ mod tests {
     fn import_invalid_pem_fails() {
         let result = import_key("bad", "this is not a key", None);
         assert!(result.is_err());
+    }
+
+    // Public security-key fixtures from the ssh-key crate's test suite
+    // (public material only, nothing secret).
+    const SK_ED25519_PUB: &str = "sk-ssh-ed25519@openssh.com AAAAGnNrLXNzaC1lZDI1NTE5QG9wZW5zc2guY29tAAAAICFo/k5LU8863u66YC9eUO2170QduohPURkQnbLa/dczAAAABHNzaDo= user@example.com";
+    const SK_ECDSA_P256_PUB: &str = "sk-ecdsa-sha2-nistp256@openssh.com AAAAInNrLWVjZHNhLXNoYTItbmlzdHAyNTZAb3BlbnNzaC5jb20AAAAIbmlzdHAyNTYAAABBBIELQJ2DgvaX1yQlKFokfWM2suuaCFI2qp0eJodHyg6O4ifxc3XpRKd1OS8dNYQtE/YjdXSrA+AOnMF5ns2Nkx4AAAAEc3NoOg== user@example.com";
+    const SK_ED25519_CERT: &str = "sk-ssh-ed25519-cert-v01@openssh.com AAAAI3NrLXNzaC1lZDI1NTE5LWNlcnQtdjAxQG9wZW5zc2guY29tAAAAIG/VTdX1zj24l7+wPGYDN/QPXBDyBjGwUj7wTk1vgC9iAAAAICFo/k5LU8863u66YC9eUO2170QduohPURkQnbLa/dczAAAABHNzaDoAAAAAAAAAAAAAAAEAAAAKc2stZWQyNTUxOQAAAAAAAAAAYk3NxAAAAAD01mbEAAAAAAAAAIIAAAAVcGVybWl0LVgxMS1mb3J3YXJkaW5nAAAAAAAAABdwZXJtaXQtYWdlbnQtZm9yd2FyZGluZwAAAAAAAAAWcGVybWl0LXBvcnQtZm9yd2FyZGluZwAAAAAAAAAKcGVybWl0LXB0eQAAAAAAAAAOcGVybWl0LXVzZXItcmMAAAAAAAAAAAAAADMAAAALc3NoLWVkMjU1MTkAAAAgsz6u836i33yqAQ3v3qNOJB9l8bUppPQ+0UMn9cVKq2IAAABTAAAAC3NzaC1lZDI1NTE5AAAAQFnv46uyvpzZFXBXGRkGEgp/HsMM4iYexEfU+rHJFi25s4RfVktxwJptE6QaUzm5TcZW9pyP8+DHkJp20QItuwg= user@example.com";
+
+    #[test]
+    fn import_public_sk_ed25519() {
+        let key = import_public_key("yubi", SK_ED25519_PUB).unwrap();
+        assert_eq!(key.algorithm, KeyAlgorithm::SkEd25519);
+        assert!(key.algorithm.is_security_key());
+        assert_eq!(key.public_key, SK_ED25519_PUB);
+        assert!(key.fingerprint.starts_with("SHA256:"));
+        assert_eq!(key.certificate, None);
+        // Fingerprint is stable across imports.
+        let again = import_public_key("yubi2", SK_ED25519_PUB).unwrap();
+        assert_eq!(again.fingerprint, key.fingerprint);
+    }
+
+    #[test]
+    fn import_public_sk_ecdsa_p256() {
+        let key = import_public_key("yubi-ec", SK_ECDSA_P256_PUB).unwrap();
+        assert_eq!(key.algorithm, KeyAlgorithm::SkEcdsaP256);
+        assert_eq!(key.public_key, SK_ECDSA_P256_PUB);
+    }
+
+    #[test]
+    fn import_public_sk_certificate_line_keeps_cert_and_derives_key() {
+        let key = import_public_key("yubi-cert", SK_ED25519_CERT).unwrap();
+        assert_eq!(key.algorithm, KeyAlgorithm::SkEd25519);
+        assert_eq!(key.certificate.as_deref(), Some(SK_ED25519_CERT));
+        // The derived public line is the bare sk- key, not the cert.
+        assert!(key.public_key.starts_with("sk-ssh-ed25519@openssh.com "));
+    }
+
+    #[test]
+    fn import_public_plain_key_maps_family() {
+        let generated = generate_ed25519("plain").unwrap();
+        let key = import_public_key("plain-pub", &generated.key.public_key).unwrap();
+        assert_eq!(key.algorithm, KeyAlgorithm::Ed25519);
+        assert_eq!(key.fingerprint, generated.key.fingerprint);
+    }
+
+    #[test]
+    fn import_public_rejects_private_material_and_garbage() {
+        let generated = generate_ed25519("priv").unwrap();
+        // A private block never parses as a public line; the UI routes it
+        // to the private import, but the entry point must refuse it too.
+        assert!(import_public_key("bad", &generated.private_pem).is_err());
+        assert!(import_public_key("bad", "not a key at all").is_err());
     }
 
     #[test]
