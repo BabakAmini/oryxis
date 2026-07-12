@@ -223,17 +223,26 @@ impl crate::app::Oryxis {
         self.keynav.toolbar_items.borrow_mut().clear();
     }
 
-    /// Zero the split/sort trigger-bounds cells. Called by the toolbar
-    /// builders on their `…` overflow branch: those triggers are not on
-    /// screen there, and a stale rect from a previous layout would
-    /// mis-anchor `toolbar_menu_anchor` (an empty cell falls back to
-    /// the trailing-edge estimate instead). Not done on every build:
-    /// cells refresh on draw, and zeroing at build would blank them for
-    /// the whole frame on renderers that only draw on demand.
+    /// Zero the toolbar trigger-bounds cells. Called by the toolbar
+    /// builders on their `…` overflow branch (those triggers are not on
+    /// screen there) and by handlers that change the toolbar's layout
+    /// in the same update that anchors a menu (closing a side panel
+    /// shifts every button by the panel width before the next draw):
+    /// a stale rect would mis-anchor `toolbar_menu_anchor`, while an
+    /// empty cell falls back to the trailing-edge estimate. Not done
+    /// on every build: cells refresh on draw, and zeroing at build
+    /// would blank them for the whole frame on renderers that only
+    /// draw on demand.
     pub(crate) fn keynav_toolbar_zero_trigger_bounds(&self) {
         let zero = iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::ZERO);
         self.toolbar_split_btn_bounds.set(zero);
         self.toolbar_sort_btn_bounds.set(zero);
+        // The tag-filter dropdowns anchor on these the same way (the
+        // pre-existing bounds cells); a folded or shifted toolbar must
+        // not leave them stale either. Their anchor handlers fall back
+        // to the cursor position on an empty cell.
+        self.host_tag_filter_btn_bounds.set(zero);
+        self.snippet_tag_filter_btn_bounds.set(zero);
     }
 
     /// Record a single-section content zone (every view except the

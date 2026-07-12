@@ -759,9 +759,32 @@ impl Oryxis {
                     // menu is never wanted, and leaving it open mis-anchored
                     // the menu on top of the panel (the generate panel was
                     // not even counted in panel_width below).
+                    let panel_was_open = self.show_key_panel
+                        || self.show_key_generate_panel
+                        || self.show_identity_panel;
                     self.show_key_panel = false;
                     self.show_key_generate_panel = false;
                     self.show_identity_panel = false;
+                    // The trigger-bounds cell was drawn with that panel
+                    // open, and closing it shifts the whole toolbar by the
+                    // panel width before the next draw, so the stale rect
+                    // would misplace the menu by exactly that much. The
+                    // shift is deterministic (the panel occupies the
+                    // trailing edge, leading under RTL), so compensate the
+                    // rect instead of falling back to the estimate: the
+                    // real y stays exact in every nav layout.
+                    if panel_was_open {
+                        let b = self.toolbar_split_btn_bounds.get();
+                        if b.width > 0.0 {
+                            let shift = if crate::i18n::is_rtl_layout() {
+                                -crate::app::PANEL_WIDTH
+                            } else {
+                                crate::app::PANEL_WIDTH
+                            };
+                            self.toolbar_split_btn_bounds
+                                .set(iced::Rectangle { x: b.x + shift, ..b });
+                        }
+                    }
                     // Anchor below the split button, on its real drawn
                     // bounds (2 px gap, trailing edges aligned), so the
                     // menu follows the button through every layout. No
