@@ -223,6 +223,19 @@ impl crate::app::Oryxis {
         self.keynav.toolbar_items.borrow_mut().clear();
     }
 
+    /// Zero the split/sort trigger-bounds cells. Called by the toolbar
+    /// builders on their `…` overflow branch: those triggers are not on
+    /// screen there, and a stale rect from a previous layout would
+    /// mis-anchor `toolbar_menu_anchor` (an empty cell falls back to
+    /// the trailing-edge estimate instead). Not done on every build:
+    /// cells refresh on draw, and zeroing at build would blank them for
+    /// the whole frame on renderers that only draw on demand.
+    pub(crate) fn keynav_toolbar_zero_trigger_bounds(&self) {
+        let zero = iced::Rectangle::new(iced::Point::ORIGIN, iced::Size::ZERO);
+        self.toolbar_split_btn_bounds.set(zero);
+        self.toolbar_sort_btn_bounds.set(zero);
+    }
+
     /// Record a single-section content zone (every view except the
     /// dashboard and the keychain). Rows are visual: chunked for card
     /// grids, one item per row for 1-D lists.

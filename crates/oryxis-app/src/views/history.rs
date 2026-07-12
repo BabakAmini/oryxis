@@ -240,7 +240,10 @@ impl Oryxis {
         if buttons_overflow {
             row_items.push(self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,
-                crate::widgets::toolbar_overflow_icon(overflow_open),
+                crate::widgets::bounds_reporter(
+                    crate::widgets::toolbar_overflow_icon(overflow_open),
+                    self.toolbar_overflow_btn_bounds.clone(),
+                ),
             ));
         } else {
             let prev_slot = if can_prev {

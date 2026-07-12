@@ -407,38 +407,27 @@ impl Oryxis {
             }
             Message::CloudSearchChanged(v) => self.cloud_search = v,
             Message::ShowCloudProviderPicker => {
-                // Anchor below the "+ Host [▾]" split button. Same
-                // computation as the keychain "+ ADD ▼" handler so both
-                // split menus drop in the same screen position relative
-                // to their toolbar, independent of cursor location.
+                // Anchor below the "+ Host [▾]" split button, on its
+                // real drawn bounds (2 px gap, trailing edges aligned;
+                // the earlier constant estimate broke in the vertical
+                // rail layout and its 150 width disagreed with the
+                // render clamp's 210, pushing the menu past the button).
+                // The panel width only feeds the pre-first-draw fallback.
                 let panel_width = if self.cloud_discover_visible || self.show_host_panel {
                     crate::app::PANEL_WIDTH
                 } else {
                     0.0
                 };
-                // Keep this in sync with `menu_width` in
-                // `views/layout.rs::view_main` overlay block. 150
-                // matches the split-button width more closely so the
-                // dropdown doesn't overhang the trigger by ~30 px on
-                // the leading edge.
-                let menu_width = 150.0;
-                let toolbar_padding = 24.0;
-                // The dashboard toolbar uses dir_row, so under RTL the
-                // "+ HOST" group sits at the leading (left) edge of the
-                // toolbar. Anchor the menu accordingly. The render path
-                // in layout.rs subtracts menu_width again under RTL to
-                // grow the menu leftward from the click; pre-compensate
-                // here by adding menu_width so the final left edge is
-                // at panel_width + toolbar_padding.
-                let x = if crate::i18n::is_rtl_layout() {
-                    panel_width + toolbar_padding + menu_width
-                } else {
-                    self.window_size.width - panel_width - toolbar_padding - menu_width
-                };
-                let y = self.dashboard_dropdown_anchor_y();
+                // Must match `overlay_menu_width` for CloudProviderPicker.
+                let menu_width = 210.0;
+                let (x, y) = self.toolbar_menu_anchor(
+                    &self.toolbar_split_btn_bounds,
+                    menu_width,
+                    panel_width,
+                );
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::CloudProviderPicker,
-                    x: x.max(0.0),
+                    x,
                     y,
                 });
             }

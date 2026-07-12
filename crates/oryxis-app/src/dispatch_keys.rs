@@ -762,37 +762,22 @@ impl Oryxis {
                     self.show_key_panel = false;
                     self.show_key_generate_panel = false;
                     self.show_identity_panel = false;
-                    // Anchor below the split button regardless of where
-                    // the cursor was when the click happened. Right-align
-                    // the menu's right edge with the chevron's right edge
-                    // (= toolbar right padding from the visible content's
-                    // right edge), and drop it just below the button row.
-                    // No panel is open now (closed just above), so the
-                    // visible content spans the full width.
-                    let panel_width = 0.0;
-                    // Sync with `views/layout.rs::view_main` overlay.
+                    // Anchor below the split button, on its real drawn
+                    // bounds (2 px gap, trailing edges aligned), so the
+                    // menu follows the button through every layout. No
+                    // panel is open now (closed just above), so the
+                    // fallback estimate spans the full width.
+                    // Sync with `overlay_menu_width` (KeychainAdd = the
+                    // 150 default).
                     let menu_width = 150.0;
-                    let toolbar_padding = 24.0;
-                    // Toolbar uses dir_row, so under RTL the "+ ADD ▼"
-                    // group sits at the leading (left) edge. The render
-                    // path subtracts menu_width again under RTL; pre-
-                    // compensate here so the final left edge lands at
-                    // panel_width + toolbar_padding.
-                    let x = if crate::i18n::is_rtl_layout() {
-                        panel_width + toolbar_padding + menu_width
-                    } else {
-                        self.window_size.width
-                            - panel_width
-                            - toolbar_padding
-                            - menu_width
-                    };
-                    // Helper accounts for the Workspace contextual
-                    // sub-nav under the tab bar; in Classic it returns
-                    // the legacy 56 px (toolbar top + button + gap).
-                    let y = self.dashboard_dropdown_anchor_y();
+                    let (x, y) = self.toolbar_menu_anchor(
+                        &self.toolbar_split_btn_bounds,
+                        menu_width,
+                        0.0,
+                    );
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::KeychainAdd,
-                        x: x.max(0.0),
+                        x,
                         y,
                     });
                 }

@@ -109,17 +109,25 @@ impl Oryxis {
             }
         });
 
-        let add_btn: Element<'_, Message> = dir_row(vec![
-            add_label.into(),
-            separator.into(),
-            add_chevron.into(),
-        ])
-        .align_y(iced::Alignment::Center)
-        .into();
+        // Report the split group's rect so the ADD dropdown anchors to
+        // the real button (2 px below, trailing edges aligned) in every
+        // layout, vertical rail included.
+        let add_btn: Element<'_, Message> = crate::widgets::bounds_reporter(
+            dir_row(vec![
+                add_label.into(),
+                separator.into(),
+                add_chevron.into(),
+            ])
+            .align_y(iced::Alignment::Center),
+            self.toolbar_split_btn_bounds.clone(),
+        );
 
-        let sort_btn = crate::widgets::sort_toolbar_button(
-            crate::state::SortMenuKind::Keys,
-            self.keys_sort,
+        let sort_btn = crate::widgets::bounds_reporter(
+            crate::widgets::sort_toolbar_button(
+                crate::state::SortMenuKind::Keys,
+                self.keys_sort,
+            ),
+            self.toolbar_sort_btn_bounds.clone(),
         );
 
         // Responsive collapse: search yields first, then folds to an
@@ -138,12 +146,18 @@ impl Oryxis {
             Space::new().width(10).into(),
         ];
         if buttons_overflow {
+            // The split/sort triggers are off screen: blank their
+            // anchor cells so the menus fall back cleanly.
+            self.keynav_toolbar_zero_trigger_bounds();
             row_items.push(self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,
-                crate::widgets::toolbar_overflow_icon(matches!(
-                    self.overlay.as_ref().map(|o| &o.content),
-                    Some(crate::state::OverlayContent::ToolbarOverflow)
-                )),
+                crate::widgets::bounds_reporter(
+                    crate::widgets::toolbar_overflow_icon(matches!(
+                        self.overlay.as_ref().map(|o| &o.content),
+                        Some(crate::state::OverlayContent::ToolbarOverflow)
+                    )),
+                    self.toolbar_overflow_btn_bounds.clone(),
+                ),
             ));
         } else {
             row_items.push(self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Sort, sort_btn));

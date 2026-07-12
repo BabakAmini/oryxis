@@ -325,23 +325,19 @@ impl Oryxis {
                             if self.show_snippet_panel { crate::app::PANEL_WIDTH } else { 0.0 }
                         }
                     };
-                    // Must match the `OverlayContent::SortMenu` width
-                    // in `views/layout.rs` so the dropdown lands under
-                    // the trigger button instead of being shifted.
+                    // Must match the `OverlayContent::SortMenu` width in
+                    // `overlay_menu_width`. Anchored on the sort button's
+                    // real drawn bounds (2 px gap, trailing edges
+                    // aligned); the panel width only feeds the fallback.
                     let menu_width = 220.0_f32;
-                    let toolbar_padding = 24.0_f32;
-                    let x = if crate::i18n::is_rtl_layout() {
-                        panel_width + toolbar_padding + menu_width
-                    } else {
-                        self.window_size.width
-                            - panel_width
-                            - toolbar_padding
-                            - menu_width
-                    };
-                    let y = self.dashboard_dropdown_anchor_y();
+                    let (x, y) = self.toolbar_menu_anchor(
+                        &self.toolbar_sort_btn_bounds,
+                        menu_width,
+                        panel_width,
+                    );
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::SortMenu(kind),
-                        x: x.max(0.0),
+                        x,
                         y,
                     });
                 }
@@ -419,25 +415,24 @@ impl Oryxis {
                 if already_open {
                     self.overlay = None;
                 } else {
-                    // Trailing-edge anchor, mirroring the sort menu so the
-                    // `…` dropdown lands under the toolbar's right cluster.
+                    // Anchored on the `…` button's real drawn bounds
+                    // (2 px gap, trailing edges aligned), mirroring the
+                    // sort menu; the panel width only feeds the fallback.
                     let menu_width = self.overlay_menu_width(&OverlayState {
                         content: OverlayContent::ToolbarOverflow,
                         x: 0.0,
                         y: 0.0,
                     });
-                    let pad = 24.0_f32;
                     let panel = if self.vault_panel_open() {
                         crate::app::PANEL_WIDTH
                     } else {
                         0.0
                     };
-                    let x = if crate::i18n::is_rtl_layout() {
-                        panel + pad + menu_width
-                    } else {
-                        (self.window_size.width - panel - pad - menu_width).max(0.0)
-                    };
-                    let y = self.dashboard_dropdown_anchor_y();
+                    let (x, y) = self.toolbar_menu_anchor(
+                        &self.toolbar_overflow_btn_bounds,
+                        menu_width,
+                        panel,
+                    );
                     self.overlay = Some(OverlayState {
                         content: OverlayContent::ToolbarOverflow,
                         x,

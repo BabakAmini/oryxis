@@ -14,9 +14,12 @@ use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_gr
 
 impl Oryxis {
     pub(crate) fn view_snippets(&self) -> Element<'_, Message> {
-        let sort_btn = crate::widgets::sort_toolbar_button(
-            crate::state::SortMenuKind::Snippets,
-            self.snippets_sort,
+        let sort_btn = crate::widgets::bounds_reporter(
+            crate::widgets::sort_toolbar_button(
+                crate::state::SortMenuKind::Snippets,
+                self.snippets_sort,
+            ),
+            self.toolbar_sort_btn_bounds.clone(),
         );
         let primary: Element<'_, Message> = {
             let fg = OryxisColors::t().button_text;
@@ -105,12 +108,18 @@ impl Oryxis {
         let show_tag_filter = !self.distinct_snippet_tags().is_empty()
             || !self.snippet_filter_tags.is_empty();
         if buttons_overflow {
+            // The sort trigger is off screen: blank the anchor cells so
+            // the menu falls back cleanly.
+            self.keynav_toolbar_zero_trigger_bounds();
             row_items.push(self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,
-                crate::widgets::toolbar_overflow_icon(matches!(
-                    self.overlay.as_ref().map(|o| &o.content),
-                    Some(crate::state::OverlayContent::ToolbarOverflow)
-                )),
+                crate::widgets::bounds_reporter(
+                    crate::widgets::toolbar_overflow_icon(matches!(
+                        self.overlay.as_ref().map(|o| &o.content),
+                        Some(crate::state::OverlayContent::ToolbarOverflow)
+                    )),
+                    self.toolbar_overflow_btn_bounds.clone(),
+                ),
             ));
         } else {
             if show_tag_filter {

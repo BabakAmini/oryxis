@@ -702,6 +702,17 @@ pub struct Oryxis {
     /// Bounds of the Snippets-toolbar tag-filter button, same role as
     /// `host_tag_filter_btn_bounds` for the Snippets view.
     pub(crate) snippet_tag_filter_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the active toolbar's "+ HOST ▾" / "+ ADD ▾" split
+    /// group (only one renders at a time), so its dropdown anchors to
+    /// the real button instead of a constant estimate that broke as
+    /// soon as the layout (nav orientation, empty state, overflow)
+    /// moved the button. Zeroed by `keynav_toolbar_reset` each build so
+    /// a frame without the button falls back cleanly.
+    pub(crate) toolbar_split_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the active toolbar's sort button, same role.
+    pub(crate) toolbar_sort_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the active toolbar's `…` overflow button, same role.
+    pub(crate) toolbar_overflow_btn_bounds: crate::widgets::BoundsCell,
     /// Search text inside the group picker overlay. Independent of
     /// `cloud_discover_default_group_name` (the input box) so typing
     /// in the picker's filter doesn't overwrite the user's chosen
@@ -1515,6 +1526,42 @@ impl Oryxis {
                     | View::History
             );
         if horizontal_subnav { BASE_Y + SUBNAV_HEIGHT } else { BASE_Y }
+    }
+
+    /// Anchor a toolbar dropdown to its trigger button's last-drawn
+    /// bounds: 2 px below the button, trailing edges aligned (the menu's
+    /// right edge on the button's right edge under LTR; left on left
+    /// under RTL, pre-compensating the render path, which subtracts the
+    /// menu width from `x` there). Anchoring to real bounds makes the
+    /// menu follow the button through every layout the constant estimate
+    /// broke in: vertical nav rail, empty-state toolbars, open side
+    /// panels. Falls back to the legacy trailing-edge estimate when the
+    /// cell is empty (before the first draw, or when the trigger moved
+    /// into the `…` overflow, whose build zeroes the cells via
+    /// `keynav_toolbar_reset`).
+    pub(crate) fn toolbar_menu_anchor(
+        &self,
+        bounds: &crate::widgets::BoundsCell,
+        menu_width: f32,
+        panel_width: f32,
+    ) -> (f32, f32) {
+        let b = bounds.get();
+        if b.width > 0.0 {
+            let x = if crate::i18n::is_rtl_layout() {
+                b.x + menu_width
+            } else {
+                b.x + b.width - menu_width
+            };
+            (x.max(0.0), b.y + b.height + 2.0)
+        } else {
+            let pad = 24.0;
+            let x = if crate::i18n::is_rtl_layout() {
+                panel_width + pad + menu_width
+            } else {
+                self.window_size.width - panel_width - pad - menu_width
+            };
+            (x.max(0.0), self.dashboard_dropdown_anchor_y())
+        }
     }
 
     pub(crate) fn snippet_injection_tab(&self) -> Option<usize> {

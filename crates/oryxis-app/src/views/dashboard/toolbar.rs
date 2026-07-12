@@ -192,10 +192,14 @@ impl Oryxis {
             crate::keynav::ToolbarItem::PrimaryChevron,
             chevron_btn.into(),
         );
-        let action_group: Element<'_, Message> =
+        // Report the split group's on-screen rect so the chevron's
+        // dropdown anchors to the real button (2 px below, trailing
+        // edges aligned) in every layout, vertical rail included.
+        let action_group: Element<'_, Message> = crate::widgets::bounds_reporter(
             dir_row(vec![primary_el, separator.into(), chevron_el])
-                .align_y(iced::Alignment::Center)
-                .into();
+                .align_y(iced::Alignment::Center),
+            self.toolbar_split_btn_bounds.clone(),
+        );
 
         // Context-aware toolbar action: inside a dynamic group there
         // is no "+ host", tasks come from the cloud resolver. Inside
@@ -321,7 +325,13 @@ impl Oryxis {
         // current mode is readable without opening the menu.
         let sort_btn = self.keynav_toolbar_ring(
             crate::keynav::ToolbarItem::Sort,
-            crate::widgets::sort_toolbar_button(crate::state::SortMenuKind::Hosts, self.hosts_sort),
+            crate::widgets::bounds_reporter(
+                crate::widgets::sort_toolbar_button(
+                    crate::state::SortMenuKind::Hosts,
+                    self.hosts_sort,
+                ),
+                self.toolbar_sort_btn_bounds.clone(),
+            ),
         );
 
         // Tag filter, only rendered once at least one host is tagged
@@ -458,10 +468,15 @@ impl Oryxis {
         });
         row_items.push(Space::new().width(10).into());
         if buttons_overflow {
-            // Every action folds into the one `…` menu.
+            // Every action folds into the one `…` menu; the split/sort
+            // triggers are off screen, so blank their anchor cells.
+            self.keynav_toolbar_zero_trigger_bounds();
             row_items.push(self.keynav_toolbar_ring(
                 crate::keynav::ToolbarItem::Overflow,
-                crate::widgets::toolbar_overflow_icon(overflow_open),
+                crate::widgets::bounds_reporter(
+                    crate::widgets::toolbar_overflow_icon(overflow_open),
+                    self.toolbar_overflow_btn_bounds.clone(),
+                ),
             ));
         } else {
             row_items.push(view_toggle);
