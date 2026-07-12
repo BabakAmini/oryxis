@@ -19,8 +19,154 @@
 //! defeating the decrypt-at-sign model. We own the small frozen
 //! protocol instead and use russh's `AgentClient` as the test oracle.
 
-#![allow(dead_code)] // Phase 2 mounts the runtime that calls this.
-
 pub(crate) mod listener;
 pub(crate) mod protocol;
 pub(crate) mod source;
+
+use std::sync::Arc;
+
+use protocol::{ConfirmAsk, ConfirmSender};
+use source::VaultKeySource;
+
+/// The socket / pipe path to show in Settings and setup snippets, or
+/// `None` on a platform without the listener (pre-Phase-3 Windows).
+pub(crate) fn listener_socket_display() -> Option<String> {
+    #[cfg(unix)]
+    {
+        listener::agent_socket_path().map(|p| p.display().to_string())
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+/// The live agent: a dedicated unlocked vault handle serving keys over
+/// the socket while the feature is on. Mirrors `SyncRuntime`: its own
+/// `VaultStore` handle on the same DB file, a background accept task,
+/// and an event receiver the app pumps into the update loop. Dropping
+/// it aborts the task and removes the socket.
+pub(crate) struct AgentRuntime {
+    source: Arc<VaultKeySource>,
+    task: tokio::task::JoinHandle<()>,
+    #[cfg(unix)]
+    socket_path: Option<std::path::PathBuf>,
+}
+
+impl AgentRuntime {
+    /// Open a dedicated vault handle, bind the socket and start
+    /// serving. `confirm` on returns a receiver of per-signature
+    /// prompts the app surfaces; off signs silently. `master_password`
+    /// is `Some` for a password-protected vault, `None` for a
+    /// passwordless one (mirrors the sync runtime).
+    ///
+    /// Returns the bind error (so the toggle can revert) on failure.
+    pub(crate) fn spawn(
+        db_path: &std::path::Path,
+        master_password: Option<&str>,
+        confirm: bool,
+    ) -> Result<(Self, Option<tokio::sync::mpsc::UnboundedReceiver<ConfirmAsk>>), String> {
+        let mut vault = oryxis_vault::VaultStore::open(db_path)
+            .map_err(|e| format!("open agent vault handle: {e}"))?;
+        match master_password {
+            Some(pw) => vault
+                .unlock(pw)
+                .map_err(|e| format!("unlock agent vault handle: {e}"))?,
+            None => vault
+                .open_without_password()
+                .map_err(|e| format!("open agent vault handle: {e}"))?,
+        }
+        let source = Arc::new(VaultKeySource::new(vault));
+
+        let (confirm_tx, confirm_rx): (Option<ConfirmSender>, _) = if confirm {
+            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+            (Some(tx), Some(rx))
+        } else {
+            (None, None)
+        };
+
+        #[cfg(unix)]
+        {
+            let socket_path = listener::agent_socket_path();
+            let src = source.clone();
+            // Bind synchronously enough to surface a busy-socket error:
+            // the accept loop is spawned, but a bind failure returns
+            // from `serve_unix` immediately and the task ends; we probe
+            // for that by attempting the bind here is not trivial in an
+            // async fn, so instead the accept loop reports through the
+            // task and the first real connection would fail. To keep
+            // the toggle honest we do a pre-bind check below.
+            if let Some(path) = &socket_path {
+                pre_bind_check(path)?;
+            }
+            let task = tokio::spawn(async move {
+                if let Err(e) = listener::serve_unix(src, confirm_tx).await {
+                    tracing::warn!(target = "oryxis::agent", error = %e, "agent listener stopped");
+                }
+            });
+            Ok((
+                Self {
+                    source,
+                    task,
+                    socket_path,
+                },
+                confirm_rx,
+            ))
+        }
+        #[cfg(not(unix))]
+        {
+            // Windows named pipe lands in Phase 3; until then the
+            // feature is unix-only and the toggle should stay hidden
+            // there.
+            let _ = (source, confirm_tx);
+            let task = tokio::spawn(async {});
+            Ok((Self { source, task }, confirm_rx))
+        }
+    }
+
+    /// Flip the source's gate + lock the dedicated handle on vault lock.
+    pub(crate) fn lock(&self) {
+        self.source.lock();
+    }
+
+    /// Re-unlock the dedicated handle when the app vault unlocks.
+    pub(crate) fn unlock(&self, master_password: Option<&str>) {
+        self.source.unlock(master_password);
+    }
+
+    /// Abort the accept task and remove the socket.
+    pub(crate) fn shutdown(self) {
+        self.task.abort();
+        #[cfg(unix)]
+        if let Some(path) = &self.socket_path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+impl Drop for AgentRuntime {
+    fn drop(&mut self) {
+        self.task.abort();
+        #[cfg(unix)]
+        if let Some(path) = &self.socket_path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Surface a busy socket before spawning the accept loop, so the
+/// enable toggle can revert with a clear error instead of a silent
+/// dead listener. Removes a stale (dead) socket file so the bind can
+/// proceed.
+#[cfg(unix)]
+fn pre_bind_check(path: &std::path::Path) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    // A live agent already owns the path: refuse.
+    if std::os::unix::net::UnixStream::connect(path).is_ok() {
+        return Err("another agent is already listening on the socket".to_string());
+    }
+    // Stale file from a crash: remove it so `serve_unix` can bind.
+    std::fs::remove_file(path).map_err(|e| format!("remove stale socket: {e}"))
+}

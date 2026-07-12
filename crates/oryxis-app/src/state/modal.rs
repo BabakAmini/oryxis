@@ -65,6 +65,12 @@ pub(crate) enum Modal {
     SftpProperties,
     SftpOverwrite,
     SftpPicker,
+    /// The ssh-agent per-signature confirm prompt (`agent.pending_confirm`,
+    /// B1). A blocking security prompt like `HostKey`: it MUST block input
+    /// (Enter must never fall through to the PTY behind it) and Esc denies
+    /// the signature (the safe default). In `ESC_ORDER` next to `HostKey`
+    /// so the Esc router and the modal-keynav router both reach it.
+    AgentConfirm,
 }
 
 impl Modal {
@@ -97,6 +103,7 @@ impl Modal {
         Modal::SftpProperties,
         Modal::SftpOverwrite,
         Modal::SftpPicker,
+        Modal::AgentConfirm,
     ];
 
     /// Modals Esc dismisses, in topmost-first priority order (the order
@@ -116,6 +123,8 @@ impl Modal {
         Modal::SnippetVars,
         // A security prompt: Esc rejects the host key (safe default).
         Modal::HostKey,
+        // Sibling security prompt: Esc denies the signature (safe default).
+        Modal::AgentConfirm,
         // The error dialog can pop over another flow, so it dismisses
         // before the heavier editors below; the two confirm dialogs
         // follow in the same lightweight-confirm group.
@@ -162,7 +171,8 @@ impl Modal {
             | Modal::SftpNewEntry
             | Modal::SftpProperties
             | Modal::SftpOverwrite
-            | Modal::SftpPicker => true,
+            | Modal::SftpPicker
+            | Modal::AgentConfirm => true,
         }
     }
 }
@@ -202,10 +212,11 @@ mod tests {
                 | Modal::SftpNewEntry
                 | Modal::SftpProperties
                 | Modal::SftpOverwrite
-                | Modal::SftpPicker => {}
+                | Modal::SftpPicker
+                | Modal::AgentConfirm => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 26, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 27, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

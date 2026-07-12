@@ -486,6 +486,19 @@ impl Oryxis {
                 self.download_mirror.choice = choice.clone();
                 crate::net_mirror::set_choice(choice);
             }
+            self.agent.confirm = vault
+                .get_setting("agent_server_confirm")
+                .ok()
+                .flatten()
+                .map(|v| v != "false")
+                .unwrap_or(true);
+            // The agent runtime is started after boot (needs the live
+            // vault handle + master password); remember the desired
+            // state so the post-unlock hook can start it.
+            self.agent.enabled = matches!(
+                vault.get_setting("agent_server_enabled"),
+                Ok(Some(ref v)) if v == "true"
+            );
             if let Ok(Some(v)) = vault.get_setting("close_to_tray") {
                 self.setting_close_to_tray = v == "true";
             }

@@ -161,6 +161,118 @@ impl Oryxis {
         dialog_content.into()
     }
 
+    /// The ssh-agent per-signature confirm card: a tool is asking the
+    /// agent to sign with a vault key. Shows the key label, its SHA-256
+    /// fingerprint, the requesting process (when known), a "remember
+    /// this key this session" checkbox, and Deny / Allow. Deny is the
+    /// default (Enter confirms the ringed default = Allow only when the
+    /// user Tabs to it; the safe default is the initial ring on Deny,
+    /// handled by the keynav router).
+    pub(crate) fn build_agent_confirm_dialog(
+        &self,
+        card: &crate::state::AgentConfirmCard,
+    ) -> Element<'_, Message> {
+        self.modal_nav_reset();
+        let always = self.agent_confirm_always();
+
+        let mut info = column![
+            text(crate::i18n::t("agent_confirm_title"))
+                .size(16)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(6),
+            text(crate::i18n::t("agent_confirm_body"))
+                .size(13)
+                .color(OryxisColors::t().text_secondary),
+            Space::new().height(12),
+            crate::widgets::panel_field(
+                crate::i18n::t("agent_confirm_key"),
+                text(card.key_comment.clone())
+                    .size(13)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+            ),
+            Space::new().height(8),
+            crate::widgets::panel_field(
+                crate::i18n::t("key_fingerprint"),
+                text(card.key_fingerprint.clone())
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+            ),
+        ];
+        if let Some(peer) = &card.peer {
+            info = info.push(Space::new().height(8));
+            info = info.push(crate::widgets::panel_field(
+                crate::i18n::t("agent_confirm_process"),
+                text(peer.clone())
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+            ));
+        }
+
+        let always_row = self.modal_nav_slot(
+            crate::keynav::RowAction::activate(Message::AgentConfirmToggleAlways),
+            4.0,
+            false,
+            iced::widget::checkbox(always)
+                .label(crate::i18n::t("agent_confirm_always_session"))
+                .on_toggle(|_| Message::AgentConfirmToggleAlways)
+                .size(16)
+                .text_size(13)
+                .into(),
+        );
+
+        let buttons = row![
+            self.modal_nav_slot_default(
+                crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
+                    allow: false,
+                    always: false,
+                }),
+                6.0,
+                true,
+                styled_button(
+                    crate::i18n::t("agent_confirm_deny"),
+                    Message::AgentConfirmDecision { allow: false, always: false },
+                    OryxisColors::t().error,
+                ),
+            ),
+            Space::new().width(8),
+            self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
+                    allow: true,
+                    always,
+                }),
+                6.0,
+                false,
+                styled_button(
+                    crate::i18n::t("agent_confirm_allow"),
+                    Message::AgentConfirmDecision { allow: true, always },
+                    OryxisColors::t().accent,
+                ),
+            ),
+        ];
+
+        let dialog = container(
+            column![
+                info,
+                Space::new().height(12),
+                always_row,
+                Space::new().height(16),
+                buttons,
+            ]
+            .padding(24)
+            .width(400),
+        )
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
+            ..Default::default()
+        });
+        dialog.into()
+    }
+
     /// Content for the SSH-config import preview (per-host checklist with
     /// select/deselect all, then Import + Cancel).
     pub(crate) fn build_ssh_import_dialog(&self) -> Element<'_, Message> {

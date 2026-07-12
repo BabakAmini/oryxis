@@ -21,6 +21,24 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::source::{AgentKeySource, AgentSignError, SignHash};
 
+/// A per-signature confirmation request handed to the UI. The agent
+/// blocks the sign until `respond` carries the user's decision (or a
+/// timeout / drop denies). Sent on the [`ConfirmSender`] the runtime
+/// wires in when the confirm setting is on.
+pub(crate) struct ConfirmAsk {
+    pub key_comment: String,
+    pub key_fingerprint: String,
+    /// Best-effort requesting process, when the platform exposes it.
+    pub peer: Option<String>,
+    pub respond: tokio::sync::oneshot::Sender<bool>,
+}
+
+pub(crate) type ConfirmSender = tokio::sync::mpsc::UnboundedSender<ConfirmAsk>;
+
+/// How long a confirm prompt waits before denying by default, so a
+/// forgotten prompt never wedges a `git` call forever.
+const CONFIRM_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// Frame size cap, matching russh's `MAX_AGENT_FRAME_LEN`. A real
 /// request is a few hundred bytes; anything past 256 KiB is broken or
 /// hostile and drops the connection.
@@ -41,7 +59,12 @@ const SSH_AGENT_RSA_SHA2_512: u32 = 4;
 /// Serve a single agent connection until the peer hangs up or sends a
 /// malformed / oversized frame. Each connection is its own task, so a
 /// bad frame kills only this connection.
-pub(crate) async fn serve_connection<S, K>(mut stream: S, source: &K) -> std::io::Result<()>
+pub(crate) async fn serve_connection<S, K>(
+    mut stream: S,
+    source: &K,
+    confirm: Option<&ConfirmSender>,
+    peer: Option<&str>,
+) -> std::io::Result<()>
 where
     S: AsyncRead + AsyncWrite + Unpin,
     K: AgentKeySource,
@@ -65,8 +88,15 @@ where
         let mut payload = vec![0u8; len];
         stream.read_exact(&mut payload).await?;
 
-        let response = respond(&payload, source);
-        // Length-prefixed reply.
+        // The sync-answerable messages (identities, unknown, write ops)
+        // resolve without I/O; SIGN_REQUEST may await a confirm prompt.
+        let response = match respond_readonly(&payload, source) {
+            Some(resp) => resp,
+            None => {
+                let body = &payload[1..];
+                sign_response(body, source, confirm, peer).await
+            }
+        };
         stream
             .write_all(&(response.len() as u32).to_be_bytes())
             .await?;
@@ -75,18 +105,16 @@ where
     }
 }
 
-/// Build the response payload for one request payload. Pure (no I/O):
-/// the connection loop owns the framing, this owns the semantics.
-fn respond<K: AgentKeySource>(payload: &[u8], source: &K) -> Vec<u8> {
-    let Some((&kind, body)) = payload.split_first() else {
-        return vec![SSH_AGENT_FAILURE];
-    };
-    match kind {
-        SSH_AGENTC_REQUEST_IDENTITIES => identities_answer(source),
-        SSH_AGENTC_SIGN_REQUEST => sign_response(body, source),
-        // Read-only provider: ADD (17/25), REMOVE (18/19), LOCK (22),
-        // UNLOCK (23), extensions (27), everything else -> FAILURE.
-        _ => vec![SSH_AGENT_FAILURE],
+/// Response for every message that resolves synchronously. Returns
+/// `None` only for `SIGN_REQUEST`, which the async caller handles (it
+/// may block on a confirm prompt). A read-only provider answers
+/// FAILURE to every write op (ADD 17/25, REMOVE 18/19, LOCK 22,
+/// UNLOCK 23, extensions 27) and to anything unrecognized.
+fn respond_readonly<K: AgentKeySource>(payload: &[u8], source: &K) -> Option<Vec<u8>> {
+    match payload.split_first() {
+        Some((&SSH_AGENTC_REQUEST_IDENTITIES, _)) => Some(identities_answer(source)),
+        Some((&SSH_AGENTC_SIGN_REQUEST, _)) => None,
+        _ => Some(vec![SSH_AGENT_FAILURE]),
     }
 }
 
@@ -108,8 +136,15 @@ fn identities_answer<K: AgentKeySource>(source: &K) -> Vec<u8> {
 }
 
 /// `SSH_AGENT_SIGN_RESPONSE`: the signature wire blob as a string.
-/// Request body is `string key_blob, string data, uint32 flags`.
-fn sign_response<K: AgentKeySource>(body: &[u8], source: &K) -> Vec<u8> {
+/// Request body is `string key_blob, string data, uint32 flags`. When
+/// `confirm` is set, the user must allow the signature first (a deny,
+/// timeout or closed channel yields FAILURE, the safe default).
+async fn sign_response<K: AgentKeySource>(
+    body: &[u8],
+    source: &K,
+    confirm: Option<&ConfirmSender>,
+    peer: Option<&str>,
+) -> Vec<u8> {
     let mut reader = body;
     let parsed = (|| -> Result<(Vec<u8>, Vec<u8>, u32), ssh_encoding::Error> {
         let key_blob = Vec::<u8>::decode(&mut reader)?;
@@ -121,6 +156,18 @@ fn sign_response<K: AgentKeySource>(body: &[u8], source: &K) -> Vec<u8> {
     let Ok((key_blob, data, flags)) = parsed else {
         return vec![SSH_AGENT_FAILURE];
     };
+
+    // The key must be one we currently expose; look it up for the
+    // confirm card and to reject unknown blobs before signing.
+    let Some(exposed) = source.list().into_iter().find(|k| k.blob == key_blob) else {
+        return vec![SSH_AGENT_FAILURE];
+    };
+
+    if let Some(sender) = confirm
+        && !ask_confirm(sender, &exposed, &key_blob, peer).await
+    {
+        return vec![SSH_AGENT_FAILURE];
+    }
 
     let hash = if flags & SSH_AGENT_RSA_SHA2_512 != 0 {
         SignHash::Sha512
@@ -144,6 +191,38 @@ fn sign_response<K: AgentKeySource>(body: &[u8], source: &K) -> Vec<u8> {
             }
             vec![SSH_AGENT_FAILURE]
         }
+    }
+}
+
+/// Send a confirm prompt and await the decision, denying on timeout or
+/// a dropped channel (the UI went away).
+async fn ask_confirm(
+    sender: &ConfirmSender,
+    key: &super::source::AgentPublicKey,
+    key_blob: &[u8],
+    peer: Option<&str>,
+) -> bool {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let ask = ConfirmAsk {
+        key_comment: key.comment.clone(),
+        key_fingerprint: fingerprint_of(key_blob),
+        peer: peer.map(str::to_owned),
+        respond: tx,
+    };
+    if sender.send(ask).is_err() {
+        return false;
+    }
+    matches!(tokio::time::timeout(CONFIRM_TIMEOUT, rx).await, Ok(Ok(true)))
+}
+
+/// SHA-256 fingerprint (`SHA256:...`) of a public-key wire blob, for
+/// the confirm card. Best-effort: an unparseable blob shows a
+/// placeholder rather than failing the sign path.
+fn fingerprint_of(blob: &[u8]) -> String {
+    let mut reader = blob;
+    match ssh_key::public::KeyData::decode(&mut reader) {
+        Ok(data) => data.fingerprint(ssh_key::HashAlg::Sha256).to_string(),
+        Err(_) => "SHA256:?".to_string(),
     }
 }
 
@@ -180,7 +259,7 @@ mod tests {
         let (client_side, server_side) = tokio::io::duplex(64 * 1024);
         let server_source = source.clone();
         let server = tokio::spawn(async move {
-            let _ = serve_connection(server_side, server_source.as_ref()).await;
+            let _ = serve_connection(server_side, server_source.as_ref(), None, None).await;
         });
 
         let mut client = AgentClient::connect(client_side);
@@ -277,7 +356,7 @@ mod tests {
         let (client_side, server_side) = tokio::io::duplex(64 * 1024);
         let server_source = source.clone();
         let server = tokio::spawn(async move {
-            let _ = serve_connection(server_side, server_source.as_ref()).await;
+            let _ = serve_connection(server_side, server_source.as_ref(), None, None).await;
         });
 
         let mut client = AgentClient::connect(client_side);
@@ -292,12 +371,14 @@ mod tests {
     fn unknown_message_and_write_ops_fail() {
         let source = MockKeySource::new(vec![]);
         // Unknown type.
-        assert_eq!(respond(&[99], &source), vec![SSH_AGENT_FAILURE]);
+        assert_eq!(respond_readonly(&[99], &source), Some(vec![SSH_AGENT_FAILURE]));
         // ADD_IDENTITY (17), REMOVE (18), LOCK (22): all FAILURE.
         for op in [17u8, 18, 19, 22, 23, 25, 27] {
-            assert_eq!(respond(&[op], &source), vec![SSH_AGENT_FAILURE], "op {op}");
+            assert_eq!(respond_readonly(&[op], &source), Some(vec![SSH_AGENT_FAILURE]), "op {op}");
         }
         // Empty payload.
-        assert_eq!(respond(&[], &source), vec![SSH_AGENT_FAILURE]);
+        assert_eq!(respond_readonly(&[], &source), Some(vec![SSH_AGENT_FAILURE]));
+        // SIGN_REQUEST is the async path: readonly declines it.
+        assert_eq!(respond_readonly(&[13, 0, 0, 0, 0], &source), None);
     }
 }

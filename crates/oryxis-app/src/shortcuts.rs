@@ -154,6 +154,7 @@ impl Oryxis {
             // the progress screen and has no focused PTY behind it) is
             // gated separately by `connecting.is_none()` at the render site.
             Modal::HostKey => self.pending_host_key.is_some(),
+            Modal::AgentConfirm => self.agent.pending_confirm.is_some(),
             Modal::ThemeEditor => self.theme_editor.is_some(),
             Modal::ThemeImport => self.show_theme_import,
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
@@ -220,6 +221,16 @@ impl Oryxis {
                 self.pending_host_key = None;
                 if let Some(tx) = self.active_host_key_tx.take() {
                     let _ = tx.try_send(false);
+                }
+            }
+            // Esc denies the signature (safe default), firing the
+            // responder so the waiting sign task gets its answer.
+            Modal::AgentConfirm => {
+                if let Some(card) = self.agent.pending_confirm.take()
+                    && let Ok(mut slot) = card.responder.lock()
+                    && let Some(tx) = slot.take()
+                {
+                    let _ = tx.send(false);
                 }
             }
             Modal::ThemeEditor => {

@@ -1613,6 +1613,9 @@ impl Oryxis {
                     // completion by the locked-vault check).
                     self.show_key_generate_panel = false;
                     self.key_generate_form = crate::state::KeyGenerateForm::default();
+                    // The ssh-agent goes dark (keys ungated) while locked;
+                    // the listener stays up so a `git` sees an empty agent.
+                    self.agent_on_lock();
                     self.overlay = None;
                     self.card_context_menu = None;
                     // A master-password candidate typed into the change /
@@ -1755,6 +1758,8 @@ impl Oryxis {
                         // feeds biometric enroll and the MCP config
                         // embed; neither may outlive the vault key).
                         self.master_password = None;
+                        // ssh-agent goes dark on lock (listener stays up).
+                        self.agent_on_lock();
                         // And the MCP panel's typed confirm buffer.
                         self.mcp.vault_pw_prompt = None;
                         self.mcp.vault_pw_error = false;

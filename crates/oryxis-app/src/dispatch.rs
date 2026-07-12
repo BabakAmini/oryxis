@@ -151,6 +151,7 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_port_forwards);
         let message = try_handler!(self, message, handle_settings);
         let message = try_handler!(self, message, handle_keys);
+        let message = try_handler!(self, message, handle_agent);
         let message = try_handler!(self, message, handle_proxy_identity);
         let message = try_handler!(self, message, handle_plugins);
         let message = try_handler!(self, message, handle_cloud);

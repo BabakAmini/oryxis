@@ -78,6 +78,8 @@ impl Oryxis {
                         Message::SettingToggleRemoteDesktop,
                     ),
                 ),
+                Space::new().height(12),
+                self.agent_server_rows(),
             ]),
             Space::new().height(18).into(),
             // Plugins list header: subtitle on the leading edge, the
@@ -287,6 +289,95 @@ impl Oryxis {
 
         // Bare card; `widgets::modal_overlay` (the caller) centers + scrims.
         dialog.into()
+    }
+
+    /// The ssh-agent feature rows: the enable toggle, and (when on) the
+    /// per-signature confirm toggle plus the socket path and two setup
+    /// snippets with copy buttons. Off unix (pre-Phase-3 Windows) the
+    /// whole block is hidden.
+    fn agent_server_rows(&self) -> Element<'_, Message> {
+        // No socket path means no listener on this platform: hide it.
+        let Some(socket) = crate::agent_server::listener_socket_display() else {
+            return Space::new().height(0).into();
+        };
+
+        let toggle = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::AgentServerToggled(!self.agent.enabled)),
+            8.0,
+            toggle_row_desc(
+                crate::i18n::t("agent_server"),
+                crate::i18n::t("agent_server_desc"),
+                self.agent.enabled,
+                Message::AgentServerToggled(!self.agent.enabled),
+            ),
+        );
+
+        if !self.agent.enabled {
+            // Toggle-hidden rule: only the enable row shows when off.
+            let mut col = column![toggle];
+            if let Some(err) = &self.agent.error {
+                col = col.push(Space::new().height(6));
+                col = col.push(text(err.clone()).size(11).color(OryxisColors::t().error));
+            }
+            return col.into();
+        }
+
+        let confirm = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::AgentConfirmToggled(!self.agent.confirm)),
+            8.0,
+            toggle_row_desc(
+                crate::i18n::t("agent_server_confirm"),
+                crate::i18n::t("agent_server_confirm_desc"),
+                self.agent.confirm,
+                Message::AgentConfirmToggled(!self.agent.confirm),
+            ),
+        );
+
+        let copy_btn = |label_key: &'static str, msg: Message| -> Element<'_, Message> {
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(msg.clone()),
+                6.0,
+                crate::widgets::styled_button(
+                    crate::i18n::t(label_key),
+                    msg,
+                    OryxisColors::t().bg_selected,
+                ),
+            )
+        };
+
+        let path_row = dir_row(vec![
+            text(socket)
+                .size(11)
+                .font(iced::Font::MONOSPACE)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+            Space::new().width(Length::Fill).into(),
+            copy_btn("agent_server_copy_path", Message::CopyAgentPath),
+        ])
+        .align_y(iced::Alignment::Center);
+
+        column![
+            toggle,
+            Space::new().height(12),
+            confirm,
+            Space::new().height(12),
+            crate::widgets::panel_field(crate::i18n::t("agent_server_path"), path_row.into()),
+            Space::new().height(10),
+            dir_row(vec![
+                copy_btn(
+                    "agent_server_snippet_env",
+                    Message::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv),
+                ),
+                Space::new().width(8).into(),
+                copy_btn(
+                    "agent_server_snippet_ssh_config",
+                    Message::CopyAgentSnippet(crate::state::AgentSnippetKind::SshConfig),
+                ),
+            ]),
+        ]
+        .width(Length::Fill)
+        .align_x(dir_align_x())
+        .into()
     }
 }
 

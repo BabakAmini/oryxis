@@ -86,7 +86,9 @@ impl Oryxis {
                     | Modal::ClearHistoryConfirm
                     | Modal::SshImport
                     | Modal::ShareDialog
-                    | Modal::CloudImportConfirm => SurfaceFamily::Confirm,
+                    | Modal::CloudImportConfirm
+                    // Security prompt: Deny is the default-ringed action.
+                    | Modal::AgentConfirm => SurfaceFamily::Confirm,
                     // Rename inputs (on_submit), editors, pickers with
                     // their own model: out of this layer.
                     _ => return None,

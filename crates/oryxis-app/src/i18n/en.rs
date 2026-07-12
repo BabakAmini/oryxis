@@ -630,6 +630,25 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mcp_install_failed" => "Install failed",
         "mcp_installed_to" => "Written to",
 
+        // SSH agent server (B1)
+        "agent_server" => "SSH Agent",
+        "agent_server_desc" => "Serve your unlocked vault keys to git, VS Code and other tools over a local agent socket",
+        "agent_server_confirm" => "Confirm each use",
+        "agent_server_confirm_desc" => "Ask for approval before signing with a key",
+        "agent_server_path" => "Agent socket",
+        "agent_server_copy_path" => "Copy path",
+        "agent_server_snippet_env" => "Copy SSH_AUTH_SOCK",
+        "agent_server_snippet_ssh_config" => "Copy IdentityAgent",
+        "agent_confirm_title" => "Allow key use?",
+        "agent_confirm_body" => "A program is asking to sign with one of your vault keys.",
+        "agent_confirm_key" => "Key",
+        "agent_confirm_process" => "Program",
+        "agent_confirm_always_session" => "Allow this key for the rest of the session",
+        "agent_confirm_deny" => "Deny",
+        "agent_confirm_allow" => "Allow",
+        "agent_key_exposed" => "Exposed to agent",
+        "agent_key_hidden" => "Hidden from agent",
+
         // Export / Import
         "export_vault" => "Export Vault",
         "import_vault" => "Import Vault",

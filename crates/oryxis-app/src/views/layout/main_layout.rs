@@ -295,6 +295,22 @@ impl Oryxis {
             );
         }
 
+        // ssh-agent per-signature confirmation: a security prompt with a
+        // 60s deny-by-default timeout, so it takes priority over the
+        // lower-stakes modals below. Clicking outside denies (safe
+        // default), the same as pressing Deny.
+        if let Some(ref card) = self.agent.pending_confirm {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.build_agent_confirm_dialog(card),
+                    Some(Message::AgentConfirmDecision { allow: false, always: false }),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Careful-paste confirmation: a clipboard paste containing a line
         // break is parked in `pending_paste` and previewed here (line
         // count + first lines) before anything reaches the session, so a

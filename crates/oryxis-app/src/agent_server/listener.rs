@@ -18,7 +18,7 @@ mod unix {
 
     use tokio::net::UnixListener;
 
-    use super::super::protocol::serve_connection;
+    use super::super::protocol::{serve_connection, ConfirmSender};
     use super::super::source::AgentKeySource;
 
     /// `~/.oryxis/agent.sock`, the fixed path the user points
@@ -28,9 +28,13 @@ mod unix {
     }
 
     /// Bind the socket and accept forever, serving each connection with
-    /// `source`. Returns on bind failure (surfaced to the toggle) or
-    /// when the task is aborted (toggle off / shutdown).
-    pub(crate) async fn serve_unix<K>(source: Arc<K>) -> std::io::Result<()>
+    /// `source`. `confirm` is `Some` when the per-signature prompt is
+    /// on. Returns on bind failure (surfaced to the toggle) or when the
+    /// task is aborted (toggle off / shutdown).
+    pub(crate) async fn serve_unix<K>(
+        source: Arc<K>,
+        confirm: Option<ConfirmSender>,
+    ) -> std::io::Result<()>
     where
         K: AgentKeySource + 'static,
     {
@@ -65,11 +69,40 @@ mod unix {
         loop {
             let (stream, _addr) = listener.accept().await?;
             let source = source.clone();
+            let confirm = confirm.clone();
+            // Best-effort requesting process (SO_PEERCRED pid -> name);
+            // shown on the confirm card when resolvable.
+            let peer = stream.peer_cred().ok().and_then(|c| peer_name(c.pid()));
             tokio::spawn(async move {
-                if let Err(e) = serve_connection(stream, source.as_ref()).await {
+                if let Err(e) =
+                    serve_connection(stream, source.as_ref(), confirm.as_ref(), peer.as_deref())
+                        .await
+                {
                     tracing::debug!(target = "oryxis::agent", error = %e, "connection ended");
                 }
             });
+        }
+    }
+
+    /// Resolve a pid to a process name via `/proc/<pid>/comm` (Linux)
+    /// or `ps` (other unix). Best-effort and racy by design; the
+    /// confirm card shows it only when it resolves.
+    fn peer_name(pid: Option<i32>) -> Option<String> {
+        let pid = pid?;
+        #[cfg(target_os = "linux")]
+        {
+            let comm = std::fs::read_to_string(format!("/proc/{pid}/comm")).ok()?;
+            let name = comm.trim();
+            (!name.is_empty()).then(|| format!("{name} (pid {pid})"))
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let out = std::process::Command::new("ps")
+                .args(["-p", &pid.to_string(), "-o", "comm="])
+                .output()
+                .ok()?;
+            let name = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            (!name.is_empty()).then(|| format!("{name} (pid {pid})"))
         }
     }
 
@@ -118,7 +151,7 @@ mod unix {
                 let listener = tokio::net::UnixListener::bind(&sock2).unwrap();
                 std::fs::set_permissions(&sock2, std::fs::Permissions::from_mode(0o600)).unwrap();
                 let (stream, _) = listener.accept().await.unwrap();
-                serve_connection(stream, src.as_ref()).await.unwrap();
+                serve_connection(stream, src.as_ref(), None, None).await.unwrap();
             });
 
             // Give the bind a moment, then check perms + drive it.

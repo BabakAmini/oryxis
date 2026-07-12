@@ -239,6 +239,7 @@ impl VaultStore {
         // saved proxy config instead of an inline one. NULL on cascade
         // when the referenced identity is deleted.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN proxy_identity_id TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE keys ADD COLUMN expose_via_agent INTEGER NOT NULL DEFAULT 1;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN terminal_theme TEXT;");
         // Cloud-managed handle for hosts imported from a `cloud_profiles`
         // row (EC2 in v0.6). JSON-encoded `CloudRef`. NULL for manual hosts.

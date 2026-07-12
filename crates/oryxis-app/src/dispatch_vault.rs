@@ -48,6 +48,7 @@ impl Oryxis {
                             self.load_data_from_vault();
                             return Ok(Task::batch([
                                 bio_task,
+                                self.agent_boot_task(),
                                 self.take_perf_mode_toast_task(),
                                 iced::widget::operation::focus(iced::widget::Id::new(
                                     "search-dashboard",
@@ -68,6 +69,7 @@ impl Oryxis {
                             self.vault_ui.error = None;
                             self.load_data_from_vault();
                             return Ok(Task::batch([
+                                self.agent_boot_task(),
                                 self.take_perf_mode_toast_task(),
                                 iced::widget::operation::focus(iced::widget::Id::new(
                                     "search-dashboard",
@@ -130,6 +132,9 @@ impl Oryxis {
                             // (a one-time fallback choice shouldn't stick).
                             self.vault_ui.password_fallback = false;
                             self.load_data_from_vault();
+                            // Re-arm the ssh-agent's dedicated handle if a
+                            // runtime survived a soft lock.
+                            self.agent_on_unlock();
                             // Bring the sync engine up now that the
                             // vault is open, if the user left it on. Only
                             // the P2P transport has a background engine;
@@ -152,6 +157,8 @@ impl Oryxis {
                             unlock_tasks.extend(self.spawn_plugin_unlock_tasks());
                             // One-time performance-mode auto-enable notice.
                             unlock_tasks.push(self.take_perf_mode_toast_task());
+                            // Bring the ssh-agent up if the user left it on.
+                            unlock_tasks.push(self.agent_boot_task());
                             // After a manual unlock, fire any deferred
                             // `--connect <uuid>` from the launch CLI args.
                             if let Some(connect_id) = self.pending_auto_connect.take()

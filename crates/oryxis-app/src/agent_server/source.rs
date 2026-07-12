@@ -35,8 +35,6 @@ pub(crate) enum AgentSignError {
     Unavailable,
     /// The key material could not be parsed or the signature failed.
     SignFailed(String),
-    /// The user (or a timeout) denied the per-signature confirmation.
-    Denied,
 }
 
 /// The RSA hash the client asked for, decoded from the `SIGN_REQUEST`
@@ -81,6 +79,128 @@ pub(crate) trait AgentKeySource: Send + Sync {
         data: &[u8],
         hash: SignHash,
     ) -> Result<Vec<u8>, AgentSignError>;
+}
+
+/// The production [`AgentKeySource`]: a dedicated unlocked `VaultStore`
+/// handle (its own SQLite handle on the same file, like `sync_runtime`;
+/// WAL keeps concurrent handles safe). Keys are advertised by their
+/// public blob; the private key is decrypted only inside [`sign`] and
+/// dropped immediately. A `locked` gate flips on vault lock so the
+/// agent goes dark without tearing down the listener.
+pub(crate) struct VaultKeySource {
+    vault: std::sync::Mutex<oryxis_vault::VaultStore>,
+    locked: std::sync::atomic::AtomicBool,
+}
+
+impl VaultKeySource {
+    pub(crate) fn new(vault: oryxis_vault::VaultStore) -> Self {
+        Self {
+            vault: std::sync::Mutex::new(vault),
+            locked: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Flip the gate and lock the dedicated handle (zeroize its key) so
+    /// nothing can be decrypted while the app vault is locked.
+    pub(crate) fn lock(&self) {
+        self.locked.store(true, std::sync::atomic::Ordering::SeqCst);
+        if let Ok(mut v) = self.vault.lock() {
+            v.lock();
+        }
+    }
+
+    /// Re-unlock the dedicated handle with the master password and open
+    /// the gate. `None` password re-opens a passwordless vault.
+    pub(crate) fn unlock(&self, master_password: Option<&str>) {
+        if let Ok(mut v) = self.vault.lock() {
+            let ok = match master_password {
+                Some(pw) => v.unlock(pw).is_ok(),
+                None => v.open_without_password().is_ok(),
+            };
+            if ok {
+                self.locked.store(false, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+    }
+
+    /// The public blob (KeyData wire encoding) of a stored key's
+    /// OpenSSH public line, or `None` when it does not parse.
+    fn blob_of(public_line: &str) -> Option<Vec<u8>> {
+        use ssh_encoding::Encode;
+        let pk = ssh_key::PublicKey::from_openssh(public_line).ok()?;
+        let mut blob = Vec::new();
+        pk.key_data().encode(&mut blob).ok()?;
+        Some(blob)
+    }
+}
+
+impl AgentKeySource for VaultKeySource {
+    fn list(&self) -> Vec<AgentPublicKey> {
+        if self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+            return Vec::new();
+        }
+        let Ok(vault) = self.vault.lock() else {
+            return Vec::new();
+        };
+        vault
+            .list_keys()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|k| k.expose_via_agent)
+            .filter_map(|k| {
+                Self::blob_of(&k.public_key).map(|blob| AgentPublicKey {
+                    blob,
+                    comment: k.label,
+                })
+            })
+            .collect()
+    }
+
+    fn sign(
+        &self,
+        key_blob: &[u8],
+        data: &[u8],
+        hash: SignHash,
+    ) -> Result<Vec<u8>, AgentSignError> {
+        use ssh_encoding::Encode;
+        use ssh_key::private::KeypairData;
+        use ssh_key::PrivateKey;
+
+        if self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(AgentSignError::Unavailable);
+        }
+        let vault = self.vault.lock().map_err(|_| AgentSignError::Unavailable)?;
+
+        // Find the exposed key whose public blob matches, then decrypt
+        // exactly that one private key.
+        let key = vault
+            .list_keys()
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?
+            .into_iter()
+            .find(|k| {
+                k.expose_via_agent && Self::blob_of(&k.public_key).as_deref() == Some(key_blob)
+            })
+            .ok_or(AgentSignError::UnknownKey)?;
+
+        let pem = vault
+            .get_key_private(&key.id)
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?
+            .ok_or(AgentSignError::Unavailable)?;
+        // The decrypted key is zeroized on drop by ssh_key.
+        let private = PrivateKey::from_openssh(&pem)
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
+
+        let sig: ssh_key::Signature = match private.key_data() {
+            KeypairData::Rsa(pair) => signature::Signer::try_sign(&(pair, hash.rsa_hash()), data)
+                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
+            _ => signature::Signer::try_sign(&private, data)
+                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
+        };
+        let mut out = Vec::new();
+        sig.encode(&mut out)
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
+        Ok(out)
+    }
 }
 
 #[cfg(test)]

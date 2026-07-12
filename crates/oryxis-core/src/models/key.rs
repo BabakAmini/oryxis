@@ -10,8 +10,19 @@ pub struct SshKey {
     pub public_key: String,
     pub file_ref: String,
     pub has_passphrase: bool,
+    /// Whether the Oryxis ssh-agent may serve this key (B1). Defaults
+    /// to true so keys are exposed out of the box and old payloads /
+    /// DB rows read as exposed (the `keepalive_interval` legacy-default
+    /// precedent); the agent feature itself is off by default, so this
+    /// only takes effect once the user turns the agent on.
+    #[serde(default = "default_true")]
+    pub expose_via_agent: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl SshKey {
@@ -25,6 +36,7 @@ impl SshKey {
             public_key: String::new(),
             file_ref: String::new(),
             has_passphrase: false,
+            expose_via_agent: true,
             created_at: now,
             updated_at: now,
         }

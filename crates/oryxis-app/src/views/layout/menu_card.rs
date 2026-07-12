@@ -137,10 +137,29 @@ impl Oryxis {
     }
 
     pub(crate) fn build_menu_key_actions(&self, idx: usize) -> Element<'_, Message> {
-        column![
+        let mut items = column![
             self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditKey(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error),
-        ].into()
+        ];
+        // Expose-via-agent toggle: only offered while the agent server
+        // is running, so it stays out of the menu for users who never
+        // turned the feature on. A check glyph marks the current state.
+        if self.agent.enabled
+            && let Some(key) = self.keys.get(idx)
+        {
+            let (glyph, label) = if key.expose_via_agent {
+                (iced_fonts::lucide::circle_check(), crate::i18n::t("agent_key_exposed"))
+            } else {
+                (iced_fonts::lucide::circle(), crate::i18n::t("agent_key_hidden"))
+            };
+            items = items.push(self.menu_item(
+                glyph,
+                label,
+                Message::KeyExposeViaAgentToggled(key.id),
+                OryxisColors::t().text_secondary,
+            ));
+        }
+        items = items.push(self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error));
+        items.into()
     }
 
     pub(crate) fn build_menu_identity_actions(&self, idx: usize) -> Element<'_, Message> {

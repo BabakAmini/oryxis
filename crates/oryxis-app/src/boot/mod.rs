@@ -533,6 +533,7 @@ impl Oryxis {
                 setting_privacy_mode: false,
                 setting_debug_logging: false,
                 download_mirror: Default::default(),
+                agent: crate::state::AgentState::default(),
                 privacy_revealed: false,
                 setting_close_to_tray: false,
                 setting_minimize_to_tray: false,

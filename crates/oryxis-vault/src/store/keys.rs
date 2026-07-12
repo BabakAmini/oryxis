@@ -41,8 +41,8 @@ impl VaultStore {
 
         self.db.execute(
             "INSERT OR REPLACE INTO keys
-             (id, label, fingerprint, algorithm, public_key, private_key, has_passphrase, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
+             (id, label, fingerprint, algorithm, public_key, private_key, has_passphrase, expose_via_agent, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
             params![
                 key.id.to_string(),
                 key.label,
@@ -51,6 +51,7 @@ impl VaultStore {
                 key.public_key,
                 encrypted_pk,
                 key.has_passphrase as i32,
+                key.expose_via_agent as i32,
                 key.created_at.to_rfc3339(),
                 key.updated_at.to_rfc3339(),
             ],
@@ -61,7 +62,7 @@ impl VaultStore {
 
     pub fn list_keys(&self) -> Result<Vec<SshKey>, VaultError> {
         let mut stmt = self.db.prepare(
-            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, created_at, updated_at
+            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, expose_via_agent, created_at, updated_at
              FROM keys ORDER BY label",
         )?;
         let keys = stmt
@@ -85,14 +86,15 @@ impl VaultStore {
                     public_key: row.get(4)?,
                     file_ref: String::new(),
                     has_passphrase: row.get::<_, i32>(5)? != 0,
+                    expose_via_agent: row.get::<_, i32>(6).unwrap_or(1) != 0,
                     created_at: row
-                        .get::<_, String>(6)
+                        .get::<_, String>(7)
                         .ok()
                         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                         .map(|d| d.with_timezone(&chrono::Utc))
                         .unwrap_or_else(chrono::Utc::now),
                     updated_at: row
-                        .get::<_, Option<String>>(7)?
+                        .get::<_, Option<String>>(8)?
                         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                         .map(|d| d.with_timezone(&chrono::Utc))
                         .unwrap_or_else(chrono::Utc::now),

@@ -1380,6 +1380,11 @@ pub struct Oryxis {
 
     // Sync (settings + runtime engine handles + pairing/SFTP forms)
     pub(crate) sync: crate::state::SyncState,
+
+    // ── SSH-agent server (B1): expose vault keys over the standard
+    // ssh-agent socket. Feature-gated (off by default), in-core (the
+    // signing oracle needs the unlocked vault in-process).
+    pub(crate) agent: crate::state::AgentState,
     /// When on, the dashboard root shows two sections, Groups (manual
     /// folder cards) and Hosts (a flat list of every connection,
     /// including those that live inside a group). When off, root
