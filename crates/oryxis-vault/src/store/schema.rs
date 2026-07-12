@@ -240,6 +240,9 @@ impl VaultStore {
         // when the referenced identity is deleted.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN proxy_identity_id TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE keys ADD COLUMN expose_via_agent INTEGER NOT NULL DEFAULT 1;");
+        // B2: an OpenSSH user certificate for the key (public material, so
+        // a plaintext column like `public_key`). NULL = no certificate.
+        let _ = self.db.execute_batch("ALTER TABLE keys ADD COLUMN certificate TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN terminal_theme TEXT;");
         // Cloud-managed handle for hosts imported from a `cloud_profiles`
         // row (EC2 in v0.6). JSON-encoded `CloudRef`. NULL for manual hosts.

@@ -50,6 +50,24 @@ fn delete_key() {
 
 
 #[test]
+fn certificate_persists_through_save_and_list() {
+    let vault = unlocked_vault();
+    let mut key = SshKey::new("cert-key", KeyAlgorithm::Ed25519);
+    let cert = "ssh-ed25519-cert-v01@openssh.com AAAAtest... user@ca";
+    key.certificate = Some(cert.to_string());
+    vault.save_key(&key, Some("-----BEGIN PRIVATE KEY-----\nx\n-----END PRIVATE KEY-----")).unwrap();
+
+    let keys = vault.list_keys().unwrap();
+    assert_eq!(keys[0].certificate.as_deref(), Some(cert));
+
+    // Clearing it (None field, plain overwrite) drops the cert.
+    key.certificate = None;
+    vault.save_key(&key, None).unwrap();
+    assert_eq!(vault.list_keys().unwrap()[0].certificate, None);
+}
+
+
+#[test]
 fn key_has_updated_at() {
     let vault = unlocked_vault();
     let key = SshKey::new("test-key", KeyAlgorithm::Ed25519);

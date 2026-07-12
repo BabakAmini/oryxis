@@ -44,8 +44,12 @@ fn full_roundtrip_every_entity_different_master_password() {
     eu.parent_id = Some(prod.id);
     vault.save_group(&eu).unwrap();
 
-    // Key with (passphrase-protected shaped) private material.
-    let generated = crate::keygen::generate_ed25519("deploy-key").unwrap();
+    // Key with (passphrase-protected shaped) private material and a
+    // certificate (B2): the cert is public material and must ride the
+    // portable export like any plain field.
+    let mut generated = crate::keygen::generate_ed25519("deploy-key").unwrap();
+    generated.key.certificate =
+        Some("ssh-ed25519-cert-v01@openssh.com AAAAcert... deploy@ca".to_string());
     vault
         .save_key(&generated.key, Some(&generated.private_pem))
         .unwrap();
@@ -205,6 +209,16 @@ fn full_roundtrip_every_entity_different_master_password() {
     assert_eq!(
         target.get_key_private(&generated.key.id).unwrap().as_deref(),
         Some(generated.private_pem.as_str())
+    );
+    // The certificate survived export + import as public material.
+    assert_eq!(
+        target
+            .list_keys()
+            .unwrap()
+            .iter()
+            .find(|k| k.id == generated.key.id)
+            .and_then(|k| k.certificate.clone()),
+        generated.key.certificate,
     );
     assert_eq!(
         target

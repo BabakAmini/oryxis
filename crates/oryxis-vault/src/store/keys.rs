@@ -41,8 +41,8 @@ impl VaultStore {
 
         self.db.execute(
             "INSERT OR REPLACE INTO keys
-             (id, label, fingerprint, algorithm, public_key, private_key, has_passphrase, expose_via_agent, created_at, updated_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+             (id, label, fingerprint, algorithm, public_key, private_key, has_passphrase, expose_via_agent, certificate, created_at, updated_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
             params![
                 key.id.to_string(),
                 key.label,
@@ -52,6 +52,7 @@ impl VaultStore {
                 encrypted_pk,
                 key.has_passphrase as i32,
                 key.expose_via_agent as i32,
+                key.certificate,
                 key.created_at.to_rfc3339(),
                 key.updated_at.to_rfc3339(),
             ],
@@ -62,7 +63,7 @@ impl VaultStore {
 
     pub fn list_keys(&self) -> Result<Vec<SshKey>, VaultError> {
         let mut stmt = self.db.prepare(
-            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, expose_via_agent, created_at, updated_at
+            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, expose_via_agent, created_at, updated_at, certificate
              FROM keys ORDER BY label",
         )?;
         let keys = stmt
@@ -98,6 +99,8 @@ impl VaultStore {
                         .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
                         .map(|d| d.with_timezone(&chrono::Utc))
                         .unwrap_or_else(chrono::Utc::now),
+                    // Column added by ALTER TABLE; older rows have no value.
+                    certificate: row.get::<_, Option<String>>(9).unwrap_or(None),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
