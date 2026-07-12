@@ -224,13 +224,12 @@ impl Oryxis {
                 }
             }
             // Esc denies the signature (safe default), firing the
-            // responder so the waiting sign task gets its answer.
+            // responder so the waiting sign task gets its answer. The
+            // caller then promotes any queued prompt via
+            // `advance_confirm_queue`.
             Modal::AgentConfirm => {
-                if let Some(card) = self.agent.pending_confirm.take()
-                    && let Ok(mut slot) = card.responder.lock()
-                    && let Some(tx) = slot.take()
-                {
-                    let _ = tx.send(false);
+                if let Some(card) = self.agent.pending_confirm.take() {
+                    card.respond(false);
                 }
             }
             Modal::ThemeEditor => {
@@ -681,7 +680,9 @@ impl Oryxis {
         //    apps that rely on raw Esc (vim, less) keep getting the
         //    byte when no modal is open.
         if matches!(key, Key::Named(Named::Escape)) && self.close_topmost_modal() {
-            return Some(Task::none());
+            // Closing an agent-confirm prompt promotes the next queued
+            // one (no-op for every other modal).
+            return Some(self.advance_confirm_queue());
         }
 
         None

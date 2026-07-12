@@ -47,23 +47,24 @@ impl Oryxis {
                 }
             }
             Message::AgentConfirmAsk(card) => {
-                // Auto-approve a session-granted key without a prompt.
-                if self.agent.session_grants.contains(&card.key_fingerprint) {
-                    respond_confirm(&card, true);
-                    return Ok(Task::none());
-                }
-                self.agent.confirm_always = false;
-                self.agent.pending_confirm = Some(card);
+                // The state machine auto-approves a granted key, queues
+                // behind a live prompt, or shows it (returning the seq to
+                // arm the auto-dismiss timer for).
+                return Ok(match self.agent.on_confirm_ask(card) {
+                    Some(seq) => confirm_timeout_task(seq),
+                    None => Task::none(),
+                });
             }
             Message::AgentConfirmToggleAlways => {
                 self.agent.confirm_always = !self.agent.confirm_always;
             }
             Message::AgentConfirmDecision { allow, always } => {
-                if let Some(card) = self.agent.pending_confirm.take() {
-                    if allow && always {
-                        self.agent.session_grants.insert(card.key_fingerprint.clone());
-                    }
-                    respond_confirm(&card, allow);
+                self.agent.decide_confirm(allow, always);
+                return Ok(self.advance_confirm_queue());
+            }
+            Message::AgentConfirmTimedOut(seq) => {
+                if self.agent.confirm_timed_out(seq) {
+                    return Ok(self.advance_confirm_queue());
                 }
             }
             Message::CopyAgentPath => {
@@ -137,17 +138,23 @@ impl Oryxis {
         }
     }
 
+    /// Promote the next queued confirm (if any) to the on-screen prompt,
+    /// arming its auto-dismiss timer. The state machine owns the policy
+    /// (grant skips, seq bump); this just lifts the seq into a Task.
+    pub(crate) fn advance_confirm_queue(&mut self) -> Task<Message> {
+        match self.agent.advance_confirm_queue() {
+            Some(seq) => confirm_timeout_task(seq),
+            None => Task::none(),
+        }
+    }
+
     /// Stop the runtime (aborts the listener, removes the socket) and
     /// sweep the confirm state / session grants.
     pub(crate) fn stop_agent_server(&mut self) {
         if let Some(runtime) = self.agent.runtime.take() {
             runtime.shutdown();
         }
-        // Deny any prompt still on screen and drop grants.
-        if let Some(card) = self.agent.pending_confirm.take() {
-            respond_confirm(&card, false);
-        }
-        self.agent.session_grants.clear();
+        self.agent.deny_all_and_clear_grants();
     }
 
     /// Flip the agent's key gate on a soft/hard vault lock (keys go
@@ -156,11 +163,9 @@ impl Oryxis {
         if let Some(runtime) = &self.agent.runtime {
             runtime.lock();
         }
-        // A pending prompt cannot be answered against a locked vault.
-        if let Some(card) = self.agent.pending_confirm.take() {
-            respond_confirm(&card, false);
-        }
-        self.agent.session_grants.clear();
+        // No prompt (on screen or queued) can be answered against a
+        // locked vault: deny them all and drop the grants.
+        self.agent.deny_all_and_clear_grants();
     }
 
     /// Re-unlock the agent's dedicated handle after the vault unlocks.
@@ -185,13 +190,15 @@ impl Oryxis {
     }
 }
 
-/// Fire a confirm card's responder exactly once (taking it out of the
-/// shared slot); a dropped receiver just means the sign already timed
-/// out, which is fine.
-fn respond_confirm(card: &crate::state::AgentConfirmCard, allow: bool) {
-    if let Ok(mut slot) = card.responder.lock()
-        && let Some(tx) = slot.take()
-    {
-        let _ = tx.send(allow);
-    }
+/// How long the on-screen prompt waits before it denies + dismisses
+/// itself, matching the sign side's `CONFIRM_TIMEOUT` so the modal
+/// never outlives the request it stands for.
+const CONFIRM_UI_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The auto-dismiss timer for the prompt tagged `seq`.
+fn confirm_timeout_task(seq: u64) -> Task<Message> {
+    Task::perform(
+        async move { tokio::time::sleep(CONFIRM_UI_TIMEOUT).await },
+        move |()| Message::AgentConfirmTimedOut(seq),
+    )
 }

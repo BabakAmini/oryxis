@@ -1423,6 +1423,9 @@ pub enum Message {
     AgentConfirmDecision { allow: bool, always: bool },
     /// Toggle the confirm card's "remember this session" checkbox.
     AgentConfirmToggleAlways,
+    /// The on-screen confirm prompt tagged with this seq has sat
+    /// unanswered past its deadline: deny it and drop the dead modal.
+    AgentConfirmTimedOut(u64),
     /// Copy the socket path / a setup snippet from the settings block.
     CopyAgentPath,
     CopyAgentSnippet(crate::state::AgentSnippetKind),
