@@ -1499,7 +1499,10 @@ impl Oryxis {
         // Add the horizontal sub-nav (~50) on top only when it actually
         // renders (horizontal orientation + a vault view). The vertical
         // rail sits to the LEFT, not above, so it adds no vertical offset.
-        const BASE_Y: f32 = 104.0;
+        // Measured ~20 px too low in practice (the split menus opened with
+        // a visible gap below their trigger button), so the earlier 104
+        // over-corrected. 84 seats the menu right under the button.
+        const BASE_Y: f32 = 84.0;
         const SUBNAV_HEIGHT: f32 = 50.0;
         let horizontal_subnav = self.setting_nav_orientation != "vertical"
             && self.active_tab.is_none()
