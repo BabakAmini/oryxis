@@ -770,6 +770,7 @@ impl Oryxis {
                 .height(180)
                 .font(iced::Font::MONOSPACE)
                 .size(11)
+                .style(crate::widgets::rounded_editor_style)
                 .into(),
         );
 
