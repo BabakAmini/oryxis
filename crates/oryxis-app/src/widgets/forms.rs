@@ -29,6 +29,66 @@ pub(crate) fn panel_field<'a>(label: &'a str, input: Element<'a, Message>) -> El
     .into()
 }
 
+/// `panel_field` for a credential input: standardizes the tri-state
+/// password placeholder every editor tracks by hand. While an existing
+/// secret is stored and the field untouched, the placeholder says the
+/// value is kept unchanged; otherwise `empty_hint` shows (the field's
+/// normal placeholder). Callers pass the `has_existing` / `touched`
+/// bools they already track; no new state.
+pub(crate) fn password_placeholder(has_existing: bool, touched: bool, empty_hint: &'static str) -> &'static str {
+    if has_existing && !touched {
+        crate::i18n::t("proxy_password_existing")
+    } else {
+        empty_hint
+    }
+}
+
+/// The standard editor Cancel button (muted). Pair with
+/// [`form_save_button`] inside [`form_footer`]; wrap in the surface's
+/// keynav slot at the call site (the layer differs per surface).
+pub(crate) fn form_cancel_button<'a>(msg: Message) -> Element<'a, Message> {
+    styled_button(crate::i18n::t("cancel"), msg, OryxisColors::t().text_muted)
+}
+
+/// The standard editor primary button (accent). `on_save: None`
+/// renders the disabled state (greyed, no on_press), so validation /
+/// in-flight gating is uniform and double-submit is structurally
+/// impossible.
+pub(crate) fn form_save_button<'a>(label: &'a str, on_save: Option<Message>) -> Element<'a, Message> {
+    styled_button_opt(label, on_save, OryxisColors::t().accent)
+}
+
+/// The standard editor footer: Cancel then Save, mirrored under RTL
+/// (`dir_row`), with the proxy-identity form's spacing and padding.
+/// Callers pass the buttons already wrapped in their layer's keynav
+/// slot, recorded in this order (cancel, save) so build order stays
+/// display order.
+pub(crate) fn form_footer<'a>(
+    cancel: Element<'a, Message>,
+    save: Element<'a, Message>,
+) -> Element<'a, Message> {
+    container(
+        dir_row(vec![cancel, Space::new().width(8).into(), save])
+            .align_y(iced::Alignment::Center),
+    )
+    .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 })
+    .into()
+}
+
+/// The standard inline-error slot: renders nothing (zero height) when
+/// `None`, otherwise the error row every editor shares. Sits between
+/// the last field (or the scrollable) and the footer, always.
+pub(crate) fn form_error<'a>(error: Option<&'a str>) -> Element<'a, Message> {
+    match error {
+        Some(err) => container(
+            text(err).size(12).color(OryxisColors::t().error).width(Length::Fill),
+        )
+        .padding(Padding { top: 0.0, right: 16.0, bottom: 8.0, left: 16.0 })
+        .into(),
+        None => Space::new().height(0).into(),
+    }
+}
+
 /// The canonical on/off control: a small pill that fills with the
 /// success color and the dot trailing when on, muted with the dot
 /// leading when off. Every toggle in the app (settings rows, plugin

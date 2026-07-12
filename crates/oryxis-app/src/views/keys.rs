@@ -785,35 +785,25 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
-        // Error in panel
-        let panel_error: Element<'_, Message> = if let Some(err) = &self.key_error {
-            Element::from(text(err.clone()).size(11).color(OryxisColors::t().error))
-        } else {
-            Space::new().height(0).into()
-        };
-
-        // Save button
+        // Shared form chrome: inline error above the footer, disabled
+        // Save while there is no key content (structural gating
+        // instead of the old color-only hint that still took clicks).
+        let panel_error = crate::widgets::form_error(self.key_error.as_deref());
         let save_label = if self.key_import_form.editing_id.is_some() { t("update_key") } else { t("save_key") };
-        let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::ImportKey),
-            8.0,
-            button(
-                container(text(save_label).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                    .width(Length::Fill)
-                    .center_x(Length::Fill),
-            )
-            .on_press(Message::ImportKey)
-            .width(Length::Fill)
-            .style(move |_, _| {
-                let bg = if has_content { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
-                    ..Default::default()
-                }
-            })
-            .into(),
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideKeyPanel),
+                6.0,
+                crate::widgets::form_cancel_button(Message::HideKeyPanel),
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::ImportKey),
+                6.0,
+                crate::widgets::form_save_button(
+                    save_label,
+                    has_content.then_some(Message::ImportKey),
+                ),
+            ),
         );
 
         let panel_content = column![
@@ -832,17 +822,14 @@ impl Oryxis {
                     Space::new().height(6),
                     editor,
                     passphrase_section,
-                    Space::new().height(8),
-                    panel_error,
-                    Space::new().height(Length::Fill),
-                    save_btn,
                 ]
-                .height(Length::Fill)
                 .width(Length::Fill)
                 .align_x(dir_align_x()),
             )
-            .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 })
+            .padding(Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 20.0 })
             .height(Length::Fill),
+            panel_error,
+            footer,
         ]
         .height(Length::Fill);
 
@@ -1032,29 +1019,25 @@ impl Oryxis {
             Space::new().height(0).into()
         };
 
-        // Save button
+        // Shared form footer: disabled Save while the label is empty
+        // (structural gating instead of the old color-only hint that
+        // still accepted clicks), Cancel closes the panel like Esc.
         let save_label = if self.identity_form.editing_id.is_some() { crate::i18n::t("update_identity") } else { crate::i18n::t("save_identity") };
         let has_label = !self.identity_form.label.trim().is_empty();
-        let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SaveIdentity),
-            8.0,
-            button(
-                container(text(save_label).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                    .width(Length::Fill)
-                    .center_x(Length::Fill),
-            )
-            .on_press(Message::SaveIdentity)
-            .width(Length::Fill)
-            .style(move |_, _| {
-                let bg = if has_label { OryxisColors::t().accent } else { OryxisColors::t().bg_surface };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
-                    ..Default::default()
-                }
-            })
-            .into(),
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideIdentityPanel),
+                6.0,
+                crate::widgets::form_cancel_button(Message::HideIdentityPanel),
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SaveIdentity),
+                6.0,
+                crate::widgets::form_save_button(
+                    save_label,
+                    has_label.then_some(Message::SaveIdentity),
+                ),
+            ),
         );
 
         let panel_content = column![
@@ -1069,15 +1052,13 @@ impl Oryxis {
                     Space::new().height(16),
                     key_field,
                     linked_section,
-                    Space::new().height(Length::Fill),
-                    save_btn,
                 ]
-                .height(Length::Fill)
                 .width(Length::Fill)
                 .align_x(dir_align_x()),
             )
-            .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 })
+            .padding(Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 20.0 })
             .height(Length::Fill),
+            footer,
         ]
         .height(Length::Fill);
 

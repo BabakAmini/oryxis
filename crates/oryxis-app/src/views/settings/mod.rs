@@ -1082,13 +1082,11 @@ impl Oryxis {
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
-        let pw_placeholder: &str = if self.proxy_identity_form.has_existing_password
-            && !self.proxy_identity_form.password_touched
-        {
-            crate::i18n::t("proxy_password_existing")
-        } else {
-            crate::i18n::t("proxy_password_placeholder")
-        };
+        let pw_placeholder: &str = crate::widgets::password_placeholder(
+            self.proxy_identity_form.has_existing_password,
+            self.proxy_identity_form.password_touched,
+            crate::i18n::t("proxy_password_placeholder"),
+        );
 
         // A plain secure text_input (not password_input_with_eye), so
         // it can carry a focus id and be a keyboard row.
@@ -1104,18 +1102,10 @@ impl Oryxis {
         } else {
             crate::i18n::t("add")
         };
-        // Match the keychain / vault buttons: bold accent for the
-        // primary action, muted color for cancel.
-        let save_btn = styled_button(
-            save_label,
-            Message::SaveProxyIdentity,
-            OryxisColors::t().accent,
-        );
-        let cancel_btn = styled_button(
-            crate::i18n::t("cancel"),
-            Message::HideProxyIdentityForm,
-            OryxisColors::t().text_muted,
-        );
+        // Shared form chrome: accent Save, muted Cancel.
+        let save_btn =
+            crate::widgets::form_save_button(save_label, Some(Message::SaveProxyIdentity));
+        let cancel_btn = crate::widgets::form_cancel_button(Message::HideProxyIdentityForm);
 
         // Use the shared `panel_field` helper for label/input pairs
         // gives the same 4-px gap between label and control as every
@@ -1259,33 +1249,22 @@ impl Oryxis {
 
         // Inline error sits OUTSIDE the scrollable, just above the footer,
         // so it stays visible regardless of scroll position.
-        let error_el: Element<'_, Message> = if let Some(err) = &self.proxy_identity_form.error {
-            container(text(err.as_str()).size(12).color(OryxisColors::t().error))
-                .padding(Padding { top: 0.0, right: 16.0, bottom: 8.0, left: 16.0 })
-                .into()
-        } else {
-            Space::new().height(0).into()
-        };
+        let error_el = crate::widgets::form_error(self.proxy_identity_form.error.as_deref());
 
         // Footer rows are recorded here (not where the buttons are
         // built above) so they land after the form fields.
-        let footer = container(
-            dir_row(vec![
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::HideProxyIdentityForm),
-                    6.0,
-                    cancel_btn,
-                ),
-                Space::new().width(8).into(),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SaveProxyIdentity),
-                    6.0,
-                    save_btn,
-                ),
-            ])
-            .align_y(iced::Alignment::Center),
-        )
-        .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 });
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideProxyIdentityForm),
+                6.0,
+                cancel_btn,
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SaveProxyIdentity),
+                6.0,
+                save_btn,
+            ),
+        );
 
         let panel_content = column![panel_header, form_scroll, error_el, footer].height(Length::Fill);
 

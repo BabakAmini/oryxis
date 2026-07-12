@@ -481,31 +481,10 @@ impl Oryxis {
                     .into(),
             ));
 
-        let panel_error: Element<'_, Message> = if let Some(err) = &self.port_forward_form.error {
-            Element::from(text(err.clone()).size(11).color(OryxisColors::t().error))
-        } else {
-            Space::new().height(0).into()
-        };
-
-        let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SavePortForwardRule),
-            8.0,
-            button(
-                container(text(t("save")).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                    .width(Length::Fill).center_x(Length::Fill),
-            )
-            .on_press(Message::SavePortForwardRule)
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().accent)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            })
-            .into(),
-        );
-
-        let mut bottom = column![save_btn];
+        // While editing an existing rule, Delete keeps its own
+        // outlined-danger row inside the body (it is not part of the
+        // Cancel/Save pair).
+        let mut body = column![form];
         if let Some(edit_id) = self.port_forward_form.editing_id
             && let Some(idx) = self.port_forward_rules.iter().position(|r| r.id == edit_id)
         {
@@ -526,27 +505,37 @@ impl Oryxis {
                 })
                 .into(),
             );
-            bottom = bottom.push(Space::new().height(8));
-            bottom = bottom.push(del_btn);
+            body = body.push(Space::new().height(20));
+            body = body.push(del_btn);
         }
+
+        // Shared form chrome: error outside the scrollable, above the
+        // footer, so it stays visible regardless of scroll position.
+        let panel_error = crate::widgets::form_error(self.port_forward_form.error.as_deref());
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HidePortForwardPanel),
+                6.0,
+                crate::widgets::form_cancel_button(Message::HidePortForwardPanel),
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SavePortForwardRule),
+                6.0,
+                crate::widgets::form_save_button(t("save"), Some(Message::SavePortForwardRule)),
+            ),
+        );
 
         let panel_content = column![
             panel_header,
             scrollable(
-                container(
-                    column![
-                        form,
-                        Space::new().height(12),
-                        panel_error,
-                        Space::new().height(20),
-                        bottom,
-                    ].width(Length::Fill).align_x(dir_align_x()),
-                )
-                .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 }),
+                container(body.width(Length::Fill).align_x(dir_align_x()))
+                    .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 }),
             )
             // Shared id: the keyboard router keeps the selected row in view.
             .id(iced::widget::Id::new("side-panel-scroll"))
             .height(Length::Fill),
+            panel_error,
+            footer,
         ].height(Length::Fill);
 
         container(panel_content)

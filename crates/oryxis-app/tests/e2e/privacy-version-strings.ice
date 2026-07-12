@@ -26,6 +26,8 @@ settle 800
 # per-instruction timeout first.
 timeout 500
 type ctrl+k
+settle 500
+expect "Local Shell"
 click "Local Shell"
 expect "● bash (default), connected"
 settle 800

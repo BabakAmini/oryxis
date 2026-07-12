@@ -754,48 +754,35 @@ self.keynav_ring_content(kb_selected, card_el)
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        let panel_error: Element<'_, Message> = if let Some(err) = &self.snippet_error {
-            Element::from(text(err.clone()).size(11).color(OryxisColors::t().error))
-        } else {
-            Space::new().height(0).into()
-        };
-
-        let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SaveSnippet),
-            8.0,
-            button(
-                container(text(crate::i18n::t("save")).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-                    .width(Length::Fill).center_x(Length::Fill),
-            )
-            .on_press(Message::SaveSnippet)
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().accent)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            })
-            .into(),
+        // Shared form chrome. Deleting a snippet lives on the card's ⋮
+        // context menu (Edit / Delete), so the destructive action isn't
+        // buried inside the editor form.
+        let panel_error = crate::widgets::form_error(self.snippet_error.as_deref());
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideSnippetPanel),
+                6.0,
+                crate::widgets::form_cancel_button(Message::HideSnippetPanel),
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SaveSnippet),
+                6.0,
+                crate::widgets::form_save_button(
+                    crate::i18n::t("save"),
+                    Some(Message::SaveSnippet),
+                ),
+            ),
         );
-
-        // The edit panel only saves. Deleting a snippet lives on the
-        // card's ⋮ context menu (Edit / Delete), so the destructive
-        // action isn't buried inside the editor form.
-        let bottom = column![save_btn];
 
         let panel_content = column![
             panel_header,
             container(
-                column![
-                    form,
-                    Space::new().height(12),
-                    panel_error,
-                    Space::new().height(Length::Fill),
-                    bottom,
-                ].height(Length::Fill).width(Length::Fill).align_x(dir_align_x()),
+                column![form].width(Length::Fill).align_x(dir_align_x()),
             )
-            .padding(Padding { top: 0.0, right: 20.0, bottom: 20.0, left: 20.0 })
+            .padding(Padding { top: 0.0, right: 20.0, bottom: 0.0, left: 20.0 })
             .height(Length::Fill),
+            panel_error,
+            footer,
         ].height(Length::Fill);
 
         container(panel_content)

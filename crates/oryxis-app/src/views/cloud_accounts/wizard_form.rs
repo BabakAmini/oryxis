@@ -681,47 +681,24 @@ impl Oryxis {
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        let panel_error: Element<'_, Message> = if let Some(err) = &self.cloud_form.error {
-            text(err.clone())
-                .size(11)
-                .color(OryxisColors::t().error)
-                .into()
-        } else {
-            Space::new().height(0).into()
-        };
-
-        let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SaveCloudProfile),
-            8.0,
-            button(
-                container(
-                    text(t("save"))
-                        .size(13)
-                        .color(OryxisColors::t().text_primary),
-                )
-                .padding(Padding {
-                    top: 10.0,
-                    right: 0.0,
-                    bottom: 10.0,
-                    left: 0.0,
-                })
-                .width(Length::Fill)
-                .center_x(Length::Fill),
-            )
-            .on_press(Message::SaveCloudProfile)
-            .width(Length::Fill)
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().accent)),
-                border: Border {
-                    radius: Radius::from(8.0),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .into(),
+        // Shared form chrome: inline error + Cancel/Save footer. The
+        // Delete row (editing only) keeps its outlined-danger style in
+        // the body, above the footer.
+        let panel_error = crate::widgets::form_error(self.cloud_form.error.as_deref());
+        let footer = crate::widgets::form_footer(
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::HideCloudForm),
+                6.0,
+                crate::widgets::form_cancel_button(Message::HideCloudForm),
+            ),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::SaveCloudProfile),
+                6.0,
+                crate::widgets::form_save_button(t("save"), Some(Message::SaveCloudProfile)),
+            ),
         );
 
-        let mut bottom = column![save_btn];
+        let mut bottom = column![];
         if let Some(edit_id) = self.cloud_form.editing_id {
             let del_btn = self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::DeleteCloudProfile(edit_id)),
@@ -770,8 +747,6 @@ impl Oryxis {
                         // selected row in view.
                         .id(iced::widget::Id::new("side-panel-scroll"))
                         .height(Length::Fill),
-                    Space::new().height(12),
-                    panel_error,
                     Space::new().height(8),
                     bottom,
                 ]
@@ -782,10 +757,12 @@ impl Oryxis {
             .padding(Padding {
                 top: 0.0,
                 right: 20.0,
-                bottom: 20.0,
+                bottom: 0.0,
                 left: 20.0,
             })
             .height(Length::Fill),
+            panel_error,
+            footer,
         ]
         .height(Length::Fill);
 

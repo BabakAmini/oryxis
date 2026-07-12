@@ -67,31 +67,19 @@ impl Oryxis {
             ui_theme_preview(&form.colors),
         ];
 
-        let mut footer = column![].spacing(8);
-        if let Some(err) = &form.error {
-            footer = footer.push(text(err).size(12).color(OryxisColors::t().error));
-        }
-        footer = footer.push(
+        // Shared form chrome (buttons + error slot); the row itself
+        // keeps the modal card's trailing alignment.
+        let footer = column![
+            crate::widgets::form_error(form.error.as_deref()),
             dir_row(vec![
                 Space::new().width(Length::Fill).into(),
-                button(text(t("cancel")).size(13).color(OryxisColors::t().text_secondary))
-                    .on_press(Message::UiThemeEditorClose)
-                    .padding(Padding { top: 9.0, right: 16.0, bottom: 9.0, left: 16.0 })
-                    .style(|_, status| ui_outline_btn(status))
-                    .into(),
+                crate::widgets::form_cancel_button(Message::UiThemeEditorClose),
                 Space::new().width(8).into(),
-                button(text(t("save")).size(13).color(Color::WHITE))
-                    .on_press(Message::UiThemeEditorSave)
-                    .padding(Padding { top: 9.0, right: 18.0, bottom: 9.0, left: 18.0 })
-                    .style(|_, _| button::Style {
-                        background: Some(Background::Color(OryxisColors::t().accent)),
-                        border: Border { radius: Radius::from(8.0), ..Default::default() },
-                        ..Default::default()
-                    })
-                    .into(),
+                crate::widgets::form_save_button(t("save"), Some(Message::UiThemeEditorSave)),
             ])
             .align_y(iced::Alignment::Center),
-        );
+        ]
+        .spacing(8);
 
         let scroll_form = scrollable(
             container(form_col)
@@ -463,18 +451,3 @@ fn ui_icon_btn<'a>(icon: iced::widget::Text<'a>, msg: Message) -> Element<'a, Me
     .into()
 }
 
-fn ui_outline_btn(status: button::Status) -> button::Style {
-    let bg = match status {
-        button::Status::Hovered => OryxisColors::t().bg_hover,
-        _ => Color::TRANSPARENT,
-    };
-    button::Style {
-        background: Some(Background::Color(bg)),
-        border: Border {
-            radius: Radius::from(8.0),
-            color: OryxisColors::t().border,
-            width: 1.0,
-        },
-        ..Default::default()
-    }
-}
