@@ -126,6 +126,19 @@ fn main() -> iced::Result {
     let harness_active = harness_options.is_some();
     #[cfg(not(feature = "harness"))]
     let harness_active = false;
+    // A binary built WITHOUT the harness feature must refuse `--harness-*`
+    // instead of silently falling through to the windowed app: that
+    // fallthrough boots against the caller's REAL $HOME (an agent driving
+    // QA right after a featureless rebuild would spawn stray windowed
+    // instances on the real vault, which actually happened).
+    #[cfg(not(feature = "harness"))]
+    if std::env::args().any(|a| a.starts_with("--harness")) {
+        eprintln!(
+            "error: this binary was built without the `harness` feature; \
+             rebuild with `cargo build -p oryxis-app --features harness`"
+        );
+        std::process::exit(2);
+    }
 
     // rustls 0.23 requires a crypto provider to be installed before
     // any TLS connection, without it, the AWS SDK's HTTPS client
