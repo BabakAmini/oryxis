@@ -547,6 +547,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Kiểm tra và lưu",
         "sync_wizard_test_ok" => "Relay truy cập được. Thiết bị này giờ sẽ dùng nó.",
         "sync_wizard_test_err" => "Không truy cập được relay",
+        "sync_relay_not_recognized" => "Máy chủ đã phản hồi nhưng không phải relay Oryxis",
         "sync_engine_running_label" => "Bộ máy đang chạy",
         "sync_engine_stopped_label" => "Bộ máy đã dừng",
         "sync_status_running" => "Bộ máy đồng bộ đã khởi động",
@@ -1019,6 +1020,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Cụm mật khẩu sai. Vui lòng thử lại.",
         "key_passphrase_required_msg" => "Nhập cụm mật khẩu của khóa để tiếp tục.",
         "key_unsupported_kind" => "Loại khóa không được hỗ trợ: {kind}. Dùng Ed25519, RSA, hoặc ECDSA (P-256 hoặc P-384).",
+        "key_not_found" => "Không tìm thấy khóa.",
+        "key_certificate_removed" => "Đã xóa chứng chỉ",
+        "key_select_file_first" => "Hãy chọn tệp khóa trước",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Cập nhật khóa",
         "save_key" => "Lưu khóa",
         "save_identity" => "Lưu danh tính",
@@ -1329,6 +1334,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Mật khẩu sai",
         "mcp_vault_pw_included" => "Mật khẩu kho đã được đưa vào cấu hình.",
         "mcp_vault_pw_plaintext_warning" => "Được ghi dưới dạng văn bản thuần; bất kỳ ai đọc được tệp cấu hình đều có thể mở khóa kho của bạn.",
+        "mcp_vault_pw_removed" => "Đã xóa mật khẩu kho khỏi cấu hình ứng dụng khách.",
+        "mcp_vault_pw_remove_failed" => "Không thể xóa mật khẩu khỏi cấu hình:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS chưa được cài",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Đã đính kèm chứng chỉ",
         "cert_browse" => "Duyệt...",
         "cert_detected_hint" => "Đã phát hiện chứng chỉ bên cạnh tệp khóa",
-        "cert_badge" => "chứng chỉ",
         "cert_view" => "Xem chứng chỉ",
         "cert_remove" => "Gỡ chứng chỉ",
         "cert_key_id" => "ID khóa",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Chứng chỉ này đã hết hạn.",
         "cert_mismatch_error" => "Chứng chỉ không khớp với khóa này.",
         "cert_wrong_type_error" => "Đây là chứng chỉ máy chủ; hãy đính kèm chứng chỉ người dùng.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Chứng chỉ",
+        "cert_flag" => "Chứng chỉ SSH",
+        "public_key_auto_hint" => "Được suy ra từ khóa riêng khi để trống.",
+        "public_key_invalid_error" => "Đây không phải là một dòng khóa công khai OpenSSH hợp lệ.",
+        "public_key_mismatch_error" => "Khóa công khai không khớp với khóa riêng.",
+        "cert_no_keys_hint" => "Chưa có khóa nào trong kho được đính kèm chứng chỉ.",
+        "cert_key_no_cert_hint" => "Khóa đã chọn không có chứng chỉ đính kèm.",
 _ => return None,
     })
 }

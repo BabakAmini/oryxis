@@ -526,6 +526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Testar e salvar",
         "sync_wizard_test_ok" => "Relay acessível. Este dispositivo passou a usá-lo.",
         "sync_wizard_test_err" => "Relay inacessível",
+        "sync_relay_not_recognized" => "O host respondeu, mas não é um relay Oryxis",
         "sync_engine_running_label" => "Motor ativo",
         "sync_engine_stopped_label" => "Motor parado",
         "sync_status_running" => "Motor de sincronização iniciado",
@@ -981,6 +982,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Senha incorreta. Tente novamente.",
         "key_passphrase_required_msg" => "Digite a senha da chave para continuar.",
         "key_unsupported_kind" => "Tipo de chave não suportado: {kind}. Use Ed25519, RSA ou ECDSA (P-256 ou P-384).",
+        "key_not_found" => "Chave não encontrada.",
+        "key_certificate_removed" => "Certificado removido",
+        "key_select_file_first" => "Selecione um arquivo de chave primeiro",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Atualizar Chave",
         "save_key" => "Salvar Chave",
         "save_identity" => "Salvar Identidade",
@@ -1311,6 +1316,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Senha incorreta",
         "mcp_vault_pw_included" => "Senha do cofre incluída na configuração.",
         "mcp_vault_pw_plaintext_warning" => "Ela é gravada em texto puro; quem puder ler o arquivo de configuração consegue desbloquear seu cofre.",
+        "mcp_vault_pw_removed" => "Senha do cofre removida da configuração do cliente.",
+        "mcp_vault_pw_remove_failed" => "Não foi possível remover a senha da configuração:",
 
         // Banner de plugin ausente em Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS não instalado",
@@ -1418,7 +1425,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Certificado anexado",
         "cert_browse" => "Procurar...",
         "cert_detected_hint" => "Certificado detectado ao lado do arquivo de chave",
-        "cert_badge" => "cert",
         "cert_view" => "Ver certificado",
         "cert_remove" => "Remover certificado",
         "cert_key_id" => "ID da chave",
@@ -1432,6 +1438,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Este certificado expirou.",
         "cert_mismatch_error" => "O certificado não corresponde a esta chave.",
         "cert_wrong_type_error" => "Esse é um certificado de host; anexe um certificado de usuário.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certificado",
+        "cert_flag" => "Certificado SSH",
+        "public_key_auto_hint" => "Derivada da chave privada quando deixada em branco.",
+        "public_key_invalid_error" => "Isso não é uma linha de chave pública OpenSSH válida.",
+        "public_key_mismatch_error" => "A chave pública não corresponde à chave privada.",
+        "cert_no_keys_hint" => "Nenhuma chave no cofre tem um certificado anexado ainda.",
+        "cert_key_no_cert_hint" => "A chave selecionada não tem certificado anexado.",
 _ => return None,
     })
 }

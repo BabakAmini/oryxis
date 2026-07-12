@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "परीक्षण करें और सहेजें",
         "sync_wizard_test_ok" => "रिले उपलब्ध है। यह डिवाइस अब इसका उपयोग करेगा।",
         "sync_wizard_test_err" => "रिले उपलब्ध नहीं है",
+        "sync_relay_not_recognized" => "होस्ट ने उत्तर दिया लेकिन यह Oryxis रिले नहीं है",
         "sync_engine_running_label" => "इंजन चालू",
         "sync_engine_stopped_label" => "इंजन बंद",
         "sync_status_running" => "सिंक इंजन शुरू हुआ",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "गलत पासफ़्रेज़। कृपया दोबारा कोशिश करें।",
         "key_passphrase_required_msg" => "जारी रखने के लिए कुंजी का पासफ़्रेज़ डालें।",
         "key_unsupported_kind" => "असमर्थित कुंजी प्रकार: {kind}। Ed25519, RSA या ECDSA (P-256 या P-384) उपयोग करें।",
+        "key_not_found" => "कुंजी नहीं मिली।",
+        "key_certificate_removed" => "प्रमाणपत्र हटाया गया",
+        "key_select_file_first" => "पहले एक कुंजी फ़ाइल चुनें",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "कुंजी अपडेट करें",
         "save_key" => "कुंजी सेव करें",
         "save_identity" => "पहचान सेव करें",
@@ -1398,6 +1403,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "गलत पासवर्ड",
         "mcp_vault_pw_included" => "वॉल्ट पासवर्ड कॉन्फ़िगरेशन में शामिल है।",
         "mcp_vault_pw_plaintext_warning" => "यह सादे टेक्स्ट में लिखा जाता है; जो भी कॉन्फ़िगरेशन फ़ाइल पढ़ सकता है, वह आपका वॉल्ट खोल सकता है।",
+        "mcp_vault_pw_removed" => "वॉल्ट पासवर्ड क्लाइंट कॉन्फ़िगरेशन से हटा दिया गया।",
+        "mcp_vault_pw_remove_failed" => "कॉन्फ़िगरेशन से पासवर्ड नहीं हटाया जा सका:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS प्लगिन इंस्टॉल नहीं है",
@@ -1453,7 +1460,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "प्रमाणपत्र संलग्न",
         "cert_browse" => "ब्राउज़ करें...",
         "cert_detected_hint" => "कुंजी फ़ाइल के पास प्रमाणपत्र मिला",
-        "cert_badge" => "प्रमाणपत्र",
         "cert_view" => "प्रमाणपत्र देखें",
         "cert_remove" => "प्रमाणपत्र हटाएँ",
         "cert_key_id" => "कुंजी ID",
@@ -1467,6 +1473,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "यह प्रमाणपत्र समाप्त हो चुका है।",
         "cert_mismatch_error" => "प्रमाणपत्र इस कुंजी से मेल नहीं खाता।",
         "cert_wrong_type_error" => "यह एक होस्ट प्रमाणपत्र है; उपयोगकर्ता प्रमाणपत्र संलग्न करें।",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "प्रमाणपत्र",
+        "cert_flag" => "SSH प्रमाणपत्र",
+        "public_key_auto_hint" => "खाली छोड़ने पर निजी कुंजी से प्राप्त की जाती है।",
+        "public_key_invalid_error" => "यह एक मान्य OpenSSH सार्वजनिक कुंजी लाइन नहीं है।",
+        "public_key_mismatch_error" => "सार्वजनिक कुंजी निजी कुंजी से मेल नहीं खाती।",
+        "cert_no_keys_hint" => "वॉल्ट में अभी किसी भी कुंजी के साथ प्रमाणपत्र संलग्न नहीं है।",
+        "cert_key_no_cert_hint" => "चयनित कुंजी के साथ कोई प्रमाणपत्र संलग्न नहीं है।",
         _ => return None,
     })
 }

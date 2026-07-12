@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "测试并保存",
         "sync_wizard_test_ok" => "中继可达。此设备现已使用该中继。",
         "sync_wizard_test_err" => "无法连接中继",
+        "sync_relay_not_recognized" => "主机已响应，但不是 Oryxis 中继",
         "sync_engine_running_label" => "引擎运行中",
         "sync_engine_stopped_label" => "引擎已停止",
         "sync_status_running" => "同步引擎已启动",
@@ -941,6 +942,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "口令错误，请重试。",
         "key_passphrase_required_msg" => "请输入密钥口令以继续。",
         "key_unsupported_kind" => "不支持的密钥类型：{kind}。请使用 Ed25519、RSA 或 ECDSA（P-256 或 P-384）。",
+        "key_not_found" => "未找到密钥。",
+        "key_certificate_removed" => "证书已移除",
+        "key_select_file_first" => "请先选择密钥文件",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "更新密钥",
         "save_key" => "保存密钥",
         "save_identity" => "保存身份",
@@ -1251,6 +1256,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "密码错误",
         "mcp_vault_pw_included" => "保险库密码已包含在配置中。",
         "mcp_vault_pw_plaintext_warning" => "密码以明文写入；任何能读取该配置文件的人都能解锁您的保险库。",
+        "mcp_vault_pw_removed" => "已从客户端配置中移除保险库密码。",
+        "mcp_vault_pw_remove_failed" => "无法从配置中移除密码：",
 
         // Cloud Accounts 中插件缺失横幅
         "cloud_plugin_missing_title" => "AWS 插件未安装",
@@ -1416,7 +1423,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "已附加证书",
         "cert_browse" => "浏览...",
         "cert_detected_hint" => "在密钥文件旁检测到证书",
-        "cert_badge" => "证书",
         "cert_view" => "查看证书",
         "cert_remove" => "移除证书",
         "cert_key_id" => "密钥 ID",
@@ -1430,6 +1436,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "此证书已过期。",
         "cert_mismatch_error" => "证书与此密钥不匹配。",
         "cert_wrong_type_error" => "那是主机证书；请附加用户证书。",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "证书",
+        "cert_flag" => "SSH 证书",
+        "public_key_auto_hint" => "留空时将从私钥派生。",
+        "public_key_invalid_error" => "这不是有效的 OpenSSH 公钥行。",
+        "public_key_mismatch_error" => "公钥与私钥不匹配。",
+        "cert_no_keys_hint" => "保险库中还没有附加了证书的密钥。",
+        "cert_key_no_cert_hint" => "所选密钥没有附加证书。",
 _ => return None,
     })
 }

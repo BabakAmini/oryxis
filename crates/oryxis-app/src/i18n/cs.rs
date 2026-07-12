@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Otestovat a uložit",
         "sync_wizard_test_ok" => "Relay server je dosažitelný. Toto zařízení jej nyní používá.",
         "sync_wizard_test_err" => "Relay server není dosažitelný",
+        "sync_relay_not_recognized" => "Hostitel odpověděl, ale není to relay Oryxis",
         "sync_engine_running_label" => "Engine běží",
         "sync_engine_stopped_label" => "Engine zastaven",
         "sync_status_running" => "Synchronizační engine spuštěn",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Nesprávná přístupová fráze. Zkuste to znovu.",
         "key_passphrase_required_msg" => "Pro pokračování zadejte přístupovou frázi klíče.",
         "key_unsupported_kind" => "Nepodporovaný typ klíče: {kind}. Použijte Ed25519, RSA nebo ECDSA (P-256 nebo P-384).",
+        "key_not_found" => "Klíč nenalezen.",
+        "key_certificate_removed" => "Certifikát odebrán",
+        "key_select_file_first" => "Nejprve vyberte soubor klíče",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Aktualizovat klíč",
         "save_key" => "Uložit klíč",
         "save_identity" => "Uložit identitu",
@@ -1398,6 +1403,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Nesprávné heslo",
         "mcp_vault_pw_included" => "Heslo trezoru je součástí konfigurace.",
         "mcp_vault_pw_plaintext_warning" => "Ukládá se jako prostý text; kdokoli, kdo může číst konfigurační soubor, může trezor odemknout.",
+        "mcp_vault_pw_removed" => "Heslo trezoru odebráno z konfigurace klienta.",
+        "mcp_vault_pw_remove_failed" => "Heslo se nepodařilo odebrat z konfigurace:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS není nainstalován",
@@ -1453,7 +1460,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Certifikát připojen",
         "cert_browse" => "Procházet...",
         "cert_detected_hint" => "Certifikát nalezen vedle souboru klíče",
-        "cert_badge" => "cert",
         "cert_view" => "Zobrazit certifikát",
         "cert_remove" => "Odebrat certifikát",
         "cert_key_id" => "ID klíče",
@@ -1467,6 +1473,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Platnost tohoto certifikátu vypršela.",
         "cert_mismatch_error" => "Certifikát neodpovídá tomuto klíči.",
         "cert_wrong_type_error" => "Toto je certifikát hostitele; připojte uživatelský certifikát.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certifikát",
+        "cert_flag" => "SSH certifikát",
+        "public_key_auto_hint" => "Pokud pole zůstane prázdné, odvodí se z privátního klíče.",
+        "public_key_invalid_error" => "Toto není platný řádek veřejného klíče OpenSSH.",
+        "public_key_mismatch_error" => "Veřejný klíč neodpovídá privátnímu klíči.",
+        "cert_no_keys_hint" => "Žádný klíč v trezoru zatím nemá připojený certifikát.",
+        "cert_key_no_cert_hint" => "Vybraný klíč nemá připojený certifikát.",
         _ => return None,
     })
 }

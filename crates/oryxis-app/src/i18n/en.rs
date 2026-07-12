@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sync_wizard_test" => "Test & save",
         "sync_wizard_test_ok" => "Relay reachable. This device now uses it.",
         "sync_wizard_test_err" => "Relay not reachable",
+        "sync_relay_not_recognized" => "Host answered but is not an Oryxis relay",
         "sync_engine_running_label" => "Engine running",
         "sync_engine_stopped_label" => "Engine stopped",
         "sync_status_running" => "Sync engine started",
@@ -1026,6 +1027,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "key_passphrase_wrong" => "Wrong passphrase. Please try again.",
         "key_passphrase_required_msg" => "Enter the key passphrase to continue.",
         "key_unsupported_kind" => "Unsupported key type: {kind}. Use Ed25519, RSA, or ECDSA (P-256 or P-384).",
+        "key_not_found" => "Key not found.",
+        "key_certificate_removed" => "Certificate removed",
+        "key_select_file_first" => "Select a key file first",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Update Key",
         "save_key" => "Save Key",
         "save_identity" => "Save Identity",
@@ -1399,6 +1404,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mcp_vault_pw_wrong" => "Wrong password",
         "mcp_vault_pw_included" => "Vault password included in the config.",
         "mcp_vault_pw_plaintext_warning" => "It is written as plain text; anyone who can read the config file can unlock your vault.",
+        "mcp_vault_pw_removed" => "Vault password removed from the client config.",
+        "mcp_vault_pw_remove_failed" => "Could not remove the password from the config:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS plugin not installed",
@@ -1454,7 +1461,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cert_attach" => "Certificate attached",
         "cert_browse" => "Browse...",
         "cert_detected_hint" => "Certificate detected next to the key file",
-        "cert_badge" => "cert",
         "cert_view" => "View certificate",
         "cert_remove" => "Remove certificate",
         "cert_key_id" => "Key ID",
@@ -1468,6 +1474,15 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cert_expired_warn" => "This certificate has expired.",
         "cert_mismatch_error" => "The certificate does not match this key.",
         "cert_wrong_type_error" => "That is a host certificate; attach a user certificate.",
+
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certificate",
+        "cert_flag" => "SSH Certificate",
+        "public_key_auto_hint" => "Derived from the private key when left empty.",
+        "public_key_invalid_error" => "That is not a valid OpenSSH public key line.",
+        "public_key_mismatch_error" => "The public key does not match the private key.",
+        "cert_no_keys_hint" => "No key in the vault has a certificate attached yet.",
+        "cert_key_no_cert_hint" => "The selected key has no attached certificate.",
 
         _ => "???",
     }

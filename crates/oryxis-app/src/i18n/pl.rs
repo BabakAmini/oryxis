@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Przetestuj i zapisz",
         "sync_wizard_test_ok" => "Przekaźnik osiągalny. To urządzenie teraz go używa.",
         "sync_wizard_test_err" => "Przekaźnik nieosiągalny",
+        "sync_relay_not_recognized" => "Host odpowiedział, ale nie jest przekaźnikiem Oryxis",
         "sync_engine_running_label" => "Silnik działa",
         "sync_engine_stopped_label" => "Silnik zatrzymany",
         "sync_status_running" => "Silnik synchronizacji uruchomiony",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Nieprawidłowe hasło. Spróbuj ponownie.",
         "key_passphrase_required_msg" => "Wprowadź hasło klucza, aby kontynuować.",
         "key_unsupported_kind" => "Nieobsługiwany typ klucza: {kind}. Użyj Ed25519, RSA lub ECDSA (P-256 lub P-384).",
+        "key_not_found" => "Nie znaleziono klucza.",
+        "key_certificate_removed" => "Usunięto certyfikat",
+        "key_select_file_first" => "Najpierw wybierz plik klucza",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Aktualizuj klucz",
         "save_key" => "Zapisz klucz",
         "save_identity" => "Zapisz tożsamość",
@@ -1336,6 +1341,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Nieprawidłowe hasło",
         "mcp_vault_pw_included" => "Hasło sejfu dołączone do konfiguracji.",
         "mcp_vault_pw_plaintext_warning" => "Jest zapisywane jawnym tekstem; każdy, kto może odczytać plik konfiguracyjny, może odblokować Twój sejf.",
+        "mcp_vault_pw_removed" => "Hasło sejfu usunięte z konfiguracji klienta.",
+        "mcp_vault_pw_remove_failed" => "Nie udało się usunąć hasła z konfiguracji:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Wtyczka AWS niezainstalowana",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Certyfikat dołączony",
         "cert_browse" => "Przeglądaj...",
         "cert_detected_hint" => "Wykryto certyfikat obok pliku klucza",
-        "cert_badge" => "cert",
         "cert_view" => "Wyświetl certyfikat",
         "cert_remove" => "Usuń certyfikat",
         "cert_key_id" => "Identyfikator klucza",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Ten certyfikat wygasł.",
         "cert_mismatch_error" => "Certyfikat nie pasuje do tego klucza.",
         "cert_wrong_type_error" => "To jest certyfikat hosta; dołącz certyfikat użytkownika.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certyfikat",
+        "cert_flag" => "Certyfikat SSH",
+        "public_key_auto_hint" => "Wyprowadzany z klucza prywatnego, gdy pole pozostanie puste.",
+        "public_key_invalid_error" => "To nie jest prawidłowy wiersz klucza publicznego OpenSSH.",
+        "public_key_mismatch_error" => "Klucz publiczny nie pasuje do klucza prywatnego.",
+        "cert_no_keys_hint" => "Żaden klucz w sejfie nie ma jeszcze dołączonego certyfikatu.",
+        "cert_key_no_cert_hint" => "Wybrany klucz nie ma dołączonego certyfikatu.",
 _ => return None,
     })
 }

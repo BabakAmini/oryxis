@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Testen & speichern",
         "sync_wizard_test_ok" => "Relay erreichbar. Dieses Gerät nutzt es jetzt.",
         "sync_wizard_test_err" => "Relay nicht erreichbar",
+        "sync_relay_not_recognized" => "Host hat geantwortet, ist aber kein Oryxis-Relay",
         "sync_engine_running_label" => "Engine läuft",
         "sync_engine_stopped_label" => "Engine gestoppt",
         "sync_status_running" => "Synchronisations-Engine gestartet",
@@ -932,6 +933,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Falsche Passphrase. Bitte erneut versuchen.",
         "key_passphrase_required_msg" => "Schlüssel-Passphrase eingeben, um fortzufahren.",
         "key_unsupported_kind" => "Nicht unterstützter Schlüsseltyp: {kind}. Verwende Ed25519, RSA oder ECDSA (P-256 oder P-384).",
+        "key_not_found" => "Schlüssel nicht gefunden.",
+        "key_certificate_removed" => "Zertifikat entfernt",
+        "key_select_file_first" => "Zuerst eine Schlüsseldatei auswählen",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Schlüssel aktualisieren",
         "save_key" => "Schlüssel speichern",
         "save_identity" => "Identität speichern",
@@ -1242,6 +1247,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Falsches Passwort",
         "mcp_vault_pw_included" => "Tresor-Passwort in der Konfiguration enthalten.",
         "mcp_vault_pw_plaintext_warning" => "Es wird im Klartext gespeichert; wer die Konfigurationsdatei lesen kann, kann Ihren Tresor entsperren.",
+        "mcp_vault_pw_removed" => "Tresor-Passwort aus der Client-Konfiguration entfernt.",
+        "mcp_vault_pw_remove_failed" => "Das Passwort konnte nicht aus der Konfiguration entfernt werden:",
 
         // Plugin-fehlt-Banner in Cloud Accounts
         "cloud_plugin_missing_title" => "AWS-Plugin nicht installiert",
@@ -1417,7 +1424,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Zertifikat angehängt",
         "cert_browse" => "Durchsuchen...",
         "cert_detected_hint" => "Zertifikat neben der Schlüsseldatei erkannt",
-        "cert_badge" => "Zert.",
         "cert_view" => "Zertifikat anzeigen",
         "cert_remove" => "Zertifikat entfernen",
         "cert_key_id" => "Schlüssel-ID",
@@ -1431,6 +1437,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Dieses Zertifikat ist abgelaufen.",
         "cert_mismatch_error" => "Das Zertifikat passt nicht zu diesem Schlüssel.",
         "cert_wrong_type_error" => "Das ist ein Hostzertifikat; hängen Sie ein Benutzerzertifikat an.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Zertifikat",
+        "cert_flag" => "SSH-Zertifikat",
+        "public_key_auto_hint" => "Wird aus dem privaten Schlüssel abgeleitet, wenn das Feld leer bleibt.",
+        "public_key_invalid_error" => "Das ist keine gültige Zeile eines öffentlichen OpenSSH-Schlüssels.",
+        "public_key_mismatch_error" => "Der öffentliche Schlüssel passt nicht zum privaten Schlüssel.",
+        "cert_no_keys_hint" => "Kein Schlüssel im Tresor hat bisher ein angehängtes Zertifikat.",
+        "cert_key_no_cert_hint" => "Der ausgewählte Schlüssel hat kein angehängtes Zertifikat.",
 _ => return None,
     })
 }

@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Проверить и сохранить",
         "sync_wizard_test_ok" => "Ретранслятор доступен. Это устройство теперь использует его.",
         "sync_wizard_test_err" => "Ретранслятор недоступен",
+        "sync_relay_not_recognized" => "Узел ответил, но это не ретранслятор Oryxis",
         "sync_engine_running_label" => "Движок работает",
         "sync_engine_stopped_label" => "Движок остановлен",
         "sync_status_running" => "Движок синхронизации запущен",
@@ -932,6 +933,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Неверная парольная фраза. Попробуйте ещё раз.",
         "key_passphrase_required_msg" => "Введите парольную фразу ключа, чтобы продолжить.",
         "key_unsupported_kind" => "Неподдерживаемый тип ключа: {kind}. Используйте Ed25519, RSA или ECDSA (P-256 или P-384).",
+        "key_not_found" => "Ключ не найден.",
+        "key_certificate_removed" => "Сертификат удалён",
+        "key_select_file_first" => "Сначала выберите файл ключа",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Обновить ключ",
         "save_key" => "Сохранить ключ",
         "save_identity" => "Сохранить личность",
@@ -1241,6 +1246,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Неверный пароль",
         "mcp_vault_pw_included" => "Пароль хранилища включён в конфигурацию.",
         "mcp_vault_pw_plaintext_warning" => "Он записывается открытым текстом; любой, кто может прочитать файл конфигурации, сможет разблокировать ваше хранилище.",
+        "mcp_vault_pw_removed" => "Пароль хранилища удалён из конфигурации клиента.",
+        "mcp_vault_pw_remove_failed" => "Не удалось удалить пароль из конфигурации:",
 
         // Баннер отсутствующего плагина в Cloud Accounts
         "cloud_plugin_missing_title" => "Плагин AWS не установлен",
@@ -1417,7 +1424,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Сертификат прикреплён",
         "cert_browse" => "Обзор...",
         "cert_detected_hint" => "Сертификат обнаружен рядом с файлом ключа",
-        "cert_badge" => "серт",
         "cert_view" => "Просмотреть сертификат",
         "cert_remove" => "Удалить сертификат",
         "cert_key_id" => "Идентификатор ключа",
@@ -1431,6 +1437,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Срок действия этого сертификата истёк.",
         "cert_mismatch_error" => "Сертификат не соответствует этому ключу.",
         "cert_wrong_type_error" => "Это сертификат хоста; прикрепите сертификат пользователя.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Сертификат",
+        "cert_flag" => "SSH-сертификат",
+        "public_key_auto_hint" => "Выводится из закрытого ключа, если поле оставлено пустым.",
+        "public_key_invalid_error" => "Это не корректная строка открытого ключа OpenSSH.",
+        "public_key_mismatch_error" => "Открытый ключ не соответствует закрытому ключу.",
+        "cert_no_keys_hint" => "В хранилище пока нет ключей с прикреплённым сертификатом.",
+        "cert_key_no_cert_hint" => "У выбранного ключа нет прикреплённого сертификата.",
 _ => return None,
     })
 }

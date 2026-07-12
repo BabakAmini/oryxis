@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "בדיקה ושמירה",
         "sync_wizard_test_ok" => "ה-relay נגיש. מכשיר זה משתמש בו כעת.",
         "sync_wizard_test_err" => "ה-relay אינו נגיש",
+        "sync_relay_not_recognized" => "המארח השיב אך אינו relay של Oryxis",
         "sync_engine_running_label" => "המנוע רץ",
         "sync_engine_stopped_label" => "המנוע עצור",
         "sync_status_running" => "מנוע הסנכרון הופעל",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "משפט סיסמה שגוי. נסו שוב.",
         "key_passphrase_required_msg" => "הזינו את משפט הסיסמה של המפתח כדי להמשיך.",
         "key_unsupported_kind" => "סוג מפתח לא נתמך: {kind}. השתמשו ב-Ed25519, RSA או ECDSA (P-256 או P-384).",
+        "key_not_found" => "המפתח לא נמצא.",
+        "key_certificate_removed" => "האישור הוסר",
+        "key_select_file_first" => "בחרו קודם קובץ מפתח",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "עדכון מפתח",
         "save_key" => "שמירת מפתח",
         "save_identity" => "שמירת זהות",
@@ -1398,6 +1403,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "סיסמה שגויה",
         "mcp_vault_pw_included" => "סיסמת הכספת נכללה בתצורה.",
         "mcp_vault_pw_plaintext_warning" => "היא נכתבת כטקסט גלוי; כל מי שיכול לקרוא את קובץ התצורה יכול לפתוח את הכספת שלך.",
+        "mcp_vault_pw_removed" => "סיסמת הכספת הוסרה מתצורת הלקוח.",
+        "mcp_vault_pw_remove_failed" => "לא ניתן היה להסיר את הסיסמה מהתצורה:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "תוסף AWS לא מותקן",
@@ -1453,7 +1460,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "תעודה מצורפת",
         "cert_browse" => "עיון...",
         "cert_detected_hint" => "זוהתה תעודה לצד קובץ המפתח",
-        "cert_badge" => "תעודה",
         "cert_view" => "הצגת תעודה",
         "cert_remove" => "הסרת תעודה",
         "cert_key_id" => "מזהה מפתח",
@@ -1467,6 +1473,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "תוקף התעודה פג.",
         "cert_mismatch_error" => "התעודה אינה תואמת למפתח זה.",
         "cert_wrong_type_error" => "זוהי תעודת מארח; יש לצרף תעודת משתמש.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "תעודה",
+        "cert_flag" => "תעודת SSH",
+        "public_key_auto_hint" => "נגזר מהמפתח הפרטי כאשר נשאר ריק.",
+        "public_key_invalid_error" => "זו אינה שורת מפתח ציבורי חוקית בפורמט OpenSSH.",
+        "public_key_mismatch_error" => "המפתח הציבורי אינו תואם למפתח הפרטי.",
+        "cert_no_keys_hint" => "אין עדיין מפתח בכספת עם תעודה מצורפת.",
+        "cert_key_no_cert_hint" => "למפתח שנבחר אין תעודה מצורפת.",
         _ => return None,
     })
 }

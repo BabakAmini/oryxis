@@ -549,6 +549,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "آزمایش و ذخیره",
         "sync_wizard_test_ok" => "رله در دسترس است. این دستگاه اکنون از آن استفاده می‌کند.",
         "sync_wizard_test_err" => "رله در دسترس نیست",
+        "sync_relay_not_recognized" => "میزبان پاسخ داد اما رله Oryxis نیست",
         "sync_engine_running_label" => "موتور فعال",
         "sync_engine_stopped_label" => "موتور متوقف",
         "sync_status_running" => "موتور همگام‌سازی آغاز شد",
@@ -1009,6 +1010,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "عبارت عبور اشتباه است. لطفاً دوباره تلاش کنید.",
         "key_passphrase_required_msg" => "برای ادامه، عبارت عبور کلید را وارد کنید.",
         "key_unsupported_kind" => "نوع کلید پشتیبانی\u{200c}نشده: {kind}. از Ed25519، RSA یا ECDSA (P-256 یا P-384) استفاده کنید.",
+        "key_not_found" => "کلید یافت نشد.",
+        "key_certificate_removed" => "گواهی حذف شد",
+        "key_select_file_first" => "ابتدا یک فایل کلید انتخاب کنید",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "به‌روزرسانی کلید",
         "save_key" => "ذخیره کلید",
         "save_identity" => "ذخیره هویت",
@@ -1319,6 +1324,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "گذرواژه اشتباه است",
         "mcp_vault_pw_included" => "گذرواژه صندوقچه در پیکربندی گنجانده شد.",
         "mcp_vault_pw_plaintext_warning" => "به صورت متن ساده نوشته می‌شود؛ هر کسی که بتواند فایل پیکربندی را بخواند می‌تواند صندوقچه شما را باز کند.",
+        "mcp_vault_pw_removed" => "گذرواژه صندوقچه از پیکربندی کلاینت حذف شد.",
+        "mcp_vault_pw_remove_failed" => "حذف گذرواژه از پیکربندی ممکن نشد:",
 
         // بنر افزونه نصب‌نشده در Cloud Accounts
         "cloud_plugin_missing_title" => "افزونه AWS نصب نشده",
@@ -1435,7 +1442,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "گواهی پیوست شد",
         "cert_browse" => "مرور...",
         "cert_detected_hint" => "گواهی در کنار فایل کلید شناسایی شد",
-        "cert_badge" => "گواهی",
         "cert_view" => "نمایش گواهی",
         "cert_remove" => "حذف گواهی",
         "cert_key_id" => "شناسه کلید",
@@ -1449,6 +1455,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "این گواهی منقضی شده است.",
         "cert_mismatch_error" => "گواهی با این کلید مطابقت ندارد.",
         "cert_wrong_type_error" => "این یک گواهی میزبان است؛ یک گواهی کاربر پیوست کنید.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "گواهی",
+        "cert_flag" => "گواهی SSH",
+        "public_key_auto_hint" => "در صورت خالی ماندن، از کلید خصوصی استخراج می‌شود.",
+        "public_key_invalid_error" => "این یک خط کلید عمومی معتبر OpenSSH نیست.",
+        "public_key_mismatch_error" => "کلید عمومی با کلید خصوصی مطابقت ندارد.",
+        "cert_no_keys_hint" => "هنوز هیچ کلیدی در صندوقچه گواهی پیوست‌شده ندارد.",
+        "cert_key_no_cert_hint" => "کلید انتخاب‌شده گواهی پیوست‌شده ندارد.",
 _ => return None,
     })
 }

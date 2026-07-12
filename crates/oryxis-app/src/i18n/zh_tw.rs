@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "測試並儲存",
         "sync_wizard_test_ok" => "中繼可連線。此裝置現在會使用它。",
         "sync_wizard_test_err" => "無法連線中繼",
+        "sync_relay_not_recognized" => "主機已回應，但不是 Oryxis 中繼",
         "sync_engine_running_label" => "引擎執行中",
         "sync_engine_stopped_label" => "引擎已停止",
         "sync_status_running" => "同步引擎已啟動",
@@ -941,6 +942,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "通關密語錯誤，請重試。",
         "key_passphrase_required_msg" => "請輸入金鑰通關密語以繼續。",
         "key_unsupported_kind" => "不支援的金鑰類型：{kind}。請使用 Ed25519、RSA 或 ECDSA（P-256 或 P-384）。",
+        "key_not_found" => "找不到金鑰。",
+        "key_certificate_removed" => "已移除憑證",
+        "key_select_file_first" => "請先選擇金鑰檔案",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "更新金鑰",
         "save_key" => "儲存金鑰",
         "save_identity" => "儲存身分",
@@ -1251,6 +1256,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "密碼錯誤",
         "mcp_vault_pw_included" => "保險庫密碼已包含在設定中。",
         "mcp_vault_pw_plaintext_warning" => "密碼以明文寫入；任何能讀取該設定檔的人都能解鎖您的保險庫。",
+        "mcp_vault_pw_removed" => "已從用戶端設定中移除保險庫密碼。",
+        "mcp_vault_pw_remove_failed" => "無法從設定中移除密碼：",
 
         // Plugin-missing banner in Cloud Accounts
         "cloud_plugin_missing_title" => "AWS 外掛程式未安裝",
@@ -1416,7 +1423,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "已附加憑證",
         "cert_browse" => "瀏覽...",
         "cert_detected_hint" => "在金鑰檔案旁偵測到憑證",
-        "cert_badge" => "憑證",
         "cert_view" => "檢視憑證",
         "cert_remove" => "移除憑證",
         "cert_key_id" => "金鑰 ID",
@@ -1430,6 +1436,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "此憑證已過期。",
         "cert_mismatch_error" => "憑證與此金鑰不符。",
         "cert_wrong_type_error" => "那是主機憑證；請附加使用者憑證。",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "憑證",
+        "cert_flag" => "SSH 憑證",
+        "public_key_auto_hint" => "留空時將從私鑰推導。",
+        "public_key_invalid_error" => "這不是有效的 OpenSSH 公鑰行。",
+        "public_key_mismatch_error" => "公鑰與私鑰不符。",
+        "cert_no_keys_hint" => "保險庫中還沒有附加憑證的金鑰。",
+        "cert_key_no_cert_hint" => "所選金鑰沒有附加憑證。",
         _ => return None,
     })
 }

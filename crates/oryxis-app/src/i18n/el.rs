@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Δοκιμή και αποθήκευση",
         "sync_wizard_test_ok" => "Το relay είναι προσβάσιμο. Αυτή η συσκευή το χρησιμοποιεί πλέον.",
         "sync_wizard_test_err" => "Το relay δεν είναι προσβάσιμο",
+        "sync_relay_not_recognized" => "Ο κεντρικός υπολογιστής απάντησε αλλά δεν είναι relay Oryxis",
         "sync_engine_running_label" => "Η μηχανή εκτελείται",
         "sync_engine_stopped_label" => "Η μηχανή σταμάτησε",
         "sync_status_running" => "Η μηχανή συγχρονισμού ξεκίνησε",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Λάθος φράση πρόσβασης. Δοκιμάστε ξανά.",
         "key_passphrase_required_msg" => "Εισαγάγετε τη φράση πρόσβασης του κλειδιού για να συνεχίσετε.",
         "key_unsupported_kind" => "Μη υποστηριζόμενος τύπος κλειδιού: {kind}. Χρησιμοποιήστε Ed25519, RSA ή ECDSA (P-256 ή P-384).",
+        "key_not_found" => "Το κλειδί δεν βρέθηκε.",
+        "key_certificate_removed" => "Το πιστοποιητικό αφαιρέθηκε",
+        "key_select_file_first" => "Επιλέξτε πρώτα ένα αρχείο κλειδιού",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Ενημέρωση κλειδιού",
         "save_key" => "Αποθήκευση κλειδιού",
         "save_identity" => "Αποθήκευση ταυτότητας",
@@ -1398,6 +1403,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Λάθος κωδικός",
         "mcp_vault_pw_included" => "Ο κωδικός του vault συμπεριλήφθηκε στη ρύθμιση.",
         "mcp_vault_pw_plaintext_warning" => "Αποθηκεύεται ως απλό κείμενο· όποιος μπορεί να διαβάσει το αρχείο ρυθμίσεων μπορεί να ξεκλειδώσει το vault σας.",
+        "mcp_vault_pw_removed" => "Ο κωδικός του vault αφαιρέθηκε από τη ρύθμιση του πελάτη.",
+        "mcp_vault_pw_remove_failed" => "Δεν ήταν δυνατή η αφαίρεση του κωδικού από τη ρύθμιση:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Το plugin AWS δεν είναι εγκατεστημένο",
@@ -1453,7 +1460,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Το πιστοποιητικό επισυνάφθηκε",
         "cert_browse" => "Αναζήτηση...",
         "cert_detected_hint" => "Εντοπίστηκε πιστοποιητικό δίπλα στο αρχείο κλειδιού",
-        "cert_badge" => "πιστ.",
         "cert_view" => "Προβολή πιστοποιητικού",
         "cert_remove" => "Αφαίρεση πιστοποιητικού",
         "cert_key_id" => "Αναγνωριστικό κλειδιού",
@@ -1467,6 +1473,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Αυτό το πιστοποιητικό έχει λήξει.",
         "cert_mismatch_error" => "Το πιστοποιητικό δεν ταιριάζει με αυτό το κλειδί.",
         "cert_wrong_type_error" => "Αυτό είναι πιστοποιητικό host· επισυνάψτε πιστοποιητικό χρήστη.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Πιστοποιητικό",
+        "cert_flag" => "Πιστοποιητικό SSH",
+        "public_key_auto_hint" => "Παράγεται από το ιδιωτικό κλειδί όταν μείνει κενό.",
+        "public_key_invalid_error" => "Αυτή δεν είναι έγκυρη γραμμή δημόσιου κλειδιού OpenSSH.",
+        "public_key_mismatch_error" => "Το δημόσιο κλειδί δεν ταιριάζει με το ιδιωτικό κλειδί.",
+        "cert_no_keys_hint" => "Κανένα κλειδί στο vault δεν έχει ακόμη συνημμένο πιστοποιητικό.",
+        "cert_key_no_cert_hint" => "Το επιλεγμένο κλειδί δεν έχει συνημμένο πιστοποιητικό.",
         _ => return None,
     })
 }

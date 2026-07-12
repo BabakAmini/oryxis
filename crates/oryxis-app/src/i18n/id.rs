@@ -547,6 +547,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Uji & simpan",
         "sync_wizard_test_ok" => "Relay dapat dijangkau. Perangkat ini sekarang menggunakannya.",
         "sync_wizard_test_err" => "Relay tidak dapat dijangkau",
+        "sync_relay_not_recognized" => "Host menjawab tetapi bukan relay Oryxis",
         "sync_engine_running_label" => "Mesin berjalan",
         "sync_engine_stopped_label" => "Mesin berhenti",
         "sync_status_running" => "Mesin sinkronisasi dimulai",
@@ -1019,6 +1020,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Passphrase salah. Silakan coba lagi.",
         "key_passphrase_required_msg" => "Masukkan passphrase kunci untuk melanjutkan.",
         "key_unsupported_kind" => "Tipe kunci tidak didukung: {kind}. Gunakan Ed25519, RSA, atau ECDSA (P-256 atau P-384).",
+        "key_not_found" => "Kunci tidak ditemukan.",
+        "key_certificate_removed" => "Sertifikat dihapus",
+        "key_select_file_first" => "Pilih file kunci terlebih dahulu",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Perbarui Kunci",
         "save_key" => "Simpan Kunci",
         "save_identity" => "Simpan Identitas",
@@ -1329,6 +1334,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Kata sandi salah",
         "mcp_vault_pw_included" => "Kata sandi vault disertakan dalam konfigurasi.",
         "mcp_vault_pw_plaintext_warning" => "Disimpan sebagai teks biasa; siapa pun yang dapat membaca berkas konfigurasi dapat membuka vault Anda.",
+        "mcp_vault_pw_removed" => "Kata sandi vault dihapus dari konfigurasi klien.",
+        "mcp_vault_pw_remove_failed" => "Tidak dapat menghapus kata sandi dari konfigurasi:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Plugin AWS tidak terpasang",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Sertifikat terlampir",
         "cert_browse" => "Telusuri...",
         "cert_detected_hint" => "Sertifikat terdeteksi di samping berkas kunci",
-        "cert_badge" => "sertifikat",
         "cert_view" => "Lihat sertifikat",
         "cert_remove" => "Hapus sertifikat",
         "cert_key_id" => "ID Kunci",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Sertifikat ini telah kedaluwarsa.",
         "cert_mismatch_error" => "Sertifikat tidak cocok dengan kunci ini.",
         "cert_wrong_type_error" => "Itu adalah sertifikat host; lampirkan sertifikat pengguna.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Sertifikat",
+        "cert_flag" => "Sertifikat SSH",
+        "public_key_auto_hint" => "Diturunkan dari kunci privat jika dibiarkan kosong.",
+        "public_key_invalid_error" => "Itu bukan baris kunci publik OpenSSH yang valid.",
+        "public_key_mismatch_error" => "Kunci publik tidak cocok dengan kunci privat.",
+        "cert_no_keys_hint" => "Belum ada kunci di vault yang memiliki sertifikat terlampir.",
+        "cert_key_no_cert_hint" => "Kunci yang dipilih tidak memiliki sertifikat terlampir.",
 _ => return None,
     })
 }

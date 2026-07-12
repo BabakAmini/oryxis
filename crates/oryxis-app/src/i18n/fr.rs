@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Tester et enregistrer",
         "sync_wizard_test_ok" => "Relais joignable. Cet appareil l'utilise désormais.",
         "sync_wizard_test_err" => "Relais injoignable",
+        "sync_relay_not_recognized" => "L'hôte a répondu mais n'est pas un relais Oryxis",
         "sync_engine_running_label" => "Moteur actif",
         "sync_engine_stopped_label" => "Moteur arrêté",
         "sync_status_running" => "Moteur de synchronisation démarré",
@@ -941,6 +942,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Phrase de passe incorrecte. Veuillez réessayer.",
         "key_passphrase_required_msg" => "Saisissez la phrase de passe de la clé pour continuer.",
         "key_unsupported_kind" => "Type de clé non pris en charge : {kind}. Utilisez Ed25519, RSA ou ECDSA (P-256 ou P-384).",
+        "key_not_found" => "Clé introuvable.",
+        "key_certificate_removed" => "Certificat supprimé",
+        "key_select_file_first" => "Sélectionnez d'abord un fichier de clé",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Mettre à jour la clé",
         "save_key" => "Enregistrer la clé",
         "save_identity" => "Enregistrer l'identité",
@@ -1269,6 +1274,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Mot de passe incorrect",
         "mcp_vault_pw_included" => "Mot de passe du coffre inclus dans la configuration.",
         "mcp_vault_pw_plaintext_warning" => "Il est écrit en clair ; quiconque peut lire le fichier de configuration peut déverrouiller votre coffre.",
+        "mcp_vault_pw_removed" => "Mot de passe du coffre supprimé de la configuration du client.",
+        "mcp_vault_pw_remove_failed" => "Impossible de supprimer le mot de passe de la configuration :",
 
         // Bannière plugin absent dans Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS non installé",
@@ -1416,7 +1423,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Certificat joint",
         "cert_browse" => "Parcourir...",
         "cert_detected_hint" => "Certificat détecté à côté du fichier de clé",
-        "cert_badge" => "cert",
         "cert_view" => "Voir le certificat",
         "cert_remove" => "Retirer le certificat",
         "cert_key_id" => "ID de clé",
@@ -1430,6 +1436,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Ce certificat a expiré.",
         "cert_mismatch_error" => "Le certificat ne correspond pas à cette clé.",
         "cert_wrong_type_error" => "Il s'agit d'un certificat d'hôte ; joignez un certificat utilisateur.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certificat",
+        "cert_flag" => "Certificat SSH",
+        "public_key_auto_hint" => "Dérivée de la clé privée si le champ est laissé vide.",
+        "public_key_invalid_error" => "Ceci n'est pas une ligne de clé publique OpenSSH valide.",
+        "public_key_mismatch_error" => "La clé publique ne correspond pas à la clé privée.",
+        "cert_no_keys_hint" => "Aucune clé du coffre n'a encore de certificat joint.",
+        "cert_key_no_cert_hint" => "La clé sélectionnée n'a pas de certificat joint.",
 _ => return None,
     })
 }

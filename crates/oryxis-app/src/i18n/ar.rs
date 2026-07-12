@@ -565,6 +565,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "اختبار وحفظ",
         "sync_wizard_test_ok" => "المرحّل قابل للوصول. هذا الجهاز يستخدمه الآن.",
         "sync_wizard_test_err" => "تعذّر الوصول إلى المرحّل",
+        "sync_relay_not_recognized" => "استجاب المضيف لكنه ليس مرحّل Oryxis",
         "sync_engine_running_label" => "المحرك يعمل",
         "sync_engine_stopped_label" => "المحرك متوقف",
         "sync_status_running" => "تم تشغيل محرك المزامنة",
@@ -1025,6 +1026,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "عبارة المرور غير صحيحة. يرجى المحاولة مرة أخرى.",
         "key_passphrase_required_msg" => "أدخل عبارة مرور المفتاح للمتابعة.",
         "key_unsupported_kind" => "نوع المفتاح غير مدعوم: {kind}. استخدم Ed25519 أو RSA أو ECDSA (P-256 أو P-384).",
+        "key_not_found" => "المفتاح غير موجود.",
+        "key_certificate_removed" => "تمت إزالة الشهادة",
+        "key_select_file_first" => "اختر ملف مفتاح أولاً",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "تحديث المفتاح",
         "save_key" => "حفظ المفتاح",
         "save_identity" => "حفظ الهوية",
@@ -1353,6 +1358,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "كلمة مرور خاطئة",
         "mcp_vault_pw_included" => "تم تضمين كلمة مرور الخزنة في الإعدادات.",
         "mcp_vault_pw_plaintext_warning" => "تُكتب كنص عادي؛ أي شخص يمكنه قراءة ملف الإعدادات يمكنه فتح خزنتك.",
+        "mcp_vault_pw_removed" => "تمت إزالة كلمة مرور الخزنة من إعدادات العميل.",
+        "mcp_vault_pw_remove_failed" => "تعذّر إزالة كلمة المرور من الإعدادات:",
 
         // شعار الإضافة المفقودة في Cloud Accounts
         "cloud_plugin_missing_title" => "إضافة AWS غير مثبتة",
@@ -1434,7 +1441,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "الشهادة مرفقة",
         "cert_browse" => "تصفح...",
         "cert_detected_hint" => "تم اكتشاف شهادة بجوار ملف المفتاح",
-        "cert_badge" => "شهادة",
         "cert_view" => "عرض الشهادة",
         "cert_remove" => "إزالة الشهادة",
         "cert_key_id" => "معرّف المفتاح",
@@ -1448,6 +1454,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "انتهت صلاحية هذه الشهادة.",
         "cert_mismatch_error" => "الشهادة لا تطابق هذا المفتاح.",
         "cert_wrong_type_error" => "هذه شهادة مضيف؛ أرفق شهادة مستخدم.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "شهادة",
+        "cert_flag" => "شهادة SSH",
+        "public_key_auto_hint" => "يُشتق من المفتاح الخاص عند تركه فارغًا.",
+        "public_key_invalid_error" => "هذا ليس سطر مفتاح عام صالحًا بصيغة OpenSSH.",
+        "public_key_mismatch_error" => "المفتاح العام لا يطابق المفتاح الخاص.",
+        "cert_no_keys_hint" => "لا يوجد بعد أي مفتاح في الخزنة بشهادة مرفقة.",
+        "cert_key_no_cert_hint" => "المفتاح المحدد ليست له شهادة مرفقة.",
 _ => return None,
     })
 }

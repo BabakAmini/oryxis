@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Prova e salva",
         "sync_wizard_test_ok" => "Relay raggiungibile. Questo dispositivo ora lo usa.",
         "sync_wizard_test_err" => "Relay non raggiungibile",
+        "sync_relay_not_recognized" => "L'host ha risposto ma non è un relay Oryxis",
         "sync_engine_running_label" => "Motore attivo",
         "sync_engine_stopped_label" => "Motore fermo",
         "sync_status_running" => "Motore di sincronizzazione avviato",
@@ -932,6 +933,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Passphrase errata. Riprova.",
         "key_passphrase_required_msg" => "Inserisci la passphrase della chiave per continuare.",
         "key_unsupported_kind" => "Tipo di chiave non supportato: {kind}. Usa Ed25519, RSA o ECDSA (P-256 o P-384).",
+        "key_not_found" => "Chiave non trovata.",
+        "key_certificate_removed" => "Certificato rimosso",
+        "key_select_file_first" => "Seleziona prima un file di chiave",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Aggiorna Chiave",
         "save_key" => "Salva Chiave",
         "save_identity" => "Salva Identità",
@@ -1241,6 +1246,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Password errata",
         "mcp_vault_pw_included" => "Password del vault inclusa nella configurazione.",
         "mcp_vault_pw_plaintext_warning" => "Viene salvata in chiaro; chiunque possa leggere il file di configurazione può sbloccare il tuo vault.",
+        "mcp_vault_pw_removed" => "Password del vault rimossa dalla configurazione del client.",
+        "mcp_vault_pw_remove_failed" => "Impossibile rimuovere la password dalla configurazione:",
 
         // Banner plugin mancante in Cloud Accounts
         "cloud_plugin_missing_title" => "Plugin AWS non installato",
@@ -1417,7 +1424,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Certificato allegato",
         "cert_browse" => "Sfoglia...",
         "cert_detected_hint" => "Certificato rilevato accanto al file della chiave",
-        "cert_badge" => "cert",
         "cert_view" => "Visualizza certificato",
         "cert_remove" => "Rimuovi certificato",
         "cert_key_id" => "ID chiave",
@@ -1431,6 +1437,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Questo certificato è scaduto.",
         "cert_mismatch_error" => "Il certificato non corrisponde a questa chiave.",
         "cert_wrong_type_error" => "Questo è un certificato host; allega un certificato utente.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Certificato",
+        "cert_flag" => "Certificato SSH",
+        "public_key_auto_hint" => "Derivata dalla chiave privata se lasciata vuota.",
+        "public_key_invalid_error" => "Questa non è una riga di chiave pubblica OpenSSH valida.",
+        "public_key_mismatch_error" => "La chiave pubblica non corrisponde alla chiave privata.",
+        "cert_no_keys_hint" => "Nessuna chiave nella cassaforte ha ancora un certificato allegato.",
+        "cert_key_no_cert_hint" => "La chiave selezionata non ha alcun certificato allegato.",
 _ => return None,
     })
 }

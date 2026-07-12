@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "テストして保存",
         "sync_wizard_test_ok" => "リレーに到達できました。このデバイスは今後このリレーを使用します。",
         "sync_wizard_test_err" => "リレーに到達できません",
+        "sync_relay_not_recognized" => "ホストは応答しましたが、Oryxis リレーではありません",
         "sync_engine_running_label" => "エンジン稼働中",
         "sync_engine_stopped_label" => "エンジン停止中",
         "sync_status_running" => "同期エンジンを開始しました",
@@ -941,6 +942,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "パスフレーズが間違っています。もう一度お試しください。",
         "key_passphrase_required_msg" => "続行するには鍵のパスフレーズを入力してください。",
         "key_unsupported_kind" => "サポート外の鍵種別: {kind}。Ed25519、RSA、または ECDSA（P-256 または P-384）を使用してください。",
+        "key_not_found" => "鍵が見つかりません。",
+        "key_certificate_removed" => "証明書を削除しました",
+        "key_select_file_first" => "先に鍵ファイルを選択してください",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "鍵を更新",
         "save_key" => "鍵を保存",
         "save_identity" => "IDを保存",
@@ -1253,6 +1258,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "パスワードが違います",
         "mcp_vault_pw_included" => "ボールトのパスワードが設定に含まれています。",
         "mcp_vault_pw_plaintext_warning" => "パスワードは平文で書き込まれます。設定ファイルを読める人は誰でもボールトを解錠できます。",
+        "mcp_vault_pw_removed" => "ボールトのパスワードをクライアント設定から削除しました。",
+        "mcp_vault_pw_remove_failed" => "設定からパスワードを削除できませんでした：",
 
         // Cloud Accounts のプラグイン未インストールバナー
         "cloud_plugin_missing_title" => "AWS プラグインが未インストール",
@@ -1417,7 +1424,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "証明書を添付済み",
         "cert_browse" => "参照...",
         "cert_detected_hint" => "鍵ファイルの隣に証明書を検出しました",
-        "cert_badge" => "証明書",
         "cert_view" => "証明書を表示",
         "cert_remove" => "証明書を削除",
         "cert_key_id" => "鍵 ID",
@@ -1431,6 +1437,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "この証明書は期限切れです。",
         "cert_mismatch_error" => "証明書がこの鍵と一致しません。",
         "cert_wrong_type_error" => "それはホスト証明書です。ユーザー証明書を添付してください。",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "証明書",
+        "cert_flag" => "SSH 証明書",
+        "public_key_auto_hint" => "空欄の場合は秘密鍵から導出されます。",
+        "public_key_invalid_error" => "有効な OpenSSH 公開鍵の行ではありません。",
+        "public_key_mismatch_error" => "公開鍵が秘密鍵と一致しません。",
+        "cert_no_keys_hint" => "ボールト内に証明書が添付された鍵はまだありません。",
+        "cert_key_no_cert_hint" => "選択した鍵には証明書が添付されていません。",
 _ => return None,
     })
 }

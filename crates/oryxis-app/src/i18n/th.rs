@@ -553,6 +553,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "ทดสอบและบันทึก",
         "sync_wizard_test_ok" => "เข้าถึง relay ได้แล้ว อุปกรณ์นี้จะใช้ relay นี้",
         "sync_wizard_test_err" => "ไม่สามารถเข้าถึง relay",
+        "sync_relay_not_recognized" => "โฮสต์ตอบกลับแต่ไม่ใช่ relay ของ Oryxis",
         "sync_engine_running_label" => "เอนจินกำลังทำงาน",
         "sync_engine_stopped_label" => "เอนจินหยุดแล้ว",
         "sync_status_running" => "เริ่มเอนจินซิงค์แล้ว",
@@ -1026,6 +1027,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "วลีรหัสผ่านไม่ถูกต้อง โปรดลองอีกครั้ง",
         "key_passphrase_required_msg" => "ป้อนวลีรหัสผ่านของคีย์เพื่อดำเนินการต่อ",
         "key_unsupported_kind" => "ชนิดคีย์ไม่รองรับ: {kind} ใช้ Ed25519, RSA หรือ ECDSA (P-256 หรือ P-384)",
+        "key_not_found" => "ไม่พบคีย์",
+        "key_certificate_removed" => "ลบใบรับรองแล้ว",
+        "key_select_file_first" => "เลือกไฟล์คีย์ก่อน",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "อัปเดตคีย์",
         "save_key" => "บันทึกคีย์",
         "save_identity" => "บันทึก Identity",
@@ -1399,6 +1404,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "รหัสผ่านไม่ถูกต้อง",
         "mcp_vault_pw_included" => "รวมรหัสผ่าน Vault ไว้ในการตั้งค่าแล้ว",
         "mcp_vault_pw_plaintext_warning" => "ถูกบันทึกเป็นข้อความธรรมดา ใครก็ตามที่อ่านไฟล์การตั้งค่าได้จะปลดล็อก Vault ของคุณได้",
+        "mcp_vault_pw_removed" => "ลบรหัสผ่าน Vault ออกจากการตั้งค่าไคลเอนต์แล้ว",
+        "mcp_vault_pw_remove_failed" => "ไม่สามารถลบรหัสผ่านออกจากการตั้งค่าได้:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "ยังไม่ได้ติดตั้งปลั๊กอิน AWS",
@@ -1454,7 +1461,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "แนบใบรับรองแล้ว",
         "cert_browse" => "เรียกดู...",
         "cert_detected_hint" => "ตรวจพบใบรับรองข้างไฟล์กุญแจ",
-        "cert_badge" => "ใบรับรอง",
         "cert_view" => "ดูใบรับรอง",
         "cert_remove" => "นำใบรับรองออก",
         "cert_key_id" => "รหัสกุญแจ",
@@ -1468,6 +1474,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "ใบรับรองนี้หมดอายุแล้ว",
         "cert_mismatch_error" => "ใบรับรองไม่ตรงกับกุญแจนี้",
         "cert_wrong_type_error" => "นี่คือใบรับรองโฮสต์ โปรดแนบใบรับรองผู้ใช้",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "ใบรับรอง",
+        "cert_flag" => "ใบรับรอง SSH",
+        "public_key_auto_hint" => "จะสร้างจากกุญแจส่วนตัวโดยอัตโนมัติเมื่อเว้นว่างไว้",
+        "public_key_invalid_error" => "นี่ไม่ใช่บรรทัดกุญแจสาธารณะ OpenSSH ที่ถูกต้อง",
+        "public_key_mismatch_error" => "กุญแจสาธารณะไม่ตรงกับกุญแจส่วนตัว",
+        "cert_no_keys_hint" => "ยังไม่มีกุญแจใน Vault ที่มีใบรับรองแนบอยู่",
+        "cert_key_no_cert_hint" => "กุญแจที่เลือกไม่มีใบรับรองแนบอยู่",
         _ => return None,
     })
 }

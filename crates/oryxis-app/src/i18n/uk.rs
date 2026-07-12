@@ -547,6 +547,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Перевірити й зберегти",
         "sync_wizard_test_ok" => "Ретранслятор доступний. Цей пристрій тепер використовує його.",
         "sync_wizard_test_err" => "Ретранслятор недоступний",
+        "sync_relay_not_recognized" => "Вузол відповів, але це не ретранслятор Oryxis",
         "sync_engine_running_label" => "Рушій запущено",
         "sync_engine_stopped_label" => "Рушій зупинено",
         "sync_status_running" => "Рушій синхронізації запущено",
@@ -1019,6 +1020,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Неправильна парольна фраза. Спробуйте ще раз.",
         "key_passphrase_required_msg" => "Введіть парольну фразу ключа, щоб продовжити.",
         "key_unsupported_kind" => "Непідтримуваний тип ключа: {kind}. Використовуйте Ed25519, RSA або ECDSA (P-256 чи P-384).",
+        "key_not_found" => "Ключ не знайдено.",
+        "key_certificate_removed" => "Сертифікат вилучено",
+        "key_select_file_first" => "Спершу виберіть файл ключа",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Оновити ключ",
         "save_key" => "Зберегти ключ",
         "save_identity" => "Зберегти ідентичність",
@@ -1329,6 +1334,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Неправильний пароль",
         "mcp_vault_pw_included" => "Пароль сховища додано до конфігурації.",
         "mcp_vault_pw_plaintext_warning" => "Він записується відкритим текстом; будь-хто, хто може прочитати файл конфігурації, зможе розблокувати ваше сховище.",
+        "mcp_vault_pw_removed" => "Пароль сховища видалено з конфігурації клієнта.",
+        "mcp_vault_pw_remove_failed" => "Не вдалося видалити пароль із конфігурації:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "Плагін AWS не встановлено",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Сертифікат додано",
         "cert_browse" => "Огляд...",
         "cert_detected_hint" => "Сертифікат виявлено поруч із файлом ключа",
-        "cert_badge" => "серт",
         "cert_view" => "Переглянути сертифікат",
         "cert_remove" => "Прибрати сертифікат",
         "cert_key_id" => "Ідентифікатор ключа",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Термін дії цього сертифіката минув.",
         "cert_mismatch_error" => "Сертифікат не відповідає цьому ключу.",
         "cert_wrong_type_error" => "Це сертифікат хоста; додайте сертифікат користувача.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Сертифікат",
+        "cert_flag" => "SSH-сертифікат",
+        "public_key_auto_hint" => "Виводиться із закритого ключа, якщо поле залишити порожнім.",
+        "public_key_invalid_error" => "Це не коректний рядок відкритого ключа OpenSSH.",
+        "public_key_mismatch_error" => "Відкритий ключ не відповідає закритому ключу.",
+        "cert_no_keys_hint" => "У сховищі поки немає ключів із доданим сертифікатом.",
+        "cert_key_no_cert_hint" => "Вибраний ключ не має доданого сертифіката.",
 _ => return None,
     })
 }

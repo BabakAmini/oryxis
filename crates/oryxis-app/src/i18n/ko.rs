@@ -547,6 +547,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "테스트 후 저장",
         "sync_wizard_test_ok" => "릴레이에 연결됨. 이 기기가 이제 해당 릴레이를 사용합니다.",
         "sync_wizard_test_err" => "릴레이에 연결할 수 없음",
+        "sync_relay_not_recognized" => "호스트가 응답했지만 Oryxis 릴레이가 아닙니다",
         "sync_engine_running_label" => "엔진 실행 중",
         "sync_engine_stopped_label" => "엔진 중지됨",
         "sync_status_running" => "동기화 엔진 시작됨",
@@ -1019,6 +1020,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "잘못된 암호입니다. 다시 시도하세요.",
         "key_passphrase_required_msg" => "계속하려면 키 암호를 입력하세요.",
         "key_unsupported_kind" => "지원되지 않는 키 유형: {kind}. Ed25519, RSA 또는 ECDSA(P-256 또는 P-384)를 사용하세요.",
+        "key_not_found" => "키를 찾을 수 없습니다.",
+        "key_certificate_removed" => "인증서가 제거됨",
+        "key_select_file_first" => "먼저 키 파일을 선택하세요",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "키 업데이트",
         "save_key" => "키 저장",
         "save_identity" => "ID 저장",
@@ -1330,6 +1335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "비밀번호가 올바르지 않습니다",
         "mcp_vault_pw_included" => "볼트 비밀번호가 설정에 포함되었습니다.",
         "mcp_vault_pw_plaintext_warning" => "비밀번호는 평문으로 기록됩니다. 설정 파일을 읽을 수 있는 사람은 누구나 볼트를 잠금 해제할 수 있습니다.",
+        "mcp_vault_pw_removed" => "볼트 비밀번호가 클라이언트 설정에서 제거되었습니다.",
+        "mcp_vault_pw_remove_failed" => "설정에서 비밀번호를 제거할 수 없습니다:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS 플러그인이 설치되지 않음",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "인증서 첨부됨",
         "cert_browse" => "찾아보기...",
         "cert_detected_hint" => "키 파일 옆에서 인증서를 감지함",
-        "cert_badge" => "인증서",
         "cert_view" => "인증서 보기",
         "cert_remove" => "인증서 제거",
         "cert_key_id" => "키 ID",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "이 인증서가 만료되었습니다.",
         "cert_mismatch_error" => "인증서가 이 키와 일치하지 않습니다.",
         "cert_wrong_type_error" => "호스트 인증서입니다. 사용자 인증서를 첨부하세요.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "인증서",
+        "cert_flag" => "SSH 인증서",
+        "public_key_auto_hint" => "비워 두면 개인 키에서 파생됩니다.",
+        "public_key_invalid_error" => "유효한 OpenSSH 공개 키 줄이 아닙니다.",
+        "public_key_mismatch_error" => "공개 키가 개인 키와 일치하지 않습니다.",
+        "cert_no_keys_hint" => "볼트에 인증서가 첨부된 키가 아직 없습니다.",
+        "cert_key_no_cert_hint" => "선택한 키에 첨부된 인증서가 없습니다.",
 _ => return None,
     })
 }

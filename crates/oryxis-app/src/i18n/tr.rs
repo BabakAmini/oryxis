@@ -547,6 +547,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_wizard_test" => "Test et ve kaydet",
         "sync_wizard_test_ok" => "Relay erişilebilir. Bu cihaz artık onu kullanıyor.",
         "sync_wizard_test_err" => "Relay'e erişilemiyor",
+        "sync_relay_not_recognized" => "Ana bilgisayar yanıt verdi ancak bir Oryxis relay'i değil",
         "sync_engine_running_label" => "Motor çalışıyor",
         "sync_engine_stopped_label" => "Motor durdu",
         "sync_status_running" => "Senkronizasyon motoru başlatıldı",
@@ -1019,6 +1020,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "key_passphrase_wrong" => "Yanlış parola ifadesi. Lütfen tekrar deneyin.",
         "key_passphrase_required_msg" => "Devam etmek için anahtar parola ifadesini girin.",
         "key_unsupported_kind" => "Desteklenmeyen anahtar türü: {kind}. Ed25519, RSA veya ECDSA (P-256 ya da P-384) kullanın.",
+        "key_not_found" => "Anahtar bulunamadı.",
+        "key_certificate_removed" => "Sertifika kaldırıldı",
+        "key_select_file_first" => "Önce bir anahtar dosyası seçin",
+        "key_ca_sha256" => "CA SHA256",
         "update_key" => "Anahtarı Güncelle",
         "save_key" => "Anahtarı Kaydet",
         "save_identity" => "Kimliği Kaydet",
@@ -1329,6 +1334,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_vault_pw_wrong" => "Yanlış parola",
         "mcp_vault_pw_included" => "Kasa parolası yapılandırmaya dahil edildi.",
         "mcp_vault_pw_plaintext_warning" => "Düz metin olarak yazılır; yapılandırma dosyasını okuyabilen herkes kasanızın kilidini açabilir.",
+        "mcp_vault_pw_removed" => "Kasa parolası istemci yapılandırmasından kaldırıldı.",
+        "mcp_vault_pw_remove_failed" => "Parola yapılandırmadan kaldırılamadı:",
 
         // Cloud Accounts plugin gate
         "cloud_plugin_missing_title" => "AWS eklentisi kurulu değil",
@@ -1448,7 +1455,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_attach" => "Sertifika eklendi",
         "cert_browse" => "Gözat...",
         "cert_detected_hint" => "Anahtar dosyasının yanında sertifika algılandı",
-        "cert_badge" => "sert",
         "cert_view" => "Sertifikayı görüntüle",
         "cert_remove" => "Sertifikayı kaldır",
         "cert_key_id" => "Anahtar kimliği",
@@ -1462,6 +1468,14 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cert_expired_warn" => "Bu sertifikanın süresi doldu.",
         "cert_mismatch_error" => "Sertifika bu anahtarla eşleşmiyor.",
         "cert_wrong_type_error" => "Bu bir sunucu sertifikası; kullanıcı sertifikası ekleyin.",
+        // Certificate as a first-class keychain type (B2.1)
+        "auth_certificate" => "Sertifika",
+        "cert_flag" => "SSH Sertifikası",
+        "public_key_auto_hint" => "Boş bırakıldığında özel anahtardan türetilir.",
+        "public_key_invalid_error" => "Bu geçerli bir OpenSSH genel anahtar satırı değil.",
+        "public_key_mismatch_error" => "Genel anahtar özel anahtarla eşleşmiyor.",
+        "cert_no_keys_hint" => "Kasada henüz sertifika eklenmiş bir anahtar yok.",
+        "cert_key_no_cert_hint" => "Seçilen anahtarın eklenmiş bir sertifikası yok.",
 _ => return None,
     })
 }
