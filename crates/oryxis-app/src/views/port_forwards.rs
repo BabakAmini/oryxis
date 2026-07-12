@@ -538,15 +538,7 @@ impl Oryxis {
             footer,
         ].height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
-                border: Border { color: OryxisColors::t().border, width: 1.0, radius: Radius::from(0.0) },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar)
     }
 
     /// Standalone host-key verification modal, used when a backgrounded

@@ -8,7 +8,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, PANEL_WIDTH};
+use crate::app::{Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_field, panel_section};
@@ -131,18 +131,6 @@ impl Oryxis {
 
         let panel_content = column![panel_header, form_scroll, footer].height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                    radius: Radius::from(0.0),
-                },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
     }
 }

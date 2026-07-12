@@ -12,7 +12,6 @@ use crate::app::{Message, Oryxis};
 use crate::i18n::t;
 use crate::state::ProxyKind;
 use crate::theme::OryxisColors;
-use crate::app::PANEL_WIDTH;
 use crate::widgets::{
     dir_align_x, dir_row, panel_divider, panel_field, panel_option_row,
     panel_section,
@@ -347,15 +346,7 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { color: OryxisColors::t().border, width: 1.0, radius: Radius::from(0.0) },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
     }
 }
 

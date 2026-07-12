@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Row, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, PANEL_WIDTH};
+use crate::app::{Message, Oryxis};
 use crate::i18n::t;
 use crate::state::{CloudAuthChoice, CloudProviderChoice, CloudTestState};
 use crate::theme::OryxisColors;
@@ -766,22 +766,10 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            // Standardised side-panel chrome (matches host editor,
-            // discovery, dynamic-group editor) so every right-panel
-            // editor shares the same background surface.
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                    radius: Radius::from(0.0),
-                },
-                ..Default::default()
-            })
-            .into()
+        // Standardised side-panel chrome (matches host editor,
+        // discovery, dynamic-group editor) so every right-panel
+        // editor shares the same background surface.
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
     }
 }
 

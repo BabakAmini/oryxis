@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, PANEL_WIDTH};
+use crate::app::{Message, Oryxis};
 use crate::i18n::t;
 use crate::state::CloudDiscoverState;
 use crate::theme::OryxisColors;
@@ -281,23 +281,11 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            // Standardised side-panel chrome, matches the host
-            // editor and the dynamic-group / wizard panels so the
-            // right side of the dashboard reads as one consistent
-            // surface regardless of which editor is open.
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                    radius: Radius::from(0.0),
-                },
-                ..Default::default()
-            })
-            .into()
+        // Standardised side-panel chrome, matches the host
+        // editor and the dynamic-group / wizard panels so the
+        // right side of the dashboard reads as one consistent
+        // surface regardless of which editor is open.
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
     }
 
     /// Render the EC2 / ECS / K8s sections of the loaded discovery result.

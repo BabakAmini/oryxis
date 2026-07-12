@@ -304,3 +304,36 @@ pub(crate) fn shortcut_row<'a>(keys: Vec<Element<'a, Message>>, action: &'a str)
         text(action).size(13).color(OryxisColors::t().text_secondary).into(),
     ]).align_y(iced::Alignment::Center).into()
 }
+
+/// Chrome for the right-side editor panels (host editor, key import /
+/// generate, identity, snippet, port-forward, cloud forms, ...):
+/// `PANEL_WIDTH` total, the given panel background, and a single 1 px
+/// separator on the LEADING edge (between main content and panel)
+/// instead of a full frame. The full border used to double up with
+/// the status-bar hairline below and the tab-bar hairline above (a
+/// visible 2 px "double border" at the panel's bottom edge), and with
+/// the 1 px window frame on the trailing edge; those chrome lines
+/// already bound the other three sides. Under RTL the panel sits on
+/// the leading (left) side, and `dir_row` mirrors the separator onto
+/// the panel's content-facing edge automatically.
+pub(crate) fn side_panel_frame(
+    content: Element<'_, Message>,
+    background: iced::Color,
+) -> Element<'_, Message> {
+    let separator = container(Space::new().width(1).height(Length::Fill)).style(|_| {
+        container::Style {
+            background: Some(Background::Color(OryxisColors::t().border)),
+            ..Default::default()
+        }
+    });
+    let body = container(content)
+        .width(crate::app::PANEL_WIDTH - 1.0)
+        .height(Length::Fill)
+        .style(move |_| container::Style {
+            background: Some(Background::Color(background)),
+            ..Default::default()
+        });
+    dir_row(vec![separator.into(), body.into()])
+        .height(Length::Fill)
+        .into()
+}

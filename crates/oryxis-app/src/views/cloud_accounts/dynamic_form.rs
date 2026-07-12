@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, pick_list, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, PANEL_WIDTH};
+use crate::app::{Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row};
@@ -483,21 +483,9 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            // Standardised side-panel chrome: same `bg_surface` +
-            // border as the host editor (`view_host_panel`) so all
-            // right-side editors share the same visual frame.
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                    radius: Radius::from(0.0),
-                },
-                ..Default::default()
-            })
-            .into()
+        // Standardised side-panel chrome: same `bg_surface` as the
+        // host editor (`view_host_panel`) so all right-side editors
+        // share the same visual frame.
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
     }
 }

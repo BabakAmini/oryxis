@@ -12,7 +12,7 @@ use oryxis_core::models::connection::Connection;
 use oryxis_core::models::identity::Identity;
 use oryxis_core::models::key::SshKey;
 
-use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{Message, Oryxis, CARD_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
@@ -932,15 +932,7 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
-                border: Border { color: OryxisColors::t().border, width: 1.0, radius: Radius::from(0.0) },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar)
     }
 
     /// The key-generation panel (keychain > ADD > Generate key). Two
@@ -1265,15 +1257,7 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
-                border: Border { color: OryxisColors::t().border, width: 1.0, radius: Radius::from(0.0) },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar)
     }
 
     pub(crate) fn view_identity_panel(&self) -> Element<'_, Message> {
@@ -1494,15 +1478,7 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        container(panel_content)
-            .width(PANEL_WIDTH)
-            .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
-                border: Border { color: OryxisColors::t().border, width: 1.0, radius: Radius::from(0.0) },
-                ..Default::default()
-            })
-            .into()
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar)
     }
 
     /// Read-only viewer for a key's attached OpenSSH certificate (B2).
