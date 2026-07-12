@@ -312,7 +312,10 @@ impl Oryxis {
                             if self.show_host_panel { crate::app::PANEL_WIDTH } else { 0.0 }
                         }
                         SortMenuKind::Keys => {
-                            if self.show_key_panel || self.show_identity_panel {
+                            if self.show_key_panel
+                                || self.show_identity_panel
+                                || self.show_key_generate_panel
+                            {
                                 crate::app::PANEL_WIDTH
                             } else {
                                 0.0

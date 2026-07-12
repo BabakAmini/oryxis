@@ -31,6 +31,8 @@ impl VaultStore {
 
         let algo_str = match key.algorithm {
             KeyAlgorithm::Ed25519 => "ed25519",
+            KeyAlgorithm::Rsa2048 => "rsa2048",
+            KeyAlgorithm::Rsa3072 => "rsa3072",
             KeyAlgorithm::Rsa4096 => "rsa4096",
             KeyAlgorithm::EcdsaP256 => "ecdsa-p256",
             KeyAlgorithm::EcdsaP384 => "ecdsa-p384",
@@ -66,6 +68,8 @@ impl VaultStore {
             .query_map([], |row| {
                 let algo_str: String = row.get(3)?;
                 let algorithm = match algo_str.as_str() {
+                    "rsa2048" => KeyAlgorithm::Rsa2048,
+                    "rsa3072" => KeyAlgorithm::Rsa3072,
                     "rsa4096" => KeyAlgorithm::Rsa4096,
                     "ecdsa-p256" => KeyAlgorithm::EcdsaP256,
                     "ecdsa-p384" => KeyAlgorithm::EcdsaP384,

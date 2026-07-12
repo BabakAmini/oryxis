@@ -159,6 +159,7 @@ impl Oryxis {
 
     pub(crate) fn build_menu_keychain_add(&self) -> Element<'_, Message> {
         column![
+            self.menu_item(iced_fonts::lucide::sparkles(), crate::i18n::t("generate_key"), Message::ShowKeyGeneratePanel, OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::ShowKeyPanel, OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::ShowIdentityPanel, OryxisColors::t().text_secondary),
         ].into()

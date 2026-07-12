@@ -1607,6 +1607,12 @@ impl Oryxis {
                     self.show_host_panel = false;
                     self.host_panel_error = None;
                     self.editor_form = crate::state::ConnectionForm::default();
+                    // The key-generation panel carries export
+                    // passphrases and a public-key view; sweep it (a
+                    // still-running generation task is dropped on
+                    // completion by the locked-vault check).
+                    self.show_key_generate_panel = false;
+                    self.key_generate_form = crate::state::KeyGenerateForm::default();
                     self.overlay = None;
                     self.card_context_menu = None;
                     // A master-password candidate typed into the change /

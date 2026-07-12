@@ -63,7 +63,9 @@ impl Oryxis {
                     || self.show_host_panel
                     || self.show_session_group_panel
             }
-            View::Keys => self.show_key_panel || self.show_identity_panel,
+            View::Keys => {
+                self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel
+            }
             View::Snippets => self.show_snippet_panel,
             View::PortForwarding => self.show_port_forward_panel,
             View::Proxies => self.proxy_identity_form.visible,
@@ -151,6 +153,8 @@ impl Oryxis {
                     Some(self.view_key_import_panel())
                 } else if self.show_identity_panel {
                     Some(self.view_identity_panel())
+                } else if self.show_key_generate_panel {
+                    Some(self.view_key_generate_panel())
                 } else {
                     None
                 }
@@ -303,7 +307,9 @@ impl Oryxis {
                     || self.show_host_panel
                     || self.show_session_group_panel
             }
-            View::Keys => self.show_key_panel || self.show_identity_panel,
+            View::Keys => {
+                self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel
+            }
             View::Snippets => self.show_snippet_panel,
             View::PortForwarding => self.show_port_forward_panel,
             View::Proxies => self.proxy_identity_form.visible,

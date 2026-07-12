@@ -34,6 +34,8 @@ impl SshKey {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum KeyAlgorithm {
     Ed25519,
+    Rsa2048,
+    Rsa3072,
     Rsa4096,
     EcdsaP256,
     EcdsaP384,
@@ -44,6 +46,8 @@ impl std::fmt::Display for KeyAlgorithm {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Ed25519 => write!(f, "Ed25519"),
+            Self::Rsa2048 => write!(f, "RSA 2048"),
+            Self::Rsa3072 => write!(f, "RSA 3072"),
             Self::Rsa4096 => write!(f, "RSA 4096"),
             Self::EcdsaP256 => write!(f, "ECDSA P-256"),
             Self::EcdsaP384 => write!(f, "ECDSA P-384"),

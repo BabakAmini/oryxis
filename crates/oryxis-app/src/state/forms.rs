@@ -567,6 +567,80 @@ pub(crate) struct KeyImportForm {
     pub editing_id: Option<Uuid>,
 }
 
+/// Top-level algorithm choice in the key-generation panel; the
+/// bits/curve sub-picker renders only for RSA/ECDSA.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum KeyGenAlgo {
+    #[default]
+    Ed25519,
+    Rsa,
+    Ecdsa,
+}
+
+impl std::fmt::Display for KeyGenAlgo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Ed25519 => "Ed25519",
+            Self::Rsa => "RSA",
+            Self::Ecdsa => "ECDSA",
+        })
+    }
+}
+
+/// Read-only view of a freshly generated key for the result screen.
+/// The private PEM is saved to the vault immediately on success and
+/// deliberately NOT retained here; export actions re-read it from the
+/// vault so a soft lock leaves nothing secret in form state.
+#[derive(Debug, Clone)]
+pub(crate) struct GeneratedKeyView {
+    pub id: Uuid,
+    pub label: String,
+    pub fingerprint: String,
+    pub public_key: String,
+}
+
+/// The key-generation panel (keychain > ADD > Generate key). Secret
+/// hygiene: this struct never holds private key material; see
+/// [`GeneratedKeyView`]. Swept on soft lock like every secret-bearing
+/// editor.
+#[derive(Debug, Clone)]
+pub(crate) struct KeyGenerateForm {
+    pub label: String,
+    /// Key comment (lands in the public line); optional.
+    pub comment: String,
+    pub algo: KeyGenAlgo,
+    pub rsa_bits: oryxis_vault::RsaBits,
+    pub ecdsa_curve: oryxis_vault::EcdsaCurveChoice,
+    /// A generation task is in flight (spinner, Generate disabled).
+    pub working: bool,
+    pub error: Option<String>,
+    /// Set after a successful generation; flips the panel to the
+    /// result screen.
+    pub result: Option<GeneratedKeyView>,
+    /// Export-private-key passphrase pair (result screen). Cleared
+    /// with the form.
+    pub export_passphrase: String,
+    pub export_passphrase_confirm: String,
+}
+
+impl Default for KeyGenerateForm {
+    fn default() -> Self {
+        Self {
+            label: String::new(),
+            comment: String::new(),
+            algo: KeyGenAlgo::Ed25519,
+            // Owner-confirmed defaults: Ed25519 primary, RSA at 4096.
+            rsa_bits: oryxis_vault::RsaBits::B4096,
+            ecdsa_curve: oryxis_vault::EcdsaCurveChoice::P256,
+            working: false,
+            error: None,
+            result: None,
+            export_passphrase: String::new(),
+            export_passphrase_confirm: String::new(),
+        }
+    }
+}
+
 /// Add / edit form for a standalone port-forward rule (the
 /// `PortForwardRule` entity, independent of any terminal session), shown
 /// in the Port Forwards panel. Distinct from [`PortForwardForm`], which

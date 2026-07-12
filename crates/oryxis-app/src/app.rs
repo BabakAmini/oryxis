@@ -540,6 +540,11 @@ pub struct Oryxis {
     /// `key_import_form`) because `text_editor::Content` is not `Clone`.
     pub(crate) key_import_content: text_editor::Content,
     pub(crate) key_import_form: crate::state::KeyImportForm,
+    /// Key-generation panel state (keychain > ADD > Generate key).
+    pub(crate) key_generate_form: crate::state::KeyGenerateForm,
+    /// Whether the generation panel is open (mutually exclusive with
+    /// the import/identity panels in the keys view).
+    pub(crate) show_key_generate_panel: bool,
     pub(crate) key_error: Option<String>,
     pub(crate) key_success: Option<String>,
     pub(crate) key_context_menu: Option<usize>,

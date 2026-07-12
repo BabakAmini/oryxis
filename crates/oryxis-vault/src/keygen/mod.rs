@@ -18,11 +18,114 @@ pub struct GeneratedKey {
 
 /// Generate an Ed25519 SSH key pair.
 pub fn generate_ed25519(label: &str) -> Result<GeneratedKey, VaultError> {
+    generate_key(label, "", GenerateSpec::Ed25519)
+}
+
+/// What to generate. Ed25519 is the recommended default; RSA covers
+/// legacy servers (bit size selectable, 4096 default in the UI);
+/// ECDSA covers constrained gear that speaks neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GenerateSpec {
+    Ed25519,
+    Rsa { bits: RsaBits },
+    Ecdsa { curve: EcdsaCurveChoice },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RsaBits {
+    B2048,
+    B3072,
+    B4096,
+}
+
+impl RsaBits {
+    pub fn bits(self) -> usize {
+        match self {
+            Self::B2048 => 2048,
+            Self::B3072 => 3072,
+            Self::B4096 => 4096,
+        }
+    }
+}
+
+impl std::fmt::Display for RsaBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.bits())
+    }
+}
+
+impl std::fmt::Display for EcdsaCurveChoice {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::P256 => "P-256",
+            Self::P384 => "P-384",
+            Self::P521 => "P-521",
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EcdsaCurveChoice {
+    P256,
+    P384,
+    P521,
+}
+
+/// Generate a fresh SSH key pair for `spec`. `comment` (usually
+/// `user@host` or an email) lands in the key's comment field and thus
+/// in the public line; empty is fine. RSA generation takes seconds,
+/// callers run this off the UI thread.
+pub fn generate_key(
+    label: &str,
+    comment: &str,
+    spec: GenerateSpec,
+) -> Result<GeneratedKey, VaultError> {
+    use ssh_key::private::{EcdsaKeypair, KeypairData, RsaKeypair};
+
     let mut rng = rand::rng();
-    let private_key = PrivateKey::random(&mut rng, Algorithm::Ed25519)
-        .map_err(|e| VaultError::Crypto(format!("Key generation failed: {}", e)))?;
+    let map_err = |e: ssh_key::Error| VaultError::Crypto(format!("Key generation failed: {}", e));
+    let mut private_key = match spec {
+        GenerateSpec::Ed25519 => {
+            PrivateKey::random(&mut rng, Algorithm::Ed25519).map_err(map_err)?
+        }
+        // `PrivateKey::random` hardcodes RSA at 4096; go through
+        // `RsaKeypair::random` so every offered size works.
+        GenerateSpec::Rsa { bits } => {
+            let pair = RsaKeypair::random(&mut rng, bits.bits()).map_err(map_err)?;
+            PrivateKey::new(KeypairData::from(pair), comment).map_err(map_err)?
+        }
+        GenerateSpec::Ecdsa { curve } => {
+            let curve = match curve {
+                EcdsaCurveChoice::P256 => ssh_key::EcdsaCurve::NistP256,
+                EcdsaCurveChoice::P384 => ssh_key::EcdsaCurve::NistP384,
+                EcdsaCurveChoice::P521 => ssh_key::EcdsaCurve::NistP521,
+            };
+            let pair = EcdsaKeypair::random(&mut rng, curve).map_err(map_err)?;
+            PrivateKey::new(KeypairData::from(pair), comment).map_err(map_err)?
+        }
+    };
+    if !comment.is_empty() {
+        private_key.set_comment(comment);
+    }
 
     finalize(label, private_key)
+}
+
+/// Re-encode an OpenSSH private PEM with a passphrase (OpenSSH's own
+/// aes256-ctr + bcrypt KDF), for the "export private key" action. The
+/// vault stores keys passphrase-free (the master key protects them);
+/// the passphrase exists only on the exported copy.
+pub fn encrypt_private_pem(pem: &str, passphrase: &str) -> Result<String, VaultError> {
+    let key = PrivateKey::from_openssh(pem)
+        .map_err(|e| VaultError::Crypto(format!("Failed to parse private key: {}", e)))?;
+    let mut rng = rand::rng();
+    let encrypted = key
+        .encrypt(&mut rng, passphrase)
+        .map_err(|e| VaultError::Crypto(format!("Key encryption failed: {}", e)))?;
+    Ok(encrypted
+        .to_openssh(ssh_key::LineEnding::LF)
+        .map_err(|e| VaultError::Crypto(format!("Private key encoding failed: {}", e)))?
+        .to_string())
 }
 
 /// Cheap structural check: returns `true` if the key file looks
@@ -125,7 +228,17 @@ fn finalize(label: &str, private_key: PrivateKey) -> Result<GeneratedKey, VaultE
 
     let algorithm = match private_key.algorithm() {
         Algorithm::Ed25519 => KeyAlgorithm::Ed25519,
-        Algorithm::Rsa { .. } => KeyAlgorithm::Rsa4096,
+        // Label RSA by its real modulus size; odd sizes fall back to
+        // the 4096 bucket (also keeps every stored "rsa4096" row and
+        // sync/export payload valid, the variants are additive).
+        Algorithm::Rsa { .. } => match &private_key.key_data() {
+            ssh_key::private::KeypairData::Rsa(pair) => match pair.key_size() {
+                0..=2560 => KeyAlgorithm::Rsa2048,
+                2561..=3584 => KeyAlgorithm::Rsa3072,
+                _ => KeyAlgorithm::Rsa4096,
+            },
+            _ => KeyAlgorithm::Rsa4096,
+        },
         Algorithm::Ecdsa { curve } => match curve {
             ssh_key::EcdsaCurve::NistP256 => KeyAlgorithm::EcdsaP256,
             ssh_key::EcdsaCurve::NistP384 => KeyAlgorithm::EcdsaP384,
@@ -262,6 +375,98 @@ mod tests {
 
         let imported = import_key("force-new-format", &rewrapped, None).unwrap();
         assert_eq!(imported.key.fingerprint, generated.key.fingerprint);
+    }
+
+    /// Every spec the generate UI offers: generated key reimports with
+    /// a matching fingerprint, carries the right algorithm label, the
+    /// public line starts with the right type, and a sign/verify
+    /// roundtrip works. RSA sizes are verified from the parsed key.
+    #[test]
+    fn generate_key_all_specs_roundtrip_and_sign() {
+        use ssh_key::private::KeypairData;
+        // The `signature` traits reach us re-exported through `rsa`
+        // (already in the tree via ssh-key); no new dependency.
+        use rsa::signature::{Signer, Verifier};
+
+        let cases: [(GenerateSpec, KeyAlgorithm, &str); 7] = [
+            (GenerateSpec::Ed25519, KeyAlgorithm::Ed25519, "ssh-ed25519 "),
+            (GenerateSpec::Rsa { bits: RsaBits::B2048 }, KeyAlgorithm::Rsa2048, "ssh-rsa "),
+            (GenerateSpec::Rsa { bits: RsaBits::B3072 }, KeyAlgorithm::Rsa3072, "ssh-rsa "),
+            (GenerateSpec::Rsa { bits: RsaBits::B4096 }, KeyAlgorithm::Rsa4096, "ssh-rsa "),
+            (
+                GenerateSpec::Ecdsa { curve: EcdsaCurveChoice::P256 },
+                KeyAlgorithm::EcdsaP256,
+                "ecdsa-sha2-nistp256 ",
+            ),
+            (
+                GenerateSpec::Ecdsa { curve: EcdsaCurveChoice::P384 },
+                KeyAlgorithm::EcdsaP384,
+                "ecdsa-sha2-nistp384 ",
+            ),
+            (
+                GenerateSpec::Ecdsa { curve: EcdsaCurveChoice::P521 },
+                KeyAlgorithm::EcdsaP521,
+                "ecdsa-sha2-nistp521 ",
+            ),
+        ];
+
+        for (spec, algo, prefix) in cases {
+            let generated = generate_key("gen", "user@oryxis", spec).unwrap();
+            assert_eq!(generated.key.algorithm, algo, "{spec:?}");
+            assert!(
+                generated.key.public_key.starts_with(prefix),
+                "{spec:?}: {}",
+                generated.key.public_key
+            );
+            // Comment lands in the public line.
+            assert!(
+                generated.key.public_key.trim_end().ends_with("user@oryxis"),
+                "{spec:?}: comment missing"
+            );
+
+            let imported = import_key("re", &generated.private_pem, None).unwrap();
+            assert_eq!(imported.key.fingerprint, generated.key.fingerprint, "{spec:?}");
+            assert_eq!(imported.key.algorithm, algo, "{spec:?}");
+
+            let parsed = PrivateKey::from_openssh(&generated.private_pem).unwrap();
+            if let GenerateSpec::Rsa { bits } = spec {
+                let KeypairData::Rsa(pair) = parsed.key_data() else {
+                    panic!("{spec:?}: not RSA");
+                };
+                assert_eq!(pair.key_size() as usize, bits.bits(), "{spec:?}");
+            }
+
+            // Sign/verify through ssh_key's signature traits.
+            let msg = b"oryxis keygen sign test";
+            let signature: ssh_key::Signature =
+                Signer::try_sign(&parsed, msg).expect("sign");
+            Verifier::verify(parsed.public_key(), msg, &signature).expect("verify");
+        }
+    }
+
+    #[test]
+    fn export_pem_encrypts_with_passphrase() {
+        let generated = generate_ed25519("exp").unwrap();
+        let enc = encrypt_private_pem(&generated.private_pem, "hunter2").unwrap();
+        assert!(enc.contains("BEGIN OPENSSH PRIVATE KEY"));
+        // The exported copy demands the passphrase; the right one
+        // yields the same key.
+        assert!(matches!(
+            import_key("k", &enc, None),
+            Err(VaultError::KeyNeedsPassphrase)
+        ));
+        let back = import_key("k", &enc, Some("hunter2")).unwrap();
+        assert_eq!(back.key.fingerprint, generated.key.fingerprint);
+    }
+
+    /// Legacy DB rows labeled "rsa4096" must keep loading, and an
+    /// imported 2048-bit key now gets the honest label.
+    #[test]
+    fn rsa_import_is_labeled_by_real_size() {
+        let generated =
+            generate_key("r2", "", GenerateSpec::Rsa { bits: RsaBits::B2048 }).unwrap();
+        let imported = import_key("r2", &generated.private_pem, None).unwrap();
+        assert_eq!(imported.key.algorithm, KeyAlgorithm::Rsa2048);
     }
 
     #[test]

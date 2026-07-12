@@ -1387,6 +1387,26 @@ pub enum Message {
     // Keys
     ShowKeyPanel,
     HideKeyPanel,
+    /// Keychain > ADD > Generate key: open the generation panel.
+    ShowKeyGeneratePanel,
+    HideKeyGeneratePanel,
+    KeyGenLabelChanged(String),
+    KeyGenCommentChanged(String),
+    KeyGenAlgoSelected(crate::state::KeyGenAlgo),
+    KeyGenBitsSelected(oryxis_vault::RsaBits),
+    KeyGenCurveSelected(oryxis_vault::EcdsaCurveChoice),
+    /// Kick the generation task (RSA runs seconds; spawn_blocking).
+    GenerateKey,
+    /// Generation finished; Ok saves to the vault and shows the
+    /// result screen.
+    KeyGenerated(Result<std::sync::Arc<oryxis_vault::GeneratedKey>, String>),
+    CopyGeneratedPublicKey,
+    SaveGeneratedPublicKeyFile,
+    KeyGenExportPassphraseChanged(String),
+    KeyGenExportPassphraseConfirmChanged(String),
+    /// Export the generated private key to a file, passphrase-
+    /// encrypted when the pair fields are non-empty.
+    ExportGeneratedPrivateKey,
     KeyImportLabelChanged(String),
     KeyContentAction(text_editor::Action),
     BrowseKeyFile,
