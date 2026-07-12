@@ -363,17 +363,24 @@ impl Oryxis {
             Space::new().height(12),
             crate::widgets::panel_field(crate::i18n::t("agent_server_path"), path_row.into()),
             Space::new().height(10),
-            dir_row(vec![
-                copy_btn(
-                    "agent_server_snippet_env",
-                    Message::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv),
-                ),
-                Space::new().width(8).into(),
-                copy_btn(
+            {
+                // `IdentityAgent` in ~/.ssh/config is the portable form and
+                // the ONLY one Windows-native OpenSSH honors for a pipe.
+                // The `SSH_AUTH_SOCK` export is a unix-shell idiom, so it
+                // only appears there (its snippet is a unix-socket path).
+                let mut row = vec![copy_btn(
                     "agent_server_snippet_ssh_config",
                     Message::CopyAgentSnippet(crate::state::AgentSnippetKind::SshConfig),
-                ),
-            ]),
+                )];
+                if cfg!(unix) {
+                    row.push(Space::new().width(8).into());
+                    row.push(copy_btn(
+                        "agent_server_snippet_env",
+                        Message::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv),
+                    ));
+                }
+                dir_row(row)
+            },
         ]
         .width(Length::Fill)
         .align_x(dir_align_x())

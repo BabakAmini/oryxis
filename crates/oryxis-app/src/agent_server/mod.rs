@@ -3,14 +3,16 @@
 //! protocol, so they authenticate with vault-stored keys without a
 //! private key ever touching disk (issue #54).
 //!
-//! Phase 1 (this module): the wire protocol ([`protocol`]), the key
-//! source abstraction ([`source`]) and the unix listener
-//! ([`listener`]), all provable against russh's public `AgentClient`.
-//! Phase 2 adds the `AgentRuntime` (a dedicated unlocked vault handle,
-//! mirroring `sync_runtime`), the Settings toggle, the per-signature
-//! confirm modal and the lock wiring. Phase 3 adds the Windows named
-//! pipe. Nothing here is mounted yet; the app gains the runtime in
-//! Phase 2.
+//! Phase 1: the wire protocol ([`protocol`]), the key source
+//! abstraction ([`source`]) and the unix listener ([`listener`]), all
+//! provable against russh's public `AgentClient`. Phase 2 adds the
+//! `AgentRuntime` (a dedicated unlocked vault handle, mirroring
+//! `sync_runtime`), the Settings toggle, the per-signature confirm
+//! modal and the lock wiring. Phase 3 adds the Windows named pipe
+//! (`listener::windows`, a per-user DACL restricting the pipe to the
+//! current user's SID). The DACL is the one part a Linux cross-check
+//! cannot verify; its acceptance test is "a second local user
+//! connecting to the pipe must be DENIED".
 //!
 //! Why not russh's `agent::server::serve`: its `Agent` trait has no
 //! identity-supply hook (keys live in a private `KeyStore` filled only
@@ -35,7 +37,11 @@ pub(crate) fn listener_socket_display() -> Option<String> {
     {
         listener::agent_socket_path().map(|p| p.display().to_string())
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        listener::agent_pipe_name()
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         None
     }
@@ -113,11 +119,27 @@ impl AgentRuntime {
                 confirm_rx,
             ))
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
         {
-            // Windows named pipe lands in Phase 3; until then the
-            // feature is unix-only and the toggle should stay hidden
-            // there.
+            // Busy-probe synchronously (a std client open, no reactor) so
+            // the toggle can revert with a clear error; the real bind runs
+            // inside the accept task (pipe creation needs an entered
+            // runtime context that `spawn()` does not guarantee).
+            if let Some(name) = listener::agent_pipe_name() {
+                listener::windows_pre_bind_check(&name)?;
+            }
+            let src = source.clone();
+            let task = tokio::spawn(async move {
+                if let Err(e) = listener::serve_pipe(src, confirm_tx).await {
+                    tracing::warn!(target = "oryxis::agent", error = %e, "agent listener stopped");
+                }
+            });
+            Ok((Self { source, task }, confirm_rx))
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            // No listener transport on this platform; the toggle stays
+            // hidden (listener_socket_display returns None).
             let _ = (source, confirm_tx);
             let task = tokio::spawn(async {});
             Ok((Self { source, task }, confirm_rx))

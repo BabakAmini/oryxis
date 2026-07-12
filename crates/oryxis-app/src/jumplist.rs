@@ -114,10 +114,10 @@ mod imp {
             let mut buf = [0u16; 512];
             if unsafe { link.GetArguments(&mut buf) }.is_ok() {
                 let s = String::from_utf16_lossy(&buf);
-                if let Some(id) = s.trim_end_matches('\0').rsplit(' ').next() {
-                    if let Ok(uuid) = uuid::Uuid::parse_str(id) {
-                        out.insert(uuid);
-                    }
+                if let Some(id) = s.trim_end_matches('\0').rsplit(' ').next()
+                    && let Ok(uuid) = uuid::Uuid::parse_str(id)
+                {
+                    out.insert(uuid);
                 }
             }
         }

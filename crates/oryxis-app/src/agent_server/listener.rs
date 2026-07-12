@@ -11,6 +11,10 @@
 #[allow(unused_imports)]
 pub(crate) use unix::{agent_socket_path, serve_unix};
 
+#[cfg(windows)]
+#[allow(unused_imports)]
+pub(crate) use windows::{agent_pipe_name, serve_pipe, windows_pre_bind_check};
+
 #[cfg(unix)]
 mod unix {
     use std::path::PathBuf;
@@ -173,6 +177,249 @@ mod unix {
             // A plain file that isn't a live socket.
             std::fs::write(&sock, b"stale").unwrap();
             assert!(!socket_is_live(&sock).await);
+        }
+    }
+}
+
+/// Windows named-pipe half (Phase 3). A pipe at `\\.\pipe\oryxis-ssh-agent`
+/// with a per-user DACL (only the current user's SID gets access), the
+/// creator using `first_pipe_instance(true)` so a squatter can't attach,
+/// and `reject_remote_clients` left at its default `true` so the signing
+/// oracle is never reachable over SMB.
+///
+/// The security-critical part (the DACL actually restricting access) is
+/// the one thing a Linux cross-check can't prove; see the QA note in
+/// `mod.rs`. Acceptance test: a second local user connecting to the pipe
+/// must be DENIED.
+#[cfg(windows)]
+mod windows {
+    use std::os::windows::io::AsRawHandle;
+    use std::sync::Arc;
+
+    use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
+
+    use super::super::protocol::{serve_connection, ConfirmSender};
+    use super::super::source::AgentKeySource;
+
+    /// The fixed pipe the user points `IdentityAgent` at. Never squat on
+    /// `\\.\pipe\openssh-ssh-agent` (single-owner, held by the OpenSSH
+    /// service when present).
+    pub(crate) fn agent_pipe_name() -> Option<String> {
+        Some(r"\\.\pipe\oryxis-ssh-agent".to_string())
+    }
+
+    /// Synchronous busy probe, mirroring the unix `pre_bind_check`: a std
+    /// client open reports whether a pipe of this name already exists. No
+    /// tokio reactor is touched here (the real bind happens later, inside
+    /// the async accept task, because pipe creation needs an entered
+    /// runtime context that `spawn()` does not guarantee).
+    pub(crate) fn windows_pre_bind_check(name: &str) -> Result<(), String> {
+        use std::fs::OpenOptions;
+        use std::io::ErrorKind;
+        match OpenOptions::new().read(true).write(true).open(name) {
+            // A server answered: another agent already owns the name.
+            Ok(_) => Err("another agent is already listening on the pipe".to_string()),
+            Err(e) => match e.kind() {
+                // Nothing there: free to create.
+                ErrorKind::NotFound => Ok(()),
+                // ERROR_PIPE_BUSY (all instances busy) or a foreign pipe we
+                // cannot open: something owns the name, refuse.
+                _ => Err(format!("pipe name unavailable: {e}")),
+            },
+        }
+    }
+
+    /// Bind the pipe and accept forever, serving each client with `source`.
+    /// The first instance uses `first_pipe_instance(true)` so a hostile
+    /// squatter that beat us to the name makes this fail rather than
+    /// attach. Returns on a create error or when the task is aborted.
+    pub(crate) async fn serve_pipe<K>(
+        source: Arc<K>,
+        confirm: Option<ConfirmSender>,
+    ) -> std::io::Result<()>
+    where
+        K: AgentKeySource + 'static,
+    {
+        let name = agent_pipe_name().ok_or_else(|| std::io::Error::other("no pipe name"))?;
+        let mut server = create_instance(&name, true)?;
+        loop {
+            server.connect().await?;
+            let connected = server;
+            // Open the NEXT instance before serving, so a second client is
+            // never refused while the first is handled.
+            server = create_instance(&name, false)?;
+
+            let source = source.clone();
+            let confirm = confirm.clone();
+            let peer = client_peer(&connected);
+            tokio::spawn(async move {
+                if let Err(e) = serve_connection(
+                    connected,
+                    source.as_ref(),
+                    confirm.as_ref(),
+                    peer.as_deref(),
+                )
+                .await
+                {
+                    tracing::debug!(target = "oryxis::agent", error = %e, "connection ended");
+                }
+            });
+        }
+    }
+
+    /// One pipe instance restricted to the current user. `first` fails if
+    /// the name already exists (anti-squat); later instances open the
+    /// existing pipe object.
+    fn create_instance(name: &str, first: bool) -> std::io::Result<NamedPipeServer> {
+        use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+
+        let sd = UserOnlySd::new()?;
+        let mut sa = SECURITY_ATTRIBUTES {
+            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
+            lpSecurityDescriptor: sd.0,
+            bInheritHandle: 0,
+        };
+        let mut opts = ServerOptions::new();
+        opts.first_pipe_instance(first);
+        // `reject_remote_clients` defaults to true: never expose the
+        // signing oracle over SMB. Do not flip it off.
+        //
+        // SAFETY: `sa` and the descriptor it points at outlive this call;
+        // the kernel copies the descriptor into the pipe object, so freeing
+        // it when `sd` drops right after is correct.
+        let server = unsafe {
+            opts.create_with_security_attributes_raw(
+                name,
+                &mut sa as *mut _ as *mut std::ffi::c_void,
+            )
+        }?;
+        Ok(server)
+    }
+
+    /// The connected client's pid, formatted for the confirm card.
+    /// Best-effort: `None` when the query fails. Pid only for now (the exe
+    /// name needs a second, heavier query; deferred to a follow-up).
+    fn client_peer(server: &NamedPipeServer) -> Option<String> {
+        use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
+        let mut pid: u32 = 0;
+        // SAFETY: `server` owns a valid pipe handle for the duration.
+        let ok = unsafe { GetNamedPipeClientProcessId(server.as_raw_handle(), &mut pid) };
+        (ok != 0 && pid != 0).then(|| format!("pid {pid}"))
+    }
+
+    /// A security descriptor granting the current user full control and
+    /// nobody else (a protected DACL). Frees itself on drop; it only needs
+    /// to outlive the `CreateNamedPipe` call that copies it.
+    struct UserOnlySd(*mut std::ffi::c_void);
+
+    impl UserOnlySd {
+        fn new() -> std::io::Result<Self> {
+            use windows_sys::Win32::Security::Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW;
+
+            let sid = current_user_sid_string()?;
+            // D:P = DACL, Protected (blocks inherited ACEs); (A;;GA;;;<sid>)
+            // = Allow GENERIC_ALL to the user SID. GA (not GR|GW) is
+            // required: opening a SECOND concurrent instance needs
+            // FILE_CREATE_PIPE_INSTANCE, which GENERIC_ALL includes and a
+            // read/write-only grant does not. Do not narrow this.
+            let sddl = format!("D:P(A;;GA;;;{sid})");
+            let wsddl: Vec<u16> = sddl.encode_utf16().chain(std::iter::once(0)).collect();
+            let mut psd: *mut std::ffi::c_void = std::ptr::null_mut();
+            // SAFETY: `wsddl` is a valid NUL-terminated wide string; `psd`
+            // receives an owned descriptor, freed in `Drop` with LocalFree.
+            // `1` is SDDL_REVISION_1.
+            let ok = unsafe {
+                ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                    wsddl.as_ptr(),
+                    1,
+                    &mut psd,
+                    std::ptr::null_mut(),
+                )
+            };
+            if ok == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(Self(psd))
+        }
+    }
+
+    impl Drop for UserOnlySd {
+        fn drop(&mut self) {
+            if !self.0.is_null() {
+                // SAFETY: `self.0` came from Convert...W and is freed with
+                // LocalFree exactly once.
+                unsafe {
+                    windows_sys::Win32::Foundation::LocalFree(self.0);
+                }
+            }
+        }
+    }
+
+    /// Closes an owned token handle on drop.
+    struct HandleGuard(windows_sys::Win32::Foundation::HANDLE);
+    impl Drop for HandleGuard {
+        fn drop(&mut self) {
+            // SAFETY: `self.0` is a valid handle from OpenProcessToken.
+            unsafe {
+                windows_sys::Win32::Foundation::CloseHandle(self.0);
+            }
+        }
+    }
+
+    /// Read a NUL-terminated wide string into an owned `String`.
+    ///
+    /// SAFETY: `ptr` must point at a valid NUL-terminated wide string.
+    unsafe fn wide_to_string(ptr: *const u16) -> String {
+        let mut len = 0isize;
+        while unsafe { *ptr.offset(len) } != 0 {
+            len += 1;
+        }
+        let slice = unsafe { std::slice::from_raw_parts(ptr, len as usize) };
+        String::from_utf16_lossy(slice)
+    }
+
+    /// The current process user's SID as an SDDL string (`S-1-5-21-...`).
+    fn current_user_sid_string() -> std::io::Result<String> {
+        use windows_sys::Win32::Foundation::{LocalFree, HANDLE};
+        use windows_sys::Win32::Security::Authorization::ConvertSidToStringSidW;
+        use windows_sys::Win32::Security::{GetTokenInformation, TokenUser, TOKEN_QUERY, TOKEN_USER};
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+        // SAFETY: each raw call is checked; the token handle is closed by
+        // `HandleGuard` on every path and the SID string via LocalFree.
+        unsafe {
+            let mut token: HANDLE = std::ptr::null_mut();
+            if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let _guard = HandleGuard(token);
+
+            // First call sizes the buffer: it returns FALSE with
+            // ERROR_INSUFFICIENT_BUFFER, which is expected, not an error.
+            let mut len: u32 = 0;
+            GetTokenInformation(token, TokenUser, std::ptr::null_mut(), 0, &mut len);
+            if len == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let mut buf = vec![0u8; len as usize];
+            if GetTokenInformation(
+                token,
+                TokenUser,
+                buf.as_mut_ptr() as *mut std::ffi::c_void,
+                len,
+                &mut len,
+            ) == 0
+            {
+                return Err(std::io::Error::last_os_error());
+            }
+            let token_user = &*(buf.as_ptr() as *const TOKEN_USER);
+            let mut str_ptr: *mut u16 = std::ptr::null_mut();
+            if ConvertSidToStringSidW(token_user.User.Sid, &mut str_ptr) == 0 {
+                return Err(std::io::Error::last_os_error());
+            }
+            let s = wide_to_string(str_ptr);
+            LocalFree(str_ptr as *mut std::ffi::c_void);
+            Ok(s)
         }
     }
 }
