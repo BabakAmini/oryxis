@@ -2,8 +2,9 @@
 //!
 //! Runs the real application (vault, subscriptions, SSH tasks, side
 //! effects) inside `iced_test`'s [`Emulator`], with no window and no
-//! display server, and exposes three entry points parsed from the CLI
-//! before anything else in `main()`:
+//! display server, and exposes four emulator entry points (plus the
+//! `--harness-ctl` client) parsed from the CLI before anything else
+//! in `main()`:
 //!
 //! - `oryxis --harness-run <dir>`: batch-runs every `.ice` test file
 //!   in `<dir>`, in file-name order, each on a freshly wiped sandbox
@@ -20,6 +21,11 @@
 //!   an AI agent can interact with the app, validate it visually
 //!   (screenshots come back inline as image content) and save the
 //!   interaction as a replayable `.ice` test (see `mcp.rs`).
+//! - `oryxis --harness-serve [--port N]`: a long-lived TCP daemon on
+//!   127.0.0.1 speaking the REPL line protocol, driven by the
+//!   `oryxis --harness-ctl [command]` one-shot client, which gives
+//!   agents CLI ergonomics with full lifecycle control (see
+//!   `serve.rs` and `.claude/skills/harness/SKILL.md`).
 //!
 //! Both interactive modes execute `.ice` instructions (`click
 //! "Hosts"`, `type "ls"`, `type enter`, `type ctrl+shift+f`,
@@ -48,8 +54,10 @@
 //! are useless.
 
 mod batch;
+mod commands;
 mod mcp;
 mod repl;
+mod serve;
 
 use std::borrow::Cow;
 use std::path::PathBuf;
@@ -78,6 +86,20 @@ enum Frontend {
     Batch(PathBuf),
     /// `--harness-mcp`: MCP server over stdio.
     Mcp,
+    /// `--harness-serve`: long-lived TCP daemon on 127.0.0.1, driven
+    /// by the `--harness-ctl` one-shot client.
+    Serve(u16),
+}
+
+/// A parsed harness CLI. [`Parsed::Ctl`] is a pure network client: it
+/// never boots the emulator and never touches the sandbox.
+enum Parsed {
+    /// No harness flag present (normal app run).
+    None,
+    /// `--harness-ctl [command...]`.
+    Ctl { port: u16, command: Option<String> },
+    /// A mode that boots the emulated app.
+    Mode(Box<Options>),
 }
 
 /// A parsed harness invocation. Returned by [`options_from_args`]
@@ -110,7 +132,11 @@ pub struct Options {
 pub fn options_from_args() -> Option<Options> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let options = match parse(&args) {
-        Ok(options) => options?,
+        Ok(Parsed::None) => return None,
+        // The ctl client talks to a running daemon and exits; it must
+        // not redirect $HOME (it never opens a vault) nor boot iced.
+        Ok(Parsed::Ctl { port, command }) => serve::ctl(port, command),
+        Ok(Parsed::Mode(options)) => *options,
         Err(reason) => {
             eprintln!("oryxis harness: {reason}");
             std::process::exit(2);
@@ -139,9 +165,42 @@ pub fn options_from_args() -> Option<Options> {
 
 /// Pure argument parser, split from [`options_from_args`] so it can
 /// be unit-tested without touching the environment.
-fn parse(args: &[String]) -> Result<Option<Options>, String> {
+fn parse(args: &[String]) -> Result<Parsed, String> {
+    // `--harness-ctl` swallows every following argument as the command
+    // line, so it is resolved before the flag loop. Only `--port` may
+    // precede it: the client has no sandbox, viewport or timeout.
+    if let Some(pos) = args.iter().position(|a| a == "--harness-ctl") {
+        let mut port = serve::DEFAULT_PORT;
+        let mut i = 0;
+        while i < pos {
+            match args[i].as_str() {
+                "--port" => {
+                    let raw = args
+                        .get(i + 1)
+                        .ok_or_else(|| "--port requires a value".to_string())?;
+                    port = raw
+                        .parse::<u16>()
+                        .map_err(|e| format!("--port: {e}"))?;
+                    i += 2;
+                }
+                other => {
+                    return Err(format!(
+                        "{other} cannot be combined with --harness-ctl \
+                         (only --port may precede it)"
+                    ));
+                }
+            }
+        }
+        let words = &args[pos + 1..];
+        let command = (!words.is_empty()).then(|| words.join(" "));
+        return Ok(Parsed::Ctl { port, command });
+    }
+
     let mut repl = false;
     let mut mcp = false;
+    let mut serve_daemon = false;
+    let mut port = serve::DEFAULT_PORT;
+    let mut port_given = false;
     let mut batch: Option<PathBuf> = None;
     let mut home: Option<PathBuf> = None;
     let mut shots: Option<PathBuf> = None;
@@ -162,6 +221,14 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         match arg.as_str() {
             "--harness-repl" => repl = true,
             "--harness-mcp" => mcp = true,
+            "--harness-serve" => serve_daemon = true,
+            "--port" => {
+                harness_flags.push("--port");
+                port_given = true;
+                port = value("--port")?
+                    .parse::<u16>()
+                    .map_err(|e| format!("--port: {e}"))?;
+            }
             "--harness-run" => {
                 batch = Some(PathBuf::from(value("--harness-run")?));
             }
@@ -222,25 +289,36 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         }
     }
 
-    let requested = usize::from(repl) + usize::from(mcp) + usize::from(batch.is_some());
+    let requested = usize::from(repl)
+        + usize::from(mcp)
+        + usize::from(serve_daemon)
+        + usize::from(batch.is_some());
     if requested == 0 {
         if let Some(flag) = harness_flags.first() {
             return Err(format!(
-                "{flag} only makes sense with --harness-repl, --harness-mcp or --harness-run"
+                "{flag} only makes sense with --harness-repl, --harness-mcp, \
+                 --harness-serve or --harness-run"
             ));
         }
-        return Ok(None);
+        return Ok(Parsed::None);
     }
     if requested > 1 {
         return Err(
-            "--harness-repl, --harness-mcp and --harness-run are mutually exclusive".into(),
+            "--harness-repl, --harness-mcp, --harness-serve and --harness-run \
+             are mutually exclusive"
+                .into(),
         );
+    }
+    if port_given && !serve_daemon {
+        return Err("--port only makes sense with --harness-serve or --harness-ctl".into());
     }
 
     let frontend = if let Some(dir) = batch {
         Frontend::Batch(dir)
     } else if mcp {
         Frontend::Mcp
+    } else if serve_daemon {
+        Frontend::Serve(port)
     } else {
         Frontend::Repl
     };
@@ -248,7 +326,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
     let home = home.unwrap_or_else(|| std::env::temp_dir().join("oryxis-harness"));
     let shots = shots.unwrap_or_else(|| home.join("shots"));
 
-    Ok(Some(Options {
+    Ok(Parsed::Mode(Box::new(Options {
         frontend,
         home,
         shots,
@@ -256,7 +334,7 @@ fn parse(args: &[String]) -> Result<Option<Options>, String> {
         scale,
         mode,
         timeout,
-    }))
+    })))
 }
 
 /// Entry point called from `main()` with the fully configured
@@ -276,6 +354,10 @@ where
         }
         Frontend::Repl => repl::serve(program, options),
         Frontend::Mcp => mcp::serve(program, options),
+        Frontend::Serve(port) => {
+            let port = *port;
+            serve::serve(program, options, port)
+        }
     }
 }
 
@@ -632,15 +714,26 @@ mod tests {
         list.iter().map(|s| s.to_string()).collect()
     }
 
+    /// Unwraps the emulator-booting variant.
+    fn mode_options(parsed: Parsed) -> Options {
+        match parsed {
+            Parsed::Mode(options) => *options,
+            _ => panic!("expected a harness mode"),
+        }
+    }
+
     #[test]
     fn no_harness_flags_means_normal_run() {
-        assert!(parse(&args(&["--connect", "abc"])).unwrap().is_none());
-        assert!(parse(&[]).unwrap().is_none());
+        assert!(matches!(
+            parse(&args(&["--connect", "abc"])).unwrap(),
+            Parsed::None
+        ));
+        assert!(matches!(parse(&[]).unwrap(), Parsed::None));
     }
 
     #[test]
     fn repl_mode_with_defaults() {
-        let options = parse(&args(&["--harness-repl"])).unwrap().unwrap();
+        let options = mode_options(parse(&args(&["--harness-repl"])).unwrap());
         assert!(matches!(options.frontend, Frontend::Repl));
         assert_eq!(options.viewport, Size::new(1200.0, 750.0));
         assert_eq!(options.mode, emulator::Mode::Zen);
@@ -648,22 +741,64 @@ mod tests {
 
     #[test]
     fn mcp_mode_parses() {
-        let options = parse(&args(&["--harness-mcp"])).unwrap().unwrap();
+        let options = mode_options(parse(&args(&["--harness-mcp"])).unwrap());
         assert!(matches!(options.frontend, Frontend::Mcp));
     }
 
     #[test]
+    fn serve_mode_with_port() {
+        let options = mode_options(parse(&args(&["--harness-serve"])).unwrap());
+        assert!(matches!(options.frontend, Frontend::Serve(serve::DEFAULT_PORT)));
+
+        let options =
+            mode_options(parse(&args(&["--harness-serve", "--port", "7000"])).unwrap());
+        assert!(matches!(options.frontend, Frontend::Serve(7000)));
+    }
+
+    #[test]
+    fn ctl_swallows_the_rest_as_the_command() {
+        match parse(&args(&["--harness-ctl", "click", "\"Keychain\""])).unwrap() {
+            Parsed::Ctl { port, command } => {
+                assert_eq!(port, serve::DEFAULT_PORT);
+                assert_eq!(command.as_deref(), Some("click \"Keychain\""));
+            }
+            _ => panic!("expected ctl"),
+        }
+        // No command: the client reads stdin.
+        match parse(&args(&["--harness-ctl"])).unwrap() {
+            Parsed::Ctl { command, .. } => assert!(command.is_none()),
+            _ => panic!("expected ctl"),
+        }
+        // Only --port may precede it.
+        match parse(&args(&["--port", "7000", "--harness-ctl", "status"])).unwrap() {
+            Parsed::Ctl { port, command } => {
+                assert_eq!(port, 7000);
+                assert_eq!(command.as_deref(), Some("status"));
+            }
+            _ => panic!("expected ctl"),
+        }
+        assert!(parse(&args(&["--harness-repl", "--harness-ctl", "x"])).is_err());
+    }
+
+    #[test]
+    fn port_without_serve_or_ctl_is_an_error() {
+        assert!(parse(&args(&["--harness-repl", "--port", "7000"])).is_err());
+        assert!(parse(&args(&["--port", "7000"])).is_err());
+    }
+
+    #[test]
     fn run_mode_takes_a_directory_and_flags() {
-        let options = parse(&args(&[
-            "--harness-run",
-            "tests/e2e",
-            "--viewport",
-            "800x600",
-            "--mode",
-            "immediate",
-        ]))
-        .unwrap()
-        .unwrap();
+        let options = mode_options(
+            parse(&args(&[
+                "--harness-run",
+                "tests/e2e",
+                "--viewport",
+                "800x600",
+                "--mode",
+                "immediate",
+            ]))
+            .unwrap(),
+        );
         assert!(matches!(
             &options.frontend,
             Frontend::Batch(dir) if dir == std::path::Path::new("tests/e2e")
@@ -682,6 +817,7 @@ mod tests {
         assert!(parse(&args(&["--harness-repl", "--harness-run", "d"])).is_err());
         assert!(parse(&args(&["--harness-repl", "--harness-mcp"])).is_err());
         assert!(parse(&args(&["--harness-mcp", "--harness-run", "d"])).is_err());
+        assert!(parse(&args(&["--harness-serve", "--harness-repl"])).is_err());
     }
 
     #[test]

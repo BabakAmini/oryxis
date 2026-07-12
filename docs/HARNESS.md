@@ -137,18 +137,46 @@ ignored, so a command file can be annotated.
 | `--mode zen\|patient\|immediate` | `zen` | task-waiting strategy |
 | `--timeout-ms <ms>` | `20000` | REPL per-instruction timeout |
 
-## MCP mode (AI agents): `--harness-mcp`
+## Daemon + CLI client (AI agents): `--harness-serve` / `--harness-ctl`
+
+The agent-facing surface. The emulated app is stateful (unlocked
+vault, navigated screens, live sessions), so CLI ergonomics come from
+a long-lived daemon holding the emulator plus a one-shot client that
+delivers commands to it over TCP (127.0.0.1 only, default port 6799,
+`--port` on both sides to override):
+
+```bash
+oryxis --harness-serve &                  # daemon; prints "harness listening ..."
+oryxis --harness-ctl status               # one command
+oryxis --harness-ctl 'click "Keychain"'   # quote the whole command
+oryxis --harness-ctl <<'EOF'              # or batch via stdin
+reset wipe
+click "Skip"
+screenshot onboarding
+EOF
+oryxis --harness-ctl quit                 # stops the daemon
+```
+
+The wire protocol is the REPL line protocol verbatim (same command
+grammar, `== `-prefixed responses; `harness/commands.rs` is shared by
+both front-ends, so they cannot drift). The client exits 0 when every
+line succeeded, 1 on any `== error` / `== fail`, 2 when the daemon is
+unreachable, so shell `&&`-chaining works. `screenshot` prints the
+PNG path for the caller to open. The agent workflow (rebuild cycle,
+patterns, gotchas) is documented as the project skill
+`.claude/skills/harness/SKILL.md`.
+
+## MCP mode (other clients): `--harness-mcp`
 
 ```bash
 oryxis --harness-mcp            # MCP server over stdio
 ```
 
-Exposes the same driving surface as MCP tools, so an AI agent (Claude
-Code or any MCP client) interacts with the emulated app directly,
-either to validate changes visually or to build automated tests. The
-repo's `.mcp.json` registers it as the `oryxis-harness` server
-(building the feature on demand), so agent sessions in this repo get
-the tools automatically.
+Exposes the same driving surface as MCP tools for MCP-capable clients.
+Note the process is spawned once by the client and holds its binary
+for the whole session: after a rebuild the tools keep running OLD code
+until the client reconnects, which is why agent sessions prefer the
+daemon + ctl pair above (the agent controls the lifecycle itself).
 
 | Tool | Meaning |
 |------|---------|
