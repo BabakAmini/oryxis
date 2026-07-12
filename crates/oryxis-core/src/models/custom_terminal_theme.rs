@@ -13,10 +13,13 @@
 //! `Connection.terminal_theme`), so names must be unique across built-ins
 //! and custom themes. The CRUD layer enforces that on save.
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// A user-defined terminal palette. All color fields are `"#RRGGBB"` hex.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Serde: rides the portable export (with the Settings category) and any
+/// future sync coverage; every field is plain text, no secrets.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CustomTerminalTheme {
     pub id: Uuid,
     /// Display name, also the key used by the global / per-host selection.

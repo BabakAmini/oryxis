@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use oryxis_core::models::{
-    CloudProfile, Connection, Group, Identity, KnownHost, PortForwardRule, ProxyIdentity,
-    SessionGroup, Snippet, SshKey,
+    CloudProfile, Connection, CustomTerminalTheme, Group, Identity, KnownHost, PortForwardRule,
+    ProxyIdentity, SessionGroup, Snippet, SshKey,
 };
 
 use crate::store::{encrypt, decrypt, VaultError, VaultStore};
@@ -62,6 +62,14 @@ struct ExportPayload {
     /// field existed.
     #[serde(default)]
     settings: Vec<ExportSetting>,
+    /// User-created terminal themes (their own vault table, not a
+    /// settings row). They travel with the Settings category: they are
+    /// preferences, and a per-host `terminal_theme` override in a
+    /// connection references them BY NAME, so a migration without them
+    /// would leave hosts pointing at missing themes. Defaults to empty
+    /// for backwards compat with older export files.
+    #[serde(default)]
+    custom_terminal_themes: Vec<CustomTerminalTheme>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -342,6 +350,8 @@ pub struct ImportResult {
     /// have no `updated_at`, so an imported value always wins, hence a
     /// single counter rather than added/updated/skipped.
     pub settings_imported: usize,
+    pub custom_themes_added: usize,
+    pub custom_themes_skipped: usize,
 }
 
 /// Per-category contents of an export file, produced by
@@ -675,6 +685,15 @@ pub fn export_vault(
         Vec::new()
     };
 
+    // Custom terminal themes ride the Settings category (they are
+    // preferences; per-host `terminal_theme` overrides reference them
+    // by name).
+    let custom_terminal_themes = if full_export && options.selection.settings {
+        store.list_custom_terminal_themes()?
+    } else {
+        Vec::new()
+    };
+
     let payload = ExportPayload {
         version: FORMAT_VERSION,
         exported_at: Utc::now(),
@@ -690,6 +709,7 @@ pub fn export_vault(
         known_hosts,
         session_groups,
         settings,
+        custom_terminal_themes,
     };
 
     let json = serde_json::to_vec(&payload)
@@ -737,7 +757,10 @@ pub fn inspect_export(data: &[u8], password: &str) -> Result<ExportSummary, Vaul
         known_hosts: payload.known_hosts.len(),
         port_forward_rules: payload.port_forward_rules.len(),
         session_groups: payload.session_groups.len(),
-        settings: payload.settings.len(),
+        // Custom themes ride the Settings category, so they count
+        // toward its presence: a file carrying only themes must still
+        // light the Settings checkbox in the import dialog.
+        settings: payload.settings.len() + payload.custom_terminal_themes.len(),
         includes_private_keys: export_includes_keys(data),
     })
 }
@@ -793,6 +816,8 @@ pub fn import_vault(
         session_groups_added: 0,
         session_groups_skipped: 0,
         settings_imported: 0,
+        custom_themes_added: 0,
+        custom_themes_skipped: 0,
     };
 
     // Existing data for merge checks
@@ -1051,6 +1076,27 @@ pub fn import_vault(
             store.set_setting(&setting.key, &setting.value)?;
         }
         result.settings_imported += 1;
+    }
+
+    // Custom terminal themes (Settings category). Skip when the id
+    // already exists (same record) or when a DIFFERENT theme already
+    // owns the name: theme names are the reference key for per-host
+    // overrides and must stay unique, so an import never silently
+    // replaces a local theme that happens to share a name.
+    if selection.settings {
+        let existing_themes = store.list_custom_terminal_themes()?;
+        for theme in &payload.custom_terminal_themes {
+            let same_id = existing_themes.iter().any(|t| t.id == theme.id);
+            let name_taken = existing_themes
+                .iter()
+                .any(|t| t.id != theme.id && t.name == theme.name);
+            if same_id || name_taken {
+                result.custom_themes_skipped += 1;
+            } else {
+                store.save_custom_terminal_theme(theme)?;
+                result.custom_themes_added += 1;
+            }
+        }
     }
 
     Ok(result)

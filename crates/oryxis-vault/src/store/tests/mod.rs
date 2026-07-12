@@ -34,6 +34,7 @@ mod identities;
 mod keys;
 mod logs;
 mod portable;
+mod portable_hardening;
 mod settings;
 mod snippets;
 mod sync;
