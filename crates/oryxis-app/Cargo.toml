@@ -37,6 +37,13 @@ assets = [
 ]
 
 [dependencies]
+# ssh-agent server (agent_server): key encoding + signing, pinned to
+# the same ssh-key russh 0.61 consumes (matches oryxis-vault's pin).
+ssh-key = { version = "=0.7.0-rc.10", features = ["ed25519", "std", "rand_core", "encryption", "rsa", "p256", "p384", "p521"] }
+ssh-encoding = "=0.3.0-rc.9"
+# The `Signer` trait ssh-key's key data implements (raw-data signing
+# for the agent). Pinned to ssh-key 0.7's signature version.
+signature = "3"
 # Native OS notifications (OSC 9): Windows toast, macOS, Linux libnotify/D-Bus.
 notify-rust = "4"
 # OS locale detection for the "Auto (OS)" language default (BCP-47
@@ -165,6 +172,10 @@ windows = { version = "0.62", features = [
 tray-icon = { version = "0.24", default-features = false, features = ["common-controls-v6"] }
 
 [dev-dependencies]
+# russh AgentClient drives the agent_server protocol tests (proves
+# our wire encoding against a real client).
+russh = { workspace = true }
+tempfile = "3"
 # Property-based fuzzing for path/name helpers, generates random
 # inputs to flush out edge cases the hand-written cases missed.
 proptest = "1"
