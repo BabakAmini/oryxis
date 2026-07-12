@@ -684,16 +684,23 @@ impl Oryxis {
                     self.overlay = None;
                 } else {
                     self.show_keychain_add_menu = true;
+                    // Opening the ADD menu closes any open editor panel
+                    // (import / generate / identity). The menu's entries
+                    // just reopen one of those, so a stale panel behind the
+                    // menu is never wanted, and leaving it open mis-anchored
+                    // the menu on top of the panel (the generate panel was
+                    // not even counted in panel_width below).
+                    self.show_key_panel = false;
+                    self.show_key_generate_panel = false;
+                    self.show_identity_panel = false;
                     // Anchor below the split button regardless of where
                     // the cursor was when the click happened. Right-align
                     // the menu's right edge with the chevron's right edge
                     // (= toolbar right padding from the visible content's
                     // right edge), and drop it just below the button row.
-                    let panel_width = if self.show_key_panel || self.show_identity_panel {
-                        crate::app::PANEL_WIDTH
-                    } else {
-                        0.0
-                    };
+                    // No panel is open now (closed just above), so the
+                    // visible content spans the full width.
+                    let panel_width = 0.0;
                     // Sync with `views/layout.rs::view_main` overlay.
                     let menu_width = 150.0;
                     let toolbar_padding = 24.0;
