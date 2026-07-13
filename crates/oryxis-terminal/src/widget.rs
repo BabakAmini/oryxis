@@ -1533,6 +1533,12 @@ where
                 // `state.process` (the SSH echo path), showing up as
                 // typing lag.
                 let cell_changed;
+                // Whether `hovered_link` (the app's reveal / blocked chip)
+                // changed this move. A BLOCKED link returns no `hovered_url`
+                // (no pointer, no scraped fallback), so `url_changed` stays
+                // false, without this the blocked chip would rely on an
+                // incidental cursor-blink repaint to appear or clear.
+                let mut link_changed = false;
                 let new_hover_url = if let Some(pos) = cursor.position_in(bounds) {
                     let (col, vrow) = self.pixel_to_cell(pos);
                     let same_cell = widget_state.hovered_cell == Some((col, vrow));
@@ -1565,14 +1571,17 @@ where
                                 } else {
                                     Vec::new()
                                 };
-                                state.hovered_link = Some(HoveredLink {
+                                let new_link = Some(HoveredLink {
                                     target: uri.clone(),
                                     allowed,
                                 });
+                                link_changed = state.hovered_link != new_link;
+                                state.hovered_link = new_link;
                                 allowed.then_some((uri, pos))
                             }
                             None => {
                                 widget_state.hovered_osc8.clear();
+                                link_changed = state.hovered_link.is_some();
                                 state.hovered_link = None;
                                 url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
                             }
@@ -1588,6 +1597,7 @@ where
                     widget_state.hovered_osc8.clear();
                     // Retract any link-reveal chip (allowed or blocked).
                     if let Ok(mut state) = self.state.lock() {
+                        link_changed = state.hovered_link.is_some();
                         state.hovered_link = None;
                     }
                     None
@@ -1601,7 +1611,7 @@ where
                 // Under Privacy Mode a cell change can move the revealed
                 // span even when no URL is involved, so repaint on any cell
                 // change too (otherwise hovering an IP wouldn't reveal it).
-                if hover_changed || url_changed || (self.privacy && cell_changed) {
+                if hover_changed || url_changed || link_changed || (self.privacy && cell_changed) {
                     return Some(CanvasAction::request_redraw());
                 }
             }
