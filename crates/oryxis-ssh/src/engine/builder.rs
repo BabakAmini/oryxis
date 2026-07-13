@@ -10,6 +10,7 @@ impl SshEngine {
             pw_prompt_label: None,
             totp: None,
             keepalive_interval: None,
+            rekey_limit_mb: None,
             address_family: AddressFamily::Auto,
             connect_timeout: std::time::Duration::from_secs(15),
             auth_timeout: std::time::Duration::from_secs(30),
@@ -249,9 +250,26 @@ impl SshEngine {
         self
     }
 
+    /// Per-host SSH rekey threshold in MB (C5). `None` / `Some(0)` keeps
+    /// russh's 1 GB default.
+    pub fn with_rekey_limit_mb(mut self, mb: Option<u32>) -> Self {
+        self.rekey_limit_mb = mb.filter(|&m| m > 0);
+        self
+    }
+
     pub(crate) fn make_config(&self) -> Arc<client::Config> {
+        // Per-host rekey limit: MB -> bytes, clamped to russh's 1 GiB cap
+        // (`Limits::new` asserts <= 1<<30, a nonce-reuse guard). Applied to
+        // both the write and read thresholds; the time limit keeps russh's
+        // default. `None` leaves the whole `Limits::default()`.
+        let limits = self.rekey_limit_mb.map(|mb| {
+            let bytes = (mb as usize).saturating_mul(1 << 20).min(1 << 30);
+            let default = russh::Limits::default();
+            russh::Limits::new(bytes, bytes, default.rekey_time_limit)
+        });
         Arc::new(client::Config {
             keepalive_interval: self.keepalive_interval,
+            limits: limits.unwrap_or_default(),
             preferred: self.build_preferred(),
             // Every path below hands russh a pre-dialed stream, but keep
             // the config honest for any future `client::connect` caller.

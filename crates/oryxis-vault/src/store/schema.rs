@@ -336,6 +336,12 @@ impl VaultStore {
         // it with the keyed dedup hash (see the table comment above).
         let _ = self.db.execute_batch("ALTER TABLE command_history ADD COLUMN command_enc BLOB;");
 
+        // C5: per-host legacy keyboard modes + terminal feature toggles
+        // (JSON blob, NULL = all-xterm defaults) and the SSH rekey
+        // threshold in MB (NULL = russh default).
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN quirks TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rekey_limit_mb INTEGER;");
+
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");
         let _ = self.db.execute_batch("UPDATE groups SET created_at = datetime('now'), updated_at = datetime('now') WHERE created_at IS NULL;");

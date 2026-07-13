@@ -334,6 +334,12 @@ pub(crate) struct Pane {
     /// a pane with this set is excluded, staying an observer. Cleared when the
     /// tab disarms so a later re-arm starts clean.
     pub broadcast_opt_out: bool,
+    /// Legacy keyboard modes + feature toggles (C5), RESOLVED for this pane's
+    /// host at connect (a `None` on the connection resolves to
+    /// `DEFAULT_QUIRKS`). Read on the hot key path (`key_to_named_bytes`) and
+    /// by the widget (mouse / title / OSC 52 gates), so the vault is never
+    /// consulted per keystroke. Local shells keep `DEFAULT_QUIRKS`.
+    pub quirks: oryxis_core::models::terminal_quirks::TerminalQuirks,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -420,6 +426,8 @@ impl Pane {
             search_open: false,
             search_query: String::new(),
             broadcast_opt_out: false,
+            // Xterm defaults until resolved for a real host at connect.
+            quirks: oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS,
         }
     }
 }

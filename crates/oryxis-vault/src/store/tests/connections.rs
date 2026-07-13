@@ -42,6 +42,42 @@ fn connection_address_family_round_trips() {
 }
 
 #[test]
+fn connection_quirks_and_rekey_round_trip() {
+    use oryxis_core::models::terminal_quirks::{
+        BackspaceMode, FunctionKeyMode, HomeEndMode, Osc52Override, TerminalQuirks,
+    };
+    let vault = unlocked_vault();
+    // None quirks reload as None (all-xterm default), and a fully
+    // populated quirks + rekey limit survive the save/list cycle. Guards
+    // the JSON column and the positional indices 46/47 in
+    // `store/connections.rs` (a wrong index silently reloads defaults).
+    let mut plain = Connection::new("plain", "example.com");
+    plain.quirks = None;
+    plain.rekey_limit_mb = None;
+    vault.save_connection(&plain, None).unwrap();
+
+    let mut fancy = Connection::new("fancy", "example.com");
+    fancy.quirks = Some(TerminalQuirks {
+        backspace: BackspaceMode::CtrlH,
+        home_end: HomeEndMode::Rxvt,
+        function_keys: FunctionKeyMode::LinuxConsole,
+        disable_mouse_reporting: true,
+        disable_title_change: true,
+        osc52: Some(Osc52Override::On),
+    });
+    fancy.rekey_limit_mb = Some(512);
+    vault.save_connection(&fancy, None).unwrap();
+
+    let list = vault.list_connections().unwrap();
+    let loaded_plain = list.iter().find(|c| c.id == plain.id).unwrap();
+    assert_eq!(loaded_plain.quirks, None);
+    assert_eq!(loaded_plain.rekey_limit_mb, None);
+    let loaded_fancy = list.iter().find(|c| c.id == fancy.id).unwrap();
+    assert_eq!(loaded_fancy.quirks, fancy.quirks);
+    assert_eq!(loaded_fancy.rekey_limit_mb, Some(512));
+}
+
+#[test]
 fn connection_protocol_round_trips() {
     use oryxis_core::models::connection::ConnectionProtocol;
     let vault = unlocked_vault();

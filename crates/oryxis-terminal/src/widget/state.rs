@@ -220,6 +220,13 @@ impl TerminalState {
         self.render_epoch = self.render_epoch.wrapping_add(1);
     }
 
+    /// Per-instance OSC 52 clipboard-write override (C5 per-host quirk).
+    /// `None` inherits the global policy; `Some(bool)` forces this pane's
+    /// OSC 52 write on/off. Read is never per-host.
+    pub fn set_osc52_write_override(&self, over: Option<bool>) {
+        self.backend.event_proxy.set_osc52_write_override(over);
+    }
+
     /// Deadline of a buffering DEC `?2026` synchronized update, if any.
     /// See `TerminalBackend::sync_timeout`.
     pub fn sync_timeout(&self) -> Option<std::time::Instant> {

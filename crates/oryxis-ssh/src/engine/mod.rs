@@ -107,6 +107,11 @@ pub struct SshEngine {
     /// SSH_MSG_GLOBAL_REQUEST every N seconds so NAT / firewall idle
     /// timeouts don't kill the session.
     keepalive_interval: Option<std::time::Duration>,
+    /// Per-host SSH rekey threshold in megabytes (C5), applied to russh's
+    /// `Limits::rekey_write_limit` / `rekey_read_limit`. `None` keeps
+    /// russh's 1 GB default. russh caps each limit at 1 GiB (nonce-reuse
+    /// guard), so the value is clamped there.
+    rekey_limit_mb: Option<u32>,
     /// Outbound address-family preference (PuTTY's Auto / IPv4 / IPv6),
     /// applied wherever this engine opens a real socket: the direct
     /// dial, the proxy dial, and the first jump hop. Later jump hops

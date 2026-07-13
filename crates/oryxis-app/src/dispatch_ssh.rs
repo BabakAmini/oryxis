@@ -1344,6 +1344,17 @@ impl Oryxis {
                         crate::state::PaneOrigin::QuickHost(id)
                     }
                 };
+                // C5: resolve this host's terminal quirks once, on the hot
+                // key path + widget read from `pane.quirks` thereafter. The
+                // OSC 52 override lives deep in the emulator event handler,
+                // so it's pushed into the terminal state here.
+                let resolved_quirks = self.resolve_quirks(&conn);
+                new_tab.active_mut().quirks = resolved_quirks;
+                if let Ok(term) = new_tab.active().terminal.lock() {
+                    term.set_osc52_write_override(
+                        resolved_quirks.osc52.map(|o| o.allows_write()),
+                    );
+                }
                 if let crate::state::ProgressOrigin::Quick(id) = origin
                     && let Some(entry) = self.quick_connects.get(&id)
                 {
@@ -1436,6 +1447,7 @@ impl Oryxis {
                 let auth_method_label = format!("{:?}", conn.auth_method);
                 let keepalive = self.effective_keepalive(&conn);
                 let address_family = conn.address_family;
+                let rekey_limit_mb = conn.rekey_limit_mb;
                 let agent_forwarding = conn.agent_forwarding;
                 let env_vars: Vec<(String, String)> = conn
                     .env_vars
@@ -1572,6 +1584,7 @@ impl Oryxis {
                             )
                             .with_keepalive(keepalive)
                             .with_address_family(address_family)
+                            .with_rekey_limit_mb(rekey_limit_mb)
                             .with_agent_forwarding(agent_forwarding)
                             .with_env_vars(env_vars)
                             .with_encoding(encoding)
@@ -2025,6 +2038,20 @@ impl Oryxis {
     /// Shared body for the two wrappers above. `quick_id` marks an ad-hoc
     /// host: the typed credentials overlay the (missed) vault hydration and
     /// the engine opts into the interactive Auto auth fallback.
+    /// Resolve the effective terminal quirks for a connection (C5). Today
+    /// this is just the host's own `quirks` (or `DEFAULT_QUIRKS` when
+    /// unset); this is the SINGLE resolution point, so the v1.0
+    /// group-settings-inheritance item (d4) can extend it to walk the
+    /// host -> parent-group chain -> app default without touching any
+    /// call site.
+    pub(crate) fn resolve_quirks(
+        &self,
+        conn: &oryxis_core::models::Connection,
+    ) -> oryxis_core::models::terminal_quirks::TerminalQuirks {
+        conn.quirks
+            .unwrap_or(oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS)
+    }
+
     fn spawn_ssh_for_pane_conn(
         &mut self,
         mut conn: oryxis_core::models::Connection,
@@ -2032,6 +2059,21 @@ impl Oryxis {
         tab_idx: usize,
         pane_id: Uuid,
     ) -> Task<Message> {
+        // C5: resolve quirks for this pane's host before the protocol
+        // split, so SSH / Telnet / Serial panes (split, quick-connect, and
+        // in-place reconnect) all read the right modes. RemoteDesktop is
+        // not a terminal pane, so it doesn't matter for the early return.
+        let quirks = self.resolve_quirks(&conn);
+        if let Some(pane) = self
+            .tabs
+            .get_mut(tab_idx)
+            .and_then(|t| t.pane_by_id_mut(pane_id))
+        {
+            pane.quirks = quirks;
+            if let Ok(term) = pane.terminal.lock() {
+                term.set_osc52_write_override(quirks.osc52.map(|o| o.allows_write()));
+            }
+        }
         // Telnet / Serial hosts take their own thin connect paths (no
         // SSH engine); split panes and in-place reconnects included.
         match conn.protocol {
@@ -2066,6 +2108,7 @@ impl Oryxis {
         let host_key_check = self.build_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         let address_family = conn.address_family;
+        let rekey_limit_mb = conn.rekey_limit_mb;
         // Parity with the full-tab `ConnectSsh` path: agent forwarding, env
         // vars and a custom encoding must ride the session too, otherwise a
         // split pane (or an in-place reconnect) silently drops them.
@@ -2150,6 +2193,7 @@ impl Oryxis {
                 )
                 .with_keepalive(keepalive)
                 .with_address_family(address_family)
+                .with_rekey_limit_mb(rekey_limit_mb)
                 .with_agent_forwarding(agent_forwarding)
                 .with_env_vars(env_vars)
                 .with_encoding(encoding)

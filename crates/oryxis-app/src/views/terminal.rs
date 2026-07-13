@@ -331,6 +331,9 @@ impl Oryxis {
             .with_privacy(self.privacy_active_for_label(&pane.label))
             .with_privacy_terms(&self.privacy_terms())
             .with_smart_contrast(self.setting_smart_contrast)
+            // C5: a host with `disable_mouse_reporting` keeps clicks local
+            // even when the remote turns on mouse tracking.
+            .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)
             .with_word_delimiters(&self.setting_word_delimiters)
             .on_font_size_increase(Message::TerminalFontSizeIncrease)
             .on_font_size_decrease(Message::TerminalFontSizeDecrease)

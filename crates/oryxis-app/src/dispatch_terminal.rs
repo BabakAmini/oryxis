@@ -602,7 +602,11 @@ impl Oryxis {
                         pane.cwd = Some(cwd);
                         pane.cwd_from_osc7 = true;
                     }
-                    if let Some(title) = new_title {
+                    // C5: a host with `disable_title_change` ignores remote
+                    // OSC 0/2 title updates entirely (the tab keeps its
+                    // connection label / manual rename), and the OSC-title cwd
+                    // fallback is suppressed with it.
+                    if let Some(title) = new_title.filter(|_| !pane.quirks.disable_title_change) {
                         // Stored raw: when auto-title is on it's opt-in emulator
                         // behavior, so the tab shows exactly what the shell set
                         // (`user@host: ~`, `vim file`, …), like gnome-terminal /
@@ -1374,6 +1378,13 @@ impl Oryxis {
                                 t.active().terminal.lock().ok().map(|s| s.application_cursor_keys())
                             })
                             .unwrap_or(false);
+                        // C5: the focused pane's resolved legacy keyboard
+                        // modes drive the named-key encoding below.
+                        let pane_quirks = self
+                            .tabs
+                            .get(tab_idx)
+                            .map(|t| t.active().quirks)
+                            .unwrap_or(oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS);
                         // macOS: Command (Cmd) is the clipboard modifier, not
                         // Ctrl. Cmd+V pastes; Cmd+C / Cmd+A are copy /
                         // select-all owned by the terminal widget (it holds the
@@ -1424,7 +1435,7 @@ impl Oryxis {
                                     // Other Ctrl+key combinations
                                     self.write_input_to_tab(tab_idx, &bytes);
                                 }
-                            } else if let Some(bytes) = key_to_named_bytes(&key, &modifiers, app_cursor) {
+                            } else if let Some(bytes) = key_to_named_bytes(&key, &modifiers, app_cursor, &pane_quirks) {
                                 // Ctrl + named key (e.g. Ctrl+Home)
                                 self.write_input_to_tab(tab_idx, &bytes);
                             }
@@ -1450,7 +1461,7 @@ impl Oryxis {
                                 None
                             };
                             let mut bytes = numpad_text
-                                .or_else(|| key_to_named_bytes(&key, &modifiers, app_cursor))
+                                .or_else(|| key_to_named_bytes(&key, &modifiers, app_cursor, &pane_quirks))
                                 .or_else(|| text_opt.as_ref().map(|t| t.as_bytes().to_vec()));
 
                             // Meta-sends-escape: Alt+<char> (without Ctrl, so

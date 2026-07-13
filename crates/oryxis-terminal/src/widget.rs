@@ -360,6 +360,11 @@ pub struct TerminalView<Message = ()> {
     /// the text stays legible. Off paints the cell exactly as the
     /// emulator asked, which a few colour-precise tools rely on.
     smart_contrast: bool,
+    /// Whether this pane honours remote mouse-tracking requests (C5). When
+    /// false (a host with `disable_mouse_reporting`), clicks always
+    /// select / paste locally even while the remote enabled tracking, so a
+    /// broken or hostile remote can't hijack the mouse. Default true.
+    mouse_reporting: bool,
     /// Characters that terminate a word for double-click selection
     /// (the semantic-escape / "word delimiters" set). Threaded from the
     /// user's Terminal setting each frame and synced into the backend on
@@ -613,6 +618,7 @@ impl<Message> TerminalView<Message> {
             privacy: false,
             privacy_terms: Vec::new(),
             smart_contrast: true,
+            mouse_reporting: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
             on_font_size_increase: None,
             on_font_size_decrease: None,
@@ -706,6 +712,14 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_smart_contrast(mut self, on: bool) -> Self {
         self.smart_contrast = on;
+        self
+    }
+
+    /// Whether remote mouse tracking is honoured (C5). Pass `false` for a
+    /// host with `disable_mouse_reporting` so clicks always select / paste
+    /// locally regardless of the remote's mouse mode.
+    pub fn with_mouse_reporting(mut self, on: bool) -> Self {
+        self.mouse_reporting = on;
         self
     }
 
@@ -972,6 +986,13 @@ impl<Message> TerminalView<Message> {
         grid_rows: u16,
     ) -> Option<CanvasAction<Message>> {
         use alacritty_terminal::term::TermMode;
+        // C5: a host with mouse reporting disabled never emits a report,
+        // regardless of the remote's mouse mode; the caller falls through
+        // to local selection / paste. Single chokepoint so no report path
+        // (press / release / wheel / motion) can leak.
+        if !self.mouse_reporting {
+            return None;
+        }
         let kbd = widget_state.modifiers;
         let ctrl = kbd.control();
         // Shift is the local-selection bypass, so the caller only reaches

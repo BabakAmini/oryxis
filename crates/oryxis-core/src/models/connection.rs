@@ -197,6 +197,19 @@ pub struct Connection {
     /// hides it (even when the global toggle is on).
     #[serde(default)]
     pub privacy_mode: Option<bool>,
+    /// Per-host legacy keyboard modes + terminal feature toggles (C5:
+    /// backspace / home-end / function-key encoding, mouse-reporting /
+    /// title-change / OSC 52 gates). `None` = all defaults (today's xterm
+    /// behaviour), which keeps old payloads byte-identical. Resolve via
+    /// [`super::terminal_quirks::TerminalQuirks`]; a `None` here means
+    /// [`super::terminal_quirks::DEFAULT_QUIRKS`].
+    #[serde(default)]
+    pub quirks: Option<super::terminal_quirks::TerminalQuirks>,
+    /// Per-host SSH rekey threshold in megabytes (`None` = russh default).
+    /// A plain additive column; rides sync / export like the algorithm
+    /// overrides above.
+    #[serde(default)]
+    pub rekey_limit_mb: Option<u32>,
 }
 
 impl Connection {
@@ -249,6 +262,8 @@ impl Connection {
             macs: None,
             host_key_algorithms: None,
             privacy_mode: None,
+            quirks: None,
+            rekey_limit_mb: None,
         }
     }
 }
@@ -603,6 +618,41 @@ mod tests {
         value.as_object_mut().unwrap().remove("terminal_type");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.terminal_type, None);
+    }
+
+    #[test]
+    fn quirks_legacy_payload_defaults_to_none() {
+        // A payload from before C5 has neither field; both must default
+        // to None (all-xterm behaviour), keeping old vaults / peers valid.
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("quirks");
+        obj.remove("rekey_limit_mb");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.quirks, None);
+        assert_eq!(de.rekey_limit_mb, None);
+    }
+
+    #[test]
+    fn quirks_round_trip() {
+        use super::super::terminal_quirks::{
+            BackspaceMode, FunctionKeyMode, HomeEndMode, Osc52Override, TerminalQuirks,
+        };
+        let mut conn = Connection::new("h", "1.2.3.4");
+        conn.quirks = Some(TerminalQuirks {
+            backspace: BackspaceMode::CtrlH,
+            home_end: HomeEndMode::Rxvt,
+            function_keys: FunctionKeyMode::Vt400,
+            disable_mouse_reporting: true,
+            disable_title_change: true,
+            osc52: Some(Osc52Override::Off),
+        });
+        conn.rekey_limit_mb = Some(256);
+        let json = serde_json::to_string(&conn).unwrap();
+        let de: Connection = serde_json::from_str(&json).unwrap();
+        assert_eq!(de.quirks, conn.quirks);
+        assert_eq!(de.rekey_limit_mb, Some(256));
     }
 
     #[test]

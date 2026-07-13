@@ -84,8 +84,8 @@ impl VaultStore {
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -143,6 +143,8 @@ impl VaultStore {
                 rd_kind_str,
                 rd_gateway_str,
                 family_str,
+                conn.quirks.as_ref().map(|q| serde_json::to_string(q).unwrap_or_default()),
+                conn.rekey_limit_mb,
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -165,12 +167,12 @@ impl VaultStore {
         let query = match mcp_filter {
             Some(true) => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb
                  FROM connections WHERE mcp_enabled = 1 AND (protocol IS NULL OR protocol = 'ssh') ORDER BY label"
             }
             _ => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb
                  FROM connections ORDER BY label"
             }
         };
@@ -362,6 +364,16 @@ impl VaultStore {
                         .ok()
                         .flatten()
                         .map(|n| n != 0),
+                    quirks: row
+                        .get::<_, Option<String>>(46)
+                        .ok()
+                        .flatten()
+                        .and_then(|s| serde_json::from_str(&s).ok()),
+                    rekey_limit_mb: row
+                        .get::<_, Option<i64>>(47)
+                        .ok()
+                        .flatten()
+                        .and_then(|v| u32::try_from(v).ok()),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

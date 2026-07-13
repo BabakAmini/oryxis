@@ -61,6 +61,11 @@ pub struct EventProxy {
     /// blocks on. Without it cmd.exe / wsl.exe stall after a few
     /// startup bytes and never paint a banner.
     pty_write_tx: Arc<Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
+    /// Per-instance OSC 52 clipboard-WRITE override (C5 per-host quirk):
+    /// `-1` = inherit the global `OSC52_WRITE` policy, `0` = force off,
+    /// `1` = force on. Checked before the global static. Read is never
+    /// overridden per-host (it always follows `OSC52_READ`).
+    osc52_write: Arc<std::sync::atomic::AtomicI8>,
 }
 
 impl Default for EventProxy {
@@ -75,6 +80,7 @@ impl EventProxy {
             title: Arc::new(Mutex::new(None)),
             bell: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             pty_write_tx: Arc::new(Mutex::new(None)),
+            osc52_write: Arc::new(std::sync::atomic::AtomicI8::new(-1)),
         }
     }
 
@@ -84,6 +90,28 @@ impl EventProxy {
     pub fn set_pty_write_tx(&self, tx: mpsc::UnboundedSender<Vec<u8>>) {
         if let Ok(mut slot) = self.pty_write_tx.lock() {
             *slot = Some(tx);
+        }
+    }
+
+    /// Set the per-instance OSC 52 clipboard-write override (C5). `None`
+    /// inherits the global policy; `Some(true/false)` forces this pane's
+    /// OSC 52 write on/off regardless of the global setting.
+    pub fn set_osc52_write_override(&self, over: Option<bool>) {
+        let v = match over {
+            None => -1,
+            Some(false) => 0,
+            Some(true) => 1,
+        };
+        self.osc52_write.store(v, Ordering::Relaxed);
+    }
+
+    /// Effective OSC 52 write policy: the per-instance override when set,
+    /// else the global `OSC52_WRITE`.
+    fn osc52_write_allowed(&self) -> bool {
+        match self.osc52_write.load(Ordering::Relaxed) {
+            0 => false,
+            1 => true,
+            _ => OSC52_WRITE.load(Ordering::Relaxed),
         }
     }
 }
@@ -116,7 +144,7 @@ impl EventListener for EventProxy {
             }
             // OSC 52: an app sets the system clipboard. Gated, so a remote
             // session can't silently overwrite the clipboard when disabled.
-            Event::ClipboardStore(_ty, text) if OSC52_WRITE.load(Ordering::Relaxed) => {
+            Event::ClipboardStore(_ty, text) if self.osc52_write_allowed() => {
                 crate::widget::set_clipboard_text(&text);
             }
             // OSC 52: an app reads the system clipboard. Off by default (a
@@ -304,6 +332,27 @@ impl Dimensions for TermSize {
 mod tests {
     use super::*;
     use alacritty_terminal::index::{Column, Line, Point};
+
+    #[test]
+    fn osc52_per_instance_override_beats_global_both_ways() {
+        let proxy = EventProxy::new();
+        // Inherit (default): the effective write policy tracks the global.
+        set_clipboard_access(true, false);
+        assert!(proxy.osc52_write_allowed(), "inherit follows global-on");
+        set_clipboard_access(false, false);
+        assert!(!proxy.osc52_write_allowed(), "inherit follows global-off");
+        // Force-on beats a global-off; force-off beats a global-on.
+        proxy.set_osc52_write_override(Some(true));
+        assert!(proxy.osc52_write_allowed(), "force-on beats global-off");
+        set_clipboard_access(true, false);
+        proxy.set_osc52_write_override(Some(false));
+        assert!(!proxy.osc52_write_allowed(), "force-off beats global-on");
+        // Back to inherit tracks the global again.
+        proxy.set_osc52_write_override(None);
+        assert!(proxy.osc52_write_allowed());
+        // Restore the process default (write on, read off) for other tests.
+        set_clipboard_access(true, false);
+    }
 
     /// `set_word_delimiters` must actually drive alacritty's native
     /// semantic search: with the default set, `foo-bar` is one word
