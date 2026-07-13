@@ -268,6 +268,8 @@ impl Oryxis {
                 new_tab_picker_group: None,
                 show_tab_jump: false,
                 tab_jump_search: String::new(),
+                show_command_palette: false,
+                palette_query: String::new(),
                 show_burger_menu: false,
                 show_subnav_overflow: false,
                 show_icon_picker: false,

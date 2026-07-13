@@ -24,6 +24,9 @@ pub enum HotkeyAction {
     // Navigation / global pickers
     ShowNewTabPicker,
     ShowTabJump,
+    /// Command palette (C4): fuzzy search over every action. Global,
+    /// so no `terminal_only` / `vault_only` gate.
+    ShowCommandPalette,
     OpenLocalShell,
     NewWindow,
     CloseActiveTab,
@@ -89,6 +92,7 @@ impl HotkeyAction {
         &[
             ShowNewTabPicker,
             ShowTabJump,
+            ShowCommandPalette,
             OpenLocalShell,
             NewWindow,
             NewHost,
@@ -129,6 +133,7 @@ impl HotkeyAction {
         match self {
             ShowNewTabPicker => "show_new_tab_picker",
             ShowTabJump => "show_tab_jump",
+            ShowCommandPalette => "show_command_palette",
             OpenLocalShell => "open_local_shell",
             NewWindow => "new_window",
             CloseActiveTab => "close_active_tab",
@@ -167,6 +172,7 @@ impl HotkeyAction {
         match self {
             ShowNewTabPicker => "hotkey_show_new_tab_picker",
             ShowTabJump => "hotkey_show_tab_jump",
+            ShowCommandPalette => "hotkey_show_command_palette",
             OpenLocalShell => "hotkey_open_local_shell",
             NewWindow => "hotkey_new_window",
             CloseActiveTab => "hotkey_close_active_tab",
@@ -731,6 +737,11 @@ pub fn default_bindings() -> HotkeyMap {
     let primary_logo = mac;
     put(&mut m, ShowNewTabPicker, primary_ctrl, false, false, primary_logo, Char('k'));
     put(&mut m, ShowTabJump, primary_ctrl, false, false, primary_logo, Char('j'));
+    // Ctrl+Shift+P (Cmd+Shift+P on macOS), the VS Code convention. Plain
+    // Ctrl+P is OpenPortForwards and a bare Ctrl+letter is a PTY control
+    // sequence anyway; the Shift both frees it from that gate and clears
+    // the OpenPortForwards binding (modifier match is exact).
+    put(&mut m, ShowCommandPalette, primary_ctrl, true, false, primary_logo, Char('p'));
     // Ctrl+Shift+L (Cmd+Shift+L on macOS), not plain Ctrl+L: a bare
     // Ctrl+letter is a terminal control sequence (Ctrl+L = clear) and
     // is_terminal_control_sequence() suppresses it inside the terminal

@@ -331,6 +331,14 @@ pub fn t(key: &str) -> &'static str {
     translate(key, lang)
 }
 
+/// English lookup, independent of the active-language global. Used by
+/// coverage tests that assert a key resolves (English is the table that
+/// always returns a value, `"???"` for an unknown key).
+#[cfg(test)]
+pub(crate) fn en_lookup(key: &str) -> &'static str {
+    en::lookup(key)
+}
+
 /// Localized "Open in <file manager>" label using the OS-native name:
 /// File Explorer on Windows, Finder on macOS, the generic file manager
 /// elsewhere. The generic "File Manager" wording is wrong on Windows /

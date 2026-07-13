@@ -89,6 +89,22 @@ pub enum Message {
     /// message (SelectTab, OpenLocalShell, etc). Boxed to keep the enum
     /// variant size from blowing up.
     TabJumpSelect(Box<Message>),
+    // ── Command palette (C4) ────────────────────────────────────────
+    /// Open the command palette (`Ctrl+Shift+P`): resets the query and
+    /// focuses the search input. Refused while the vault is locked.
+    ShowCommandPalette,
+    HideCommandPalette,
+    PaletteQueryChanged(String),
+    /// Two-step dispatch like `TabJumpSelect`: close the palette, then
+    /// fire the row's real message (carried, not re-derived by index).
+    PaletteActivate(Box<Message>),
+    /// Replay a hotkey action from a palette row (reuses the per-action
+    /// context gating in `dispatch_hotkey_action`).
+    RunHotkeyAction(crate::hotkeys::HotkeyAction),
+    /// Navigate to a Settings section from anywhere: switches to the
+    /// Settings view AND selects the section (`ChangeSettingsSection`
+    /// alone only sets the section, assuming the view is already open).
+    OpenSettingsSection(crate::state::SettingsSection),
     // Absorb-click sink, used by modal bodies to stop clicks from falling
     // through to the backdrop underneath. Handler is a no-op.
     NoOp,

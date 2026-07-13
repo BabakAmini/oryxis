@@ -139,6 +139,7 @@ impl Oryxis {
         match m {
             Modal::NewTabPicker => self.show_new_tab_picker,
             Modal::TabJump => self.show_tab_jump,
+            Modal::CommandPalette => self.show_command_palette,
             Modal::IconPicker => self.show_icon_picker,
             Modal::ThemePicker => self.show_theme_picker,
             Modal::ChainEditor => self.show_chain_editor,
@@ -189,6 +190,10 @@ impl Oryxis {
                 self.new_tab_picker_group = None;
             }
             Modal::TabJump => self.show_tab_jump = false,
+            Modal::CommandPalette => {
+                self.show_command_palette = false;
+                self.palette_query.clear();
+            }
             Modal::IconPicker => {
                 self.show_icon_picker = false;
                 self.icon_picker.for_id = None;
@@ -821,7 +826,7 @@ impl Oryxis {
     /// Ctrl+P with no saved-host tab, Alt+arrow with no tabs open).
     /// The action is still considered consumed, so the key doesn't
     /// leak into PTY routing.
-    fn dispatch_hotkey_action(
+    pub(crate) fn dispatch_hotkey_action(
         &mut self,
         action: HotkeyAction,
         family: FamilyMatch,
@@ -839,6 +844,16 @@ impl Oryxis {
                 self.show_tab_jump = true;
                 self.tab_jump_search.clear();
                 Task::none()
+            }
+            // The palette assumes an unlocked vault (its actions do): if
+            // the vault isn't unlocked, decline to open. Otherwise route
+            // through the message so the query is reset + input focused.
+            ShowCommandPalette => {
+                if self.vault_ui.state == crate::state::VaultState::Unlocked {
+                    Task::done(Message::ShowCommandPalette)
+                } else {
+                    Task::none()
+                }
             }
             OpenLocalShell => Task::done(Message::OpenLocalShell),
             NewWindow => Task::done(Message::SpawnNewWindow),

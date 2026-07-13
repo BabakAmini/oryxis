@@ -534,38 +534,9 @@ impl Oryxis {
             // MCP / SFTP / Sync / Cloud Sync) which only appear once the
             // feature is enabled on the Plugins screen, then About. The
             // enable/disable toggles live on the Plugins screen, not here.
-            let mut items: Vec<(&str, SettingsSection)> = vec![
-                (crate::i18n::t("interface"), SettingsSection::Interface),
-                (crate::i18n::t("terminal_settings"), SettingsSection::Terminal),
-                (crate::i18n::t("connection"), SettingsSection::Connection),
-                (crate::i18n::t("shortcuts"), SettingsSection::Shortcuts),
-                (crate::i18n::t("security_privacy"), SettingsSection::Security),
-                (crate::i18n::t("features_and_plugins"), SettingsSection::Plugins),
-            ];
-            if self.ai.enabled {
-                items.push((crate::i18n::t("ai_assistant"), SettingsSection::AI));
-            }
-            // MCP gets its settings section once the MCP plugin is
-            // present (installed / dev build), mirroring how Cloud Sync
-            // appears once a cloud provider plugin is installed. The
-            // server on/off toggle lives inside that section.
-            if self.cloud_provider_installed("mcp") {
-                items.push((crate::i18n::t("mcp_server"), SettingsSection::Mcp));
-            }
-            if self.sftp_enabled {
-                items.push(("SFTP", SettingsSection::Sftp));
-            }
-            if self.sync.enabled {
-                items.push((crate::i18n::t("sync"), SettingsSection::Sync));
-            }
-            // Cloud Sync knobs only matter once a cloud provider plugin
-            // is installed (the cloud accounts themselves live on the
-            // top-level Cloud surface).
-            if self.any_cloud_provider_installed() {
-                items.push((crate::i18n::t("settings_cloud_section"), SettingsSection::Cloud));
-            }
-            items.push((crate::i18n::t("settings_advanced"), SettingsSection::Advanced));
-            items.push((crate::i18n::t("about"), SettingsSection::About));
+            // The list (with its feature gating) is shared with the
+            // command palette's "Settings: X" rows via this helper.
+            let items = self.settings_section_items();
             // Record the visible section list for the keyboard router
             // (the SubNav zone here): the set is dynamic (feature
             // toggles hide sections), so it must come from this exact

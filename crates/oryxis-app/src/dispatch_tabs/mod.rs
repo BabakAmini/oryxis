@@ -338,6 +338,41 @@ impl Oryxis {
                 self.show_tab_jump = false;
                 return Ok(Task::done(*inner));
             }
+            Message::ShowCommandPalette => {
+                self.show_command_palette = true;
+                self.palette_query.clear();
+                // Focus the query input so the user types immediately.
+                return Ok(iced::widget::operation::focus(
+                    iced::widget::Id::new(crate::palette::PALETTE_INPUT_ID),
+                ));
+            }
+            Message::HideCommandPalette => {
+                self.show_command_palette = false;
+                self.palette_query.clear();
+            }
+            Message::PaletteQueryChanged(v) => {
+                self.palette_query = v;
+            }
+            Message::PaletteActivate(inner) => {
+                // Two-step dispatch like TabJumpSelect: close first, then
+                // fire the row's real message (it may open another modal).
+                self.show_command_palette = false;
+                self.palette_query.clear();
+                return Ok(Task::done(*inner));
+            }
+            Message::RunHotkeyAction(action) => {
+                return Ok(self.dispatch_hotkey_action(
+                    action,
+                    crate::hotkeys::FamilyMatch::Plain,
+                ));
+            }
+            Message::OpenSettingsSection(section) => {
+                // Switch to Settings AND select the section:
+                // ChangeSettingsSection alone assumes the view is open.
+                let t1 = self.update(Message::ChangeView(View::Settings));
+                let t2 = self.update(Message::ChangeSettingsSection(section));
+                return Ok(Task::batch([t1, t2]));
+            }
             Message::NoOp => {}
             Message::NewTabPickerSearchChanged(v) => {
                 self.new_tab_picker_search = v;

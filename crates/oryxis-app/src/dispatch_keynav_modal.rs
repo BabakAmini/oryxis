@@ -69,7 +69,12 @@ impl Oryxis {
         for &m in Modal::ESC_ORDER {
             if self.is_modal_open(m) {
                 let family = match m {
-                    Modal::NewTabPicker | Modal::TabJump => SurfaceFamily::Picker,
+                    // Command palette input carries no on_submit (unlike
+                    // NewTabPicker), so the router's Enter path activates
+                    // the selection-or-top-match directly.
+                    Modal::NewTabPicker | Modal::TabJump | Modal::CommandPalette => {
+                        SurfaceFamily::Picker
+                    }
                     // Chain editor: the add-a-hop sub-view is a search
                     // picker; the chain list navigates as a row menu.
                     Modal::ChainEditor => {

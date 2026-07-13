@@ -83,6 +83,7 @@ mod session_manager_plugin;
 mod hotkeys;
 mod ansi_render;
 mod session_group_helpers;
+mod palette;
 mod paste_guard;
 mod remote_desktop;
 mod session_redact;

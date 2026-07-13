@@ -17,6 +17,7 @@ pub(crate) mod icon_picker;
 pub(crate) mod keys;
 pub(crate) mod known_hosts;
 pub(crate) mod layout;
+pub(crate) mod command_palette;
 pub(crate) mod new_tab_picker;
 pub(crate) mod onboarding;
 pub(crate) mod plugins_panel;

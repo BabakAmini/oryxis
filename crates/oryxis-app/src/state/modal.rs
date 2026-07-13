@@ -24,6 +24,10 @@
 pub(crate) enum Modal {
     NewTabPicker,
     TabJump,
+    /// Command palette (C4): fuzzy search over every action. A search
+    /// picker like `TabJump` (single input + a filtered row list); Esc
+    /// closes it, and it blocks input like every other modal.
+    CommandPalette,
     IconPicker,
     ThemePicker,
     ChainEditor,
@@ -84,6 +88,7 @@ impl Modal {
     pub(crate) const ALL: &'static [Modal] = &[
         Modal::NewTabPicker,
         Modal::TabJump,
+        Modal::CommandPalette,
         Modal::IconPicker,
         Modal::ThemePicker,
         Modal::ChainEditor,
@@ -119,6 +124,7 @@ impl Modal {
     pub(crate) const ESC_ORDER: &'static [Modal] = &[
         Modal::NewTabPicker,
         Modal::TabJump,
+        Modal::CommandPalette,
         Modal::IconPicker,
         Modal::ThemePicker,
         Modal::ChainEditor,
@@ -156,6 +162,7 @@ impl Modal {
         match self {
             Modal::NewTabPicker
             | Modal::TabJump
+            | Modal::CommandPalette
             | Modal::IconPicker
             | Modal::ThemePicker
             | Modal::ChainEditor
@@ -198,6 +205,7 @@ mod tests {
             match m {
                 Modal::NewTabPicker
                 | Modal::TabJump
+                | Modal::CommandPalette
                 | Modal::IconPicker
                 | Modal::ThemePicker
                 | Modal::ChainEditor
@@ -226,7 +234,7 @@ mod tests {
                 | Modal::CertificateViewer => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 28, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 29, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

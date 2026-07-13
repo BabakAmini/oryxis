@@ -227,6 +227,11 @@ pub struct Oryxis {
     /// Ctrl+J anywhere.
     pub(crate) show_tab_jump: bool,
     pub(crate) tab_jump_search: String,
+    /// Command palette (C4): `Ctrl+Shift+P` fuzzy search over every
+    /// action. Only the query is app state; the row selection rides the
+    /// modal keynav layer (`ModalSurface::Modal(Modal::CommandPalette)`).
+    pub(crate) show_command_palette: bool,
+    pub(crate) palette_query: String,
     /// Top-left burger menu visibility. Mirrors Termius's `☰` strip at
     /// the start of the tab bar: Settings / Updates / About / Exit.
     /// Toggled via the burger button or by pressing the same button

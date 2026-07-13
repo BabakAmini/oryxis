@@ -413,6 +413,21 @@ impl Oryxis {
             );
         }
 
+        // Command palette (C4), VS Code-style Ctrl+Shift+P fuzzy action
+        // search. Opens via the global hotkey; same overlay shell as the
+        // tab-jump modal above.
+        if self.show_command_palette {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.view_command_palette(),
+                    Some(Message::HideCommandPalette),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Icon/color picker (from the host editor). Intentionally NOT routed
         // through `widgets::modal_overlay`: it injects a color-popover layer
         // into its own Stack, which the simple helper can't host. Stays
