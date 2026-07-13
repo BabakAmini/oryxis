@@ -62,8 +62,12 @@ impl Oryxis {
                     // pane; the mouse-report gate uses real focus regardless.
                     // A broadcasting pane's warning border overrides the focus
                     // accent (the louder signal wins) and shows on every
-                    // participating pane, not just the focused one.
-                    let (border_color, border_width) = if participating {
+                    // participating pane, not just the focused one. Gated on
+                    // `multipane`: broadcast is inert on a lone pane (nothing
+                    // to fan out to), so the heavy border would misread as a
+                    // warning — the chip + status segment carry the armed
+                    // state there until the tab is split.
+                    let (border_color, border_width) = if participating && multipane {
                         (OryxisColors::t().warning, 2.0)
                     } else if multipane && is_focused {
                         (OryxisColors::t().accent, 1.0)
