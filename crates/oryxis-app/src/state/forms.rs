@@ -183,6 +183,13 @@ pub(crate) struct ConnectionForm {
     /// `None` inherits the global setting, `Some(true/false)` forces it
     /// on/off for this host.
     pub privacy_mode: Option<bool>,
+    /// Per-host legacy keyboard modes + feature toggles (C5). Edited
+    /// directly; saved as `Connection.quirks` only when it differs from
+    /// the default (so an untouched host stays `None`).
+    pub quirks: oryxis_core::models::terminal_quirks::TerminalQuirks,
+    /// Per-host SSH rekey threshold in MB as typed (empty = default).
+    /// Maps to `Connection.rekey_limit_mb`.
+    pub rekey_limit_mb: String,
 }
 
 /// One SSH algorithm negotiation category, used to drive the per-host
@@ -874,6 +881,8 @@ impl Default for ConnectionForm {
             macs: None,
             host_key_algorithms: None,
             privacy_mode: None,
+            quirks: oryxis_core::models::terminal_quirks::TerminalQuirks::default(),
+            rekey_limit_mb: String::new(),
         }
     }
 }

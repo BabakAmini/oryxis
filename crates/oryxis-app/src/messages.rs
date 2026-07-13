@@ -151,6 +151,21 @@ pub enum Message {
     /// Per-host Privacy Mode selection from the host editor pick: the
     /// localized "Default / On / Off" label.
     EditorPrivacyModeChanged(String),
+    // ── C5 per-host legacy keyboard modes + feature toggles ──────────
+    /// Backspace mode pick (localized "Control-? (127)" / "Control-H (8)").
+    EditorQuirkBackspaceChanged(String),
+    /// Home/End mode pick (localized "Standard" / "rxvt").
+    EditorQuirkHomeEndChanged(String),
+    /// Function-key mode pick (localized Xterm / Linux / VT400 / rxvt).
+    EditorQuirkFnKeysChanged(String),
+    /// "Report mouse to remote" toggle (off = `disable_mouse_reporting`).
+    EditorQuirkMouseReportingChanged(bool),
+    /// "Allow remote title changes" toggle (off = `disable_title_change`).
+    EditorQuirkTitleChangeChanged(bool),
+    /// OSC 52 clipboard-write override pick (localized Default / On / Off).
+    EditorQuirkOsc52Changed(String),
+    /// Per-host SSH rekey limit (MB) text input.
+    EditorQuirkRekeyChanged(String),
     /// Toggle a per-host SSH algorithm category between Auto (None) and a
     /// custom pinned list (seeded from the safe defaults).
     EditorAlgoSetAuto(crate::state::AlgoCategory, bool),

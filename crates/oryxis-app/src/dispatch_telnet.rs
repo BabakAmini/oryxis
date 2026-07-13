@@ -116,6 +116,14 @@ impl Oryxis {
             crate::state::ProgressOrigin::Saved(_) => crate::state::PaneOrigin::Host(conn.id),
             crate::state::ProgressOrigin::Quick(id) => crate::state::PaneOrigin::QuickHost(id),
         };
+        // C5: Telnet hosts get the same per-host quirks as SSH (this is
+        // exactly their audience: appliances / serial consoles).
+        let resolved_quirks = self.resolve_quirks(&conn);
+        new_tab.active_mut().quirks = resolved_quirks;
+        if let Ok(term) = new_tab.active().terminal.lock() {
+            let (w, r) = resolved_quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None));
+            term.set_osc52_override(w, r);
+        }
         if let crate::state::ProgressOrigin::Quick(id) = origin
             && let Some(entry) = self.quick_connects.get(&id)
         {

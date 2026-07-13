@@ -1351,9 +1351,9 @@ impl Oryxis {
                 let resolved_quirks = self.resolve_quirks(&conn);
                 new_tab.active_mut().quirks = resolved_quirks;
                 if let Ok(term) = new_tab.active().terminal.lock() {
-                    term.set_osc52_write_override(
-                        resolved_quirks.osc52.map(|o| o.allows_write()),
-                    );
+                    let (w, r) =
+                        resolved_quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None));
+                    term.set_osc52_override(w, r);
                 }
                 if let crate::state::ProgressOrigin::Quick(id) = origin
                     && let Some(entry) = self.quick_connects.get(&id)
@@ -2071,7 +2071,7 @@ impl Oryxis {
         {
             pane.quirks = quirks;
             if let Ok(term) = pane.terminal.lock() {
-                term.set_osc52_write_override(quirks.osc52.map(|o| o.allows_write()));
+                { let (w, r) = quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None)); term.set_osc52_override(w, r); };
             }
         }
         // Telnet / Serial hosts take their own thin connect paths (no

@@ -248,4 +248,196 @@ impl Oryxis {
         );
         row_privacy_mode
     }
+
+    /// A keyboard-navigable pick_list row for the Advanced-terminal
+    /// section (icon + label + widget-owned select), mirroring the
+    /// privacy-mode row.
+    fn hp_quirk_pick_row<'a>(
+        &self,
+        icon: iced::widget::Text<'a>,
+        label: &'a str,
+        id: &'static str,
+        selected: String,
+        options: Vec<String>,
+        on_select: fn(String) -> Message,
+    ) -> Element<'a, Message> {
+        panel_option_row(
+            icon,
+            label,
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(selected), options, |s: &String| s.clone())
+                    .on_select(on_select)
+                    .id(iced::widget::Id::new(id))
+                    .on_open(Message::PickOpenChanged(true))
+                    .on_close(Message::PickOpenChanged(false))
+                    // Wide enough for the longest label ("Control-? (127)").
+                    .width(160.0)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            ),
+        )
+    }
+
+    /// An on/off toggle row for the Advanced-terminal section (mirrors
+    /// the agent-forwarding toggle: click / Enter flips it).
+    fn hp_quirk_toggle_row<'a>(
+        &self,
+        icon: iced::widget::Text<'a>,
+        label: &'a str,
+        on: bool,
+        msg: fn(bool) -> Message,
+    ) -> Element<'a, Message> {
+        let toggle_msg = msg(!on);
+        self.panel_nav_slot(
+            crate::keynav::RowAction::activate(toggle_msg.clone()),
+            8.0,
+            container(
+                dir_row(vec![
+                    icon.size(14).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(label).size(13).color(OryxisColors::t().text_secondary).into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(
+                            text(if on { t("toggle_on") } else { t("toggle_off") })
+                                .size(12)
+                                .color(fg),
+                        )
+                        .on_press(toggle_msg)
+                        .style(move |_theme, _status| button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border { radius: Radius::from(4.0), ..Default::default() },
+                            text_color: fg,
+                            ..Default::default()
+                        })
+                        .into()
+                    },
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 })
+            .into(),
+        )
+    }
+
+    /// C5 "Advanced terminal" section: per-host legacy keyboard modes
+    /// (backspace / home-end / function keys) and feature toggles
+    /// (mouse reporting, title changes, OSC 52 clipboard, SSH rekey
+    /// limit). Only rendered for terminal protocols (`is_terminal`);
+    /// RDP/VNC hosts never call this.
+    pub(super) fn hp_advanced_terminal_items(&self) -> Element<'_, Message> {
+        use oryxis_core::models::terminal_quirks::{BackspaceMode, FunctionKeyMode, HomeEndMode};
+        let q = &self.editor_form.quirks;
+
+        let backspace_row = self.hp_quirk_pick_row(
+            iced_fonts::lucide::delete(),
+            t("quirks_backspace"),
+            "editor-pick-quirk-backspace",
+            crate::util::quirk_backspace_label(q.backspace),
+            vec![
+                crate::util::quirk_backspace_label(BackspaceMode::Del127),
+                crate::util::quirk_backspace_label(BackspaceMode::CtrlH),
+            ],
+            Message::EditorQuirkBackspaceChanged,
+        );
+
+        let home_end_row = self.hp_quirk_pick_row(
+            iced_fonts::lucide::move_horizontal(),
+            t("quirks_home_end"),
+            "editor-pick-quirk-homeend",
+            crate::util::quirk_home_end_label(q.home_end),
+            vec![
+                crate::util::quirk_home_end_label(HomeEndMode::Standard),
+                crate::util::quirk_home_end_label(HomeEndMode::Rxvt),
+            ],
+            Message::EditorQuirkHomeEndChanged,
+        );
+
+        let fn_keys_row = self.hp_quirk_pick_row(
+            iced_fonts::lucide::keyboard(),
+            t("quirks_fn_keys"),
+            "editor-pick-quirk-fnkeys",
+            crate::util::quirk_fn_keys_label(q.function_keys),
+            vec![
+                crate::util::quirk_fn_keys_label(FunctionKeyMode::Xterm),
+                crate::util::quirk_fn_keys_label(FunctionKeyMode::LinuxConsole),
+                crate::util::quirk_fn_keys_label(FunctionKeyMode::Vt400),
+                crate::util::quirk_fn_keys_label(FunctionKeyMode::Rxvt),
+            ],
+            Message::EditorQuirkFnKeysChanged,
+        );
+
+        let mouse_row = self.hp_quirk_toggle_row(
+            iced_fonts::lucide::mouse_pointer_click(),
+            t("quirks_mouse_reporting"),
+            !q.disable_mouse_reporting,
+            Message::EditorQuirkMouseReportingChanged,
+        );
+        let title_row = self.hp_quirk_toggle_row(
+            iced_fonts::lucide::r#type(),
+            t("quirks_title_change"),
+            !q.disable_title_change,
+            Message::EditorQuirkTitleChangeChanged,
+        );
+
+        let osc52_selected = match q.osc52 {
+            Some(oryxis_core::models::terminal_quirks::Osc52Override::On) => t("quirks_osc52_on"),
+            Some(oryxis_core::models::terminal_quirks::Osc52Override::Off) => t("quirks_osc52_off"),
+            None => t("quirks_osc52_default"),
+        }
+        .to_string();
+        let osc52_row = self.hp_quirk_pick_row(
+            iced_fonts::lucide::clipboard(),
+            t("quirks_osc52"),
+            "editor-pick-quirk-osc52",
+            osc52_selected,
+            vec![
+                t("quirks_osc52_default").to_string(),
+                t("quirks_osc52_on").to_string(),
+                t("quirks_osc52_off").to_string(),
+            ],
+            Message::EditorQuirkOsc52Changed,
+        );
+
+        // Rekey limit: a small numeric text input (empty = russh default).
+        let rekey_input: Element<'_, Message> = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-quirk-rekey")),
+            crate::widgets::INPUT_RADIUS,
+            text_input(t("quirks_rekey_hint"), &self.editor_form.rekey_limit_mb)
+                .id(iced::widget::Id::new("editor-quirk-rekey"))
+                .on_input(Message::EditorQuirkRekeyChanged)
+                .width(120)
+                .padding(8)
+                .style(crate::widgets::rounded_input_style)
+                .into(),
+        );
+        let rekey_row = panel_option_row(
+            iced_fonts::lucide::refresh_cw(),
+            t("quirks_rekey_limit"),
+            rekey_input,
+        );
+
+        column![
+            section_header(t("quirks_section_title")),
+            Space::new().height(2),
+            text(t("quirks_applies_next_connect"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(4),
+            backspace_row,
+            home_end_row,
+            fn_keys_row,
+            mouse_row,
+            title_row,
+            osc52_row,
+            rekey_row,
+        ]
+        .spacing(2)
+        .into()
+    }
 }

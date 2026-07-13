@@ -774,6 +774,85 @@ pub(crate) fn auth_method_label(m: &oryxis_core::models::connection::AuthMethod)
     .to_string()
 }
 
+// ── C5 quirk pick-list labels (mirror `auth_method_label`: the enums
+//    live in oryxis-core with English `Display`; the picker uses these
+//    localized labels and the dispatch handlers map them back). ──
+
+pub(crate) fn quirk_backspace_label(
+    m: oryxis_core::models::terminal_quirks::BackspaceMode,
+) -> String {
+    use crate::i18n::t;
+    use oryxis_core::models::terminal_quirks::BackspaceMode;
+    match m {
+        BackspaceMode::Del127 => t("quirks_backspace_del"),
+        BackspaceMode::CtrlH => t("quirks_backspace_ctrl_h"),
+    }
+    .to_string()
+}
+
+pub(crate) fn quirk_home_end_label(
+    m: oryxis_core::models::terminal_quirks::HomeEndMode,
+) -> String {
+    use crate::i18n::t;
+    use oryxis_core::models::terminal_quirks::HomeEndMode;
+    match m {
+        HomeEndMode::Standard => t("quirks_home_end_standard"),
+        HomeEndMode::Rxvt => t("quirks_home_end_rxvt"),
+    }
+    .to_string()
+}
+
+pub(crate) fn quirk_fn_keys_label(
+    m: oryxis_core::models::terminal_quirks::FunctionKeyMode,
+) -> String {
+    use crate::i18n::t;
+    use oryxis_core::models::terminal_quirks::FunctionKeyMode;
+    match m {
+        FunctionKeyMode::Xterm => t("quirks_fn_xterm"),
+        FunctionKeyMode::LinuxConsole => t("quirks_fn_linux"),
+        FunctionKeyMode::Vt400 => t("quirks_fn_vt400"),
+        FunctionKeyMode::Rxvt => t("quirks_fn_rxvt"),
+    }
+    .to_string()
+}
+
+pub(crate) fn quirk_backspace_from_label(
+    v: &str,
+) -> oryxis_core::models::terminal_quirks::BackspaceMode {
+    use oryxis_core::models::terminal_quirks::BackspaceMode;
+    if v == quirk_backspace_label(BackspaceMode::CtrlH) {
+        BackspaceMode::CtrlH
+    } else {
+        BackspaceMode::Del127
+    }
+}
+
+pub(crate) fn quirk_home_end_from_label(
+    v: &str,
+) -> oryxis_core::models::terminal_quirks::HomeEndMode {
+    use oryxis_core::models::terminal_quirks::HomeEndMode;
+    if v == quirk_home_end_label(HomeEndMode::Rxvt) {
+        HomeEndMode::Rxvt
+    } else {
+        HomeEndMode::Standard
+    }
+}
+
+pub(crate) fn quirk_fn_keys_from_label(
+    v: &str,
+) -> oryxis_core::models::terminal_quirks::FunctionKeyMode {
+    use oryxis_core::models::terminal_quirks::FunctionKeyMode;
+    [
+        FunctionKeyMode::Xterm,
+        FunctionKeyMode::LinuxConsole,
+        FunctionKeyMode::Vt400,
+        FunctionKeyMode::Rxvt,
+    ]
+    .into_iter()
+    .find(|m| v == quirk_fn_keys_label(*m))
+    .unwrap_or(FunctionKeyMode::Xterm)
+}
+
 /// Resolve a localized (or English) auth-picker label back to the enum.
 /// Mirrors `EditorAuthMethodChanged`: English fallback keeps a label
 /// persisted in another locale resolvable. Unknown values are `Auto`.
@@ -1012,6 +1091,31 @@ mod tests {
         assert_eq!(nq(Named::F1, Modifiers::CTRL, false, &linux), b"\x1b[[A");
         // F6+ fall back to the xterm tilde numbers.
         assert_eq!(nq(Named::F6, Modifiers::empty(), false, &linux), b"\x1b[17~");
+    }
+
+    #[test]
+    fn quirk_label_round_trips_for_every_variant() {
+        use oryxis_core::models::terminal_quirks::{BackspaceMode, FunctionKeyMode, HomeEndMode};
+        // label(m) -> from_label -> m must be the identity for every
+        // variant, so the host-editor pick can't silently map a mode to
+        // the wrong enum (the reverse of the label helpers).
+        for m in [BackspaceMode::Del127, BackspaceMode::CtrlH] {
+            assert_eq!(quirk_backspace_from_label(&quirk_backspace_label(m)), m);
+        }
+        for m in [HomeEndMode::Standard, HomeEndMode::Rxvt] {
+            assert_eq!(quirk_home_end_from_label(&quirk_home_end_label(m)), m);
+        }
+        for m in [
+            FunctionKeyMode::Xterm,
+            FunctionKeyMode::LinuxConsole,
+            FunctionKeyMode::Vt400,
+            FunctionKeyMode::Rxvt,
+        ] {
+            assert_eq!(quirk_fn_keys_from_label(&quirk_fn_keys_label(m)), m);
+        }
+        // An unknown label falls back to the default (never panics).
+        assert_eq!(quirk_backspace_from_label("garbage"), BackspaceMode::Del127);
+        assert_eq!(quirk_fn_keys_from_label("garbage"), FunctionKeyMode::Xterm);
     }
 
     #[test]

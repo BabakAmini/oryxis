@@ -399,6 +399,18 @@ impl Oryxis {
         conn.auto_title = self.editor_form.auto_title;
         conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
+        // C5: store quirks only when they differ from the xterm default,
+        // so an untouched host keeps `quirks = None` (old-payload parity).
+        conn.quirks = (self.editor_form.quirks
+            != oryxis_core::models::terminal_quirks::TerminalQuirks::default())
+        .then_some(self.editor_form.quirks);
+        conn.rekey_limit_mb = self
+            .editor_form
+            .rekey_limit_mb
+            .trim()
+            .parse::<u32>()
+            .ok()
+            .filter(|&n| n > 0);
         // Map the editor form into either an inline ProxyConfig
         // or a `proxy_identity_id` reference. Validates host /
         // port / command up-front so the user gets an error
@@ -556,6 +568,11 @@ impl Oryxis {
             macs: conn.macs.clone(),
             host_key_algorithms: conn.host_key_algorithms.clone(),
             privacy_mode: conn.privacy_mode,
+            quirks: conn.quirks.unwrap_or_default(),
+            rekey_limit_mb: conn
+                .rekey_limit_mb
+                .map(|n| n.to_string())
+                .unwrap_or_default(),
         }
     }
 
@@ -1001,6 +1018,42 @@ impl Oryxis {
                     Some(false)
                 } else {
                     None
+                };
+            }
+            Message::EditorQuirkBackspaceChanged(v) => {
+                self.editor_form.quirks.backspace = crate::util::quirk_backspace_from_label(&v);
+            }
+            Message::EditorQuirkHomeEndChanged(v) => {
+                self.editor_form.quirks.home_end = crate::util::quirk_home_end_from_label(&v);
+            }
+            Message::EditorQuirkFnKeysChanged(v) => {
+                self.editor_form.quirks.function_keys = crate::util::quirk_fn_keys_from_label(&v);
+            }
+            Message::EditorQuirkMouseReportingChanged(on) => {
+                // Toggle shows the positive "report mouse"; off disables it.
+                self.editor_form.quirks.disable_mouse_reporting = !on;
+            }
+            Message::EditorQuirkTitleChangeChanged(on) => {
+                self.editor_form.quirks.disable_title_change = !on;
+            }
+            Message::EditorQuirkOsc52Changed(v) => {
+                use crate::i18n::t;
+                use oryxis_core::models::terminal_quirks::Osc52Override;
+                self.editor_form.quirks.osc52 = if v == t("quirks_osc52_on") {
+                    Some(Osc52Override::On)
+                } else if v == t("quirks_osc52_off") {
+                    Some(Osc52Override::Off)
+                } else {
+                    None
+                };
+            }
+            Message::EditorQuirkRekeyChanged(v) => {
+                // Digits only; empty allowed (= default). Clamp to russh's
+                // 1 GiB cap (1024 MB) so the field can't exceed it.
+                self.editor_form.rekey_limit_mb = if v.trim().is_empty() {
+                    String::new()
+                } else {
+                    crate::util::sanitize_uint(&v, 1024)
                 };
             }
             Message::EditorAlgoSetAuto(cat, auto) => {

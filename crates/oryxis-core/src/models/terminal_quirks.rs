@@ -86,14 +86,19 @@ pub enum Osc52Override {
 }
 
 impl Osc52Override {
-    /// Whether this override permits OSC 52 clipboard WRITE (an app setting
-    /// the local clipboard): `On` permits it, `Off` denies it. Clipboard
-    /// READ is never controlled per-host, a remote reading the local
-    /// clipboard is the exfiltration risk the global default refuses, so
-    /// read always follows the global `clipboard_access` setting
-    /// regardless of this override.
-    pub fn allows_write(self) -> bool {
-        matches!(self, Osc52Override::On)
+    /// Resolve to per-host `(write, read)` overrides, where `None` means
+    /// "inherit the global policy" and `Some(bool)` forces that direction:
+    ///
+    /// - `On`  => `(Some(true), None)` — force write on; read still follows
+    ///   the global (a per-host toggle never GRANTS clipboard read, the
+    ///   exfiltration risk the global default refuses).
+    /// - `Off` => `(Some(false), Some(false))` — block both directions for
+    ///   this host, stricter than the global, so "Off" is a true block.
+    pub fn overrides(self) -> (Option<bool>, Option<bool>) {
+        match self {
+            Osc52Override::On => (Some(true), None),
+            Osc52Override::Off => (Some(false), Some(false)),
+        }
     }
 }
 
