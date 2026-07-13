@@ -893,6 +893,89 @@ pub(crate) fn osc8_link_at_cell(
     Some((uri, start as u16, end as u16))
 }
 
+/// The full run of an OSC 8 hyperlink at a cell, following a wrapped link
+/// across grid rows. Returns `(uri, segments)` where each segment is
+/// `(grid_line, start_col, end_col)` (inclusive cols), ordered top to bottom.
+///
+/// Unlike [`osc8_link_at_cell`] (which clamps to the hovered row and drives
+/// the open / hint paths), this powers the hover underline, which must
+/// cover every row a long link wraps onto. The walk only crosses a row
+/// boundary on a genuine wrap: the current row's run must be flush against
+/// the far edge AND the adjacent row's near edge must carry the same
+/// hyperlink `id + uri`. This never merges two same-`id` but disjoint
+/// regions (an explicit `id=` can repeat), only a contiguous wrap. Capped at
+/// `MAX_ROWS` so a pathologically long link can't walk the whole scrollback
+/// on the draw hot path (it keeps a partial underline past the cap).
+/// One row's slice of a hyperlink run: `(grid_line, start_col, end_col)`.
+pub(crate) type Osc8Segment = (i32, u16, u16);
+
+pub(crate) fn osc8_link_run(
+    term: &alacritty_terminal::Term<crate::backend::EventProxy>,
+    target_line: i32,
+    target_col: u16,
+) -> Option<(String, Vec<Osc8Segment>)> {
+    use alacritty_terminal::grid::Dimensions;
+    use alacritty_terminal::index::{Column, Line};
+    let grid = term.grid();
+    let topmost = grid.topmost_line().0;
+    let bottommost = grid.bottommost_line().0;
+    let ncols = grid.columns();
+    if target_line < topmost || target_line > bottommost || ncols == 0 {
+        return None;
+    }
+    let col = target_col as usize;
+    if col >= ncols {
+        return None;
+    }
+    let anchor = grid[Line(target_line)][Column(col)].hyperlink()?;
+    let uri = anchor.uri().to_string();
+    let id = anchor.id().to_string();
+    let same_on = |line: i32, c: usize| -> bool {
+        grid[Line(line)][Column(c)]
+            .hyperlink()
+            .is_some_and(|h| h.id() == id && h.uri() == uri)
+    };
+    // The contiguous run on one row around a known-matching column.
+    let seg = |line: i32, from: usize| -> Osc8Segment {
+        let mut s = from;
+        while s > 0 && same_on(line, s - 1) {
+            s -= 1;
+        }
+        let mut e = from;
+        while e + 1 < ncols && same_on(line, e + 1) {
+            e += 1;
+        }
+        (line, s as u16, e as u16)
+    };
+    const MAX_ROWS: usize = 8;
+    let last_col = ncols - 1;
+    let mut segments = vec![seg(target_line, col)];
+    // Walk up: cross only when the current top segment starts at col 0
+    // (i.e. it wrapped from above) and the previous row's last cell is the
+    // same link.
+    let mut line = target_line;
+    while segments.len() < MAX_ROWS
+        && line > topmost
+        && segments[0].1 == 0
+        && same_on(line - 1, last_col)
+    {
+        line -= 1;
+        segments.insert(0, seg(line, last_col));
+    }
+    // Walk down: cross only when the current bottom segment ends at the last
+    // col (wraps onward) and the next row's first cell is the same link.
+    let mut line = target_line;
+    while segments.len() < MAX_ROWS
+        && line < bottommost
+        && segments[segments.len() - 1].2 as usize == last_col
+        && same_on(line + 1, 0)
+    {
+        line += 1;
+        segments.push(seg(line, 0));
+    }
+    Some((uri, segments))
+}
+
 /// The scheme of a URI, lowercased, iff the URI begins with a well-formed
 /// `scheme:` per RFC 3986 (`ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"`).
 ///
@@ -1449,5 +1532,41 @@ mod tests {
         // like a URL, that path is the scraped `url_at_cell`, not this one.
         let b = osc8_term(b"visit https://plain.example.com now");
         assert!(osc8_link_at_cell(&b.term, 0, 10).is_none());
+    }
+
+    /// Build a narrow term so a long label wraps across rows.
+    fn osc8_narrow_term(bytes: &[u8]) -> crate::backend::TerminalBackend {
+        let mut backend = crate::backend::TerminalBackend::new(10, 4);
+        backend.process(bytes);
+        backend
+    }
+
+    #[test]
+    fn osc8_run_follows_a_wrapped_link_across_rows() {
+        // A 13-char label on a 10-col grid wraps: row 0 cols 0..9, row 1
+        // cols 0..2. alacritty carries the same hyperlink across the wrap.
+        let b = osc8_narrow_term(b"\x1b]8;;https://example.com\x1b\\ABCDEFGHIJKLM\x1b]8;;\x1b\\");
+        let (uri, segs) = osc8_link_run(&b.term, 0, 5).expect("run from the top row");
+        assert_eq!(uri, "https://example.com");
+        assert_eq!(segs, vec![(0, 0, 9), (1, 0, 2)]);
+        // Hovering the tail row resolves the identical full run.
+        let (_, from_tail) = osc8_link_run(&b.term, 1, 1).expect("run from the tail row");
+        assert_eq!(from_tail, vec![(0, 0, 9), (1, 0, 2)]);
+    }
+
+    #[test]
+    fn osc8_run_does_not_merge_stacked_distinct_links() {
+        // Link A exactly fills row 0 (10 chars, flush to the edge); link B
+        // starts row 1. Different ids, so the walk must NOT treat B as A's
+        // wrap even though A is flush-right and B is flush-left.
+        let b = osc8_narrow_term(
+            b"\x1b]8;id=1;https://a.com\x1b\\AAAAAAAAAA\x1b]8;;\x1b\\\x1b]8;id=2;https://b.com\x1b\\BBB\x1b]8;;\x1b\\",
+        );
+        let (uri_a, segs_a) = osc8_link_run(&b.term, 0, 4).expect("link A");
+        assert_eq!(uri_a, "https://a.com");
+        assert_eq!(segs_a, vec![(0, 0, 9)]);
+        let (uri_b, segs_b) = osc8_link_run(&b.term, 1, 1).expect("link B");
+        assert_eq!(uri_b, "https://b.com");
+        assert_eq!(segs_b, vec![(1, 0, 2)]);
     }
 }

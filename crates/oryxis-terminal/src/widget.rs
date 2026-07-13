@@ -126,12 +126,13 @@ pub struct TerminalWidgetState {
     /// canvas to underline only the hovered URL (not all of them) and
     /// to show the pointer cursor over it.
     hovered_url: Option<(String, iced::Point)>,
-    /// Cell extent `(visible_row, start_col, end_col)` of the OSC 8 hyperlink
-    /// currently hovered, used to underline it. Regex URLs derive their extent
-    /// from the per-frame highlight scan, but an explicit OSC 8 link isn't in
-    /// that scan (its label need not look like a URL), so its run is captured
-    /// here at hover time while the grid lock is held.
-    hovered_osc8: Option<(u16, u16, u16)>,
+    /// Per-row cell extents `(visible_row, start_col, end_col)` of the OSC 8
+    /// hyperlink currently hovered, used to underline it. One entry per grid
+    /// row the link wraps onto (empty when not over a link). Regex URLs derive
+    /// their extent from the per-frame highlight scan, but an explicit OSC 8
+    /// link isn't in that scan (its label need not look like a URL), so its
+    /// run is captured here at hover time while the grid lock is held.
+    hovered_osc8: Vec<(u16, u16, u16)>,
     /// Last `(col, row)` the URL hover detection ran for. Used to skip
     /// the lock + per-cell scan on sub-cell mouse moves, at typical
     /// font sizes the cursor crosses many pixels per cell, and running
@@ -221,7 +222,9 @@ struct RenderKey {
     /// Hovered URL quantized to its cell, so sliding along one URL doesn't
     /// rebuild every pixel. `None` when not over a detected URL.
     hovered_url_cell: Option<(u16, u16)>,
-    hovered_osc8: Option<(u16, u16, u16)>,
+    /// Digest of the per-row OSC 8 underline extents (0 when not over an
+    /// allowed link), so a wrapped-link hover invalidates the cached grid.
+    hovered_osc8: u64,
     /// Only folded in under Privacy Mode (the sole draw-time consumer), so a
     /// bare hover move doesn't invalidate the grid when privacy is off.
     hovered_cell: Option<(u16, u16)>,
@@ -247,6 +250,19 @@ struct RenderKey {
     font_size: f32,
     cell_w: f32,
     cell_h: f32,
+}
+
+/// Ordered digest of the OSC 8 underline extents (0 when empty), so the render
+/// key changes as the hovered link's wrapped rows change. Empty maps to 0 so a
+/// no-link frame matches a no-link frame without a hash round trip.
+fn hash_osc8(segments: &[(u16, u16, u16)]) -> u64 {
+    use std::hash::{Hash, Hasher};
+    if segments.is_empty() {
+        return 0;
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    segments.hash(&mut h);
+    h.finish()
 }
 
 /// Deterministic digest of an ordered string list (used for `privacy_terms`).
@@ -1535,11 +1551,20 @@ where
                         // pointer + underline but still records the blocked
                         // target so the app can show a "not allowed" chip; an
                         // allowed one drives the underline + the reveal chip.
-                        match osc8_link_at_cell(&state.backend.term, line, col) {
-                            Some((uri, sc, ec)) => {
+                        match osc8_link_run(&state.backend.term, line, col) {
+                            Some((uri, segments)) => {
                                 let allowed = osc8_scheme_allowed(&uri);
-                                widget_state.hovered_osc8 =
-                                    allowed.then_some((vrow, sc, ec));
+                                // Underline every wrapped row (in on-screen
+                                // coordinates) only for an allowed link.
+                                let offset = widget_state.scroll_offset.get();
+                                widget_state.hovered_osc8 = if allowed {
+                                    segments
+                                        .into_iter()
+                                        .map(|(gl, sc, ec)| ((gl + offset) as u16, sc, ec))
+                                        .collect()
+                                } else {
+                                    Vec::new()
+                                };
                                 state.hovered_link = Some(HoveredLink {
                                     target: uri.clone(),
                                     allowed,
@@ -1547,7 +1572,7 @@ where
                                 allowed.then_some((uri, pos))
                             }
                             None => {
-                                widget_state.hovered_osc8 = None;
+                                widget_state.hovered_osc8.clear();
                                 state.hovered_link = None;
                                 url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
                             }
@@ -1560,7 +1585,7 @@ where
                     // re-mask, so flag a cell change when one was tracked.
                     cell_changed = widget_state.hovered_cell.is_some();
                     widget_state.hovered_cell = None;
-                    widget_state.hovered_osc8 = None;
+                    widget_state.hovered_osc8.clear();
                     // Retract any link-reveal chip (allowed or blocked).
                     if let Ok(mut state) = self.state.lock() {
                         state.hovered_link = None;
@@ -2081,7 +2106,7 @@ where
                     ((pos.y - TERM_PAD_TOP) / cell_h).max(0.0) as u16,
                 )
             }),
-            hovered_osc8: widget_state.hovered_osc8,
+            hovered_osc8: hash_osc8(&widget_state.hovered_osc8),
             hovered_cell: if self.privacy { widget_state.hovered_cell } else { None },
             hover: widget_state.hover,
             scrollbar_dragging: widget_state.scrollbar_drag.is_some(),
@@ -2371,8 +2396,8 @@ where
                     None
                 };
                 // An OSC 8 link's run was captured at hover time (it isn't in the
-                // regex highlight scan); underline it the same way.
-                let hovered_osc8 = widget_state.hovered_osc8;
+                // regex highlight scan); underline every wrapped row the same way.
+                let hovered_osc8 = &widget_state.hovered_osc8;
 
                 // --- Pass 2: draw cells with highlight overrides ---
                 // Consecutive plain ASCII glyphs in a row that share the same
@@ -2665,7 +2690,7 @@ where
                     // looking like every link is independently clickable.
                     let is_hovered_url = hovered_url_extent.is_some_and(|(r, sc, ec)| {
                         cd.row == r && cd.col >= sc && cd.col <= ec
-                    }) || hovered_osc8.is_some_and(|(r, sc, ec)| {
+                    }) || hovered_osc8.iter().any(|&(r, sc, ec)| {
                         cd.row == r && cd.col >= sc && cd.col <= ec
                     });
                     if cd.flags.intersects(CellFlags::ALL_UNDERLINES) || is_hovered_url {
