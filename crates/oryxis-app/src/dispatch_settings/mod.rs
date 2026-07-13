@@ -1628,6 +1628,17 @@ impl Oryxis {
                     self.agent_on_lock();
                     self.overlay = None;
                     self.card_context_menu = None;
+                    // Top-strip pickers (command palette, tab-jump,
+                    // new-tab picker) are NOT rendered over the lock
+                    // screen, but their `show_*` flags still make
+                    // `any_modal_blocks_input()` true, so the modal key
+                    // router would keep processing arrows / Enter for the
+                    // hidden surface behind the lock screen (the command
+                    // palette could even dispatch an action while locked).
+                    // Close them like the SFTP modals below.
+                    self.close_modal(crate::state::Modal::CommandPalette);
+                    self.close_modal(crate::state::Modal::TabJump);
+                    self.close_modal(crate::state::Modal::NewTabPicker);
                     // A master-password candidate typed into the change /
                     // set-password form must not survive the soft lock.
                     self.vault_ui.new_password.clear();
@@ -1803,6 +1814,13 @@ impl Oryxis {
                         self.revealed_secrets.clear();
                         self.overlay = None;
                         self.card_context_menu = None;
+                        // Top-strip pickers: same reason as the soft lock,
+                        // a stray key must not drive the hidden surface (the
+                        // command palette could dispatch an action) behind
+                        // the lock screen.
+                        self.close_modal(crate::state::Modal::CommandPalette);
+                        self.close_modal(crate::state::Modal::TabJump);
+                        self.close_modal(crate::state::Modal::NewTabPicker);
                         self.error_dialog = None;
                         self.show_host_panel = false;
                         self.host_panel_error = None;

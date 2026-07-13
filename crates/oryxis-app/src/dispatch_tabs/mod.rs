@@ -339,6 +339,12 @@ impl Oryxis {
                 return Ok(Task::done(*inner));
             }
             Message::ShowCommandPalette => {
+                // The palette assumes an unlocked vault (its actions do).
+                // The hotkey path already gates on this; guard here too so
+                // no other producer can open it over the lock screen.
+                if self.vault_ui.state != crate::state::VaultState::Unlocked {
+                    return Ok(Task::none());
+                }
                 self.show_command_palette = true;
                 self.palette_query.clear();
                 // Focus the query input so the user types immediately.
