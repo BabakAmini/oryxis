@@ -354,13 +354,13 @@ impl Oryxis {
             self.terminal_font_name.clone(),
         );
         // Scrollback find-bar (C1): floats at the top-leading corner of the
-        // pane (top-right LTR, top-left RTL) over the live canvas, like a
+        // pane (top-right, owner call) over the live canvas, like a
         // browser's find bar. Only on the focused pane and only while open.
         if pane.search_open && is_focused {
             let bar = container(self.terminal_find_bar(pane))
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .align_x(crate::widgets::dir_align_x())
+                .align_x(iced::alignment::Horizontal::Right)
                 .align_y(iced::alignment::Vertical::Top)
                 .padding(Padding::from([6.0, 10.0]));
             iced::widget::Stack::new().push(host).push(bar).into()
