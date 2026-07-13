@@ -62,6 +62,16 @@ impl Oryxis {
             ));
             items.push(Space::new().width(10).into());
         }
+        // Broadcast input segment (C2): a single toggle for the active
+        // terminal tab. Redundant with the tab menu + hotkey by design (the
+        // status bar is optional). Armed state is warning-tinted so the "keys
+        // go everywhere" mode is loud even from the bar.
+        if let Some(idx) = self.active_tab
+            && let Some(tab) = self.tabs.get(idx)
+        {
+            items.push(broadcast_segment_btn(idx, tab.broadcast));
+            items.push(Space::new().width(10).into());
+        }
         items.push(
             text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
                 .size(12)
@@ -113,4 +123,33 @@ fn mode_segment_btn(idx: usize, label: &str, active: bool) -> Element<'_, Messag
         btn = btn.on_press(Message::ToggleTabFilesMode(idx));
     }
     btn.into()
+}
+
+/// Broadcast-input toggle in the status bar (C2). A single button
+/// (unlike the two-half mode segment): clickable in both states, warning-
+/// tinted when armed so the "keys go everywhere" mode reads loudly.
+fn broadcast_segment_btn(idx: usize, armed: bool) -> Element<'static, Message> {
+    let c = OryxisColors::t();
+    let fg = if armed { c.warning } else { c.text_muted };
+    button(text(crate::i18n::t("broadcast_input")).size(11).color(fg))
+        .padding(Padding { top: 1.0, right: 8.0, bottom: 1.0, left: 8.0 })
+        .on_press(Message::ToggleTabBroadcast(idx))
+        .style(move |_, status| {
+            let c = OryxisColors::t();
+            let bg = if armed {
+                Color { a: 0.14, ..c.warning }
+            } else {
+                match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => c.bg_hover,
+                    _ => Color::TRANSPARENT,
+                }
+            };
+            let border_color = if armed { Color { a: 0.40, ..c.warning } } else { Color::TRANSPARENT };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(5.0), color: border_color, width: 1.0 },
+                ..Default::default()
+            }
+        })
+        .into()
 }

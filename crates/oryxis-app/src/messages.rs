@@ -549,6 +549,13 @@ pub enum Message {
     /// Close the find-bar (Esc) and drop the match set; the terminal keeps
     /// focus.
     TerminalSearchClose,
+    /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
+    /// snippets to every pane of the tab at `usize`. Toggled by the status
+    /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.
+    ToggleTabBroadcast(usize),
+    /// Broadcast input (C2): flip whether the pane at `Uuid` participates in
+    /// its tab's broadcast (the per-pane observer opt-out).
+    TogglePaneBroadcastOptOut(Uuid),
     KeyboardEvent(keyboard::Event),
     /// Text committed by the OS IME (e.g. a composed CJK character).
     /// Arrives separately from `KeyboardEvent`; forwarded to the active

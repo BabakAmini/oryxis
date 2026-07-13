@@ -198,6 +198,44 @@ impl Oryxis {
         ]
         .into();
 
+        // Broadcast input (C2): when the active tab is armed, this paste fans
+        // out to every participating pane. Name the blast radius so the user
+        // confirms with the count in view.
+        let broadcast_note: Element<'_, Message> = self
+            .active_tab
+            .and_then(|i| self.tabs.get(i))
+            .filter(|t| t.broadcast)
+            .map(|t| {
+                t.pane_grid
+                    .panes
+                    .values()
+                    .filter(|p| !p.broadcast_opt_out && p.zmodem.is_none())
+                    .count()
+            })
+            .filter(|n| *n > 1)
+            .map(|n| {
+                column![
+                    Space::new().height(8),
+                    dir_row(vec![
+                        iced_fonts::lucide::radio().size(13).color(c.warning).into(),
+                        Space::new().width(6).into(),
+                        container(
+                            text(
+                                crate::i18n::t("broadcast_paste_notice")
+                                    .replace("{count}", &n.to_string()),
+                            )
+                            .size(11)
+                            .color(c.warning),
+                        )
+                        .width(Length::Fill)
+                        .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                ]
+                .into()
+            })
+            .unwrap_or_else(|| Space::new().height(0).into());
+
         let dialog = container(
             column![
                 dir_row(vec![
@@ -226,6 +264,7 @@ impl Oryxis {
                 preview,
                 newline_note,
                 guard_notes,
+                broadcast_note,
                 Space::new().height(14),
                 dir_row(vec![
                     // Keyboard: Confirm is the default row (Enter

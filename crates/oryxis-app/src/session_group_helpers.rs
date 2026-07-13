@@ -335,6 +335,7 @@ mod tests {
             pending_reopen: None,
             files_mode: false,
             files_state: Box::default(),
+            broadcast: false,
         };
 
         let (restored, rows) = snapshot_tab_layout(&tab).expect("nothing pruned");

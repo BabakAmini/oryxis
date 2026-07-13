@@ -143,6 +143,16 @@ impl Oryxis {
             self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
         ];
+        // Broadcast input across the tab's panes (C2): a check glyph +
+        // warning tint mark the armed state, matching the pane borders and
+        // status segment.
+        let broadcasting = self.tabs.get(idx).map(|t| t.broadcast).unwrap_or(false);
+        let (bc_glyph, bc_color) = if broadcasting {
+            (iced_fonts::lucide::check(), OryxisColors::t().warning)
+        } else {
+            (iced_fonts::lucide::radio(), OryxisColors::t().text_secondary)
+        };
+        items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::ToggleTabBroadcast(idx), bc_color));
         // Open an SFTP tab for this host: offered when the SFTP
         // feature is on AND the tab has a live SSH session to reuse
         // or matches a saved connection (so it isn't shown on

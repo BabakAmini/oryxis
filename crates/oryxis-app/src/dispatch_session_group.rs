@@ -427,6 +427,7 @@ impl Oryxis {
             pending_reopen: None,
             files_mode: false,
             files_state: Box::default(),
+            broadcast: false,
         };
         let tab_idx = self.tabs.len();
         self.tabs.push(tab);

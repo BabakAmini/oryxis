@@ -58,6 +58,9 @@ pub enum HotkeyAction {
     /// Hybrid tab (issue #61): flip the focused SSH tab between its
     /// terminal and its host's files (full SFTP surface).
     ToggleTabFiles,
+    /// Broadcast input (C2): arm / disarm fan-out of keystrokes to every
+    /// pane of the focused tab. Terminal-scoped; Ctrl+Shift+U by default.
+    ToggleBroadcastInput,
     /// Jump to a vault section by position. Family: Ctrl+Shift +
     /// digit 1..8 (Hosts, Keychain, Snippets, Port Forwarding,
     /// Logs, Cloud Accounts, Proxies, Known Hosts); 9 is spare.
@@ -111,6 +114,7 @@ impl HotkeyAction {
             FocusSidebarList,
             ToggleSidebar,
             ToggleTabFiles,
+            ToggleBroadcastInput,
             VaultSectionSlot,
             VaultSectionPrev,
             VaultSectionNext,
@@ -147,6 +151,7 @@ impl HotkeyAction {
             FocusSidebarList => "focus_sidebar_list",
             ToggleSidebar => "toggle_sidebar",
             ToggleTabFiles => "toggle_tab_files",
+            ToggleBroadcastInput => "toggle_broadcast_input",
             VaultSectionSlot => "vault_section_slot",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
@@ -186,6 +191,7 @@ impl HotkeyAction {
             FocusSidebarList => "hotkey_focus_sidebar_list",
             ToggleSidebar => "hotkey_toggle_sidebar",
             ToggleTabFiles => "hotkey_toggle_tab_files",
+            ToggleBroadcastInput => "hotkey_toggle_broadcast_input",
             VaultSectionSlot => "hotkey_vault_section_slot",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
@@ -213,6 +219,7 @@ impl HotkeyAction {
                 | FocusSidebarList
                 | ToggleSidebar
                 | ToggleTabFiles
+                | ToggleBroadcastInput
         )
     }
 
@@ -778,6 +785,10 @@ pub fn default_bindings() -> HotkeyMap {
     // control-sequence gate (plain Ctrl+F is readline forward-char /
     // the app's FocusViewSearch elsewhere).
     put(&mut m, ToggleTabFiles, primary_ctrl, true, false, primary_logo, Char('f'));
+    // Ctrl+Shift+U (Cmd+Shift+U on macOS): arm / disarm broadcast input
+    // across the tab's panes. Shift lifts it out of the terminal
+    // control-sequence gate (plain Ctrl+U is readline kill-line).
+    put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
     // Ctrl+Shift+digit (Cmd+Shift on macOS): the vault-section
     // jump family, one digit per burger-menu VAULT entry. Shift
     // keeps it clear of the Ctrl+digit tab slots.

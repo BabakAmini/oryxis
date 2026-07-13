@@ -1010,6 +1010,12 @@ impl Oryxis {
                 Some(idx) => Task::done(Message::ToggleTabFilesMode(idx)),
                 None => Task::none(),
             },
+            // Broadcast input: arm / disarm fan-out across the focused
+            // tab's panes.
+            ToggleBroadcastInput => match self.active_tab {
+                Some(idx) => Task::done(Message::ToggleTabBroadcast(idx)),
+                None => Task::none(),
+            },
             // Vault section cycling: neighbor of the active view in the
             // sub-nav pill order, wrapping. The loop only reaches these
             // in the vault area (vault_only gate above).
@@ -1045,7 +1051,7 @@ impl Oryxis {
 /// Helper used by the capture branch: dispatch a `Message::ToastClear`
 /// after `secs` seconds. Same shape as the existing `CopyToClipboard`
 /// toast flow.
-fn toast_clear_after_secs(secs: u64) -> Task<Message> {
+pub(crate) fn toast_clear_after_secs(secs: u64) -> Task<Message> {
     Task::perform(
         async move {
             tokio::time::sleep(std::time::Duration::from_secs(secs)).await;

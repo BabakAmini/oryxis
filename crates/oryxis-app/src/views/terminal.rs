@@ -51,24 +51,35 @@ impl Oryxis {
                 // wires click-to-focus + drag-to-resize.
                 let focused = tab.focused;
                 let multipane = tab.pane_grid.panes.len() > 1;
+                // Broadcast input (C2): while armed, every participating pane
+                // wears a 2px warning-tinted border so it is unmistakable that
+                // keystrokes fan out to all of them at once.
+                let broadcast = tab.broadcast;
                 let grid = iced::widget::pane_grid(&tab.pane_grid, move |pane, pane_data, _max| {
                     let is_focused = pane == focused;
+                    let participating = broadcast && !pane_data.broadcast_opt_out;
                     // The focus border only shows when there's more than one
                     // pane; the mouse-report gate uses real focus regardless.
-                    let show_border = multipane && is_focused;
-                    let border_color = if show_border {
-                        OryxisColors::t().accent
+                    // A broadcasting pane's warning border overrides the focus
+                    // accent (the louder signal wins) and shows on every
+                    // participating pane, not just the focused one.
+                    let (border_color, border_width) = if participating {
+                        (OryxisColors::t().warning, 2.0)
+                    } else if multipane && is_focused {
+                        (OryxisColors::t().accent, 1.0)
+                    } else if multipane {
+                        (OryxisColors::t().border, 1.0)
                     } else {
-                        OryxisColors::t().border
+                        (OryxisColors::t().border, 0.0)
                     };
                     iced::widget::pane_grid::Content::new(
-                        container(self.render_pane_canvas(pane_data, is_focused))
+                        container(self.render_pane_canvas(pane_data, is_focused, broadcast))
                             .width(Length::Fill)
                             .height(Length::Fill)
                             .style(move |_| container::Style {
                                 border: Border {
                                     color: border_color,
-                                    width: if multipane { 1.0 } else { 0.0 },
+                                    width: border_width,
                                     radius: Radius::from(0.0),
                                 },
                                 ..Default::default()
@@ -278,6 +289,7 @@ impl Oryxis {
         &'a self,
         pane: &'a crate::state::Pane,
         is_focused: bool,
+        tab_broadcast: bool,
     ) -> Element<'a, Message> {
         let mut term_view = TerminalView::new(Arc::clone(&pane.terminal))
             .focused(is_focused)
@@ -353,20 +365,66 @@ impl Oryxis {
             self.terminal_font_size,
             self.terminal_font_name.clone(),
         );
-        // Scrollback find-bar (C1): floats at the top-leading corner of the
-        // pane (top-right, owner call) over the live canvas, like a
-        // browser's find bar. Only on the focused pane and only while open.
-        if pane.search_open && is_focused {
-            let bar = container(self.terminal_find_bar(pane))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .align_x(iced::alignment::Horizontal::Right)
-                .align_y(iced::alignment::Vertical::Top)
-                .padding(Padding::from([6.0, 10.0]));
-            iced::widget::Stack::new().push(host).push(bar).into()
+        // Top-right overlays over the live canvas. The find-bar (C1) takes
+        // the corner while open; otherwise a broadcast chip (C2) sits there
+        // whenever the tab is armed, showing this pane's participate / muted
+        // state and toggling it on click.
+        let overlay: Option<Element<'a, Message>> = if pane.search_open && is_focused {
+            Some(self.terminal_find_bar(pane))
+        } else if tab_broadcast {
+            Some(self.broadcast_chip(pane))
         } else {
-            host
+            None
+        };
+        match overlay {
+            Some(top) => {
+                let corner = container(top)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Right)
+                    .align_y(iced::alignment::Vertical::Top)
+                    .padding(Padding::from([6.0, 10.0]));
+                iced::widget::Stack::new().push(host).push(corner).into()
+            }
+            None => host,
         }
+    }
+
+    /// Broadcast opt-out chip (C2): a small button in the pane's top-right
+    /// corner while its tab is armed. Shows `radio` (participating, warning
+    /// tint) or `volume_x` (muted, dimmed) and toggles this pane's
+    /// participation on click.
+    fn broadcast_chip<'a>(&self, pane: &'a crate::state::Pane) -> Element<'a, Message> {
+        let muted = pane.broadcast_opt_out;
+        let (glyph, color, tip) = if muted {
+            (iced_fonts::lucide::volume_x(), OryxisColors::t().text_muted, t("broadcast_pane_unmute"))
+        } else {
+            (iced_fonts::lucide::radio(), OryxisColors::t().warning, t("broadcast_pane_mute"))
+        };
+        let pane_id = pane.id;
+        let btn = button(
+            container(glyph.size(13).color(color))
+                .center_x(Length::Fixed(26.0))
+                .center_y(Length::Fixed(22.0)),
+        )
+        .padding(0)
+        .on_press(Message::TogglePaneBroadcastOptOut(pane_id))
+        .style(move |_, status| {
+            let bg = match status {
+                BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+                _ => OryxisColors::t().bg_surface,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    width: 1.0,
+                    color: OryxisColors::t().border,
+                },
+                ..Default::default()
+            }
+        });
+        icon_tooltip(btn.into(), tip)
     }
 
     /// The scrollback find-bar row (C1): needle input + `N / M` counter +

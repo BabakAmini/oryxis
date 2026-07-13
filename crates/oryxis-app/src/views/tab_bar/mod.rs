@@ -493,8 +493,12 @@ impl Oryxis {
             // Smart-tabs attention dot (top-right corner of the badge):
             // the highest-priority cause across the tab's panes. Viewing
             // the tab clears the state, so an active watched tab never
-            // carries one.
-            let attention_dot: Option<Color> = if self.setting_smart_tabs {
+            // carries one. A background tab left armed for broadcast (C2)
+            // takes the slot first (warning-tinted) so its armed state is
+            // visible from the strip, not just once you switch back to it.
+            let attention_dot: Option<Color> = if tab.broadcast && !is_active {
+                Some(OryxisColors::t().warning)
+            } else if self.setting_smart_tabs {
                 tab.pane_grid
                     .panes
                     .values()

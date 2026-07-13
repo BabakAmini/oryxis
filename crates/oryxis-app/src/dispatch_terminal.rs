@@ -911,6 +911,37 @@ impl Oryxis {
                     }
                 }
             }
+            // ── Broadcast input (C2) ──
+            Message::ToggleTabBroadcast(idx) => {
+                if let Some(tab) = self.tabs.get_mut(idx) {
+                    tab.broadcast = !tab.broadcast;
+                    let single_pane = tab.pane_grid.panes.len() < 2;
+                    if !tab.broadcast {
+                        // Disarm: clear every opt-out so a later re-arm
+                        // starts clean (all panes participate).
+                        for pane in tab.pane_grid.panes.values_mut() {
+                            pane.broadcast_opt_out = false;
+                        }
+                    }
+                    // Arming a not-yet-split tab is allowed but inert; a
+                    // hint is cheaper than disabling the control and
+                    // explaining why it is greyed out.
+                    if tab.broadcast && single_pane {
+                        self.set_toast(crate::i18n::t("broadcast_single_pane_hint").to_string());
+                        return Ok(crate::shortcuts::toast_clear_after_secs(4));
+                    }
+                }
+            }
+            Message::TogglePaneBroadcastOptOut(pane_id) => {
+                if let Some(pane) = self
+                    .tabs
+                    .iter_mut()
+                    .flat_map(|t| t.pane_grid.panes.values_mut())
+                    .find(|p| p.id == pane_id)
+                {
+                    pane.broadcast_opt_out = !pane.broadcast_opt_out;
+                }
+            }
             // Periodic batched write of recorded output. Only mounted by
             // the subscription while at least one pane is recording.
             Message::SessionLogFlushTick => {

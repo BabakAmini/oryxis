@@ -147,6 +147,7 @@ impl Oryxis {
     /// [`Self::write_input_to_tab`] without the ring disengage, for
     /// injections the sidebar itself fires (row Paste / Run actions).
     pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
+        let mut active_received = false;
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             // Hybrid tab showing its Files (SFTP) surface: the terminal
             // is hidden and the keyboard belongs to the SFTP view (its
@@ -155,21 +156,42 @@ impl Oryxis {
             if tab.files_mode {
                 return;
             }
-            let pane = tab.active_mut();
-            // A ZMODEM transfer owns the byte channel: user keystrokes
-            // would interleave with the protocol and corrupt it, so
-            // input is suppressed until the transfer ends. Cancelling is
-            // done from the overlay's Cancel button (`ZmodemCancel`).
-            if pane.zmodem.is_some() {
-                return;
-            }
-            if let Some(ref session) = pane.session {
-                let _ = session.write(bytes);
-            } else if let Ok(mut state) = pane.terminal.lock() {
-                state.write(bytes);
+            // The set of panes this write reaches: every participating pane
+            // when the tab broadcasts (C2), else just the active pane. A
+            // ZMODEM transfer owns its pane's byte channel, so such panes are
+            // excluded from either path (a stray keystroke would corrupt the
+            // protocol; cancel is the overlay's own button).
+            let targets = tab.broadcast_target_ids();
+            active_received = targets.contains(&tab.active().id);
+            for pane in tab.pane_grid.panes.values_mut() {
+                if targets.contains(&pane.id) {
+                    Self::write_bytes_to_pane(pane, bytes);
+                }
             }
         }
-        self.feed_input_capture(tab_idx, bytes);
+        // Capture mirrors ONCE per tab, and only when the ACTIVE pane
+        // actually received the bytes. A pane mid-ZMODEM (or, under
+        // broadcast, one opted out) is not in `targets`, so a keystroke it
+        // never got must not land in its command history — this preserves
+        // the pre-broadcast funnel, which returned before capture when the
+        // active pane was transferring. Broadcast still records the command
+        // a single time against the active pane, never N× (see
+        // `feed_input_capture`).
+        if active_received {
+            self.feed_input_capture(tab_idx, bytes);
+        }
+    }
+
+    /// Write `bytes` to a single pane's transport: the remote session (SSH /
+    /// Telnet / Serial) when connected, otherwise the local PTY. Errors are
+    /// swallowed the same way the single-pane path always has (a disconnected
+    /// pane shows its own dead state).
+    fn write_bytes_to_pane(pane: &mut crate::state::Pane, bytes: &[u8]) {
+        if let Some(ref session) = pane.session {
+            let _ = session.write(bytes);
+        } else if let Ok(mut state) = pane.terminal.lock() {
+            state.write(bytes);
+        }
     }
 
     /// Capture half of [`Self::write_input_to_tab`], for the rare call site

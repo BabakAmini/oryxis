@@ -330,6 +330,10 @@ pub(crate) struct Pane {
     pub search_open: bool,
     /// Mirror of the find-bar needle (drives the `text_input` value).
     pub search_query: String,
+    /// Broadcast input (C2): while its tab is armed (`TerminalTab.broadcast`),
+    /// a pane with this set is excluded, staying an observer. Cleared when the
+    /// tab disarms so a later re-arm starts clean.
+    pub broadcast_opt_out: bool,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -415,6 +419,7 @@ impl Pane {
             osc7_injected: false,
             search_open: false,
             search_query: String::new(),
+            broadcast_opt_out: false,
         }
     }
 }
@@ -573,6 +578,12 @@ pub(crate) struct TerminalTab {
     /// (`hybrid_sftp_owner`), same swap-on-focus invariant as the
     /// standalone `SftpTab::state`. Boxed: most tabs never browse.
     pub files_state: Box<SftpState>,
+    /// Broadcast input (C2): while true, every keystroke / paste / snippet
+    /// injection fans out to ALL of this tab's panes at once (minus panes
+    /// that opted out or are mid-ZMODEM), for running the same commands on
+    /// several hosts. Session-scoped: not persisted, reset on teardown; a
+    /// single-pane tab may arm it but it does nothing until the tab splits.
+    pub broadcast: bool,
 }
 
 /// Reference to an open tab in the unified strip. Terminal and SFTP tabs
@@ -759,6 +770,7 @@ impl TerminalTab {
             pending_reopen: None,
             files_mode: false,
             files_state: Box::default(),
+            broadcast: false,
         }
     }
 
@@ -867,6 +879,30 @@ impl TerminalTab {
         self.pane_grid.panes.len()
     }
 
+    /// Broadcast input (C2): the pane ids a user-input write reaches. When
+    /// armed, every participating pane (not opted out, not mid-ZMODEM); when
+    /// disarmed, only the active pane (unless it is mid-ZMODEM, which owns its
+    /// byte channel). The single routing source of truth, shared by the write
+    /// funnel and its test. `files_mode` suppression is the caller's early
+    /// return, not modeled here.
+    pub fn broadcast_target_ids(&self) -> Vec<Uuid> {
+        if self.broadcast {
+            self.pane_grid
+                .panes
+                .values()
+                .filter(|p| !p.broadcast_opt_out && p.zmodem.is_none())
+                .map(|p| p.id)
+                .collect()
+        } else {
+            let active = self.active();
+            if active.zmodem.is_some() {
+                Vec::new()
+            } else {
+                vec![active.id]
+            }
+        }
+    }
+
     /// Label to show in the tab strip. A tab opened from (or saved as) a
     /// session group shows the group's name. Otherwise a split tab follows
     /// the *focused* pane (so a tab split across two hosts reads as whichever
@@ -971,6 +1007,57 @@ mod terminal_tab_tests {
         assert_eq!(tab.pane_by_id_mut(id1).map(|p| p.id), Some(id1));
         assert_eq!(tab.pane_by_id_mut(id2).map(|p| p.id), Some(id2));
         assert!(tab.pane_by_id_mut(Uuid::new_v4()).is_none());
+    }
+
+    #[test]
+    fn broadcast_target_ids_routing() {
+        let mut tab = TerminalTab::new_single("t".into(), dummy_terminal());
+        let id1 = tab.active().id;
+        let h2 = split(&mut tab, pane_grid::Axis::Vertical);
+        let h3 = split(&mut tab, pane_grid::Axis::Horizontal);
+        let id2 = tab.pane_grid.get(h2).unwrap().id;
+        let id3 = tab.pane_grid.get(h3).unwrap().id;
+        assert_eq!(tab.pane_grid.panes.len(), 3);
+
+        // Disarmed: only the active pane receives.
+        assert!(!tab.broadcast);
+        let active_id = tab.active().id;
+        assert_eq!(tab.broadcast_target_ids(), vec![active_id]);
+
+        // Armed: every pane receives.
+        tab.broadcast = true;
+        let mut all = tab.broadcast_target_ids();
+        all.sort();
+        let mut expect = vec![id1, id2, id3];
+        expect.sort();
+        assert_eq!(all, expect);
+
+        // An opted-out pane is skipped while the rest still receive.
+        tab.pane_by_id_mut(id2).unwrap().broadcast_opt_out = true;
+        assert!(!tab.broadcast_target_ids().contains(&id2));
+        assert_eq!(tab.broadcast_target_ids().len(), 2);
+
+        // A pane mid-ZMODEM is skipped even when not opted out (its byte
+        // channel belongs to the transfer).
+        tab.pane_by_id_mut(id2).unwrap().broadcast_opt_out = false;
+        let (wire_tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        tab.pane_by_id_mut(id3).unwrap().zmodem = Some(ZmodemPane {
+            direction: oryxis_zmodem::Direction::Download,
+            wire_tx,
+            abort: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            file_name: None,
+            transferred: 0,
+            total: None,
+        });
+        let targets = tab.broadcast_target_ids();
+        assert!(!targets.contains(&id3), "zmodem pane must be skipped");
+        assert!(targets.contains(&id1) && targets.contains(&id2));
+
+        // Disarmed with the active pane mid-ZMODEM: nothing receives (a
+        // keystroke must never interleave with the transfer).
+        tab.broadcast = false;
+        tab.focused = h3;
+        assert!(tab.broadcast_target_ids().is_empty());
     }
 
     #[test]
