@@ -861,6 +861,56 @@ impl Oryxis {
                     }
                 }
             }
+            // ── Scrollback find-bar (C1) ──
+            Message::TerminalSearchOpen => {
+                if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    let pane = tab.active_mut();
+                    pane.search_open = true;
+                    if let Ok(mut state) = pane.terminal.lock() {
+                        state.search_open();
+                        // Re-scan for the current needle so re-opening on the
+                        // same query lands on live matches immediately.
+                        if !pane.search_query.is_empty() {
+                            state.search_set_query(&pane.search_query);
+                        }
+                    }
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                        "terminal-buffer-search",
+                    )));
+                }
+            }
+            Message::TerminalSearchInput(v) => {
+                if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    let pane = tab.active_mut();
+                    pane.search_query = v;
+                    if let Ok(mut state) = pane.terminal.lock() {
+                        state.search_set_query(&pane.search_query);
+                    }
+                }
+            }
+            Message::TerminalSearchStep(forward) => {
+                if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                    && let Ok(mut state) = tab.active_mut().terminal.lock()
+                {
+                    state.search_step(forward);
+                }
+            }
+            Message::TerminalSearchClose => {
+                if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    let pane = tab.active_mut();
+                    pane.search_open = false;
+                    if let Ok(mut state) = pane.terminal.lock() {
+                        state.search_close();
+                    }
+                }
+            }
             // Periodic batched write of recorded output. Only mounted by
             // the subscription while at least one pane is recording.
             Message::SessionLogFlushTick => {
@@ -1084,6 +1134,34 @@ impl Oryxis {
                         && let Some(task) = self.handle_modal_nav_key(&event)
                     {
                         return Ok(task);
+                    }
+                    return Ok(Task::none());
+                }
+                // Scrollback find-bar (C1): while it's open on the active
+                // pane it owns the keyboard, like a modal. Enter steps to the
+                // next match, Shift+Enter to the previous, Esc closes; every
+                // other key edits the find input through its focused
+                // `text_input` and must NOT leak to the PTY running
+                // underneath (the global subscription delivers keys here
+                // regardless of widget focus).
+                if self
+                    .active_tab
+                    .and_then(|i| self.tabs.get(i))
+                    .map(|t| t.active().search_open)
+                    .unwrap_or(false)
+                {
+                    if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event {
+                        match key {
+                            keyboard::Key::Named(keyboard::key::Named::Enter) => {
+                                return Ok(Task::done(Message::TerminalSearchStep(
+                                    !modifiers.shift(),
+                                )));
+                            }
+                            keyboard::Key::Named(keyboard::key::Named::Escape) => {
+                                return Ok(Task::done(Message::TerminalSearchClose));
+                            }
+                            _ => {}
+                        }
                     }
                     return Ok(Task::none());
                 }

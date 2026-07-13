@@ -647,7 +647,13 @@ impl Oryxis {
                 continue;
             }
             let bind_copy = self.hotkey_bindings.get(&action).copied();
+            // Plain Ctrl+letter bindings normally yield to the PTY (shell
+            // control sequences: Ctrl+L clear, Ctrl+R history, ...). The
+            // scrollback find-bar (Ctrl+F) is the deliberate exception: like
+            // every GUI terminal, Ctrl+F opens Find over the buffer instead
+            // of reaching readline's forward-char (arrow keys cover that).
             if pty_owns_keys
+                && action != HotkeyAction::FocusViewSearch
                 && bind_copy.is_some_and(|b| b.is_terminal_control_sequence())
             {
                 continue;

@@ -536,6 +536,19 @@ pub enum Message {
     /// notice and re-arms `pending_reopen` so selecting the tab again
     /// reconnects (the pane previously just went silently dead).
     PluginSessionEnded(Uuid),
+    /// Scrollback find-bar (C1). All four act on the ACTIVE pane of the
+    /// active terminal tab (the bar only ever shows there).
+    /// Open the find-bar (Ctrl+F over the terminal) and focus its input.
+    TerminalSearchOpen,
+    /// The find-bar needle changed: rebuild matches and scroll the first
+    /// hit into view.
+    TerminalSearchInput(String),
+    /// Step the active match forward (`true`, Enter) or backward
+    /// (`false`, Shift+Enter), wrapping, and scroll it into view.
+    TerminalSearchStep(bool),
+    /// Close the find-bar (Esc) and drop the match set; the terminal keeps
+    /// focus.
+    TerminalSearchClose,
     KeyboardEvent(keyboard::Event),
     /// Text committed by the OS IME (e.g. a composed CJK character).
     /// Arrives separately from `KeyboardEvent`; forwarded to the active

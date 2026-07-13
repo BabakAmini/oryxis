@@ -323,6 +323,13 @@ pub(crate) struct Pane {
     /// pane's shell, so toggling the setting on (and reconnects) don't
     /// stack duplicate emitters. Reset on disconnect.
     pub osc7_injected: bool,
+    /// Scrollback find-bar (C1): true while the overlay is shown. The match
+    /// set + active index live on the widget's `TerminalState.search`; this
+    /// flag and `search_query` are the app-owned UI mirror so the find-bar's
+    /// `text_input` renders without locking the terminal mutex in `view()`.
+    pub search_open: bool,
+    /// Mirror of the find-bar needle (drives the `text_input` value).
+    pub search_query: String,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -406,6 +413,8 @@ impl Pane {
             link_hint_shown: false,
             files: PaneFiles::default(),
             osc7_injected: false,
+            search_open: false,
+            search_query: String::new(),
         }
     }
 }

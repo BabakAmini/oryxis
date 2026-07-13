@@ -32,6 +32,7 @@ const NERD_FONT: Font = Font::new("Symbols Nerd Font");
 mod clipboard;
 mod highlight;
 mod perf;
+pub mod search;
 mod selection;
 mod state;
 
@@ -238,6 +239,10 @@ struct RenderKey {
     privacy_terms_hash: u64,
     /// Order-independent digest of the click-pinned privacy set (0 when off).
     pinned_privacy_hash: u64,
+    /// `BufferSearch::generation` (0 when no search is open): bumped on every
+    /// query change / step / rebuild / open / close so the match overlay
+    /// invalidates the cached grid geometry.
+    search_generation: u64,
     font: Font,
     font_size: f32,
     cell_w: f32,
@@ -2002,10 +2007,23 @@ where
         // geometry; on a miss we clear the cache so `Cache::draw` below
         // re-runs the closure. The perf HUD and the visual-bell flash are
         // NOT part of the key: both are drawn as their own fresh top layers.
-        let content_epoch = match self.state.lock() {
-            Ok(s) => s.render_epoch(),
-            Err(p) => p.into_inner().render_epoch(),
+        let (content_epoch, search_generation, pending_scroll) = {
+            let s = match self.state.lock() {
+                Ok(s) => s,
+                Err(p) => p.into_inner(),
+            };
+            (
+                s.render_epoch(),
+                s.search_generation(),
+                s.pending_scroll.take(),
+            )
         };
+        // A search step / open queued a scroll target (the active match's row);
+        // apply it before the render key so this frame draws at that offset and
+        // the match highlight lands in view. Consumed once (Cell::take).
+        if let Some(target) = pending_scroll {
+            widget_state.scroll_offset.set(target);
+        }
         // PuTTY "reset scrollback on display activity": the render epoch
         // advances only on terminal output (process / sync-flush / palette),
         // never on scroll or cursor blink, so an epoch change since the last
@@ -2050,6 +2068,7 @@ where
             } else {
                 0
             },
+            search_generation,
             font: self.font,
             font_size: self.font_size,
             cell_w,
@@ -2084,6 +2103,11 @@ where
                 let mut cells: Vec<CellData> = DRAW_CELLS.take();
                 cells.clear();
                 let mut row_chars: Vec<(u16, Vec<(u16, char)>)> = Vec::new();
+                // Buffer-search match spans clipped to the visible window, in
+                // (visible_row, start_col, end_col_inclusive, is_active) form.
+                // Snapshot under the lock so pass 2 can fill each match's cells
+                // with a highlight background without re-touching the state.
+                let mut search_spans: Vec<(u16, u16, u16, bool)> = Vec::new();
 
                 // --- Snapshot phase, the only part that holds the state mutex ---
                 // Everything draw needs (resolved cells, cursor, sizes, palette)
@@ -2142,6 +2166,28 @@ where
                     let total_lines = grid.total_lines();
                     let topmost = grid.topmost_line();
                     let bottommost = grid.bottommost_line();
+
+                    // --- Buffer-search overlay spans ---
+                    // Translate each match's grid lines to visible rows
+                    // (visible_row = grid_line + scroll_offset) and clip to the
+                    // screen window. A match may wrap across grid lines, so a
+                    // multi-line hit yields one span per covered row with the
+                    // proper leading / middle / trailing column bounds.
+                    if let Some(search) = state.search.as_ref() {
+                        let last_col = cols_count.saturating_sub(1) as u16;
+                        for (i, m) in search.matches.iter().enumerate() {
+                            let active = i == search.active;
+                            for line in m.start_line..=m.end_line {
+                                let vrow = line + scroll_offset;
+                                if vrow < 0 || vrow >= screen_lines as i32 {
+                                    continue;
+                                }
+                                let sc = if line == m.start_line { m.start_col } else { 0 };
+                                let ec = if line == m.end_line { m.end_col } else { last_col };
+                                search_spans.push((vrow as u16, sc, ec, active));
+                            }
+                        }
+                    }
 
                     // --- Pass 1: collect cell data and build row character map ---
                     // Iterate the grid manually using `scroll_offset` as a row offset
@@ -2398,6 +2444,27 @@ where
                     if is_selected {
                         bg = Color::from_rgba(0.133, 0.60, 0.569, 0.35);
                         fg = Color::WHITE;
+                    }
+
+                    // Buffer-search match background. Selection wins when both
+                    // cover a cell (the user can't be selecting and searching the
+                    // same cell in practice, but keep selection authoritative).
+                    // The active match gets a stronger amber; the rest a muted
+                    // one, matching the find-bar counter's "N of M" cue.
+                    if !is_selected && !search_spans.is_empty() {
+                        let hit = search_spans.iter().find(|&&(r, sc, ec, _)| {
+                            cd.row == r && cd.col >= sc && cd.col <= ec
+                        });
+                        if let Some(&(_, _, _, active)) = hit {
+                            bg = if active {
+                                Color::from_rgba(0.98, 0.70, 0.10, 0.75)
+                            } else {
+                                Color::from_rgba(0.85, 0.62, 0.12, 0.35)
+                            };
+                            if active {
+                                fg = Color::from_rgb(0.08, 0.07, 0.05);
+                            }
+                        }
                     }
 
                     // Smart contrast, when an app picks a colour pair that

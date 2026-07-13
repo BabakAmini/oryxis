@@ -182,6 +182,17 @@ impl Oryxis {
                 // Ctrl+F always returns keynav to the canonical idle
                 // state (search = "zone zero", `focus == None`).
                 self.keynav.focus = None;
+                // Over a focused terminal pane, Ctrl+F opens the scrollback
+                // find-bar (C1). `active_tab` is cleared on navigation into
+                // the vault / settings / SFTP surfaces, so its presence means
+                // the terminal surface is the one on screen; the hybrid Files
+                // (SFTP) mode is excluded — it has its own remote filter,
+                // reached through `active_view_search_id` below.
+                if let Some(tab) = self.active_tab.and_then(|i| self.tabs.get(i))
+                    && !tab.files_mode
+                {
+                    return Ok(self.update(Message::TerminalSearchOpen));
+                }
                 if let Some(id) = self.active_view_search_id() {
                     return Ok(iced::widget::operation::focus(id));
                 }

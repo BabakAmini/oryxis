@@ -17,6 +17,15 @@ pub struct TerminalState {
     /// resize only happens on a bounds or font change, both of which the
     /// canvas cache already invalidates on directly.
     render_epoch: u64,
+    /// Scrollback search (C1). `Some` while the find bar is open over
+    /// this pane; `None` otherwise. Held here so the draw pass can read
+    /// the match highlights under the same lock, and so a step / rebuild
+    /// survives across frames.
+    pub search: Option<crate::widget::search::BufferSearch>,
+    /// A scroll-back offset the widget should snap to on the next draw
+    /// (C1: center the active search match). `Cell` so the immutable
+    /// draw pass can consume it, mirroring `reset_scroll_on_output`.
+    pub pending_scroll: std::cell::Cell<Option<i32>>,
 }
 
 impl TerminalState {
@@ -30,7 +39,7 @@ impl TerminalState {
         let (pty, rx) =
             PtyHandle::spawn_command(cols, rows, None, &[], cwd, &backend.event_proxy)?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0 }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) }, rx))
     }
 
     /// Like `new` but spawns an explicit program (e.g. PowerShell or
@@ -49,7 +58,7 @@ impl TerminalState {
             cols, rows, Some(program), args, cwd, &backend.event_proxy,
         )?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0 }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) }, rx))
     }
 
     pub fn new_no_pty(
@@ -58,7 +67,7 @@ impl TerminalState {
     ) -> TerminalResult<Self> {
         let backend = TerminalBackend::new(cols, rows);
         let palette = TerminalPalette::default();
-        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0 })
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) })
     }
 
     /// Wire a remote resize sender, called from the app once an SSH
@@ -99,6 +108,88 @@ impl TerminalState {
     /// Current render revision. See [`TerminalState::render_epoch`] (field).
     pub fn render_epoch(&self) -> u64 {
         self.render_epoch
+    }
+
+    // ── Scrollback search (C1) ──
+
+    /// Open the find bar over this pane (idempotent). Returns the search
+    /// generation so the caller can invalidate any cached frame.
+    pub fn search_open(&mut self) {
+        if self.search.is_none() {
+            self.search = Some(crate::widget::search::BufferSearch::default());
+        }
+    }
+
+    /// Close the find bar and drop the match set.
+    pub fn search_close(&mut self) {
+        self.search = None;
+    }
+
+    /// Whether the find bar is open over this pane.
+    pub fn search_active(&self) -> bool {
+        self.search.is_some()
+    }
+
+    /// Set the find needle and rebuild matches. Auto-scrolls the active
+    /// match into view. No-op when the bar isn't open.
+    pub fn search_set_query(&mut self, query: &str) {
+        let epoch = self.render_epoch;
+        if let Some(search) = self.search.as_mut() {
+            search.set_query(query, &self.backend.term, epoch);
+            let target = search.active_match();
+            self.queue_scroll_to_match(target);
+        }
+    }
+
+    /// Step the active match forward / backward, scrolling it into view.
+    pub fn search_step(&mut self, forward: bool) {
+        // Re-scan first if new output landed since the last build, so
+        // stepping never lands on a stale coordinate.
+        let epoch = self.render_epoch;
+        if let Some(search) = self.search.as_mut()
+            && search.scanned_epoch != epoch
+        {
+            search.rebuild(&self.backend.term, epoch);
+        }
+        let target = self
+            .search
+            .as_mut()
+            .and_then(|s| s.step(forward));
+        self.queue_scroll_to_match(target);
+    }
+
+    /// `(current, total)` for the count label (`current` is 1-based, 0
+    /// when there are no matches). `None` when the bar isn't open.
+    pub fn search_count(&self) -> Option<(usize, usize)> {
+        self.search.as_ref().map(|s| {
+            let total = s.matches.len();
+            let current = if total == 0 { 0 } else { s.active + 1 };
+            (current, total)
+        })
+    }
+
+    /// The search generation (bumped on every query change / step), for
+    /// the widget's `RenderKey`. 0 when the bar isn't open.
+    pub fn search_generation(&self) -> u64 {
+        self.search.as_ref().map(|s| s.generation).unwrap_or(0)
+    }
+
+    /// Translate a match's start line into a scroll-back offset that
+    /// centers it in the viewport, and queue it for the next draw. A
+    /// match already on the visible screen (line >= 0) with the viewport
+    /// at the bottom needs no scroll.
+    fn queue_scroll_to_match(&self, m: Option<crate::widget::search::SearchMatch>) {
+        let Some(m) = m else { return };
+        let rows = self.backend.rows() as i32;
+        // The draw maps grid line ← visible_row: `line = visible_row -
+        // scroll_offset`, so a cell at grid line L shows at
+        // `visible_row = L + scroll_offset`. To land the match's line near
+        // the middle row we solve `rows/2 = L + scroll_offset`, i.e.
+        // `scroll_offset = rows/2 - L` (L is negative in scrollback, so this
+        // is a positive scroll-up). Clamped ≥ 0; a match already on the
+        // visible screen with the viewport at the bottom needs no scroll.
+        let desired = rows / 2 - m.start_line;
+        self.pending_scroll.set(Some(desired.max(0)));
     }
 
     /// Swap the palette and bump the render epoch so the canvas cache
@@ -317,6 +408,12 @@ impl TerminalState {
         if let Some(ref tx) = self.remote_resize_tx {
             let _ = tx.send((cols, rows));
         }
+        // A resize reflows the grid, so search matches at old coordinates
+        // are stale: rebuild them against the new layout (C1).
+        let epoch = self.render_epoch;
+        if let Some(search) = self.search.as_mut() {
+            search.rebuild(&self.backend.term, epoch);
+        }
         true
     }
 
@@ -507,5 +604,94 @@ mod tests {
             state.render_epoch() > e1,
             "set_palette() must advance the render epoch"
         );
+    }
+
+    // ── Scrollback search (C1) ──
+
+    /// A needle on the visible screen is found; the count is 1-based.
+    #[test]
+    fn search_finds_visible_match() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"needle-alpha here\r\n");
+        state.search_open();
+        state.search_set_query("needle-alpha");
+        assert_eq!(state.search_count(), Some((1, 1)));
+        let m = state.search.as_ref().unwrap().matches[0];
+        // On the visible screen, line 0 is the first row.
+        assert_eq!(m.start_line, 0);
+        assert_eq!(m.start_col, 0);
+    }
+
+    /// A match that scrolled off the top lives at a negative grid line.
+    #[test]
+    fn search_finds_scrollback_match() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        // Print the needle, then push it well above the screen.
+        state.process(b"needle-top\r\n");
+        for i in 0..40 {
+            state.process(format!("filler line {i}\r\n").as_bytes());
+        }
+        state.search_open();
+        state.search_set_query("needle-top");
+        assert_eq!(state.search_count(), Some((1, 1)));
+        let m = state.search.as_ref().unwrap().matches[0];
+        assert!(m.start_line < 0, "scrollback match must be a negative line, got {}", m.start_line);
+        // The queued scroll must bring that scrollback line into the visible
+        // window: with the draw's `visible_row = line + scroll_offset`, the
+        // resulting row has to land inside [0, rows). Regression guard for a
+        // sign slip that scrolled the match off the top.
+        let offset = state.pending_scroll.get().expect("scroll queued");
+        let visible_row = m.start_line + offset;
+        assert!(
+            (0..24).contains(&visible_row),
+            "match at line {} + offset {} = row {} must be on screen",
+            m.start_line,
+            offset,
+            visible_row,
+        );
+    }
+
+    /// Literal search: the needle is escaped, so `a.b` does not match `axb`.
+    #[test]
+    fn search_is_literal_not_regex() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"axb and a.b\r\n");
+        state.search_open();
+        state.search_set_query("a.b");
+        // Only the literal `a.b` matches, not `axb`.
+        assert_eq!(state.search_count(), Some((1, 1)));
+    }
+
+    /// Stepping wraps around and reports the right 1-based index.
+    #[test]
+    fn search_step_wraps() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"x x x\r\n");
+        state.search_open();
+        state.search_set_query("x");
+        assert_eq!(state.search_count(), Some((1, 3)));
+        state.search_step(true);
+        assert_eq!(state.search_count(), Some((2, 3)));
+        state.search_step(true);
+        assert_eq!(state.search_count(), Some((3, 3)));
+        state.search_step(true); // wrap
+        assert_eq!(state.search_count(), Some((1, 3)));
+        state.search_step(false); // wrap backward
+        assert_eq!(state.search_count(), Some((3, 3)));
+    }
+
+    /// An empty query clears the matches; closing drops the state.
+    #[test]
+    fn search_empty_and_close() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"hello world\r\n");
+        state.search_open();
+        state.search_set_query("hello");
+        assert_eq!(state.search_count(), Some((1, 1)));
+        state.search_set_query("");
+        assert_eq!(state.search_count(), Some((0, 0)));
+        state.search_close();
+        assert!(!state.search_active());
+        assert_eq!(state.search_count(), None);
     }
 }

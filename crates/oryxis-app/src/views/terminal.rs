@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use iced::border::Radius;
 use iced::widget::{
-    button, canvas, column, container, row, scrollable, text, MouseArea, Space,
+    button, canvas, column, container, row, scrollable, text, text_input, MouseArea, Space,
 };
 use iced::widget::button::Status as BtnStatus;
 use iced::{Background, Border, Color, Element, Length, Padding};
@@ -346,13 +346,84 @@ impl Oryxis {
         let term_canvas = canvas(term_view)
             .width(Length::Fill)
             .height(Length::Fill);
-        crate::widgets::ime_host(
+        let host = crate::widgets::ime_host(
             term_canvas,
             is_focused,
             Arc::clone(&pane.terminal),
             self.terminal_font_size,
             self.terminal_font_name.clone(),
-        )
+        );
+        // Scrollback find-bar (C1): floats at the top-leading corner of the
+        // pane (top-right LTR, top-left RTL) over the live canvas, like a
+        // browser's find bar. Only on the focused pane and only while open.
+        if pane.search_open && is_focused {
+            let bar = container(self.terminal_find_bar(pane))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(crate::widgets::dir_align_x())
+                .align_y(iced::alignment::Vertical::Top)
+                .padding(Padding::from([6.0, 10.0]));
+            iced::widget::Stack::new().push(host).push(bar).into()
+        } else {
+            host
+        }
+    }
+
+    /// The scrollback find-bar row (C1): needle input + `N / M` counter +
+    /// prev / next / close. The match set lives on the widget's
+    /// `TerminalState.search`; the counter is read under a short lock here.
+    fn terminal_find_bar<'a>(&'a self, pane: &'a crate::state::Pane) -> Element<'a, Message> {
+        let colors = OryxisColors::t();
+        let count = pane.terminal.lock().ok().and_then(|s| s.search_count());
+        let count_label = match count {
+            Some((cur, total)) if total > 0 => t("terminal_search_count")
+                .replace("{current}", &cur.to_string())
+                .replace("{total}", &total.to_string()),
+            _ if !pane.search_query.is_empty() => t("terminal_search_no_matches").to_string(),
+            _ => String::new(),
+        };
+        let input = text_input(t("terminal_search_placeholder"), &pane.search_query)
+            .id(iced::widget::Id::new("terminal-buffer-search"))
+            .on_input(Message::TerminalSearchInput)
+            .width(Length::Fixed(200.0))
+            .padding(6);
+        let counter = text(count_label)
+            .size(12)
+            .color(colors.text_muted)
+            .width(Length::Fixed(70.0));
+        let controls = dir_row(vec![
+            input.into(),
+            container(counter).center_y(Length::Fixed(28.0)).into(),
+            icon_tooltip(
+                chat_header_btn(iced_fonts::lucide::chevron_up(), Message::TerminalSearchStep(false)),
+                t("terminal_search_prev"),
+            ),
+            icon_tooltip(
+                chat_header_btn(
+                    iced_fonts::lucide::chevron_down(),
+                    Message::TerminalSearchStep(true),
+                ),
+                t("terminal_search_next"),
+            ),
+            icon_tooltip(
+                chat_header_btn(iced_fonts::lucide::x(), Message::TerminalSearchClose),
+                t("terminal_search_close"),
+            ),
+        ])
+        .spacing(4)
+        .align_y(iced::Alignment::Center);
+        container(controls)
+            .padding(6)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(colors.bg_surface)),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    width: 1.0,
+                    color: colors.border,
+                },
+                ..Default::default()
+            })
+            .into()
     }
 
     pub(crate) fn view_terminal_sidebar<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
