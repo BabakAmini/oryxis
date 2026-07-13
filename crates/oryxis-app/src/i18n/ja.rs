@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "閉じる (Esc)",
         "broadcast_input" => "ブロードキャスト",
         "broadcast_pane_mute" => "このペインをミュート（受信を停止）",
+        "link_target_blocked" => "許可されていないリンクの種類: {scheme}",
         "broadcast_pane_unmute" => "このペインのミュートを解除",
         "broadcast_paste_notice" => "この貼り付けは {count} 個のペインに送信されます。",
         "broadcast_single_pane_hint" => "ブロードキャストは有効ですが、このタブを分割するまで何も起こりません。",

@@ -893,6 +893,45 @@ pub(crate) fn osc8_link_at_cell(
     Some((uri, start as u16, end as u16))
 }
 
+/// The scheme of a URI, lowercased, iff the URI begins with a well-formed
+/// `scheme:` per RFC 3986 (`ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":"`).
+///
+/// Runs on attacker-controlled OSC 8 bytes, so it is strict: the run before
+/// the first `:` must start with a letter and contain only scheme characters.
+/// A leading space, a control char or a newline anywhere in that run
+/// (`java\nscript:`, ` javascript:`) fails to parse, so it can never be
+/// mistaken for an allowed scheme.
+pub(crate) fn osc8_scheme(uri: &str) -> Option<String> {
+    let (scheme, _rest) = uri.split_once(':')?;
+    let mut chars = scheme.chars();
+    let first = chars.next()?;
+    if !first.is_ascii_alphabetic() {
+        return None;
+    }
+    chars
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+        .then(|| scheme.to_ascii_lowercase())
+}
+
+/// Whether an OSC 8 target may be followed (pointer cursor + Ctrl+click open).
+///
+/// OSC 8 URIs are attacker-controlled server output and, unlike the scraped
+/// URLs (which only ever match `http(s)://`), can name any scheme, including
+/// `javascript:`, `file:` and OS-handler schemes with side effects. Allow only
+/// the safe, widely-understood web-facing schemes; everything else gets a
+/// "link type not allowed" chip with no pointer, underline or open affordance,
+/// so a hostile server cannot phish a click into an arbitrary handler.
+///
+/// `ssh://` is intentionally NOT allowed here yet: it should route to the
+/// in-app quick-connect path (v1.0 `ssh://` handler follow-up), not open
+/// blindly through the OS.
+pub(crate) fn osc8_scheme_allowed(uri: &str) -> bool {
+    matches!(
+        osc8_scheme(uri).as_deref(),
+        Some("http" | "https" | "mailto" | "ftp")
+    )
+}
+
 /// Smart-select span for double-click: if the cell at grid-line `line`,
 /// column `col` falls inside a detected URL / IP / path token, return its
 /// `(start_col, end_col)` (inclusive). Returns `None` otherwise (caller
@@ -1336,5 +1375,79 @@ mod tests {
         assert!(!ipv4_is_private_or_loopback("8.8.8.8"));
         assert!(!ipv4_is_private_or_loopback("169.253.0.1"));
         assert!(!ipv4_is_private_or_loopback("not.an.ip.at.all"));
+    }
+
+    // ── OSC 8 hyperlinks (C3) ──
+
+    #[test]
+    fn osc8_scheme_parses_only_well_formed_schemes() {
+        assert_eq!(osc8_scheme("https://a.com").as_deref(), Some("https"));
+        // Case-folded.
+        assert_eq!(osc8_scheme("HTTPS://a.com").as_deref(), Some("https"));
+        assert_eq!(osc8_scheme("mailto:x@y").as_deref(), Some("mailto"));
+        // Scheme chars per RFC 3986 (`+`, `-`, `.`) are allowed in the run.
+        assert_eq!(osc8_scheme("view-source:http://a").as_deref(), Some("view-source"));
+        // A leading space, a control char or a digit-first run is not a scheme.
+        assert_eq!(osc8_scheme(" javascript:alert(1)"), None);
+        assert_eq!(osc8_scheme("java\nscript:alert(1)"), None);
+        assert_eq!(osc8_scheme("1http://a"), None);
+        // No colon at all.
+        assert_eq!(osc8_scheme("example.com/path"), None);
+    }
+
+    #[test]
+    fn osc8_scheme_allowlist_blocks_dangerous_handlers() {
+        for ok in ["http://a", "https://a", "mailto:a@b", "ftp://a/f"] {
+            assert!(osc8_scheme_allowed(ok), "{ok} should be allowed");
+        }
+        for bad in [
+            "javascript:alert(1)",
+            "file:///etc/passwd",
+            "vscode://x",
+            "ssh://host",          // deliberately not allowed yet (quick-connect follow-up)
+            " https://spoof",      // leading space defeats the scheme parse
+            "data:text/html,<x>",
+        ] {
+            assert!(!osc8_scheme_allowed(bad), "{bad} should be blocked");
+        }
+    }
+
+    /// Build a term, feed OSC 8 escapes, and return its grid for the run
+    /// queries. `TerminalBackend` owns the alacritty `Term` the widget reads.
+    fn osc8_term(bytes: &[u8]) -> crate::backend::TerminalBackend {
+        let mut backend = crate::backend::TerminalBackend::new(80, 4);
+        backend.process(bytes);
+        backend
+    }
+
+    #[test]
+    fn osc8_run_covers_the_whole_label() {
+        // `\e]8;;URI\e\\LABEL\e]8;;\e\\` — the label is 10 cells ("click here").
+        let b = osc8_term(b"\x1b]8;;https://example.com\x1b\\click here\x1b]8;;\x1b\\");
+        let hit = osc8_link_at_cell(&b.term, 0, 3).expect("cell inside the label is a link");
+        assert_eq!(hit, ("https://example.com".to_string(), 0, 9));
+        // A cell past the label carries no link.
+        assert!(osc8_link_at_cell(&b.term, 0, 20).is_none());
+    }
+
+    #[test]
+    fn osc8_adjacent_distinct_links_do_not_merge() {
+        // Two back-to-back links with different ids AND uris must stay
+        // separate runs, never a single run spanning both.
+        let b = osc8_term(
+            b"\x1b]8;id=1;https://a.com\x1b\\AAA\x1b]8;;\x1b\\\x1b]8;id=2;https://b.com\x1b\\BBB\x1b]8;;\x1b\\",
+        );
+        let first = osc8_link_at_cell(&b.term, 0, 1).expect("first link");
+        assert_eq!(first, ("https://a.com".to_string(), 0, 2));
+        let second = osc8_link_at_cell(&b.term, 0, 4).expect("second link");
+        assert_eq!(second, ("https://b.com".to_string(), 3, 5));
+    }
+
+    #[test]
+    fn osc8_link_at_cell_ignores_plain_text() {
+        // Bare text (no OSC 8) has no hyperlink attribute, even when it looks
+        // like a URL, that path is the scraped `url_at_cell`, not this one.
+        let b = osc8_term(b"visit https://plain.example.com now");
+        assert!(osc8_link_at_cell(&b.term, 0, 10).is_none());
     }
 }

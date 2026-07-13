@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "关闭 (Esc)",
         "broadcast_input" => "广播",
         "broadcast_pane_mute" => "静音此窗格（停止接收）",
+        "link_target_blocked" => "不允许的链接类型：{scheme}",
         "broadcast_pane_unmute" => "取消静音此窗格",
         "broadcast_paste_notice" => "此次粘贴将发送到 {count} 个窗格。",
         "broadcast_single_pane_hint" => "广播已启用，但在您拆分此标签页之前不会执行任何操作。",

@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "סגירה (Esc)",
         "broadcast_input" => "שידור",
         "broadcast_pane_mute" => "השתקת חלונית זו (הפסקת קבלה)",
+        "link_target_blocked" => "סוג קישור לא מותר: {scheme}",
         "broadcast_pane_unmute" => "ביטול השתקת חלונית זו",
         "broadcast_paste_notice" => "הדבקה זו תישלח אל {count} חלוניות.",
         "broadcast_single_pane_hint" => "השידור פעיל, אך אינו עושה דבר עד שתפצל לשונית זו.",

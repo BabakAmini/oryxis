@@ -361,6 +361,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Fechar (Esc)",
         "broadcast_input" => "Transmitir",
         "broadcast_pane_mute" => "Silenciar este painel (parar de receber)",
+        "link_target_blocked" => "Tipo de link não permitido: {scheme}",
         "broadcast_pane_unmute" => "Reativar este painel",
         "broadcast_paste_notice" => "Esta colagem vai para {count} painéis.",
         "broadcast_single_pane_hint" => "A transmissão está armada, mas não faz nada até você dividir esta aba.",

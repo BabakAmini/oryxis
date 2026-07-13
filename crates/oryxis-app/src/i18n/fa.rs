@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "بستن (Esc)",
         "broadcast_input" => "پخش",
         "broadcast_pane_mute" => "بی‌صدا کردن این قاب (توقف دریافت)",
+        "link_target_blocked" => "نوع پیوند مجاز نیست: {scheme}",
         "broadcast_pane_unmute" => "باصدا کردن این قاب",
         "broadcast_paste_notice" => "این چسباندن به {count} قاب ارسال می‌شود.",
         "broadcast_single_pane_hint" => "پخش فعال است، اما تا زمانی که این زبانه را تقسیم نکنید کاری انجام نمی‌دهد.",

@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "बंद करें (Esc)",
         "broadcast_input" => "प्रसारण",
         "broadcast_pane_mute" => "इस पैनल को म्यूट करें (प्राप्त करना बंद करें)",
+        "link_target_blocked" => "लिंक प्रकार की अनुमति नहीं है: {scheme}",
         "broadcast_pane_unmute" => "इस पैनल को अनम्यूट करें",
         "broadcast_paste_notice" => "यह पेस्ट {count} पैनलों में जाएगा।",
         "broadcast_single_pane_hint" => "प्रसारण सक्रिय है, लेकिन जब तक आप इस टैब को विभाजित नहीं करते, यह कुछ नहीं करता।",

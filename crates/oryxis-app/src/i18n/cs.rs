@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Zavřít (Esc)",
         "broadcast_input" => "Vysílat",
         "broadcast_pane_mute" => "Ztlumit tento panel (zastavit příjem)",
+        "link_target_blocked" => "Nepovolený typ odkazu: {scheme}",
         "broadcast_pane_unmute" => "Zrušit ztlumení tohoto panelu",
         "broadcast_paste_notice" => "Toto vložení přejde do {count} panelů.",
         "broadcast_single_pane_hint" => "Vysílání je připraveno, ale nic neudělá, dokud tuto kartu nerozdělíte.",

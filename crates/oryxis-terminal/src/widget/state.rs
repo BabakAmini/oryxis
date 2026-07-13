@@ -1,5 +1,19 @@
 use super::*;
 
+/// The OSC 8 hyperlink the pointer is currently over, surfaced to the app so
+/// it can render a target-reveal chip (anti-spoofing: the visible label of an
+/// OSC 8 link need not match its target). `allowed` is the scheme-allowlist
+/// verdict (see `highlight::osc8_scheme_allowed`): when `false` the app shows
+/// a "link type not allowed" chip instead of the target, and the widget
+/// suppresses the pointer / underline / open affordance entirely. Written by
+/// the widget under the render lock at hover time; read by the app in `view()`
+/// via a non-blocking `try_lock`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HoveredLink {
+    pub target: String,
+    pub allowed: bool,
+}
+
 pub struct TerminalState {
     pub backend: TerminalBackend,
     pub pty: Option<PtyHandle>,
@@ -26,6 +40,10 @@ pub struct TerminalState {
     /// (C1: center the active search match). `Cell` so the immutable
     /// draw pass can consume it, mirroring `reset_scroll_on_output`.
     pub pending_scroll: std::cell::Cell<Option<i32>>,
+    /// The OSC 8 hyperlink under the pointer (C3), for the app's reveal
+    /// chip. `None` when the pointer is over no explicit link. Updated by
+    /// the widget's hover handler under the render lock.
+    pub hovered_link: Option<HoveredLink>,
 }
 
 impl TerminalState {
@@ -39,7 +57,7 @@ impl TerminalState {
         let (pty, rx) =
             PtyHandle::spawn_command(cols, rows, None, &[], cwd, &backend.event_proxy)?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))
     }
 
     /// Like `new` but spawns an explicit program (e.g. PowerShell or
@@ -58,7 +76,7 @@ impl TerminalState {
             cols, rows, Some(program), args, cwd, &backend.event_proxy,
         )?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))
     }
 
     pub fn new_no_pty(
@@ -67,7 +85,7 @@ impl TerminalState {
     ) -> TerminalResult<Self> {
         let backend = TerminalBackend::new(cols, rows);
         let palette = TerminalPalette::default();
-        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None) })
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None })
     }
 
     /// Wire a remote resize sender, called from the app once an SSH

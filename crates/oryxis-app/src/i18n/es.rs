@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Cerrar (Esc)",
         "broadcast_input" => "Difundir",
         "broadcast_pane_mute" => "Silenciar este panel (dejar de recibir)",
+        "link_target_blocked" => "Tipo de enlace no permitido: {scheme}",
         "broadcast_pane_unmute" => "Reactivar este panel",
         "broadcast_paste_notice" => "Este pegado va a {count} paneles.",
         "broadcast_single_pane_hint" => "La difusión está activada, pero no hace nada hasta que dividas esta pestaña.",

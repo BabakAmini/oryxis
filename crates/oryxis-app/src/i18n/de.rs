@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Schließen (Esc)",
         "broadcast_input" => "Rundsenden",
         "broadcast_pane_mute" => "Diesen Bereich stummschalten (Empfang stoppen)",
+        "link_target_blocked" => "Linktyp nicht erlaubt: {scheme}",
         "broadcast_pane_unmute" => "Stummschaltung dieses Bereichs aufheben",
         "broadcast_paste_notice" => "Dieser Einfügevorgang geht an {count} Bereiche.",
         "broadcast_single_pane_hint" => "Rundsenden ist aktiviert, bewirkt aber nichts, bis du diesen Tab teilst.",

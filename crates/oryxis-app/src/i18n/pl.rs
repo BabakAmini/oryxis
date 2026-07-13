@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Zamknij (Esc)",
         "broadcast_input" => "Rozgłaszaj",
         "broadcast_pane_mute" => "Wycisz ten panel (zatrzymaj odbieranie)",
+        "link_target_blocked" => "Niedozwolony typ łącza: {scheme}",
         "broadcast_pane_unmute" => "Wyłącz wyciszenie tego panelu",
         "broadcast_paste_notice" => "To wklejenie trafi do {count} paneli.",
         "broadcast_single_pane_hint" => "Rozgłaszanie jest włączone, ale nic nie robi, dopóki nie podzielisz tej karty.",

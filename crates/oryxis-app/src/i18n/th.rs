@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "ปิด (Esc)",
         "broadcast_input" => "กระจายสัญญาณ",
         "broadcast_pane_mute" => "ปิดรับแผงนี้ (หยุดรับ)",
+        "link_target_blocked" => "ไม่อนุญาตลิงก์ประเภทนี้: {scheme}",
         "broadcast_pane_unmute" => "เปิดรับแผงนี้",
         "broadcast_paste_notice" => "การวางนี้จะส่งไปยัง {count} แผง",
         "broadcast_single_pane_hint" => "การกระจายสัญญาณเปิดใช้งานอยู่ แต่จะไม่ทำอะไรจนกว่าคุณจะแบ่งแท็บนี้",

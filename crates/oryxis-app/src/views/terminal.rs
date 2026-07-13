@@ -17,6 +17,24 @@ use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
 
+/// Middle-truncate a string to at most `max` characters, keeping both ends so
+/// a long URL's scheme + host and its tail both stay legible
+/// (`https://a.example.com/…/tail`). Char-based, so it never splits a UTF-8
+/// codepoint. Returns the input untouched when it already fits.
+fn truncate_middle(s: &str, max: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max {
+        return s.to_string();
+    }
+    let keep = max.saturating_sub(1); // one char spent on the ellipsis
+    let head = keep.div_ceil(2);
+    let tail = keep - head;
+    let mut out: String = chars[..head].iter().collect();
+    out.push('\u{2026}');
+    out.extend(&chars[chars.len() - tail..]);
+    out
+}
+
 impl Oryxis {
     pub(crate) fn view_terminal(&self) -> Element<'_, Message> {
         // Hybrid tab in Files mode: the tab's whole content area is the
@@ -380,18 +398,90 @@ impl Oryxis {
         } else {
             None
         };
-        match overlay {
-            Some(top) => {
-                let corner = container(top)
+        // Bottom-leading link-reveal chip (C3): the OSC 8 target under the
+        // pointer, exposed before Ctrl+click so a spoofed label (target !=
+        // visible text) can't phish the click. Read non-blocking, a PTY
+        // output burst holds this same lock, and a blocking read would hitch
+        // the paint for every pane every frame; a skipped frame is invisible.
+        let link_chip: Option<Element<'a, Message>> = pane
+            .terminal
+            .try_lock()
+            .ok()
+            .and_then(|s| s.hovered_link.clone())
+            .map(|link| self.link_reveal_chip(&pane.label, link));
+        if overlay.is_none() && link_chip.is_none() {
+            return host;
+        }
+        let mut stack = iced::widget::Stack::new().push(host);
+        if let Some(top) = overlay {
+            stack = stack.push(
+                container(top)
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .align_x(iced::alignment::Horizontal::Right)
                     .align_y(iced::alignment::Vertical::Top)
-                    .padding(Padding::from([6.0, 10.0]));
-                iced::widget::Stack::new().push(host).push(corner).into()
-            }
-            None => host,
+                    .padding(Padding::from([6.0, 10.0])),
+            );
         }
+        if let Some(chip) = link_chip {
+            stack = stack.push(
+                container(chip)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_x(crate::widgets::dir_align_x())
+                    .align_y(iced::alignment::Vertical::Bottom)
+                    .padding(Padding::from([6.0, 10.0])),
+            );
+        }
+        stack.into()
+    }
+
+    /// Bottom-leading reveal chip (C3) for the OSC 8 hyperlink under the
+    /// pointer. An OSC 8 link's visible label need not match its target, so
+    /// the chip exposes the actual destination before the user Ctrl+clicks
+    /// (browser status-bar convention). A blocked-scheme link shows a
+    /// "link type not allowed" notice instead of the target, matching the
+    /// widget's suppressed pointer / underline. Under Privacy Mode the target
+    /// is redacted like session logs are, since a URI can embed `user@host`
+    /// or an IP. Display-only (no button), so it stays click-through over the
+    /// canvas.
+    fn link_reveal_chip<'a>(
+        &self,
+        pane_label: &str,
+        link: oryxis_terminal::HoveredLink,
+    ) -> Element<'a, Message> {
+        let colors = OryxisColors::t();
+        let (label, fg) = if link.allowed {
+            let shown = if self.privacy_active_for_label(pane_label) {
+                crate::widgets::redact_for_display(&link.target, &self.privacy_terms())
+            } else {
+                link.target.clone()
+            };
+            (truncate_middle(&shown, 80), colors.text_primary)
+        } else {
+            // Attacker-controlled scheme, shown as-is but capped so a hostile
+            // server can't blow up the chip; the target itself is withheld.
+            let scheme: String =
+                link.target.split(':').next().unwrap_or("").chars().take(16).collect();
+            (t("link_target_blocked").replace("{scheme}", &scheme), colors.warning)
+        };
+        container(
+            text(label)
+                .size(12)
+                .color(fg)
+                .align_x(iced::alignment::Horizontal::Left),
+        )
+        .padding(Padding::from([4.0, 8.0]))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(colors.bg_surface)),
+            border: Border {
+                radius: Radius::from(6.0),
+                width: 1.0,
+                color: colors.border,
+            },
+            ..Default::default()
+        })
+        .into()
     }
 
     /// Broadcast opt-out chip (C2): a small button in the pane's top-right

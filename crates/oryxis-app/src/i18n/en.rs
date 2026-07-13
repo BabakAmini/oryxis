@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "terminal_search_close" => "Close (Esc)",
         "broadcast_input" => "Broadcast",
         "broadcast_pane_mute" => "Mute this pane (stop receiving)",
+        "link_target_blocked" => "Link type not allowed: {scheme}",
         "broadcast_pane_unmute" => "Unmute this pane",
         "broadcast_paste_notice" => "This paste goes to {count} panes.",
         "broadcast_single_pane_hint" => "Broadcast is armed, but it does nothing until you split this tab.",

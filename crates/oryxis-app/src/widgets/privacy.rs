@@ -257,6 +257,21 @@ mod tests {
     }
 
     #[test]
+    fn redacts_credentials_embedded_in_a_link_target() {
+        // The C3 reveal chip runs OSC 8 targets through this masker before
+        // display: a URI can embed `user@host` or an IP that Privacy Mode
+        // must hide just like the live terminal cells do.
+        assert_eq!(
+            redact_for_display("https://deploy@web.example.com/path", &[]),
+            format!("https://{}/path", mask_blocks("deploy@web.example.com")),
+        );
+        assert_eq!(
+            redact_for_display("http://192.168.0.4:8080/admin", &[]),
+            format!("http://{}:8080/admin", mask_blocks("192.168.0.4")),
+        );
+    }
+
+    #[test]
     fn redacts_windows_home_dir_username_only() {
         assert_eq!(
             redact_for_display(r"PS C:\Users\koobs> winget upgrade", &[]),

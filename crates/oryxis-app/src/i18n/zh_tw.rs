@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "關閉 (Esc)",
         "broadcast_input" => "廣播",
         "broadcast_pane_mute" => "靜音此窗格（停止接收）",
+        "link_target_blocked" => "不允許的連結類型：{scheme}",
         "broadcast_pane_unmute" => "取消靜音此窗格",
         "broadcast_paste_notice" => "此次貼上將傳送到 {count} 個窗格。",
         "broadcast_single_pane_hint" => "廣播已啟用，但在您分割此分頁之前不會執行任何動作。",

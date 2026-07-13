@@ -386,6 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Κλείσιμο (Esc)",
         "broadcast_input" => "Μετάδοση",
         "broadcast_pane_mute" => "Σίγαση αυτού του τμήματος (διακοπή λήψης)",
+        "link_target_blocked" => "Μη επιτρεπτός τύπος συνδέσμου: {scheme}",
         "broadcast_pane_unmute" => "Κατάργηση σίγασης αυτού του τμήματος",
         "broadcast_paste_notice" => "Αυτή η επικόλληση θα σταλεί σε {count} τμήματα.",
         "broadcast_single_pane_hint" => "Η μετάδοση είναι ενεργοποιημένη, αλλά δεν κάνει τίποτα μέχρι να χωρίσετε αυτήν την καρτέλα.",

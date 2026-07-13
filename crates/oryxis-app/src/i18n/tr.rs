@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Kapat (Esc)",
         "broadcast_input" => "Yayınla",
         "broadcast_pane_mute" => "Bu bölmeyi sustur (almayı durdur)",
+        "link_target_blocked" => "İzin verilmeyen bağlantı türü: {scheme}",
         "broadcast_pane_unmute" => "Bu bölmenin susturmasını kaldır",
         "broadcast_paste_notice" => "Bu yapıştırma {count} bölmeye gider.",
         "broadcast_single_pane_hint" => "Yayın etkin, ancak bu sekmeyi bölene kadar hiçbir şey yapmaz.",

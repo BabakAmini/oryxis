@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "닫기 (Esc)",
         "broadcast_input" => "브로드캐스트",
         "broadcast_pane_mute" => "이 패널 음소거 (수신 중지)",
+        "link_target_blocked" => "허용되지 않는 링크 유형: {scheme}",
         "broadcast_pane_unmute" => "이 패널 음소거 해제",
         "broadcast_paste_notice" => "이 붙여넣기는 {count}개의 패널로 전송됩니다.",
         "broadcast_single_pane_hint" => "브로드캐스트가 활성화되었지만, 이 탭을 분할하기 전에는 아무 동작도 하지 않습니다.",

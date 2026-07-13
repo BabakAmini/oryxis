@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Fermer (Esc)",
         "broadcast_input" => "Diffuser",
         "broadcast_pane_mute" => "Couper ce volet (ne plus recevoir)",
+        "link_target_blocked" => "Type de lien non autorisé : {scheme}",
         "broadcast_pane_unmute" => "Réactiver ce volet",
         "broadcast_paste_notice" => "Ce collage sera envoyé à {count} volets.",
         "broadcast_single_pane_hint" => "La diffusion est activée, mais elle ne fait rien tant que vous n'avez pas divisé cet onglet.",

@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "إغلاق (Esc)",
         "broadcast_input" => "بث",
         "broadcast_pane_mute" => "كتم هذا اللوح (إيقاف الاستقبال)",
+        "link_target_blocked" => "نوع الرابط غير مسموح: {scheme}",
         "broadcast_pane_unmute" => "إلغاء كتم هذا اللوح",
         "broadcast_paste_notice" => "سيتم لصق هذا في {count} من الألواح.",
         "broadcast_single_pane_hint" => "البث مُفعّل، لكنه لا يفعل شيئًا حتى تقسم علامة التبويب هذه.",

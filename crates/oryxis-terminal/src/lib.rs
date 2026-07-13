@@ -12,7 +12,7 @@ pub use osc::{PositionedShellMark, Progress, ShellMark};
 pub use colors::{TerminalPalette, TerminalTheme};
 pub use widget::{
     ime_caret_rect, ipv4_is_private_or_loopback, looks_like_ipv6, quad_dot_is_version_like,
-    wrap_paste, NetHud, RightClickAction, TerminalState,
+    wrap_paste, HoveredLink, NetHud, RightClickAction, TerminalState,
     TerminalView,
 };
 pub use pty::PtyHandle;

@@ -367,6 +367,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Закрити (Esc)",
         "broadcast_input" => "Трансляція",
         "broadcast_pane_mute" => "Вимкнути цю панель (припинити отримання)",
+        "link_target_blocked" => "Недопустимий тип посилання: {scheme}",
         "broadcast_pane_unmute" => "Увімкнути цю панель",
         "broadcast_paste_notice" => "Ця вставка надійде до {count} панелей.",
         "broadcast_single_pane_hint" => "Трансляцію ввімкнено, але вона нічого не робить, доки ви не розділите цю вкладку.",

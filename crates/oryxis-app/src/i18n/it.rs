@@ -366,6 +366,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_search_close" => "Chiudi (Esc)",
         "broadcast_input" => "Trasmetti",
         "broadcast_pane_mute" => "Disattiva questo riquadro (interrompi ricezione)",
+        "link_target_blocked" => "Tipo di link non consentito: {scheme}",
         "broadcast_pane_unmute" => "Riattiva questo riquadro",
         "broadcast_paste_notice" => "Questo incolla andrà a {count} riquadri.",
         "broadcast_single_pane_hint" => "La trasmissione è attiva, ma non fa nulla finché non dividi questa scheda.",

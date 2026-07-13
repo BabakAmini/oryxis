@@ -38,7 +38,7 @@ mod state;
 
 pub use clipboard::wrap_paste;
 pub use selection::Selection;
-pub use state::TerminalState;
+pub use state::{HoveredLink, TerminalState};
 
 /// Callback for a terminal context-menu request: `(x, y, selection)` ->
 /// app message, where `selection` is the live selection's text (`None`
@@ -1270,20 +1270,29 @@ where
                     // would lose the selection start.
                     if widget_state.modifiers.control()
                         && let Ok(state) = self.state.lock()
-                        // An explicit OSC 8 hyperlink wins over a scraped URL,
-                        // its target URI can differ from the visible label.
-                        && let Some(url) = osc8_link_at_cell(&state.backend.term, line, col)
-                            .map(|(uri, _, _)| uri)
-                            .or_else(|| url_at_cell(&state.backend.term, line, col))
                     {
+                        // Discriminator (shared by the hover + hint paths): a
+                        // cell carrying an OSC 8 attribute follows OSC 8 rules
+                        // ONLY, it opens iff its scheme is allowlisted and it
+                        // NEVER falls back to a scraped URL. Otherwise a spoof
+                        // whose visible label reads `https://real.com` but
+                        // whose OSC 8 target is `javascript:...` would still
+                        // open through the scraped arm. Only a cell with no
+                        // explicit link is scraped for a literal `http(s)://`.
+                        let target = match osc8_link_at_cell(&state.backend.term, line, col) {
+                            Some((uri, _, _)) => osc8_scheme_allowed(&uri).then_some(uri),
+                            None => url_at_cell(&state.backend.term, line, col),
+                        };
                         drop(state);
-                        open_url(&url);
-                        // Tell the app the gesture landed so the
-                        // one-time hover hint can retire itself.
-                        if let Some(msg) = self.on_link_opened.clone() {
-                            return Some(CanvasAction::publish(msg).and_capture());
+                        if let Some(url) = target {
+                            open_url(&url);
+                            // Tell the app the gesture landed so the
+                            // one-time hover hint can retire itself.
+                            if let Some(msg) = self.on_link_opened.clone() {
+                                return Some(CanvasAction::publish(msg).and_capture());
+                            }
+                            return Some(CanvasAction::capture());
                         }
-                        return Some(CanvasAction::capture());
                     }
                     // Shift+Click extends the current selection from its
                     // existing anchor instead of starting a new one (xterm
@@ -1518,19 +1527,30 @@ where
                             .hovered_url
                             .as_ref()
                             .map(|(u, _)| (u.clone(), pos))
-                    } else if let Ok(state) = self.state.lock() {
+                    } else if let Ok(mut state) = self.state.lock() {
                         let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                        // Explicit OSC 8 link first (label may not look like a
-                        // URL); capture its run for the underline. Else fall
-                        // back to a scraped URL.
-                        if let Some((uri, sc, ec)) =
-                            osc8_link_at_cell(&state.backend.term, line, col)
-                        {
-                            widget_state.hovered_osc8 = Some((vrow, sc, ec));
-                            Some((uri, pos))
-                        } else {
-                            widget_state.hovered_osc8 = None;
-                            url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
+                        // OSC 8 discriminator (same rule as the open + hint
+                        // paths): a cell with an explicit link never falls back
+                        // to a scraped URL. A disallowed scheme suppresses the
+                        // pointer + underline but still records the blocked
+                        // target so the app can show a "not allowed" chip; an
+                        // allowed one drives the underline + the reveal chip.
+                        match osc8_link_at_cell(&state.backend.term, line, col) {
+                            Some((uri, sc, ec)) => {
+                                let allowed = osc8_scheme_allowed(&uri);
+                                widget_state.hovered_osc8 =
+                                    allowed.then_some((vrow, sc, ec));
+                                state.hovered_link = Some(HoveredLink {
+                                    target: uri.clone(),
+                                    allowed,
+                                });
+                                allowed.then_some((uri, pos))
+                            }
+                            None => {
+                                widget_state.hovered_osc8 = None;
+                                state.hovered_link = None;
+                                url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
+                            }
                         }
                     } else {
                         None
@@ -1541,6 +1561,10 @@ where
                     cell_changed = widget_state.hovered_cell.is_some();
                     widget_state.hovered_cell = None;
                     widget_state.hovered_osc8 = None;
+                    // Retract any link-reveal chip (allowed or blocked).
+                    if let Ok(mut state) = self.state.lock() {
+                        state.hovered_link = None;
+                    }
                     None
                 };
                 let url_changed = match (&widget_state.hovered_url, &new_hover_url) {
@@ -1644,8 +1668,13 @@ where
                     let (col, vrow) = self.pixel_to_cell(pos);
                     let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
                     let on_url = self.state.lock().is_ok_and(|state| {
-                        osc8_link_at_cell(&state.backend.term, line, col).is_some()
-                            || url_at_cell(&state.backend.term, line, col).is_some()
+                        // Same OSC 8 discriminator: a blocked-scheme link is
+                        // not openable, so it must not draw the "hold Ctrl to
+                        // click" hint (the affordance would lie).
+                        match osc8_link_at_cell(&state.backend.term, line, col) {
+                            Some((uri, _, _)) => osc8_scheme_allowed(&uri),
+                            None => url_at_cell(&state.backend.term, line, col).is_some(),
+                        }
                     });
                     if on_url {
                         return Some(CanvasAction::publish(cb()).and_capture());
