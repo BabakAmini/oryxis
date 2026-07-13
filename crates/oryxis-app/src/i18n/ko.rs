@@ -838,6 +838,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "아직 로그 파일이 없습니다",
         "env_info" => "환경 정보",
         "env_info_desc" => "GitHub에 문제를 보고할 때 포함할 시스템 정보입니다.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "키 파생: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "키 파생: Argon2id(기본 매개변수)",
+        "kdf_calibrating" => "암호화 보정 중...",
         "copy_env_info" => "환경 정보 복사",
         "copy_logs" => "로그 복사",
         "search" => "검색",

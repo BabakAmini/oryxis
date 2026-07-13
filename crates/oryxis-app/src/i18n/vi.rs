@@ -838,6 +838,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Chưa có tệp log",
         "env_info" => "Thông tin môi trường",
         "env_info_desc" => "Chi tiết hệ thống để đính kèm khi báo cáo sự cố trên GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Dẫn xuất khóa: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Dẫn xuất khóa: Argon2id (tham số mặc định)",
+        "kdf_calibrating" => "Đang hiệu chỉnh mã hóa...",
         "copy_env_info" => "Sao chép thông tin môi trường",
         "copy_logs" => "Chép nhật ký",
         "search" => "Tìm kiếm",

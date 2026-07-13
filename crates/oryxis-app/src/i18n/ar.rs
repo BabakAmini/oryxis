@@ -856,6 +856,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "لا يوجد ملف سجل بعد",
         "env_info" => "معلومات البيئة",
         "env_info_desc" => "تفاصيل النظام لإدراجها عند الإبلاغ عن مشكلة على GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "اشتقاق المفتاح: Argon2id، {mib} MiB، t={t}",
+        "kdf_params_default" => "اشتقاق المفتاح: Argon2id (المعلمات الافتراضية)",
+        "kdf_calibrating" => "جارٍ معايرة التشفير...",
         "copy_env_info" => "نسخ معلومات البيئة",
         "copy_logs" => "نسخ السجلات",
         "search" => "بحث",

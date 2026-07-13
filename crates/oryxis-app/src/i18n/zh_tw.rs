@@ -686,6 +686,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "尚無記錄檔",
         "env_info" => "環境資訊",
         "env_info_desc" => "在 GitHub 上回報問題時附上的系統詳細資訊。",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "金鑰衍生：Argon2id，{mib} MiB，t={t}",
+        "kdf_params_default" => "金鑰衍生：Argon2id（預設參數）",
+        "kdf_calibrating" => "正在校準加密...",
         "copy_env_info" => "複製環境資訊",
         "copy_logs" => "複製記錄",
         "search" => "搜尋",

@@ -1811,6 +1811,9 @@ pub enum Message {
     VaultCurrentPasswordChanged(String),
     /// Verify the current password and rotate to the new one.
     ConfirmChangeVaultPassword,
+    /// E1: Argon2id calibration finished off-thread; apply the pending
+    /// set / change-password operation with the tuned parameters.
+    VaultKdfCalibrated(crate::state::VaultPwOp, oryxis_vault::KdfParams),
 
     // AI chat sidebar
     ToggleChatSidebar,

@@ -677,6 +677,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Noch keine Protokolldatei",
         "env_info" => "Umgebungsinformationen",
         "env_info_desc" => "Systemdetails zum Anhängen, wenn Sie ein Problem auf GitHub melden.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Schlüsselableitung: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Schlüsselableitung: Argon2id (Standardparameter)",
+        "kdf_calibrating" => "Verschlüsselung wird kalibriert...",
         "copy_env_info" => "Umgebungsinfo kopieren",
         "copy_logs" => "Protokolle kopieren",
         "search" => "Suchen",

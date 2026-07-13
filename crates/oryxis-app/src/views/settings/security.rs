@@ -90,11 +90,20 @@ impl Oryxis {
         } else {
             Space::new().height(0).into()
         };
-        let update_btn = styled_button(
-            crate::i18n::t("update_password"),
-            Message::ConfirmChangeVaultPassword,
-            OryxisColors::t().accent,
-        );
+        let update_btn = if self.vault_ui.calibrating {
+            // E1: KDF calibration in flight; disable + show progress.
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("kdf_calibrating"),
+                None,
+                OryxisColors::t().accent,
+            )
+        } else {
+            styled_button(
+                crate::i18n::t("update_password"),
+                Message::ConfirmChangeVaultPassword,
+                OryxisColors::t().accent,
+            )
+        };
         let cancel_btn = styled_button(
             crate::i18n::t("cancel"),
             Message::CancelChangeVaultPassword,
@@ -178,7 +187,11 @@ impl Oryxis {
                 10.0,
             ))
             .width(300);
-            let btn = styled_button(crate::i18n::t("set_password"), Message::SetVaultPassword, OryxisColors::t().accent);
+            let btn = if self.vault_ui.calibrating {
+                crate::widgets::styled_button_opt(crate::i18n::t("kdf_calibrating"), None, OryxisColors::t().accent)
+            } else {
+                styled_button(crate::i18n::t("set_password"), Message::SetVaultPassword, OryxisColors::t().accent)
+            };
             // Offer the biometric convenience layer at password-creation
             // time (the market-standard moment: 1Password / Bitwarden ask
             // right after the master password is set), pre-checked when

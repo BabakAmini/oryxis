@@ -683,6 +683,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Aún no hay archivo de registro",
         "env_info" => "Información del entorno",
         "env_info_desc" => "Detalles del sistema para incluir al informar de un problema en GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Derivación de clave: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Derivación de clave: Argon2id (parámetros predeterminados)",
+        "kdf_calibrating" => "Calibrando cifrado...",
         "copy_env_info" => "Copiar información del entorno",
         "copy_logs" => "Copiar registros",
         "search" => "Buscar",

@@ -155,13 +155,134 @@ const SALT_LEN: usize = 32;
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
 
-/// Derive a 256-bit key from a password using Argon2id.
+/// Derive a 256-bit key from a password using Argon2id with the crate's
+/// DEFAULT parameters. Frozen forever: this backs [`derive_sync_secret`]
+/// (whose key must be identical across devices and app versions) and the
+/// [`encrypt`] / [`decrypt`] blob format (whose parameters are implicit
+/// in the wire layout used by portable export and legacy per-field
+/// blobs). Tuning happens only in [`VaultStore::derive_vault_key`] via
+/// [`derive_key_with_params`]; never route those two consumers here with
+/// non-default params or cross-version compatibility breaks.
 fn derive_key(password: &[u8], salt: &[u8]) -> Result<[u8; KEY_LEN], VaultError> {
     let mut key = [0u8; KEY_LEN];
     Argon2::default()
         .hash_password_into(password, salt, &mut key)
         .map_err(|e| VaultError::Crypto(format!("Argon2 error: {}", e)))?;
     Ok(key)
+}
+
+/// Auto-tuned Argon2id parameters for the vault master-key KDF (E1).
+/// Stored as JSON in `vault_meta` under `kdf_params`, alongside
+/// `kdf_salt`. Absent = the implicit crate defaults (every pre-E1 vault),
+/// so a missing row is never an error, just "untuned".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct KdfParams {
+    /// Memory cost in KiB.
+    pub m_kib: u32,
+    /// Time cost (iterations).
+    pub t: u32,
+    /// Parallelism (lanes). Always 1 here: reproducible timing and no
+    /// thread-pool coupling.
+    pub p: u32,
+}
+
+impl KdfParams {
+    /// The argon2 0.5 crate defaults (Argon2id v0x13, 19 MiB, t=2, p=1).
+    /// The floor: a tuned vault is never weaker than an untuned one.
+    pub const DEFAULT: KdfParams = KdfParams { m_kib: 19456, t: 2, p: 1 };
+
+    fn to_argon2(self) -> Result<argon2::Params, VaultError> {
+        argon2::Params::new(self.m_kib, self.t, self.p, Some(KEY_LEN))
+            .map_err(|e| VaultError::Crypto(format!("Argon2 params: {}", e)))
+    }
+}
+
+/// Derive a 256-bit key with EXPLICIT Argon2id parameters (E1). Used
+/// only for the vault master key, whose parameters travel inside the
+/// vault file (`kdf_params`), so a tuned vault unlocks anywhere.
+fn derive_key_with_params(
+    password: &[u8],
+    salt: &[u8],
+    params: KdfParams,
+) -> Result<[u8; KEY_LEN], VaultError> {
+    let a2 = Argon2::new(
+        argon2::Algorithm::Argon2id,
+        argon2::Version::V0x13,
+        params.to_argon2()?,
+    );
+    let mut key = [0u8; KEY_LEN];
+    a2.hash_password_into(password, salt, &mut key)
+        .map_err(|e| VaultError::Crypto(format!("Argon2 error: {}", e)))?;
+    Ok(key)
+}
+
+/// Calibrate Argon2id to roughly one second on THIS machine (E1). Pure
+/// (no db); runs off the UI thread inside the caller's `Task::perform`.
+///
+/// Strategy: probe the fixed memory steps 64/128/256 MiB at t=1, pick the
+/// largest whose probe stays under ~350 ms, then scale t to hit ~1 s and
+/// confirm once. Floors at [`KdfParams::DEFAULT`] so a tuned vault is
+/// never weaker than the crate default; a low-memory box that can't even
+/// allocate 64 MiB steps straight down to the default profile.
+pub fn calibrate_kdf() -> KdfParams {
+    use std::time::Instant;
+    const TARGET_MS: u128 = 1000;
+    const PROBE_BUDGET_MS: u128 = 350;
+    const MEM_STEPS_KIB: [u32; 3] = [65536, 131072, 262144]; // 64/128/256 MiB
+    let salt = [0u8; SALT_LEN];
+    let pw = b"calibration-probe";
+
+    // Time a single t=1 hash at `m_kib`; None if the allocation fails.
+    let probe = |m_kib: u32| -> Option<u128> {
+        let params = KdfParams { m_kib, t: 1, p: 1 };
+        let start = Instant::now();
+        derive_key_with_params(pw, &salt, params).ok()?;
+        Some(start.elapsed().as_millis())
+    };
+
+    // Largest memory step whose t=1 probe fits the per-probe budget.
+    let mut chosen_m = KdfParams::DEFAULT.m_kib;
+    let mut chosen_probe_ms = 0u128;
+    for &m in &MEM_STEPS_KIB {
+        match probe(m) {
+            Some(ms) if ms <= PROBE_BUDGET_MS => {
+                chosen_m = m;
+                chosen_probe_ms = ms;
+            }
+            // Too slow, or allocation failed: stop climbing.
+            _ => break,
+        }
+    }
+    // If even the smallest step never ran (very low memory), fall back to
+    // the default profile entirely.
+    if chosen_probe_ms == 0 {
+        return KdfParams::DEFAULT;
+    }
+
+    // Scale t so t * probe_ms ~ 1 s, clamped to [2, 8].
+    let t = ((TARGET_MS / chosen_probe_ms.max(1)) as u32).clamp(2, 8);
+    let mut params = KdfParams { m_kib: chosen_m, t, p: 1 };
+
+    // Confirm once; nudge t by one if we missed 1 s by > 40 percent.
+    let start = Instant::now();
+    if derive_key_with_params(pw, &salt, params).is_ok() {
+        let ms = start.elapsed().as_millis();
+        if ms < TARGET_MS * 6 / 10 && params.t < 8 {
+            params.t += 1;
+        } else if ms > TARGET_MS * 14 / 10 && params.t > 2 {
+            params.t -= 1;
+        }
+    }
+
+    // Never weaker than the default.
+    if params.m_kib < KdfParams::DEFAULT.m_kib {
+        params.m_kib = KdfParams::DEFAULT.m_kib;
+    }
+    if params.t < KdfParams::DEFAULT.t {
+        params.t = KdfParams::DEFAULT.t;
+    }
+    params.p = 1;
+    params
 }
 
 /// Application-wide salt for the SFTP-sync group secret. Unlike vault
@@ -407,13 +528,33 @@ impl VaultStore {
         Ok(exists)
     }
 
-    /// Set the master password for the first time.
+    /// Set the master password for the first time with the DEFAULT (fast,
+    /// untuned) KDF parameters. The interactive app never calls this: it
+    /// runs [`calibrate_kdf`] off the UI thread and passes the result to
+    /// [`set_master_password_with_params`] (E1). This convenience keeps
+    /// headless callers, default passwordless vaults and the test suite
+    /// deterministic and cheap (no ~1s calibration per call).
     pub fn set_master_password(&mut self, password: &str) -> Result<(), VaultError> {
+        self.set_master_password_with_params(password, KdfParams::DEFAULT)
+    }
+
+    /// Set the master password for the first time with EXPLICIT KDF
+    /// parameters (E1): the app calibrates off-thread and passes the
+    /// result here, so the UI shows a "calibrating" spinner instead of
+    /// freezing. The params are persisted to `vault_meta` and used for
+    /// this and every future unlock of this vault.
+    pub fn set_master_password_with_params(
+        &mut self,
+        password: &str,
+        params: KdfParams,
+    ) -> Result<(), VaultError> {
         if self.has_master_password()? {
             return Err(VaultError::Crypto(
                 "Master password already set. Use unlock() instead.".into(),
             ));
         }
+        // Persist first so `derive_vault_key` below reads the tuned params.
+        self.write_kdf_params(params)?;
         let pw_bytes = password.as_bytes();
         let key = self.derive_vault_key(pw_bytes)?;
         // Store an encrypted known value so we can verify the password on unlock.
@@ -500,7 +641,9 @@ impl VaultStore {
     }
 
     /// Argon2id over the vault-level salt stored in `vault_meta`
-    /// (`kdf_salt`), created on first use.
+    /// (`kdf_salt`), created on first use. The parameters come from the
+    /// `kdf_params` row (E1 auto-tuning); a missing or unparseable row
+    /// means the crate defaults, so every pre-E1 vault unlocks unchanged.
     fn derive_vault_key(&self, password: &[u8]) -> Result<[u8; KEY_LEN], VaultError> {
         let salt: Option<Vec<u8>> = self
             .db
@@ -522,7 +665,56 @@ impl VaultStore {
                 s.to_vec()
             }
         };
-        derive_key(password, &salt)
+        derive_key_with_params(password, &salt, self.read_kdf_params())
+    }
+
+    /// Read the vault's tuned KDF parameters (E1), or the crate defaults
+    /// when the `kdf_params` row is absent (pre-E1 vaults) or unparseable
+    /// (a corrupt row logs a warning and falls back; the wrong params
+    /// then fail `password_check` loudly as "invalid password" rather
+    /// than silently accepting a wrong key).
+    fn read_kdf_params(&self) -> KdfParams {
+        let json: Option<String> = self
+            .db
+            .query_row(
+                "SELECT value FROM vault_meta WHERE key = 'kdf_params'",
+                [],
+                |row| row.get(0),
+            )
+            .ok();
+        match json.as_deref().map(serde_json::from_str::<KdfParams>) {
+            Some(Ok(p)) => p,
+            Some(Err(e)) => {
+                tracing::warn!("kdf_params unparseable, using defaults: {e}");
+                KdfParams::DEFAULT
+            }
+            None => KdfParams::DEFAULT,
+        }
+    }
+
+    /// Persist the vault's tuned KDF parameters (E1). Participates in the
+    /// caller's transaction when one is open.
+    fn write_kdf_params(&self, params: KdfParams) -> Result<(), VaultError> {
+        let json = serde_json::to_string(&params)
+            .map_err(|e| VaultError::Crypto(format!("kdf_params serialize: {}", e)))?;
+        self.db.execute(
+            "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('kdf_params', ?1)",
+            params![json],
+        )?;
+        Ok(())
+    }
+
+    /// The vault's effective KDF parameters, for the read-only display in
+    /// Settings > Advanced (E1). `None` = untuned (crate defaults).
+    pub fn kdf_params(&self) -> Option<KdfParams> {
+        self.db
+            .query_row(
+                "SELECT value FROM vault_meta WHERE key = 'kdf_params'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()
+            .and_then(|json| serde_json::from_str::<KdfParams>(&json).ok())
     }
 
     /// One-time migration from the legacy per-field-KDF format to the
@@ -672,28 +864,47 @@ impl VaultStore {
         Ok(())
     }
 
-    /// Set a user password on the vault. Re-encrypts all encrypted fields
-    /// from the current master key to the new password.
+    /// Set a user password on the vault with the DEFAULT (fast, untuned)
+    /// KDF parameters. Like [`set_master_password`], the interactive app
+    /// calibrates off-thread and calls [`set_user_password_with_params`]
+    /// instead (a password change is E1's upgrade moment); this stays
+    /// cheap for tests / headless.
     pub fn set_user_password(&mut self, new_password: &str) -> Result<(), VaultError> {
+        self.set_user_password_with_params(new_password, KdfParams::DEFAULT)
+    }
+
+    /// Set a user password with EXPLICIT KDF parameters (E1). Rotates the
+    /// salt + params together, then re-encrypts every field to the new
+    /// key inside one transaction.
+    pub fn set_user_password_with_params(
+        &mut self,
+        new_password: &str,
+        params: KdfParams,
+    ) -> Result<(), VaultError> {
         let old_key = self.require_unlocked()?.to_vec();
-        let new_key = self.rotate_vault_key(new_password)?;
+        let new_key = self.rotate_vault_key(new_password, params)?;
 
         self.change_master_key(&old_key, &new_key, "1")?;
         tracing::info!("Vault user password set");
         Ok(())
     }
 
-    /// Generate a fresh `kdf_salt` and derive the vault key for
-    /// `password` over it. The salt write participates in the caller's
-    /// transaction when one is open.
-    fn rotate_vault_key(&self, password: &str) -> Result<Vec<u8>, VaultError> {
+    /// Generate a fresh `kdf_salt` + write the KDF `params` (E1), then
+    /// derive the vault key for `password` over the new salt. Both writes
+    /// participate in the caller's transaction when one is open.
+    fn rotate_vault_key(
+        &self,
+        password: &str,
+        params: KdfParams,
+    ) -> Result<Vec<u8>, VaultError> {
         let mut salt = [0u8; SALT_LEN];
         OsRng.fill_bytes(&mut salt);
         self.db.execute(
             "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('kdf_salt', ?1)",
             params![salt.to_vec()],
         )?;
-        Ok(derive_key(password.as_bytes(), &salt)?.to_vec())
+        self.write_kdf_params(params)?;
+        Ok(derive_key_with_params(password.as_bytes(), &salt, params)?.to_vec())
     }
 
     /// Shared tail of a master password change: re-encrypt every
@@ -737,7 +948,10 @@ impl VaultStore {
     /// Re-encrypts all encrypted fields from the current key to empty string.
     pub fn remove_user_password(&mut self) -> Result<(), VaultError> {
         let old_key = self.require_unlocked()?.to_vec();
-        let new_key = self.rotate_vault_key("")?;
+        // A passwordless vault derives over the empty string, so there is
+        // no password entropy to protect: reset to the default (untuned)
+        // KDF params rather than calibrating for a moot secret.
+        let new_key = self.rotate_vault_key("", KdfParams::DEFAULT)?;
 
         self.change_master_key(&old_key, &new_key, "0")?;
         tracing::info!("Vault user password removed");

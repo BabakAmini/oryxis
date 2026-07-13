@@ -838,6 +838,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Henüz günlük dosyası yok",
         "env_info" => "Ortam bilgileri",
         "env_info_desc" => "GitHub'da sorun bildirirken eklenecek sistem ayrıntıları.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Anahtar türetme: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Anahtar türetme: Argon2id (varsayılan parametreler)",
+        "kdf_calibrating" => "Şifreleme kalibre ediliyor...",
         "copy_env_info" => "Ortam bilgilerini kopyala",
         "copy_logs" => "Kayıtları kopyala",
         "search" => "Ara",

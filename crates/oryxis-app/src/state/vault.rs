@@ -8,6 +8,22 @@
 
 use super::VaultState;
 
+/// Which set / change-password operation is pending behind an off-thread
+/// Argon2id calibration (E1). Carried through `VaultKdfCalibrated` so the
+/// second phase applies the right vault mutation with the tuned params.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum VaultPwOp {
+    /// First-ever master password (onboarding / Settings set-password
+    /// form): `VaultStore::set_master_password_with_params`.
+    FirstSetup,
+    /// Add a password to a passwordless vault (Settings set-password
+    /// form once a vault exists): `set_user_password_with_params`.
+    SetUser,
+    /// Change an existing master password (current already verified):
+    /// `set_user_password_with_params`.
+    Change,
+}
+
 /// Lock screen + master-password setup + destroy-confirm UI state.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct VaultUi {
@@ -57,4 +73,9 @@ pub(crate) struct VaultUi {
     /// the convenience layer is offered at password-creation time (the
     /// market-standard moment) without another trip to Settings.
     pub(crate) setup_enable_biometric: bool,
+    /// E1: a set / change-password flow is calibrating the Argon2id KDF
+    /// off the UI thread. Drives the "Calibrating encryption..." spinner
+    /// and disables the submit button so the user can't fire it twice
+    /// while the worker runs.
+    pub(crate) calibrating: bool,
 }

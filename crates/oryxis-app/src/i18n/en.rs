@@ -845,6 +845,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "debug_log_missing" => "No log file yet",
         "env_info" => "Environment information",
         "env_info_desc" => "System details to include when reporting an issue on GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Key derivation: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Key derivation: Argon2id (default parameters)",
+        "kdf_calibrating" => "Calibrating encryption...",
         "copy_env_info" => "Copy environment info",
         "copy_logs" => "Copy logs",
         "search" => "Search",

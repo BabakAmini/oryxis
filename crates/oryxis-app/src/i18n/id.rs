@@ -838,6 +838,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Belum ada file log",
         "env_info" => "Informasi lingkungan",
         "env_info_desc" => "Detail sistem untuk disertakan saat melaporkan masalah di GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Derivasi kunci: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Derivasi kunci: Argon2id (parameter bawaan)",
+        "kdf_calibrating" => "Mengalibrasi enkripsi...",
         "copy_env_info" => "Salin info lingkungan",
         "copy_logs" => "Salin log",
         "search" => "Cari",

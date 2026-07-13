@@ -844,6 +844,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Zatím žádný soubor protokolu",
         "env_info" => "Informace o prostředí",
         "env_info_desc" => "Podrobnosti o systému, které přiložte při hlášení problému na GitHubu.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Odvození klíče: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Odvození klíče: Argon2id (výchozí parametry)",
+        "kdf_calibrating" => "Kalibrace šifrování...",
         "copy_env_info" => "Kopírovat informace o prostředí",
         "copy_logs" => "Kopírovat protokoly",
         "search" => "Hledat",

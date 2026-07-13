@@ -844,6 +844,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "אין עדיין קובץ יומן",
         "env_info" => "פרטי סביבה",
         "env_info_desc" => "פרטי מערכת לצירוף בעת דיווח על בעיה ב-GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "גזירת מפתח: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "גזירת מפתח: Argon2id (פרמטרים כברירת מחדל)",
+        "kdf_calibrating" => "מכייל הצפנה...",
         "copy_env_info" => "העתקת פרטי סביבה",
         "copy_logs" => "העתקת יומנים",
         "search" => "חיפוש",

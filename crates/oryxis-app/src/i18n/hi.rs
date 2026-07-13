@@ -844,6 +844,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "अभी कोई लॉग फ़ाइल नहीं",
         "env_info" => "एनवायरनमेंट जानकारी",
         "env_info_desc" => "GitHub पर समस्या रिपोर्ट करते समय शामिल करने के लिए सिस्टम विवरण।",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "कुंजी व्युत्पत्ति: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "कुंजी व्युत्पत्ति: Argon2id (डिफ़ॉल्ट पैरामीटर)",
+        "kdf_calibrating" => "एन्क्रिप्शन कैलिब्रेट हो रहा है...",
         "copy_env_info" => "एनवायरनमेंट जानकारी कॉपी करें",
         "copy_logs" => "लॉग कॉपी करें",
         "search" => "खोजें",

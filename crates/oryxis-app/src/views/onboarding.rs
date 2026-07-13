@@ -235,7 +235,14 @@ impl Oryxis {
             fields,
             bio_opt,
             Space::new().height(14),
-            styled_button(t("create_vault"), Message::VaultSetup, accent),
+            // While the KDF calibrates (E1), disable the button and show
+            // the "calibrating" label so the ~1s wait reads as progress,
+            // not a frozen click.
+            if self.vault_ui.calibrating {
+                crate::widgets::styled_button_opt(t("kdf_calibrating"), None, accent)
+            } else {
+                styled_button(t("create_vault"), Message::VaultSetup, accent)
+            },
             Space::new().height(6),
             onboarding_text_button(t("continue_without_password"), Message::VaultSkipPassword),
             error,

@@ -838,6 +838,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Файлу журналу ще немає",
         "env_info" => "Відомості про середовище",
         "env_info_desc" => "Відомості про систему для додавання при повідомленні про проблему на GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Формування ключа: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Формування ключа: Argon2id (параметри за замовчуванням)",
+        "kdf_calibrating" => "Калібрування шифрування...",
         "copy_env_info" => "Копіювати відомості про середовище",
         "copy_logs" => "Копіювати журнали",
         "search" => "Пошук",

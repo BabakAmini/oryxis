@@ -844,6 +844,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "Δεν υπάρχει ακόμη αρχείο καταγραφής",
         "env_info" => "Πληροφορίες περιβάλλοντος",
         "env_info_desc" => "Στοιχεία συστήματος που συμπεριλαμβάνετε όταν αναφέρετε πρόβλημα στο GitHub.",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "Παραγωγή κλειδιού: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "Παραγωγή κλειδιού: Argon2id (προεπιλεγμένες παράμετροι)",
+        "kdf_calibrating" => "Βαθμονόμηση κρυπτογράφησης...",
         "copy_env_info" => "Αντιγραφή πληροφοριών περιβάλλοντος",
         "copy_logs" => "Αντιγραφή καταγραφών",
         "search" => "Αναζήτηση",

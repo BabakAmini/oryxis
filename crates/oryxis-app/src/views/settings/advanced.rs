@@ -76,10 +76,20 @@ impl Oryxis {
             border: Border { radius: Radius::from(6.0), ..Default::default() },
             ..Default::default()
         });
+        // Key-derivation parameters (E1). Read-only: shows the vault's
+        // tuned Argon2id profile, or that it uses the crate defaults.
+        let kdf_line = match self.vault.as_ref().and_then(|v| v.kdf_params()) {
+            Some(p) => t("kdf_params_label")
+                .replacen("{mib}", &(p.m_kib / 1024).to_string(), 1)
+                .replacen("{t}", &p.t.to_string(), 1),
+            None => t("kdf_params_default").to_string(),
+        };
         let env_section = panel_section(column![
             text(t("env_info")).size(14).color(OryxisColors::t().text_muted),
             Space::new().height(4),
             text(t("env_info_desc")).size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+            text(kdf_line).size(11).color(OryxisColors::t().text_secondary),
             Space::new().height(10),
             report_block,
             Space::new().height(10),

@@ -240,5 +240,106 @@ fn verify_password_matches_without_changing_state() {
     assert!(!vault.is_locked());
 }
 
+// ── E1: Argon2id auto-tuning ──
+
+#[test]
+fn tuned_params_roundtrip() {
+    use crate::store::KdfParams;
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    let path = tmp.path().to_path_buf();
+    std::mem::forget(tmp);
+    // Inject tuned params (skip the ~1s calibration wall-time in tests)
+    // and stash a secret under the tuned key.
+    let tuned = KdfParams { m_kib: 32768, t: 3, p: 1 };
+    {
+        let mut vault = VaultStore::open(&path).unwrap();
+        vault.set_master_password_with_params("tuned-pass", tuned).unwrap();
+        assert_eq!(vault.kdf_params(), Some(tuned));
+        vault.set_setting("probe", "guarded").unwrap();
+    }
+    // Reopen from disk: the params travel inside the vault file, so the
+    // same password unlocks and the secret reads back.
+    {
+        let mut vault = VaultStore::open(&path).unwrap();
+        assert_eq!(vault.kdf_params(), Some(tuned), "params persisted on disk");
+        vault.unlock("tuned-pass").unwrap();
+        assert_eq!(vault.get_setting("probe").unwrap().as_deref(), Some("guarded"));
+        assert!(vault.unlock("wrong").is_err());
+    }
+}
+
+#[test]
+fn legacy_vault_without_params_unlocks() {
+    let mut vault = temp_vault();
+    vault.set_master_password("legacy").unwrap();
+    // A pre-E1 vault has no kdf_params row: delete it to simulate one.
+    vault
+        .db
+        .execute("DELETE FROM vault_meta WHERE key = 'kdf_params'", [])
+        .unwrap();
+    assert_eq!(vault.kdf_params(), None, "no params row = untuned");
+    vault.lock();
+    // Unlock still works: derive_vault_key falls back to the defaults.
+    vault.unlock("legacy").unwrap();
+    assert!(!vault.is_locked());
+}
+
+#[test]
+fn rotation_writes_params() {
+    use crate::store::KdfParams;
+    // A vault set without a password change (default params), then a
+    // password change with tuned params, must persist the new params
+    // and unlock under the new password.
+    let mut vault = temp_vault();
+    vault.set_master_password("first").unwrap();
+    let tuned = KdfParams { m_kib: 65536, t: 4, p: 1 };
+    vault.set_user_password_with_params("second", tuned).unwrap();
+    assert_eq!(vault.kdf_params(), Some(tuned));
+    vault.lock();
+    vault.unlock("second").unwrap();
+    assert!(!vault.is_locked());
+    // The old password no longer works (salt + params rotated).
+    vault.lock();
+    assert!(vault.unlock("first").is_err());
+}
+
+#[test]
+fn removing_password_resets_to_default_params() {
+    use crate::store::KdfParams;
+    let mut vault = temp_vault();
+    vault
+        .set_master_password_with_params("secret", KdfParams { m_kib: 65536, t: 4, p: 1 })
+        .unwrap();
+    vault.remove_user_password().unwrap();
+    // A passwordless vault has no entropy to protect: params reset to
+    // the default profile.
+    assert_eq!(vault.kdf_params(), Some(KdfParams::DEFAULT));
+}
+
+#[test]
+fn calibrate_respects_floors() {
+    let p = crate::store::calibrate_kdf();
+    // Never weaker than the crate default; parallelism pinned to 1.
+    assert!(p.m_kib >= crate::store::KdfParams::DEFAULT.m_kib);
+    assert!(p.t >= crate::store::KdfParams::DEFAULT.t);
+    assert!(p.t <= 8);
+    assert_eq!(p.p, 1);
+}
+
+#[test]
+fn sync_secret_unchanged_by_tuning() {
+    // The sync group secret is FROZEN on the default KDF (derive_key),
+    // independent of any vault's tuned params. Golden vector: tuning must
+    // never move it (a different value would partition sync groups by
+    // hardware). Captured from the pre-E1 derivation.
+    let secret = crate::store::derive_sync_secret("golden-passphrase").unwrap();
+    let hex: String = secret.iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(
+        hex,
+        "b511e608b703b038d1d02fdfb13419de1fefa5a63830906563797e10b683f96f",
+        "sync secret must stay frozen across E1"
+    );
+}
+
 // ── Connections CRUD ──
 

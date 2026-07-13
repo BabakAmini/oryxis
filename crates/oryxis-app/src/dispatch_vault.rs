@@ -28,38 +28,15 @@ impl Oryxis {
                         Some(crate::i18n::t("password_too_short").to_string());
                     return Ok(Task::none());
                 }
-                if let Some(vault) = &mut self.vault {
-                    match vault.set_master_password(&self.vault_ui.password_input) {
-                        Ok(()) => {
-                            let _ = vault.set_setting("has_user_password", "1");
-                            self.vault_ui.has_user_password = true;
-                            self.vault_ui.state = VaultState::Unlocked;
-                            self.vault_ui.error = None;
-                            // Cache for child-window spawn.
-                            self.master_password = Some(self.vault_ui.password_input.clone());
-                            // Onboarding's biometric opt-in enrolls the
-                            // freshly created password in the same flow
-                            // (before the input buffer is cleared).
-                            let bio_task = self
-                                .biometric_setup_enroll(&self.vault_ui.password_input.clone())
-                                .unwrap_or_else(Task::none);
-                            self.vault_ui.password_input.clear();
-                            self.vault_ui.password_visible = false;
-                            self.load_data_from_vault();
-                            return Ok(Task::batch([
-                                bio_task,
-                                self.agent_boot_task(),
-                                self.take_perf_mode_toast_task(),
-                                iced::widget::operation::focus(iced::widget::Id::new(
-                                    "search-dashboard",
-                                )),
-                            ]));
-                        }
-                        Err(e) => {
-                            self.vault_ui.error = Some(e.to_string());
-                        }
-                    }
+                // Phase 1 (E1): calibrate Argon2id off the UI thread, then
+                // apply on `VaultKdfCalibrated`. A doubled click while the
+                // spinner is up is a no-op.
+                if self.vault_ui.calibrating {
+                    return Ok(Task::none());
                 }
+                self.vault_ui.calibrating = true;
+                self.vault_ui.error = None;
+                return Ok(calibrate_kdf_task(crate::state::VaultPwOp::FirstSetup));
             }
             Message::VaultSkipPassword => {
                 if let Some(vault) = &mut self.vault {
@@ -349,34 +326,13 @@ impl Oryxis {
                         Some(crate::i18n::t("passwords_do_not_match").to_string());
                     return Ok(Task::none());
                 }
-                if let Some(vault) = &mut self.vault {
-                    match vault.set_user_password(&self.vault_ui.new_password) {
-                        Ok(()) => {
-                            self.vault_ui.has_user_password = true;
-                            self.vault_ui.show_password_form = false;
-                            self.vault_ui.password_error = None;
-                            // Track the newly-set password in memory (a
-                            // previously passwordless vault had none), so
-                            // sync and a subsequent biometric opt-in have
-                            // the credential to work with.
-                            self.master_password =
-                                Some(self.vault_ui.new_password.clone());
-                            // The form's biometric opt-in enrolls the new
-                            // password in the same flow (before the form
-                            // buffers are cleared).
-                            let bio_task = self
-                                .biometric_setup_enroll(&self.vault_ui.new_password.clone());
-                            self.vault_ui.new_password.clear();
-                            self.vault_ui.confirm_password.clear();
-                            if let Some(toast) = bio_task {
-                                return Ok(toast);
-                            }
-                        }
-                        Err(e) => {
-                            self.vault_ui.password_error = Some(e.to_string());
-                        }
-                    }
+                // Phase 1 (E1): calibrate off-thread, apply on callback.
+                if self.vault_ui.calibrating {
+                    return Ok(Task::none());
                 }
+                self.vault_ui.calibrating = true;
+                self.vault_ui.password_error = None;
+                return Ok(calibrate_kdf_task(crate::state::VaultPwOp::SetUser));
             }
             Message::OpenChangeVaultPassword => {
                 // Reveal the change form; start from a clean slate so a
@@ -410,27 +366,97 @@ impl Oryxis {
                         Some(crate::i18n::t("passwords_do_not_match").to_string());
                     return Ok(Task::none());
                 }
-                if let Some(vault) = &mut self.vault {
-                    // Verify the current password before rotating. The vault
-                    // is already unlocked, so this guards against someone
-                    // changing the password at an unattended session, and
-                    // against a typo silently rotating to an unknown key.
+                if self.vault_ui.calibrating {
+                    return Ok(Task::none());
+                }
+                // Verify the current password BEFORE the (slow) calibration:
+                // no reason to calibrate for a change that will be rejected.
+                // The vault is already unlocked, so this guards against
+                // someone changing the password at an unattended session and
+                // against a typo silently rotating to an unknown key.
+                if let Some(vault) = &self.vault {
                     match vault.verify_password(&self.vault_ui.current_password) {
-                        Ok(true) => match vault.set_user_password(&self.vault_ui.new_password) {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            self.vault_ui.password_error = Some(
+                                crate::i18n::t("current_password_incorrect").to_string(),
+                            );
+                            return Ok(Task::none());
+                        }
+                        Err(e) => {
+                            self.vault_ui.password_error = Some(e.to_string());
+                            return Ok(Task::none());
+                        }
+                    }
+                }
+                // Phase 1 (E1): current verified, calibrate off-thread.
+                self.vault_ui.calibrating = true;
+                self.vault_ui.password_error = None;
+                return Ok(calibrate_kdf_task(crate::state::VaultPwOp::Change));
+            }
+            Message::VaultKdfCalibrated(op, params) => {
+                // Phase 2 (E1): apply the pending set / change-password with
+                // the tuned KDF params. The ~1s derive here runs on the UI
+                // thread, same cost as an unlock (the plan accepts that);
+                // only the multi-probe calibration went off-thread.
+                self.vault_ui.calibrating = false;
+                let Some(vault) = &mut self.vault else {
+                    return Ok(Task::none());
+                };
+                match op {
+                    crate::state::VaultPwOp::FirstSetup => {
+                        let pw = self.vault_ui.password_input.clone();
+                        match vault.set_master_password_with_params(&pw, params) {
+                            Ok(()) => {
+                                let _ = vault.set_setting("has_user_password", "1");
+                                self.vault_ui.has_user_password = true;
+                                self.vault_ui.state = VaultState::Unlocked;
+                                self.vault_ui.error = None;
+                                self.master_password = Some(pw.clone());
+                                let bio_task = self
+                                    .biometric_setup_enroll(&pw)
+                                    .unwrap_or_else(Task::none);
+                                self.vault_ui.password_input.clear();
+                                self.vault_ui.password_visible = false;
+                                self.load_data_from_vault();
+                                return Ok(Task::batch([
+                                    bio_task,
+                                    self.agent_boot_task(),
+                                    self.take_perf_mode_toast_task(),
+                                    iced::widget::operation::focus(iced::widget::Id::new(
+                                        "search-dashboard",
+                                    )),
+                                ]));
+                            }
+                            Err(e) => self.vault_ui.error = Some(e.to_string()),
+                        }
+                    }
+                    crate::state::VaultPwOp::SetUser => {
+                        let pw = self.vault_ui.new_password.clone();
+                        match vault.set_user_password_with_params(&pw, params) {
+                            Ok(()) => {
+                                self.vault_ui.has_user_password = true;
+                                self.vault_ui.show_password_form = false;
+                                self.vault_ui.password_error = None;
+                                self.master_password = Some(pw.clone());
+                                let bio_task = self.biometric_setup_enroll(&pw);
+                                self.vault_ui.new_password.clear();
+                                self.vault_ui.confirm_password.clear();
+                                if let Some(toast) = bio_task {
+                                    return Ok(toast);
+                                }
+                            }
+                            Err(e) => self.vault_ui.password_error = Some(e.to_string()),
+                        }
+                    }
+                    crate::state::VaultPwOp::Change => {
+                        let pw = self.vault_ui.new_password.clone();
+                        match vault.set_user_password_with_params(&pw, params) {
                             Ok(()) => {
                                 self.vault_ui.change_password_open = false;
                                 self.vault_ui.password_error = None;
-                                // The in-memory password must track the
-                                // rotation, or sync (which re-opens the vault
-                                // with `master_password`) would keep using
-                                // the old one after a change.
-                                self.master_password =
-                                    Some(self.vault_ui.new_password.clone());
-                                // Refresh the OS-keystore secret to the new
-                                // password in the same flow, so biometric
-                                // unlock doesn't silently break on a stale
-                                // secret. No-op unless opted in.
-                                self.biometric_reenroll(&self.vault_ui.new_password);
+                                self.master_password = Some(pw.clone());
+                                self.biometric_reenroll(&pw);
                                 self.vault_ui.current_password.clear();
                                 self.vault_ui.new_password.clear();
                                 self.vault_ui.confirm_password.clear();
@@ -438,16 +464,7 @@ impl Oryxis {
                                     crate::i18n::t("password_updated").to_string(),
                                 ));
                             }
-                            Err(e) => {
-                                self.vault_ui.password_error = Some(e.to_string());
-                            }
-                        },
-                        Ok(false) => {
-                            self.vault_ui.password_error =
-                                Some(crate::i18n::t("current_password_incorrect").to_string());
-                        }
-                        Err(e) => {
-                            self.vault_ui.password_error = Some(e.to_string());
+                            Err(e) => self.vault_ui.password_error = Some(e.to_string()),
                         }
                     }
                 }
@@ -457,4 +474,20 @@ impl Oryxis {
         }
         Ok(Task::none())
     }
+}
+
+/// Phase 1 of an E1 set / change-password flow: run the Argon2id KDF
+/// calibration on a blocking worker thread (it does several ~100 ms
+/// hashes), then fire `VaultKdfCalibrated` so the handler applies the
+/// vault mutation with the tuned parameters. A calibration that somehow
+/// fails resolves to the default profile rather than blocking the flow.
+fn calibrate_kdf_task(op: crate::state::VaultPwOp) -> Task<Message> {
+    Task::perform(
+        async move {
+            tokio::task::spawn_blocking(oryxis_vault::calibrate_kdf)
+                .await
+                .unwrap_or(oryxis_vault::KdfParams::DEFAULT)
+        },
+        move |params| Message::VaultKdfCalibrated(op, params),
+    )
 }

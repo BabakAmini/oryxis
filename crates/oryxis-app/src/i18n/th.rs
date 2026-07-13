@@ -845,6 +845,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "debug_log_missing" => "ยังไม่มีไฟล์ล็อก",
         "env_info" => "ข้อมูลสภาพแวดล้อม",
         "env_info_desc" => "รายละเอียดระบบสำหรับแนบเมื่อรายงานปัญหาบน GitHub",
+        // Argon2id KDF auto-tuning (E1)
+        "kdf_params_label" => "การสร้างคีย์: Argon2id, {mib} MiB, t={t}",
+        "kdf_params_default" => "การสร้างคีย์: Argon2id (พารามิเตอร์เริ่มต้น)",
+        "kdf_calibrating" => "กำลังปรับเทียบการเข้ารหัส...",
         "copy_env_info" => "คัดลอกข้อมูลสภาพแวดล้อม",
         "copy_logs" => "คัดลอกล็อก",
         "search" => "ค้นหา",
