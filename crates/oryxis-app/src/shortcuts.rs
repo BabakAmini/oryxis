@@ -622,6 +622,17 @@ impl Oryxis {
                 .active_tab
                 .and_then(|i| self.tabs.get(i))
                 .is_some_and(|t| t.files_mode);
+        // The scrollback find-bar (Ctrl+F) may only steal the key on the
+        // NORMAL screen. On the alternate screen (vim / less / htop / tmux)
+        // Ctrl+F is the app's own page-forward, and there is no scrollback
+        // to search anyway (the widget pins scroll_offset=0 there), so let
+        // it fall through to the PTY like every other shell control key.
+        let alt_screen = self
+            .active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t.active())
+            .and_then(|p| p.terminal.lock().ok().map(|s| s.is_alt_screen()))
+            .unwrap_or(false);
         // A blocking modal owns the keyboard: only Esc may pass (step 3
         // below closes the modal). Skip binding-table and snippet dispatch
         // so chords like ClosePane / SplitPane / the host-editor hotkey
@@ -649,11 +660,15 @@ impl Oryxis {
             let bind_copy = self.hotkey_bindings.get(&action).copied();
             // Plain Ctrl+letter bindings normally yield to the PTY (shell
             // control sequences: Ctrl+L clear, Ctrl+R history, ...). The
-            // scrollback find-bar (Ctrl+F) is the deliberate exception: like
-            // every GUI terminal, Ctrl+F opens Find over the buffer instead
-            // of reaching readline's forward-char (arrow keys cover that).
+            // scrollback find-bar (Ctrl+F) is the deliberate exception on
+            // the NORMAL screen: like every GUI terminal, Ctrl+F opens Find
+            // over the buffer instead of reaching readline's forward-char
+            // (arrow keys cover that). On the alternate screen it yields to
+            // the PTY so vim / less / htop keep their own Ctrl+F.
+            let find_bar_exempt =
+                action == HotkeyAction::FocusViewSearch && !alt_screen;
             if pty_owns_keys
-                && action != HotkeyAction::FocusViewSearch
+                && !find_bar_exempt
                 && bind_copy.is_some_and(|b| b.is_terminal_control_sequence())
             {
                 continue;
