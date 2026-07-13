@@ -150,7 +150,12 @@ impl AgentKeySource for VaultKeySource {
             // the hardware token via the EXTERNAL agent, so listing them
             // here would advertise identities this agent can never sign
             // for (the `sign` lookup below would hit a NULL private).
-            .filter(|k| k.expose_via_agent && !k.algorithm.is_security_key())
+            // Only rows we actually hold a private for: security-key /
+            // public-only rows (NULL private) can never be signed here.
+            // Gating on `has_private` (not just the sk- algorithm) keeps
+            // list() symmetric with sign() below and covers a plain
+            // public-only import too.
+            .filter(|k| k.expose_via_agent && k.has_private)
             .filter_map(|k| {
                 Self::blob_of(&k.public_key).map(|blob| AgentPublicKey {
                     blob,
@@ -182,7 +187,9 @@ impl AgentKeySource for VaultKeySource {
             .map_err(|e| AgentSignError::SignFailed(e.to_string()))?
             .into_iter()
             .find(|k| {
-                k.expose_via_agent && Self::blob_of(&k.public_key).as_deref() == Some(key_blob)
+                k.expose_via_agent
+                    && k.has_private
+                    && Self::blob_of(&k.public_key).as_deref() == Some(key_blob)
             })
             .ok_or(AgentSignError::UnknownKey)?;
 

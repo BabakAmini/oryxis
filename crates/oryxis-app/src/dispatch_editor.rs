@@ -1300,17 +1300,24 @@ enum KeyComboFilter {
 
 /// Option list for the host editor's SSH Key combo, pure so it
 /// unit-tests: the `(none)` sentinel first, then the key labels per
-/// the filter.
+/// the filter. `Key` and `Certificate` both decode the private key
+/// locally to sign, so they only list rows that HOLD a private
+/// (`has_private`); a security-key / public-only row belongs under
+/// `Agent`, where the hardware token signs.
 fn key_combo_options(
     keys: &[oryxis_core::models::key::SshKey],
     filter: KeyComboFilter,
 ) -> Vec<String> {
     let mut opts = vec!["(none)".to_string()];
     match filter {
-        KeyComboFilter::All => opts.extend(keys.iter().map(|k| k.label.clone())),
+        KeyComboFilter::All => opts.extend(
+            keys.iter()
+                .filter(|k| k.has_private)
+                .map(|k| k.label.clone()),
+        ),
         KeyComboFilter::CertificateOnly => opts.extend(
             keys.iter()
-                .filter(|k| k.certificate.is_some())
+                .filter(|k| k.certificate.is_some() && k.has_private)
                 .map(|k| k.label.clone()),
         ),
         KeyComboFilter::SecurityKeysFirst => {
@@ -1408,14 +1415,17 @@ mod key_combo_tests {
     use super::{key_combo_options, KeyComboFilter};
     use oryxis_core::models::key::{KeyAlgorithm, SshKey};
 
+    // A normal key holds a private (has_private = true).
     fn key(label: &str, with_cert: bool) -> SshKey {
         let mut k = SshKey::new(label, KeyAlgorithm::Ed25519);
+        k.has_private = true;
         if with_cert {
             k.certificate = Some("ssh-ed25519-cert-v01@openssh.com AAAA... u@h".into());
         }
         k
     }
 
+    // A security key is public-only (has_private = false).
     fn sk(label: &str) -> SshKey {
         SshKey::new(label, KeyAlgorithm::SkEd25519)
     }
@@ -1430,8 +1440,32 @@ mod key_combo_tests {
     }
 
     #[test]
+    fn key_mode_excludes_public_only_rows() {
+        // A security key (no private) can never authenticate under `Key`;
+        // it must not appear in the combo.
+        let keys = vec![key("bare", false), sk("yubi")];
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::All),
+            vec!["(none)", "bare"]
+        );
+    }
+
+    #[test]
     fn certificate_mode_lists_only_cert_carrying_keys() {
         let keys = vec![key("bare", false), key("certified", true), key("plain2", false)];
+        assert_eq!(
+            key_combo_options(&keys, KeyComboFilter::CertificateOnly),
+            vec!["(none)", "certified"]
+        );
+    }
+
+    #[test]
+    fn certificate_mode_excludes_public_only_even_with_a_cert() {
+        // A public-only row can carry a cert (delegation), but `Certificate`
+        // auth signs with the local private, which it lacks.
+        let mut yubi_cert = sk("yubi-cert");
+        yubi_cert.certificate = Some("sk-ssh-ed25519-cert-v01@openssh.com AAAA... u@h".into());
+        let keys = vec![key("certified", true), yubi_cert];
         assert_eq!(
             key_combo_options(&keys, KeyComboFilter::CertificateOnly),
             vec!["(none)", "certified"]
@@ -1448,7 +1482,8 @@ mod key_combo_tests {
     }
 
     #[test]
-    fn agent_mode_lists_security_keys_first() {
+    fn agent_mode_lists_security_keys_first_including_public_only() {
+        // Agent delegates signing, so public-only rows DO belong here.
         let keys = vec![key("bare", false), sk("yubi"), key("other", true), sk("solo")];
         assert_eq!(
             key_combo_options(&keys, KeyComboFilter::SecurityKeysFirst),

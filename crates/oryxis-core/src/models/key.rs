@@ -24,6 +24,16 @@ pub struct SshKey {
     /// payloads / rows read as no-cert.
     #[serde(default)]
     pub certificate: Option<String>,
+    /// Whether the vault holds private material for this key (B3): a
+    /// security-key / public-only row (`import_public_key`) has a NULL
+    /// private column and can only authenticate through an external
+    /// agent, never as a local `Key` / `Certificate` credential. This is
+    /// a LOCAL, computed hint, populated from the DB by `list_keys`, so
+    /// it never travels over sync / portable (`#[serde(skip)]`); a
+    /// deserialized payload defaults to `false` and the next `list_keys`
+    /// sets the real value.
+    #[serde(skip)]
+    pub has_private: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -45,6 +55,10 @@ impl SshKey {
             has_passphrase: false,
             expose_via_agent: true,
             certificate: None,
+            // A freshly built model has no persisted private yet; the
+            // save path attaches one (or not, for public-only imports)
+            // and `list_keys` reports the truth on reload.
+            has_private: false,
             created_at: now,
             updated_at: now,
         }

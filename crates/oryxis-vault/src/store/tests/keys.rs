@@ -29,6 +29,9 @@ fn security_key_row_roundtrips_with_null_private() {
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].algorithm, KeyAlgorithm::SkEd25519);
     assert!(listed[0].algorithm.is_security_key());
+    // The public-only row reports no private material (drives the combo
+    // filter + agent-server exclusion, B3 review F2/F3).
+    assert!(!listed[0].has_private);
     assert_eq!(vault.get_key_private(&key.id).unwrap(), None);
 
     // The other sk- family maps through the same string pair.
@@ -50,6 +53,8 @@ fn save_and_list_keys() {
     let keys = vault.list_keys().unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0].label, "my-key");
+    // A row saved with real private material reports has_private = true.
+    assert!(keys[0].has_private);
 }
 
 

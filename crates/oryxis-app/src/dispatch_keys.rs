@@ -519,6 +519,48 @@ impl Oryxis {
                             key.expose_via_agent = existing.expose_via_agent;
                             key.created_at = existing.created_at;
                         }
+                        // Editing an existing row keeps its private column
+                        // (`private = None` below). If that column holds a
+                        // real private key, the public line the user typed
+                        // MUST still certify it: otherwise the row would
+                        // pair an old private with a new, mismatched public
+                        // and the agent would advertise a blob it signs for
+                        // with the wrong key. A public-only row (NULL
+                        // private) has nothing to check against, so this
+                        // only fires when a private is actually stored.
+                        let stored_private = self
+                            .vault
+                            .as_ref()
+                            .and_then(|v| v.get_key_private(&existing_id).ok().flatten());
+                        if let Some(pem) = stored_private {
+                            match oryxis_vault::import_key("_check", &pem, None) {
+                                Ok(generated) => {
+                                    match validate_public_key(&input, &generated.key.public_key) {
+                                        Ok(_) => {}
+                                        Err(err_key) => {
+                                            self.key_error =
+                                                Some(crate::i18n::t(err_key).to_string());
+                                            return Ok(Task::none());
+                                        }
+                                    }
+                                    // Carry the stored key's algorithm so a
+                                    // public-line edit can't relabel an RSA
+                                    // 2048/3072 row as 4096 (public lines
+                                    // don't carry the modulus size).
+                                    key.algorithm = generated.key.algorithm;
+                                }
+                                // Stored private unreadable (corrupt / locked):
+                                // fail closed rather than save a possibly
+                                // mismatched pair.
+                                Err(_) => {
+                                    self.key_error = Some(
+                                        crate::i18n::t("public_key_mismatch_error")
+                                            .to_string(),
+                                    );
+                                    return Ok(Task::none());
+                                }
+                            }
+                        }
                     }
                     // The certificate field wins over a cert embedded in
                     // the public line (same validation as the private

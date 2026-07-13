@@ -65,7 +65,7 @@ impl VaultStore {
 
     pub fn list_keys(&self) -> Result<Vec<SshKey>, VaultError> {
         let mut stmt = self.db.prepare(
-            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, expose_via_agent, created_at, updated_at, certificate
+            "SELECT id, label, fingerprint, algorithm, public_key, has_passphrase, expose_via_agent, created_at, updated_at, certificate, (private_key IS NOT NULL)
              FROM keys ORDER BY label",
         )?;
         let keys = stmt
@@ -105,6 +105,9 @@ impl VaultStore {
                         .unwrap_or_else(chrono::Utc::now),
                     // Column added by ALTER TABLE; older rows have no value.
                     certificate: row.get::<_, Option<String>>(9).unwrap_or(None),
+                    // Computed: whether the private_key column is non-NULL
+                    // (B3 security-key / public-only rows are NULL here).
+                    has_private: row.get::<_, i64>(10).unwrap_or(1) != 0,
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
