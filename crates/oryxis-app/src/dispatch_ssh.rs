@@ -378,16 +378,29 @@ impl Oryxis {
                 // this it would sit on the "Opening SFTP" placeholder
                 // until the next pane/tab interaction. No-op otherwise.
                 let files_sync = self.sidebar_files_sync();
+                // Same idea for the tab's hybrid Files surface (visible
+                // or parked): its mount died with the old session, so an
+                // in-place reconnect remounts it on the fresh handle at
+                // the same directory (issue #63). No-op when nothing was
+                // mounted or the mount is still alive.
+                let hybrid_sftp = match (self.pane_tab_index(pane_id), session.ssh()) {
+                    (Some(t_idx), Some(ssh)) => {
+                        let ssh = ssh.clone();
+                        self.hybrid_sftp_remount_dead(t_idx, pane_id, &ssh)
+                    }
+                    _ => Task::none(),
+                };
                 if let Some((conn_id, sess)) = detect_for {
                     return Ok(Task::batch([
                         files_sync,
+                        hybrid_sftp,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::OsDetected(id, os),
                         ),
                     ]));
                 }
-                return Ok(files_sync);
+                return Ok(Task::batch([files_sync, hybrid_sftp]));
             }
             Message::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.
@@ -710,7 +723,17 @@ impl Oryxis {
                     let label = self.tabs[tab_idx].label.replace(" (disconnected)", "");
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
-                        p.session = None;
+                        // Close (not just drop) the dead session: SFTP
+                        // mounts hold their own Arc clones, so dropping
+                        // the pane's alone would leak the writer/quality
+                        // tasks and keep `is_alive()` true on a session
+                        // whose transport is gone (the reader exiting is
+                        // what delivered this message). `close()` is
+                        // idempotent and the polite disconnect it sends
+                        // is a no-op on a dead transport.
+                        if let Some(session) = p.session.take() {
+                            session.close();
+                        }
                         // A transfer in flight loses its transport here.
                         // Dropping the `ZmodemPane` drops its `wire_tx`, so
                         // the driver's `wire_in` closes, it returns an error,

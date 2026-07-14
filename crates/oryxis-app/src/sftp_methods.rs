@@ -881,6 +881,105 @@ impl Oryxis {
         Task::none()
     }
 
+    /// Remount a hybrid terminal tab's dead SFTP mounts onto a freshly
+    /// connected session (issue #63: a terminal reconnect used to leave
+    /// the tab's Files surface on the old, closed channel, and Retry
+    /// re-listed the same dead client forever). Every Files pane still
+    /// mounted on the reconnected pane's host whose session is gone or
+    /// no longer alive gets a new SFTP channel multiplexed on `ssh` and
+    /// is re-listed at its previous directory (home fallback when the
+    /// path vanished). Panes mounted on a different host, or whose
+    /// session is still alive (borrowed from another live tab), are
+    /// left alone. Works on the hoisted buffer or the parked
+    /// `files_state` alike; completions are stamped with the tab id so
+    /// `route_sftp_async` lands them wherever the state lives by then.
+    pub(crate) fn hybrid_sftp_remount_dead(
+        &mut self,
+        tab_idx: usize,
+        pane_id: uuid::Uuid,
+        ssh: &std::sync::Arc<oryxis_ssh::SshSession>,
+    ) -> Task<Message> {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return Task::none();
+        };
+        let tab_id = tab._id;
+        let Some(label) = tab
+            .pane_grid
+            .panes
+            .values()
+            .find(|p| p.id == pane_id)
+            .map(|p| p.label.trim_end_matches(" (disconnected)").to_string())
+        else {
+            return Task::none();
+        };
+        let hoisted = self.hybrid_sftp_owner == Some(tab_id);
+        let mut tasks: Vec<Task<Message>> = Vec::new();
+        for side in [
+            crate::state::SftpPaneSide::Left,
+            crate::state::SftpPaneSide::Right,
+        ] {
+            let st: &mut crate::state::SftpState = if hoisted {
+                &mut self.sftp
+            } else {
+                match self.tabs.get_mut(tab_idx) {
+                    Some(t) => &mut t.files_state,
+                    None => return Task::none(),
+                }
+            };
+            let pane = st.pane_mut(side);
+            if !pane.is_remote || pane.host_label.as_deref() != Some(label.as_str()) {
+                continue;
+            }
+            if pane.session.as_ref().is_some_and(|s| s.is_alive()) {
+                continue;
+            }
+            // Dead mount on the reconnected host: drop the stale channel
+            // and remount on the fresh handle at the same directory.
+            pane.session = None;
+            pane.client = None;
+            pane.remote_loading = true;
+            pane.error = None;
+            let hint = Some(pane.remote_path.clone()).filter(|p| !p.is_empty());
+            let host = label.clone();
+            let session = ssh.clone();
+            let session_for_task = ssh.clone();
+            tasks.push(Task::perform(
+                async move {
+                    let client = session_for_task
+                        .open_sftp()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    let (initial, entries) =
+                        crate::dispatch_sftp::initial_remote_listing(&client, hint)
+                            .await?;
+                    Ok::<_, String>((client, initial, entries))
+                },
+                move |result| match result {
+                    Ok((client, path, entries)) => Message::sftp_owned(
+                        Some(tab_id),
+                        Message::SftpHostMounted(
+                            side,
+                            host.clone(),
+                            session.clone(),
+                            client,
+                            path,
+                            entries,
+                        ),
+                    ),
+                    Err(e) => Message::sftp_owned(
+                        Some(tab_id),
+                        Message::SftpRemoteError(side, e),
+                    ),
+                },
+            ));
+        }
+        if tasks.is_empty() {
+            Task::none()
+        } else {
+            Task::batch(tasks)
+        }
+    }
+
     /// Close the SFTP tab at `idx`. Removes it from the strip, reindexes
     /// `active_sftp`, adopts the next remaining tab into the live buffer if the
     /// closed one owned it, and navigates away when the SFTP surface is left

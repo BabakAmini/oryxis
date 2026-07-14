@@ -74,16 +74,34 @@ impl Oryxis {
         self.hoist_hybrid_sftp(tab_id);
         // Already mounted from an earlier visit: just show it,
         // navigating to the one-shot directory hint when an
-        // expand/context-menu affordance carried one.
+        // expand/context-menu affordance carried one. Only a mount
+        // whose session is still alive qualifies; a dead one (the tab
+        // reconnected while Files was parked and the automatic remount
+        // didn't land, issue #63) falls through to the mount pipeline
+        // below, which reuses this tab's fresh session.
         if self.sftp.right.is_remote && self.sftp.right.host_label.is_some() {
-            if let Some(p) = self.sftp_open_at_path.take() {
-                let nav = self.update(Message::SftpNavigateRemote(
-                    crate::state::SftpPaneSide::Right,
-                    p,
-                ));
-                return Ok(Task::batch([select, nav]));
+            if self
+                .sftp
+                .right
+                .session
+                .as_ref()
+                .is_some_and(|s| s.is_alive())
+            {
+                if let Some(p) = self.sftp_open_at_path.take() {
+                    let nav = self.update(Message::SftpNavigateRemote(
+                        crate::state::SftpPaneSide::Right,
+                        p,
+                    ));
+                    return Ok(Task::batch([select, nav]));
+                }
+                return Ok(select);
             }
-            return Ok(select);
+            // Land the remount at the previous directory (home
+            // fallback); an explicit pending hint keeps priority.
+            if self.sftp_open_at_path.is_none() {
+                self.sftp_open_at_path = Some(self.sftp.right.remote_path.clone())
+                    .filter(|p| !p.is_empty());
+            }
         }
         // First open: seed the Local pane like a fresh SFTP tab,
         // then mount the host into the right pane.

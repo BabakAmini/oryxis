@@ -254,8 +254,15 @@ impl Oryxis {
                     t.pane_grid.panes.values().find_map(|p| {
                         if p.label.trim_end_matches(" (disconnected)") == conn.label {
                             // SFTP multiplexes on the SSH handle; a Telnet
-                            // pane to the same label can't be reused.
-                            p.session.as_ref().and_then(|s| s.ssh()).cloned()
+                            // pane to the same label can't be reused. Nor
+                            // can a session that died without its pane
+                            // noticing yet: mounting on it would fail
+                            // with "session closed", dial fresh instead.
+                            p.session
+                                .as_ref()
+                                .and_then(|s| s.ssh())
+                                .filter(|s| s.is_alive())
+                                .cloned()
                         } else {
                             None
                         }
@@ -565,17 +572,36 @@ impl Oryxis {
             }
             Message::SftpRetryRemote(side) => {
                 // Three cases the retry button has to cover:
-                // 1. Session is mounted (client is Some), just re-list
-                //    the current path. Network blip / op-timeout case.
-                // 2. Session lost (client is None) but the host label
-                //    is still around, re-run the full pick flow for
-                //    that host. Connect-failed case.
+                // 1. Session is mounted (client is Some) AND still
+                //    alive, just re-list the current path. Network
+                //    blip / op-timeout case.
+                // 2. Session lost (client is None, or the SSH session
+                //    under it died, issue #63: re-listing a channel on
+                //    a closed session fails with "session closed"
+                //    forever) but the host label is still around,
+                //    re-run the full pick flow for that host, which
+                //    reuses a live terminal session to the host when
+                //    one exists (post-reconnect case) or dials fresh.
                 // 3. No host label, fall back to the picker.
-                if self.sftp.pane(side).client.is_some() {
+                let session_alive = self
+                    .sftp
+                    .pane(side)
+                    .session
+                    .as_ref()
+                    .is_some_and(|s| s.is_alive());
+                if self.sftp.pane(side).client.is_some() && session_alive {
                     return Ok(Task::done(Message::SftpNavigateRemote(
                         side,
                         self.sftp.pane(side).remote_path.clone(),
                     )));
+                }
+                if !session_alive {
+                    // Drop the dead channel so the remount below (or a
+                    // later one) starts clean instead of ever touching
+                    // the closed session again.
+                    let pane = self.sftp.pane_mut(side);
+                    pane.client = None;
+                    pane.session = None;
                 }
                 if let Some(label) = self.sftp.pane(side).host_label.clone()
                     && let Some(idx) = self
@@ -583,6 +609,15 @@ impl Oryxis {
                         .iter()
                         .position(|c| c.label == label)
                 {
+                    // Land the remount where the user was, not at the
+                    // home directory (the pick pipeline's default); the
+                    // one-shot hint falls back to home when the path is
+                    // gone. An explicit pending hint keeps priority.
+                    if self.sftp_open_at_path.is_none() {
+                        self.sftp_open_at_path =
+                            Some(self.sftp.pane(side).remote_path.clone())
+                                .filter(|p| !p.is_empty());
+                    }
                     self.sftp.picker_target = side;
                     return Ok(Task::done(Message::SftpPickHost(idx)));
                 }

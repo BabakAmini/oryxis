@@ -111,7 +111,15 @@ impl SshSession {
     }
 
     pub fn is_alive(&self) -> bool {
-        !self.writer_tx.is_closed()
+        // Three death signals, any one of which means the session is
+        // unusable: an explicit `close()` (latch, the task aborts it
+        // triggers land asynchronously), the reader task having exited
+        // (EOF / exit-status / transport drop; the writer task alone
+        // can't notice, it blocks on its queue forever when nothing
+        // writes), and the writer channel being gone.
+        !self.closed.load(std::sync::atomic::Ordering::SeqCst)
+            && !self.reader_task.is_finished()
+            && !self.writer_tx.is_closed()
     }
 
     /// Point-in-time link-quality figures for this session (RTT probe
