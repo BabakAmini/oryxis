@@ -37,6 +37,16 @@ impl Oryxis {
                     use std::hash::{Hash, Hasher};
 
                     let mut h = DefaultHasher::new();
+                    // Our OWN hidden state drives both the "Windows"
+                    // section and `set_visible` below, so it has to be
+                    // part of the signature. Leaving it out meant a
+                    // primary that hid itself produced an unchanged
+                    // signature, skipped the whole block, and never
+                    // called `set_visible(true)`: the window was gone
+                    // and no tray icon ever appeared to bring it back.
+                    // A child's hide was covered only by accident, via
+                    // `inst.is_hidden` in the IPC registry below.
+                    self.is_window_hidden.hash(&mut h);
                     self.tabs.len().hash(&mut h);
                     for t in &self.tabs {
                         t.label.hash(&mut h);

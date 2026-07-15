@@ -360,6 +360,12 @@ impl Oryxis {
         // iced::window::minimize call.
         if self.setting_minimize_to_tray && cfg!(target_os = "windows") {
             self.is_window_hidden = true;
+            // Reveal the icon in the same frame the window vanishes.
+            // The tray heartbeat would also get there via the signature,
+            // but up to 500 ms later, and a window that is gone with no
+            // icon yet reads as "the app just quit". No-op on a child
+            // process (no tray of its own) and off Windows.
+            crate::tray::set_visible(true);
             self.broadcast_ipc_state_if_child();
             return Ok(iced::window::oldest()
                 .and_then(|id| {
@@ -393,6 +399,9 @@ impl Oryxis {
         // everyone.
         if self.setting_close_to_tray && cfg!(target_os = "windows") {
             self.is_window_hidden = true;
+            // Same instant-reveal as the minimize path: the icon is the
+            // only way back once the window is hidden.
+            crate::tray::set_visible(true);
             self.broadcast_ipc_state_if_child();
             return Ok(iced::window::oldest()
                 .and_then(|id| {
