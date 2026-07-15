@@ -471,6 +471,16 @@ mod imp {
                 let _ = ShowWindow(hwnd, SW_HIDE);
             }
             NATIVE_HIDE_PENDING.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Deliberately NOT calling `set_visible` here, even though
+            // this runs on the tray's own thread and the icon is what
+            // brings the window back. It goes through Shell_NotifyIcon,
+            // a synchronous call into explorer that can block for
+            // seconds when the shell is busy, and this stack is a
+            // WM_SYSCOMMAND dispatch: stalling it would freeze the
+            // minimize itself. The heartbeat drains the flag instead,
+            // so the icon can trail the hide by up to one tick. The
+            // chrome-button path has no such constraint and reveals it
+            // in the same frame.
             // Claim the message: returning 0 without chaining is what
             // keeps the window from actually minimizing.
             return 0;
