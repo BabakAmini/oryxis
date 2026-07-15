@@ -212,10 +212,14 @@ impl Oryxis {
             );
         }
         // Intercept the user's close verb (Alt+F4, OS taskbar Close,
-        // any path that produces a winit CloseRequested). iced 0.14
-        // exposes a dedicated subscription for this; we route it
+        // any path that produces a winit CloseRequested) and route it
         // through the existing WindowClose dispatcher so the close-
-        // to-tray check lives in one place.
+        // to-tray check lives in one place. This is the ONLY path that
+        // closes the window on those verbs: `window::Settings` sets
+        // `exit_on_close_request: false` (see main.rs) so the shell
+        // hands us the event instead of acting on it. Keep this
+        // subscription unconditional, a gated one would make the
+        // window unclosable from the OS.
         subs.push(iced::window::close_requests().map(|_| Message::WindowClose));
 
         // Tray icon event drain. On Windows the tray-icon crate runs

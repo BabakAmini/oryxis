@@ -449,6 +449,19 @@ fn main() -> iced::Result {
             min_size: Some(Size::new(MIN_WIDTH, MIN_HEIGHT)),
             icon,
             decorations: false, // native title bar off, our own chrome in the tab bar
+            // Take ownership of every close verb. With iced's default
+            // (`true`) the winit shell closes the window itself on
+            // `CloseRequested` and never forwards the event, so the
+            // `window::close_requests()` subscription never fires and
+            // Alt+F4 / taskbar Close bypass `handle_window_close`
+            // entirely: close-to-tray is skipped, and so are the
+            // session-log flush and the window-geometry save. Set to
+            // `false` so every close path (our chrome X, Alt+F4, the
+            // taskbar) lands on the same `Message::WindowClose`
+            // handler, which decides between hide-to-tray and a real
+            // `window::close`. Not Windows-gated: the flush + geometry
+            // recovery matter on every platform.
+            exit_on_close_request: false,
             #[cfg(target_os = "windows")]
             platform_specific: window::settings::platform::PlatformSpecific {
                 // Win11+ rounds corners only when DWM has a frame to
