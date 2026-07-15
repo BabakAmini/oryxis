@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Tạo máy chủ",
         "create_host_desc" => "Lưu chi tiết kết nối thành máy chủ để kết nối chỉ với một cú nhấp.",
+        "or_separator" => "hoặc",
         "add_key_title" => "Thêm một khóa",
         "add_key_desc" => "Nhập các khóa SSH để xác thực với máy chủ của bạn.",
         "create_snippet_title" => "Tạo một đoạn lệnh",

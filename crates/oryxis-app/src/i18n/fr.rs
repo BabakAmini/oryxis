@@ -301,6 +301,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "create_host_title" => "Créer un hôte",
         "create_host_desc" => "Enregistrez vos détails de connexion pour vous connecter en un clic.",
+        "or_separator" => "ou",
         "add_key_title" => "Ajouter une clé",
         "add_key_desc" => "Importez des clés SSH pour vous authentifier auprès de vos hôtes.",
         "create_snippet_title" => "Créer un extrait",

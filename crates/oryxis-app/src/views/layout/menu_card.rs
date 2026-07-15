@@ -247,67 +247,12 @@ impl Oryxis {
     }
 
     pub(crate) fn build_menu_cloud_provider_picker(&self) -> Element<'_, Message> {
-        // The "+ Host ▾" add menu. Offers importing a `.oryxis`
-        // file (a full vault export or a single shared host),
-        // importing an OpenSSH `~/.ssh/config`, exporting the
-        // current view, then one entry per configured cloud
-        // profile for discovery. Import / export live here so
-        // they're reachable from where hosts are managed
-        // instead of being buried in Settings.
-        let mut items = column![
-            self.menu_item(
-                iced_fonts::lucide::download(),
-                crate::i18n::t("import_from_file"),
-                Message::ImportVault,
-                OryxisColors::t().text_secondary,
-            ),
-            self.menu_item(
-                iced_fonts::lucide::file_code(),
-                crate::i18n::t("import_ssh_config_btn"),
-                Message::ImportSshConfig,
-                OryxisColors::t().text_secondary,
-            ),
-        ];
-        // Add a remote-desktop host (RDP/VNC), only when the opt-in
-        // feature is enabled so it stays out of the light-user menu.
-        if self.remote_desktop_enabled {
-            items = items.push(self.menu_item(
-                iced_fonts::lucide::monitor(),
-                crate::i18n::t("add_remote_desktop"),
-                Message::ShowNewRemoteDesktop,
-                OryxisColors::t().text_secondary,
-            ));
-        }
-        // Export hosts: opens the share dialog with a per-folder
-        // include/exclude checklist (keys-off by default), unlike
-        // the full-vault export in Settings. Pre-scoped to the
-        // active folder when one is open.
-        if !self.connections.is_empty() {
-            items = items.push(self.menu_item(
-                iced_fonts::lucide::upload(),
-                crate::i18n::t("export_hosts"),
-                Message::ShowExportHosts(self.active_group),
-                OryxisColors::t().text_secondary,
-            ));
-        }
-        // Only profiles whose provider plugin is installed can
-        // run discovery; hide the rest (they'd fail with a
-        // "binary not found" wall) until the plugin is back.
-        for cp in self
-            .cloud_profiles
-            .iter()
-            .filter(|p| self.cloud_provider_installed(&p.provider))
-        {
-            let (glyph, brand) = crate::os_icon::provider_icon(
-                &cp.provider,
-                OryxisColors::t().accent,
-            );
-            items = items.push(self.menu_item(
-                glyph,
-                cp.label.as_str(),
-                Message::ShowCloudDiscover(cp.id),
-                brand,
-            ));
+        // The "+ Host ▾" add menu: one row per entry of the shared add
+        // catalog (`views::add_actions`), which the first-run empty
+        // state renders as buttons from the same list.
+        let mut items = column![];
+        for action in self.add_host_actions() {
+            items = items.push(self.menu_item(action.icon, action.label, action.msg, action.color));
         }
         items.into()
     }

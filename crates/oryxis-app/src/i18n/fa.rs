@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "ایجاد میزبان",
         "create_host_desc" => "جزئیات اتصال را به‌عنوان میزبان ذخیره کنید تا با یک کلیک متصل شوید.",
+        "or_separator" => "یا",
         "add_key_title" => "افزودن کلید",
         "add_key_desc" => "کلیدهای SSH را برای احراز هویت میزبان‌ها وارد کنید.",
         "create_snippet_title" => "ایجاد قطعه‌کد",

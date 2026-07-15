@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "สร้างโฮสต์",
         "create_host_desc" => "บันทึกรายละเอียดการเชื่อมต่อเป็นโฮสต์เพื่อเชื่อมต่อได้ในคลิกเดียว",
+        "or_separator" => "หรือ",
         "add_key_title" => "เพิ่มคีย์",
         "add_key_desc" => "นำเข้าคีย์ SSH เพื่อยืนยันตัวตนกับโฮสต์ของคุณ",
         "create_snippet_title" => "สร้าง Snippet",

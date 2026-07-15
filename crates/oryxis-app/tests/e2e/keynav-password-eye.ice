@@ -11,7 +11,9 @@ expect "Welcome to Oryxis"
 click "Skip"
 click "Continue without password"
 expect "Create host"
-click "HOST"
+# First run has no toolbar: Continue on the empty first-run screen is
+# the "+ Host" path and opens the same editor.
+click "Continue"
 expect "New Host"
 type "10.9.9.9"
 scroll pixels (0, -400) (990, 400)

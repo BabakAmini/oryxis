@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "إنشاء مضيف",
         "create_host_desc" => "احفظ تفاصيل الاتصال كمضيف للاتصال بنقرة واحدة.",
+        "or_separator" => "أو",
         "add_key_title" => "إضافة مفتاح",
         "add_key_desc" => "استورد مفاتيح SSH لمصادقة المضيفين.",
         "create_snippet_title" => "إنشاء مقتطف",

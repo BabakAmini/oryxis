@@ -102,7 +102,12 @@ impl Oryxis {
     /// Consumed by `Message::FocusViewSearch` (Ctrl+F).
     pub(crate) fn active_view_search_id(&self) -> Option<widget::Id> {
         match self.active_view {
-            View::Dashboard => Some(widget::Id::new("search-dashboard")),
+            // First run builds no toolbar, so there is no search field
+            // to focus: Ctrl+F no-ops and Tab skips the search zone
+            // instead of opening the floating field over an empty
+            // screen.
+            View::Dashboard => (!self.dashboard_is_empty())
+                .then(|| widget::Id::new("search-dashboard")),
             View::Keys => Some(widget::Id::new("search-keys")),
             // Snippets and History only expose their search field on
             // the Workspace-mode sub-nav. In Classic mode there's no

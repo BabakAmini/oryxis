@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "होस्ट बनाएं",
         "create_host_desc" => "अपने कनेक्शन विवरण होस्ट के रूप में सेव करें और एक क्लिक में कनेक्ट करें।",
+        "or_separator" => "या",
         "add_key_title" => "कुंजी जोड़ें",
         "add_key_desc" => "अपने होस्टों से प्रमाणीकरण के लिए SSH कुंजियां इंपोर्ट करें।",
         "create_snippet_title" => "स्निपेट बनाएं",

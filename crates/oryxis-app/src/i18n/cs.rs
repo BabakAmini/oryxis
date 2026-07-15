@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Vytvořit hostitele",
         "create_host_desc" => "Uložte si údaje o připojení jako hostitele a připojujte se jedním kliknutím.",
+        "or_separator" => "nebo",
         "add_key_title" => "Přidat klíč",
         "add_key_desc" => "Importujte SSH klíče pro ověřování u vašich hostitelů.",
         "create_snippet_title" => "Vytvořit snippet",

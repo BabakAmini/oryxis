@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Δημιουργία host",
         "create_host_desc" => "Αποθηκεύστε τα στοιχεία σύνδεσης ως hosts για σύνδεση με ένα κλικ.",
+        "or_separator" => "ή",
         "add_key_title" => "Προσθήκη κλειδιού",
         "add_key_desc" => "Εισαγάγετε κλειδιά SSH για πιστοποίηση στους hosts σας.",
         "create_snippet_title" => "Δημιουργία snippet",

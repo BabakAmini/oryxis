@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Buat host",
         "create_host_desc" => "Simpan detail koneksi Anda sebagai host untuk menghubungkan dalam satu klik.",
+        "or_separator" => "atau",
         "add_key_title" => "Tambah kunci",
         "add_key_desc" => "Impor kunci SSH untuk mengautentikasi dengan host Anda.",
         "create_snippet_title" => "Buat snippet",

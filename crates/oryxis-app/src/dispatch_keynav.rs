@@ -596,10 +596,20 @@ impl Oryxis {
             NavItem::Proxy(id) => Message::ShowProxyIdentityForm(Some(id)),
             NavItem::KnownHost(i) => Message::RequestDeleteKnownHost(i),
             NavItem::ContentAction(i) => {
-                // Generic action rows (dynamic cloud-group task list)
-                // carry their own recorded message.
+                // Generic action rows (dynamic cloud-group task list,
+                // the empty dashboard's create/import block) carry
+                // their own recorded `RowAction`. Same verbs as the
+                // Settings rows above: an input row hands the keyboard
+                // to the real text input, everything else dispatches.
                 let action = self.keynav.content_actions.borrow().get(i).cloned();
-                let Some(msg) = action.and_then(|a| a.activate) else {
+                let Some(a) = action else {
+                    return Task::none();
+                };
+                if let Some(id) = a.focus {
+                    self.keynav.focus = None;
+                    return iced::widget::operation::focus(id);
+                }
+                let Some(msg) = a.activate else {
                     return Task::none();
                 };
                 self.keynav.focus = None;

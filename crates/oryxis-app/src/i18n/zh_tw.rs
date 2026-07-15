@@ -301,6 +301,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "create_host_title" => "建立主機",
         "create_host_desc" => "儲存連線資訊，一鍵連上您的主機。",
+        "or_separator" => "或",
         "add_key_title" => "新增金鑰",
         "add_key_desc" => "匯入 SSH 金鑰以驗證您的主機身分。",
         "create_snippet_title" => "建立程式碼片段",

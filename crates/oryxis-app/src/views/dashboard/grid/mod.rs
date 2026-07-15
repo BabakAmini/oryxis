@@ -298,7 +298,24 @@ impl Oryxis {
         host_order
     }
 
+    /// True on a first-run vault: nothing saved anywhere, so the
+    /// dashboard renders `dashboard_empty_state` (no toolbar, no
+    /// search field). Read outside the view too, by
+    /// `active_view_search_id`, so the keyboard never tries to focus a
+    /// search field this screen doesn't build.
+    pub(crate) fn dashboard_is_empty(&self) -> bool {
+        self.connections.is_empty() && self.groups.is_empty() && self.session_groups.is_empty()
+    }
+
     pub(super) fn dashboard_main_content(&self) -> Element<'_, Message> {
+        if self.dashboard_is_empty() {
+            // Nothing navigable; keep the keyboard order in sync. The
+            // empty state builds no toolbar, so it resets that
+            // recording itself.
+            self.keynav_clear_content();
+            return self.dashboard_empty_state();
+        }
+
         let toolbar = self.dashboard_toolbar();
 
         // ── Search bar ──
@@ -314,12 +331,6 @@ impl Oryxis {
         let status: Element<'_, Message> = Space::new().height(0).into();
         let at_root = self.active_group.is_none();
         let flatten = self.flatten_hosts && at_root;
-
-        if self.connections.is_empty() && self.groups.is_empty() && self.session_groups.is_empty() {
-            // Nothing navigable; keep the keyboard order in sync.
-            self.keynav_clear_content();
-            return self.dashboard_empty_state();
-        }
 
         if let Some(gid) = self.active_group
             && let Some(group) = self.groups.iter().find(|g| g.id == gid)

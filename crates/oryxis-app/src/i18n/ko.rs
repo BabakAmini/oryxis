@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "호스트 만들기",
         "create_host_desc" => "연결 세부 정보를 호스트로 저장하여 한 번의 클릭으로 연결하세요.",
+        "or_separator" => "또는",
         "add_key_title" => "키 추가",
         "add_key_desc" => "SSH 키를 가져와 호스트로 인증하세요.",
         "create_snippet_title" => "스니펫 만들기",

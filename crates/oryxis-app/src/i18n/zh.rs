@@ -301,6 +301,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "create_host_title" => "创建主机",
         "create_host_desc" => "保存连接信息，一键连接您的主机。",
+        "or_separator" => "或",
         "add_key_title" => "添加密钥",
         "add_key_desc" => "导入 SSH 密钥以验证您的主机身份。",
         "create_snippet_title" => "创建代码片段",

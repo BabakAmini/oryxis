@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Utwórz host",
         "create_host_desc" => "Zapisz dane połączenia jako hosty, aby łączyć się jednym kliknięciem.",
+        "or_separator" => "lub",
         "add_key_title" => "Dodaj klucz",
         "add_key_desc" => "Importuj klucze SSH do uwierzytelniania na hostach.",
         "create_snippet_title" => "Utwórz fragment",

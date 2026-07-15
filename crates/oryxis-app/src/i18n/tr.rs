@@ -305,6 +305,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "Sunucu oluştur",
         "create_host_desc" => "Tek tıkla bağlanmak için bağlantı bilgilerinizi sunucu olarak kaydedin.",
+        "or_separator" => "veya",
         "add_key_title" => "Anahtar ekle",
         "add_key_desc" => "Sunucularınızla kimlik doğrulamak için SSH anahtarlarını içe aktarın.",
         "create_snippet_title" => "Snippet oluştur",

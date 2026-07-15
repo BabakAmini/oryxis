@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Empty states
         "create_host_title" => "Create host",
         "create_host_desc" => "Save your connection details as hosts to connect in one click.",
+        "or_separator" => "or",
         "add_key_title" => "Add a key",
         "add_key_desc" => "Import SSH keys to authenticate with your hosts.",
         "create_snippet_title" => "Create a snippet",

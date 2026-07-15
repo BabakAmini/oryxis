@@ -441,20 +441,24 @@ impl Oryxis {
                 }
             }
             Message::QuickHostContinue => {
-                if !self.quick_host_input.is_empty() {
-                    self.editor_form = self.new_connection_form();
-                    self.editor_initial_command =
-                        iced::widget::text_editor::Content::new();
-                    self.editor_form.hostname = self.quick_host_input.clone();
-                    if let Some(gid) = self.active_group
-                        && let Some(g) = self.groups.iter().find(|g| g.id == gid)
-                    {
-                        self.editor_form.group_name = g.label.clone();
-                    }
-                    self.show_host_panel = true;
-                    self.panel_nav_clear();
-                    self.host_panel_error = None;
+                // Same editor the toolbar's "+ Host" opens (shared
+                // setup: default port, editor combos, group
+                // pre-fill). An empty field still opens it: on the
+                // first-run screen there is no toolbar, so Continue is
+                // the only way in and must never dead-end. The typed
+                // value survives the panel in case the user cancels.
+                let task = self.open_new_host_editor(
+                    oryxis_core::models::connection::ConnectionProtocol::Ssh,
+                );
+                if self.quick_host_input.is_empty() {
+                    return Ok(task);
                 }
+                self.editor_form.hostname = self.quick_host_input.clone();
+                // Hostname came in pre-filled, so the cursor belongs on
+                // the one field still required: the label.
+                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    "editor-label",
+                )));
             }
 
             m => return Err(m),

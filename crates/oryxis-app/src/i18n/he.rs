@@ -324,6 +324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Empty states
         "create_host_title" => "יצירת מארח",
         "create_host_desc" => "שמרו את פרטי החיבור כמארחים כדי להתחבר בלחיצה אחת.",
+        "or_separator" => "או",
         "add_key_title" => "הוספת מפתח",
         "add_key_desc" => "ייבאו מפתחות SSH כדי להזדהות מול המארחים שלכם.",
         "create_snippet_title" => "יצירת סניפט",
