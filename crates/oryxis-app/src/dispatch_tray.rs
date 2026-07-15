@@ -15,6 +15,20 @@ impl Oryxis {
         match message {
             // -- System tray --
             Message::TrayPoll => {
+                // A native minimize verb (taskbar button, Win+Down,
+                // Alt+Space menu) is swallowed by the Win32 subclass
+                // in `tray`, which hides the window from inside the
+                // window procedure and leaves this flag behind. It
+                // can't touch app state from there, so the same
+                // bookkeeping the chrome-button path does inline
+                // happens here instead. Drained BEFORE the signature
+                // below so the menu rebuild + `set_visible` see the
+                // new hidden state on this very tick.
+                if crate::tray::take_native_hide() {
+                    self.is_window_hidden = true;
+                    crate::tray::set_visible(true);
+                    self.broadcast_ipc_state_if_child();
+                }
                 // Windows JumpList refresh rides this unconditional-Windows
                 // tick (it is NOT gated on the tray setting; if TrayPoll
                 // ever becomes tray-gated, move this to its own timer).
@@ -170,6 +184,28 @@ impl Oryxis {
                             .and_then(|id| {
                                 iced::window::run(id, |window| {
                                     crate::jumplist::tag_window(window);
+                                })
+                            })
+                            .discard(),
+                    );
+                }
+
+                // One-shot: subclass the window so the OS minimize
+                // verbs honour minimize-to-tray. Needs the raw HWND,
+                // so it hops through `iced::window::run` like the
+                // JumpList tag above. Retried each tick until it
+                // lands (the window may not exist yet on the first
+                // ticks); the static flag stops it afterwards. Every
+                // process does this for its own window, children
+                // included: they have no tray icon, but the primary's
+                // menu lists their hidden windows via the IPC
+                // registry. No-op off Windows.
+                if !crate::tray::minimize_hook_installed() {
+                    follow_ups.push(
+                        iced::window::oldest()
+                            .and_then(|id| {
+                                iced::window::run(id, |window| {
+                                    crate::tray::install_minimize_hook(window);
                                 })
                             })
                             .discard(),

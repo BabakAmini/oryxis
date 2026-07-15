@@ -1177,6 +1177,11 @@ impl Oryxis {
             }
             Message::SettingToggleMinimizeToTray => {
                 self.setting_minimize_to_tray = !self.setting_minimize_to_tray;
+                // The Win32 subclass that intercepts the OS minimize
+                // verbs can't read app state, so the toggle has to be
+                // mirrored down to it or it keeps acting on the value
+                // this process booted with.
+                crate::tray::set_minimize_to_tray(self.setting_minimize_to_tray);
                 self.persist_setting(
                     "minimize_to_tray",
                     if self.setting_minimize_to_tray { "true" } else { "false" },

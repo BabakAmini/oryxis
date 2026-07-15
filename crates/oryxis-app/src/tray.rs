@@ -361,6 +361,125 @@ mod imp {
         true
     }
 
+    /// Live mirror of the `minimize_to_tray` setting, readable from
+    /// the Win32 subclass proc below. The proc runs inside the window
+    /// procedure and can't borrow app state, so the setting is pushed
+    /// here from `boot` and from the settings toggle instead.
+    static MINIMIZE_TO_TRAY: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+    /// Set by the subclass proc when it swallowed a native minimize
+    /// and hid the window. Drained by the tray heartbeat so the app
+    /// can sync `is_window_hidden` + the IPC registry, the same
+    /// bookkeeping `handle_window_minimize` does on the button path.
+    static NATIVE_HIDE_PENDING: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+    /// One-shot guard: the heartbeat retries until the subclass lands,
+    /// then stops.
+    static HOOK_INSTALLED: std::sync::atomic::AtomicBool =
+        std::sync::atomic::AtomicBool::new(false);
+
+    /// Push the current `minimize_to_tray` setting down to the
+    /// subclass proc. Call on boot and on every toggle, otherwise the
+    /// proc keeps deciding on a stale value.
+    pub fn set_minimize_to_tray(on: bool) {
+        MINIMIZE_TO_TRAY.store(on, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// True exactly once after the subclass proc hid the window on a
+    /// native minimize verb.
+    pub fn take_native_hide() -> bool {
+        NATIVE_HIDE_PENDING.swap(false, std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Whether the subclass is already in place. Lets the caller stop
+    /// spawning an install task on every heartbeat once it landed.
+    pub fn minimize_hook_installed() -> bool {
+        HOOK_INSTALLED.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Intercept `WM_SYSCOMMAND` / `SC_MINIMIZE` so the OS minimize
+    /// verbs (taskbar button, Win+Down, the Alt+Space system menu)
+    /// honour minimize-to-tray like our own chrome button does.
+    ///
+    /// The button path routes through `Message::WindowMinimize`, but
+    /// nothing generates that message for a native minimize: winit
+    /// reports the state change after the fact and iced has no
+    /// `minimize_requests()` to mirror `close_requests()`. Swallowing
+    /// the message before `DefWindowProc` is also what avoids a
+    /// visible minimize-then-vanish flicker: reacting to a completed
+    /// minimize would play the animation first.
+    ///
+    /// Returns false when the window handle isn't a Win32 one or the
+    /// subclass call fails; the caller retries on the next tick.
+    pub fn install_minimize_hook(handle: &dyn iced::Window) -> bool {
+        use iced::window::raw_window_handle::RawWindowHandle;
+        use windows_sys::Win32::UI::Shell::SetWindowSubclass;
+
+        if HOOK_INSTALLED.load(std::sync::atomic::Ordering::Relaxed) {
+            return true;
+        }
+        let Ok(wh) = handle.window_handle() else {
+            return false;
+        };
+        let RawWindowHandle::Win32(win32) = wh.as_raw() else {
+            return false;
+        };
+        // SAFETY: the HWND is valid for the lifetime of the &dyn
+        // handle reference, and SetWindowSubclass must run on the
+        // thread that owns the window, which is where
+        // `iced::window::run` dispatches us. The subclass id (1) is
+        // ours to pick and only has to be unique per (window, proc)
+        // pair; the reference data is unused. The subclass chains
+        // ahead of winit's own window procedure rather than replacing
+        // it, so everything we don't claim still reaches winit via
+        // DefSubclassProc.
+        let ok = unsafe {
+            SetWindowSubclass(win32.hwnd.get() as _, Some(minimize_subclass_proc), 1, 0) != 0
+        };
+        if ok {
+            HOOK_INSTALLED.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        ok
+    }
+
+    /// The subclass procedure installed by `install_minimize_hook`.
+    unsafe extern "system" fn minimize_subclass_proc(
+        hwnd: windows_sys::Win32::Foundation::HWND,
+        msg: u32,
+        wparam: windows_sys::Win32::Foundation::WPARAM,
+        lparam: windows_sys::Win32::Foundation::LPARAM,
+        _subclass_id: usize,
+        _ref_data: usize,
+    ) -> windows_sys::Win32::Foundation::LRESULT {
+        use windows_sys::Win32::UI::Shell::DefSubclassProc;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            ShowWindow, SC_MINIMIZE, SW_HIDE, WM_SYSCOMMAND,
+        };
+
+        // The low 4 bits of wParam are reserved for the system on
+        // WM_SYSCOMMAND (Windows uses them internally for accelerator
+        // / mnemonic state), so the command has to be masked out
+        // before comparing.
+        if msg == WM_SYSCOMMAND
+            && (wparam & 0xFFF0) == SC_MINIMIZE as usize
+            && MINIMIZE_TO_TRAY.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            // SAFETY: hwnd comes from the window procedure itself, so
+            // it is live and owned by this thread. SW_HIDE is a plain
+            // integer constant.
+            unsafe {
+                let _ = ShowWindow(hwnd, SW_HIDE);
+            }
+            NATIVE_HIDE_PENDING.store(true, std::sync::atomic::Ordering::Relaxed);
+            // Claim the message: returning 0 without chaining is what
+            // keeps the window from actually minimizing.
+            return 0;
+        }
+        // SAFETY: plain forward of the original arguments to the next
+        // procedure in the subclass chain.
+        unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+    }
+
     /// Restore a hidden window: show it, then pull to foreground.
     /// `SW_SHOW` alone leaves it in the previous z-order, so an
     /// `SetForegroundWindow` chases it to land on top. If the
@@ -459,6 +578,26 @@ mod stub {
     /// Stub: never actually shows anything on non-Windows targets.
     pub fn show_window(_handle: &dyn iced::Window) -> bool {
         false
+    }
+
+    /// Stub: the native-minimize interception is a Win32 window
+    /// subclass, so there is nothing to mirror here. Non-Windows
+    /// targets keep the plain OS minimize.
+    pub fn set_minimize_to_tray(_on: bool) {}
+
+    /// Stub: no subclass, so a native minimize is never swallowed.
+    pub fn take_native_hide() -> bool {
+        false
+    }
+
+    /// Stub: reports success so the caller stops retrying.
+    pub fn install_minimize_hook(_handle: &dyn iced::Window) -> bool {
+        true
+    }
+
+    /// Stub: reports installed so the caller never spawns the task.
+    pub fn minimize_hook_installed() -> bool {
+        true
     }
 }
 

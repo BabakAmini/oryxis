@@ -516,6 +516,11 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("minimize_to_tray") {
                 self.setting_minimize_to_tray = v == "true";
             }
+            // Mirror it down to the Win32 subclass proc that handles the
+            // OS minimize verbs; it can't reach app state. Unconditional
+            // (not inside the `if let`) so a vault without the row still
+            // pushes the default.
+            crate::tray::set_minimize_to_tray(self.setting_minimize_to_tray);
             if let Ok(Some(v)) = vault.get_setting("tab_close_button_side")
                 && (v == "left" || v == "right")
             {
