@@ -1,8 +1,17 @@
 name: Nightly
 
 # Rolling per-commit build of just the main `oryxis` app (no plugins,
-# no installers). Each successful run replaces the `nightly` GitHub
-# Release so the link to the latest unstable binary never moves.
+# no installers). Each successful run replaces the `nightly-latest`
+# GitHub Release so the link to the latest unstable binary never moves.
+#
+# The rolling tag was `nightly` until 2026-07-16: a release published
+# while "release immutability" was enabled burned that tag name
+# PERMANENTLY (GitHub reserves a tag ever used by an immutable release,
+# even after the release and tag are deleted and the setting is turned
+# off). Never enable release immutability on this repo while a rolling
+# tag exists, and never reuse the name `nightly` for a tag. The mirror
+# snapshot keeps the `releases/nightly.json` name so pre-rename
+# binaries still find updates through the Auto mirror fallback.
 
 on:
   push:
@@ -17,8 +26,8 @@ on:
       - '.github/workflows/release*.yml'
 
 # Cancel an in-flight nightly when a newer commit lands. The rolling
-# `nightly` release would just be overwritten anyway, so the older run
-# is wasted compute.
+# `nightly-latest` release would just be overwritten anyway, so the
+# older run is wasted compute.
 concurrency:
   group: nightly
   cancel-in-progress: true
@@ -257,7 +266,7 @@ jobs:
           # so the very first run still succeeds). `--cleanup-tag`
           # nukes the rolling tag so the next `gh release create` can
           # recreate it pointing at the new commit.
-          gh release delete nightly --yes --cleanup-tag 2>/dev/null || true
+          gh release delete nightly-latest --yes --cleanup-tag 2>/dev/null || true
 
           NOTES=$(cat <<NOTE
           Automated nightly build of the \`oryxis\` app, no plugins or installers.
@@ -271,7 +280,7 @@ jobs:
           NOTE
           )
 
-          gh release create nightly \
+          gh release create nightly-latest \
             --prerelease \
             --title "Nightly (${{ steps.meta.outputs.sha_short }})" \
             --notes "$NOTES" \
@@ -287,5 +296,5 @@ jobs:
     needs: [publish]
     uses: ./.github/workflows/publish-mirror.yml
     with:
-      tag: nightly
+      tag: nightly-latest
     secrets: inherit

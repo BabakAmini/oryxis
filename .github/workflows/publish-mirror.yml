@@ -8,7 +8,10 @@
 #   fonts/<file>              pinned CJK fonts (from google/fonts)
 #   releases/<tag>/<asset>    release assets incl. .sig sidecars
 #   releases/latest.json      snapshot of GET repos/.../releases/latest
-#   releases/nightly.json     snapshot of GET repos/.../releases/tags/nightly
+#   releases/nightly.json     snapshot of GET repos/.../releases/tags/nightly-latest
+#                             (file name kept from the pre-2026-07-16
+#                             `nightly` tag so old binaries' mirror
+#                             fallback keeps resolving)
 #   releases/index.json       snapshot of GET repos/.../releases?per_page=30
 #
 # Mirror content never needs to be trusted by clients: every asset is
@@ -75,7 +78,7 @@ jobs:
           # latest / nightly may 404 before the first matching release
           # exists; skip rather than publish an error body.
           gh api "$api/latest" > assets/releases/latest.json || rm -f assets/releases/latest.json
-          gh api "$api/tags/nightly" > assets/releases/nightly.json || rm -f assets/releases/nightly.json
+          gh api "$api/tags/nightly-latest" > assets/releases/nightly.json || rm -f assets/releases/nightly.json
 
       - name: Mirror the pinned CJK fonts
         run: |

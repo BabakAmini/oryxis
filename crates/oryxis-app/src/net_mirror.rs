@@ -39,7 +39,9 @@
 //! - `releases/<tag>/<asset>`: release assets (installers, plugin
 //!   binaries, manifests, `.sig` sidecars)
 //! - `releases/latest.json`: snapshot of `repos/.../releases/latest`
-//! - `releases/nightly.json`: snapshot of `releases/tags/nightly`
+//! - `releases/nightly.json`: snapshot of `releases/tags/nightly-latest`
+//!   (file name kept from the pre-rename `nightly` tag so binaries
+//!   built before 2026-07-16 still resolve it through the fallback)
 //! - `releases/index.json`: snapshot of `releases?per_page=30`
 
 use std::sync::RwLock;
@@ -143,7 +145,10 @@ fn asset_path(url: &str) -> Option<String> {
             let rest = path.strip_prefix(&format!("/repos/{repo}/"))?;
             match rest {
                 "releases/latest" => Some("releases/latest.json".into()),
-                "releases/tags/nightly" => Some("releases/nightly.json".into()),
+                // The rolling tag renamed from `nightly` on 2026-07-16
+                // (immutable-release tag burn); the snapshot keeps the
+                // old file name, see the module doc.
+                "releases/tags/nightly-latest" => Some("releases/nightly.json".into()),
                 "releases" => Some("releases/index.json".into()),
                 _ => None,
             }
@@ -319,8 +324,14 @@ mod tests {
                 Some("releases/latest.json"),
             ),
             (
-                format!("https://api.github.com/repos/{repo}/releases/tags/nightly"),
+                format!("https://api.github.com/repos/{repo}/releases/tags/nightly-latest"),
                 Some("releases/nightly.json"),
+            ),
+            // The burned pre-rename tag is no longer requested by this
+            // binary and is not mapped.
+            (
+                format!("https://api.github.com/repos/{repo}/releases/tags/nightly"),
+                None,
             ),
             (
                 format!("https://api.github.com/repos/{repo}/releases?per_page=30"),

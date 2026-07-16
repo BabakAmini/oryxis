@@ -249,12 +249,18 @@ async fn check_stable() -> Result<Option<UpdateInfo>, UpdateError> {
     }))
 }
 
-/// Nightly channel: the rolling `nightly` prerelease. Version numbers
-/// don't move between nightlies, so "newer" means a different target
-/// commit than the one baked into this binary. `/releases/latest` skips
-/// prereleases, hence the explicit tag lookup.
+/// Nightly channel: the rolling `nightly-latest` prerelease. Version
+/// numbers don't move between nightlies, so "newer" means a different
+/// target commit than the one baked into this binary. `/releases/latest`
+/// skips prereleases, hence the explicit tag lookup.
+///
+/// The tag was `nightly` until 2026-07-16, when a release published
+/// under GitHub's "release immutability" burned that name permanently
+/// (a tag ever used by an immutable release can never be recreated).
+/// Binaries older than the rename get a 404 here and fall back to the
+/// mirror snapshot, which kept the `releases/nightly.json` path.
 async fn check_nightly() -> Result<Option<UpdateInfo>, UpdateError> {
-    let json = fetch_release("releases/tags/nightly").await?;
+    let json = fetch_release("releases/tags/nightly-latest").await?;
     let remote_sha = nightly_commit(&json).ok_or(UpdateError::Parse)?;
     let local_sha = env!("ORYXIS_GIT_SHA");
     // Dev build with no embedded SHA: can't compare, so never nag.
@@ -279,7 +285,7 @@ async fn check_nightly() -> Result<Option<UpdateInfo>, UpdateError> {
     }))
 }
 
-/// Extract the commit the `nightly` release points at. The publish job
+/// Extract the commit the nightly release points at. The publish job
 /// creates the tag with `--target <full-sha>`, so `target_commitish`
 /// usually carries it; fall back to the short SHA in the release title
 /// (`Nightly (abcdef12)`).
