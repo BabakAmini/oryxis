@@ -651,6 +651,21 @@ impl Oryxis {
         // (`handle_modal_nav_key`), so movement / activation keys are
         // unaffected.
         let modal_owns_keys = self.any_modal_blocks_input();
+        // The new-tab picker is the one blocking modal that PRINTS
+        // chords on its own rows (Local Shell / SFTP carry the same hint
+        // the burger menu shows). A hint for a key the surface then
+        // swallows is worse than no hint, so those two fire while it is
+        // open. Scoped to exactly what the picker offers: it hides the
+        // SFTP row while a split pane is pending (SFTP is a tab, never a
+        // pane), so the chord stays blocked there too.
+        let picker_exempt = |a: HotkeyAction| {
+            self.show_new_tab_picker
+                && match a {
+                    HotkeyAction::OpenLocalShell => true,
+                    HotkeyAction::OpenSftp => self.pending_pane_split.is_none(),
+                    _ => false,
+                }
+        };
         // Resolve the hit under an immutable borrow of the binding
         // table, then dispatch once the borrow is gone:
         // `dispatch_hotkey_action` takes `&mut self`. The old code
@@ -659,8 +674,10 @@ impl Oryxis {
         // in place keeps the loop allocation-free per keypress.
         let mut hit: Option<(HotkeyAction, FamilyMatch)> = None;
         for &action in HotkeyAction::all() {
-            if modal_owns_keys {
-                break;
+            // `continue`, not `break`: an exempt action can sit anywhere
+            // in the table, so the scan has to reach it.
+            if modal_owns_keys && !picker_exempt(action) {
+                continue;
             }
             // Split-pane actions only apply inside the terminal view.
             // Skipping (not consuming) elsewhere leaves their key free
@@ -920,6 +937,15 @@ impl Oryxis {
                 } else {
                     Task::none()
                 }
+            }
+            // While the new-tab picker is open the chord must do exactly
+            // what clicking its Local Shell row does, which is fill a
+            // pending split pane when the picker was opened from a split
+            // (and dismiss the picker either way). The global action
+            // opens a new tab and would quietly drop the split, so the
+            // printed hint would lie about its own row.
+            OpenLocalShell if self.show_new_tab_picker => {
+                Task::done(Message::PickLocalShell)
             }
             OpenLocalShell => Task::done(Message::OpenLocalShell),
             NewWindow => Task::done(Message::SpawnNewWindow),
