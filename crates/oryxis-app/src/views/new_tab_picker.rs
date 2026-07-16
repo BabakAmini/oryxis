@@ -188,7 +188,14 @@ impl Oryxis {
                 crate::keynav::RowAction::activate(Message::PickLocalShell),
                 6.0,
                 false,
-                local_shell_row(),
+                // Hints resolve from the live bindings, so a rebind flows
+                // through here without a rebuild, same as the burger menu.
+                // Both entries exist in that menu too and carry the hint
+                // there; showing it only in one of the two places is how a
+                // user concludes the shortcut doesn't exist.
+                local_shell_row(
+                    self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::OpenLocalShell),
+                ),
             ));
         }
         if want_sftp {
@@ -196,7 +203,7 @@ impl Oryxis {
                 crate::keynav::RowAction::activate(Message::NewSftpTab),
                 6.0,
                 false,
-                sftp_row(),
+                sftp_row(self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::OpenSftp)),
             ));
         }
         if want_local || want_sftp {
@@ -576,10 +583,25 @@ impl Oryxis {
     }
 }
 
+/// Trailing hotkey hint for a picker row, in the burger menu's style
+/// (muted, small, hugging the trailing edge). `None` renders nothing, so
+/// an unbound action just shows no hint.
+fn row_shortcut_hint<'a>(shortcut: Option<String>) -> Vec<Element<'a, Message>> {
+    match shortcut {
+        Some(s) => vec![
+            Space::new().width(Length::Fill).into(),
+            text(s).size(11).color(OryxisColors::t().text_muted).into(),
+        ],
+        // No filler either: without a hint the row keeps its natural
+        // width, exactly as it did before hints existed.
+        None => Vec::new(),
+    }
+}
+
 /// "Local Shell" entry, emitting `PickLocalShell` (fills the pending split
 /// pane, or opens a local shell in a new tab).
-fn local_shell_row<'a>() -> Element<'a, Message> {
-    let inner = dir_row(vec![
+fn local_shell_row<'a>(shortcut: Option<String>) -> Element<'a, Message> {
+    let mut items: Vec<Element<'a, Message>> = vec![
         iced_fonts::lucide::terminal()
             .size(15)
             .color(OryxisColors::t().accent)
@@ -593,8 +615,9 @@ fn local_shell_row<'a>() -> Element<'a, Message> {
             })
             .color(OryxisColors::t().text_primary)
             .into(),
-    ])
-    .align_y(iced::Alignment::Center);
+    ];
+    items.extend(row_shortcut_hint(shortcut));
+    let inner = dir_row(items).align_y(iced::Alignment::Center);
     button(
         container(inner)
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
@@ -608,8 +631,8 @@ fn local_shell_row<'a>() -> Element<'a, Message> {
 
 /// "SFTP" entry, emitting `NewSftpTab` (opens a fresh SFTP browser tab).
 /// Shown right under Local Shell when SFTP is enabled.
-fn sftp_row<'a>() -> Element<'a, Message> {
-    let inner = dir_row(vec![
+fn sftp_row<'a>(shortcut: Option<String>) -> Element<'a, Message> {
+    let mut items: Vec<Element<'a, Message>> = vec![
         iced_fonts::lucide::folder_tree()
             .size(15)
             .color(OryxisColors::t().accent)
@@ -623,8 +646,9 @@ fn sftp_row<'a>() -> Element<'a, Message> {
             })
             .color(OryxisColors::t().text_primary)
             .into(),
-    ])
-    .align_y(iced::Alignment::Center);
+    ];
+    items.extend(row_shortcut_hint(shortcut));
+    let inner = dir_row(items).align_y(iced::Alignment::Center);
     button(
         container(inner)
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
