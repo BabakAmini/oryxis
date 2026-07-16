@@ -1113,42 +1113,36 @@ pub fn default_bindings() -> HotkeyMap {
     // primary_ctrl / primary_logo pair: the platforms disagree on more
     // than which modifier to use. Elsewhere the convention is
     // Ctrl+Shift+X, because plain Ctrl+X is a control sequence the
-    // shell wants (is_terminal_control_sequence), plus the xterm-era
-    // Insert chords that every mainstream terminal still honours.
-    // macOS has neither idiom: it uses bare Cmd, and Cmd+Insert means
-    // nothing there. Shift+Insert is modifier-neutral, so it rides
-    // along on macOS too rather than being dropped.
+    // shell wants (is_terminal_control_sequence). macOS has no such
+    // idiom and uses bare Cmd.
+    //
+    // Paste also ships Shift+Insert, and only paste. That chord has real
+    // pedigree (X11 tradition; PuTTY documents it as an alternative to
+    // its right-click paste) and it is modifier-neutral, so it rides
+    // along on macOS rather than being dropped. There is deliberately NO
+    // Ctrl+Insert copy to match it: the symmetry is tempting and wrong.
+    // PuTTY's own docs say copy is mouse-only by default, and GNOME
+    // Terminal documents only Ctrl+Shift+C. Anyone who wants it can bind
+    // it, which is the whole point of this table.
     //
     // Plain Ctrl+V is NOT a paste chord. It is the literal-next byte
     // (vim visual block, readline quoted-insert), and binding it here
     // would take it away from the PTY with no way back.
+    let shift_insert = (false, true, false, false, Named(keyboard::key::Named::Insert));
     if mac {
         put_many(&mut m, TerminalCopy, &[(false, false, false, true, Char('c'))]);
         put_many(
             &mut m,
             TerminalPaste,
-            &[
-                (false, false, false, true, Char('v')),
-                (false, true, false, false, Named(keyboard::key::Named::Insert)),
-            ],
+            &[(false, false, false, true, Char('v')), shift_insert],
         );
         put_many(&mut m, TerminalSelectAll, &[(false, false, false, true, Char('a'))]);
     } else {
-        put_many(
-            &mut m,
-            TerminalCopy,
-            &[
-                (true, true, false, false, Char('c')),
-                (true, false, false, false, Named(keyboard::key::Named::Insert)),
-            ],
-        );
+        put_many(&mut m, TerminalCopy, &[(true, true, false, false, Char('c'))]);
         put_many(
             &mut m,
             TerminalPaste,
-            &[
-                (true, true, false, false, Char('v')),
-                (false, true, false, false, Named(keyboard::key::Named::Insert)),
-            ],
+            &[(true, true, false, false, Char('v')), shift_insert],
         );
         put_many(&mut m, TerminalSelectAll, &[(true, true, false, false, Char('a'))]);
     }
@@ -1330,6 +1324,22 @@ mod tests {
         // The chord shown in the palette is the platform-primary one,
         // not the Insert alternate.
         assert_ne!(paste.primary(), Some(shift_ins));
+
+        // Shift+Insert paste has real pedigree (X11; PuTTY documents it).
+        // A matching Ctrl+Insert copy does NOT: PuTTY's docs say copy is
+        // mouse-only by default and GNOME Terminal documents only
+        // Ctrl+Shift+C. Shipping it "for symmetry" would be inventing a
+        // convention. It stays bindable, just not factory.
+        let copy = defaults.get(&HotkeyAction::TerminalCopy).expect("copy bound");
+        let ctrl_ins = HotkeyBinding {
+            ctrl: true,
+            shift: false,
+            alt: false,
+            logo: false,
+            primary: PrimaryKey::Named(Named::Insert),
+        };
+        assert!(!copy.contains(&ctrl_ins), "Ctrl+Insert copy is not a real convention");
+        assert_eq!(copy.len(), 1);
 
         // No factory chord anywhere is a bare Ctrl+letter that the shell
         // would want, which is what keeps the whole clipboard set clear
@@ -1523,18 +1533,8 @@ mod tests {
             "Shift+Insert must fire paste"
         );
 
-        let mut m = Modifiers::default();
-        m.set(Modifiers::CTRL, true);
-        let copy = defaults.get(&HotkeyAction::TerminalCopy).expect("bound");
-        assert_eq!(
-            copy.match_event(&ins, &m),
-            Some(FamilyMatch::Plain),
-            "Ctrl+Insert must fire copy"
-        );
-
-        // Modifier match is exact: a bare Insert fires neither.
+        // Modifier match is exact: a bare Insert fires nothing.
         let none = Modifiers::default();
         assert_eq!(paste.match_event(&ins, &none), None);
-        assert_eq!(copy.match_event(&ins, &none), None);
     }
 }
