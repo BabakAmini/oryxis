@@ -536,7 +536,10 @@ pub struct Oryxis {
     /// `Some` puts the keyboard handler in capture mode: the next
     /// KeyPressed becomes the new binding (Esc cancels). `None` is
     /// normal dispatch.
-    pub(crate) editing_hotkey: Option<crate::hotkeys::HotkeyAction>,
+    /// Which action, and which chord of its list, the Shortcuts editor
+    /// is capturing for. `None` when no capture is live.
+    pub(crate) editing_hotkey:
+        Option<(crate::hotkeys::HotkeyAction, crate::hotkeys::HotkeySlot)>,
 
     // Keys
     pub(crate) keys: Vec<SshKey>,

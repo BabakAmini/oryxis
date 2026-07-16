@@ -482,7 +482,7 @@ impl Oryxis {
         action: HotkeyAction,
     ) -> Option<String> {
         let binding = self.hotkey_bindings.get(&action)?;
-        Some(binding.badges().join(" + "))
+        Some(binding.badges()?.join(" + "))
     }
 
     /// Pretty-printed binding for the Nth strip slot (0-indexed),
@@ -495,7 +495,7 @@ impl Oryxis {
         slot: usize,
     ) -> Option<String> {
         let binding = self.hotkey_bindings.get(&HotkeyAction::SwitchToTabSlot)?;
-        let mut parts = binding.badges();
+        let mut parts = binding.badges()?;
         // Drop the family suffix ("1...9") and append the concrete
         // slot digit so the hint reads like a real chord.
         parts.pop();
@@ -513,7 +513,7 @@ impl Oryxis {
         digit: usize,
     ) -> Option<String> {
         let binding = self.hotkey_bindings.get(&HotkeyAction::VaultSectionSlot)?;
-        let mut parts = binding.badges();
+        let mut parts = binding.badges()?;
         parts.pop();
         parts.push(digit.to_string());
         Some(parts.join(" + "))
@@ -579,7 +579,7 @@ impl Oryxis {
                     return Some(toast_clear_after_secs(2));
                 }
                 // Conflicts: the static table and other snippets.
-                let in_table = self.hotkey_bindings.values().any(|b| *b == binding);
+                let in_table = self.hotkey_bindings.values().any(|b| b.contains(&binding));
                 let in_snippets = self.snippets.iter().any(|sn| {
                     self.snippet_editing_id != Some(sn.id)
                         && sn.hotkey.as_deref()
@@ -651,6 +651,13 @@ impl Oryxis {
         // (`handle_modal_nav_key`), so movement / activation keys are
         // unaffected.
         let modal_owns_keys = self.any_modal_blocks_input();
+        // Resolve the hit under an immutable borrow of the binding
+        // table, then dispatch once the borrow is gone:
+        // `dispatch_hotkey_action` takes `&mut self`. The old code
+        // copied the binding out per action to the same end, which
+        // stopped being free when a binding became a list; matching
+        // in place keeps the loop allocation-free per keypress.
+        let mut hit: Option<(HotkeyAction, FamilyMatch)> = None;
         for &action in HotkeyAction::all() {
             if modal_owns_keys {
                 break;
@@ -667,7 +674,9 @@ impl Oryxis {
             if action.vault_only() && !self.in_vault_area() {
                 continue;
             }
-            let bind_copy = self.hotkey_bindings.get(&action).copied();
+            let Some(binds) = self.hotkey_bindings.get(&action) else {
+                continue;
+            };
             // Plain Ctrl+letter bindings normally yield to the PTY (shell
             // control sequences: Ctrl+L clear, Ctrl+R history, ...). The
             // scrollback find-bar (Ctrl+F) is the deliberate exception on
@@ -677,17 +686,37 @@ impl Oryxis {
             // the PTY so vim / less / htop keep their own Ctrl+F.
             let find_bar_exempt =
                 action == HotkeyAction::FocusViewSearch && !alt_screen;
-            if pty_owns_keys
-                && !find_bar_exempt
-                && bind_copy.is_some_and(|b| b.is_terminal_control_sequence())
+            // Scrollback paging yields the WHOLE action on the alternate
+            // screen: there is no scrollback there (the widget pins
+            // scroll_offset to 0), so vim / less / htop own PageUp and
+            // page themselves. It needs this explicit gate because the
+            // control-sequence one below can never catch it: Shift+PageUp
+            // carries no Ctrl, so `is_terminal_control_sequence` is
+            // always false for it. The widget self-gates on the same
+            // signal; the two must agree or the key is either eaten twice
+            // or not at all.
+            if alt_screen
+                && matches!(
+                    action,
+                    HotkeyAction::ScrollbackPageUp | HotkeyAction::ScrollbackPageDown
+                )
             {
                 continue;
             }
-            let Some(b) = bind_copy else { continue };
-            if let Some(family) = b.match_event(key, modifiers) {
-                tracing::debug!(action = action.id(), "hotkey matched");
-                return Some(self.dispatch_hotkey_action(action, family));
+            // Per CHORD, not per action: an action carrying both a
+            // Ctrl+Shift chord and a bare Ctrl+letter one keeps the
+            // former here and yields only the latter to the shell.
+            let found = binds.match_event_where(key, modifiers, |b| {
+                !(pty_owns_keys && !find_bar_exempt && b.is_terminal_control_sequence())
+            });
+            if let Some(family) = found {
+                hit = Some((action, family));
+                break;
             }
+        }
+        if let Some((action, family)) = hit {
+            tracing::debug!(action = action.id(), "hotkey matched");
+            return Some(self.dispatch_hotkey_action(action, family));
         }
 
         // 2.5. Per-snippet custom hotkeys, derived LIVE from the vault
@@ -722,19 +751,52 @@ impl Oryxis {
     }
 
     /// Capture-mode branch of `handle_hotkey_keypress`. Esc cancels;
-    /// pure-modifier presses are ignored (they fire `KeyPressed` too);
-    /// anything else becomes the new binding (validated by
-    /// `binding_from_event::is_safe`). Conflicts with another action
-    /// unbind the loser and surface a toast naming it.
+    /// Delete / Backspace drop the chord being edited; pure-modifier
+    /// presses are ignored (they fire `KeyPressed` too); anything else
+    /// becomes the new chord (validated by
+    /// `binding_from_event::is_safe`). A conflict with another action
+    /// takes the chord from the loser and surfaces a toast naming it.
     fn handle_hotkey_capture(
         &mut self,
         key: &Key,
         modifiers: &Modifiers,
     ) -> Option<Task<Message>> {
-        let action = self.editing_hotkey?;
+        let (action, slot) = self.editing_hotkey?;
         // Esc cancels without saving.
         if matches!(key, Key::Named(Named::Escape)) {
             self.editing_hotkey = None;
+            return Some(Task::none());
+        }
+        // BARE Delete / Backspace remove the chord under edit. Neither
+        // is bindable on its own (`is_safe` only clears a modifier-free
+        // primary for function keys), so neither can be the chord the
+        // user meant to record, which is what leaves them free to mean
+        // "remove" here. Shift is excluded along with the rest:
+        // `Shift+Delete` IS bindable (shift + non-text primary), so
+        // swallowing it here would make it unrecordable.
+        if matches!(key, Key::Named(Named::Delete | Named::Backspace))
+            && !modifiers.control()
+            && !modifiers.shift()
+            && !modifiers.alt()
+            && !modifiers.logo()
+        {
+            self.editing_hotkey = None;
+            let crate::hotkeys::HotkeySlot::Replace(i) = slot else {
+                // Nothing recorded yet in an Add slot: the remove is
+                // just a cancel.
+                return Some(Task::none());
+            };
+            let mut binds = self.hotkey_bindings.get(&action).cloned().unwrap_or_default();
+            let Some(chord) = binds.iter().nth(i).copied() else {
+                return Some(Task::none());
+            };
+            binds.remove(&chord);
+            self.persist_setting(&format!("hotkey_{}", action.id()), &binds.serialize());
+            if binds.is_empty() {
+                self.hotkey_bindings.remove(&action);
+            } else {
+                self.hotkey_bindings.insert(action, binds);
+            }
             return Some(Task::none());
         }
         // Pure-modifier KeyPressed (Ctrl alone, Shift alone, ...)
@@ -764,62 +826,61 @@ impl Oryxis {
         // For family actions we only edit modifiers; preserve the
         // existing primary so the suffix glyph (1...9 / arrows) stays.
         if !primary_editable
-            && let Some(existing) = self.hotkey_bindings.get(&action)
+            && let Some(existing) = self
+                .hotkey_bindings
+                .get(&action)
+                .and_then(|b| b.primary())
         {
             new_binding.primary = existing.primary;
         }
 
-        // Conflict resolution: if another action already owns this
-        // exact binding, unbind that action and surface a toast that
-        // names *the action* (not the key combo) so the family case
-        // reads "Switch to specific Tab is now unbound" instead of
-        // "Ctrl+1 is now unbound".
+        // Conflict resolution: take the chord away from whichever other
+        // action holds it, and surface a toast that names *the action*
+        // (not the key combo) so the family case reads "Switch to
+        // specific Tab is now unbound" instead of "Ctrl+1 is now
+        // unbound".
+        //
+        // The loser gives up only the disputed CHORD and keeps the rest
+        // of its list. The single-binding model had to unbind the loser
+        // outright, and papered over that by auto-rebinding it to its
+        // factory default when that default happened to be free; with a
+        // list there is nothing to paper over, and an action that still
+        // has chords is simply still bound.
         let conflict: Option<HotkeyAction> = self
             .hotkey_bindings
             .iter()
-            .find(|(a, b)| **a != action && **b == new_binding)
+            .find(|(a, b)| **a != action && b.contains(&new_binding))
             .map(|(a, _)| *a);
         let conflict_toast: Option<Task<Message>> = conflict.map(|other| {
-            // Auto-rebind the conflicting action to its factory default
-            // when that default doesn't itself collide with the new
-            // binding (or with any other live binding). Beats leaving
-            // the user with an orphaned action they have to discover
-            // and re-set themselves. Falls back to unbinding when the
-            // default would be a fresh conflict.
-            let defaults = crate::hotkeys::default_bindings();
-            let default_for_other = defaults.get(&other).copied();
-            let default_safe = default_for_other.is_some_and(|d| {
-                d != new_binding
-                    && !self.hotkey_bindings.iter().any(|(a, b)| {
-                        *a != action && *a != other && *b == d
-                    })
-            });
-            if let Some(d) = default_for_other.filter(|_| default_safe) {
-                self.hotkey_bindings.insert(other, d);
-                self.persist_setting(
-                    &format!("hotkey_{}", other.id()),
-                    &d.serialize(),
-                );
-                self.set_toast(
-                    crate::i18n::t("hotkey_conflict_rebound_default")
-                        .replace("{action}", crate::i18n::t(other.label_key())),
-                );
-            } else {
+            let mut left = self
+                .hotkey_bindings
+                .get(&other)
+                .cloned()
+                .unwrap_or_default();
+            left.remove(&new_binding);
+            let now_unbound = left.is_empty();
+            self.persist_setting(&format!("hotkey_{}", other.id()), &left.serialize());
+            if now_unbound {
                 self.hotkey_bindings.remove(&other);
-                self.persist_setting(&format!("hotkey_{}", other.id()), "");
-                self.set_toast(
-                    crate::i18n::t("hotkey_conflict_unbound")
-                        .replace("{action}", crate::i18n::t(other.label_key())),
-                );
+            } else {
+                self.hotkey_bindings.insert(other, left);
             }
+            let msg = if now_unbound {
+                "hotkey_conflict_unbound"
+            } else {
+                "hotkey_conflict_chord_removed"
+            };
+            self.set_toast(
+                crate::i18n::t(msg)
+                    .replace("{action}", crate::i18n::t(other.label_key())),
+            );
             toast_clear_after_secs(3)
         });
 
-        self.hotkey_bindings.insert(action, new_binding);
-        self.persist_setting(
-            &format!("hotkey_{}", action.id()),
-            &new_binding.serialize(),
-        );
+        let mut binds = self.hotkey_bindings.get(&action).cloned().unwrap_or_default();
+        binds.set(slot, new_binding);
+        self.persist_setting(&format!("hotkey_{}", action.id()), &binds.serialize());
+        self.hotkey_bindings.insert(action, binds);
         self.editing_hotkey = None;
 
         Some(conflict_toast.unwrap_or_else(Task::none))
@@ -1036,6 +1097,29 @@ impl Oryxis {
                 Some(idx) => Task::done(Message::ToggleTabBroadcast(idx)),
                 None => Task::none(),
             },
+            // Paste is the one clipboard action the dispatcher performs
+            // itself: the widget can only write to a local PTY, so a
+            // widget-side paste would silently do nothing over SSH.
+            TerminalPaste => {
+                self.paste_clipboard_into_active();
+                Task::none()
+            }
+            // Copy / select-all / scrollback paging are performed by the
+            // terminal WIDGET, which owns the selection and the scroll
+            // offset (both live in its canvas state, out of reach from
+            // here). These arms exist purely to SWALLOW the key: the
+            // widget and this router are independent paths (see the note
+            // in dispatch_terminal.rs), so without a match here the key
+            // would also fall through to the PTY writer and echo a byte
+            // on top of the widget's action.
+            //
+            // Copy / select-all get away without an alt-screen gate
+            // because their chords are PTY-inert. Scrollback does not:
+            // Shift+PageUp really does encode to ESC[5~, which is why it
+            // is gated in the router loop above rather than here.
+            TerminalCopy | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown => {
+                Task::none()
+            }
             // Vault section cycling: neighbor of the active view in the
             // sub-nav pill order, wrapping. The loop only reaches these
             // in the vault area (vault_only gate above).

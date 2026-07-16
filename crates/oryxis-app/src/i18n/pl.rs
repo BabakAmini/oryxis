@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Resetuj",
         "hotkey_must_have_modifier" => "Skrót wymaga co najmniej jednego modyfikatora (Ctrl/Shift/Alt) lub klawisza funkcyjnego",
         "hotkey_conflict_unbound" => "{action} jest teraz nieprzypisane",
-        "hotkey_conflict_rebound_default" => "{action} przywrócono do domyślnego skrótu",
+        "hotkey_conflict_chord_removed" => "{action} utracił ten skrót",
+        "hotkey_scrollback_page_up" => "Przewiń o stronę w górę",
+        "hotkey_scrollback_page_down" => "Przewiń o stronę w dół",
         "hotkey_show_new_tab_picker" => "Otwórz wybór nowej karty",
         "hotkey_show_tab_jump" => "Przejdź do karty",
         "hotkey_show_command_palette" => "Paleta poleceń",
@@ -457,8 +459,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "To trwale usunie wszystko: hosty, klucze, tożsamości, fragmenty, dzienniki i ustawienia. Aplikacja zresetuje się do stanu pierwszego uruchomienia.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Kopiuj z terminala",
-        "paste_terminal" => "Wklej do terminala",
         "close_tab" => "Zamknij kartę",
         "close_other_tabs" => "Zamknij inne karty",
         "close_all_tabs" => "Zamknij wszystkie karty",

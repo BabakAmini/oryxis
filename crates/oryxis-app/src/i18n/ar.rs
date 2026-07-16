@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "إعادة التعيين",
         "hotkey_must_have_modifier" => "يتطلب الاختصار مُعدِّلًا واحدًا على الأقل (Ctrl/Shift/Alt) أو مفتاح وظيفة",
         "hotkey_conflict_unbound" => "{action} الآن بدون اختصار",
-        "hotkey_conflict_rebound_default" => "{action} عاد إلى اختصاره الافتراضي",
+        "hotkey_conflict_chord_removed" => "فقد {action} هذا الاختصار",
+        "hotkey_scrollback_page_up" => "التمرير صفحة للخلف",
+        "hotkey_scrollback_page_down" => "التمرير صفحة للأمام",
         "hotkey_show_new_tab_picker" => "فتح منتقي علامة تبويب جديدة",
         "hotkey_show_tab_jump" => "الانتقال إلى علامة التبويب",
         "hotkey_show_command_palette" => "لوحة الأوامر",
@@ -462,8 +464,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_already_has_password" => "هذه الخزنة لديها كلمة مرور بالفعل. أدخلها أعلاه لفتح القفل.",
 
         // Terminal shortcuts
-        "copy_terminal" => "نسخ من الطرفية",
-        "paste_terminal" => "لصق في الطرفية",
         "close_tab" => "إغلاق التبويب",
         "close_other_tabs" => "إغلاق التبويبات الأخرى",
         "close_all_tabs" => "إغلاق جميع التبويبات",

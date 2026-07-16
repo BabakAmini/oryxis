@@ -625,7 +625,7 @@ pub enum Message {
     /// Settings → Shortcuts: enter capture mode for an action. The
     /// next non-Esc, non-pure-modifier `KeyPressed` becomes the new
     /// binding (see `shortcuts::handle_hotkey_capture`).
-    StartEditingHotkey(crate::hotkeys::HotkeyAction),
+    StartEditingHotkey(crate::hotkeys::HotkeyAction, crate::hotkeys::HotkeySlot),
     /// Settings → Shortcuts: drop a single action's user override and
     /// fall back to the factory default.
     ResetHotkey(crate::hotkeys::HotkeyAction),

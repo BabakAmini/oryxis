@@ -307,6 +307,39 @@ impl Oryxis {
     /// rendering settings. Shared by every `pane_grid` cell. `is_focused`
     /// gates mouse-tracking reports so a focus-click on an inactive pane
     /// doesn't inject a stray report.
+    /// The user's chords for the gestures the terminal widget performs
+    /// itself (copy / select-all / scrollback paging, all of which need
+    /// canvas state the dispatcher can't reach).
+    ///
+    /// Hands the widget a matcher instead of a chord table so the
+    /// binding model stays in one place: `HotkeyBindings::match_event`
+    /// is the same code the router runs, so a rebind can't mean one
+    /// thing here and another there. The lists are cloned because
+    /// `TerminalView` carries no lifetime; they hold one or two chords
+    /// each, so it costs nothing per pane per frame.
+    fn terminal_chord_resolver(&self) -> oryxis_terminal::widget::ChordResolver {
+        use crate::hotkeys::HotkeyAction::*;
+        use oryxis_terminal::widget::TerminalChordAction;
+        let get = |a| self.hotkey_bindings.get(&a).cloned().unwrap_or_default();
+        let copy = get(TerminalCopy);
+        let select_all = get(TerminalSelectAll);
+        let page_up = get(ScrollbackPageUp);
+        let page_down = get(ScrollbackPageDown);
+        Box::new(move |key, mods| {
+            if copy.match_event(key, mods).is_some() {
+                Some(TerminalChordAction::Copy)
+            } else if select_all.match_event(key, mods).is_some() {
+                Some(TerminalChordAction::SelectAll)
+            } else if page_up.match_event(key, mods).is_some() {
+                Some(TerminalChordAction::ScrollPageUp)
+            } else if page_down.match_event(key, mods).is_some() {
+                Some(TerminalChordAction::ScrollPageDown)
+            } else {
+                None
+            }
+        })
+    }
+
     fn render_pane_canvas<'a>(
         &'a self,
         pane: &'a crate::state::Pane,
@@ -321,6 +354,7 @@ impl Oryxis {
             .with_copy_on_select(self.setting_copy_on_select)
             .with_right_click_copy(self.setting_right_click_copy)
             .with_middle_click_paste(self.setting_middle_click_paste)
+            .with_terminal_chords(self.terminal_chord_resolver())
             .with_right_click_action(self.setting_terminal_right_click.to_widget())
             .with_reset_scroll_on_keypress(self.setting_scrollback_reset_keypress)
             .with_reset_scroll_on_output(self.setting_scrollback_reset_output)

@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "איפוס",
         "hotkey_must_have_modifier" => "קיצור דרך צריך לפחות מקש צירוף אחד (Ctrl/Shift/Alt) או מקש פונקציה",
         "hotkey_conflict_unbound" => "{action} כבר לא מוקצה",
-        "hotkey_conflict_rebound_default" => "{action} הוחזר לקיצור ברירת המחדל שלו",
+        "hotkey_conflict_chord_removed" => "{action} איבד את קיצור הדרך הזה",
+        "hotkey_scrollback_page_up" => "גלול עמוד אחד אחורה",
+        "hotkey_scrollback_page_down" => "גלול עמוד אחד קדימה",
         "hotkey_show_new_tab_picker" => "פתיחת בוחר הכרטיסייה החדשה",
         "hotkey_show_tab_jump" => "קפיצה לכרטיסייה",
         "hotkey_show_command_palette" => "פלטת פקודות",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "פעולה זו מוחקת לצמיתות הכול: מארחים, מפתחות, זהויות, סניפטים, יומנים והגדרות. האפליקציה חוזרת למצב הפעלה ראשונה.",
 
         // Terminal shortcuts
-        "copy_terminal" => "העתקה מהטרמינל",
-        "paste_terminal" => "הדבקה לטרמינל",
         "close_tab" => "סגירת כרטיסייה",
         "close_other_tabs" => "סגירת הכרטיסיות האחרות",
         "close_all_tabs" => "סגירת כל הכרטיסיות",

@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "रीसेट करें",
         "hotkey_must_have_modifier" => "शॉर्टकट में कम से कम एक मॉडिफ़ायर (Ctrl/Shift/Alt) या फ़ंक्शन कुंजी होनी चाहिए",
         "hotkey_conflict_unbound" => "{action} अब असाइन नहीं है",
-        "hotkey_conflict_rebound_default" => "{action} अपने डिफ़ॉल्ट शॉर्टकट पर बहाल हुआ",
+        "hotkey_conflict_chord_removed" => "{action} ने वह शॉर्टकट खो दिया",
+        "hotkey_scrollback_page_up" => "एक पृष्ठ ऊपर स्क्रॉल करें",
+        "hotkey_scrollback_page_down" => "एक पृष्ठ नीचे स्क्रॉल करें",
         "hotkey_show_new_tab_picker" => "नया टैब पिकर खोलें",
         "hotkey_show_tab_jump" => "टैब पर जाएं",
         "hotkey_show_command_palette" => "कमांड पैलेट",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "इससे सब कुछ स्थायी रूप से हट जाता है: होस्ट, कुंजियां, पहचान, स्निपेट, लॉग और सेटिंग्स। ऐप पहली बार चलने की स्थिति में लौट आता है।",
 
         // Terminal shortcuts
-        "copy_terminal" => "टर्मिनल से कॉपी करें",
-        "paste_terminal" => "टर्मिनल में पेस्ट करें",
         "close_tab" => "टैब बंद करें",
         "close_other_tabs" => "बाकी टैब बंद करें",
         "close_all_tabs" => "सभी टैब बंद करें",

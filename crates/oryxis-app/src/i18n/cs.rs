@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Obnovit",
         "hotkey_must_have_modifier" => "Zkratka potřebuje alespoň jeden modifikátor (Ctrl/Shift/Alt) nebo funkční klávesu",
         "hotkey_conflict_unbound" => "{action} je nyní bez zkratky",
-        "hotkey_conflict_rebound_default" => "{action} obnoveno na výchozí zkratku",
+        "hotkey_conflict_chord_removed" => "{action} přišel o tuto zkratku",
+        "hotkey_scrollback_page_up" => "Posunout o stránku zpět",
+        "hotkey_scrollback_page_down" => "Posunout o stránku vpřed",
         "hotkey_show_new_tab_picker" => "Otevřít výběr nové karty",
         "hotkey_show_tab_jump" => "Přejít na kartu",
         "hotkey_show_command_palette" => "Paleta příkazů",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Tímto se trvale smaže vše: hostitelé, klíče, identity, snippety, protokoly i nastavení. Aplikace se vrátí do stavu prvního spuštění.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Kopírovat z terminálu",
-        "paste_terminal" => "Vložit do terminálu",
         "close_tab" => "Zavřít kartu",
         "close_other_tabs" => "Zavřít ostatní karty",
         "close_all_tabs" => "Zavřít všechny karty",

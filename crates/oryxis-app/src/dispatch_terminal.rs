@@ -280,7 +280,7 @@ impl Oryxis {
     /// Read the system clipboard and paste it into the active session.
     /// Shared by the Ctrl+V, Ctrl+Shift+V and Cmd+V (macOS) key paths so
     /// the bracketed-paste handling lives in exactly one place.
-    fn paste_clipboard_into_active(&mut self) {
+    pub(crate) fn paste_clipboard_into_active(&mut self) {
         if let Ok(mut clip) = arboard::Clipboard::new()
             && let Ok(text) = clip.get_text()
         {
@@ -1385,37 +1385,31 @@ impl Oryxis {
                             .get(tab_idx)
                             .map(|t| t.active().quirks)
                             .unwrap_or(oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS);
-                        // macOS: Command (Cmd) is the clipboard modifier, not
-                        // Ctrl. Cmd+V pastes; Cmd+C / Cmd+A are copy /
-                        // select-all owned by the terminal widget (it holds the
-                        // selection state). The Canvas widget and this global
-                        // key subscription are independent paths, so the widget
-                        // copying does NOT stop the bare character from echoing
-                        // here. Swallow every unregistered Cmd combo so it never
-                        // leaks into the PTY as text. Registered Cmd shortcuts
-                        // (Cmd+K, Cmd+T, ...) were already consumed upstream by
-                        // `handle_hotkey_keypress`. Ctrl keeps its Unix meaning
-                        // (Ctrl+C = SIGINT) on every platform, including macOS.
+                        // macOS: Cmd is the platform's clipboard modifier. The
+                        // Canvas widget and this global key subscription are
+                        // independent paths, so a widget-side copy does NOT
+                        // stop the bare character from echoing here. Swallow
+                        // every unregistered Cmd combo so it never leaks into
+                        // the PTY as text. Registered Cmd shortcuts (Cmd+K,
+                        // Cmd+T, the clipboard trio, ...) were already consumed
+                        // upstream by `handle_hotkey_keypress`. Ctrl keeps its
+                        // Unix meaning (Ctrl+C = SIGINT) on every platform,
+                        // including macOS.
                         if cfg!(target_os = "macos")
                             && modifiers.logo()
                             && !modifiers.control()
                             && !modifiers.alt()
                         {
-                            if let keyboard::Key::Character(ref c) = key
-                                && c.as_str().eq_ignore_ascii_case("v")
-                            {
-                                self.paste_clipboard_into_active();
-                            }
-                            // Cmd+C / Cmd+A and any other Cmd combo fall out
-                            // here without writing, so nothing echoes.
+                            // Every Cmd combo falls out here without writing,
+                            // so nothing echoes. The clipboard ones (Cmd+C /
+                            // Cmd+V / Cmd+A) were already consumed upstream by
+                            // `handle_hotkey_keypress`, like every other
+                            // registered chord.
                         }
-                        // Ctrl+V → paste from clipboard (not raw Ctrl+V byte)
+                        // Ctrl+letter → the shell's control byte.
                         else if modifiers.control() && !modifiers.shift() {
                             if let keyboard::Key::Character(ref c) = key {
-                                if c.as_str().eq_ignore_ascii_case("v") {
-                                    self.paste_clipboard_into_active();
-                                    // Don't fall through to the normal key handler
-                                } else if c.as_str().eq_ignore_ascii_case("c") {
+                                if c.as_str().eq_ignore_ascii_case("c") {
                                     // Ctrl+C → send interrupt (byte 3)
                                     self.write_input_to_tab(tab_idx, &[3]);
                                 } else if c.as_str().eq_ignore_ascii_case("d")
@@ -1440,14 +1434,12 @@ impl Oryxis {
                                 self.write_input_to_tab(tab_idx, &bytes);
                             }
                         } else if modifiers.shift() && modifiers.control() {
-                            // Ctrl+Shift+V → paste from clipboard into SSH or local PTY.
-                            // Copy (Ctrl+Shift+C) stays in the terminal widget since it
-                            // owns the selection state.
-                            if let keyboard::Key::Character(ref c) = key
-                                && c.as_str().eq_ignore_ascii_case("v")
-                            {
-                                self.paste_clipboard_into_active();
-                            }
+                            // Ctrl+Shift+<key> is not a shell control sequence,
+                            // so nothing is written. The clipboard trio lives
+                            // here by convention and was already consumed
+                            // upstream by `handle_hotkey_keypress` (paste) or
+                            // by the widget (copy / select-all), like any other
+                            // registered chord.
                         } else {
                             // Normal keys (no Ctrl).
                             // Iced's `key` is the key WITHOUT modifiers, so a numpad

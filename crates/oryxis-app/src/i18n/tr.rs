@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Sıfırla",
         "hotkey_must_have_modifier" => "Kısayolun en az bir değiştirici (Ctrl/Shift/Alt) veya bir fonksiyon tuşu gerekir",
         "hotkey_conflict_unbound" => "{action} artık atanmamış",
-        "hotkey_conflict_rebound_default" => "{action} varsayılan kısayoluna geri yüklendi",
+        "hotkey_conflict_chord_removed" => "{action} bu kısayolu kaybetti",
+        "hotkey_scrollback_page_up" => "Bir sayfa yukarı kaydır",
+        "hotkey_scrollback_page_down" => "Bir sayfa aşağı kaydır",
         "hotkey_show_new_tab_picker" => "Yeni sekme seçiciyi aç",
         "hotkey_show_tab_jump" => "Sekmeye atla",
         "hotkey_show_command_palette" => "Komut paleti",
@@ -456,8 +458,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Bu, her şeyi kalıcı olarak siler: sunucular, anahtarlar, kimlikler, snippet'ler, kayıtlar ve ayarlar. Uygulama ilk çalıştırma durumuna sıfırlanır.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Terminalden Kopyala",
-        "paste_terminal" => "Terminale Yapıştır",
         "close_tab" => "Sekmeyi Kapat",
         "close_other_tabs" => "Diğer Sekmeleri Kapat",
         "close_all_tabs" => "Tüm Sekmeleri Kapat",

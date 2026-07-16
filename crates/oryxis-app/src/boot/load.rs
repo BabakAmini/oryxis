@@ -604,17 +604,22 @@ impl Oryxis {
     fn load_vault_hotkeys_and_defaults(&mut self) {
         if let Some(vault) = &self.vault {
             // Hotkey overrides: each action persists under
-            // `hotkey_<id>` with the canonical serialized form
-            // (`"ctrl+shift+n"`). Defaults already populate
-            // `hotkey_bindings`, so any missing / malformed entry
-            // silently falls back to the factory binding.
+            // `hotkey_<id>` with the canonical serialized form, chords
+            // space-separated (`"ctrl+shift+v shift+ins"`). Defaults
+            // already populate `hotkey_bindings`, so a missing or
+            // malformed entry silently falls back to the factory
+            // chords. An empty row is NOT malformed: it is a
+            // deliberate unbind, and `HotkeyBindings::parse` returns an
+            // empty list for it. The single-binding model could not
+            // draw that distinction, so an unbound action silently
+            // regained its factory chord on the next boot.
             let mut user_bound: Vec<crate::hotkeys::HotkeyAction> = Vec::new();
             for action in crate::hotkeys::HotkeyAction::all() {
                 let key = format!("hotkey_{}", action.id());
                 if let Ok(Some(v)) = vault.get_setting(&key)
-                    && let Some(binding) = crate::hotkeys::HotkeyBinding::parse(&v)
+                    && let Some(binds) = crate::hotkeys::HotkeyBindings::parse(&v)
                 {
-                    self.hotkey_bindings.insert(*action, binding);
+                    self.hotkey_bindings.insert(*action, binds);
                     user_bound.push(*action);
                 }
             }
@@ -624,20 +629,36 @@ impl Oryxis {
             // the new action has no stored row). The dispatch loop is
             // first-match-wins by enum order, which would silently
             // shadow one of the two, so the explicit user choice wins:
-            // the still-factory action unbinds (rebindable in Settings
-            // > Shortcuts as usual).
-            let factory_conflicts: Vec<crate::hotkeys::HotkeyAction> = self
-                .hotkey_bindings
+            // the still-factory action gives up the COLLIDING CHORD,
+            // and only unbinds when that was its last one (rebindable
+            // in Settings > Shortcuts as usual).
+            //
+            // Per chord, not per action: a factory action shipping two
+            // chords keeps the one the user didn't take. That matters
+            // for the clipboard pair, whose alternates (Ctrl+Insert /
+            // Shift+Insert) are exactly the chords an early adopter is
+            // most likely to have already bound by hand.
+            let user_chords: Vec<crate::hotkeys::HotkeyBinding> = user_bound
                 .iter()
-                .filter(|(action, binding)| {
-                    !user_bound.contains(action)
-                        && user_bound
-                            .iter()
-                            .any(|ub| self.hotkey_bindings.get(ub) == Some(binding))
-                })
-                .map(|(a, _)| *a)
+                .filter_map(|a| self.hotkey_bindings.get(a))
+                .flat_map(|binds| binds.iter().copied())
                 .collect();
-            for action in factory_conflicts {
+            let mut emptied: Vec<crate::hotkeys::HotkeyAction> = Vec::new();
+            for action in crate::hotkeys::HotkeyAction::all() {
+                if user_bound.contains(action) {
+                    continue;
+                }
+                let Some(binds) = self.hotkey_bindings.get_mut(action) else {
+                    continue;
+                };
+                for chord in &user_chords {
+                    binds.remove(chord);
+                }
+                if binds.is_empty() {
+                    emptied.push(*action);
+                }
+            }
+            for action in emptied {
                 self.hotkey_bindings.remove(&action);
             }
             if let Ok(Some(v)) = vault.get_setting("default_host_icon")

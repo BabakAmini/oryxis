@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "بازنشانی",
         "hotkey_must_have_modifier" => "میانبر به حداقل یک کلید تغییردهنده (Ctrl/Shift/Alt) یا کلید تابعی نیاز دارد",
         "hotkey_conflict_unbound" => "{action} اکنون بدون میانبر است",
-        "hotkey_conflict_rebound_default" => "{action} به میانبر پیش‌فرض بازگشت",
+        "hotkey_conflict_chord_removed" => "{action} این میان‌بر را از دست داد",
+        "hotkey_scrollback_page_up" => "یک صفحه به بالا",
+        "hotkey_scrollback_page_down" => "یک صفحه به پایین",
         "hotkey_show_new_tab_picker" => "باز کردن انتخابگر تب جدید",
         "hotkey_show_tab_jump" => "پرش به تب",
         "hotkey_show_command_palette" => "پالت فرمان",
@@ -458,8 +460,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_already_has_password" => "این صندوقچه از قبل گذرواژه دارد. برای باز کردن قفل، آن را در بالا وارد کنید.",
 
         // Terminal shortcuts
-        "copy_terminal" => "کپی از ترمینال",
-        "paste_terminal" => "جای‌گذاری در ترمینال",
         "close_tab" => "بستن برگه",
         "close_other_tabs" => "بستن سایر برگه‌ها",
         "close_all_tabs" => "بستن همه برگه‌ها",

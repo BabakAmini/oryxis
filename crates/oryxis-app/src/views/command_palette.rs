@@ -161,7 +161,10 @@ impl Oryxis {
         let chip: Element<'a, Message> = match row
             .hotkey
             .and_then(|a| self.hotkey_bindings.get(&a))
-            .map(|b| b.badges().join("+"))
+            // The chip shows the action's primary chord: an action can
+            // carry several, and the palette has room for one.
+            .and_then(|b| b.badges())
+            .map(|badges| badges.join("+"))
         {
             Some(badge) if !badge.is_empty() => container(
                 text(badge).size(10).color(colors.text_muted),

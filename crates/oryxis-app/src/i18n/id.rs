@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Atur ulang",
         "hotkey_must_have_modifier" => "Pintasan butuh setidaknya satu modifier (Ctrl/Shift/Alt) atau tombol fungsi",
         "hotkey_conflict_unbound" => "{action} kini tidak terikat",
-        "hotkey_conflict_rebound_default" => "{action} dikembalikan ke pintasan default-nya",
+        "hotkey_conflict_chord_removed" => "{action} kehilangan pintasan itu",
+        "hotkey_scrollback_page_up" => "Gulir mundur satu halaman",
+        "hotkey_scrollback_page_down" => "Gulir maju satu halaman",
         "hotkey_show_new_tab_picker" => "Buka pemilih tab baru",
         "hotkey_show_tab_jump" => "Lompat ke tab",
         "hotkey_show_command_palette" => "Palet perintah",
@@ -456,8 +458,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Ini akan menghapus permanen semuanya: host, kunci, identitas, snippet, log, dan pengaturan. Aplikasi kembali ke kondisi awal.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Salin dari Terminal",
-        "paste_terminal" => "Tempel ke Terminal",
         "close_tab" => "Tutup Tab",
         "close_other_tabs" => "Tutup Tab Lain",
         "close_all_tabs" => "Tutup Semua Tab",

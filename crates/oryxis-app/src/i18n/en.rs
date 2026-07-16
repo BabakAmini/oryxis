@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hotkey_reset" => "Reset",
         "hotkey_must_have_modifier" => "Shortcut needs at least one modifier (Ctrl/Shift/Alt) or a function key",
         "hotkey_conflict_unbound" => "{action} is now unbound",
-        "hotkey_conflict_rebound_default" => "{action} restored to its default shortcut",
+        "hotkey_conflict_chord_removed" => "{action} lost that shortcut",
+        "hotkey_scrollback_page_up" => "Scroll back one page",
+        "hotkey_scrollback_page_down" => "Scroll forward one page",
         "hotkey_show_new_tab_picker" => "Open new tab picker",
         "hotkey_show_tab_jump" => "Jump to tab",
         "hotkey_show_command_palette" => "Command palette",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "vault_destroy_confirm" => "This permanently deletes everything: hosts, keys, identities, snippets, logs and settings. The app resets to first run.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Copy from Terminal",
-        "paste_terminal" => "Paste to Terminal",
         "close_tab" => "Close Tab",
         "close_other_tabs" => "Close Other Tabs",
         "close_all_tabs" => "Close All Tabs",

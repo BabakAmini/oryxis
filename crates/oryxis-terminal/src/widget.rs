@@ -295,8 +295,36 @@ fn hash_pinned(set: &std::collections::HashSet<String>) -> u64 {
 // Terminal View
 // ---------------------------------------------------------------------------
 
+/// A terminal gesture the widget performs itself because it owns the
+/// state involved: the selection and the scroll offset both live in
+/// this widget's canvas state, out of reach of the app's dispatcher.
+///
+/// Paste is deliberately absent. It stays in the app, which is the only
+/// layer that can reach an SSH session; a widget-side paste would write
+/// to a local PTY only, and silently do nothing on a remote host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalChordAction {
+    Copy,
+    SelectAll,
+    ScrollPageUp,
+    ScrollPageDown,
+}
+
+/// Resolves a key event to a [`TerminalChordAction`], or `None` when the
+/// event isn't one of the widget's chords.
+///
+/// The app owns the binding model (chords are user-editable), so it
+/// hands the matcher down as a closure rather than teaching this crate
+/// about actions and bindings. That keeps ONE implementation of chord
+/// matching: a copy of it here would drift from the editor's.
+pub type ChordResolver = Box<dyn Fn(&keyboard::Key, &keyboard::Modifiers) -> Option<TerminalChordAction>>;
+
 pub struct TerminalView<Message = ()> {
     state: Arc<Mutex<TerminalState>>,
+    /// User-bound chords for the gestures this widget performs. `None`
+    /// falls back to no chords at all (the harness and any other caller
+    /// that doesn't wire the binding table).
+    chords: Option<ChordResolver>,
     font_size: f32,
     cell_width: f32,
     cell_height: f32,
@@ -500,15 +528,6 @@ fn scrollbar_geom(
 /// and the cached reference is handed back on every later call. The
 /// previous approach leaked a fresh copy per view pass per pane, which
 /// added up over a long session.
-/// True for the platform's terminal clipboard chord (copy / select-all):
-/// Ctrl+Shift everywhere, plus Cmd (logo) alone on macOS. Paste lives in
-/// the app dispatcher (it must reach the SSH session), but copy and
-/// select-all stay in the widget because it owns the selection state.
-fn is_clipboard_chord(m: &keyboard::Modifiers) -> bool {
-    (m.control() && m.shift())
-        || (cfg!(target_os = "macos") && m.logo() && !m.control() && !m.alt())
-}
-
 fn intern_font_name(name: &str) -> &'static str {
     use std::collections::HashMap;
     use std::sync::OnceLock;
@@ -600,6 +619,7 @@ impl<Message> TerminalView<Message> {
         let font_size = 14.0;
         Self {
             state,
+            chords: None,
             font_size,
             cell_width: cell_advance(Font::MONOSPACE, font_size),
             cell_height: font_size * 1.15,
@@ -669,6 +689,13 @@ impl<Message> TerminalView<Message> {
     }
 
     /// X11-style middle-click paste (independent of `copy_on_select`).
+    /// Wire the user's chord bindings for copy / select-all /
+    /// scrollback paging. See [`ChordResolver`].
+    pub fn with_terminal_chords(mut self, resolver: ChordResolver) -> Self {
+        self.chords = Some(resolver);
+        self
+    }
+
     pub fn with_middle_click_paste(mut self, on: bool) -> Self {
         self.middle_click_paste = on;
         self
@@ -1955,49 +1982,108 @@ where
             iced::Event::Keyboard(keyboard::Event::ModifiersChanged(m)) => {
                 widget_state.modifiers = *m;
             }
-            // Keyboard, copy (paste is handled in app.rs so it can reach the
-            // SSH session; widget.state.write only targets a local PTY). The
-            // chord is Ctrl+Shift+C everywhere, plus Cmd+C on macOS, matching
-            // the platform's native terminal convention.
-            iced::Event::Keyboard(keyboard::Event::KeyPressed {
-                key: keyboard::Key::Character(c),
-                modifiers,
-                ..
-            }) if is_clipboard_chord(modifiers) && matches!(c.as_str(), "C" | "c") => {
-                if let Some(ref sel) = widget_state.selection
-                    && !sel.is_empty()
-                    && let Ok(state) = self.state.lock()
-                {
-                    let text = state.get_selection_text(sel);
-                    if !text.is_empty() {
-                        set_clipboard_text(&text);
+            // The widget's own chords: copy, select-all and scrollback
+            // paging, all user-rebindable (the app hands the matcher down,
+            // see `ChordResolver`). Paste is NOT here: it lives in the app
+            // so it can reach an SSH session, since `state.write` only
+            // targets a local PTY.
+            //
+            // This arm MUST stay ahead of the "any other key press" arm
+            // below, which drops the selection and honours PuTTY's
+            // reset-scrollback-on-keypress. Landing there would wipe the
+            // selection out from under a copy, and snap the view straight
+            // back to the live edge after a page-up.
+            iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
+                if self
+                    .chords
+                    .as_ref()
+                    .and_then(|f| f(key, modifiers))
+                    .is_some() =>
+            {
+                // Re-resolve without unwrapping: the guard above already
+                // proved this is Some, so the `?` never fires.
+                let action = self.chords.as_ref().and_then(|f| f(key, modifiers))?;
+                return match action {
+                    TerminalChordAction::Copy => {
+                        if let Some(ref sel) = widget_state.selection
+                            && !sel.is_empty()
+                            && let Ok(state) = self.state.lock()
+                        {
+                            let text = state.get_selection_text(sel);
+                            if !text.is_empty() {
+                                set_clipboard_text(&text);
+                            }
+                        }
+                        Some(CanvasAction::capture())
                     }
-                }
-                return Some(CanvasAction::capture());
-            }
-            // Keyboard, select-all (Ctrl+Shift+A, plus Cmd+A on macOS).
-            // Selects the entire buffer (scrollback + screen); copy stays a
-            // separate gesture (the copy chord or copy-on-select on the next
-            // release).
-            iced::Event::Keyboard(keyboard::Event::KeyPressed {
-                key: keyboard::Key::Character(c),
-                modifiers,
-                ..
-            }) if is_clipboard_chord(modifiers) && matches!(c.as_str(), "A" | "a") => {
-                if let Ok(state) = self.state.lock() {
-                    use alacritty_terminal::grid::Dimensions;
-                    let grid = state.backend.term.grid();
-                    let top = grid.topmost_line().0;
-                    let bot = grid.bottommost_line().0;
-                    let last_col = grid.columns().saturating_sub(1) as u16;
-                    widget_state.selection = Some(Selection {
-                        start: (0, top),
-                        end: (last_col, bot),
-                        block: false,
-                    });
-                    widget_state.select_anchor = None;
-                }
-                return Some(CanvasAction::request_redraw().and_capture());
+                    // Selects the entire buffer (scrollback + screen); copy
+                    // stays a separate gesture (the copy chord, or
+                    // copy-on-select on the next release).
+                    TerminalChordAction::SelectAll => {
+                        if let Ok(state) = self.state.lock() {
+                            use alacritty_terminal::grid::Dimensions;
+                            let grid = state.backend.term.grid();
+                            let top = grid.topmost_line().0;
+                            let bot = grid.bottommost_line().0;
+                            let last_col = grid.columns().saturating_sub(1) as u16;
+                            widget_state.selection = Some(Selection {
+                                start: (0, top),
+                                end: (last_col, bot),
+                                block: false,
+                            });
+                            widget_state.select_anchor = None;
+                        }
+                        Some(CanvasAction::request_redraw().and_capture())
+                    }
+                    TerminalChordAction::ScrollPageUp | TerminalChordAction::ScrollPageDown => {
+                        // One lock for the alt-screen test and the clamp,
+                        // like the wheel handler above.
+                        let (in_alt_screen, max_scroll, page) = match self.state.lock() {
+                            Ok(s) => {
+                                use alacritty_terminal::grid::Dimensions;
+                                let in_alt = s
+                                    .backend
+                                    .term
+                                    .mode()
+                                    .contains(alacritty_terminal::term::TermMode::ALT_SCREEN);
+                                let grid = s.backend.term.grid();
+                                let screen = grid.screen_lines();
+                                (
+                                    in_alt,
+                                    grid.total_lines().saturating_sub(screen) as i32,
+                                    // A page is a screen minus one row of
+                                    // overlap, the convention every terminal
+                                    // uses so a line stays visible across the
+                                    // jump. Never zero, or a short pane would
+                                    // stop paging.
+                                    (screen.saturating_sub(1)).max(1) as i32,
+                                )
+                            }
+                            Err(_) => (false, i32::MAX, 1),
+                        };
+                        // No scrollback on the alternate screen: vim / less /
+                        // htop page themselves, so the key belongs to them.
+                        // The app's router skips these actions under the same
+                        // condition, which is what lets the key fall through
+                        // to the PTY writer. Both sides must agree: if only
+                        // one gated, PageUp would either be eaten with nothing
+                        // to show for it or fire twice.
+                        if in_alt_screen {
+                            return None;
+                        }
+                        let lines = if matches!(action, TerminalChordAction::ScrollPageUp) {
+                            page
+                        } else {
+                            -page
+                        };
+                        widget_state.scroll_offset.set(
+                            (widget_state.scroll_offset.get() + lines)
+                                .max(0)
+                                .min(max_scroll),
+                        );
+                        Some(CanvasAction::request_redraw().and_capture())
+                    }
+                };
             }
             // Any other key press dismisses a live selection, matching
             // xterm / iTerm where typing or navigating clears the highlight

@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "재설정",
         "hotkey_must_have_modifier" => "단축키에는 수정자(Ctrl/Shift/Alt) 하나 이상 또는 기능 키가 필요합니다",
         "hotkey_conflict_unbound" => "{action}이(가) 이제 미할당 상태입니다",
-        "hotkey_conflict_rebound_default" => "{action}이(가) 기본 단축키로 복원되었습니다",
+        "hotkey_conflict_chord_removed" => "{action}이(가) 해당 단축키를 잃었습니다",
+        "hotkey_scrollback_page_up" => "한 페이지 위로 스크롤",
+        "hotkey_scrollback_page_down" => "한 페이지 아래로 스크롤",
         "hotkey_show_new_tab_picker" => "새 탭 선택기 열기",
         "hotkey_show_tab_jump" => "탭으로 이동",
         "hotkey_show_command_palette" => "명령 팔레트",
@@ -456,8 +458,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "호스트, 키, ID, 스니펫, 로그, 설정 등 모든 데이터가 영구적으로 삭제됩니다. 앱이 처음 실행 상태로 재설정됩니다.",
 
         // Terminal shortcuts
-        "copy_terminal" => "터미널에서 복사",
-        "paste_terminal" => "터미널에 붙여넣기",
         "close_tab" => "탭 닫기",
         "close_other_tabs" => "다른 탭 닫기",
         "close_all_tabs" => "모든 탭 닫기",

@@ -94,7 +94,10 @@ fn hotkey_category(action: HotkeyAction) -> PaletteCategory {
         | VaultSectionPrev | VaultSectionNext | VaultSectionSlot => PaletteCategory::Vault,
         FontZoomIn | FontZoomOut | FontZoomReset | SplitPaneVertical | SplitPaneHorizontal
         | FocusPaneLeft | FocusPaneRight | FocusPaneUp | FocusPaneDown | FocusSidebarList
-        | ToggleSidebar | ToggleTabFiles | ToggleBroadcastInput => PaletteCategory::Terminal,
+        | ToggleSidebar | ToggleTabFiles | ToggleBroadcastInput | TerminalCopy
+        | TerminalPaste | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown => {
+            PaletteCategory::Terminal
+        }
         OpenSettings => PaletteCategory::Settings,
         ToggleFullscreen | ShowCommandPalette | SwitchToTabSlot | CycleTabs => {
             PaletteCategory::Session

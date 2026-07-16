@@ -790,17 +790,19 @@ impl Oryxis {
             Message::RendererInfoLoaded(backend, adapter) => {
                 self.renderer_active = Some((backend, adapter));
             }
-            Message::StartEditingHotkey(action) => {
-                self.editing_hotkey = Some(action);
+            Message::StartEditingHotkey(action, slot) => {
+                self.editing_hotkey = Some((action, slot));
             }
             Message::ResetHotkey(action) => {
-                let defaults = crate::hotkeys::default_bindings();
-                if let Some(default_binding) = defaults.get(&action) {
-                    self.hotkey_bindings.insert(action, *default_binding);
-                }
+                let mut defaults = crate::hotkeys::default_bindings();
+                match defaults.remove(&action) {
+                    Some(d) => self.hotkey_bindings.insert(action, d),
+                    None => self.hotkey_bindings.remove(&action),
+                };
                 // Empty value persists the absence of an override, so
                 // future boots rehydrate to the default. Same
-                // semantics as deleting the row.
+                // semantics as deleting the row, and distinct from the
+                // UNBOUND token a deliberate unbind writes.
                 self.persist_setting(&format!("hotkey_{}", action.id()), "");
             }
             Message::ResetAllHotkeys => {

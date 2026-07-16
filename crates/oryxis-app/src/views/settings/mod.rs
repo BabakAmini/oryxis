@@ -1263,29 +1263,24 @@ impl Oryxis {
             .into()
     }
 
-    /// Single row in the Shortcuts editor list. Renders:
-    /// - capture state ("Press a key…") when this row is currently
-    ///   being edited;
-    /// - badges + clickable surface in normal state;
-    /// - reset button only when the binding differs from the
-    ///   factory default, so the user can spot overrides at a glance.
-    pub(crate) fn hotkey_editor_row(
+    /// One chord chip in the Shortcuts editor: the badge cluster on a
+    /// clickable surface that starts a capture for `slot`. `chord` is
+    /// `None` for the trailing add button.
+    ///
+    /// Records its own keynav slot, so callers must build chips in
+    /// display order (build order is record order).
+    fn hotkey_chip(
         &self,
         action: crate::hotkeys::HotkeyAction,
-        default: Option<crate::hotkeys::HotkeyBinding>,
+        slot: crate::hotkeys::HotkeySlot,
+        chord: Option<crate::hotkeys::HotkeyBinding>,
+        recording: bool,
+        empty_row: bool,
     ) -> Element<'_, Message> {
-        let binding = self.hotkey_bindings.get(&action).copied();
-        let is_editing = self.editing_hotkey == Some(action);
-        let is_overridden = matches!(
-            (binding, default),
-            (Some(b), Some(d)) if b != d
-        );
-
-        // Badge cluster: either the captured-mode placeholder or the
-        // serialized binding pills. For family actions the suffix
-        // badge is rendered with a distinct muted style so the user
-        // sees at a glance which slot is fixed.
-        let pills: Element<'_, Message> = if is_editing {
+        let idx = self.settings_nav_record(crate::keynav::RowAction::activate(
+            Message::StartEditingHotkey(action, slot),
+        ));
+        let inner: Element<'_, Message> = if recording {
             // Capture state: paint with the high-contrast `button_text`
             // foreground, the readable pairing for the `button_bg`
             // surface this button already uses. Painting accent-on-bg
@@ -1294,7 +1289,10 @@ impl Oryxis {
                 .size(12)
                 .color(OryxisColors::t().button_text)
                 .into()
-        } else if let Some(b) = binding {
+        } else if let Some(b) = chord {
+            // For family actions the suffix badge is rendered with a
+            // distinct muted style so the user sees at a glance which
+            // slot is fixed.
             let labels = b.badges();
             let n = labels.len();
             let primary_editable = action.primary_editable();
@@ -1341,24 +1339,31 @@ impl Oryxis {
                 .spacing(4)
                 .align_y(iced::Alignment::Center)
                 .into()
-        } else {
-            // Unbound (post-conflict). Render a dashed placeholder.
+        } else if empty_row {
+            // Nothing bound at all: the add chip carries the unbound
+            // placeholder, so the row still reads as one affordance
+            // rather than a bare "+" next to nothing.
             text(crate::i18n::t("hotkey_unbound"))
                 .size(11)
                 .color(OryxisColors::t().text_muted)
                 .into()
+        } else {
+            text("+")
+                .size(13)
+                .color(OryxisColors::t().text_muted)
+                .into()
         };
 
-        // Wrap badges in a clickable surface (button with neutral
-        // style). The editing-state row gets an accent border so it
-        // reads "pending input" against the other rows.
-        let pills_btn = button(pills).on_press(Message::StartEditingHotkey(action)).style(
-            move |_, status| {
+        let btn = button(inner)
+            .on_press(Message::StartEditingHotkey(action, slot))
+            .style(move |_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
                     _ => OryxisColors::t().button_bg,
                 };
-                let border_color = if is_editing {
+                // The chip being recorded gets an accent border so it
+                // reads "pending input" against its siblings.
+                let border_color = if recording {
                     OryxisColors::t().accent
                 } else {
                     OryxisColors::t().border
@@ -1372,18 +1377,66 @@ impl Oryxis {
                     },
                     ..Default::default()
                 }
-            },
-        );
-        let pills_box = container(pills_btn)
-            .width(220)
-            .align_x(dir_align_x());
+            });
+        self.settings_nav_ring_at(idx, 6.0, btn.into())
+    }
+
+    /// Single row in the Shortcuts editor list. Renders one chip per
+    /// bound chord (click to re-record it, Delete while recording to
+    /// drop it), a trailing add chip, and a reset button only when the
+    /// chords differ from the factory ones, so the user can spot
+    /// overrides at a glance.
+    ///
+    /// Actions carry a LIST of chords, not one: `Ctrl+Shift+V` and
+    /// `Shift+Insert` are both factory paste chords. Each chord gets
+    /// its own bordered chip precisely so two chords never read as one
+    /// long run of badges.
+    pub(crate) fn hotkey_editor_row(
+        &self,
+        action: crate::hotkeys::HotkeyAction,
+        default: Option<&crate::hotkeys::HotkeyBindings>,
+    ) -> Element<'_, Message> {
+        use crate::hotkeys::{HotkeyBindings, HotkeySlot};
+        let fallback = HotkeyBindings::default();
+        let binds = self.hotkey_bindings.get(&action).unwrap_or(&fallback);
+        let is_overridden = default.is_some_and(|d| d != binds);
+        let editing = self
+            .editing_hotkey
+            .filter(|(a, _)| *a == action)
+            .map(|(_, s)| s);
+
+        let mut chips: Vec<Element<'_, Message>> = binds
+            .iter()
+            .enumerate()
+            .map(|(i, chord)| {
+                let slot = HotkeySlot::Replace(i);
+                self.hotkey_chip(action, slot, Some(*chord), editing == Some(slot), false)
+            })
+            .collect();
+        chips.push(self.hotkey_chip(
+            action,
+            HotkeySlot::Add,
+            None,
+            editing == Some(HotkeySlot::Add),
+            binds.is_empty(),
+        ));
+
+        let pills_box = container(
+            iced::widget::Row::with_children(chips)
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+        )
+        .width(260)
+        .align_x(dir_align_x());
 
         let label = text(crate::i18n::t(action.label_key()))
             .size(13)
             .color(OryxisColors::t().text_secondary);
 
+        // Recorded after the chips: build order is record order, and
+        // reset sits at the trailing edge of the row.
         let reset_el: Element<'_, Message> = if is_overridden {
-            button(
+            let btn = button(
                 text(crate::i18n::t("hotkey_reset"))
                     .size(11)
                     .color(OryxisColors::t().text_muted),
@@ -1402,8 +1455,12 @@ impl Oryxis {
                     },
                     ..Default::default()
                 }
-            })
-            .into()
+            });
+            self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::ResetHotkey(action)),
+                4.0,
+                btn.into(),
+            )
         } else {
             Space::new().width(0).into()
         };

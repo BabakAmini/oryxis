@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Скинути",
         "hotkey_must_have_modifier" => "Скорочення потребує принаймні одного модифікатора (Ctrl/Shift/Alt) або функціональної клавіші",
         "hotkey_conflict_unbound" => "{action} тепер не призначено",
-        "hotkey_conflict_rebound_default" => "{action} відновлено до типового скорочення",
+        "hotkey_conflict_chord_removed" => "{action} втратив це сполучення клавіш",
+        "hotkey_scrollback_page_up" => "Прокрутити на сторінку назад",
+        "hotkey_scrollback_page_down" => "Прокрутити на сторінку вперед",
         "hotkey_show_new_tab_picker" => "Відкрити вибір нової вкладки",
         "hotkey_show_tab_jump" => "Перейти до вкладки",
         "hotkey_show_command_palette" => "Палітра команд",
@@ -456,8 +458,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Це назавжди видалить усе: хости, ключі, ідентичності, сніпети, журнали та налаштування. Застосунок повернеться до стану першого запуску.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Копіювати з термінала",
-        "paste_terminal" => "Вставити в термінал",
         "close_tab" => "Закрити вкладку",
         "close_other_tabs" => "Закрити інші вкладки",
         "close_all_tabs" => "Закрити всі вкладки",

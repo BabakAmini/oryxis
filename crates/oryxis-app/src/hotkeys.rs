@@ -82,6 +82,24 @@ pub enum HotkeyAction {
     NewKey,
     /// Open the new-identity panel (Keychain).
     NewIdentity,
+    // Terminal clipboard + scrollback (#75). These were hard-coded
+    // chords until they moved into this table, which is why they sit
+    // at the end of the append-only order despite being among the
+    // oldest behaviours in the app.
+    /// Copy the terminal selection. Handled inside the terminal widget
+    /// (it owns the selection), so the resolved chords are pushed down
+    /// to it rather than dispatched here.
+    TerminalCopy,
+    /// Paste the clipboard into the focused pane. Handled in the
+    /// dispatcher, which is the only layer that can reach an SSH
+    /// session.
+    TerminalPaste,
+    /// Select the whole terminal buffer. Widget-side, like `TerminalCopy`.
+    TerminalSelectAll,
+    /// Page the scrollback up. Widget-side (it owns `scroll_offset`).
+    ScrollbackPageUp,
+    /// Page the scrollback down. Widget-side, like `ScrollbackPageUp`.
+    ScrollbackPageDown,
 }
 
 impl HotkeyAction {
@@ -119,6 +137,11 @@ impl HotkeyAction {
             ToggleSidebar,
             ToggleTabFiles,
             ToggleBroadcastInput,
+            TerminalCopy,
+            TerminalPaste,
+            TerminalSelectAll,
+            ScrollbackPageUp,
+            ScrollbackPageDown,
             VaultSectionSlot,
             VaultSectionPrev,
             VaultSectionNext,
@@ -163,6 +186,11 @@ impl HotkeyAction {
             NewHost => "new_host",
             NewKey => "new_key",
             NewIdentity => "new_identity",
+            TerminalCopy => "terminal_copy",
+            TerminalPaste => "terminal_paste",
+            TerminalSelectAll => "terminal_select_all",
+            ScrollbackPageUp => "scrollback_page_up",
+            ScrollbackPageDown => "scrollback_page_down",
         }
     }
 
@@ -206,6 +234,14 @@ impl HotkeyAction {
             NewHost => "new_host",
             NewKey => "import_key",
             NewIdentity => "new_identity",
+            // Reuse the terminal context-menu labels (already
+            // translated in all 23 languages) rather than minting
+            // parallel keys, same as the split-pane pair above.
+            TerminalCopy => "terminal_copy",
+            TerminalPaste => "terminal_paste",
+            TerminalSelectAll => "select_all",
+            ScrollbackPageUp => "hotkey_scrollback_page_up",
+            ScrollbackPageDown => "hotkey_scrollback_page_down",
         }
     }
 
@@ -226,6 +262,11 @@ impl HotkeyAction {
                 | ToggleSidebar
                 | ToggleTabFiles
                 | ToggleBroadcastInput
+                | TerminalCopy
+                | TerminalPaste
+                | TerminalSelectAll
+                | ScrollbackPageUp
+                | ScrollbackPageDown
         )
     }
 
@@ -352,20 +393,28 @@ impl HotkeyBinding {
     }
 
     /// Whether the binding is valid for the editor: it must carry at
-    /// least one of Ctrl / Alt / Logo (Shift alone doesn't count,
-    /// `Shift+letter` is just uppercase typing) OR target a function
-    /// key, otherwise the binding would silently intercept the
-    /// user's typing.
+    /// least one of Ctrl / Alt / Logo, otherwise it would silently
+    /// intercept the user's typing.
+    ///
+    /// Shift is not a modifier for this purpose on a primary that
+    /// produces text (`Shift+a` is just an uppercase A), but it is on
+    /// a primary that never can: `Shift+Insert` (paste) and
+    /// `Shift+PageUp` (scrollback) are how every mainstream terminal
+    /// spells those chords, and neither steals a keystroke the user
+    /// could have typed.
     pub fn is_safe(&self) -> bool {
         if self.ctrl || self.alt || self.logo {
             return true;
         }
-        // Shift + function key is fine; Shift alone on a letter is
-        // just uppercase typing and would steal text input.
+        // A function key is a chord on its own (F11 = fullscreen).
         if self.is_function_key_primary() {
             return true;
         }
-        false
+        // Otherwise Shift is required, and only on a primary that can't
+        // be typed. Modifier-free Insert / Delete / arrows stay
+        // unbindable: the PTY wants them, and leaving them out keeps
+        // Delete free as the capture editor's "remove this chord" key.
+        self.shift && self.is_non_text_primary()
     }
 
     /// `true` when this binding looks like a sequence the terminal
@@ -397,9 +446,8 @@ impl HotkeyBinding {
         }
     }
 
-    /// `true` when the primary is F1..F12. Extracted as a helper so
-    /// both `is_safe` and the family-capture guard read the same
-    /// definition.
+    /// `true` when the primary is F1..F12. The only primaries a
+    /// modifier-free binding may target.
     fn is_function_key_primary(&self) -> bool {
         matches!(
             self.primary,
@@ -416,6 +464,44 @@ impl HotkeyBinding {
                     | Named::F10
                     | Named::F11
                     | Named::F12
+            )
+        )
+    }
+
+    /// `true` when the primary can never produce text on its own: the
+    /// function keys plus the navigation / editing block. These are the
+    /// only primaries where a bare Shift is a real chord rather than
+    /// uppercase typing.
+    ///
+    /// Escape / Enter / Tab / Backspace / Space are deliberately out:
+    /// they produce bytes the shell consumes, so binding them (even
+    /// with Shift) would eat input the PTY needs.
+    fn is_non_text_primary(&self) -> bool {
+        matches!(
+            self.primary,
+            PrimaryKey::Named(
+                Named::F1
+                    | Named::F2
+                    | Named::F3
+                    | Named::F4
+                    | Named::F5
+                    | Named::F6
+                    | Named::F7
+                    | Named::F8
+                    | Named::F9
+                    | Named::F10
+                    | Named::F11
+                    | Named::F12
+                    | Named::Insert
+                    | Named::Delete
+                    | Named::Home
+                    | Named::End
+                    | Named::PageUp
+                    | Named::PageDown
+                    | Named::ArrowUp
+                    | Named::ArrowDown
+                    | Named::ArrowLeft
+                    | Named::ArrowRight
             )
         )
     }
@@ -704,8 +790,216 @@ pub fn binding_from_event(
     }
 }
 
-/// Map from action to its current binding (default or user override).
-pub type HotkeyMap = HashMap<HotkeyAction, HotkeyBinding>;
+/// Settings-table token for "the user deliberately unbound this
+/// action", as opposed to `""`, which means "no override, use the
+/// factory chords". Not a parseable chord (`HotkeyBinding::parse`
+/// rejects it: no such primary), so it can never collide with a real
+/// binding.
+const UNBOUND: &str = "none";
+
+/// Which chord of an action's list an edit is aimed at. The Shortcuts
+/// editor renders one chip per chord plus a trailing add button, so a
+/// capture has to carry the target alongside the action.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeySlot {
+    /// Overwrite the chord at this index.
+    Replace(usize),
+    /// Append a chord.
+    Add,
+}
+
+/// The ordered chords bound to one action.
+///
+/// `primary()` (index 0) is the canonical chord: it is what the
+/// command palette, the tab strip and every tooltip show. The rest are
+/// equal-footing alternates that fire the same action. Order is
+/// display order, and `push` appends, so the factory chord stays the
+/// visible one unless the user removes it.
+///
+/// Several actions need more than one chord out of the box, which is
+/// why this is a list rather than a single binding: `Ctrl+Shift+V` and
+/// `Shift+Insert` are both standard paste chords, and dropping either
+/// would break muscle memory that every other terminal honours.
+///
+/// An empty list means "deliberately unbound", which is distinct from
+/// the action being absent from the map (no stored row, so the factory
+/// default applies).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HotkeyBindings(Vec<HotkeyBinding>);
+
+impl HotkeyBindings {
+    /// One chord. The common case for actions with no alternate.
+    pub fn single(binding: HotkeyBinding) -> Self {
+        Self(vec![binding])
+    }
+
+    /// Several chords, in display order. Duplicates are dropped so the
+    /// caller doesn't have to care.
+    pub fn many(bindings: impl IntoIterator<Item = HotkeyBinding>) -> Self {
+        let mut out = Self::default();
+        for b in bindings {
+            out.push(b);
+        }
+        out
+    }
+
+    /// The chord shown in the UI, or `None` when unbound.
+    pub fn primary(&self) -> Option<HotkeyBinding> {
+        self.0.first().copied()
+    }
+
+    /// Badges for the chord shown in the UI. `None` when unbound, so
+    /// callers rendering a hint drop the row rather than printing an
+    /// empty chord.
+    pub fn badges(&self) -> Option<Vec<String>> {
+        self.primary().map(|b| b.badges())
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &HotkeyBinding> {
+        self.0.iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn contains(&self, binding: &HotkeyBinding) -> bool {
+        self.0.contains(binding)
+    }
+
+    /// Append a chord, ignoring an exact duplicate.
+    pub fn push(&mut self, binding: HotkeyBinding) {
+        if !self.contains(&binding) {
+            self.0.push(binding);
+        }
+    }
+
+    /// Write a chord into `slot`, appending when the slot is `Add` or
+    /// points past the end (a stale index from a row that shrank under
+    /// the editor). Any other copy of the chord in this list is dropped
+    /// first, so a list can never hold the same chord twice.
+    pub fn set(&mut self, slot: HotkeySlot, binding: HotkeyBinding) {
+        match slot {
+            HotkeySlot::Replace(i) if i < self.0.len() => {
+                self.0[i] = binding;
+                let mut seen = false;
+                self.0.retain(|b| {
+                    if *b == binding {
+                        let first = !seen;
+                        seen = true;
+                        return first;
+                    }
+                    true
+                });
+            }
+            _ => self.push(binding),
+        }
+    }
+
+    /// Drop one chord. Returns whether it was there.
+    pub fn remove(&mut self, binding: &HotkeyBinding) -> bool {
+        let before = self.0.len();
+        self.0.retain(|b| b != binding);
+        self.0.len() != before
+    }
+
+    /// First chord that fires for this event, if any. Chords are
+    /// modifier-exact (see `HotkeyBinding::match_event`), so at most
+    /// one can match and the order only decides which is checked first.
+    pub fn match_event(&self, key: &Key, modifiers: &Modifiers) -> Option<FamilyMatch> {
+        self.match_event_where(key, modifiers, |_| true)
+    }
+
+    /// `match_event`, restricted to the chords `accept` keeps.
+    ///
+    /// The PTY gate is per-chord, never per-action: an action bound to
+    /// both `Ctrl+Shift+V` and `Ctrl+V` must keep the first inside a
+    /// terminal while yielding the second to the shell. Deciding for
+    /// the whole action would either steal `^V` (if any chord being
+    /// safe rescued the rest) or kill `Ctrl+Shift+V` too (if any chord
+    /// being a control sequence condemned the rest).
+    pub fn match_event_where(
+        &self,
+        key: &Key,
+        modifiers: &Modifiers,
+        mut accept: impl FnMut(&HotkeyBinding) -> bool,
+    ) -> Option<FamilyMatch> {
+        self.0
+            .iter()
+            .filter(|b| accept(b))
+            .find_map(|b| b.match_event(key, modifiers))
+    }
+
+    /// Serialize for the settings table: chords space-separated, each
+    /// in `HotkeyBinding::serialize` form (`"ctrl+shift+v shift+ins"`).
+    ///
+    /// The separator is a space and must stay one: every other
+    /// candidate is a bindable primary. `,` is `OpenSettings`'s factory
+    /// chord and `;` `.` `=` `-` `+` `/` `\` `[` `]` are all in the
+    /// `Punct` set, and all of them serialize literally. A space can
+    /// never appear inside a chord, because `Named::Space` serializes
+    /// to the word `"space"`.
+    pub fn serialize(&self) -> String {
+        if self.0.is_empty() {
+            return UNBOUND.to_string();
+        }
+        self.0
+            .iter()
+            .map(|b| b.serialize())
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+
+    /// Reverse of `serialize`. `None` means "no usable override", and
+    /// the caller keeps the factory chords.
+    ///
+    /// Three cases the settings table can hold:
+    ///
+    /// * `""` is *no override* (what `ResetHotkey` writes to drop a
+    ///   row back to factory), so it returns `None`.
+    /// * `UNBOUND` is a *deliberate* unbind and returns an empty list.
+    ///   It needs its own token precisely because `""` was already
+    ///   taken: the single-binding model wrote `""` for both and could
+    ///   not tell them apart, so an unbound action silently regained
+    ///   its factory chord on the next boot.
+    /// * anything else is a chord list.
+    ///
+    /// Unparseable chords are skipped rather than failing the whole
+    /// row, so a value written by a newer build (one that knows a key
+    /// name this build doesn't) degrades to the chords this build
+    /// understands instead of resetting the action. A row where
+    /// nothing parses at all is malformed, not an unbind.
+    pub fn parse(s: &str) -> Option<Self> {
+        let s = s.trim();
+        if s.is_empty() {
+            return None;
+        }
+        if s == UNBOUND {
+            return Some(Self::default());
+        }
+        let parsed = Self::many(s.split_whitespace().filter_map(HotkeyBinding::parse));
+        if parsed.is_empty() {
+            return None;
+        }
+        Some(parsed)
+    }
+}
+
+impl<'a> IntoIterator for &'a HotkeyBindings {
+    type Item = &'a HotkeyBinding;
+    type IntoIter = std::slice::Iter<'a, HotkeyBinding>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+/// Map from action to its current chords (default or user override).
+pub type HotkeyMap = HashMap<HotkeyAction, HotkeyBindings>;
 
 /// Hardcoded factory defaults. Settings overrides land on top of
 /// this map in `boot.rs::load_data_from_vault`.
@@ -722,13 +1016,28 @@ pub fn default_bindings() -> HotkeyMap {
     let put = |m: &mut HotkeyMap, a, ctrl, shift, alt, logo, p| {
         m.insert(
             a,
-            HotkeyBinding {
+            HotkeyBindings::single(HotkeyBinding {
                 ctrl,
                 shift,
                 alt,
                 logo,
                 primary: p,
-            },
+            }),
+        );
+    };
+    // Same as `put`, for the actions that ship with alternates.
+    let put_many = |m: &mut HotkeyMap, a, chords: &[(bool, bool, bool, bool, PrimaryKey)]| {
+        m.insert(
+            a,
+            HotkeyBindings::many(chords.iter().map(|&(ctrl, shift, alt, logo, primary)| {
+                HotkeyBinding {
+                    ctrl,
+                    shift,
+                    alt,
+                    logo,
+                    primary,
+                }
+            })),
         );
     };
     // Platform-primary modifier: Cmd (logo) on macOS, Ctrl elsewhere.
@@ -800,6 +1109,55 @@ pub fn default_bindings() -> HotkeyMap {
     // across the tab's panes. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+U is readline kill-line).
     put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
+    // Terminal clipboard (#75). Deliberately NOT built from the
+    // primary_ctrl / primary_logo pair: the platforms disagree on more
+    // than which modifier to use. Elsewhere the convention is
+    // Ctrl+Shift+X, because plain Ctrl+X is a control sequence the
+    // shell wants (is_terminal_control_sequence), plus the xterm-era
+    // Insert chords that every mainstream terminal still honours.
+    // macOS has neither idiom: it uses bare Cmd, and Cmd+Insert means
+    // nothing there. Shift+Insert is modifier-neutral, so it rides
+    // along on macOS too rather than being dropped.
+    //
+    // Plain Ctrl+V is NOT a paste chord. It is the literal-next byte
+    // (vim visual block, readline quoted-insert), and binding it here
+    // would take it away from the PTY with no way back.
+    if mac {
+        put_many(&mut m, TerminalCopy, &[(false, false, false, true, Char('c'))]);
+        put_many(
+            &mut m,
+            TerminalPaste,
+            &[
+                (false, false, false, true, Char('v')),
+                (false, true, false, false, Named(keyboard::key::Named::Insert)),
+            ],
+        );
+        put_many(&mut m, TerminalSelectAll, &[(false, false, false, true, Char('a'))]);
+    } else {
+        put_many(
+            &mut m,
+            TerminalCopy,
+            &[
+                (true, true, false, false, Char('c')),
+                (true, false, false, false, Named(keyboard::key::Named::Insert)),
+            ],
+        );
+        put_many(
+            &mut m,
+            TerminalPaste,
+            &[
+                (true, true, false, false, Char('v')),
+                (false, true, false, false, Named(keyboard::key::Named::Insert)),
+            ],
+        );
+        put_many(&mut m, TerminalSelectAll, &[(true, true, false, false, Char('a'))]);
+    }
+    // Scrollback paging. Shift+PageUp/PageDown on every platform: it is
+    // universal across terminals and macOS has no competing idiom. The
+    // widget yields these to the PTY on the alternate screen, where
+    // there is no scrollback and the running app owns the key.
+    put(&mut m, ScrollbackPageUp, false, true, false, false, Named(keyboard::key::Named::PageUp));
+    put(&mut m, ScrollbackPageDown, false, true, false, false, Named(keyboard::key::Named::PageDown));
     // Ctrl+Shift+digit (Cmd+Shift on macOS): the vault-section
     // jump family, one digit per burger-menu VAULT entry. Shift
     // keeps it clear of the Ctrl+digit tab slots.
@@ -819,14 +1177,39 @@ mod tests {
     #[test]
     fn round_trip_serialize_parse() {
         let defaults = default_bindings();
-        for binding in defaults.values() {
-            let s = binding.serialize();
-            let parsed = HotkeyBinding::parse(&s)
-                .unwrap_or_else(|| panic!("parse failed for {s}"));
-            assert_eq!(
-                *binding, parsed,
-                "round-trip mismatch for {s}: {binding:?} != {parsed:?}"
-            );
+        for binds in defaults.values() {
+            // Every chord on its own.
+            for binding in binds.iter() {
+                let s = binding.serialize();
+                let parsed = HotkeyBinding::parse(&s)
+                    .unwrap_or_else(|| panic!("parse failed for {s}"));
+                assert_eq!(
+                    *binding, parsed,
+                    "round-trip mismatch for {s}: {binding:?} != {parsed:?}"
+                );
+            }
+            // And the whole list, which is what the settings row holds.
+            let s = binds.serialize();
+            let parsed = HotkeyBindings::parse(&s)
+                .unwrap_or_else(|| panic!("list parse failed for {s:?}"));
+            assert_eq!(*binds, parsed, "list round-trip mismatch for {s:?}");
+        }
+    }
+
+    /// A chord must never serialize to something that the list
+    /// separator (a space) would split. If this ever fails, a new
+    /// `PrimaryKey` is serializing to a multi-word token and every
+    /// stored multi-chord row silently loses chords.
+    #[test]
+    fn no_default_chord_serializes_with_a_space() {
+        for binds in default_bindings().values() {
+            for b in binds.iter() {
+                let s = b.serialize();
+                assert!(
+                    !s.contains(char::is_whitespace),
+                    "chord {b:?} serializes to {s:?}, which the list separator would split"
+                );
+            }
         }
     }
 
@@ -839,9 +1222,156 @@ mod tests {
             (HotkeyAction::VaultSectionPrev, "ctrl+pgup"),
             (HotkeyAction::VaultSectionNext, "ctrl+pgdn"),
         ] {
-            let b = defaults.get(&action).copied().expect("default missing");
+            let b = defaults.get(&action).expect("default missing");
             assert_eq!(b.serialize(), expected);
-            assert_eq!(HotkeyBinding::parse(expected), Some(b));
+            assert_eq!(HotkeyBindings::parse(expected).as_ref(), Some(b));
+        }
+    }
+
+    /// The three settings-row states are distinct. `""` (no override)
+    /// must not read as an unbind, or `ResetHotkey` would unbind instead
+    /// of restoring the factory chord; `UNBOUND` must not read as "no
+    /// override", or an unbind would silently come back on next boot,
+    /// which is exactly what the single-binding model did.
+    #[test]
+    fn empty_row_is_not_an_unbind() {
+        assert_eq!(HotkeyBindings::parse(""), None);
+        assert_eq!(HotkeyBindings::parse("   "), None);
+        assert_eq!(HotkeyBindings::parse(UNBOUND), Some(HotkeyBindings::default()));
+        assert_eq!(HotkeyBindings::default().serialize(), UNBOUND);
+        // Round-trips as a real state, not by accident.
+        assert_eq!(
+            HotkeyBindings::parse(&HotkeyBindings::default().serialize()),
+            Some(HotkeyBindings::default())
+        );
+        // A row that parses to nothing usable is malformed, not an
+        // unbind: the caller keeps the factory chords.
+        assert_eq!(HotkeyBindings::parse("wat nonsense"), None);
+    }
+
+    /// A row written by a newer build (one that knows a key name this
+    /// build doesn't) degrades to the chords this build understands
+    /// rather than resetting the action to factory.
+    #[test]
+    fn unknown_chord_in_a_row_is_skipped_not_fatal() {
+        let parsed = HotkeyBindings::parse("ctrl+shift+v futurekey shift+ins")
+            .expect("should keep the chords it understands");
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed.serialize(), "ctrl+shift+v shift+ins");
+    }
+
+    /// The chords #73 asked for. `Shift+Insert` (paste) and
+    /// `Shift+PageUp` (scrollback) carry no Ctrl/Alt/Logo, so they only
+    /// clear `is_safe` because Shift counts on a primary that can't be
+    /// typed. If that regresses, the capture editor silently rejects the
+    /// chord every other terminal ships.
+    #[test]
+    fn shift_plus_non_text_key_is_bindable() {
+        let shift_ins = HotkeyBinding {
+            ctrl: false,
+            shift: true,
+            alt: false,
+            logo: false,
+            primary: PrimaryKey::Named(Named::Insert),
+        };
+        assert!(shift_ins.is_safe());
+        assert_eq!(shift_ins.serialize(), "shift+ins");
+        assert_eq!(HotkeyBinding::parse("shift+ins"), Some(shift_ins));
+        // Never suppressed as a shell control sequence (no Ctrl).
+        assert!(!shift_ins.is_terminal_control_sequence());
+
+        let shift_pgup = HotkeyBinding {
+            primary: PrimaryKey::Named(Named::PageUp),
+            ..shift_ins
+        };
+        assert!(shift_pgup.is_safe());
+
+        // Shift alone on a typable primary is still just uppercase.
+        let shift_a = HotkeyBinding {
+            primary: PrimaryKey::Char('a'),
+            ..shift_ins
+        };
+        assert!(!shift_a.is_safe());
+        // Modifier-free navigation keys stay unbindable: the PTY wants
+        // them, and bare Delete is the capture editor's remove gesture.
+        let bare_del = HotkeyBinding {
+            shift: false,
+            primary: PrimaryKey::Named(Named::Delete),
+            ..shift_ins
+        };
+        assert!(!bare_del.is_safe());
+    }
+
+    /// Factory paste must carry BOTH conventional chords, and must not
+    /// carry plain Ctrl+V: that is the shell's literal-next byte (vim
+    /// visual block, readline quoted-insert), and binding it would take
+    /// it from the PTY with no way back.
+    #[test]
+    fn paste_defaults_follow_the_terminal_convention() {
+        let defaults = default_bindings();
+        let paste = defaults.get(&HotkeyAction::TerminalPaste).expect("paste bound");
+        let ctrl_v = HotkeyBinding {
+            ctrl: true,
+            shift: false,
+            alt: false,
+            logo: false,
+            primary: PrimaryKey::Char('v'),
+        };
+        assert!(!paste.contains(&ctrl_v), "Ctrl+V must stay with the PTY");
+        let shift_ins = HotkeyBinding {
+            ctrl: false,
+            shift: true,
+            alt: false,
+            logo: false,
+            primary: PrimaryKey::Named(Named::Insert),
+        };
+        assert!(paste.contains(&shift_ins), "Shift+Insert is a standard paste chord");
+        assert_eq!(paste.len(), 2);
+        // The chord shown in the palette is the platform-primary one,
+        // not the Insert alternate.
+        assert_ne!(paste.primary(), Some(shift_ins));
+
+        // No factory chord anywhere is a bare Ctrl+letter that the shell
+        // would want, which is what keeps the whole clipboard set clear
+        // of the is_terminal_control_sequence gate.
+        for action in [
+            HotkeyAction::TerminalCopy,
+            HotkeyAction::TerminalPaste,
+            HotkeyAction::TerminalSelectAll,
+            HotkeyAction::ScrollbackPageUp,
+            HotkeyAction::ScrollbackPageDown,
+        ] {
+            for b in defaults.get(&action).expect("bound").iter() {
+                assert!(
+                    !b.is_terminal_control_sequence(),
+                    "{action:?} chord {b:?} would be swallowed by the PTY gate"
+                );
+                assert!(b.is_safe(), "{action:?} chord {b:?} is not recordable");
+            }
+        }
+    }
+
+    /// Every action must be reachable from the editor, and every stored
+    /// row keyed by a stable id. A new action that forgets `all()` is
+    /// invisible in Settings and the palette; one that forgets `id()`
+    /// panics. Cheap guard, since both are hand-maintained tables.
+    #[test]
+    fn every_action_is_listed_and_has_a_unique_id() {
+        let all = HotkeyAction::all();
+        let mut ids: Vec<&str> = all.iter().map(|a| a.id()).collect();
+        ids.sort_unstable();
+        let before = ids.len();
+        ids.dedup();
+        assert_eq!(before, ids.len(), "duplicate hotkey id");
+        for a in [
+            HotkeyAction::TerminalCopy,
+            HotkeyAction::TerminalPaste,
+            HotkeyAction::TerminalSelectAll,
+            HotkeyAction::ScrollbackPageUp,
+            HotkeyAction::ScrollbackPageDown,
+        ] {
+            assert!(all.contains(&a), "{a:?} missing from all()");
+            assert!(a.terminal_only(), "{a:?} must not fire outside a terminal");
         }
     }
 

@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Επαναφορά",
         "hotkey_must_have_modifier" => "Η συντόμευση χρειάζεται τουλάχιστον ένα πλήκτρο τροποποίησης (Ctrl/Shift/Alt) ή πλήκτρο λειτουργιών",
         "hotkey_conflict_unbound" => "Η ενέργεια {action} έμεινε χωρίς συντόμευση",
-        "hotkey_conflict_rebound_default" => "Η ενέργεια {action} επανήλθε στην προεπιλεγμένη συντόμευση",
+        "hotkey_conflict_chord_removed" => "Το {action} έχασε αυτή τη συντόμευση",
+        "hotkey_scrollback_page_up" => "Κύλιση μία σελίδα πίσω",
+        "hotkey_scrollback_page_down" => "Κύλιση μία σελίδα μπροστά",
         "hotkey_show_new_tab_picker" => "Άνοιγμα επιλογέα νέας καρτέλας",
         "hotkey_show_tab_jump" => "Μετάβαση σε καρτέλα",
         "hotkey_show_command_palette" => "Παλέτα εντολών",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Αυτό διαγράφει οριστικά τα πάντα: hosts, κλειδιά, ταυτότητες, snippets, αρχεία καταγραφής και ρυθμίσεις. Η εφαρμογή επανέρχεται στην πρώτη εκτέλεση.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Αντιγραφή από το τερματικό",
-        "paste_terminal" => "Επικόλληση στο τερματικό",
         "close_tab" => "Κλείσιμο καρτέλας",
         "close_other_tabs" => "Κλείσιμο των άλλων καρτελών",
         "close_all_tabs" => "Κλείσιμο όλων των καρτελών",

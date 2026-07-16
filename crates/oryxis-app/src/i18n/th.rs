@@ -183,7 +183,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "รีเซ็ต",
         "hotkey_must_have_modifier" => "ทางลัดต้องมีปุ่มปรับอย่างน้อยหนึ่งปุ่ม (Ctrl/Shift/Alt) หรือเป็นปุ่มฟังก์ชัน",
         "hotkey_conflict_unbound" => "{action} ถูกยกเลิกการกำหนดแล้ว",
-        "hotkey_conflict_rebound_default" => "{action} ถูกคืนค่าเป็นทางลัดเริ่มต้นแล้ว",
+        "hotkey_conflict_chord_removed" => "{action} สูญเสียทางลัดนั้น",
+        "hotkey_scrollback_page_up" => "เลื่อนขึ้นหนึ่งหน้า",
+        "hotkey_scrollback_page_down" => "เลื่อนลงหนึ่งหน้า",
         "hotkey_show_new_tab_picker" => "เปิดตัวเลือกแท็บใหม่",
         "hotkey_show_tab_jump" => "ข้ามไปยังแท็บ",
         "hotkey_show_command_palette" => "พาเลตต์คำสั่ง",
@@ -475,8 +477,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "การดำเนินการนี้จะลบทุกอย่างอย่างถาวร: โฮสต์ คีย์ identity, snippet, บันทึก และการตั้งค่า แอปจะรีเซ็ตกลับเป็นการใช้งานครั้งแรก",
 
         // Terminal shortcuts
-        "copy_terminal" => "คัดลอกจากเทอร์มินัล",
-        "paste_terminal" => "วางลงเทอร์มินัล",
         "close_tab" => "ปิดแท็บ",
         "close_other_tabs" => "ปิดแท็บอื่น ๆ",
         "close_all_tabs" => "ปิดแท็บทั้งหมด",

@@ -180,7 +180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_reset" => "Khôi phục",
         "hotkey_must_have_modifier" => "Phím tắt cần ít nhất một phím bổ trợ (Ctrl/Shift/Alt) hoặc một phím chức năng",
         "hotkey_conflict_unbound" => "{action} hiện chưa được gán",
-        "hotkey_conflict_rebound_default" => "{action} đã khôi phục về phím tắt mặc định",
+        "hotkey_conflict_chord_removed" => "{action} đã mất phím tắt đó",
+        "hotkey_scrollback_page_up" => "Cuộn lùi một trang",
+        "hotkey_scrollback_page_down" => "Cuộn tới một trang",
         "hotkey_show_new_tab_picker" => "Mở trình chọn tab mới",
         "hotkey_show_tab_jump" => "Nhảy tới tab",
         "hotkey_show_command_palette" => "Bảng lệnh",
@@ -456,8 +458,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_destroy_confirm" => "Việc này sẽ xóa vĩnh viễn mọi thứ: máy chủ, khóa, danh tính, đoạn lệnh, nhật ký và cài đặt. Ứng dụng sẽ trở về trạng thái chạy lần đầu.",
 
         // Terminal shortcuts
-        "copy_terminal" => "Chép từ Terminal",
-        "paste_terminal" => "Dán vào Terminal",
         "close_tab" => "Đóng tab",
         "close_other_tabs" => "Đóng các tab khác",
         "close_all_tabs" => "Đóng tất cả tab",
