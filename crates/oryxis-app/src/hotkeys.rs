@@ -1505,4 +1505,36 @@ mod tests {
         };
         assert!(ctrl_a.is_safe());
     }
+
+    /// Does the Insert pair actually FIRE? `is_safe` / `parse` passing
+    /// only proves the editor would accept the chord, not that a real
+    /// key event reaches the action.
+    #[test]
+    fn insert_chords_match_a_real_key_event() {
+        let defaults = default_bindings();
+        let ins = Key::Named(Named::Insert);
+
+        let mut m = Modifiers::default();
+        m.set(Modifiers::SHIFT, true);
+        let paste = defaults.get(&HotkeyAction::TerminalPaste).expect("bound");
+        assert_eq!(
+            paste.match_event(&ins, &m),
+            Some(FamilyMatch::Plain),
+            "Shift+Insert must fire paste"
+        );
+
+        let mut m = Modifiers::default();
+        m.set(Modifiers::CTRL, true);
+        let copy = defaults.get(&HotkeyAction::TerminalCopy).expect("bound");
+        assert_eq!(
+            copy.match_event(&ins, &m),
+            Some(FamilyMatch::Plain),
+            "Ctrl+Insert must fire copy"
+        );
+
+        // Modifier match is exact: a bare Insert fires neither.
+        let none = Modifiers::default();
+        assert_eq!(paste.match_event(&ins, &none), None);
+        assert_eq!(copy.match_event(&ins, &none), None);
+    }
 }
