@@ -178,7 +178,14 @@ async fn run_download(
     let TransferSpec::Download { dest_dir } = spec else {
         return Err("download driver given a non-download spec".into());
     };
-    let mut receiver = Receiver::new().map_err(|e| format!("zmodem init: {e:?}"))?;
+    // Advertise nonstop I/O (zero buffer length) plus CANOVIO: the pane
+    // transport is SSH/Telnet/serial with its own flow control, and the
+    // driver drains wire into the (buffered) file as fast as it arrives,
+    // so there is no reason to make `sz` stop for a ZACK round trip
+    // every buffer's worth of data; on links with real latency that
+    // pacing, not bandwidth, dominates the transfer time.
+    let mut receiver =
+        Receiver::with_flow_control(0, true).map_err(|e| format!("zmodem init: {e:?}"))?;
     let mut pending = first_wire;
     let mut dest: Option<BufWriter<tokio::fs::File>> = None;
     let mut dest_path: Option<PathBuf> = None;
@@ -363,6 +370,13 @@ async fn run_upload(
         .unwrap_or_else(|| "file".into());
 
     let mut sender = Sender::new().map_err(|e| format!("zmodem init: {e:?}"))?;
+    // When the remote `rz` allows streaming (lrzsz advertises a zero
+    // buffer with CANOVIO), widen the default 10-subpacket window to
+    // 1024 (1 MiB between ZACK waits). Not usize::MAX: the wire-out
+    // channel is unbounded with no backpressure signal from the
+    // transport, so the periodic acknowledgement is what keeps at most
+    // ~1 MiB of file data in flight in memory on a slow link.
+    sender.set_streaming_window(1024);
     sender
         .start_file(FileInfo::new(name.as_bytes(), Some(Position::new(size32))))
         .map_err(|e| format!("zmodem start_file: {e:?}"))?;
