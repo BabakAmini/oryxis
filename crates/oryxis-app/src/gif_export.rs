@@ -100,32 +100,41 @@ mod tests {
 
     /// The render path must clean its temp cast and surface the
     /// plugin's stderr on failure. A shell script stands in for the
-    /// plugin so the test needs no real agg build.
+    /// plugin so the test needs no real agg build; it records the cast
+    /// path it was handed so the cleanup assertion targets exactly
+    /// that file (counting the shared OS temp dir instead was racy:
+    /// the sibling test's own temp cast made the count flap).
     #[cfg(unix)]
     #[tokio::test]
     async fn render_reports_stderr_and_cleans_temp() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
+        let seen = dir.path().join("seen-cast-path");
         let fake = dir.path().join("fake-plugin");
-        std::fs::write(&fake, "#!/bin/sh\necho 'oryxis-gif: boom' >&2\nexit 1\n").unwrap();
+        std::fs::write(
+            &fake,
+            format!(
+                "#!/bin/sh\nprintf '%s' \"$1\" > '{}'\necho 'oryxis-gif: boom' >&2\nexit 1\n",
+                seen.display()
+            ),
+        )
+        .unwrap();
         let mut perms = std::fs::metadata(&fake).unwrap().permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&fake, perms).unwrap();
 
         let out = dir.path().join("out.gif");
-        let temp_casts = || {
-            std::fs::read_dir(std::env::temp_dir())
-                .unwrap()
-                .filter_map(|e| e.ok())
-                .filter(|e| {
-                    e.file_name().to_string_lossy().starts_with("oryxis-gif-")
-                })
-                .count()
-        };
-        let before = temp_casts();
         let err = render(fake, "{}".into(), out).await.unwrap_err();
         assert_eq!(err, "oryxis-gif: boom");
-        assert_eq!(before, temp_casts(), "temp cast must be cleaned up");
+        let cast_path = std::fs::read_to_string(&seen).unwrap();
+        assert!(
+            cast_path.contains("oryxis-gif-"),
+            "plugin must receive the temp cast path, got {cast_path}"
+        );
+        assert!(
+            !std::path::Path::new(&cast_path).exists(),
+            "temp cast must be cleaned up"
+        );
     }
 
     /// Success path: the fake plugin writes the output file; render
