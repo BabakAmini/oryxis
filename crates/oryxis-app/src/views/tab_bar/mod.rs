@@ -618,6 +618,27 @@ impl Oryxis {
                     files_mode,
                 ));
             } else {
+                // An in-flight ZMODEM transfer (any pane of the tab)
+                // borrows the OSC 9;4 progress border, so a transfer
+                // in a background tab or unfocused split stays visible
+                // from the strip; the overlay only covers the active
+                // pane. The divert suspends OSC progress anyway, so
+                // the transfer owning the slot loses nothing.
+                let zmodem_progress = tab
+                    .pane_grid
+                    .panes
+                    .values()
+                    .filter_map(|p| p.zmodem.as_ref())
+                    .filter_map(|zm| {
+                        zm.total.filter(|t| *t > 0).map(|total| {
+                            let pct = (zm.transferred as f64 / total as f64) * 100.0;
+                            oryxis_terminal::Progress {
+                                state: 1,
+                                value: pct.clamp(0.0, 100.0) as u8,
+                            }
+                        })
+                    })
+                    .next();
                 tab_items.push(session_tab(
                     idx,
                     &display_label,
@@ -635,7 +656,7 @@ impl Oryxis {
                     tab_badge_color,
                     tab.pinned,
                     solid_fill,
-                    tab.active().progress,
+                    zmodem_progress.or(tab.active().progress),
                     files_mode,
                 ));
             }

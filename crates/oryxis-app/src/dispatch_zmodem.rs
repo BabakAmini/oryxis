@@ -85,6 +85,7 @@ impl Oryxis {
                 wire_tx,
                 abort: abort.clone(),
                 file_name: None,
+                batch: None,
                 transferred: 0,
                 total: None,
                 late: Vec::new(),
@@ -128,11 +129,16 @@ impl Oryxis {
                         Some(TransferSpec::Download { dest_dir })
                     }
                     Direction::Upload => {
-                        match rfd::AsyncFileDialog::new().pick_file().await {
-                            Some(handle) => Some(TransferSpec::Upload {
-                                source: handle.path().to_path_buf(),
+                        // Multi-select: every picked file goes out in
+                        // one ZMODEM session, in order.
+                        match rfd::AsyncFileDialog::new().pick_files().await {
+                            Some(handles) if !handles.is_empty() => Some(TransferSpec::Upload {
+                                sources: handles
+                                    .iter()
+                                    .map(|h| h.path().to_path_buf())
+                                    .collect(),
                             }),
-                            None => {
+                            _ => {
                                 // Declined: cancel the waiting remote `rz`
                                 // so it doesn't hang, and end the transfer.
                                 let _ = wire_out.send(oryxis_zmodem::CANCEL.to_vec());
@@ -184,11 +190,12 @@ impl Oryxis {
                         return Ok(Task::none());
                     };
                     match progress {
-                        Progress::Started { name, size } => {
+                        Progress::Started { name, size, batch } => {
                             if let Some(zm) = pane.zmodem.as_mut() {
                                 zm.file_name = Some(name);
                                 zm.total = size;
                                 zm.transferred = 0;
+                                zm.batch = batch;
                             }
                         }
                         Progress::Advanced { transferred, total } => {

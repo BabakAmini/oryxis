@@ -482,6 +482,9 @@ pub(crate) struct ZmodemPane {
     pub abort: Arc<std::sync::atomic::AtomicBool>,
     /// Current file name (once the peer advertises it).
     pub file_name: Option<String>,
+    /// `(k, n)` on a multi-file upload; `None` for single files and
+    /// downloads.
+    pub batch: Option<(usize, usize)>,
     /// Bytes moved so far, and the advertised total when known.
     pub transferred: u64,
     pub total: Option<u64>,
@@ -1059,6 +1062,7 @@ mod terminal_tab_tests {
             wire_tx,
             abort: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             file_name: None,
+            batch: None,
             transferred: 0,
             total: None,
             late: Vec::new(),

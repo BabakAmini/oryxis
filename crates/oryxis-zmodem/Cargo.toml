@@ -11,3 +11,8 @@ thiserror = { workspace = true }
 # own only the terminal-side glue (auto-detection + the async driver
 # that maps its Actions onto our transport / file I/O).
 zmodem2 = "0.7"
+
+[dev-dependencies]
+# test-util enables tokio::time::pause so the silent-peer retry test
+# runs its 60 s of timeout windows on a virtual clock.
+tokio = { version = "1", features = ["full", "test-util"] }

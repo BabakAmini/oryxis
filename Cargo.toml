@@ -134,8 +134,9 @@ inherits = "release"
 debug = "line-tables-only"
 split-debuginfo = "packed"
 
-# zmodem2 with configurable flow control (streaming window + ZRINIT
-# advertisement), from our fork while the upstream PR is in review:
+# zmodem2 from our fork's oryxis-integration branch (configurable flow
+# control + manual file acceptance/resume + ZSINIT handling) while the
+# upstream PRs are in review:
 # https://codeberg.org/jarkko/zmodem2 <- wilsonglasser/zmodem2
 [patch.crates-io]
-zmodem2 = { git = "https://codeberg.org/wilsonglasser/zmodem2.git", rev = "0a18e87b92e3b81db596aeb6be4802a5f1b5691c" }
+zmodem2 = { git = "https://codeberg.org/wilsonglasser/zmodem2.git", rev = "726314fcbc55e5eee7faa0831a1a08e2378f3d5c" }

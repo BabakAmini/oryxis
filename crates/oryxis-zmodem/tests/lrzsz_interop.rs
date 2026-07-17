@@ -243,6 +243,163 @@ async fn download_multiple_files_from_real_sz() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Interrupted download resume: a leftover `.oryxis-part` holding the
+/// first half of the file makes the receiver answer ZFILE with
+/// ZRPOS(half), and `sz` sends only the rest. The pre-created half
+/// carries DIFFERENT bytes than the source: if the driver actually
+/// resumed, the final file keeps our bytes in the first half (a
+/// from-zero transfer would equal the source exactly), which proves
+/// append-at-offset rather than rewrite.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn download_resumes_from_a_partial() {
+    if !tool_available("sz") {
+        eprintln!("SKIP download_resumes_from_a_partial: `sz` not installed");
+        return;
+    }
+    let dir = scratch("resume");
+    let dest_dir = dir.join("incoming");
+    std::fs::create_dir_all(&dest_dir).unwrap();
+    let src = dir.join("big.bin");
+    let data = payload();
+    std::fs::write(&src, &data).unwrap();
+    let half = data.len() / 2;
+    let marker = vec![0xABu8; half];
+    let part = dest_dir.join(format!("big.bin{}", oryxis_zmodem::PART_SUFFIX));
+    std::fs::write(&part, &marker).unwrap();
+
+    let mut child = Command::new("sz")
+        .arg("-b")
+        .arg(&src)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn sz");
+    let child_out = child.stdout.take().unwrap();
+    let child_in = child.stdin.take().unwrap();
+
+    let (wire_in_tx, wire_in) = mpsc::unbounded_channel();
+    let (wire_out, wire_out_rx) = mpsc::unbounded_channel();
+    let (progress, mut progress_rx) = mpsc::unbounded_channel();
+    spawn_reader(child_out, wire_in_tx);
+    spawn_writer(child_in, wire_out_rx);
+
+    let io = TransferIo {
+        wire_in,
+        wire_out,
+        progress,
+        abort: Arc::new(AtomicBool::new(false)),
+    };
+    let driver = tokio::spawn(run(
+        Direction::Download,
+        TransferSpec::Download {
+            dest_dir: dest_dir.clone(),
+        },
+        Vec::new(),
+        io,
+    ));
+    tokio::time::timeout(Duration::from_secs(30), driver)
+        .await
+        .expect("resumed download deadlocked")
+        .unwrap();
+
+    let mut completed = false;
+    while let Ok(p) = progress_rx.try_recv() {
+        match p {
+            Progress::Completed { .. } => completed = true,
+            Progress::Error(e) => panic!("download error: {e}"),
+            _ => {}
+        }
+    }
+    assert!(completed, "resumed download never completed");
+
+    let got = std::fs::read(dest_dir.join("big.bin")).expect("final file");
+    assert_eq!(got.len(), data.len());
+    assert_eq!(&got[..half], &marker[..], "first half rewritten: did not resume");
+    assert_eq!(&got[half..], &data[half..], "second half differs");
+    assert!(
+        !std::fs::exists(&part).unwrap_or(false),
+        "part file left behind after finalize"
+    );
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("sz did not exit promptly after resumed session")
+        .expect("sz wait failed");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `sz -e` (escape all control bytes) opens with ZSINIT and blocks
+/// until the receiver acknowledges it; a receiver that ignores the
+/// frame stalls the whole session into sz's timeouts (the pre-fix
+/// behavior). The prompt-exit bound is the regression assert.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn download_from_sz_with_control_escaping() {
+    if !tool_available("sz") {
+        eprintln!("SKIP download_from_sz_with_control_escaping: `sz` not installed");
+        return;
+    }
+    let dir = scratch("szesc");
+    let src = dir.join("payload.bin");
+    let dest_dir = dir.join("incoming");
+    std::fs::create_dir_all(&dest_dir).unwrap();
+    let data = payload();
+    std::fs::write(&src, &data).unwrap();
+
+    let mut child = Command::new("sz")
+        .arg("-b")
+        .arg("-e")
+        .arg(&src)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn sz");
+    let child_out = child.stdout.take().unwrap();
+    let child_in = child.stdin.take().unwrap();
+
+    let (wire_in_tx, wire_in) = mpsc::unbounded_channel();
+    let (wire_out, wire_out_rx) = mpsc::unbounded_channel();
+    let (progress, mut progress_rx) = mpsc::unbounded_channel();
+    spawn_reader(child_out, wire_in_tx);
+    spawn_writer(child_in, wire_out_rx);
+
+    let io = TransferIo {
+        wire_in,
+        wire_out,
+        progress,
+        abort: Arc::new(AtomicBool::new(false)),
+    };
+    let driver = tokio::spawn(run(
+        Direction::Download,
+        TransferSpec::Download {
+            dest_dir: dest_dir.clone(),
+        },
+        Vec::new(),
+        io,
+    ));
+    tokio::time::timeout(Duration::from_secs(30), driver)
+        .await
+        .expect("sz -e download deadlocked")
+        .unwrap();
+
+    let mut completed = false;
+    while let Ok(p) = progress_rx.try_recv() {
+        match p {
+            Progress::Completed { .. } => completed = true,
+            Progress::Error(e) => panic!("download error: {e}"),
+            _ => {}
+        }
+    }
+    assert!(completed, "sz -e download never completed");
+    let got = std::fs::read(dest_dir.join("payload.bin")).expect("downloaded file");
+    assert_eq!(got, data, "escaped-mode bytes differ");
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("sz -e did not exit promptly (ZSINIT unacknowledged?)")
+        .expect("sz wait failed");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn abort_cancels_a_real_sz_transfer() {
     if !tool_available("sz") {
@@ -325,6 +482,85 @@ async fn abort_cancels_a_real_sz_transfer() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Multi-file upload: both files ride one ZMODEM session, and the
+/// driver reports the batch position ("k of n") per file.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn upload_multiple_files_to_real_rz() {
+    if !tool_available("rz") {
+        eprintln!("SKIP upload_multiple_files_to_real_rz: `rz` not installed");
+        return;
+    }
+    let dir = scratch("ul-multi");
+    let recv_dir = dir.join("recv");
+    std::fs::create_dir_all(&recv_dir).unwrap();
+    let files = [
+        ("a.bin", payload()),
+        ("b.bin", (0..4096u32).map(|i| (i % 97) as u8).collect::<Vec<_>>()),
+    ];
+    let mut sources = Vec::new();
+    for (name, data) in &files {
+        let p = dir.join(name);
+        std::fs::write(&p, data).unwrap();
+        sources.push(p);
+    }
+
+    let mut child = Command::new("rz")
+        .arg("-b")
+        .current_dir(&recv_dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("spawn rz");
+    let child_out = child.stdout.take().unwrap();
+    let child_in = child.stdin.take().unwrap();
+
+    let (wire_in_tx, wire_in) = mpsc::unbounded_channel();
+    let (wire_out, wire_out_rx) = mpsc::unbounded_channel();
+    let (progress, mut progress_rx) = mpsc::unbounded_channel();
+    spawn_reader(child_out, wire_in_tx);
+    spawn_writer(child_in, wire_out_rx);
+
+    let io = TransferIo {
+        wire_in,
+        wire_out,
+        progress,
+        abort: Arc::new(AtomicBool::new(false)),
+    };
+    let driver = tokio::spawn(run(
+        Direction::Upload,
+        TransferSpec::Upload { sources },
+        Vec::new(),
+        io,
+    ));
+    tokio::time::timeout(Duration::from_secs(30), driver)
+        .await
+        .expect("multi-file upload deadlocked")
+        .unwrap();
+
+    let mut completed = false;
+    let mut batches = Vec::new();
+    while let Ok(p) = progress_rx.try_recv() {
+        match p {
+            Progress::Completed { .. } => completed = true,
+            Progress::Started { batch, .. } => batches.push(batch),
+            Progress::Error(e) => panic!("upload error: {e}"),
+            _ => {}
+        }
+    }
+    assert!(completed, "multi-file upload never completed");
+    assert_eq!(batches, vec![Some((1, 2)), Some((2, 2))]);
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("rz did not exit promptly after multi-file session")
+        .expect("rz wait failed");
+    for (name, data) in &files {
+        let got = std::fs::read(recv_dir.join(name)).unwrap_or_else(|_| panic!("missing {name}"));
+        assert_eq!(&got, data, "{name} bytes differ");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn upload_to_real_rz() {
     if !tool_available("rz") {
@@ -365,7 +601,7 @@ async fn upload_to_real_rz() {
     };
     let driver = tokio::spawn(run(
         Direction::Upload,
-        TransferSpec::Upload { source: src },
+        TransferSpec::Upload { sources: vec![src] },
         Vec::new(),
         io,
     ));

@@ -45,7 +45,7 @@ pub mod detector;
 pub mod driver;
 
 pub use detector::{Direction, Scan, ZmodemDetector};
-pub use driver::{Progress, TransferIo, TransferSpec, run};
+pub use driver::{PART_SUFFIX, Progress, TransferIo, TransferSpec, run};
 
 /// The canonical ZMODEM cancel sequence: eight `CAN` (ZDLE) bytes then
 /// eight backspaces, which lrzsz recognizes as an abort and which also

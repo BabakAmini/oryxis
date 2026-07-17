@@ -10849,7 +10849,7 @@ checksum = "b8848ee67ecc8aedbaf3e4122217aff892639231befc6a1b58d29fff4c2cabaa"
 [[package]]
 name = "zmodem2"
 version = "0.7.1"
-source = "git+https://codeberg.org/wilsonglasser/zmodem2.git?rev=0a18e87b92e3b81db596aeb6be4802a5f1b5691c#0a18e87b92e3b81db596aeb6be4802a5f1b5691c"
+source = "git+https://codeberg.org/wilsonglasser/zmodem2.git?rev=726314fcbc55e5eee7faa0831a1a08e2378f3d5c#726314fcbc55e5eee7faa0831a1a08e2378f3d5c"
 dependencies = [
  "bitflags 2.11.1",
  "hex",

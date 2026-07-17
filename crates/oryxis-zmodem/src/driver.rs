@@ -55,6 +55,22 @@ const PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(
 /// dispatch (plus syscall) per ~1 KiB; this amortizes it to ~4 per MiB.
 const FILE_BUF_SIZE: usize = 256 * 1024;
 
+/// How long a wait for peer bytes runs before the state machine's
+/// `timeout()` is poked (re-queueing its handshake frame when one is
+/// pending), and how many consecutive silent windows are tolerated
+/// before the peer is declared gone (60 s total). SSH delivers
+/// reliably, so this only fires when the remote lrzsz process died or
+/// never really engaged; erroring out releases the diverted pane
+/// instead of parking it until disconnect.
+const RECV_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const RECV_SILENT_WINDOWS: u32 = 6;
+
+/// Suffix for in-flight downloads. The finished file only appears
+/// under its real name once complete (FileDone renames it), and a
+/// leftover part file after a crash, cancel or disconnect is the
+/// anchor the next transfer of the same file resumes from.
+pub const PART_SUFFIX: &str = ".oryxis-part";
+
 /// Where a transfer's bytes come from / go to. Chosen by the caller up
 /// front (see the no-blocking-dialogs note above).
 #[derive(Debug, Clone)]
@@ -62,15 +78,22 @@ pub enum TransferSpec {
     /// Download: save each incoming file into this directory under its
     /// advertised (sanitized) name.
     Download { dest_dir: PathBuf },
-    /// Upload: send this single local file.
-    Upload { source: PathBuf },
+    /// Upload: send these local files, in order, in one session.
+    Upload { sources: Vec<PathBuf> },
 }
 
 /// Progress and terminal outcome, streamed to the app.
 #[derive(Debug, Clone)]
 pub enum Progress {
     /// A file began; `size` is the advertised total when known.
-    Started { name: String, size: Option<u64> },
+    /// `batch` is `(k, n)` on a multi-file upload ("file k of n");
+    /// `None` for single files and for downloads (a ZMODEM sender
+    /// never announces how many files follow).
+    Started {
+        name: String,
+        size: Option<u64>,
+        batch: Option<(usize, usize)>,
+    },
     /// Cumulative bytes moved for the current file.
     Advanced { transferred: u64, total: Option<u64> },
     /// One file finished; `path` is where a download landed.
@@ -186,6 +209,9 @@ async fn run_download(
     // pacing, not bandwidth, dominates the transfer time.
     let mut receiver =
         Receiver::with_flow_control(0, true).map_err(|e| format!("zmodem init: {e:?}"))?;
+    // Each announced file is answered manually so a leftover part file
+    // can be resumed from its offset instead of always ZRPOS(0).
+    receiver.set_manual_file_accept(true);
     let mut pending = first_wire;
     let mut dest: Option<BufWriter<tokio::fs::File>> = None;
     let mut dest_path: Option<PathBuf> = None;
@@ -194,6 +220,9 @@ async fn run_download(
     let mut total: Option<u64> = None;
     let mut aborting = false;
     let mut finished = false;
+    // Consecutive RECV_TIMEOUT windows with no wire bytes; reset on any
+    // data. Bounds how long a vanished peer can park the receive loop.
+    let mut silent_windows: u32 = 0;
     let mut last_progress = std::time::Instant::now();
 
     loop {
@@ -231,32 +260,109 @@ async fn run_download(
             }
             Step::Started { name: raw, size } => {
                 let safe = sanitize_name(&raw);
-                let (file, path) = create_download_file(&dest_dir, &safe).await?;
+                let part = dest_dir.join(format!("{safe}{PART_SUFFIX}"));
+                // Resume decision, `rz -r` semantics (length based): an
+                // existing part no larger than the advertised total
+                // continues where it left off; len == total still goes
+                // through the resume path so a crash between the last
+                // byte and the rename heals (sz answers ZRPOS(total)
+                // with an immediate ZEOF and the rename runs below).
+                let advertised = size.unwrap_or(0);
+                let existing = match tokio::fs::metadata(&part).await {
+                    Ok(m) if m.is_file() => Some(m.len()),
+                    _ => None,
+                };
+                let resume_at = match existing {
+                    Some(len) if advertised > 0 && len > 0 && len <= advertised => len,
+                    _ => 0,
+                };
+                let resume_at32 = u32::try_from(resume_at)
+                    .map_err(|_| "partial larger than 4 GiB (ZMODEM limit)".to_string())?;
+                let file = if resume_at > 0 {
+                    // Resuming an in-flight part of the same name is
+                    // indistinguishable from resuming a dead one
+                    // without OS file locks (the `rz -r` trade-off);
+                    // fresh parts below stay create_new-protected.
+                    tokio::fs::OpenOptions::new()
+                        .append(true)
+                        .open(&part)
+                        .await
+                        .map_err(|e| format!("open {}: {e}", part.display()))?
+                } else {
+                    match tokio::fs::OpenOptions::new()
+                        .write(true)
+                        .create_new(true)
+                        .open(&part)
+                        .await
+                    {
+                        Ok(file) => file,
+                        // A stale part (larger than the advertised
+                        // size, or a zero-byte leftover) restarts.
+                        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                            tokio::fs::OpenOptions::new()
+                                .write(true)
+                                .truncate(true)
+                                .open(&part)
+                                .await
+                                .map_err(|e| format!("open {}: {e}", part.display()))?
+                        }
+                        Err(e) => return Err(format!("create {}: {e}", part.display())),
+                    }
+                };
                 dest = Some(BufWriter::with_capacity(FILE_BUF_SIZE, file));
-                // Report the on-disk name, which carries a " (N)"
-                // suffix when the advertised one was already taken.
-                name = path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or(safe);
-                dest_path = Some(path);
+                name = safe;
+                dest_path = Some(part);
                 total = size;
-                transferred = 0;
+                transferred = resume_at;
+                // The acceptance answer (ZRPOS) can only be queued into
+                // an empty outgoing buffer; flush whatever is pending
+                // (e.g. the between-files ZACK volley) first.
+                loop {
+                    match decode(receiver.poll()) {
+                        Step::WriteWire(bytes) => {
+                            let n = bytes.len();
+                            let _ = io.wire_out.send(bytes);
+                            receiver.wire_written(n);
+                        }
+                        Step::Idle => break,
+                        _ => return Err("unexpected step while accepting a file".into()),
+                    }
+                }
+                receiver
+                    .accept_file_at(resume_at32)
+                    .map_err(|e| format!("zmodem accept: {e:?}"))?;
                 let _ = io.progress.send(Progress::Started {
                     name: name.clone(),
                     size,
+                    batch: None,
                 });
+                if resume_at > 0 {
+                    // Let the overlay start at the resumed percentage
+                    // instead of zero.
+                    let _ = io.progress.send(Progress::Advanced { transferred, total });
+                }
             }
             Step::FileDone => {
                 if let Some(mut file) = dest.take() {
                     file.flush().await.map_err(|e| format!("flush: {e}"))?;
+                }
+                // The finished part surfaces under its real name only
+                // now; a collision gets the browser-style " (N)".
+                let final_path = match dest_path.take() {
+                    Some(part) => Some(finalize_download(&part, &dest_dir, &name).await?),
+                    None => None,
+                };
+                if let Some(path) = final_path.as_ref()
+                    && let Some(on_disk) = path.file_name()
+                {
+                    name = on_disk.to_string_lossy().into_owned();
                 }
                 // Streamed reports are time-strided; snap the overlay
                 // to the exact figure before closing the file out.
                 let _ = io.progress.send(Progress::Advanced { transferred, total });
                 let _ = io.progress.send(Progress::FileDone {
                     name: name.clone(),
-                    path: dest_path.take(),
+                    path: final_path,
                 });
             }
             Step::Completed => {
@@ -287,9 +393,24 @@ async fn run_download(
                     if aborting {
                         return Ok(Outcome::Aborted);
                     }
-                    match io.wire_in.recv().await {
-                        Some(bytes) => pending = bytes,
-                        None => return Err("connection closed during transfer".into()),
+                    match tokio::time::timeout(RECV_TIMEOUT, io.wire_in.recv()).await {
+                        Ok(Some(bytes)) => {
+                            silent_windows = 0;
+                            pending = bytes;
+                        }
+                        Ok(None) => return Err("connection closed during transfer".into()),
+                        Err(_) => {
+                            silent_windows += 1;
+                            if silent_windows >= RECV_SILENT_WINDOWS {
+                                return Err("peer stopped responding".into());
+                            }
+                            // Re-queue the handshake volley if one is
+                            // pending; the next loop turn flushes it.
+                            receiver
+                                .timeout()
+                                .map_err(|e| format!("zmodem timeout: {e:?}"))?;
+                            continue;
+                        }
                     }
                 }
                 let consumed = receiver
@@ -344,30 +465,56 @@ async fn swallow_over_and_out(
     }
 }
 
+/// One upload source: a buffered reader plus its bookkeeping. The
+/// read-ahead buffer matters because the machine requests sequential
+/// ~1 KiB slices; seeking per request would defeat it and pay two
+/// blocking-pool dispatches per subpacket, so a real seek only happens
+/// on a retransmission rewind or a receiver-driven resume offset.
+struct UploadFile {
+    reader: BufReader<tokio::fs::File>,
+    pos: u64,
+    size: u64,
+    size32: u32,
+    name: String,
+}
+
+impl UploadFile {
+    async fn open(path: &std::path::Path) -> Result<Self, String> {
+        let file = tokio::fs::File::open(path)
+            .await
+            .map_err(|e| format!("open {}: {e}", path.display()))?;
+        let size = file.metadata().await.map_err(|e| format!("stat: {e}"))?.len();
+        let size32 = u32::try_from(size)
+            .map_err(|_| format!("{}: larger than 4 GiB (ZMODEM limit)", path.display()))?;
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "file".into());
+        Ok(Self {
+            reader: BufReader::with_capacity(FILE_BUF_SIZE, file),
+            pos: 0,
+            size,
+            size32,
+            name,
+        })
+    }
+}
+
 async fn run_upload(
     spec: TransferSpec,
     first_wire: Vec<u8>,
     io: &mut TransferIo,
 ) -> Result<Outcome, String> {
-    let TransferSpec::Upload { source } = spec else {
+    let TransferSpec::Upload { sources } = spec else {
         return Err("upload driver given a non-upload spec".into());
     };
-    let file = tokio::fs::File::open(&source)
-        .await
-        .map_err(|e| format!("open {}: {e}", source.display()))?;
-    let size = file.metadata().await.map_err(|e| format!("stat: {e}"))?.len();
-    let size32 = u32::try_from(size).map_err(|_| "file larger than 4 GiB (ZMODEM limit)")?;
-    // Read-ahead buffer + a position cursor: the machine requests
-    // sequential ~1 KiB slices, so seeking on every request would both
-    // defeat the buffer and pay two blocking-pool dispatches per
-    // subpacket. A real seek only happens on a retransmission rewind
-    // or a receiver-driven resume offset.
-    let mut file = BufReader::with_capacity(FILE_BUF_SIZE, file);
-    let mut file_pos: u64 = 0;
-    let name = source
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "file".into());
+    if sources.is_empty() {
+        return Err("no files to send".into());
+    }
+    let total_files = sources.len();
+    let mut queue = sources.into_iter().enumerate();
+    // `(k, n)` shown by the overlay; suppressed for single files.
+    let batch_of = move |index: usize| (total_files > 1).then_some((index + 1, total_files));
 
     let mut sender = Sender::new().map_err(|e| format!("zmodem init: {e:?}"))?;
     // When the remote `rz` allows streaming (lrzsz advertises a zero
@@ -377,21 +524,32 @@ async fn run_upload(
     // transport, so the periodic acknowledgement is what keeps at most
     // ~1 MiB of file data in flight in memory on a slow link.
     sender.set_streaming_window(1024);
+
+    let (index, first) = queue.next().expect("sources checked non-empty");
+    let mut current = UploadFile::open(&first).await?;
     sender
-        .start_file(FileInfo::new(name.as_bytes(), Some(Position::new(size32))))
+        .start_file(FileInfo::new(
+            current.name.as_bytes(),
+            Some(Position::new(current.size32)),
+        ))
         .map_err(|e| format!("zmodem start_file: {e:?}"))?;
-    // Request session end after this single file; honored when the file
-    // completes (the machine queues ZFIN then).
-    sender.finish().map_err(|e| format!("zmodem finish: {e:?}"))?;
+    // Requesting the session end when the LAST file starts makes the
+    // machine queue ZFIN right after that file completes; earlier
+    // files roll straight into the next ZFILE instead.
+    if index + 1 == total_files {
+        sender.finish().map_err(|e| format!("zmodem finish: {e:?}"))?;
+    }
     let _ = io.progress.send(Progress::Started {
-        name: name.clone(),
-        size: Some(size),
+        name: current.name.clone(),
+        size: Some(current.size),
+        batch: batch_of(index),
     });
 
     let mut pending = first_wire;
     let mut aborting = false;
     let mut finished = false;
     let mut last_progress = std::time::Instant::now();
+    let mut silent_windows: u32 = 0;
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -409,26 +567,32 @@ async fn run_upload(
             }
             Step::ReadFile { offset, max_len } => {
                 let offset = u64::from(offset);
-                if offset != file_pos {
-                    file.seek(std::io::SeekFrom::Start(offset))
+                if offset != current.pos {
+                    current
+                        .reader
+                        .seek(std::io::SeekFrom::Start(offset))
                         .await
                         .map_err(|e| format!("seek: {e}"))?;
                 }
                 let mut buf = vec![0u8; max_len];
-                let read = file.read(&mut buf).await.map_err(|e| format!("read: {e}"))?;
+                let read = current
+                    .reader
+                    .read(&mut buf)
+                    .await
+                    .map_err(|e| format!("read: {e}"))?;
                 buf.truncate(read);
                 if read == 0 {
                     return Err("unexpected end of file during upload".into());
                 }
-                file_pos = offset + read as u64;
+                current.pos = offset + read as u64;
                 sender
                     .submit_file(&buf)
                     .map_err(|e| format!("zmodem submit: {e:?}"))?;
                 if last_progress.elapsed() >= PROGRESS_INTERVAL {
                     last_progress = std::time::Instant::now();
                     let _ = io.progress.send(Progress::Advanced {
-                        transferred: file_pos,
-                        total: Some(size),
+                        transferred: current.pos,
+                        total: Some(current.size),
                     });
                 }
             }
@@ -439,13 +603,44 @@ async fn run_upload(
             Step::FileDone => {
                 // Same exact-figure snap as the download side.
                 let _ = io.progress.send(Progress::Advanced {
-                    transferred: size,
-                    total: Some(size),
+                    transferred: current.size,
+                    total: Some(current.size),
                 });
                 let _ = io.progress.send(Progress::FileDone {
-                    name: name.clone(),
+                    name: current.name.clone(),
                     path: None,
                 });
+                if let Some((index, path)) = queue.next() {
+                    current = UploadFile::open(&path).await?;
+                    // start_file queues the next ZFILE and needs the
+                    // outgoing buffer empty; flush leftovers first.
+                    loop {
+                        match decode(sender.poll()) {
+                            Step::WriteWire(bytes) => {
+                                let n = bytes.len();
+                                let _ = io.wire_out.send(bytes);
+                                sender.wire_written(n);
+                            }
+                            Step::Idle => break,
+                            _ => return Err("unexpected step between files".into()),
+                        }
+                    }
+                    sender
+                        .start_file(FileInfo::new(
+                            current.name.as_bytes(),
+                            Some(Position::new(current.size32)),
+                        ))
+                        .map_err(|e| format!("zmodem start_file: {e:?}"))?;
+                    if index + 1 == total_files {
+                        sender.finish().map_err(|e| format!("zmodem finish: {e:?}"))?;
+                    }
+                    last_progress = std::time::Instant::now();
+                    let _ = io.progress.send(Progress::Started {
+                        name: current.name.clone(),
+                        size: Some(current.size),
+                        batch: batch_of(index),
+                    });
+                }
             }
             Step::Completed => {
                 // Mirror of the download side: the "OO" sign-off the
@@ -466,9 +661,24 @@ async fn run_upload(
                     if aborting {
                         return Ok(Outcome::Aborted);
                     }
-                    match io.wire_in.recv().await {
-                        Some(bytes) => pending = bytes,
-                        None => return Err("connection closed during transfer".into()),
+                    match tokio::time::timeout(RECV_TIMEOUT, io.wire_in.recv()).await {
+                        Ok(Some(bytes)) => {
+                            silent_windows = 0;
+                            pending = bytes;
+                        }
+                        Ok(None) => return Err("connection closed during transfer".into()),
+                        Err(_) => {
+                            silent_windows += 1;
+                            if silent_windows >= RECV_SILENT_WINDOWS {
+                                return Err("peer stopped responding".into());
+                            }
+                            // Re-queue the handshake volley if one is
+                            // pending; the next loop turn flushes it.
+                            sender
+                                .timeout()
+                                .map_err(|e| format!("zmodem timeout: {e:?}"))?;
+                            continue;
+                        }
                     }
                 }
                 let consumed = sender
@@ -480,16 +690,18 @@ async fn run_upload(
     }
 }
 
-/// Open a download target without clobbering anything already on disk:
-/// try the advertised name first, then browser-style `name (N).ext`
-/// candidates. `create_new` makes the existence check and the create a
-/// single atomic step, so a remote-controlled name can never truncate
-/// an existing local file, and two concurrent downloads of the same
-/// name can never interleave into one file.
-async fn create_download_file(
+/// Move a completed part file to its final name without clobbering
+/// anything already on disk: try the advertised name first, then
+/// browser-style `name (N).ext` candidates. Each candidate is reserved
+/// with `create_new` (an empty marker, so the existence check and the
+/// claim are one atomic step) and the finished download atomically
+/// replaces its own marker via rename, so a remote-controlled name can
+/// never truncate an existing local file.
+async fn finalize_download(
+    part: &std::path::Path,
     dest_dir: &std::path::Path,
     name: &str,
-) -> Result<(tokio::fs::File, PathBuf), String> {
+) -> Result<PathBuf, String> {
     // Hard bound so a pathological directory cannot spin forever;
     // hitting it reports honestly instead of overwriting.
     for attempt in 0..10_000u32 {
@@ -505,13 +717,18 @@ async fn create_download_file(
             .open(&path)
             .await
         {
-            Ok(file) => return Ok((file, path)),
+            Ok(_) => {
+                tokio::fs::rename(part, &path)
+                    .await
+                    .map_err(|e| format!("rename {}: {e}", path.display()))?;
+                return Ok(path);
+            }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(format!("create {}: {e}", path.display())),
         }
     }
     Err(format!(
-        "create {}: too many name collisions",
+        "finalize {}: too many name collisions",
         dest_dir.join(name).display()
     ))
 }
@@ -607,8 +824,9 @@ mod tests {
     }
 
     /// A remote-controlled file name must never truncate an existing
-    /// local file: collisions get a browser-style " (N)" suffix, and
-    /// the original bytes survive untouched.
+    /// local file: finalizing a completed part against a taken name
+    /// lands on a browser-style " (N)" suffix, and the original bytes
+    /// survive untouched.
     #[test]
     fn download_never_clobbers_an_existing_file() {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -621,17 +839,25 @@ mod tests {
             tokio::fs::create_dir_all(&dir).await.unwrap();
             tokio::fs::write(dir.join("report.pdf"), b"original").await.unwrap();
 
-            let (_f1, p1) = create_download_file(&dir, "report.pdf").await.unwrap();
+            let part1 = dir.join(format!("report.pdf{PART_SUFFIX}"));
+            tokio::fs::write(&part1, b"fresh download").await.unwrap();
+            let p1 = finalize_download(&part1, &dir, "report.pdf").await.unwrap();
             assert_eq!(p1.file_name().unwrap().to_str().unwrap(), "report (1).pdf");
-            // A second concurrent same-name download gets its own file.
-            let (_f2, p2) = create_download_file(&dir, "report.pdf").await.unwrap();
+            assert_eq!(tokio::fs::read(&p1).await.unwrap(), b"fresh download");
+            assert!(!tokio::fs::try_exists(&part1).await.unwrap(), "part left behind");
+            // A second same-name download finalizes into its own file.
+            let part2 = dir.join(format!("report.pdf{PART_SUFFIX}"));
+            tokio::fs::write(&part2, b"second").await.unwrap();
+            let p2 = finalize_download(&part2, &dir, "report.pdf").await.unwrap();
             assert_eq!(p2.file_name().unwrap().to_str().unwrap(), "report (2).pdf");
             // The pre-existing file was not truncated.
             let orig = tokio::fs::read(dir.join("report.pdf")).await.unwrap();
             assert_eq!(orig, b"original".to_vec());
 
             // A fresh name takes the advertised name directly.
-            let (_f3, p3) = create_download_file(&dir, "clean.txt").await.unwrap();
+            let part3 = dir.join(format!("clean.txt{PART_SUFFIX}"));
+            tokio::fs::write(&part3, b"clean").await.unwrap();
+            let p3 = finalize_download(&part3, &dir, "clean.txt").await.unwrap();
             assert_eq!(p3.file_name().unwrap().to_str().unwrap(), "clean.txt");
 
             let _ = tokio::fs::remove_dir_all(&dir).await;
@@ -748,6 +974,65 @@ mod tests {
         });
     }
 
+    /// A peer that never says anything (remote lrzsz killed between
+    /// the initiation header and the handshake) must not park the
+    /// divert forever: the driver re-sends its handshake volley each
+    /// silent window and gives up with a clear error after the bounded
+    /// total, releasing the pane. Runs on tokio's paused clock, so the
+    /// 60 s of windows cost no real time.
+    #[test]
+    fn silent_peer_is_bounded_by_handshake_retries() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .start_paused(true)
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir = std::env::temp_dir().join(format!("oryxis-zm-silent-{}", std::process::id()));
+            let _ = tokio::fs::create_dir_all(&dir).await;
+
+            // Keep wire_tx alive: the peer is silent, not disconnected.
+            let (_wire_tx, wire_in) = mpsc::unbounded_channel::<Vec<u8>>();
+            let (wire_out_tx, mut wire_out_rx) = mpsc::unbounded_channel();
+            let (p_tx, mut p_rx) = mpsc::unbounded_channel();
+
+            run(
+                Direction::Download,
+                TransferSpec::Download { dest_dir: dir.clone() },
+                Vec::new(),
+                TransferIo {
+                    wire_in,
+                    wire_out: wire_out_tx,
+                    progress: p_tx,
+                    abort: Arc::new(AtomicBool::new(false)),
+                },
+            )
+            .await;
+
+            let mut error = None;
+            while let Ok(p) = p_rx.try_recv() {
+                if let Progress::Error(e) = p {
+                    error = Some(e);
+                }
+            }
+            let error = error.expect("driver ended without a terminal Error");
+            assert!(
+                error.contains("peer stopped responding"),
+                "unexpected error: {error}"
+            );
+            // The handshake was actually retried on the wire, not just
+            // waited out: initial ZRINIT plus one volley per silent
+            // window (the last window errors out instead of poking).
+            let mut volleys = 0;
+            while wire_out_rx.try_recv().is_ok() {
+                volleys += 1;
+            }
+            assert!(volleys >= 3, "expected retry volleys, got {volleys}");
+
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
+    }
+
     /// End-to-end oracle: drive our upload driver and our download
     /// driver against each other over crossed channels (each plays the
     /// role lrzsz would on the wire) and assert the file round-trips.
@@ -781,7 +1066,7 @@ mod tests {
 
             let up = tokio::spawn(run(
                 Direction::Upload,
-                TransferSpec::Upload { source: src.clone() },
+                TransferSpec::Upload { sources: vec![src.clone()] },
                 Vec::new(),
                 TransferIo {
                     wire_in: down2up_rx,

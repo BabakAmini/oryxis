@@ -181,12 +181,17 @@ impl Oryxis {
             oryxis_zmodem::Direction::Upload => t("zmodem_uploading"),
         };
         let name = zm.file_name.as_deref().unwrap_or("…");
+        // Multi-file upload position; numeric, so no i18n needed.
+        let batch = zm
+            .batch
+            .map(|(k, n)| format!(" ({k}/{n})"))
+            .unwrap_or_default();
         let bytes_line = match zm.total {
             Some(total) => format!("{} / {}", fmt_bytes(zm.transferred), fmt_bytes(total)),
             None => fmt_bytes(zm.transferred),
         };
         let header = dir_row(vec![
-            text(format!("{verb} {name}"))
+            text(format!("{verb} {name}{batch}"))
                 .size(12)
                 .color(OryxisColors::t().text_primary)
                 .into(),
