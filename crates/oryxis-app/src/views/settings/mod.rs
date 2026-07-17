@@ -22,7 +22,6 @@ pub(crate) use crate::widgets::{
 // Per-section view methods, split into sibling files.
 mod about;
 mod advanced;
-mod agent;
 mod ai;
 mod connection;
 mod interface;
@@ -532,9 +531,8 @@ impl Oryxis {
             // sequence) and didn't reflect how users actually move
             // through the panel.
             // Core sections, then the "feature plugin" sections (AI /
-            // MCP / SFTP / Sync / SSH Agent / Cloud Sync) which only
-            // appear once the feature is enabled on the Plugins screen,
-            // then About. The
+            // MCP / SFTP / Sync / Cloud Sync) which only appear once the
+            // feature is enabled on the Plugins screen, then About. The
             // enable/disable toggles live on the Plugins screen, not here.
             // The list (with its feature gating) is shared with the
             // command palette's "Settings: X" rows via this helper.
@@ -644,8 +642,6 @@ impl Oryxis {
             SettingsSection::Security => self.view_settings_security(),
 
             SettingsSection::Sync => self.view_settings_sync(),
-
-            SettingsSection::Agent => self.view_settings_agent(),
 
             SettingsSection::Advanced => self.view_settings_advanced(),
             SettingsSection::About => self.view_settings_about(),

@@ -322,12 +322,6 @@ pub(crate) enum SettingsSection {
     Shortcuts,
     Security,
     Sync,
-    /// SSH agent server configuration: per-signature confirm, external
-    /// key adds, the OpenSSH pipe alias (Windows) and the socket path +
-    /// setup snippets. The enable toggle stays on the Features screen
-    /// (like AI / SFTP / Sync); this section only appears while the
-    /// agent is enabled.
-    Agent,
     /// Cloud Sync preferences (auto-refresh interval, orphan
     /// auto-archive). The cloud *account* CRUD moved to the top-level
     /// `View::Cloud` surface; this section keeps only the sync knobs.
@@ -360,7 +354,6 @@ impl SettingsSection {
             SettingsSection::Shortcuts => "settings-shortcuts-scroll",
             SettingsSection::Security => "settings-security-scroll",
             SettingsSection::Sync => "settings-sync-scroll",
-            SettingsSection::Agent => "settings-agent-scroll",
             SettingsSection::Cloud => "settings-cloud-scroll",
             SettingsSection::Plugins => "settings-plugins-scroll",
             SettingsSection::Advanced => "settings-advanced-scroll",

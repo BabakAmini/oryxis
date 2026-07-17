@@ -7,6 +7,15 @@
 //! honored, OSC/CSI/charset sequences are consumed instead of leaking
 //! replacement glyphs, and SGR color codes map onto the active
 //! terminal palette so the dump reads like the terminal did.
+//!
+//! The cursor can also move UP across committed lines (DECSC/DECRC
+//! save/restore, CUU/CUD, erase-down): output that wipes its own
+//! lines from the live screen, like the OSC 7 cwd-tracking bootstrap
+//! the app injects at connect (`ESC 7` ... `ESC 8 ESC[1A ESC[J`),
+//! must vanish from the dump the same way it vanishes live (field
+//! report 2026-07-17). Absolute cursor addressing (`ESC[H`, full-
+//! screen TUIs) stays out: a linear dump has no viewport, so those
+//! degrade to appended lines, the best a transcript can do.
 
 use iced::Color;
 use oryxis_terminal::TerminalPalette;
@@ -118,17 +127,19 @@ impl Pen {
     }
 }
 
-/// Parse recorded bytes into colored spans. The cursor model is
-/// one-dimensional per line: `\r` rewinds, printable chars overwrite,
-/// `\n` commits. Full-screen cursor addressing (TUIs) degrades to
-/// appended lines, which is the best a linear dump can do.
+/// Parse recorded bytes into colored spans. The cursor model is a
+/// linear grid: `\r` rewinds the column, printable chars overwrite,
+/// `\n` moves to the next row, and relative vertical motion (CUU/CUD,
+/// DECSC/DECRC restore) can revisit earlier rows so self-erasing
+/// output resolves like it did on the live screen.
 pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
     let text = String::from_utf8_lossy(data);
     let mut chars = text.chars().peekable();
 
-    let mut lines: Vec<Vec<Cell>> = Vec::new();
-    let mut line: Vec<Cell> = Vec::new();
+    let mut lines: Vec<Vec<Cell>> = vec![Vec::new()];
+    let mut row: usize = 0;
     let mut col: usize = 0;
+    let mut saved_cursor: Option<(usize, usize)> = None;
     let mut pen = Pen::default();
 
     while let Some(ch) = chars.next() {
@@ -160,6 +171,7 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
                     if let Some(v) = cur.take() {
                         params.push(v);
                     }
+                    let n = params.first().copied().unwrap_or(1).max(1) as usize;
                     match fin {
                         'm' => {
                             if params.is_empty() {
@@ -169,15 +181,32 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
                         }
                         // Erase in line: 0/default = cursor to end.
                         'K' if params.first().copied().unwrap_or(0) == 0 => {
-                            line.truncate(col);
+                            lines[row].truncate(col);
                         }
                         'K' if params.first() == Some(&2) => {
-                            line.clear();
+                            lines[row].clear();
                             col = 0;
                         }
                         // Cursor forward: pad with spaces when past the end.
-                        'C' => {
-                            col += params.first().copied().unwrap_or(1).max(1) as usize;
+                        'C' => col += n,
+                        // Cursor back / column absolute.
+                        'D' => col = col.saturating_sub(n),
+                        'G' => {
+                            col = params.first().copied().unwrap_or(1).max(1) as usize - 1;
+                        }
+                        // Cursor up/down. Down clamps to written rows: a
+                        // linear dump has no blank viewport to move into.
+                        'A' => row = row.saturating_sub(n),
+                        'B' => row = (row + n).min(lines.len() - 1),
+                        // Erase in display, 0/default = cursor to end of
+                        // screen: truncate this row at the cursor and drop
+                        // every row below, the erase half of the
+                        // self-wiping pattern. `2J` (clear all) stays
+                        // ignored: a live terminal keeps its scrollback
+                        // through it, and so should the dump.
+                        'J' if params.first().copied().unwrap_or(0) == 0 => {
+                            lines[row].truncate(col);
+                            lines.truncate(row + 1);
                         }
                         _ => {}
                     }
@@ -198,13 +227,29 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
                     chars.next();
                     chars.next();
                 }
+                // DECSC/DECRC cursor save + restore, the save half of
+                // the self-wiping pattern (see the module docs).
+                Some('7') => {
+                    chars.next();
+                    saved_cursor = Some((row, col));
+                }
+                Some('8') => {
+                    chars.next();
+                    if let Some((r, c)) = saved_cursor {
+                        row = r.min(lines.len() - 1);
+                        col = c;
+                    }
+                }
                 _ => {
                     // Other ESC x: consume the single following char.
                     chars.next();
                 }
             },
             '\n' => {
-                lines.push(std::mem::take(&mut line));
+                row += 1;
+                if row == lines.len() {
+                    lines.push(Vec::new());
+                }
                 col = 0;
             }
             '\r' => col = 0,
@@ -212,6 +257,7 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
             '\t' => col = (col / 8 + 1) * 8,
             c if c.is_control() => {}
             c => {
+                let line = &mut lines[row];
                 while line.len() < col {
                     line.push((' ', None));
                 }
@@ -224,8 +270,10 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
             }
         }
     }
-    if !line.is_empty() {
-        lines.push(line);
+    // The last row is the uncommitted partial; an empty one renders
+    // nothing (same shape the pre-grid renderer produced).
+    if lines.last().is_some_and(|l| l.is_empty()) {
+        lines.pop();
     }
 
     // Compress cell rows into same-color spans (newlines included in
@@ -294,6 +342,45 @@ mod tests {
     fn osc_and_charset_sequences_vanish() {
         assert_eq!(flat(b"\x1b]0;window title\x07ok\n"), "ok\n");
         assert_eq!(flat(b"\x1b(Bok\x1b)0\n"), "ok\n");
+    }
+
+    /// The OSC 7 cwd-tracking bootstrap the app injects at connect
+    /// erases its own echo from the live screen (DECSC before, then
+    /// DECRC + CUU + erase-down + a prompt redraw). The dump must
+    /// resolve that erasure instead of leaking the injected command
+    /// into the viewer / transcript (field report 2026-07-17).
+    #[test]
+    fn self_erasing_injection_vanishes_like_live() {
+        let data = b"banner\r\n\
+            root@h:~# printf 'x'\r\n\
+            \x1b7root@h:~# __oryxis_o7(){ ...; }\r\n\
+            \x1b8\x1b[1A\x1b[Jroot@h:~# \n";
+        assert_eq!(flat(data), "banner\nroot@h:~# \n");
+    }
+
+    #[test]
+    fn cursor_up_revisits_rows_and_erase_down_drops_them() {
+        // "three" ends at col 5; two rows up keeps the column, so the
+        // erase truncates nothing on "one" (len 3) but drops the rows
+        // below, and the next glyphs land padded at col 5.
+        assert_eq!(
+            flat(b"one\r\ntwo\r\nthree\x1b[2A\x1b[Jok\n"),
+            "one  ok\n"
+        );
+        // Cursor down is clamped to written rows.
+        assert_eq!(flat(b"a\x1b[5Bb\n"), "ab\n");
+    }
+
+    #[test]
+    fn restore_without_save_is_a_noop() {
+        assert_eq!(flat(b"keep\x1b8\x1b[Jok\n"), "keepok\n");
+    }
+
+    #[test]
+    fn column_absolute_and_cursor_back_move_within_the_line() {
+        // CHA to column 1 then overwrite; CUB backs over a glyph.
+        assert_eq!(flat(b"abcdef\x1b[1GX\n"), "Xbcdef\n");
+        assert_eq!(flat(b"abc\x1b[2Dz\n"), "azc\n");
     }
 
     #[test]
