@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Αναζήτηση ομάδων…",
         "tab_accent_line" => "Χρωματισμός υπογράμμισης καρτέλας με το χρώμα του host",
         "tab_accent_wash" => "Απόχρωση επάνω μπάρας με το χρώμα του host",
+        "tab_accent_text" => "Χρωματισμός κειμένου καρτέλας με το χρώμα του host",
         "tab_fill_style" => "Στυλ γεμίσματος καρτέλας",
         "tab_fill_gradient" => "Διαβάθμιση",
         "tab_fill_solid" => "Συμπαγές χρώμα",

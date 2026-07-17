@@ -1291,6 +1291,13 @@ impl Oryxis {
                     if self.setting_tab_accent_wash { "true" } else { "false" },
                 );
             }
+            Message::SettingToggleTabAccentText => {
+                self.setting_tab_accent_text = !self.setting_tab_accent_text;
+                self.persist_setting(
+                    "tab_accent_text",
+                    if self.setting_tab_accent_text { "true" } else { "false" },
+                );
+            }
             Message::SettingToggleSftpEnabled => {
                 self.sftp_enabled = !self.sftp_enabled;
                 self.persist_setting(

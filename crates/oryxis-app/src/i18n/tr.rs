@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Grupları ara…",
         "tab_accent_line" => "Sekme alt çizgisini sunucu vurgusuyla renklendir",
         "tab_accent_wash" => "Üst çubuğu sunucu vurgusuyla boya",
+        "tab_accent_text" => "Sekme metnini sunucu vurgusuyla renklendir",
         "tab_fill_style" => "Sekme dolgu stili",
         "tab_fill_gradient" => "Gradyan",
         "tab_fill_solid" => "Düz renk",

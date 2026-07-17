@@ -29,6 +29,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "グループを検索…",
         "tab_accent_line" => "タブ下線をホストのアクセント色で塗る",
         "tab_accent_wash" => "上部バーをホストのアクセント色で染める",
+        "tab_accent_text" => "タブの文字をホストのアクセント色で塗る",
         "tab_fill_style" => "タブの塗りつぶしスタイル",
         "tab_fill_gradient" => "グラデーション",
         "tab_fill_solid" => "単色",

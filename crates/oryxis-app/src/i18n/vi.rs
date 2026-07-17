@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Tìm nhóm…",
         "tab_accent_line" => "Tô màu gạch chân tab theo màu máy chủ",
         "tab_accent_wash" => "Phủ màu nhấn của máy chủ lên thanh trên",
+        "tab_accent_text" => "Tô màu chữ tab theo màu máy chủ",
         "tab_fill_style" => "Kiểu nền thẻ",
         "tab_fill_gradient" => "Chuyển sắc",
         "tab_fill_solid" => "Màu đặc",

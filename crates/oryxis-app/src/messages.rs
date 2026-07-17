@@ -1285,6 +1285,7 @@ pub enum Message {
     SettingToggleMinimizeToTray,
     SettingToggleTabAccentLine,
     SettingToggleTabAccentWash,
+    SettingToggleTabAccentText,
     SettingTogglePerformanceMode,
     SettingTogglePerfOverlay,
     /// Toggle the opt-in "remote desktop" feature (`remote_desktop_enabled`).

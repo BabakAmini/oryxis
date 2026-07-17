@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Hledat skupiny…",
         "tab_accent_line" => "Tónovat podtržení karty barvou hostitele",
         "tab_accent_wash" => "Zabarvit horní lištu barvou hostitele",
+        "tab_accent_text" => "Tónovat text karty barvou hostitele",
         "tab_fill_style" => "Styl výplně karty",
         "tab_fill_gradient" => "Přechod",
         "tab_fill_solid" => "Plná barva",

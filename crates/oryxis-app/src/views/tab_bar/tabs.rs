@@ -97,6 +97,9 @@ pub(crate) fn sftp_session_tab<'a>(
     is_active: bool,
     width: f32,
     host_accent: Option<Color>,
+    // `tab_accent_text` setting: when false the label / close X render
+    // in the theme's neutral text colours instead of the host accent.
+    accent_text: bool,
     pinned: bool,
     solid_fill: bool,
 ) -> Element<'a, Message> {
@@ -106,8 +109,13 @@ pub(crate) fn sftp_session_tab<'a>(
     let badge_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
     let effective_accent =
         crate::theme::readable_accent_on(badge_accent, OryxisColors::t().bg_sidebar);
-    let fg = if is_active {
+    let active_fg = if accent_text {
         effective_accent
+    } else {
+        OryxisColors::t().text_primary
+    };
+    let fg = if is_active {
+        active_fg
     } else {
         OryxisColors::t().text_muted
     };
@@ -143,7 +151,7 @@ pub(crate) fn sftp_session_tab<'a>(
         MouseArea::new(
             container(
                 iced_fonts::lucide::x().size(11).color(if is_active {
-                    effective_accent
+                    active_fg
                 } else {
                     OryxisColors::t().text_secondary
                 }),
@@ -274,6 +282,9 @@ pub(crate) fn session_tab<'a>(
     // coexist with the connection-state dot at the bottom-right.
     attention_dot: Option<Color>,
     host_accent: Option<Color>,
+    // `tab_accent_text` setting: when false the label / close X render
+    // in the theme's neutral text colours instead of the host accent.
+    accent_text: bool,
     host_icon_style: crate::widgets::HostIconStyle,
     // Session-group tabs override the OS-derived badge with the icon + color
     // the user set on the group, so the strip matches the dashboard card.
@@ -296,8 +307,15 @@ pub(crate) fn session_tab<'a>(
         host_accent.unwrap_or_else(|| OryxisColors::t().accent),
         OryxisColors::t().bg_sidebar,
     );
-    let fg = if is_active {
+    // Neutral-text mode keeps the accent in the wash / border / dots
+    // but paints the label and X like any other primary text.
+    let active_fg = if accent_text {
         effective_accent
+    } else {
+        OryxisColors::t().text_primary
+    };
+    let fg = if is_active {
+        active_fg
     } else {
         OryxisColors::t().text_muted
     };
@@ -419,7 +437,7 @@ pub(crate) fn session_tab<'a>(
     });
     let close_btn = || -> Element<'_, Message> {
         let icon_color = if is_active {
-            effective_accent
+            active_fg
         } else {
             OryxisColors::t().text_secondary
         };
@@ -783,6 +801,9 @@ pub(crate) fn pinned_tab_chip<'a>(
     custom_color: Option<Color>,
     status_dot: Option<Color>,
     attention_dot: Option<Color>,
+    // `tab_accent_text` setting: when false the mode-chip glyph renders
+    // in the theme's neutral text colours instead of the host accent.
+    accent_text: bool,
     solid_fill: bool,
     // Hybrid tab: `Some(state)` widens the chip to carry the mode glyph
     // (a pinned hybrid must not lose its toggle).
@@ -827,7 +848,11 @@ pub(crate) fn pinned_tab_chip<'a>(
     let chip_w = pinned_chip_width(files_mode);
     let inner: Element<'_, Message> = match files_mode {
         Some(fm) => {
-            let fg = if is_active { accent } else { OryxisColors::t().text_muted };
+            let fg = if is_active {
+                if accent_text { accent } else { OryxisColors::t().text_primary }
+            } else {
+                OryxisColors::t().text_muted
+            };
             crate::widgets::dir_row(vec![
                 badge,
                 Space::new().width(4).into(),

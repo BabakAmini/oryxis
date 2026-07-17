@@ -257,6 +257,12 @@ impl Oryxis {
                 Message::SettingToggleTabAccentWash,
             ),
             Space::new().height(8),
+            self.nav_toggle_row(
+                crate::i18n::t("tab_accent_text"),
+                self.setting_tab_accent_text,
+                Message::SettingToggleTabAccentText,
+            ),
+            Space::new().height(8),
             self.nav_pick_row(
                 crate::i18n::t("tab_fill_style"),
                 fill_options,

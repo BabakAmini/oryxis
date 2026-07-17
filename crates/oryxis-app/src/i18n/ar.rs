@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "ابحث عن مجموعات…",
         "tab_accent_line" => "تلوين خط أسفل التبويب بلون المضيف",
         "tab_accent_wash" => "تلوين الشريط العلوي بلون المضيف المميز",
+        "tab_accent_text" => "تلوين نص التبويب بلون المضيف المميز",
         "tab_fill_style" => "نمط تعبئة علامة التبويب",
         "tab_fill_gradient" => "تدرّج",
         "tab_fill_solid" => "لون خالص",

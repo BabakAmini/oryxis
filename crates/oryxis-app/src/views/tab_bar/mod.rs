@@ -413,7 +413,7 @@ impl Oryxis {
                 } else if compact_pins && tab.pinned {
                     tab_items.push(sftp_pinned_chip(idx, is_active, host_accent, solid_fill));
                 } else {
-                    tab_items.push(sftp_session_tab(idx, &display_label, is_active, width, host_accent, tab.pinned, solid_fill));
+                    tab_items.push(sftp_session_tab(idx, &display_label, is_active, width, host_accent, self.setting_tab_accent_text, tab.pinned, solid_fill));
                 }
                 continue;
             }
@@ -614,6 +614,7 @@ impl Oryxis {
                     tab_badge_color,
                     status_dot,
                     attention_dot,
+                    self.setting_tab_accent_text,
                     solid_fill,
                     files_mode,
                 ));
@@ -651,6 +652,7 @@ impl Oryxis {
                     status_dot,
                     attention_dot,
                     tab_accent,
+                    self.setting_tab_accent_text,
                     host_icon_style,
                     tab_icon,
                     tab_badge_color,
@@ -856,7 +858,7 @@ impl Oryxis {
                 let accent = sg_color.unwrap_or_else(|| OryxisColors::t().accent);
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
                 Some((
-                    drag_ghost(base_label, detected_os, compact, ghost_w, accent, sg_icon, sg_color),
+                    drag_ghost(base_label, detected_os, compact, ghost_w, accent, self.setting_tab_accent_text, sg_icon, sg_color),
                     ghost_w,
                 ))
             } else if let Some(sftp_tab) = self.sftp_tabs.iter().find(|t| t.id == drag.from_id) {
@@ -885,6 +887,7 @@ impl Oryxis {
                         compact,
                         ghost_w,
                         accent,
+                        self.setting_tab_accent_text,
                     ),
                     ghost_w,
                 ))

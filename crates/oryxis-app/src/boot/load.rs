@@ -561,6 +561,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("tab_accent_wash") {
                 self.setting_tab_accent_wash = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("tab_accent_text") {
+                self.setting_tab_accent_text = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("tab_fill_style")
                 && (v == "gradient" || v == "solid")
             {

@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "ค้นหากลุ่ม…",
         "tab_accent_line" => "แต้มสีเส้นใต้แท็บด้วยสีประจำโฮสต์",
         "tab_accent_wash" => "ไล่สีแถบด้านบนด้วยสีประจำโฮสต์",
+        "tab_accent_text" => "แต้มสีข้อความแท็บด้วยสีประจำโฮสต์",
         "tab_fill_style" => "รูปแบบพื้นหลังแท็บ",
         "tab_fill_gradient" => "ไล่ระดับสี",
         "tab_fill_solid" => "สีทึบ",

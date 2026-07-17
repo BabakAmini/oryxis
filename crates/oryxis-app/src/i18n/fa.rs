@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "جست‌وجوی گروه‌ها…",
         "tab_accent_line" => "خط زیر تب را با رنگ میزبان رنگ کن",
         "tab_accent_wash" => "رنگ‌آمیزی نوار بالا با رنگ تأکیدی میزبان",
+        "tab_accent_text" => "رنگ‌آمیزی متن تب با رنگ تأکیدی میزبان",
         "tab_fill_style" => "سبک پُرکردن زبانه",
         "tab_fill_gradient" => "گرادیان",
         "tab_fill_solid" => "رنگ یک‌دست",

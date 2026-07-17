@@ -29,6 +29,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "搜尋群組…",
         "tab_accent_line" => "用主機配色為分頁列底線著色",
         "tab_accent_wash" => "用主機強調色渲染頂部列",
+        "tab_accent_text" => "用主機強調色為分頁文字著色",
         "tab_fill_style" => "分頁填色樣式",
         "tab_fill_gradient" => "漸層",
         "tab_fill_solid" => "純色",

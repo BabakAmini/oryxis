@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "ग्रुप खोजें…",
         "tab_accent_line" => "टैब की निचली रेखा होस्ट एक्सेंट से रंगें",
         "tab_accent_wash" => "ऊपरी बार पर होस्ट एक्सेंट की हल्की परत",
+        "tab_accent_text" => "टैब का टेक्स्ट होस्ट एक्सेंट से रंगें",
         "tab_fill_style" => "टैब फ़िल शैली",
         "tab_fill_gradient" => "ग्रेडिएंट",
         "tab_fill_solid" => "ठोस रंग",

@@ -29,6 +29,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "搜索分组…",
         "tab_accent_line" => "用主机配色为标签栏下划线着色",
         "tab_accent_wash" => "用主机强调色渲染顶栏",
+        "tab_accent_text" => "用主机强调色为标签文字着色",
         "tab_fill_style" => "标签填充样式",
         "tab_fill_gradient" => "渐变",
         "tab_fill_solid" => "纯色",

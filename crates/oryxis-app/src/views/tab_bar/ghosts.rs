@@ -13,6 +13,9 @@ pub(crate) fn drag_ghost<'a>(
     compact: bool,
     width: f32,
     accent: Color,
+    // `tab_accent_text` setting: when false the ghost's label renders
+    // in the theme's primary text colour instead of the host accent.
+    accent_text: bool,
     custom_icon: Option<String>,
     custom_color: Option<Color>,
 ) -> Element<'a, Message> {
@@ -24,6 +27,7 @@ pub(crate) fn drag_ghost<'a>(
     // Contrast validator (issue #79): the label and outline sit on the
     // ghost's own bg_hover fill; the badge keeps the raw brand colour.
     let text_accent = crate::theme::readable_accent_on(accent, OryxisColors::t().bg_hover);
+    let label_fg = if accent_text { text_accent } else { OryxisColors::t().text_primary };
     let glyph_el: Element<'_, Message> = glyph.view(12.0, Color::WHITE);
     let badge = crate::widgets::host_icon(
         crate::widgets::HostIconStyle::Rounded,
@@ -49,7 +53,7 @@ pub(crate) fn drag_ghost<'a>(
                 .line_height(1.0)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .font(SYSTEM_UI_SEMIBOLD)
-                .color(text_accent)
+                .color(label_fg)
                 .into(),
         ])
         .align_y(iced::Alignment::Center)
@@ -74,10 +78,18 @@ pub(crate) fn drag_ghost<'a>(
 
 /// Floating drag ghost for an SFTP tab: the folder badge (tinted with the host
 /// color) plus the label, mirroring `drag_ghost` but keeping the SFTP identity.
-pub(crate) fn sftp_drag_ghost<'a>(label: String, compact: bool, width: f32, accent: Color) -> Element<'a, Message> {
+pub(crate) fn sftp_drag_ghost<'a>(
+    label: String,
+    compact: bool,
+    width: f32,
+    accent: Color,
+    // `tab_accent_text` setting: mirrors `drag_ghost`.
+    accent_text: bool,
+) -> Element<'a, Message> {
     // Contrast validator (issue #79): label and outline sit on the
     // ghost's own bg_hover fill; the badge keeps the raw brand colour.
     let text_accent = crate::theme::readable_accent_on(accent, OryxisColors::t().bg_hover);
+    let label_fg = if accent_text { text_accent } else { OryxisColors::t().text_primary };
     let badge = container(iced_fonts::lucide::folder_tree().size(12).color(Color::WHITE))
         .center_x(Length::Fixed(TAB_ICON_SLOT))
         .center_y(Length::Fixed(TAB_ICON_SLOT))
@@ -100,7 +112,7 @@ pub(crate) fn sftp_drag_ghost<'a>(label: String, compact: bool, width: f32, acce
                 .line_height(1.0)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .font(SYSTEM_UI_SEMIBOLD)
-                .color(text_accent)
+                .color(label_fg)
                 .into(),
         ])
         .align_y(iced::Alignment::Center)

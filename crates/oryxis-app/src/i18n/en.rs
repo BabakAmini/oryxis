@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "search_groups" => "Search groups…",
         "tab_accent_line" => "Tint tab underline with host accent",
         "tab_accent_wash" => "Wash top bar with host accent",
+        "tab_accent_text" => "Tint tab text with host accent",
         "tab_fill_style" => "Tab fill style",
         "tab_fill_gradient" => "Gradient",
         "tab_fill_solid" => "Solid color",

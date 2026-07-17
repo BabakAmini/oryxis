@@ -33,6 +33,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "חיפוש קבוצות…",
         "tab_accent_line" => "צביעת הקו התחתון של הכרטיסייה בצבע המארח",
         "tab_accent_wash" => "גוון של צבע המארח על הסרגל העליון",
+        "tab_accent_text" => "צביעת טקסט הכרטיסייה בצבע המארח",
         "tab_fill_style" => "סגנון מילוי כרטיסייה",
         "tab_fill_gradient" => "מעבר צבע",
         "tab_fill_solid" => "צבע אחיד",

@@ -1152,6 +1152,12 @@ pub struct Oryxis {
     /// of `setting_tab_accent_line` (the bottom hairline) so the user can
     /// keep one without the other.
     pub(crate) setting_tab_accent_wash: bool,
+    /// When true (default), the active tab's LABEL (and its close X /
+    /// mode chip) is tinted with the host accent, contrast-validated
+    /// via `theme::readable_accent_on` (issue #79). When false, tab
+    /// text always uses the theme's neutral text colours; the accent
+    /// keeps living in the badge, active wash, pinned border and dots.
+    pub(crate) setting_tab_accent_text: bool,
     /// Active-tab fill: `"gradient"` (default, the "lit from above"
     /// vertical accent fade) or `"solid"` (a single flat accent tint).
     /// Read by every tab/chip renderer via `active_tab_bg`.

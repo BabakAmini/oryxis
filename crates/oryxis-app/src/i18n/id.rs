@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Cari grup…",
         "tab_accent_line" => "Warnai garis bawah tab dengan aksen host",
         "tab_accent_wash" => "Warnai bilah atas dengan aksen host",
+        "tab_accent_text" => "Warnai teks tab dengan aksen host",
         "tab_fill_style" => "Gaya isian tab",
         "tab_fill_gradient" => "Gradien",
         "tab_fill_solid" => "Warna solid",

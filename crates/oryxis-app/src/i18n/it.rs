@@ -29,6 +29,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Cerca gruppi…",
         "tab_accent_line" => "Colora la linea della scheda con l'accento dell'host",
         "tab_accent_wash" => "Colora la barra superiore con l'accento dell'host",
+        "tab_accent_text" => "Colora il testo della scheda con l'accento dell'host",
         "tab_fill_style" => "Stile riempimento scheda",
         "tab_fill_gradient" => "Gradiente",
         "tab_fill_solid" => "Tinta unita",

@@ -29,6 +29,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Buscar grupos…",
         "tab_accent_line" => "Teñir línea de la pestaña con el color del host",
         "tab_accent_wash" => "Teñir la barra superior con el acento del host",
+        "tab_accent_text" => "Teñir el texto de la pestaña con el color del host",
         "tab_fill_style" => "Estilo de relleno de pestaña",
         "tab_fill_gradient" => "Degradado",
         "tab_fill_solid" => "Color sólido",

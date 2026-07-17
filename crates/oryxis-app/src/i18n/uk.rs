@@ -30,6 +30,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "search_groups" => "Пошук груп…",
         "tab_accent_line" => "Підкреслення вкладки в акцентному кольорі хоста",
         "tab_accent_wash" => "Тонувати верхню панель акцентом хоста",
+        "tab_accent_text" => "Тонувати текст вкладки акцентом хоста",
         "tab_fill_style" => "Стиль заливки вкладки",
         "tab_fill_gradient" => "Градієнт",
         "tab_fill_solid" => "Суцільний колір",
