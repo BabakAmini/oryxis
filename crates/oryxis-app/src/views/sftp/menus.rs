@@ -183,6 +183,26 @@ pub(crate) struct DirActionCtx<'a> {
     pub show_hidden: bool,
 }
 
+/// Archive-related context for the row menu, computed by the caller
+/// (it depends on pane state + the per-mount tool probe, which the
+/// menu builder shouldn't reach into).
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct RowArchiveCtx {
+    /// The pane is inside a browsed archive: the row menu collapses to
+    /// copy-out + close, and the background menu to close.
+    pub in_zip: bool,
+    /// Copy-out has a valid destination (the other pane is a local
+    /// pane or a connected remote one, and isn't itself browsing).
+    pub copy_out_ready: bool,
+    /// The clicked row is a zip that can be virtually browsed.
+    pub browsable: bool,
+    /// The clicked row is an archive this pane can extract.
+    pub extractable: bool,
+    /// The pane can create archives of each offered kind.
+    pub compress_zip: bool,
+    pub compress_tgz: bool,
+}
+
 pub(crate) fn row_context_menu_box<'a>(
     menu: &crate::state::SftpRowMenu,
     cross_pane_ready: bool,
@@ -190,6 +210,7 @@ pub(crate) fn row_context_menu_box<'a>(
     other_is_remote: bool,
     other_label: Option<String>,
     selection_count_same_pane: usize,
+    archive: RowArchiveCtx,
     dir_ctx: DirActionCtx<'_>,
 ) -> Element<'a, Message> {
     let multi = selection_count_same_pane > 1;
@@ -197,6 +218,25 @@ pub(crate) fn row_context_menu_box<'a>(
     let accent = OryxisColors::t().accent;
     let secondary = OryxisColors::t().text_secondary;
     let danger = OryxisColors::t().error;
+    // Inside a browsed archive the listing is virtual and read-only:
+    // the whole menu collapses to copy-out (rows) + leave (both).
+    if archive.in_zip {
+        if !menu.is_background && archive.copy_out_ready {
+            items = items.push(menu_item_tinted(
+                iced_fonts::lucide::download(),
+                t("archive_copy_out"),
+                Message::SftpZipCopyOut(menu.side, menu.path.clone(), menu.is_dir),
+                accent,
+            ));
+        }
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::x(),
+            t("archive_close"),
+            Message::SftpZipClose(menu.side),
+            secondary,
+        ));
+        return context_menu_shell(items);
+    }
     // Background right-click (empty area): only directory-level actions,
     // no per-entry target exists. Same items as the pane's `⋮` menu.
     if menu.is_background {
@@ -312,6 +352,51 @@ pub(crate) fn row_context_menu_box<'a>(
                 secondary,
             ));
         }
+    }
+    // Archive actions. Browse / Extract act on the clicked archive
+    // (single selection); Compress packs the clicked row or the whole
+    // selection containing it. Remote availability comes from the
+    // per-mount tool probe (bsdtar/unzip/zip), local from in-process
+    // codecs, both resolved by the caller into `archive`.
+    if !multi && archive.browsable {
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::folder_search(),
+            t("archive_browse"),
+            Message::SftpZipOpen(menu.side, menu.path.clone()),
+            accent,
+        ));
+    }
+    if !multi && !menu.is_dir && archive.extractable {
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::package_open(),
+            t("archive_extract_here"),
+            Message::SftpArchiveExtract(menu.side, menu.path.clone()),
+            secondary,
+        ));
+    }
+    if archive.compress_zip {
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::archive(),
+            t("archive_compress_zip"),
+            Message::SftpArchiveCompress(
+                menu.side,
+                oryxis_archive::names::ArchiveKind::Zip,
+                menu.path.clone(),
+            ),
+            secondary,
+        ));
+    }
+    if archive.compress_tgz {
+        items = items.push(menu_item_tinted(
+            iced_fonts::lucide::archive(),
+            t("archive_compress_tgz"),
+            Message::SftpArchiveCompress(
+                menu.side,
+                oryxis_archive::names::ArchiveKind::TarGz,
+                menu.path.clone(),
+            ),
+            secondary,
+        ));
     }
     // Reveal in the OS file manager, local pane only (no notion of an
     // "explorer" for a remote host). Single selection: a folder opens in
@@ -496,7 +581,18 @@ pub(crate) fn row_context_menu_height(
     source_is_remote: bool,
     other_is_remote: bool,
     selection_count_same_pane: usize,
+    archive: RowArchiveCtx,
 ) -> f32 {
+    // Zip-browse mode: copy-out (rows with a ready destination) +
+    // Close archive.
+    if archive.in_zip {
+        let items = if !menu.is_background && archive.copy_out_ready {
+            2.0
+        } else {
+            1.0
+        };
+        return items * 30.0 + 8.0;
+    }
     // Background menu: directory actions only. New folder + New file +
     // Refresh + Copy path + Show hidden (5), plus Open in File Manager
     // on a local pane (6), plus ~2 thin separators.
@@ -521,6 +617,20 @@ pub(crate) fn row_context_menu_height(
         if editable {
             count += 1.0;
         }
+    }
+    // Archive actions: Browse (single zip) + Extract (single archive
+    // file) + Compress to zip / tar.gz.
+    if !multi && archive.browsable {
+        count += 1.0;
+    }
+    if !multi && !menu.is_dir && archive.extractable {
+        count += 1.0;
+    }
+    if archive.compress_zip {
+        count += 1.0;
+    }
+    if archive.compress_tgz {
+        count += 1.0;
     }
     // "Open in File Manager" for a single local-pane entry.
     if !source_is_remote && !multi {

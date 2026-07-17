@@ -514,7 +514,11 @@ impl Oryxis {
                 .align_x(dir_align_x())
                 .into()
         } else {
-            let crumbs: Element<'_, Message> = if is_remote {
+            let crumbs: Element<'_, Message> = if let Some(zip) = &pane.zip {
+                // Zip-browse mode: parent dir + accent archive chip +
+                // virtual inner segments.
+                zip_breadcrumb(side, is_remote, zip)
+            } else if is_remote {
                 remote_breadcrumb(side, &pane.remote_path)
             } else {
                 local_breadcrumb(side, &pane.local_path)
@@ -535,6 +539,25 @@ impl Oryxis {
                 .width(Length::Fill),
         ]
         .width(Length::Fill);
+        // Archive operation in flight (extract / compress / copy-out):
+        // a thin status strip under the path bar; the completion (or
+        // error) lands in the message log.
+        if let Some(busy) = &pane.archive_busy {
+            band_content = band_content.push(
+                container(
+                    row![
+                        iced_fonts::lucide::loader_circle()
+                            .size(11)
+                            .color(OryxisColors::t().accent),
+                        Space::new().width(6),
+                        text(busy.clone()).size(11).color(OryxisColors::t().text_muted),
+                    ]
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding(Padding { top: 0.0, right: 14.0, bottom: 6.0, left: 14.0 })
+                .width(Length::Fill),
+            );
+        }
         if !layout.overflow {
             band_content = band_content.push(column_headers(
                 side,

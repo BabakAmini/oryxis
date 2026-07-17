@@ -44,6 +44,9 @@ impl Oryxis {
         match message {
             Message::SftpUpload(local_path) => {
                 self.sftp.row_menu = None;
+                if self.sftp_upload_blocked_by_zip(remote_side) {
+                    return Ok(Task::none());
+                }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
                     return Ok(Task::none());
@@ -408,6 +411,9 @@ impl Oryxis {
             }
             Message::SftpUploadFolder(local_root) => {
                 self.sftp.row_menu = None;
+                if self.sftp_upload_blocked_by_zip(remote_side) {
+                    return Ok(Task::none());
+                }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
                     return Ok(Task::none());
@@ -833,6 +839,9 @@ impl Oryxis {
             }
             Message::SftpUploadBatch(paths) => {
                 self.sftp.row_menu = None;
+                if self.sftp_upload_blocked_by_zip(remote_side) {
+                    return Ok(Task::none());
+                }
                 if paths.is_empty() {
                     return Ok(Task::none());
                 }

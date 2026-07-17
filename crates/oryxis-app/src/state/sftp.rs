@@ -73,6 +73,87 @@ pub(crate) struct PaneState {
     /// also from `on_scroll`. `0.0` until the first scroll event (then the
     /// nav falls back to proportional snapping).
     pub list_viewport_h: f32,
+    /// Virtual zip-browse mode. While `Some`, the pane's entry list
+    /// shows the INSIDE of a zip archive (listed from its central
+    /// directory over ranged reads, nothing extracted) and the pane
+    /// path carries the synthetic `<archive>!/<inner>` form that the
+    /// navigation handlers intercept. Mutating operations are disabled
+    /// for the pane while browsing.
+    pub zip: Option<ZipBrowse>,
+    /// Which archive tools the mounted host has, probed once per mount
+    /// over the exec channel (`None` until the probe lands, or on a
+    /// host whose exec channel is unavailable). Local panes never set
+    /// it: the local side uses in-process Rust codecs.
+    pub archive_tools: Option<(
+        oryxis_archive::remote::RemoteShell,
+        oryxis_archive::remote::ArchiveTools,
+    )>,
+    /// Label shown in the pane band while an archive operation
+    /// (extract / compress / copy-out) is running; also blocks starting
+    /// a second one on the same pane.
+    pub archive_busy: Option<String>,
+}
+
+/// Virtual zip-browse state for one pane (see [`PaneState::zip`]).
+pub(crate) struct ZipBrowse {
+    /// Real absolute path of the archive (remote path string, or the
+    /// local `PathBuf` rendered lossy).
+    pub archive_path: String,
+    /// Archive file name, for the breadcrumb chip.
+    pub archive_name: String,
+    /// Current directory INSIDE the archive; `""` at the archive root.
+    pub inner: String,
+    /// Parsed central directory (immutable while browsing).
+    pub index: Arc<oryxis_archive::browse::ZipIndex>,
+    /// Live ranged-read handle for remote archives (`None` for a local
+    /// archive, which is reopened per operation). Kept for the whole
+    /// browse so entry extraction reuses the open server-side handle.
+    pub remote_src: Option<Arc<oryxis_ssh::RemoteRangedFile>>,
+    /// Where the pane returns on close.
+    pub return_remote_path: String,
+    pub return_local_path: std::path::PathBuf,
+}
+
+impl ZipBrowse {
+    /// The synthetic pane path for the current position:
+    /// `<archive>!` at the root, `<archive>!/<inner>` below it.
+    pub fn synthetic_path(&self) -> String {
+        if self.inner.is_empty() {
+            format!("{}!", self.archive_path)
+        } else {
+            format!("{}!/{}", self.archive_path, self.inner)
+        }
+    }
+
+    /// Parse a navigation target back into an inner path. `None` means
+    /// the target is NOT inside this archive (a real path: the caller
+    /// leaves browse mode and navigates normally).
+    pub fn inner_from_synthetic(&self, path: &str) -> Option<String> {
+        let rest = path.strip_prefix(&self.archive_path)?;
+        let rest = rest.strip_prefix('!')?;
+        if rest.is_empty() {
+            return Some(String::new());
+        }
+        // Tolerate both separators: local PathBuf joins use the OS one.
+        let rest = rest.strip_prefix(['/', '\\'])?;
+        Some(rest.replace('\\', "/"))
+    }
+}
+
+/// Payload of `Message::SftpZipIndexed`: the parsed index plus, for
+/// remote archives, the live ranged-read handle to keep for the browse.
+#[derive(Clone)]
+pub(crate) struct ZipIndexedPayload {
+    pub index: Arc<oryxis_archive::browse::ZipIndex>,
+    pub remote_src: Option<Arc<oryxis_ssh::RemoteRangedFile>>,
+}
+
+impl std::fmt::Debug for ZipIndexedPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ZipIndexedPayload")
+            .field("entries", &self.index.entries.len())
+            .finish_non_exhaustive()
+    }
 }
 
 /// State for the SFTP browser. Two panes, side-by-side: the left pane is

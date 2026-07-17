@@ -143,3 +143,81 @@ pub(crate) fn local_crumb<'a>(side: SftpPaneSide, label: String, full: std::path
         })
         .into()
 }
+
+/// Breadcrumb while zip-browsing: the archive's real parent directory
+/// (clicking those crumbs leaves the archive, the navigation handlers
+/// close browse mode on any non-synthetic target), then an accent
+/// archive chip (jumps to the archive root), then the inner segments.
+pub(crate) fn zip_breadcrumb<'a>(
+    side: SftpPaneSide,
+    is_remote: bool,
+    zip: &crate::state::ZipBrowse,
+) -> Element<'a, Message> {
+    let parent: Element<'a, Message> = if is_remote {
+        let parent_dir = match zip.return_remote_path.as_str() {
+            "" => "/".to_string(),
+            p => p.to_string(),
+        };
+        remote_breadcrumb(side, &parent_dir)
+    } else {
+        local_breadcrumb(side, &zip.return_local_path)
+    };
+    let mut row = iced::widget::Row::new()
+        .align_y(iced::Alignment::Center)
+        .spacing(2)
+        .push(parent)
+        .push(text("/").size(11).color(OryxisColors::t().text_muted))
+        .push(zip_crumb(side, zip.archive_name.clone(), String::new(), true));
+    let mut accumulated = String::new();
+    for segment in zip.inner.split('/').filter(|s| !s.is_empty()) {
+        if !accumulated.is_empty() {
+            accumulated.push('/');
+        }
+        accumulated.push_str(segment);
+        row = row.push(text("/").size(11).color(OryxisColors::t().text_muted));
+        row = row.push(zip_crumb(side, segment.to_string(), accumulated.clone(), false));
+    }
+    row.into()
+}
+
+/// One crumb inside the archive: navigates the VIRTUAL tree. The
+/// archive chip itself is accent-tinted so the "you are inside an
+/// archive" state is visible at a glance.
+fn zip_crumb<'a>(
+    side: SftpPaneSide,
+    label: String,
+    inner: String,
+    is_archive_chip: bool,
+) -> Element<'a, Message> {
+    let color = if is_archive_chip {
+        OryxisColors::t().accent
+    } else {
+        OryxisColors::t().text_secondary
+    };
+    let content: Element<'a, Message> = if is_archive_chip {
+        row![
+            iced_fonts::lucide::archive().size(11).color(color),
+            Space::new().width(4),
+            text(label).size(11).color(color),
+        ]
+        .align_y(iced::Alignment::Center)
+        .into()
+    } else {
+        text(label).size(11).color(color).into()
+    };
+    button(content)
+        .on_press(Message::SftpZipNavigate(side, inner))
+        .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
+        .style(|_, status| {
+            let bg = match status {
+                BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .into()
+}

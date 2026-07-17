@@ -503,6 +503,41 @@ pub enum Message {
     SftpUploadSelection,
     SftpDownloadSelection,
     SftpDuplicateSelection,
+    // Archive operations (extract / compress / virtual zip browse).
+    // Async completions ride the `SftpFor` owner envelope like the
+    // transfer queue does.
+    /// Open a zip archive (real full path) for virtual browsing.
+    SftpZipOpen(crate::state::SftpPaneSide, String),
+    /// Central directory parsed (archive real path, payload or error).
+    SftpZipIndexed(
+        crate::state::SftpPaneSide,
+        String,
+        Result<crate::state::ZipIndexedPayload, String>,
+    ),
+    /// Navigate to a directory INSIDE the browsed archive ("" = root).
+    SftpZipNavigate(crate::state::SftpPaneSide, String),
+    /// Leave virtual browsing, restoring the pane's real directory.
+    SftpZipClose(crate::state::SftpPaneSide),
+    /// Copy an entry (inner path, is_dir) out of the browsed archive
+    /// into the OTHER pane's current directory.
+    SftpZipCopyOut(crate::state::SftpPaneSide, String, bool),
+    /// Extract an archive (real full path) next to itself.
+    SftpArchiveExtract(crate::state::SftpPaneSide, String),
+    /// Compress the clicked path (or the selection containing it) into
+    /// an archive of the given kind, in the pane's current directory.
+    SftpArchiveCompress(
+        crate::state::SftpPaneSide,
+        oryxis_archive::names::ArchiveKind,
+        String,
+    ),
+    /// Archive operation finished: log label or error; refreshes `side`.
+    SftpArchiveDone(crate::state::SftpPaneSide, Result<String, String>),
+    /// Once-per-mount remote tool probe result.
+    SftpToolsProbed(
+        crate::state::SftpPaneSide,
+        oryxis_archive::remote::RemoteShell,
+        oryxis_archive::remote::ArchiveTools,
+    ),
     // The leading `Uuid` on the transfer-queue continuation messages is the
     // owning SFTP tab. These arrive after async work, by which point the user
     // may have focused another SFTP tab; the dispatcher swaps the owning tab's

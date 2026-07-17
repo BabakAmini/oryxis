@@ -116,6 +116,12 @@ impl Oryxis {
         if self.sftp.drag.is_some() {
             return;
         }
+        // Rows inside a browsed archive carry synthetic paths the
+        // transfer queue can't read; copy-out goes through the context
+        // menu instead of drag-and-drop.
+        if self.sftp.pane(side).zip.is_some() {
+            return;
+        }
         // Drag the entire same-pane selection if the pressed row is part of
         // it; otherwise drag just this row.
         let same_side: Vec<(String, bool)> = self
@@ -496,6 +502,11 @@ impl Oryxis {
                 pane.remote_entries = entries;
                 pane.remote_loading = false;
                 pane.error = None;
+                // Fresh mount: any zip browse belonged to the previous
+                // session, and the new host gets its own tool probe.
+                pane.zip = None;
+                pane.archive_tools = None;
+                pane.archive_busy = None;
                 // Inherit the mounted host's name as the tab label (last mount
                 // wins when both panes are remote). Mid-route the stamped
                 // owner names the tab, NOT `active_sftp` (which points at
@@ -523,6 +534,10 @@ impl Oryxis {
                         crate::i18n::t("sftp_log_items"),
                     ),
                 );
+                // Discover which archive tools the host has (enables
+                // the remote Extract / Compress menu items), one exec
+                // round per mount.
+                return Ok(self.spawn_archive_probe(side));
             }
             Message::SftpRemoteError(side, msg) => {
                 // A failed navigation has no new listing to land the cursor on.
@@ -627,6 +642,15 @@ impl Oryxis {
             Message::SftpNavigateRemote(side, path) => {
                 // Also dismiss any open menu (Refresh routes here).
                 self.sftp.close_menus();
+                // Zip-browse interception: a synthetic `<archive>!/...`
+                // target relists from the cached index (no I/O); any
+                // real path leaves browse mode and navigates normally.
+                if let Some(zip) = &self.sftp.pane(side).zip {
+                    if let Some(inner) = zip.inner_from_synthetic(&path) {
+                        return Ok(Task::done(Message::SftpZipNavigate(side, inner)));
+                    }
+                    self.sftp.pane_mut(side).zip = None;
+                }
                 let client = match self.sftp.pane(side).client.clone() {
                     Some(c) => c,
                     None => {
@@ -706,6 +730,18 @@ impl Oryxis {
                 }
             }
             Message::SftpUp(side) => {
+                // Inside a browsed archive, ".." climbs the virtual tree
+                // and leaves the archive at its root.
+                if let Some(zip) = &self.sftp.pane(side).zip {
+                    if zip.inner.is_empty() {
+                        return Ok(Task::done(Message::SftpZipClose(side)));
+                    }
+                    let parent = match zip.inner.rsplit_once('/') {
+                        Some((head, _)) => head.to_string(),
+                        None => String::new(),
+                    };
+                    return Ok(Task::done(Message::SftpZipNavigate(side, parent)));
+                }
                 if self.sftp.pane(side).is_remote {
                     let cur = self.sftp.pane(side).remote_path.clone();
                     // Land the cursor on the folder we're leaving once the
@@ -745,6 +781,13 @@ impl Oryxis {
                 }
             }
             Message::SftpNavigateLocal(side, path) => {
+                // Zip-browse interception, mirroring SftpNavigateRemote.
+                if let Some(zip) = &self.sftp.pane(side).zip {
+                    if let Some(inner) = zip.inner_from_synthetic(&path.to_string_lossy()) {
+                        return Ok(Task::done(Message::SftpZipNavigate(side, inner)));
+                    }
+                    self.sftp.pane_mut(side).zip = None;
+                }
                 {
                     let pane = self.sftp.pane_mut(side);
                     // Only a real directory change resets the scroll (see
@@ -1185,6 +1228,10 @@ impl Oryxis {
                 return Ok(self.update(Message::CopyToClipboard(paths.join("\n"))));
             }
             Message::SftpStartRename(side, path) => {
+                // Rows inside a browsed archive are read-only.
+                if self.sftp.pane(side).zip.is_some() {
+                    return Ok(Task::none());
+                }
                 self.sftp.row_menu = None;
                 let original_path = path.clone();
                 let basename = file_basename(&path, self.sftp.pane(side).is_remote);
@@ -1220,6 +1267,10 @@ impl Oryxis {
                 return Ok(Task::done(Message::SftpNavigateRemote(side, reload_path)));
             }
             Message::SftpAskDelete(side, path, is_dir) => {
+                // Rows inside a browsed archive are read-only.
+                if self.sftp.pane(side).zip.is_some() {
+                    return Ok(Task::none());
+                }
                 self.sftp.row_menu = None;
                 self.sftp.delete_confirm = vec![crate::state::SftpDeleteTarget {
                     side,
@@ -1358,6 +1409,10 @@ impl Oryxis {
                 });
             }
             Message::SftpStartNewEntry(side, kind) => {
+                // No creating entries inside a browsed archive.
+                if self.sftp.pane(side).zip.is_some() {
+                    return Ok(Task::none());
+                }
                 self.sftp.close_menus();
                 self.sftp.new_entry = Some(crate::state::SftpNewEntry {
                     side,
@@ -1658,7 +1713,32 @@ impl Oryxis {
                     self.sftp.selected_rows = vec![target.clone()];
                     self.sftp.selection_anchor = Some(target);
                 } else {
-                    self.sftp.last_click = Some((side, path, std::time::Instant::now()));
+                    // Double-clicking a zip file enters it as a virtual
+                    // directory (browse without extracting). Only when
+                    // not already inside an archive: nested zips would
+                    // need decompressing the outer entry first, which
+                    // defeats the ranged-read model.
+                    let now = std::time::Instant::now();
+                    let is_double = self.sftp.last_click.as_ref().is_some_and(|(s, p, t)| {
+                        *s == side
+                            && p == &path
+                            && now.duration_since(*t) < DOUBLE_CLICK_WINDOW
+                    });
+                    if is_double
+                        && self.sftp.pane(side).zip.is_none()
+                        && matches!(
+                            oryxis_archive::names::ArchiveKind::from_name(
+                                &crate::dispatch_sftp_archive::base_name(&path)
+                            ),
+                            Some(oryxis_archive::names::ArchiveKind::Zip)
+                        )
+                    {
+                        self.sftp.last_click = None;
+                        self.sftp.selected_rows.clear();
+                        self.sftp.selection_anchor = None;
+                        return Ok(Task::done(Message::SftpZipOpen(side, path)));
+                    }
+                    self.sftp.last_click = Some((side, path, now));
                     self.sftp.selected_rows = vec![target.clone()];
                     self.sftp.selection_anchor = Some(target);
                 }

@@ -51,6 +51,7 @@ notify-rust = "4"
 sys-locale = "0.3"
 oryxis-core = { workspace = true }
 oryxis-ssh = { workspace = true }
+oryxis-archive = { workspace = true }
 oryxis-telnet = { workspace = true }
 oryxis-serial = { workspace = true }
 oryxis-zmodem = { workspace = true }

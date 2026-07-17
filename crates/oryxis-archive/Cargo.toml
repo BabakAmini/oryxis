@@ -1,0 +1,21 @@
+[package]
+name = "oryxis-archive"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+# Zip reading (central-directory browse over ranged reads) and writing
+# (local compress). Deflate only: stored + deflate cover effectively all
+# real-world zips; exotic methods surface an honest per-entry error
+# instead of pulling bzip2/lzma/zstd into the binary.
+zip = { version = "7", default-features = false, features = ["deflate-flate2"] }
+tar = "0.4"
+flate2 = "1"
+walkdir = "2"
+
+[dev-dependencies]
+tempfile = "3"

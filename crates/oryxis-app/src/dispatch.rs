@@ -146,6 +146,7 @@ impl Oryxis {
         // the chain naturally falls through to the inline match below.
         let message = try_handler!(self, message, handle_sftp_transfers);
         let message = try_handler!(self, message, handle_sftp_files);
+        let message = try_handler!(self, message, handle_sftp_archive);
         let message = try_handler!(self, message, handle_sftp);
         let message = try_handler!(self, message, handle_ssh);
         let message = try_handler!(self, message, handle_port_forwards);

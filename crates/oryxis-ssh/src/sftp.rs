@@ -946,6 +946,105 @@ impl SftpClient {
             Err(SshError::Channel(format!("rm -rf {path}: {detail}")))
         }
     }
+
+    /// Open `path` for positioned reads. Powers the zip virtual-browse
+    /// path: the archive's central directory and individual entry
+    /// ranges are fetched with ranged reads instead of downloading the
+    /// file. Rides its own raw session (like the streaming transfers)
+    /// so metadata ops on the main session never queue behind range
+    /// fetches.
+    pub async fn open_ranged(&self, path: &str) -> Result<RemoteRangedFile, SshError> {
+        let raw = self.open_raw_streaming().await?;
+        let handle = raw
+            .open(path, OpenFlags::READ, FileAttributes::empty())
+            .await
+            .map_err(|e| SshError::Channel(format!("sftp open({path}): {e}")))?
+            .handle;
+        let attrs = raw
+            .fstat(handle.clone())
+            .await
+            .map_err(|e| SshError::Channel(format!("sftp fstat({path}): {e}")))?;
+        let len = attrs.attrs.size.unwrap_or(0);
+        Ok(RemoteRangedFile {
+            raw,
+            handle,
+            len,
+            timeout: self.current_op_timeout(),
+        })
+    }
+}
+
+/// Random-access read handle over one remote file (see
+/// [`SftpClient::open_ranged`]). Cheap to keep around: one raw SFTP
+/// channel + one open server-side handle.
+pub struct RemoteRangedFile {
+    raw: Arc<RawSftpSession>,
+    handle: String,
+    len: u64,
+    timeout: std::time::Duration,
+}
+
+impl std::fmt::Debug for RemoteRangedFile {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RemoteRangedFile")
+            .field("len", &self.len)
+            .finish_non_exhaustive()
+    }
+}
+
+impl RemoteRangedFile {
+    /// File size as reported by `fstat` at open time.
+    pub fn len(&self) -> u64 {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    /// Read `[offset, offset + want)`, clamped to EOF, issuing up to
+    /// `STREAM_WINDOW` concurrent SFTP requests (each capped at the
+    /// protocol's 255 KiB). Returns the bytes; empty only at/after EOF.
+    pub async fn read_at(&self, offset: u64, want: usize) -> Result<Vec<u8>, SshError> {
+        if offset >= self.len || want == 0 {
+            return Ok(Vec::new());
+        }
+        let span = (self.len - offset).min(want as u64);
+        let mut buf = vec![0u8; span as usize];
+        let raw = self.raw.clone();
+        let handle = self.handle.clone();
+        windowed_download_copy(
+            span,
+            STREAM_CHUNK as u64,
+            STREAM_WINDOW,
+            self.timeout,
+            "ranged read",
+            move |off, len| {
+                let raw = raw.clone();
+                let handle = handle.clone();
+                let abs = offset + off;
+                async move {
+                    raw.read(handle, abs, len)
+                        .await
+                        .map(|d| d.data)
+                        .map_err(|e| SshError::Channel(format!("sftp read({abs}): {e}")))
+                }
+            },
+            |off, data| {
+                buf[off as usize..off as usize + data.len()].copy_from_slice(&data);
+                Ok(())
+            },
+        )
+        .await?;
+        Ok(buf)
+    }
+
+    /// Close the remote handle. Best-effort: dropping the struct also
+    /// tears the raw session's channel down, this just returns the
+    /// server-side handle promptly.
+    pub async fn close(self) {
+        let _ = self.raw.close(self.handle).await;
+    }
 }
 
 /// Per-request payload size: the SFTP protocol's 255 KiB ceiling,

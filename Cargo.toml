@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/oryxis-core",
     "crates/oryxis-ssh",
+    "crates/oryxis-archive",
     "crates/oryxis-telnet",
     "crates/oryxis-serial",
     "crates/oryxis-zmodem",
@@ -99,6 +100,7 @@ zeroize = "1"
 # Internal crates
 oryxis-core = { path = "crates/oryxis-core" }
 oryxis-ssh = { path = "crates/oryxis-ssh" }
+oryxis-archive = { path = "crates/oryxis-archive" }
 oryxis-telnet = { path = "crates/oryxis-telnet" }
 oryxis-serial = { path = "crates/oryxis-serial" }
 oryxis-zmodem = { path = "crates/oryxis-zmodem" }

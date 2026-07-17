@@ -462,3 +462,33 @@ async fn harness_stale_hint_not_truncated() {
     assert_eq!(got, payload, "stale hint corrupted the download");
     let _ = std::fs::remove_file(&dst);
 }
+
+#[tokio::test]
+async fn harness_ranged_reads() {
+    // The zip-browse primitive: positioned reads over the real protocol
+    // path, including spans that need several concurrent requests and
+    // the EOF clamp.
+    let (client, fs) = connect_in_memory().await;
+    let size = 2 * 1024 * 1024usize;
+    let payload: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/big.zip".to_string(), payload.clone());
+
+    let file = client.open_ranged("/big.zip").await.expect("open_ranged");
+    assert_eq!(file.len(), size as u64);
+    // Small tail read (the EOCD probe pattern).
+    let tail = file.read_at(size as u64 - 100, 100).await.expect("tail");
+    assert_eq!(tail, &payload[size - 100..]);
+    // A middle span larger than one 255 KiB request (concurrent fan-out).
+    let mid = file.read_at(300_000, 600_000).await.expect("mid");
+    assert_eq!(mid, &payload[300_000..900_000]);
+    // Clamped at EOF; fully past EOF is empty.
+    let clamp = file.read_at(size as u64 - 10, 50).await.expect("clamp");
+    assert_eq!(clamp, &payload[size - 10..]);
+    assert!(
+        file.read_at(size as u64, 10).await.expect("past").is_empty()
+    );
+    file.close().await;
+}

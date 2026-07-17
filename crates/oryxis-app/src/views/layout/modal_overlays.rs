@@ -435,6 +435,45 @@ impl Oryxis {
             .iter()
             .filter(|(s, _)| *s == row_menu.side)
             .count();
+        // Archive context: what the probe found on the mounted host (or
+        // the in-process codecs for a local pane) decides which archive
+        // actions the menu can offer for this row.
+        let archive_ctx = {
+            use oryxis_archive::names::ArchiveKind;
+            use oryxis_archive::remote as remote_cmd;
+            let in_zip = src_pane.zip.is_some();
+            let name = crate::dispatch_sftp_archive::base_name(&row_menu.path);
+            let kind = ArchiveKind::from_name(&name);
+            let (extractable, compress_zip, compress_tgz) = if source_is_remote {
+                match src_pane.archive_tools {
+                    Some((shell, tools)) => (
+                        kind.is_some_and(|k| remote_cmd::can_extract(shell, tools, k)),
+                        remote_cmd::can_compress(shell, tools, ArchiveKind::Zip),
+                        remote_cmd::can_compress(shell, tools, ArchiveKind::TarGz),
+                    ),
+                    None => (false, false, false),
+                }
+            } else {
+                (
+                    matches!(
+                        kind,
+                        Some(ArchiveKind::Zip | ArchiveKind::TarGz | ArchiveKind::Tar)
+                    ),
+                    true,
+                    true,
+                )
+            };
+            crate::views::sftp::RowArchiveCtx {
+                in_zip,
+                copy_out_ready: in_zip
+                    && other.zip.is_none()
+                    && (!other.is_remote || other.client.is_some()),
+                browsable: !in_zip && matches!(kind, Some(ArchiveKind::Zip)),
+                extractable: !in_zip && extractable,
+                compress_zip: !in_zip && compress_zip,
+                compress_tgz: !in_zip && compress_tgz,
+            }
+        };
         let menu = crate::views::sftp::row_context_menu_box(
             row_menu,
             cross_pane_ready,
@@ -442,6 +481,7 @@ impl Oryxis {
             other_is_remote,
             other_label,
             selection_count_same_pane,
+            archive_ctx,
             crate::views::sftp::DirActionCtx {
                 pane_dir: &pane_dir,
                 local_dir: &local_dir,
@@ -474,6 +514,7 @@ impl Oryxis {
             source_is_remote,
             other_is_remote,
             selection_count_same_pane,
+            archive_ctx,
         );
         let x = nudged_x
             .min(self.window_size.width - menu_width)
