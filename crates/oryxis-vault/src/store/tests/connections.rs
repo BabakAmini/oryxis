@@ -44,7 +44,7 @@ fn connection_address_family_round_trips() {
 #[test]
 fn connection_quirks_and_rekey_round_trip() {
     use oryxis_core::models::terminal_quirks::{
-        BackspaceMode, FunctionKeyMode, HomeEndMode, Osc52Override, TerminalQuirks,
+        BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta, Osc52Override, TerminalQuirks,
     };
     let vault = unlocked_vault();
     // None quirks reload as None (all-xterm default), and a fully
@@ -64,6 +64,7 @@ fn connection_quirks_and_rekey_round_trip() {
         disable_mouse_reporting: true,
         disable_title_change: true,
         osc52: Some(Osc52Override::On),
+        option_as_meta: OptionAsMeta::Both,
     });
     fancy.rekey_limit_mb = Some(512);
     vault.save_connection(&fancy, None).unwrap();

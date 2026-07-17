@@ -1,8 +1,5 @@
 //! Pure utility functions, no UI, no state.
 
-use iced::keyboard;
-use oryxis_core::models::terminal_quirks::{FunctionKeyMode, HomeEndMode, TerminalQuirks};
-
 /// File-name-safe version of a label (ASCII alphanumerics, `-`, `_`;
 /// everything else collapses to `_`, capped at 48 chars). Used by the
 /// command-history and session-recording exports.
@@ -469,138 +466,6 @@ fn spawn_and_reap(cmd: &mut std::process::Command) -> bool {
     }
 }
 
-/// xterm modifier parameter: `1 + Shift(1) + Alt(2) + Ctrl(4)`. Returns 1 when
-/// no modifier is held (the "unmodified" sentinel xterm uses in `CSI 1 ; N …`).
-fn xterm_modifier_param(m: &keyboard::Modifiers) -> u8 {
-    1 + (m.shift() as u8) + 2 * (m.alt() as u8) + 4 * (m.control() as u8)
-}
-
-/// Translate a named iced key (Enter, Tab, ArrowUp, …) into the PTY byte
-/// sequence, honoring modifiers in the xterm scheme.
-///
-/// Cursor / Home / End keys take the SS3 form (`ESC O A`) under application-
-/// cursor-keys mode (DECCKM) and the CSI form (`ESC [ A`) otherwise, but a
-/// *modified* press is always CSI with a parameter (`ESC [ 1 ; 5 A` for
-/// Ctrl+Up), the form vim / readline / editors bind word-jump and selection
-/// to. The `~`-terminated keys (PageUp/Down, Insert, Delete, F5-F12) carry the
-/// modifier as `ESC [ N ; M ~`. F1-F4 go from `ESC O P` to `ESC [ 1 ; M P`
-/// when modified. Shift+Tab is the back-tab `ESC [ Z`.
-pub(crate) fn key_to_named_bytes(
-    key: &keyboard::Key,
-    modifiers: &keyboard::Modifiers,
-    app_cursor: bool,
-    quirks: &TerminalQuirks,
-) -> Option<Vec<u8>> {
-    let keyboard::Key::Named(named) = key else {
-        return None;
-    };
-    let param = xterm_modifier_param(modifiers);
-    let modified = param > 1;
-
-    // Arrows + Home/End: `letter` is the CSI/SS3 final byte.
-    let csi_letter = |letter: u8| -> Vec<u8> {
-        if modified {
-            format!("\x1b[1;{}{}", param, letter as char).into_bytes()
-        } else if app_cursor {
-            vec![0x1b, b'O', letter]
-        } else {
-            vec![0x1b, b'[', letter]
-        }
-    };
-    // `~`-terminated keys (PageUp/Down, Insert, Delete, F5-F12, and the
-    // rxvt Home/End + F1-F4 numbers).
-    let tilde = |num: u8| -> Vec<u8> {
-        if modified {
-            format!("\x1b[{num};{param}~").into_bytes()
-        } else {
-            format!("\x1b[{num}~").into_bytes()
-        }
-    };
-    // F1-F4 (xterm): SS3 final byte unmodified, CSI with parameter when
-    // modified.
-    let ss3_fn = |letter: u8| -> Vec<u8> {
-        if modified {
-            format!("\x1b[1;{}{}", param, letter as char).into_bytes()
-        } else {
-            vec![0x1b, b'O', letter]
-        }
-    };
-    // VT400 F1-F4: SS3 always, no CSI modified form even under a modifier.
-    let ss3_always = |letter: u8| -> Vec<u8> { vec![0x1b, b'O', letter] };
-    // Linux console F1-F5: `ESC [ [ A..E`, no modified form.
-    let linux_fn = |letter: u8| -> Vec<u8> { vec![0x1b, b'[', b'[', letter] };
-
-    use keyboard::key::Named;
-    let bytes: Vec<u8> = match named {
-        Named::Enter => b"\r".to_vec(),
-        // Backspace encoding is per-host (PuTTY Control-? vs Control-H);
-        // Ctrl+Backspace sends the flipped code. DEFAULT (`Del127`) keeps
-        // plain Backspace = DEL (0x7f), today's behaviour.
-        Named::Backspace => vec![quirks.backspace.byte(modifiers.control())],
-        // Shift+Tab is back-tab (CBT); plain Tab stays HT.
-        Named::Tab if modifiers.shift() => b"\x1b[Z".to_vec(),
-        Named::Tab => b"\t".to_vec(),
-        Named::Escape => b"\x1b".to_vec(),
-        Named::Space => b" ".to_vec(),
-        Named::ArrowUp => csi_letter(b'A'),
-        Named::ArrowDown => csi_letter(b'B'),
-        Named::ArrowRight => csi_letter(b'C'),
-        Named::ArrowLeft => csi_letter(b'D'),
-        // Home/End: xterm cursor-style (default) or rxvt tilde form
-        // (`ESC[7~` / `ESC[8~`, app-cursor-independent).
-        Named::Home => match quirks.home_end {
-            HomeEndMode::Standard => csi_letter(b'H'),
-            HomeEndMode::Rxvt => tilde(7),
-        },
-        Named::End => match quirks.home_end {
-            HomeEndMode::Standard => csi_letter(b'F'),
-            HomeEndMode::Rxvt => tilde(8),
-        },
-        Named::PageUp => tilde(5),
-        Named::PageDown => tilde(6),
-        Named::Insert => tilde(2),
-        Named::Delete => tilde(3),
-        // F1-F4 vary by mode; F5 too (Linux console); F6-F12 are the
-        // xterm tilde form in every mode.
-        Named::F1 => match quirks.function_keys {
-            FunctionKeyMode::Xterm => ss3_fn(b'P'),
-            FunctionKeyMode::Vt400 => ss3_always(b'P'),
-            FunctionKeyMode::LinuxConsole => linux_fn(b'A'),
-            FunctionKeyMode::Rxvt => tilde(11),
-        },
-        Named::F2 => match quirks.function_keys {
-            FunctionKeyMode::Xterm => ss3_fn(b'Q'),
-            FunctionKeyMode::Vt400 => ss3_always(b'Q'),
-            FunctionKeyMode::LinuxConsole => linux_fn(b'B'),
-            FunctionKeyMode::Rxvt => tilde(12),
-        },
-        Named::F3 => match quirks.function_keys {
-            FunctionKeyMode::Xterm => ss3_fn(b'R'),
-            FunctionKeyMode::Vt400 => ss3_always(b'R'),
-            FunctionKeyMode::LinuxConsole => linux_fn(b'C'),
-            FunctionKeyMode::Rxvt => tilde(13),
-        },
-        Named::F4 => match quirks.function_keys {
-            FunctionKeyMode::Xterm => ss3_fn(b'S'),
-            FunctionKeyMode::Vt400 => ss3_always(b'S'),
-            FunctionKeyMode::LinuxConsole => linux_fn(b'D'),
-            FunctionKeyMode::Rxvt => tilde(14),
-        },
-        Named::F5 => match quirks.function_keys {
-            FunctionKeyMode::LinuxConsole => linux_fn(b'E'),
-            _ => tilde(15),
-        },
-        Named::F6 => tilde(17),
-        Named::F7 => tilde(18),
-        Named::F8 => tilde(19),
-        Named::F9 => tilde(20),
-        Named::F10 => tilde(21),
-        Named::F11 => tilde(23),
-        Named::F12 => tilde(24),
-        _ => return None,
-    };
-    Some(bytes)
-}
 
 /// Snap the chat sidebar's scrollable to its bottom, used after the
 /// user sends a message and after the assistant response arrives, so
@@ -732,26 +597,6 @@ pub(crate) fn resolve_keepalive(
     (secs > 0).then(|| std::time::Duration::from_secs(secs))
 }
 
-/// Translate a Ctrl+<char> combination into the control byte sequence.
-pub(crate) fn ctrl_key_bytes(key: &keyboard::Key) -> Option<Vec<u8>> {
-    if let keyboard::Key::Character(c) = key {
-        let ch = c.as_str().bytes().next()?;
-        let ctrl = match ch {
-            b'a'..=b'z' => ch - b'a' + 1,
-            b'A'..=b'Z' => ch - b'A' + 1,
-            b'[' => 27,
-            b'\\' => 28,
-            b']' => 29,
-            b'^' => 30,
-            b'_' => 31,
-            _ => return None,
-        };
-        Some(vec![ctrl])
-    } else {
-        None
-    }
-}
-
 // ── New-connection default helpers ──
 //
 // These translate the typed "default host profile" settings to / from
@@ -814,6 +659,35 @@ pub(crate) fn quirk_fn_keys_label(
         FunctionKeyMode::Rxvt => t("quirks_fn_rxvt"),
     }
     .to_string()
+}
+
+pub(crate) fn quirk_option_as_meta_label(
+    m: oryxis_core::models::terminal_quirks::OptionAsMeta,
+) -> String {
+    use crate::i18n::t;
+    use oryxis_core::models::terminal_quirks::OptionAsMeta;
+    match m {
+        OptionAsMeta::None => t("quirks_option_meta_off"),
+        OptionAsMeta::OnlyLeft => t("quirks_option_meta_left"),
+        OptionAsMeta::OnlyRight => t("quirks_option_meta_right"),
+        OptionAsMeta::Both => t("quirks_option_meta_both"),
+    }
+    .to_string()
+}
+
+pub(crate) fn quirk_option_as_meta_from_label(
+    v: &str,
+) -> oryxis_core::models::terminal_quirks::OptionAsMeta {
+    use oryxis_core::models::terminal_quirks::OptionAsMeta;
+    [
+        OptionAsMeta::None,
+        OptionAsMeta::OnlyLeft,
+        OptionAsMeta::OnlyRight,
+        OptionAsMeta::Both,
+    ]
+    .into_iter()
+    .find(|m| v == quirk_option_as_meta_label(*m))
+    .unwrap_or(OptionAsMeta::None)
 }
 
 pub(crate) fn quirk_backspace_from_label(
@@ -936,27 +810,7 @@ pub(crate) fn env_vars_from_setting(v: &str) -> Vec<crate::state::EnvVarForm> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use iced::keyboard::key::Named;
-    use iced::keyboard::{Key, Modifiers};
     use std::time::Duration;
-
-    fn nb(named: Named, mods: Modifiers, app_cursor: bool) -> Vec<u8> {
-        // Existing vectors run against DEFAULT_QUIRKS (today's xterm
-        // behaviour); a change here that broke them would mean the quirks
-        // refactor altered the default encoding.
-        key_to_named_bytes(
-            &Key::Named(named),
-            &mods,
-            app_cursor,
-            &oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS,
-        )
-        .unwrap()
-    }
-
-    // Vectors under a specific quirks profile.
-    fn nq(named: Named, mods: Modifiers, app_cursor: bool, q: &TerminalQuirks) -> Vec<u8> {
-        key_to_named_bytes(&Key::Named(named), &mods, app_cursor, q).unwrap()
-    }
 
     #[test]
     fn snippet_placeholders_match_only_variable_shapes() {
@@ -994,108 +848,10 @@ mod tests {
     }
 
     #[test]
-    fn arrows_plain_are_csi_and_app_cursor_is_ss3() {
-        // Default (normal) cursor mode: CSI form.
-        assert_eq!(nb(Named::ArrowUp, Modifiers::empty(), false), b"\x1b[A");
-        assert_eq!(nb(Named::ArrowLeft, Modifiers::empty(), false), b"\x1b[D");
-        // Application-cursor-keys mode (DECCKM): SS3 form, what mc/vim bind to.
-        assert_eq!(nb(Named::ArrowUp, Modifiers::empty(), true), b"\x1bOA");
-        assert_eq!(nb(Named::End, Modifiers::empty(), true), b"\x1bOF");
-    }
-
-    #[test]
-    fn modified_arrows_use_xterm_parameter_and_stay_csi() {
-        // Ctrl = param 5, Shift = 2, Alt = 3.
-        assert_eq!(nb(Named::ArrowRight, Modifiers::CTRL, false), b"\x1b[1;5C");
-        assert_eq!(nb(Named::ArrowUp, Modifiers::SHIFT, false), b"\x1b[1;2A");
-        assert_eq!(nb(Named::ArrowDown, Modifiers::ALT, false), b"\x1b[1;3B");
-        assert_eq!(
-            nb(Named::ArrowLeft, Modifiers::CTRL | Modifiers::SHIFT, false),
-            b"\x1b[1;6D"
-        );
-        // A modified press is CSI even under application-cursor-keys mode.
-        assert_eq!(nb(Named::ArrowUp, Modifiers::CTRL, true), b"\x1b[1;5A");
-    }
-
-    #[test]
-    fn tilde_keys_carry_modifier() {
-        assert_eq!(nb(Named::PageUp, Modifiers::empty(), false), b"\x1b[5~");
-        assert_eq!(nb(Named::PageUp, Modifiers::CTRL, false), b"\x1b[5;5~");
-        assert_eq!(nb(Named::Delete, Modifiers::SHIFT, false), b"\x1b[3;2~");
-    }
-
-    #[test]
-    fn function_keys_promote_to_csi_when_modified() {
-        assert_eq!(nb(Named::F1, Modifiers::empty(), false), b"\x1bOP");
-        assert_eq!(nb(Named::F1, Modifiers::CTRL, false), b"\x1b[1;5P");
-        assert_eq!(nb(Named::F5, Modifiers::empty(), false), b"\x1b[15~");
-        assert_eq!(nb(Named::F5, Modifiers::CTRL, false), b"\x1b[15;5~");
-    }
-
-    #[test]
-    fn shift_tab_is_back_tab() {
-        assert_eq!(nb(Named::Tab, Modifiers::empty(), false), b"\t");
-        assert_eq!(nb(Named::Tab, Modifiers::SHIFT, false), b"\x1b[Z");
-    }
-
-    // ── C5 legacy keyboard mode vectors ────────────────────────────────
-    use oryxis_core::models::terminal_quirks::{
-        BackspaceMode, FunctionKeyMode, HomeEndMode, TerminalQuirks,
-    };
-
-    #[test]
-    fn backspace_modes_and_ctrl_flip() {
-        // Default (Del127): plain = DEL (0x7f) as today; Ctrl+Backspace
-        // sends the flipped BS (0x08), the PuTTY Control-? convention.
-        assert_eq!(nb(Named::Backspace, Modifiers::empty(), false), b"\x7f");
-        assert_eq!(nb(Named::Backspace, Modifiers::CTRL, false), b"\x08");
-        // CtrlH: plain = BS (0x08); Ctrl+Backspace flips to DEL (0x7f).
-        let ctrl_h = TerminalQuirks { backspace: BackspaceMode::CtrlH, ..Default::default() };
-        assert_eq!(nq(Named::Backspace, Modifiers::empty(), false, &ctrl_h), b"\x08");
-        assert_eq!(nq(Named::Backspace, Modifiers::CTRL, false, &ctrl_h), b"\x7f");
-    }
-
-    #[test]
-    fn rxvt_home_end_is_tilde_and_app_cursor_independent() {
-        let rxvt = TerminalQuirks { home_end: HomeEndMode::Rxvt, ..Default::default() };
-        // rxvt Home/End are the tilde form, unaffected by app-cursor mode.
-        assert_eq!(nq(Named::Home, Modifiers::empty(), false, &rxvt), b"\x1b[7~");
-        assert_eq!(nq(Named::End, Modifiers::empty(), false, &rxvt), b"\x1b[8~");
-        assert_eq!(nq(Named::Home, Modifiers::empty(), true, &rxvt), b"\x1b[7~");
-        // Modified form carries the xterm parameter.
-        assert_eq!(nq(Named::End, Modifiers::CTRL, false, &rxvt), b"\x1b[8;5~");
-        // Default (Standard) stays the cursor-style CSI/SS3 form.
-        assert_eq!(nb(Named::Home, Modifiers::empty(), false), b"\x1b[H");
-        assert_eq!(nb(Named::Home, Modifiers::empty(), true), b"\x1bOH");
-    }
-
-    #[test]
-    fn vt400_function_keys_stay_ss3_even_when_modified() {
-        let vt400 =
-            TerminalQuirks { function_keys: FunctionKeyMode::Vt400, ..Default::default() };
-        assert_eq!(nq(Named::F1, Modifiers::empty(), false, &vt400), b"\x1bOP");
-        // No CSI modified form, unlike xterm: SS3 always.
-        assert_eq!(nq(Named::F1, Modifiers::SHIFT, false, &vt400), b"\x1bOP");
-        assert_eq!(nq(Named::F4, Modifiers::CTRL, false, &vt400), b"\x1bOS");
-        // F5+ are the xterm tilde form in VT400 too.
-        assert_eq!(nq(Named::F5, Modifiers::empty(), false, &vt400), b"\x1b[15~");
-    }
-
-    #[test]
-    fn linux_console_function_keys_are_csi_bracket() {
-        let linux =
-            TerminalQuirks { function_keys: FunctionKeyMode::LinuxConsole, ..Default::default() };
-        // F1-F5 = ESC [ [ A..E, no modified form.
-        assert_eq!(nq(Named::F1, Modifiers::empty(), false, &linux), b"\x1b[[A");
-        assert_eq!(nq(Named::F5, Modifiers::empty(), false, &linux), b"\x1b[[E");
-        assert_eq!(nq(Named::F1, Modifiers::CTRL, false, &linux), b"\x1b[[A");
-        // F6+ fall back to the xterm tilde numbers.
-        assert_eq!(nq(Named::F6, Modifiers::empty(), false, &linux), b"\x1b[17~");
-    }
-
-    #[test]
     fn quirk_label_round_trips_for_every_variant() {
-        use oryxis_core::models::terminal_quirks::{BackspaceMode, FunctionKeyMode, HomeEndMode};
+        use oryxis_core::models::terminal_quirks::{
+            BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta,
+        };
         // label(m) -> from_label -> m must be the identity for every
         // variant, so the host-editor pick can't silently map a mode to
         // the wrong enum (the reverse of the label helpers).
@@ -1113,21 +869,18 @@ mod tests {
         ] {
             assert_eq!(quirk_fn_keys_from_label(&quirk_fn_keys_label(m)), m);
         }
+        for m in [
+            OptionAsMeta::None,
+            OptionAsMeta::OnlyLeft,
+            OptionAsMeta::OnlyRight,
+            OptionAsMeta::Both,
+        ] {
+            assert_eq!(quirk_option_as_meta_from_label(&quirk_option_as_meta_label(m)), m);
+        }
         // An unknown label falls back to the default (never panics).
         assert_eq!(quirk_backspace_from_label("garbage"), BackspaceMode::Del127);
         assert_eq!(quirk_fn_keys_from_label("garbage"), FunctionKeyMode::Xterm);
-    }
-
-    #[test]
-    fn rxvt_function_keys_use_rxvt_tilde_numbers() {
-        let rxvt =
-            TerminalQuirks { function_keys: FunctionKeyMode::Rxvt, ..Default::default() };
-        // F1-F4 = tilde 11..14; F5+ keep the xterm numbers.
-        assert_eq!(nq(Named::F1, Modifiers::empty(), false, &rxvt), b"\x1b[11~");
-        assert_eq!(nq(Named::F4, Modifiers::empty(), false, &rxvt), b"\x1b[14~");
-        assert_eq!(nq(Named::F5, Modifiers::empty(), false, &rxvt), b"\x1b[15~");
-        // Modified F1 carries the parameter (tilde form).
-        assert_eq!(nq(Named::F1, Modifiers::CTRL, false, &rxvt), b"\x1b[11;5~");
+        assert_eq!(quirk_option_as_meta_from_label("garbage"), OptionAsMeta::None);
     }
 
     #[test]

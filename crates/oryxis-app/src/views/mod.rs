@@ -13,6 +13,7 @@ pub(crate) mod connection_progress;
 pub(crate) mod dashboard;
 pub(crate) mod group_panel;
 pub(crate) mod history;
+pub(crate) mod player;
 pub(crate) mod host_panel;
 pub(crate) mod icon_picker;
 pub(crate) mod keys;

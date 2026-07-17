@@ -326,6 +326,14 @@ impl Oryxis {
             .into()
         };
 
+        // ── Session player surface (issue #71) ──
+        // Takes the whole history area while open, like the static
+        // viewer below; mutually exclusive with it by construction
+        // (opening either closes the other in the dispatcher).
+        if let Some(player) = &self.session_player {
+            return self.view_session_player(player);
+        }
+
         // ── Session viewer overlay ──
         if let Some((log_id, ref spans)) = self.viewing_session_log {
             // Recreate the terminal's look: palette colors parsed from

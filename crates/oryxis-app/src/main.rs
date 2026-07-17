@@ -32,6 +32,7 @@ mod dispatch_snippets;
 mod dispatch_navigation;
 mod dispatch_onboarding;
 mod dispatch_history;
+mod dispatch_player;
 mod dispatch_command_history;
 mod dispatch_mcp;
 mod dispatch_sync;
@@ -59,6 +60,7 @@ mod fonts;
 #[cfg(feature = "harness")]
 mod harness;
 mod i18n;
+mod key_encode;
 mod keynav;
 mod logging;
 mod agent_server;

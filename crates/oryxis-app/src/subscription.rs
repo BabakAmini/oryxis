@@ -330,6 +330,21 @@ impl Oryxis {
             );
         }
 
+        // Session-player playback clock (issue #71). Only mounts while
+        // the player is actually playing on the History view; paused,
+        // closed or backgrounded players tick nothing. Leaving the view
+        // suspends the clock (the handler clamps the resume delta, so
+        // the absence never counts as playback time). ~30 fps is the
+        // live-terminal ballpark and keeps scrubbing responsive.
+        if self.active_view == crate::state::View::History
+            && self.session_player.as_ref().is_some_and(|p| p.playing)
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(33))
+                    .map(|_| Message::SessionPlayerTick),
+            );
+        }
+
         // Vault auto-lock idle check. Only mounts while unlocked with a
         // non-zero threshold configured, so the common case (feature off)
         // costs nothing. The 30 s cadence bounds the overshoot past the

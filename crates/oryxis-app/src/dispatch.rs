@@ -188,6 +188,7 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_snippets);
         let message = try_handler!(self, message, handle_navigation);
         let message = try_handler!(self, message, handle_history);
+        let message = try_handler!(self, message, handle_player);
         let message = try_handler!(self, message, handle_mcp);
         let message = try_handler!(self, message, handle_sync);
 

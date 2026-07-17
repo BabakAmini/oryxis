@@ -164,6 +164,10 @@ pub enum Message {
     EditorQuirkTitleChangeChanged(bool),
     /// OSC 52 clipboard-write override pick (localized Default / On / Off).
     EditorQuirkOsc52Changed(String),
+    /// macOS Option-as-Meta pick (localized Off / Left / Right / Both;
+    /// issue #80: the default composes characters like every macOS
+    /// terminal, Meta is the readline/emacs opt-in).
+    EditorQuirkOptionAsMetaChanged(String),
     /// Per-host SSH rekey limit (MB) text input.
     EditorQuirkRekeyChanged(String),
     /// Toggle a per-host SSH algorithm category between Auto (None) and a
@@ -1122,6 +1126,20 @@ pub enum Message {
     /// 'c' chunks) as a plain-text file.
     ExportSessionCommands(Uuid),
     CloseSessionLogView,
+    /// Open the in-app session player for a recording (issue #71):
+    /// replays the timed chunks through a read-only terminal backend.
+    PlaySessionLog(Uuid),
+    SessionPlayerClose,
+    /// Play/pause toggle; playing again after the end restarts.
+    SessionPlayerTogglePlay,
+    SessionPlayerRestart,
+    /// Cycle the playback speed through the preset steps.
+    SessionPlayerSpeedCycle,
+    /// Scrubber / arrow-key jump to a playback position (milliseconds).
+    SessionPlayerSeek(f64),
+    /// Playback clock tick (subscription mounted while playing on the
+    /// History view).
+    SessionPlayerTick,
     /// Ask for confirmation before deleting one recording; the
     /// dialog's action carries `DeleteSessionLog`.
     RequestDeleteSessionLog(usize),
@@ -1249,6 +1267,18 @@ pub enum Message {
     ToggleShowHostAddress,
     /// Flip the global Privacy Mode default (auto-hide sensitive data).
     TogglePrivacyMode,
+    /// Privacy Mode session override (issue #78): press once to force
+    /// the opposite of the configured global state (above per-host
+    /// overrides too), press again to fall back to the settings.
+    /// Volatile, never persisted. Driven by the Ctrl+Shift+M hotkey
+    /// and the status-bar chip.
+    TogglePrivacySessionOverride,
+    /// Privacy Mode always-mask list edited (issue #78): literals
+    /// masked wherever they appear, on top of the derived terms.
+    SettingPrivacyAlwaysMaskChanged(String),
+    /// Privacy Mode never-mask list edited (issue #78): words the
+    /// derived terms must not include (generic usernames).
+    SettingPrivacyNeverMaskChanged(String),
     /// Flip the Settings > Advanced debug logging (tracing events also
     /// written to the exportable `~/.oryxis/oryxis-debug.log`).
     SettingToggleDebugLogging,
@@ -1299,18 +1329,6 @@ pub enum Message {
     /// re-rendered the whole app 10x/s on Windows. Only constructed on
     /// Windows (the subscription is only mounted there).
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    /// Privacy Mode session override (issue #78): press once to force
-    /// the opposite of the configured global state (above per-host
-    /// overrides too), press again to fall back to the settings.
-    /// Volatile, never persisted. Driven by the Ctrl+Shift+M hotkey
-    /// and the status-bar chip.
-    TogglePrivacySessionOverride,
-    /// Privacy Mode always-mask list edited (issue #78): literals
-    /// masked wherever they appear, on top of the derived terms.
-    SettingPrivacyAlwaysMaskChanged(String),
-    /// Privacy Mode never-mask list edited (issue #78): words the
-    /// derived terms must not include (generic usernames).
-    SettingPrivacyNeverMaskChanged(String),
     TrayMenuEvent(String),
     /// The tray icon was double-clicked (restore the window). Same
     /// event-driven delivery as [`TrayMenuEvent`].

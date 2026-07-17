@@ -40,6 +40,10 @@ impl Oryxis {
                     self.session_logs_page = 0;
                     self.load_data_from_vault();
                 }
+                // The wipe pulled the recording out from under any open
+                // viewer / player; drop them with it.
+                self.viewing_session_log = None;
+                self.session_player = None;
             }
             Message::LogsPageNext => {
                 let max_page = (self.logs_total.saturating_sub(1)) / 50;
@@ -72,6 +76,8 @@ impl Oryxis {
                         let palette = self.resolve_global_terminal_palette();
                         let spans = crate::ansi_render::render(&data, &palette);
                         self.viewing_session_log = Some((log_id, spans));
+                        // Mutually exclusive with the player surface.
+                        self.session_player = None;
                 }
             }
             Message::CloseSessionLogView => {
@@ -260,10 +266,14 @@ impl Oryxis {
                             .unwrap_or_default();
                     }
                 }
-                // Close viewer if we deleted the one being viewed
+                // Close viewer / player if we deleted the one being shown
                 if let Some((viewed_id, _)) = &self.viewing_session_log
                     && self.session_logs.iter().all(|s| s.id != *viewed_id) {
                         self.viewing_session_log = None;
+                }
+                if let Some(p) = &self.session_player
+                    && self.session_logs.iter().all(|s| s.id != p.log_id) {
+                        self.session_player = None;
                 }
             }
             Message::ClearSessionLogs => {
@@ -273,6 +283,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
                 self.viewing_session_log = None;
+                self.session_player = None;
             }
             Message::SessionLogsPageNext => {
                 let max_page = self.session_logs_total.saturating_sub(1) / 50;

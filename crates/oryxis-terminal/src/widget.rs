@@ -462,6 +462,12 @@ pub struct TerminalView<Message = ()> {
     /// frame, the visual bell (bell mode = Flash). Driven by `Pane.bell_flash`,
     /// which a short timer clears.
     bell_flash: bool,
+    /// When true, the grid keeps whatever geometry the backend holds
+    /// instead of auto-fitting the canvas bounds each draw. Replay
+    /// surfaces (the session player) pin the grid to the recording's
+    /// geometry; the host sizes the canvas with [`grid_pixel_size`] so
+    /// bounds and grid agree. Default false (live panes auto-fit).
+    fixed_grid: bool,
 }
 
 /// Horizontal padding around the terminal content (left/right).
@@ -633,6 +639,27 @@ fn cell_advance(font: Font, font_size: f32) -> f32 {
     advance
 }
 
+/// Pixel size of a canvas that shows exactly `cols` x `rows` cells of
+/// `font_name` at `font_size`, including the widget's own padding.
+/// Hosts of a fixed-grid view ([`TerminalView::with_fixed_grid`]) size
+/// the canvas with this so the pinned grid and the bounds agree; the
+/// metrics come from the same `cell_advance` cache the draw pass uses,
+/// so the result matches the rendered glyphs exactly.
+pub fn grid_pixel_size(
+    font_name: &str,
+    font_size: f32,
+    cols: u16,
+    rows: u16,
+) -> (f32, f32) {
+    let font = Font::new(intern_font_name(font_name));
+    let cell_w = cell_advance(font, font_size);
+    let cell_h = font_size * 1.15;
+    (
+        cols as f32 * cell_w + TERM_PAD * 2.0,
+        rows as f32 * cell_h + TERM_PAD_TOP + TERM_PAD,
+    )
+}
+
 impl<Message> TerminalView<Message> {
     pub fn new(state: Arc<Mutex<TerminalState>>) -> Self {
         let font_size = 14.0;
@@ -669,6 +696,7 @@ impl<Message> TerminalView<Message> {
             on_link_opened: None,
             focused: true,
             bell_flash: false,
+            fixed_grid: false,
         }
     }
 
@@ -682,6 +710,13 @@ impl<Message> TerminalView<Message> {
     /// Show the visual-bell flash overlay this frame.
     pub fn with_bell_flash(mut self, on: bool) -> Self {
         self.bell_flash = on;
+        self
+    }
+
+    /// Pin the grid to the backend's current geometry instead of
+    /// auto-fitting the canvas bounds (see the `fixed_grid` field).
+    pub fn with_fixed_grid(mut self, on: bool) -> Self {
+        self.fixed_grid = on;
         self
     }
 
@@ -2325,9 +2360,15 @@ where
                     };
                     lock_dur = lock_start.map(|t| t.elapsed()).unwrap_or_default();
 
-                    // Auto-resize
-                    let (new_cols, new_rows) = self.grid_size(bounds.width, bounds.height);
-                    state.resize(new_cols, new_rows);
+                    // Auto-resize. A fixed grid (replay surfaces) keeps the
+                    // backend's geometry: the recording drives resizes, and
+                    // the host sizes the canvas to match via
+                    // `grid_pixel_size`, so fitting bounds here would fight
+                    // the recorded resize events and reflow the replay.
+                    if !self.fixed_grid {
+                        let (new_cols, new_rows) = self.grid_size(bounds.width, bounds.height);
+                        state.resize(new_cols, new_rows);
+                    }
 
                     // Alt-screen apps (top, vim, less, htop, …) own the entire
                     // viewport with cursor positioning, there's no scrollback to

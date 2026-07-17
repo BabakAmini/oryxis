@@ -8,7 +8,6 @@ use iced::keyboard;
 use iced::Task;
 
 use crate::app::{Message, Oryxis};
-use crate::util::{ctrl_key_bytes, key_to_named_bytes};
 
 /// Flush a pane's recorded-output buffer to the vault once it reaches
 /// this size, so a burst (e.g. an `apt upgrade` dump) doesn't sit in
@@ -1083,6 +1082,35 @@ impl Oryxis {
                 if let keyboard::Event::ModifiersChanged(m) = &event {
                     self.modifiers = *m;
                 }
+                // Track which physical Alt (Option) side is held for the
+                // macOS OptionAsMeta quirk: `Modifiers` can't tell the
+                // sides apart, so watch the Alt key's own press/release.
+                // Must run ahead of every gate below (early returns would
+                // starve it); ModifiersChanged without Alt clears both so
+                // a release swallowed by a modal can't wedge a side down.
+                match &event {
+                    keyboard::Event::KeyPressed {
+                        key: keyboard::Key::Named(keyboard::key::Named::Alt),
+                        location,
+                        ..
+                    }
+                    | keyboard::Event::KeyReleased {
+                        key: keyboard::Key::Named(keyboard::key::Named::Alt),
+                        location,
+                        ..
+                    } => {
+                        let down = matches!(&event, keyboard::Event::KeyPressed { .. });
+                        match location {
+                            keyboard::Location::Left => self.alt_sides.left = down,
+                            keyboard::Location::Right => self.alt_sides.right = down,
+                            _ => {}
+                        }
+                    }
+                    keyboard::Event::ModifiersChanged(m) if !m.alt() => {
+                        self.alt_sides = crate::key_encode::OptionSides::default();
+                    }
+                    _ => {}
+                }
                 // Key-gate tracing (debug log): Ctrl+Shift chords are
                 // always app hotkeys, so snapshot the gate-relevant
                 // state on arrival. Field report 2026-07-03: the
@@ -1205,6 +1233,14 @@ impl Oryxis {
                         }
                     }
                     return Ok(Task::none());
+                }
+                // Session player (issue #71): while the player surface
+                // is up on the History view it owns its transport keys
+                // (Space, Left/Right, Home, Esc); everything else falls
+                // through so hotkeys keep working. See
+                // dispatch_player.rs.
+                if let Some(task) = self.handle_player_key(&event) {
+                    return Ok(task);
                 }
                 // An open pick_list dropdown owns the keyboard: the
                 // widget itself handles Enter/Space (confirm), Up/Down
@@ -1366,6 +1402,7 @@ impl Oryxis {
                     && self.connecting.is_none()
                     && let keyboard::Event::KeyPressed {
                         key,
+                        modified_key,
                         modifiers,
                         text: text_opt,
                         location,
@@ -1391,107 +1428,73 @@ impl Oryxis {
                             .get(tab_idx)
                             .map(|t| t.active().quirks)
                             .unwrap_or(oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS);
-                        // macOS: Cmd is the platform's clipboard modifier. The
-                        // Canvas widget and this global key subscription are
-                        // independent paths, so a widget-side copy does NOT
-                        // stop the bare character from echoing here. Swallow
-                        // every unregistered Cmd combo so it never leaks into
-                        // the PTY as text. Registered Cmd shortcuts (Cmd+K,
-                        // Cmd+T, the clipboard trio, ...) were already consumed
-                        // upstream by `handle_hotkey_keypress`. Ctrl keeps its
-                        // Unix meaning (Ctrl+C = SIGINT) on every platform,
-                        // including macOS.
-                        if cfg!(target_os = "macos")
-                            && modifiers.logo()
-                            && !modifiers.control()
+                        // Ctrl+D on a logged-out session (SSH / exec tab
+                        // relabelled "(disconnected)") has no shell left to
+                        // receive EOF, so it would be swallowed. Treat it as
+                        // "close this dead tab" instead, matching the muscle
+                        // memory of dismissing an exited shell. Only
+                        // single-pane tabs carry the suffix, so siblings are
+                        // never nuked. Ctrl WITHOUT Alt only: Ctrl+Alt may be
+                        // AltGr composition (Windows), which is the encoder's
+                        // call, never a close.
+                        if modifiers.control()
                             && !modifiers.alt()
+                            && !modifiers.shift()
+                            && let keyboard::Key::Character(ref c) = key
+                            && c.as_str().eq_ignore_ascii_case("d")
+                            && self
+                                .tabs
+                                .get(tab_idx)
+                                .is_some_and(|t| t.label.ends_with(" (disconnected)"))
                         {
-                            // Every Cmd combo falls out here without writing,
-                            // so nothing echoes. The clipboard ones (Cmd+C /
-                            // Cmd+V / Cmd+A) were already consumed upstream by
-                            // `handle_hotkey_keypress`, like every other
-                            // registered chord.
+                            return Ok(self.update(Message::CloseTab(tab_idx)));
                         }
-                        // Ctrl+letter → the shell's control byte.
-                        else if modifiers.control() && !modifiers.shift() {
-                            if let keyboard::Key::Character(ref c) = key {
-                                if c.as_str().eq_ignore_ascii_case("c") {
-                                    // Ctrl+C → send interrupt (byte 3)
-                                    self.write_input_to_tab(tab_idx, &[3]);
-                                } else if c.as_str().eq_ignore_ascii_case("d")
-                                    && self
-                                        .tabs
-                                        .get(tab_idx)
-                                        .is_some_and(|t| t.label.ends_with(" (disconnected)"))
-                                {
-                                    // A logged-out session (SSH / exec tab relabelled
-                                    // "(disconnected)") has no shell left to receive EOF,
-                                    // so Ctrl+D would be swallowed. Treat it as "close this
-                                    // dead tab" instead, matching the muscle memory of
-                                    // dismissing an exited shell. Only single-pane tabs
-                                    // carry the suffix, so siblings are never nuked.
-                                    return Ok(self.update(Message::CloseTab(tab_idx)));
-                                } else if let Some(bytes) = ctrl_key_bytes(&key) {
-                                    // Other Ctrl+key combinations
-                                    self.write_input_to_tab(tab_idx, &bytes);
-                                }
-                            } else if let Some(bytes) = key_to_named_bytes(&key, &modifiers, app_cursor, &pane_quirks) {
-                                // Ctrl + named key (e.g. Ctrl+Home)
-                                self.write_input_to_tab(tab_idx, &bytes);
-                            }
-                        } else if modifiers.shift() && modifiers.control() {
-                            // Ctrl+Shift+<key> is not a shell control sequence,
-                            // so nothing is written. The clipboard trio lives
-                            // here by convention and was already consumed
-                            // upstream by `handle_hotkey_keypress` (paste) or
-                            // by the widget (copy / select-all), like any other
-                            // registered chord.
-                        } else {
-                            // Normal keys (no Ctrl).
-                            // Iced's `key` is the key WITHOUT modifiers, so a numpad
-                            // keypress with NumLock on still shows up as Named::Home /
-                            // ArrowUp / etc. while the OS-produced `text` is "7" / "8".
-                            // Prefer the text on numpad so NumLock-on sends digits.
-                            let numpad_text = if location == keyboard::Location::Numpad {
-                                text_opt.as_ref().filter(|t| !t.is_empty())
-                                    .map(|t| t.as_bytes().to_vec())
-                            } else {
-                                None
-                            };
-                            let mut bytes = numpad_text
-                                .or_else(|| key_to_named_bytes(&key, &modifiers, app_cursor, &pane_quirks))
-                                .or_else(|| text_opt.as_ref().map(|t| t.as_bytes().to_vec()));
-
-                            // Meta-sends-escape: Alt+<char> (without Ctrl, so
-                            // AltGr, reported as Ctrl+Alt on Windows and not as
-                            // Alt on Linux, still composes text) is the
-                            // ESC-prefixed character, the form readline / bash /
-                            // zsh / vim / emacs / tmux bind their Meta keymaps to
-                            // (Alt+b = back one word, Alt+f = forward, Alt+. =
-                            // last arg, …). Named keys already fold their
-                            // modifier in via key_to_named_bytes, so this only
-                            // touches literal characters.
-                            if modifiers.alt()
-                                && !modifiers.control()
-                                && let keyboard::Key::Character(c) = &key
-                            {
-                                // Some platforms drop `text` while Alt is held;
-                                // fall back to the key's base character so
-                                // Alt+b still emits `ESC b`.
-                                let ch = bytes
-                                    .filter(|b| !b.is_empty())
-                                    .unwrap_or_else(|| c.as_str().as_bytes().to_vec());
-                                let mut esc = Vec::with_capacity(ch.len() + 1);
-                                esc.push(0x1b);
-                                esc.extend_from_slice(&ch);
-                                bytes = Some(esc);
-                            }
-
-                            if let Some(bytes) = bytes
-                                && !bytes.is_empty()
-                            {
-                                self.write_input_to_tab(tab_idx, &bytes);
-                            }
+                        // Everything else is the pure encoder's decision
+                        // table (`key_encode::pty_bytes`): the macOS Cmd and
+                        // Ctrl+Shift swallows, control bytes (Ctrl+C's
+                        // interrupt included), AltGr / Option composition
+                        // (issue #80), meta-sends-escape, the C5 named-key
+                        // quirks and the numpad NumLock text.
+                        let press = crate::key_encode::KeyPress {
+                            key: &key,
+                            modified_key: &modified_key,
+                            modifiers,
+                            text: text_opt.as_deref(),
+                            location,
+                        };
+                        let bytes = crate::key_encode::pty_bytes(
+                            &press,
+                            crate::key_encode::Platform::current(),
+                            app_cursor,
+                            &pane_quirks,
+                            self.alt_sides,
+                        );
+                        // Key-event tracing (debug log, opt-in): what winit
+                        // delivered vs what the encoder wrote is exactly the
+                        // evidence a layout report (bepo AltGr+Space, German
+                        // AltGr, Option composition) needs. Restricted to
+                        // chord/named presses so plain typing, passwords
+                        // included, never lands in the log file.
+                        if crate::logging::is_enabled()
+                            && (modifiers.control()
+                                || modifiers.alt()
+                                || matches!(key, keyboard::Key::Named(_)))
+                        {
+                            tracing::debug!(
+                                ?key,
+                                ?modified_key,
+                                ?modifiers,
+                                ?location,
+                                text = ?text_opt,
+                                out = ?bytes,
+                                alt_sides = ?self.alt_sides,
+                                "key-encode"
+                            );
+                        }
+                        if let Some(bytes) = bytes
+                            && !bytes.is_empty()
+                        {
+                            self.write_input_to_tab(tab_idx, &bytes);
                         }
                     }
             }

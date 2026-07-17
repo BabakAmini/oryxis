@@ -508,6 +508,12 @@ pub struct Oryxis {
     /// keyboard events. Used by SFTP click logic for ctrl/shift-click
     /// selection, iced's MouseArea events don't include modifiers.
     pub(crate) modifiers: keyboard::Modifiers,
+    /// Which physical Alt (Option) side is held, tracked from the Alt
+    /// key's own press/release events because `Modifiers` can't tell the
+    /// sides apart. Drives the macOS `OptionAsMeta` per-side quirk;
+    /// cleared by `ModifiersChanged` without Alt and by focus loss so a
+    /// swallowed release can't wedge a side down.
+    pub(crate) alt_sides: crate::key_encode::OptionSides,
     /// Debounce stamp for the PrintScreen -> Snipping Tool remap. winit
     /// can deliver both a press and a release for VK_SNAPSHOT; we launch
     /// on either and use this to avoid firing the snip overlay twice.
@@ -868,6 +874,10 @@ pub struct Oryxis {
     pub(crate) session_logs_page: usize,
     pub(crate) session_logs_total: usize,
     pub(crate) viewing_session_log: Option<(Uuid, Vec<crate::ansi_render::AnsiSpan>)>,
+    /// The in-app session player (issue #71), rendered as a full
+    /// surface on the History view while `Some`. Mutually exclusive
+    /// with `viewing_session_log` (opening either closes the other).
+    pub(crate) session_player: Option<crate::state::SessionPlayer>,
     /// Session-log row under the cursor (Logs view); drives the
     /// clickable-row hover highlight.
     pub(crate) hovered_log_row: Option<Uuid>,
@@ -1043,10 +1053,6 @@ pub struct Oryxis {
     /// and revealed on hover. Off by default. A per-host
     /// `Connection.privacy_mode` override wins over this.
     pub(crate) setting_privacy_mode: bool,
-    /// Settings > Advanced debug logging: mirror of the `debug_logging`
-    /// setting, true while tracing events are also written to the
-    /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
-    pub(crate) setting_debug_logging: bool,
     /// Privacy Mode session override (issue #78): `Some(v)` forces the
     /// mode to `v` everywhere, above the global setting AND the
     /// per-host overrides; `None` follows the configuration. Volatile
@@ -1071,6 +1077,10 @@ pub struct Oryxis {
     /// shared usernames keep everyday output readable. Raw as typed.
     /// Mirrors the `privacy_never_mask` setting.
     pub(crate) setting_privacy_never_mask: String,
+    /// Settings > Advanced debug logging: mirror of the `debug_logging`
+    /// setting, true while tracing events are also written to the
+    /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
+    pub(crate) setting_debug_logging: bool,
     /// Download-mirror block state (Settings > Advanced): persisted
     /// choice + custom-URL editing + probe outcome. The effective
     /// choice also lives in `net_mirror`'s process-wide slot so the

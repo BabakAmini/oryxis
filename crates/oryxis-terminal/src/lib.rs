@@ -16,3 +16,9 @@ pub use widget::{
     TerminalView,
 };
 pub use pty::PtyHandle;
+
+// The backend exposes `Term` and grid types in its public surface
+// (`TerminalBackend::term`), so consumers that inspect the grid (the
+// app's session player tests, the harness) need the crate's types
+// without pinning their own copy of the dependency.
+pub use alacritty_terminal;

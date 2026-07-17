@@ -102,6 +102,40 @@ impl Osc52Override {
     }
 }
 
+/// Which Option (Alt) keys act as Meta on macOS, sending `ESC <char>`
+/// instead of letting the OS compose the AltGr-layer character. The
+/// default lets both sides compose, matching Terminal.app / iTerm /
+/// alacritty / kitty: on European Mac layouts Option is the only way to
+/// type `|`, `{`, `}`, `[`, `]`, `@`. Meta is the opt-in for readline /
+/// emacs users, with per-side granularity (alacritty's `option_as_alt`).
+/// Ignored outside macOS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum OptionAsMeta {
+    /// Both Options compose characters (the macOS-native behaviour).
+    #[default]
+    None,
+    /// Left Option is Meta, right Option composes (WezTerm's default).
+    OnlyLeft,
+    /// Right Option is Meta, left Option composes.
+    OnlyRight,
+    /// Both Options are Meta; no Option-layer characters can be typed.
+    Both,
+}
+
+impl OptionAsMeta {
+    /// Whether a press with the given Option side(s) held should be Meta.
+    /// When both sides are down the Meta side wins (the user is holding a
+    /// deliberate chord; composing would need the *other* side alone).
+    pub fn is_meta(self, left: bool, right: bool) -> bool {
+        match self {
+            OptionAsMeta::None => false,
+            OptionAsMeta::OnlyLeft => left,
+            OptionAsMeta::OnlyRight => right,
+            OptionAsMeta::Both => left || right,
+        }
+    }
+}
+
 /// Per-host legacy keyboard modes + feature toggles. All fields default
 /// to today's behaviour; `TerminalQuirks::default()` is the identity
 /// (`DEFAULT_QUIRKS`), so an untouched host encodes exactly as before.
@@ -127,6 +161,11 @@ pub struct TerminalQuirks {
     /// [`Osc52Override::allows_write`]).
     #[serde(default)]
     pub osc52: Option<Osc52Override>,
+    /// macOS: which Option keys act as Meta instead of composing (see
+    /// [`OptionAsMeta`]). Stored per-host like every other quirk so it
+    /// rides sync / export; non-macOS platforms ignore it.
+    #[serde(default)]
+    pub option_as_meta: OptionAsMeta,
 }
 
 /// The identity quirks: today's xterm behaviour. Call sites without a
@@ -138,6 +177,7 @@ pub const DEFAULT_QUIRKS: TerminalQuirks = TerminalQuirks {
     disable_mouse_reporting: false,
     disable_title_change: false,
     osc52: None,
+    option_as_meta: OptionAsMeta::None,
 };
 
 // ── Display impls feed the host editor's pick_list mappers directly
@@ -170,6 +210,17 @@ impl std::fmt::Display for FunctionKeyMode {
             FunctionKeyMode::LinuxConsole => "Linux",
             FunctionKeyMode::Vt400 => "VT400",
             FunctionKeyMode::Rxvt => "rxvt",
+        })
+    }
+}
+
+impl std::fmt::Display for OptionAsMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            OptionAsMeta::None => "Off",
+            OptionAsMeta::OnlyLeft => "Left Option",
+            OptionAsMeta::OnlyRight => "Right Option",
+            OptionAsMeta::Both => "Both",
         })
     }
 }

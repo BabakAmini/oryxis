@@ -635,9 +635,26 @@ mod tests {
     }
 
     #[test]
+    fn quirks_payload_without_option_as_meta_defaults_to_none() {
+        // Quirks JSON written before the option_as_meta field existed must
+        // deserialize with the composing default, not fail.
+        use super::super::terminal_quirks::{OptionAsMeta, TerminalQuirks};
+        let mut conn = Connection::new("h", "1.2.3.4");
+        conn.quirks = Some(TerminalQuirks::default());
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value["quirks"]
+            .as_object_mut()
+            .unwrap()
+            .remove("option_as_meta");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.quirks.unwrap().option_as_meta, OptionAsMeta::None);
+    }
+
+    #[test]
     fn quirks_round_trip() {
         use super::super::terminal_quirks::{
-            BackspaceMode, FunctionKeyMode, HomeEndMode, Osc52Override, TerminalQuirks,
+            BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta, Osc52Override,
+            TerminalQuirks,
         };
         let mut conn = Connection::new("h", "1.2.3.4");
         conn.quirks = Some(TerminalQuirks {
@@ -647,6 +664,7 @@ mod tests {
             disable_mouse_reporting: true,
             disable_title_change: true,
             osc52: Some(Osc52Override::Off),
+            option_as_meta: OptionAsMeta::OnlyLeft,
         });
         conn.rekey_limit_mb = Some(256);
         let json = serde_json::to_string(&conn).unwrap();

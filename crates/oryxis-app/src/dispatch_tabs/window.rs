@@ -248,6 +248,10 @@ impl Oryxis {
             self.tab_drag = None;
             self.sftp.drag = None;
             self.sftp_col_drag = None;
+            // An Alt released outside the window never reaches us; a
+            // wedged side would silently turn Option keystrokes into
+            // Meta (or vice versa) after refocus.
+            self.alt_sides = crate::key_encode::OptionSides::default();
         }
         if focused {
             // Refocusing the window means the active tab is being

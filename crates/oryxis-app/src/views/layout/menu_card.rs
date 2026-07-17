@@ -11,10 +11,16 @@ impl Oryxis {
         let log_id = self.session_logs.get(idx).map(|e| e.id);
         let mut col = column![].spacing(2);
         if let Some(log_id) = log_id {
-            // .cast replay export pairs with full-detail
-            // recording; with simple logs the action is hidden
+            // Replay actions (in-app player, .cast export) pair with
+            // full-detail recording; with simple logs they are hidden
             // (owner call 2026-07-04), not just degraded.
             if self.setting_session_log_full {
+                col = col.push(self.menu_item(
+                    iced_fonts::lucide::play(),
+                    crate::i18n::t("session_play"),
+                    Message::PlaySessionLog(log_id),
+                    OryxisColors::t().success,
+                ));
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::film(),
                     crate::i18n::t("export_cast_tip"),

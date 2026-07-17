@@ -331,7 +331,9 @@ impl Oryxis {
     /// limit). Only rendered for terminal protocols (`is_terminal`);
     /// RDP/VNC hosts never call this.
     pub(super) fn hp_advanced_terminal_items(&self) -> Element<'_, Message> {
-        use oryxis_core::models::terminal_quirks::{BackspaceMode, FunctionKeyMode, HomeEndMode};
+        use oryxis_core::models::terminal_quirks::{
+            BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta,
+        };
         let q = &self.editor_form.quirks;
 
         let backspace_row = self.hp_quirk_pick_row(
@@ -404,6 +406,24 @@ impl Oryxis {
             Message::EditorQuirkOsc52Changed,
         );
 
+        // macOS Option-as-Meta (issue #80). Shown on every platform: the
+        // vault syncs across OSes, so a host edited on Linux/Windows must
+        // still be able to carry the quirk its Mac replica applies; the
+        // "(macOS)" in the label says where it takes effect.
+        let option_meta_row = self.hp_quirk_pick_row(
+            iced_fonts::lucide::option(),
+            t("quirks_option_meta"),
+            "editor-pick-quirk-optionmeta",
+            crate::util::quirk_option_as_meta_label(q.option_as_meta),
+            vec![
+                crate::util::quirk_option_as_meta_label(OptionAsMeta::None),
+                crate::util::quirk_option_as_meta_label(OptionAsMeta::OnlyLeft),
+                crate::util::quirk_option_as_meta_label(OptionAsMeta::OnlyRight),
+                crate::util::quirk_option_as_meta_label(OptionAsMeta::Both),
+            ],
+            Message::EditorQuirkOptionAsMetaChanged,
+        );
+
         // Rekey limit: a small numeric text input (empty = russh default).
         let rekey_input: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::input(iced::widget::Id::new("editor-quirk-rekey")),
@@ -435,6 +455,7 @@ impl Oryxis {
             mouse_row,
             title_row,
             osc52_row,
+            option_meta_row,
             rekey_row,
         ]
         .spacing(2)

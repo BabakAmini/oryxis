@@ -1047,6 +1047,10 @@ impl Oryxis {
                     None
                 };
             }
+            Message::EditorQuirkOptionAsMetaChanged(v) => {
+                self.editor_form.quirks.option_as_meta =
+                    crate::util::quirk_option_as_meta_from_label(&v);
+            }
             Message::EditorQuirkRekeyChanged(v) => {
                 // Digits only; empty allowed (= default). Clamp to russh's
                 // 1 GiB cap (1024 MB) so the field can't exceed it.
