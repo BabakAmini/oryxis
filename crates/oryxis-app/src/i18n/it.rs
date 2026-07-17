@@ -2,6 +2,12 @@
 
 pub(super) fn lookup(key: &str) -> Option<&'static str> {
     Some(match key {
+        "host_privacy_mode" => "Modalità privacy",
+        "quirks_applies_next_connect" => "Si applica alla prossima connessione a questo host.",
+        "quirks_backspace" => "Tasto Backspace",
+        "quirks_backspace_ctrl_h" => "Control-H (8)",
+        "quirks_backspace_del" => "Control-? (127)",
+        "quirks_section_title" => "Terminale avanzato",
         "expand" => "Espandi",
         "collapse" => "Comprimi",
         "nav_orientation" => "Navigazione",

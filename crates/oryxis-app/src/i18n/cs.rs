@@ -2,6 +2,12 @@
 
 pub(super) fn lookup(key: &str) -> Option<&'static str> {
     Some(match key {
+        "host_privacy_mode" => "Režim soukromí",
+        "quirks_applies_next_connect" => "Použije se při dalším připojení k tomuto hostiteli.",
+        "quirks_backspace" => "Klávesa Backspace",
+        "quirks_backspace_ctrl_h" => "Control-H (8)",
+        "quirks_backspace_del" => "Control-? (127)",
+        "quirks_section_title" => "Pokročilý terminál",
         // Navigation
         "expand" => "Rozbalit",
         "collapse" => "Sbalit",

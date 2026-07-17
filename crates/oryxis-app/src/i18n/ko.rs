@@ -2,6 +2,12 @@
 
 pub(super) fn lookup(key: &str) -> Option<&'static str> {
     Some(match key {
+        "host_privacy_mode" => "개인정보 보호 모드",
+        "quirks_applies_next_connect" => "이 호스트에 다음 연결 시 적용됩니다.",
+        "quirks_backspace" => "Backspace 키",
+        "quirks_backspace_ctrl_h" => "Control-H (8)",
+        "quirks_backspace_del" => "Control-? (127)",
+        "quirks_section_title" => "고급 터미널",
         // Navigation
         "expand" => "펼치기",
         "collapse" => "접기",
