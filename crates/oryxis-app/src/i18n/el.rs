@@ -735,6 +735,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Αναζήτηση...",
         "history_export_tip" => "Εξαγωγή ως κείμενο",
         "session_play" => "Αναπαραγωγή εγγραφής",
+        "more_actions" => "Περισσότερες ενέργειες",
         "player_play_tip" => "Αναπαραγωγή (Space)",
         "player_pause_tip" => "Παύση (Space)",
         "player_restart_tip" => "Από την αρχή",

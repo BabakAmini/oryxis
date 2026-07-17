@@ -8,6 +8,23 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn build_menu_session_log_actions(&self, idx: usize) -> Element<'_, Message> {
+        self.build_menu_session_log_actions_impl(idx, true)
+    }
+
+    /// The viewer-header `...` variant: the viewer carries a dedicated
+    /// Play button, so the menu skips the Play row.
+    pub(crate) fn build_menu_session_log_viewer_actions(
+        &self,
+        idx: usize,
+    ) -> Element<'_, Message> {
+        self.build_menu_session_log_actions_impl(idx, false)
+    }
+
+    fn build_menu_session_log_actions_impl(
+        &self,
+        idx: usize,
+        include_play: bool,
+    ) -> Element<'_, Message> {
         let log_id = self.session_logs.get(idx).map(|e| e.id);
         let mut col = column![].spacing(2);
         if let Some(log_id) = log_id {
@@ -15,12 +32,14 @@ impl Oryxis {
             // full-detail recording; with simple logs they are hidden
             // (owner call 2026-07-04), not just degraded.
             if self.setting_session_log_full {
-                col = col.push(self.menu_item(
-                    iced_fonts::lucide::play(),
-                    crate::i18n::t("session_play"),
-                    Message::PlaySessionLog(log_id),
-                    OryxisColors::t().success,
-                ));
+                if include_play {
+                    col = col.push(self.menu_item(
+                        iced_fonts::lucide::play(),
+                        crate::i18n::t("session_play"),
+                        Message::PlaySessionLog(log_id),
+                        OryxisColors::t().success,
+                    ));
+                }
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::film(),
                     crate::i18n::t("export_cast_tip"),

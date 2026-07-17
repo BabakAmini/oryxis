@@ -735,6 +735,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Procházet...",
         "history_export_tip" => "Exportovat jako text",
         "session_play" => "Přehrát nahrávku",
+        "more_actions" => "Další akce",
         "player_play_tip" => "Přehrát (mezerník)",
         "player_pause_tip" => "Pozastavit (mezerník)",
         "player_restart_tip" => "Od začátku",

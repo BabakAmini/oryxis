@@ -729,6 +729,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Огляд...",
         "history_export_tip" => "Експортувати як текст",
         "session_play" => "Відтворити запис",
+        "more_actions" => "Інші дії",
         "player_play_tip" => "Відтворити (Пробіл)",
         "player_pause_tip" => "Пауза (Пробіл)",
         "player_restart_tip" => "Спочатку",

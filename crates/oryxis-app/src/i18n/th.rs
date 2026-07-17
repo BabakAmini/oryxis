@@ -735,6 +735,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "เรียกดู...",
         "history_export_tip" => "ส่งออกเป็นข้อความ",
         "session_play" => "เล่นการบันทึก",
+        "more_actions" => "การทำงานเพิ่มเติม",
         "player_play_tip" => "เล่น (Space)",
         "player_pause_tip" => "หยุดชั่วคราว (Space)",
         "player_restart_tip" => "เริ่มใหม่",

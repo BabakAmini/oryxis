@@ -729,6 +729,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Telusuri...",
         "history_export_tip" => "Ekspor sebagai teks",
         "session_play" => "Putar rekaman",
+        "more_actions" => "Tindakan lainnya",
         "player_play_tip" => "Putar (Spasi)",
         "player_pause_tip" => "Jeda (Spasi)",
         "player_restart_tip" => "Mulai ulang",

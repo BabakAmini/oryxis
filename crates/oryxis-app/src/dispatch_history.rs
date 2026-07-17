@@ -83,6 +83,24 @@ impl Oryxis {
             Message::CloseSessionLogView => {
                 self.viewing_session_log = None;
             }
+            Message::ShowSessionLogViewerMenu(idx) => {
+                use crate::state::{OverlayContent, OverlayState};
+                // Toggle, mirroring the row kebab below.
+                let already = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::SessionLogViewerActions(i)) if *i == idx
+                );
+                if already {
+                    self.overlay = None;
+                } else {
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::SessionLogViewerActions(idx),
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+            }
             Message::ShowSessionLogMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle, mirroring the other card kebabs.

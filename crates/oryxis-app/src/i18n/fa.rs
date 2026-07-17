@@ -731,6 +731,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "مرور...",
         "history_export_tip" => "خروجی متنی",
         "session_play" => "پخش ضبط",
+        "more_actions" => "کارهای بیشتر",
         "player_play_tip" => "پخش (Space)",
         "player_pause_tip" => "مکث (Space)",
         "player_restart_tip" => "شروع دوباره",

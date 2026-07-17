@@ -729,6 +729,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "찾아보기...",
         "history_export_tip" => "텍스트로 내보내기",
         "session_play" => "녹화 재생",
+        "more_actions" => "추가 작업",
         "player_play_tip" => "재생 (Space)",
         "player_pause_tip" => "일시정지 (Space)",
         "player_restart_tip" => "처음부터",

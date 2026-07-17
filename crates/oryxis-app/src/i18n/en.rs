@@ -736,6 +736,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "browse" => "Browse...",
         "history_export_tip" => "Export as text",
         "session_play" => "Play recording",
+        "more_actions" => "More actions",
         "player_play_tip" => "Play (Space)",
         "player_pause_tip" => "Pause (Space)",
         "player_restart_tip" => "Restart",

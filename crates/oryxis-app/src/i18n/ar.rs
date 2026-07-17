@@ -747,6 +747,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "تصفح...",
         "history_export_tip" => "تصدير كنص",
         "session_play" => "تشغيل التسجيل",
+        "more_actions" => "مزيد من الإجراءات",
         "player_play_tip" => "تشغيل (مسافة)",
         "player_pause_tip" => "إيقاف مؤقت (مسافة)",
         "player_restart_tip" => "إعادة التشغيل",

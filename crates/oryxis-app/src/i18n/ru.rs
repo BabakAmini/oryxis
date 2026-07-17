@@ -583,6 +583,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Обзор...",
         "history_export_tip" => "Экспорт в текст",
         "session_play" => "Воспроизвести запись",
+        "more_actions" => "Другие действия",
         "player_play_tip" => "Воспроизвести (Пробел)",
         "player_pause_tip" => "Пауза (Пробел)",
         "player_restart_tip" => "Сначала",

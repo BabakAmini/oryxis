@@ -43,6 +43,10 @@ pub(crate) enum OverlayContent {
     /// Kebab menu on a History session row: Export .cast, Export
     /// transcript, Delete. `usize` is the `session_logs` index.
     SessionLogActions(usize),
+    /// Same session-log actions, opened from the viewer's header `...`
+    /// button: the viewer has a dedicated Play button, so this variant
+    /// renders the menu without the Play row.
+    SessionLogViewerActions(usize),
     /// Dropdown next to the dashboard sort button: pick a host tag to
     /// filter the grid by (or clear the filter).
     HostTagFilter,

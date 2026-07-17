@@ -735,6 +735,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "עיון...",
         "history_export_tip" => "ייצוא כטקסט",
         "session_play" => "נגן הקלטה",
+        "more_actions" => "פעולות נוספות",
         "player_play_tip" => "נגן (רווח)",
         "player_pause_tip" => "השהה (רווח)",
         "player_restart_tip" => "התחל מחדש",

@@ -735,6 +735,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "ब्राउज़ करें...",
         "history_export_tip" => "टेक्स्ट के रूप में एक्सपोर्ट करें",
         "session_play" => "रिकॉर्डिंग चलाएँ",
+        "more_actions" => "अधिक कार्रवाइयाँ",
         "player_play_tip" => "चलाएँ (Space)",
         "player_pause_tip" => "रोकें (Space)",
         "player_restart_tip" => "फिर से शुरू करें",

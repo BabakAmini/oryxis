@@ -592,6 +592,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "瀏覽...",
         "history_export_tip" => "匯出為文字",
         "session_play" => "播放錄製",
+        "more_actions" => "更多動作",
         "player_play_tip" => "播放（空白鍵）",
         "player_pause_tip" => "暫停（空白鍵）",
         "player_restart_tip" => "重新開始",

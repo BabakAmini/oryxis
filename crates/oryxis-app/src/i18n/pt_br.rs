@@ -704,6 +704,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Procurar...",
         "history_export_tip" => "Exportar como texto",
         "session_play" => "Reproduzir gravação",
+        "more_actions" => "Mais ações",
         "player_play_tip" => "Reproduzir (Espaço)",
         "player_pause_tip" => "Pausar (Espaço)",
         "player_restart_tip" => "Reiniciar",

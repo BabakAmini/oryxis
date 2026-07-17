@@ -583,6 +583,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Durchsuchen...",
         "history_export_tip" => "Als Text exportieren",
         "session_play" => "Aufzeichnung abspielen",
+        "more_actions" => "Weitere Aktionen",
         "player_play_tip" => "Abspielen (Leertaste)",
         "player_pause_tip" => "Pause (Leertaste)",
         "player_restart_tip" => "Neu starten",

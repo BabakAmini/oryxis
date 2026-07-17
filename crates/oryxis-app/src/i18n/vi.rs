@@ -729,6 +729,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Duyệt...",
         "history_export_tip" => "Xuất dưới dạng văn bản",
         "session_play" => "Phát bản ghi",
+        "more_actions" => "Thao tác khác",
         "player_play_tip" => "Phát (Space)",
         "player_pause_tip" => "Tạm dừng (Space)",
         "player_restart_tip" => "Phát lại từ đầu",

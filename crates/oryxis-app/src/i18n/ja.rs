@@ -592,6 +592,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "参照...",
         "history_export_tip" => "テキストとして書き出す",
         "session_play" => "録画を再生",
+        "more_actions" => "その他の操作",
         "player_play_tip" => "再生 (スペース)",
         "player_pause_tip" => "一時停止 (スペース)",
         "player_restart_tip" => "最初から再生",

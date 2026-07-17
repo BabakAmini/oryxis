@@ -729,6 +729,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "browse" => "Gözat...",
         "history_export_tip" => "Metin olarak dışa aktar",
         "session_play" => "Kaydı oynat",
+        "more_actions" => "Diğer eylemler",
         "player_play_tip" => "Oynat (Boşluk)",
         "player_pause_tip" => "Duraklat (Boşluk)",
         "player_restart_tip" => "Baştan başlat",

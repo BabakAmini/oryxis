@@ -1146,6 +1146,9 @@ pub enum Message {
     /// toast), `Some(Ok(path))` / `Some(Err(cause))` otherwise.
     GifExportFinished(Option<Result<String, String>>),
     CloseSessionLogView,
+    /// Toggle the viewer-header `...` menu (session-log actions minus
+    /// Play, which the viewer offers as its own header button).
+    ShowSessionLogViewerMenu(usize),
     /// Open the in-app session player for a recording (issue #71):
     /// replays the timed chunks through a read-only terminal backend.
     PlaySessionLog(Uuid),

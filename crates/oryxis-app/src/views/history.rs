@@ -357,7 +357,7 @@ impl Oryxis {
                 .iter()
                 .map(|s| {
                     let txt = if mask {
-                        crate::widgets::redact_for_display(&s.text, &privacy_terms)
+                        crate::widgets::redact_for_display(&s.text, &privacy_terms, self.privacy_classes())
                     } else {
                         s.text.clone()
                     };
@@ -370,7 +370,10 @@ impl Oryxis {
                 .font(iced::Font::MONOSPACE)
                 .selectable(true);
             // Header row: title, optional Privacy reveal toggle (only when
-            // the recording's host is under Privacy Mode), then Close.
+            // the recording's host is under Privacy Mode), then the
+            // recording actions: Play (the primary verb, its own button,
+            // owner call 2026-07-17), a `...` menu with the exports +
+            // delete, and Close.
             let mut header_items: Vec<Element<'_, Message>> = vec![
                 text(crate::i18n::t("session_log"))
                     .size(16)
@@ -380,6 +383,46 @@ impl Oryxis {
             ];
             if privacy_applies {
                 header_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+                header_items.push(Space::new().width(8).into());
+            }
+            // Resolve the viewed recording's index for the actions menu;
+            // a row deleted underneath the viewer resolves to None and
+            // simply drops the affordances.
+            let viewed_idx = self.session_logs.iter().position(|e| e.id == log_id);
+            if let Some(idx) = viewed_idx {
+                // Play pairs with full-detail recording, same gate as
+                // the row menu (owner call 2026-07-04).
+                if self.setting_session_log_full {
+                    header_items.push(viewer_header_btn(
+                        iced_fonts::lucide::play()
+                            .size(11)
+                            .color(OryxisColors::t().success)
+                            .into(),
+                        Some(crate::i18n::t("session_play")),
+                        Message::PlaySessionLog(log_id),
+                    ));
+                    header_items.push(Space::new().width(8).into());
+                }
+                let menu_open = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::SessionLogViewerActions(i)) if *i == idx
+                );
+                header_items.push(crate::views::terminal::icon_tooltip(
+                    viewer_header_btn(
+                        // Same glyph the card kebabs draw.
+                        text("\u{22EE}")
+                            .size(13)
+                            .color(if menu_open {
+                                OryxisColors::t().text_primary
+                            } else {
+                                OryxisColors::t().text_muted
+                            })
+                            .into(),
+                        None,
+                        Message::ShowSessionLogViewerMenu(idx),
+                    ),
+                    crate::i18n::t("more_actions"),
+                ));
                 header_items.push(Space::new().width(8).into());
             }
             header_items.push(
@@ -556,7 +599,7 @@ impl Oryxis {
         let subtitle = match &row.kind {
             TimelineKind::Failure(e) => {
                 let msg = if mask {
-                    crate::widgets::redact_for_display(&e.message, &self.privacy_terms())
+                    crate::widgets::redact_for_display(&e.message, &self.privacy_terms(), self.privacy_classes())
                 } else {
                     e.message.clone()
                 };
@@ -719,6 +762,55 @@ impl Oryxis {
             None => card.into(),
         }
     }
+}
+
+/// Small bordered header button for the session-log viewer, matching
+/// the Close button's look: an icon, optionally with a label, hover
+/// fill for feedback (the app-wide button convention).
+fn viewer_header_btn<'a>(
+    icon: Element<'a, Message>,
+    label: Option<&'a str>,
+    msg: Message,
+) -> Element<'a, Message> {
+    let mut items: Vec<Element<'a, Message>> = vec![icon];
+    if let Some(label) = label {
+        items.push(Space::new().width(6).into());
+        items.push(
+            text(label)
+                .size(11)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Bold,
+                    ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                })
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+        );
+    }
+    button(
+        container(
+            crate::widgets::dir_row(items).align_y(iced::Alignment::Center),
+        )
+        .center_y(Length::Fixed(24.0))
+        .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 12.0 }),
+    )
+    .on_press(msg)
+    .style(|_, status| {
+        let bg = match status {
+            BtnStatus::Hovered => OryxisColors::t().bg_hover,
+            BtnStatus::Pressed => Color { a: 0.25, ..OryxisColors::t().accent },
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border {
+                radius: Radius::from(6.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        }
+    })
+    .into()
 }
 
 /// Pagination chevron button. Disabled state has no `on_press` and a
