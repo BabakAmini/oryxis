@@ -100,7 +100,12 @@ pub(crate) fn sftp_session_tab<'a>(
     pinned: bool,
     solid_fill: bool,
 ) -> Element<'a, Message> {
-    let effective_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
+    // The raw host colour fills the badge (white glyph on top stays
+    // legible); the contrast-validated variant (issue #79) is what may
+    // render as text, border and gradient wash over the strip.
+    let badge_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
+    let effective_accent =
+        crate::theme::readable_accent_on(badge_accent, OryxisColors::t().bg_sidebar);
     let fg = if is_active {
         effective_accent
     } else {
@@ -118,7 +123,7 @@ pub(crate) fn sftp_session_tab<'a>(
         .center_x(Length::Fixed(TAB_ICON_SLOT))
         .center_y(Length::Fixed(TAB_ICON_SLOT))
         .style(move |_| container::Style {
-            background: Some(Background::Color(effective_accent)),
+            background: Some(Background::Color(badge_accent)),
             border: Border { radius: Radius::from(4.0), ..Default::default() },
             ..Default::default()
         });
@@ -210,8 +215,13 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, host_accent: Opt
             border: Border { radius: Radius::from(4.0), ..Default::default() },
             ..Default::default()
         });
+    // Contrast-validated (issue #79) so a black brand colour still
+    // produces a visible "lit from above" active wash on dark themes.
     let bg: Background = if is_active {
-        active_tab_bg(accent, solid_fill)
+        active_tab_bg(
+            crate::theme::readable_accent_on(accent, OryxisColors::t().bg_sidebar),
+            solid_fill,
+        )
     } else {
         Background::Color(Color::TRANSPARENT)
     };
@@ -278,7 +288,14 @@ pub(crate) fn session_tab<'a>(
     // glyph (>_ terminal / folder files); `None` hides it (no SSH).
     files_mode: Option<bool>,
 ) -> Element<'a, Message> {
-    let effective_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
+    // Contrast validator (issue #79): the accent renders as the active
+    // tab's TEXT (plus borders and the gradient wash) over the strip, so
+    // a too-dark brand colour (AlmaLinux black, macOS grey) is repaired
+    // toward readability. The OS badge below keeps the raw brand colour.
+    let effective_accent = crate::theme::readable_accent_on(
+        host_accent.unwrap_or_else(|| OryxisColors::t().accent),
+        OryxisColors::t().bg_sidebar,
+    );
     let fg = if is_active {
         effective_accent
     } else {
@@ -771,7 +788,13 @@ pub(crate) fn pinned_tab_chip<'a>(
     // (a pinned hybrid must not lose its toggle).
     files_mode: Option<bool>,
 ) -> Element<'a, Message> {
-    let accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
+    // Contrast validator (issue #79): the accent tints the mode-chip
+    // glyph and the active gradient wash, both over the strip; the OS
+    // badge below keeps the raw brand colour.
+    let accent = crate::theme::readable_accent_on(
+        host_accent.unwrap_or_else(|| OryxisColors::t().accent),
+        OryxisColors::t().bg_sidebar,
+    );
     let fallback = OryxisColors::t().accent;
     let (glyph, badge_color) = if let Some(name) = custom_icon {
         (crate::os_icon::custom_icon_glyph(name), custom_color.unwrap_or(fallback))

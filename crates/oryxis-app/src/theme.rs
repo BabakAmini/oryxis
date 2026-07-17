@@ -741,12 +741,10 @@ fn relative_luminance(c: Color) -> f32 {
 
 /// WCAG contrast ratio between two opaque sRGB colors. Range 1.0 (no
 /// contrast) up to 21.0 (white-on-black). AA-compliant body text
-/// requires at least 4.5; large/bold text at least 3.0. Currently
-/// used only by the theme tests, `contrast_text_for` switched to a
-/// luminance threshold for visual consistency. Kept as a public
-/// helper so future palette work can spot-check pairings without
-/// re-deriving the formula.
-#[allow(dead_code)]
+/// requires at least 4.5; large/bold text at least 3.0. Drives the
+/// theme tests and the `readable_accent_on` validator;
+/// `contrast_text_for` deliberately uses a plain luminance threshold
+/// instead for visual consistency.
 pub fn contrast_ratio(a: Color, b: Color) -> f32 {
     let la = relative_luminance(a);
     let lb = relative_luminance(b);
@@ -792,6 +790,49 @@ pub fn mix(a: Color, b: Color, t: f32) -> Color {
         b: a.b + (b.b - a.b) * t,
         a: 1.0,
     }
+}
+
+/// Minimum WCAG ratio for accent-coloured text over a surface. 4.5:1 is
+/// the AA threshold for small text; tab labels render at 12 px.
+const MIN_ACCENT_TEXT_CONTRAST: f32 = 4.5;
+
+/// Contrast validator for an accent colour that is about to render as
+/// TEXT (or a hairline stroke) on `bg` (issue #79: AlmaLinux's brand
+/// black painted the active-tab label invisible on dark themes).
+/// Colours that already meet AA small-text contrast (4.5:1) return
+/// unchanged, so Ubuntu orange etc. keep their exact brand value; a
+/// failing colour is blended toward the readable pole (white over dark
+/// surfaces, near-black over light ones) by the SMALLEST amount that
+/// reaches the threshold, keeping as much of the brand hue as possible.
+/// On surfaces where no colour can reach 4.5:1 (mid-grey) the pole
+/// itself comes back, the best available.
+pub fn readable_accent_on(accent: Color, bg: Color) -> Color {
+    if contrast_ratio(accent, bg) >= MIN_ACCENT_TEXT_CONTRAST {
+        return accent;
+    }
+    // Head toward whichever pole can buy the most contrast on this
+    // surface (not the 0.5 luminance split: on a mid-tone background
+    // the nearer pole may never reach the threshold at all).
+    let dark_pole = Color::from_rgb(0.05, 0.06, 0.07);
+    let pole = if contrast_ratio(Color::WHITE, bg) >= contrast_ratio(dark_pole, bg) {
+        Color::WHITE
+    } else {
+        dark_pole
+    };
+    // The pass/fail predicate is monotone in the blend factor (past the
+    // point where the blend crosses the background's luminance the ratio
+    // only grows toward the pole), so binary-search the smallest passing
+    // mix. 16 rounds resolve t below one 8-bit channel step.
+    let (mut lo, mut hi) = (0.0f32, 1.0f32);
+    for _ in 0..16 {
+        let mid = (lo + hi) / 2.0;
+        if contrast_ratio(mix(accent, pole, mid), bg) >= MIN_ACCENT_TEXT_CONTRAST {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    mix(accent, pole, hi)
 }
 
 /// Tone an accent colour toward the current surface: darken it on dark

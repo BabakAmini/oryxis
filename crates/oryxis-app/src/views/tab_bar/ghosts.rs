@@ -21,6 +21,9 @@ pub(crate) fn drag_ghost<'a>(
     } else {
         crate::os_icon::resolve_icon(detected_os.as_deref(), accent)
     };
+    // Contrast validator (issue #79): the label and outline sit on the
+    // ghost's own bg_hover fill; the badge keeps the raw brand colour.
+    let text_accent = crate::theme::readable_accent_on(accent, OryxisColors::t().bg_hover);
     let glyph_el: Element<'_, Message> = glyph.view(12.0, Color::WHITE);
     let badge = crate::widgets::host_icon(
         crate::widgets::HostIconStyle::Rounded,
@@ -46,7 +49,7 @@ pub(crate) fn drag_ghost<'a>(
                 .line_height(1.0)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .font(SYSTEM_UI_SEMIBOLD)
-                .color(accent)
+                .color(text_accent)
                 .into(),
         ])
         .align_y(iced::Alignment::Center)
@@ -58,7 +61,7 @@ pub(crate) fn drag_ghost<'a>(
         .width(Length::Fixed(width))
         .style(move |_| container::Style {
             background: Some(Background::Color(Color { a: 0.96, ..OryxisColors::t().bg_hover })),
-            border: Border { radius: Radius::from(6.0), color: accent, width: 1.5 },
+            border: Border { radius: Radius::from(6.0), color: text_accent, width: 1.5 },
             shadow: iced::Shadow {
                 color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
                 offset: iced::Vector::new(0.0, 2.0),
@@ -72,6 +75,9 @@ pub(crate) fn drag_ghost<'a>(
 /// Floating drag ghost for an SFTP tab: the folder badge (tinted with the host
 /// color) plus the label, mirroring `drag_ghost` but keeping the SFTP identity.
 pub(crate) fn sftp_drag_ghost<'a>(label: String, compact: bool, width: f32, accent: Color) -> Element<'a, Message> {
+    // Contrast validator (issue #79): label and outline sit on the
+    // ghost's own bg_hover fill; the badge keeps the raw brand colour.
+    let text_accent = crate::theme::readable_accent_on(accent, OryxisColors::t().bg_hover);
     let badge = container(iced_fonts::lucide::folder_tree().size(12).color(Color::WHITE))
         .center_x(Length::Fixed(TAB_ICON_SLOT))
         .center_y(Length::Fixed(TAB_ICON_SLOT))
@@ -94,7 +100,7 @@ pub(crate) fn sftp_drag_ghost<'a>(label: String, compact: bool, width: f32, acce
                 .line_height(1.0)
                 .wrapping(iced::widget::text::Wrapping::None)
                 .font(SYSTEM_UI_SEMIBOLD)
-                .color(accent)
+                .color(text_accent)
                 .into(),
         ])
         .align_y(iced::Alignment::Center)
@@ -106,7 +112,7 @@ pub(crate) fn sftp_drag_ghost<'a>(label: String, compact: bool, width: f32, acce
         .width(Length::Fixed(width))
         .style(move |_| container::Style {
             background: Some(Background::Color(Color { a: 0.96, ..OryxisColors::t().bg_hover })),
-            border: Border { radius: Radius::from(6.0), color: accent, width: 1.5 },
+            border: Border { radius: Radius::from(6.0), color: text_accent, width: 1.5 },
             shadow: iced::Shadow {
                 color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
                 offset: iced::Vector::new(0.0, 2.0),

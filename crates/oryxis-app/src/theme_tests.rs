@@ -103,6 +103,43 @@ fn buttons_using_helper_meet_large_text_aa() {
 }
 
 #[test]
+fn readable_accent_repairs_unreadable_brand_colours() {
+    // Issue #79: AlmaLinux's brand colour is pure black, which painted
+    // the active-tab label invisible on dark themes. The validator must
+    // lift it to AA small-text contrast over every shipped strip
+    // background, and symmetrically darken a pale brand colour
+    // (OpenBSD yellow) on the light themes.
+    let alma_black = Color::from_rgb8(0x00, 0x00, 0x00);
+    let openbsd_yellow = Color::from_rgb8(0xFA, 0xDA, 0x64);
+    for (name, t) in all_themes() {
+        for (accent_label, accent) in
+            [("alma black", alma_black), ("openbsd yellow", openbsd_yellow)]
+        {
+            let fixed = readable_accent_on(accent, t.bg_sidebar);
+            let r = contrast_ratio(fixed, t.bg_sidebar);
+            assert!(
+                r >= BODY_TEXT_THRESHOLD,
+                "{name}: repaired {accent_label} on bg_sidebar only {r:.2} < {BODY_TEXT_THRESHOLD}",
+            );
+        }
+    }
+}
+
+#[test]
+fn readable_accent_keeps_passing_colours_untouched() {
+    // Brand identity must survive bit-for-bit when no repair is needed;
+    // text_primary on bg_sidebar is asserted ≥ 4.5 above, so it makes a
+    // guaranteed-passing probe in every theme.
+    for (name, t) in all_themes() {
+        let fixed = readable_accent_on(t.text_primary, t.bg_sidebar);
+        assert_eq!(
+            fixed, t.text_primary,
+            "{name}: passing colour was altered by the validator",
+        );
+    }
+}
+
+#[test]
 fn muted_label_remains_legible_against_surface() {
     // text_secondary is used for form labels (e.g. "Forward SSH Agent"
     // beside the toggle). It can be a softer ratio than body text but
