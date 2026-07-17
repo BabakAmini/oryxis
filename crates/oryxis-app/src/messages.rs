@@ -1362,6 +1362,7 @@ pub enum Message {
     SettingTabCloseButtonSideChanged(String),
     SettingPinnedTabStyleChanged(String),
     SettingTabFillStyleChanged(String),
+    SettingTabAccentColorChanged(String),
     /// Dock the tab strip at the top (default) or the bottom of the
     /// window ("top" / "bottom"). The window chrome (burger, drag area,
     /// minimize / maximize / close) stays in a slim top bar either way.
