@@ -485,6 +485,11 @@ pub(crate) struct ZmodemPane {
     /// Bytes moved so far, and the advertised total when known.
     pub transferred: u64,
     pub total: Option<u64>,
+    /// Output that arrived after the driver ended but before its
+    /// terminal `Progress` cleared the divert (the `wire_tx` send
+    /// fails once the driver drops its receiver). Replayed into the
+    /// emulator at teardown so a fast prompt is never swallowed.
+    pub late: Vec<u8>,
 }
 
 /// A terminal tab. Its panes live in an iced `pane_grid::State`, which owns
@@ -1056,6 +1061,7 @@ mod terminal_tab_tests {
             file_name: None,
             transferred: 0,
             total: None,
+            late: Vec::new(),
         });
         let targets = tab.broadcast_target_ids();
         assert!(!targets.contains(&id3), "zmodem pane must be skipped");

@@ -24,6 +24,15 @@
 //!   `CANCEL` sequence itself (`zmodem2`'s `abort()` only queues the
 //!   `Aborted` event; it stages no wire bytes), so the remote tears
 //!   down cleanly instead of waiting out its timeout.
+//! - **Completion is not the end of the wire.** `poll()` yields events
+//!   before queued wire bytes, so `SessionCompleted` arrives while the
+//!   final handshake (the receiver's ZFIN reply, the sender's "OO") is
+//!   still queued. The loops keep pumping until `Idle` before
+//!   returning; a download then also absorbs the peer's trailing "OO".
+//!   Returning on the event alone left the remote `sz` retrying ZFIN
+//!   against silence, holding its tty for ~20 s of timeouts (issue
+//!   #77). A local error sends `CANCEL` for the same reason: the peer
+//!   must never be left to wait out its own clock.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -55,8 +64,11 @@ pub enum Progress {
     Advanced { transferred: u64, total: Option<u64> },
     /// One file finished; `path` is where a download landed.
     FileDone { name: String, path: Option<PathBuf> },
-    /// The whole session finished successfully.
-    Completed,
+    /// The whole session finished successfully. `trailing` carries any
+    /// post-protocol bytes captured while confirming the peer's final
+    /// "OO" (e.g. a fast shell prompt coalesced into the same read);
+    /// they belong to the terminal, not the transfer.
+    Completed { trailing: Vec<u8> },
     /// The session was cancelled (by us or the peer).
     Aborted,
     /// The transfer failed; the string is a human-readable reason.
@@ -90,15 +102,25 @@ pub async fn run(direction: Direction, spec: TransferSpec, first_wire: Vec<u8>, 
         Direction::Upload => run_upload(spec, first_wire, &mut io).await,
     };
     let terminal = match result {
-        Ok(Outcome::Completed) => Progress::Completed,
+        Ok(Outcome::Completed(trailing)) => Progress::Completed { trailing },
         Ok(Outcome::Aborted) => Progress::Aborted,
-        Err(e) => Progress::Error(e),
+        Err(e) => {
+            // A local failure (disk, protocol) strands the peer
+            // mid-session; without a cancel it holds the tty until its
+            // own timeouts expire, the same freeze an unanswered ZFIN
+            // causes. Release it now; if the wire is already gone the
+            // send fails harmlessly.
+            let _ = io.wire_out.send(crate::CANCEL.to_vec());
+            Progress::Error(e)
+        }
     };
     let _ = io.progress.send(terminal);
 }
 
 enum Outcome {
-    Completed,
+    /// Success; carries post-protocol bytes for the terminal (see
+    /// [`Progress::Completed`]).
+    Completed(Vec<u8>),
     Aborted,
 }
 
@@ -153,6 +175,7 @@ async fn run_download(
     let mut transferred: u64 = 0;
     let mut total: Option<u64> = None;
     let mut aborting = false;
+    let mut finished = false;
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -211,9 +234,25 @@ async fn run_download(
                     path: dest_path.take(),
                 });
             }
-            Step::Completed => return Ok(Outcome::Completed),
+            Step::Completed => {
+                // The machine queued its ZFIN reply BEHIND this event
+                // (`poll` yields events before wire bytes); returning
+                // now would strand the reply and leave the remote `sz`
+                // retrying ZFIN for ~20 s (issue #77). Keep pumping so
+                // the reply drains, then leave through `Idle`.
+                finished = true;
+            }
             Step::Aborted => return Ok(Outcome::Aborted),
             Step::Idle => {
+                if finished {
+                    // Idle after the completion event: the ZFIN reply
+                    // is on the wire. The peer answers it with "OO"
+                    // and only then frees its tty; absorb that so it
+                    // doesn't print as stray text at the next prompt.
+                    let trailing =
+                        swallow_over_and_out(&mut io.wire_in, std::mem::take(&mut pending)).await;
+                    return Ok(Outcome::Completed(trailing));
+                }
                 if pending.is_empty() {
                     // Once the cancel went out, a torn-down peer may
                     // never speak again; exit instead of parking on
@@ -233,6 +272,49 @@ async fn run_download(
                     .map_err(|e| format!("zmodem wire: {e:?}"))?;
                 pending.drain(..consumed);
             }
+        }
+    }
+}
+
+/// After a download's ZFIN reply, the remote `sz` sends the two-byte
+/// "OO" ("over and out") sign-off and exits. Those bytes are protocol,
+/// not terminal output; wait briefly for them so they don't render.
+/// Anything received beyond them (a fast shell prompt coalesced into
+/// the same read) is returned for the app to hand to the emulator. A
+/// peer that never signs off (killed, non-lrzsz) just runs the wait
+/// out; nothing else can arrive in that window since the pane is still
+/// diverted here.
+async fn swallow_over_and_out(
+    wire_in: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    mut pending: Vec<u8>,
+) -> Vec<u8> {
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(1000);
+    let mut seen = 0u8;
+    loop {
+        let chunk = if pending.is_empty() {
+            match tokio::time::timeout_at(deadline, wire_in.recv()).await {
+                Ok(Some(chunk)) => chunk,
+                // Timeout or disconnect: no sign-off is coming.
+                _ => return Vec::new(),
+            }
+        } else {
+            std::mem::take(&mut pending)
+        };
+        for (i, &b) in chunk.iter().enumerate() {
+            match b {
+                b'O' if seen < 2 => seen += 1,
+                // Framing residue ahead of the "OO": flow control and
+                // the ZHEX line terminator, whose CR / LF / XON may
+                // arrive with the high bit set (lrzsz ends hex headers
+                // with 0x0d 0x8a 0x11).
+                0x11 | 0x13 | b'\r' | b'\n' | 0x8d | 0x8a | 0x91 if seen == 0 => {}
+                // First byte past the sign-off (or something that is
+                // not one): the terminal's from here on.
+                _ => return chunk[i..].to_vec(),
+            }
+        }
+        if seen == 2 {
+            return Vec::new();
         }
     }
 }
@@ -269,6 +351,7 @@ async fn run_upload(
 
     let mut pending = first_wire;
     let mut aborting = false;
+    let mut finished = false;
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -312,9 +395,19 @@ async fn run_upload(
                     path: None,
                 });
             }
-            Step::Completed => return Ok(Outcome::Completed),
+            Step::Completed => {
+                // Mirror of the download side: the "OO" sign-off the
+                // remote `rz` may be reading is queued behind this
+                // event. Flush it before leaving.
+                finished = true;
+            }
             Step::Aborted => return Ok(Outcome::Aborted),
             Step::Idle => {
+                if finished {
+                    // Sign-off flushed; the receiver sends nothing
+                    // after its ZFIN, so there is nothing to absorb.
+                    return Ok(Outcome::Completed(Vec::new()));
+                }
                 if pending.is_empty() {
                     // Backstop, same as the download side: never park
                     // on a peer we just cancelled.
@@ -564,6 +657,45 @@ mod tests {
         });
     }
 
+    /// The post-completion sign-off eater: consumes exactly the "OO"
+    /// (plus flow-control padding before it), hands everything after
+    /// it back for the terminal, and gives up quietly on a peer that
+    /// never signs off.
+    #[test]
+    fn swallow_over_and_out_eats_the_sign_off_and_keeps_the_prompt() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            // Sign-off alone, seeded via pending: nothing trails.
+            let (_tx, mut rx) = mpsc::unbounded_channel();
+            assert_eq!(swallow_over_and_out(&mut rx, b"OO".to_vec()).await, b"");
+
+            // Padding before, prompt coalesced after: prompt survives.
+            let (_tx, mut rx) = mpsc::unbounded_channel();
+            let trailing = swallow_over_and_out(&mut rx, b"\r\nOOuser@host$ ".to_vec()).await;
+            assert_eq!(trailing, b"user@host$ ");
+
+            // Sign-off split across two wire chunks.
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            tx.send(b"O".to_vec()).unwrap();
+            tx.send(b"O$ ".to_vec()).unwrap();
+            assert_eq!(swallow_over_and_out(&mut rx, Vec::new()).await, b"$ ");
+
+            // No sign-off at all: whatever came belongs to the terminal.
+            let (_tx, mut rx) = mpsc::unbounded_channel();
+            let trailing = swallow_over_and_out(&mut rx, b"logout\r\n".to_vec()).await;
+            assert_eq!(trailing, b"logout\r\n");
+
+            // Silent peer: the wait runs out empty-handed (channel
+            // closed, so this returns immediately, not after 1 s).
+            let (tx, mut rx) = mpsc::unbounded_channel::<Vec<u8>>();
+            drop(tx);
+            assert_eq!(swallow_over_and_out(&mut rx, Vec::new()).await, b"");
+        });
+    }
+
     /// End-to-end oracle: drive our upload driver and our download
     /// driver against each other over crossed channels (each plays the
     /// role lrzsz would on the wire) and assert the file round-trips.
@@ -591,7 +723,7 @@ mod tests {
 
             let (up2down_tx, up2down_rx) = mpsc::unbounded_channel();
             let (down2up_tx, down2up_rx) = mpsc::unbounded_channel();
-            let (p_up_tx, _p_up_rx) = mpsc::unbounded_channel();
+            let (p_up_tx, mut p_up_rx) = mpsc::unbounded_channel();
             let (p_down_tx, mut p_down_rx) = mpsc::unbounded_channel();
             let abort = Arc::new(AtomicBool::new(false));
 
@@ -633,13 +765,33 @@ mod tests {
             let mut saved: Option<PathBuf> = None;
             while let Ok(p) = p_down_rx.try_recv() {
                 match p {
-                    Progress::Completed => completed = true,
+                    Progress::Completed { trailing } => {
+                        completed = true;
+                        assert!(
+                            trailing.is_empty(),
+                            "loopback produced trailing bytes: {trailing:?}"
+                        );
+                    }
                     Progress::FileDone { path, .. } => saved = path,
                     Progress::Error(e) => panic!("download error: {e}"),
                     _ => {}
                 }
             }
             assert!(completed, "download never completed");
+            // The upload side must complete too: it only can if the
+            // download flushed its queued ZFIN reply before exiting
+            // (issue #77's regression; the old driver returned on the
+            // completion event and left the reply stranded, so this
+            // side ended in "connection closed" instead).
+            let mut up_completed = false;
+            while let Ok(p) = p_up_rx.try_recv() {
+                match p {
+                    Progress::Completed { .. } => up_completed = true,
+                    Progress::Error(e) => panic!("upload error: {e}"),
+                    _ => {}
+                }
+            }
+            assert!(up_completed, "upload never completed (ZFIN reply not flushed?)");
             let saved = saved.expect("no saved path reported");
             let got = tokio::fs::read(&saved).await.unwrap();
             assert_eq!(got, payload, "round-tripped bytes differ");

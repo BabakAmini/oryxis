@@ -87,6 +87,7 @@ impl Oryxis {
                 file_name: None,
                 transferred: 0,
                 total: None,
+                late: Vec::new(),
             });
         } else {
             return Task::none();
@@ -167,38 +168,65 @@ impl Oryxis {
     pub(crate) fn handle_zmodem(&mut self, message: Message) -> Result<Task<Message>, Message> {
         match message {
             Message::ZmodemProgress(pane_id, progress) => {
-                let Some(pane) = self.pane_by_id_mut(pane_id) else {
-                    return Ok(Task::none());
-                };
-                match progress {
-                    Progress::Started { name, size } => {
-                        if let Some(zm) = pane.zmodem.as_mut() {
-                            zm.file_name = Some(name);
-                            zm.total = size;
-                            zm.transferred = 0;
+                // Terminal events tear the divert down and replay any
+                // output the transfer no longer owns: the driver's
+                // `trailing` (bytes past the peer's "OO" sign-off),
+                // then whatever landed on the dead wire channel while
+                // this message was in flight (`late`), in arrival
+                // order. Replaying synchronously through the normal
+                // `PtyOutput` path keeps rendering, logging and
+                // detection identical to live output, and nothing else
+                // can interleave (the divert is cleared right here).
+                let mut toast: Option<String> = None;
+                let mut replay: Vec<u8> = Vec::new();
+                {
+                    let Some(pane) = self.pane_by_id_mut(pane_id) else {
+                        return Ok(Task::none());
+                    };
+                    match progress {
+                        Progress::Started { name, size } => {
+                            if let Some(zm) = pane.zmodem.as_mut() {
+                                zm.file_name = Some(name);
+                                zm.total = size;
+                                zm.transferred = 0;
+                            }
                         }
-                    }
-                    Progress::Advanced { transferred, total } => {
-                        if let Some(zm) = pane.zmodem.as_mut() {
-                            zm.transferred = transferred;
-                            zm.total = total;
+                        Progress::Advanced { transferred, total } => {
+                            if let Some(zm) = pane.zmodem.as_mut() {
+                                zm.transferred = transferred;
+                                zm.total = total;
+                            }
                         }
-                    }
-                    Progress::FileDone { .. } => {}
-                    Progress::Completed => {
-                        pane.zmodem = None;
-                        self.set_toast(crate::i18n::t("zmodem_complete").to_string());
-                    }
-                    Progress::Aborted => {
-                        pane.zmodem = None;
-                        self.set_toast(crate::i18n::t("zmodem_cancelled").to_string());
-                    }
-                    Progress::Error(e) => {
-                        pane.zmodem = None;
-                        self.set_toast(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                        Progress::FileDone { .. } => {}
+                        Progress::Completed { trailing } => {
+                            replay = trailing;
+                            if let Some(zm) = pane.zmodem.take() {
+                                replay.extend(zm.late);
+                            }
+                            toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                        }
+                        Progress::Aborted => {
+                            if let Some(zm) = pane.zmodem.take() {
+                                replay = zm.late;
+                            }
+                            toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                        }
+                        Progress::Error(e) => {
+                            if let Some(zm) = pane.zmodem.take() {
+                                replay = zm.late;
+                            }
+                            toast = Some(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                        }
                     }
                 }
-                Ok(Task::none())
+                if let Some(text) = toast {
+                    self.set_toast(text);
+                }
+                if replay.is_empty() {
+                    Ok(Task::none())
+                } else {
+                    Ok(self.update(Message::PtyOutput(pane_id, replay)))
+                }
             }
             Message::PickZmodemDownloadDir => Ok(Task::perform(
                 tokio::task::spawn_blocking(|| {

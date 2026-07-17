@@ -403,8 +403,14 @@ impl Oryxis {
                 // the clean prefix still flows to the emulator below.
                 let mut zmodem_start: Option<(oryxis_zmodem::Direction, Vec<u8>)> = None;
                 if let Some(pane) = self.pane_by_id_mut(pane_id) {
-                    if let Some(zm) = pane.zmodem.as_ref() {
-                        let _ = zm.wire_tx.send(std::mem::take(&mut bytes));
+                    if let Some(zm) = pane.zmodem.as_mut() {
+                        if let Err(unsent) = zm.wire_tx.send(std::mem::take(&mut bytes)) {
+                            // The driver already ended; its terminal
+                            // Progress is still in flight. Hold the
+                            // bytes for the teardown to replay in order
+                            // instead of dropping a fast prompt.
+                            zm.late.extend_from_slice(&unsent.0);
+                        }
                         return Ok(Task::none());
                     }
                     let scan = pane.zmodem_detector.feed(&bytes);

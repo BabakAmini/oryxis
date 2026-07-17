@@ -138,7 +138,12 @@ async fn download_from_real_sz() {
     let mut completed = false;
     while let Ok(p) = progress_rx.try_recv() {
         match p {
-            Progress::Completed => completed = true,
+            Progress::Completed { trailing } => {
+                completed = true;
+                // sz's "OO" sign-off is protocol, not terminal output:
+                // the driver must have absorbed it.
+                assert!(trailing.is_empty(), "unexpected trailing bytes: {trailing:?}");
+            }
             Progress::Error(e) => panic!("download error: {e}"),
             _ => {}
         }
@@ -147,7 +152,13 @@ async fn download_from_real_sz() {
     let got = std::fs::read(dest_dir.join("payload.bin")).expect("downloaded file");
     assert_eq!(got, data, "downloaded bytes differ from what sz sent");
 
-    let _ = child.wait().await;
+    // Issue #77 regression: sz must exit promptly. A stranded ZFIN
+    // reply leaves it retrying against silence for ~20 s (holding the
+    // user's tty), which this generous bound still rejects.
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("sz did not exit promptly after session end (ZFIN reply not flushed?)")
+        .expect("sz wait failed");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -215,7 +226,7 @@ async fn download_multiple_files_from_real_sz() {
         if let Progress::Error(e) = p {
             panic!("download error: {e}");
         }
-        if matches!(p, Progress::Completed) {
+        if matches!(p, Progress::Completed { .. }) {
             completed = true;
         }
     }
@@ -224,7 +235,11 @@ async fn download_multiple_files_from_real_sz() {
         let got = std::fs::read(dest_dir.join(name)).unwrap_or_else(|_| panic!("missing {name}"));
         assert_eq!(&got, data, "{name} bytes differ");
     }
-    let _ = child.wait().await;
+    // Same issue #77 regression bound as the single-file test.
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("sz did not exit promptly after session end (ZFIN reply not flushed?)")
+        .expect("sz wait failed");
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -281,7 +296,7 @@ async fn abort_cancels_a_real_sz_transfer() {
             match p {
                 Progress::Advanced { .. } => abort.store(true, std::sync::atomic::Ordering::Relaxed),
                 Progress::Aborted => outcome = Some("aborted"),
-                Progress::Completed => outcome = Some("completed"),
+                Progress::Completed { .. } => outcome = Some("completed"),
                 Progress::Error(_) => outcome = Some("error"),
                 _ => {}
             }
@@ -363,13 +378,19 @@ async fn upload_to_real_rz() {
     let mut completed = false;
     while let Ok(p) = progress_rx.try_recv() {
         match p {
-            Progress::Completed => completed = true,
+            Progress::Completed { .. } => completed = true,
             Progress::Error(e) => panic!("upload error: {e}"),
             _ => {}
         }
     }
     assert!(completed, "sender never reported Completed");
-    let _ = child.wait().await;
+    // The upload mirror of the issue #77 bound: rz reads our "OO"
+    // sign-off (queued behind the completion event) and must exit
+    // promptly once it arrives.
+    tokio::time::timeout(Duration::from_secs(5), child.wait())
+        .await
+        .expect("rz did not exit promptly after session end (OO not flushed?)")
+        .expect("rz wait failed");
     let got = std::fs::read(recv_dir.join("upload.bin")).expect("rz-written file");
     assert_eq!(got, data, "rz received different bytes than we sent");
     let _ = std::fs::remove_dir_all(&dir);
