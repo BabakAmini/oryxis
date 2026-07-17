@@ -60,11 +60,23 @@ pub(crate) struct AgentState {
     /// Persisted `agent_server_confirm` (default true): prompt on every
     /// signature.
     pub confirm: bool,
+    /// Persisted `agent_server_allow_add` (default false): accept keys
+    /// pushed in by external tools (KeePassXC et al) into an in-memory
+    /// roster, swept on lock / exit.
+    pub allow_add: bool,
+    /// Persisted `agent_server_openssh_pipe` (default false, Windows
+    /// only): also serve the standard `\\.\pipe\openssh-ssh-agent`
+    /// name when it is free.
+    pub openssh_pipe: bool,
     /// The live runtime while the feature is on.
     pub runtime: Option<crate::agent_server::AgentRuntime>,
     /// A bind / start error, shown inline under the toggle (and reverts
     /// the toggle).
     pub error: Option<String>,
+    /// The OpenSSH alias pipe could not be taken (typically the real
+    /// agent service owns it); the main listener still runs. Shown
+    /// inline under the alias toggle.
+    pub alias_error: Option<String>,
     /// The confirm prompt currently on screen, if any.
     pub pending_confirm: Option<AgentConfirmCard>,
     /// Confirm prompts that arrived while another was on screen, shown

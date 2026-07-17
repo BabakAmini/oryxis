@@ -516,6 +516,14 @@ impl Oryxis {
                 .flatten()
                 .map(|v| v != "false")
                 .unwrap_or(true);
+            self.agent.allow_add = matches!(
+                vault.get_setting("agent_server_allow_add"),
+                Ok(Some(ref v)) if v == "true"
+            );
+            self.agent.openssh_pipe = matches!(
+                vault.get_setting("agent_server_openssh_pipe"),
+                Ok(Some(ref v)) if v == "true"
+            );
             // The agent runtime is started after boot (needs the live
             // vault handle + master password); remember the desired
             // state so the post-unlock hook can start it.

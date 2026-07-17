@@ -35,6 +35,29 @@ impl Oryxis {
                     return Ok(self.start_agent_server());
                 }
             }
+            Message::AgentAllowAddToggled(on) => {
+                self.agent.allow_add = on;
+                self.persist_setting(
+                    "agent_server_allow_add",
+                    if on { "true" } else { "false" },
+                );
+                // Baked into the source at spawn, same as confirm.
+                if self.agent.enabled {
+                    self.stop_agent_server();
+                    return Ok(self.start_agent_server());
+                }
+            }
+            Message::AgentOpensshPipeToggled(on) => {
+                self.agent.openssh_pipe = on;
+                self.persist_setting(
+                    "agent_server_openssh_pipe",
+                    if on { "true" } else { "false" },
+                );
+                if self.agent.enabled {
+                    self.stop_agent_server();
+                    return Ok(self.start_agent_server());
+                }
+            }
             Message::KeyExposeViaAgentToggled(id) => {
                 if let Some(vault) = &self.vault
                     && let Some(key) = self.keys.iter_mut().find(|k| k.id == id)
@@ -98,30 +121,35 @@ impl Oryxis {
             &db_path,
             master_password.as_deref(),
             self.agent.confirm,
+            self.agent.allow_add,
+            self.agent.openssh_pipe,
         ) {
             Ok((runtime, confirm_rx)) => {
+                // A busy OpenSSH alias is non-fatal: the main listener
+                // runs; the inline note under the alias toggle says why
+                // zero-config discovery is not on.
+                self.agent.alias_error = runtime.alias_error.clone();
                 self.agent.runtime = Some(runtime);
                 self.agent.enabled = true;
                 self.agent.error = None;
                 self.persist_setting("agent_server_enabled", "true");
-                if let Some(rx) = confirm_rx {
-                    let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-                    return Task::stream(stream).map(|ask| {
-                        Message::AgentConfirmAsk(crate::state::AgentConfirmCard {
-                            key_comment: ask.key_comment,
-                            key_fingerprint: ask.key_fingerprint,
-                            peer: ask.peer,
-                            responder: std::sync::Arc::new(std::sync::Mutex::new(Some(
-                                ask.respond,
-                            ))),
-                        })
-                    });
-                }
-                Task::none()
+                // The channel always exists: even with the global
+                // confirm off, keys added under a CONFIRM constraint
+                // prompt through it.
+                let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(confirm_rx);
+                Task::stream(stream).map(|ask| {
+                    Message::AgentConfirmAsk(crate::state::AgentConfirmCard {
+                        key_comment: ask.key_comment,
+                        key_fingerprint: ask.key_fingerprint,
+                        peer: ask.peer,
+                        responder: std::sync::Arc::new(std::sync::Mutex::new(Some(ask.respond))),
+                    })
+                })
             }
             Err(e) => {
                 self.agent.enabled = false;
                 self.agent.error = Some(e);
+                self.agent.alias_error = None;
                 Task::none()
             }
         }
@@ -154,6 +182,7 @@ impl Oryxis {
         if let Some(runtime) = self.agent.runtime.take() {
             runtime.shutdown();
         }
+        self.agent.alias_error = None;
         self.agent.deny_all_and_clear_grants();
     }
 

@@ -1511,6 +1511,12 @@ pub enum Message {
     AgentServerToggled(bool),
     /// Toggle the per-signature confirm prompt.
     AgentConfirmToggled(bool),
+    /// Toggle accepting external ADD/REMOVE (KeePassXC et al) into the
+    /// in-memory roster.
+    AgentAllowAddToggled(bool),
+    /// Toggle also serving the standard OpenSSH agent pipe name when
+    /// free (Windows only).
+    AgentOpensshPipeToggled(bool),
     /// A per-key "expose via agent" toggle on the keychain card.
     KeyExposeViaAgentToggled(uuid::Uuid),
     /// A confirm prompt arrived from the agent runtime (carries the

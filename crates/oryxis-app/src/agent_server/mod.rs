@@ -1,7 +1,9 @@
 //! Oryxis as an ssh-agent: expose the vault's keys to external tools
 //! (git, WSL, VS Code Remote, rsync) over the standard ssh-agent
 //! protocol, so they authenticate with vault-stored keys without a
-//! private key ever touching disk (issue #54).
+//! private key ever touching disk, and (opt-in, Phase 4) accept keys
+//! pushed in by tools like KeePassXC into an in-memory roster that is
+//! never persisted (issue #54).
 //!
 //! Phase 1: the wire protocol ([`protocol`]), the key source
 //! abstraction ([`source`]) and the unix listener ([`listener`]), all
@@ -27,7 +29,7 @@ pub(crate) mod source;
 
 use std::sync::Arc;
 
-use protocol::{ConfirmAsk, ConfirmSender};
+use protocol::{ConfirmAsk, ConfirmMode};
 use source::VaultKeySource;
 
 /// The socket / pipe path to show in Settings and setup snippets, or
@@ -54,24 +56,38 @@ pub(crate) fn listener_socket_display() -> Option<String> {
 /// it aborts the task and removes the socket.
 pub(crate) struct AgentRuntime {
     source: Arc<VaultKeySource>,
-    task: tokio::task::JoinHandle<()>,
+    /// The accept task(s): the Oryxis socket/pipe, plus the OpenSSH
+    /// alias pipe when the opt-in is on (Windows only).
+    tasks: Vec<tokio::task::JoinHandle<()>>,
+    /// The OpenSSH alias could not be taken (name busy, most likely
+    /// the Windows agent service): the main listener still runs; this
+    /// is shown inline under the alias toggle.
+    pub(crate) alias_error: Option<String>,
     #[cfg(unix)]
     socket_path: Option<std::path::PathBuf>,
 }
 
 impl AgentRuntime {
     /// Open a dedicated vault handle, bind the socket and start
-    /// serving. `confirm` on returns a receiver of per-signature
-    /// prompts the app surfaces; off signs silently. `master_password`
-    /// is `Some` for a password-protected vault, `None` for a
-    /// passwordless one (mirrors the sync runtime).
+    /// serving; returns a receiver of per-signature prompts the app
+    /// surfaces. `confirm` prompts for every signature; even with it
+    /// off, keys added under a CONFIRM constraint prompt (which is why
+    /// the channel always exists). `allow_add` accepts external
+    /// ADD/REMOVE into the in-memory roster. `openssh_alias`
+    /// additionally serves the standard OpenSSH pipe name when free
+    /// (Windows; ignored elsewhere). `master_password` is `Some` for a
+    /// password-protected vault, `None` for a passwordless one
+    /// (mirrors the sync runtime).
     ///
-    /// Returns the bind error (so the toggle can revert) on failure.
+    /// Returns the bind error (so the toggle can revert) on failure;
+    /// an alias-bind problem is NOT fatal and lands in `alias_error`.
     pub(crate) fn spawn(
         db_path: &std::path::Path,
         master_password: Option<&str>,
         confirm: bool,
-    ) -> Result<(Self, Option<tokio::sync::mpsc::UnboundedReceiver<ConfirmAsk>>), String> {
+        allow_add: bool,
+        openssh_alias: bool,
+    ) -> Result<(Self, tokio::sync::mpsc::UnboundedReceiver<ConfirmAsk>), String> {
         let mut vault = oryxis_vault::VaultStore::open(db_path)
             .map_err(|e| format!("open agent vault handle: {e}"))?;
         match master_password {
@@ -82,17 +98,20 @@ impl AgentRuntime {
                 .open_without_password()
                 .map_err(|e| format!("open agent vault handle: {e}"))?,
         }
-        let source = Arc::new(VaultKeySource::new(vault));
+        let source = Arc::new(VaultKeySource::new(vault, allow_add));
 
-        let (confirm_tx, confirm_rx): (Option<ConfirmSender>, _) = if confirm {
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            (Some(tx), Some(rx))
-        } else {
-            (None, None)
+        let (confirm_tx, confirm_rx) = tokio::sync::mpsc::unbounded_channel();
+        let confirm_mode = ConfirmMode {
+            sender: Some(confirm_tx),
+            all: confirm,
         };
 
         #[cfg(unix)]
         {
+            // The alias is a Windows concept (there is no fixed agent
+            // path on unix; SSH_AUTH_SOCK points wherever the user
+            // says); the setting is simply inert here.
+            let _ = openssh_alias;
             let socket_path = listener::agent_socket_path();
             let src = source.clone();
             // Bind synchronously enough to surface a busy-socket error:
@@ -106,14 +125,15 @@ impl AgentRuntime {
                 pre_bind_check(path)?;
             }
             let task = tokio::spawn(async move {
-                if let Err(e) = listener::serve_unix(src, confirm_tx).await {
+                if let Err(e) = listener::serve_unix(src, confirm_mode).await {
                     tracing::warn!(target = "oryxis::agent", error = %e, "agent listener stopped");
                 }
             });
             Ok((
                 Self {
                     source,
-                    task,
+                    tasks: vec![task],
+                    alias_error: None,
                     socket_path,
                 },
                 confirm_rx,
@@ -129,20 +149,61 @@ impl AgentRuntime {
                 listener::windows_pre_bind_check(&name)?;
             }
             let src = source.clone();
-            let task = tokio::spawn(async move {
-                if let Err(e) = listener::serve_pipe(src, confirm_tx).await {
+            let confirm_main = confirm_mode.clone();
+            let mut tasks = vec![tokio::spawn(async move {
+                let name = listener::agent_pipe_name().unwrap_or_default();
+                if let Err(e) = listener::serve_pipe(name, src, confirm_main).await {
                     tracing::warn!(target = "oryxis::agent", error = %e, "agent listener stopped");
                 }
-            });
-            Ok((Self { source, task }, confirm_rx))
+            })];
+
+            // The OpenSSH alias is best-effort: a busy name (the real
+            // agent service, another agent) must not take the whole
+            // feature down, so its probe failure is surfaced, not
+            // returned.
+            let mut alias_error = None;
+            if openssh_alias {
+                let alias = listener::openssh_pipe_name();
+                match listener::windows_pre_bind_check(&alias) {
+                    Ok(()) => {
+                        let src = source.clone();
+                        tasks.push(tokio::spawn(async move {
+                            if let Err(e) =
+                                listener::serve_pipe(alias, src, confirm_mode).await
+                            {
+                                tracing::warn!(
+                                    target = "oryxis::agent",
+                                    error = %e,
+                                    "openssh alias listener stopped",
+                                );
+                            }
+                        }));
+                    }
+                    Err(e) => alias_error = Some(e),
+                }
+            }
+            Ok((
+                Self {
+                    source,
+                    tasks,
+                    alias_error,
+                },
+                confirm_rx,
+            ))
         }
         #[cfg(not(any(unix, windows)))]
         {
             // No listener transport on this platform; the toggle stays
             // hidden (listener_socket_display returns None).
-            let _ = (source, confirm_tx);
-            let task = tokio::spawn(async {});
-            Ok((Self { source, task }, confirm_rx))
+            let _ = (source.clone(), confirm_mode, openssh_alias);
+            Ok((
+                Self {
+                    source,
+                    tasks: Vec::new(),
+                    alias_error: None,
+                },
+                confirm_rx,
+            ))
         }
     }
 
@@ -156,19 +217,17 @@ impl AgentRuntime {
         self.source.unlock(master_password);
     }
 
-    /// Abort the accept task and remove the socket.
+    /// Abort the accept task(s) and remove the socket.
     pub(crate) fn shutdown(self) {
-        self.task.abort();
-        #[cfg(unix)]
-        if let Some(path) = &self.socket_path {
-            let _ = std::fs::remove_file(path);
-        }
+        // Drop does the work; `self` is consumed for call-site clarity.
     }
 }
 
 impl Drop for AgentRuntime {
     fn drop(&mut self) {
-        self.task.abort();
+        for task in &self.tasks {
+            task.abort();
+        }
         #[cfg(unix)]
         if let Some(path) = &self.socket_path {
             let _ = std::fs::remove_file(path);

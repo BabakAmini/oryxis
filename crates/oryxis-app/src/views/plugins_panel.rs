@@ -350,6 +350,49 @@ impl Oryxis {
             ),
         );
 
+        let allow_add = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::AgentAllowAddToggled(
+                !self.agent.allow_add,
+            )),
+            8.0,
+            toggle_row_desc(
+                crate::i18n::t("agent_allow_add"),
+                crate::i18n::t("agent_allow_add_desc"),
+                self.agent.allow_add,
+                Message::AgentAllowAddToggled(!self.agent.allow_add),
+            ),
+        );
+
+        // The OpenSSH alias is a Windows concept (fixed pipe name);
+        // unix clients point SSH_AUTH_SOCK / IdentityAgent wherever
+        // they like, so the row would be dead weight there.
+        let openssh_pipe: Element<'_, Message> = if cfg!(windows) {
+            let toggle = self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::AgentOpensshPipeToggled(
+                    !self.agent.openssh_pipe,
+                )),
+                8.0,
+                toggle_row_desc(
+                    crate::i18n::t("agent_openssh_pipe"),
+                    crate::i18n::t("agent_openssh_pipe_desc"),
+                    self.agent.openssh_pipe,
+                    Message::AgentOpensshPipeToggled(!self.agent.openssh_pipe),
+                ),
+            );
+            match &self.agent.alias_error {
+                Some(err) => column![
+                    Space::new().height(12),
+                    toggle,
+                    Space::new().height(6),
+                    text(err.clone()).size(11).color(OryxisColors::t().error),
+                ]
+                .into(),
+                None => column![Space::new().height(12), toggle].into(),
+            }
+        } else {
+            Space::new().height(0).into()
+        };
+
         let copy_btn = |label_key: &'static str, msg: Message| -> Element<'_, Message> {
             self.settings_nav_slot(
                 crate::keynav::RowAction::activate(msg.clone()),
@@ -375,6 +418,9 @@ impl Oryxis {
 
         let body = panel_section(column![
             confirm,
+            Space::new().height(12),
+            allow_add,
+            openssh_pipe,
             Space::new().height(12),
             crate::widgets::panel_field(crate::i18n::t("agent_server_path"), path_row.into()),
             Space::new().height(10),

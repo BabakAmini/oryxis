@@ -2,15 +2,18 @@
 //!
 //! The protocol layer ([`super::protocol`]) is generic over this trait
 //! so it can be exercised with a [`MockKeySource`] in tests and backed
-//! by the vault in production (`VaultKeySource`, Phase 2). The trait is
-//! deliberately narrow: an agent is a read-only signing oracle, so it
-//! only ever lists public keys and signs, never adds or removes.
+//! by the vault in production (`VaultKeySource`, Phase 2). Vault keys
+//! are strictly read-only over the wire; when the user opts in
+//! (Phase 4), external clients such as KeePassXC may ADD keys, which
+//! live in an in-memory [`EphemeralStore`] beside the vault roster and
+//! are never persisted.
 //!
 //! Security contract for the vault-backed impl: [`sign`](AgentKeySource::sign)
 //! decrypts exactly one private key, uses it, and drops it; nothing is
 //! cached across calls. A locked vault makes [`list`](AgentKeySource::list)
 //! return empty and [`sign`](AgentKeySource::sign) fail, so an external
-//! `git` sees "agent has no identities" instead of a hang.
+//! `git` sees "agent has no identities" instead of a hang. Ephemeral
+//! keys are swept on lock: a locked Oryxis serves nothing at all.
 
 use ssh_key::HashAlg;
 
@@ -22,6 +25,11 @@ pub(crate) struct AgentPublicKey {
     pub blob: Vec<u8>,
     /// Comment shown by `ssh-add -l` etc.; the vault key's label.
     pub comment: String,
+    /// The client asked for a per-signature confirm when it added this
+    /// key (`SSH_AGENT_CONSTRAIN_CONFIRM`); prompts even when the
+    /// global confirm setting is off. Always `false` for vault keys
+    /// (their prompting is the global setting's call).
+    pub requires_confirm: bool,
 }
 
 /// Why a sign request could not be answered. The protocol layer maps
@@ -63,8 +71,10 @@ impl SignHash {
     }
 }
 
-/// A read-only source of SSH keys for the agent to serve. `Send + Sync`
-/// so one instance is shared across per-connection tasks.
+/// A source of SSH keys for the agent to serve. `Send + Sync` so one
+/// instance is shared across per-connection tasks. The write ops
+/// default to refusing (a read-only signing oracle); sources that
+/// accept external keys override them with an [`EphemeralStore`].
 pub(crate) trait AgentKeySource: Send + Sync {
     /// The keys to advertise right now. Empty while the vault is locked
     /// or when the user has exposed none.
@@ -79,6 +89,160 @@ pub(crate) trait AgentKeySource: Send + Sync {
         data: &[u8],
         hash: SignHash,
     ) -> Result<Vec<u8>, AgentSignError>;
+
+    /// Accept a client-added key (`ADD_IDENTITY`). `false` = refused
+    /// (the wire answer is FAILURE). Read-only by default.
+    fn add(
+        &self,
+        _private: ssh_key::PrivateKey,
+        _comment: String,
+        _requires_confirm: bool,
+        _expires_at: Option<std::time::Instant>,
+    ) -> bool {
+        false
+    }
+
+    /// Remove a client-added key by its public blob. Vault keys are
+    /// never removable over the wire. Read-only by default.
+    fn remove(&self, _key_blob: &[u8]) -> bool {
+        false
+    }
+
+    /// Remove every client-added key (`REMOVE_ALL_IDENTITIES`); the
+    /// vault roster is untouched. Read-only by default.
+    fn remove_all(&self) -> bool {
+        false
+    }
+}
+
+/// Sign `data` with an in-memory private key, honoring the requested
+/// RSA hash, and encode the signature as its SSH wire blob. Shared by
+/// the vault decrypt-at-sign path and the ephemeral store.
+pub(crate) fn sign_blob(
+    private: &ssh_key::PrivateKey,
+    data: &[u8],
+    hash: SignHash,
+) -> Result<Vec<u8>, AgentSignError> {
+    use ssh_encoding::Encode;
+    use ssh_key::private::KeypairData;
+
+    let sig: ssh_key::Signature = match private.key_data() {
+        KeypairData::Rsa(pair) => signature::Signer::try_sign(&(pair, hash.rsa_hash()), data)
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
+        _ => signature::Signer::try_sign(private, data)
+            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
+    };
+    let mut out = Vec::new();
+    sig.encode(&mut out)
+        .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
+    Ok(out)
+}
+
+/// A key pushed in by an external client (KeePassXC et al). Lives in
+/// memory only; the vault never sees it.
+struct EphemeralKey {
+    blob: Vec<u8>,
+    private: ssh_key::PrivateKey,
+    comment: String,
+    requires_confirm: bool,
+    /// Lifetime constraint deadline; `None` = until removed / swept.
+    expires_at: Option<std::time::Instant>,
+}
+
+/// The in-memory roster of client-added keys. Expired entries are
+/// pruned lazily on every access (no timer to leak); [`clear`] is the
+/// sweep hook for vault lock / toggle-off.
+///
+/// [`clear`]: EphemeralStore::clear
+#[derive(Default)]
+pub(crate) struct EphemeralStore {
+    keys: std::sync::Mutex<Vec<EphemeralKey>>,
+}
+
+impl EphemeralStore {
+    fn prune(keys: &mut Vec<EphemeralKey>) {
+        let now = std::time::Instant::now();
+        keys.retain(|k| k.expires_at.is_none_or(|t| t > now));
+    }
+
+    pub(crate) fn list(&self) -> Vec<AgentPublicKey> {
+        let Ok(mut keys) = self.keys.lock() else {
+            return Vec::new();
+        };
+        Self::prune(&mut keys);
+        keys.iter()
+            .map(|k| AgentPublicKey {
+                blob: k.blob.clone(),
+                comment: k.comment.clone(),
+                requires_confirm: k.requires_confirm,
+            })
+            .collect()
+    }
+
+    /// Store a key, replacing any existing entry for the same public
+    /// blob (a re-add refreshes comment and constraints, matching
+    /// OpenSSH). `false` only when the public blob cannot be encoded.
+    pub(crate) fn add(
+        &self,
+        private: ssh_key::PrivateKey,
+        comment: String,
+        requires_confirm: bool,
+        expires_at: Option<std::time::Instant>,
+    ) -> bool {
+        use ssh_encoding::Encode;
+        let mut blob = Vec::new();
+        if private.public_key().key_data().encode(&mut blob).is_err() {
+            return false;
+        }
+        let Ok(mut keys) = self.keys.lock() else {
+            return false;
+        };
+        Self::prune(&mut keys);
+        keys.retain(|k| k.blob != blob);
+        keys.push(EphemeralKey {
+            blob,
+            private,
+            comment,
+            requires_confirm,
+            expires_at,
+        });
+        true
+    }
+
+    /// Drop the entry for `blob`; `false` when no added key matches
+    /// (vault keys deliberately land here).
+    pub(crate) fn remove(&self, blob: &[u8]) -> bool {
+        let Ok(mut keys) = self.keys.lock() else {
+            return false;
+        };
+        Self::prune(&mut keys);
+        let before = keys.len();
+        keys.retain(|k| k.blob != blob);
+        keys.len() < before
+    }
+
+    /// Sweep every added key (vault lock, toggle-off, REMOVE_ALL).
+    pub(crate) fn clear(&self) {
+        if let Ok(mut keys) = self.keys.lock() {
+            keys.clear();
+        }
+    }
+
+    /// Sign with an added key if `blob` is ours; `None` hands the
+    /// lookup back to the caller (a vault key or unknown).
+    pub(crate) fn sign(
+        &self,
+        blob: &[u8],
+        data: &[u8],
+        hash: SignHash,
+    ) -> Option<Result<Vec<u8>, AgentSignError>> {
+        let Ok(mut keys) = self.keys.lock() else {
+            return None;
+        };
+        Self::prune(&mut keys);
+        let key = keys.iter().find(|k| k.blob == blob)?;
+        Some(sign_blob(&key.private, data, hash))
+    }
 }
 
 /// The production [`AgentKeySource`]: a dedicated unlocked `VaultStore`
@@ -90,20 +254,31 @@ pub(crate) trait AgentKeySource: Send + Sync {
 pub(crate) struct VaultKeySource {
     vault: std::sync::Mutex<oryxis_vault::VaultStore>,
     locked: std::sync::atomic::AtomicBool,
+    /// The `agent_server_allow_add` setting, baked at spawn (the
+    /// runtime restarts on toggle). Off = pure read-only oracle.
+    allow_add: bool,
+    /// Client-added keys (Phase 4). Only ever populated when
+    /// `allow_add` is on; swept on lock.
+    ephemeral: EphemeralStore,
 }
 
 impl VaultKeySource {
-    pub(crate) fn new(vault: oryxis_vault::VaultStore) -> Self {
+    pub(crate) fn new(vault: oryxis_vault::VaultStore, allow_add: bool) -> Self {
         Self {
             vault: std::sync::Mutex::new(vault),
             locked: std::sync::atomic::AtomicBool::new(false),
+            allow_add,
+            ephemeral: EphemeralStore::default(),
         }
     }
 
     /// Flip the gate and lock the dedicated handle (zeroize its key) so
-    /// nothing can be decrypted while the app vault is locked.
+    /// nothing can be decrypted while the app vault is locked. Added
+    /// keys are swept too: a locked Oryxis serves nothing (clients like
+    /// KeePassXC re-add after the next unlock).
     pub(crate) fn lock(&self) {
         self.locked.store(true, std::sync::atomic::Ordering::SeqCst);
+        self.ephemeral.clear();
         if let Ok(mut v) = self.vault.lock() {
             v.lock();
         }
@@ -160,8 +335,10 @@ impl AgentKeySource for VaultKeySource {
                 Self::blob_of(&k.public_key).map(|blob| AgentPublicKey {
                     blob,
                     comment: k.label,
+                    requires_confirm: false,
                 })
             })
+            .chain(self.ephemeral.list())
             .collect()
     }
 
@@ -171,12 +348,15 @@ impl AgentKeySource for VaultKeySource {
         data: &[u8],
         hash: SignHash,
     ) -> Result<Vec<u8>, AgentSignError> {
-        use ssh_encoding::Encode;
-        use ssh_key::private::KeypairData;
         use ssh_key::PrivateKey;
 
         if self.locked.load(std::sync::atomic::Ordering::SeqCst) {
             return Err(AgentSignError::Unavailable);
+        }
+        // Client-added keys sign from memory; the vault path below only
+        // ever sees vault keys.
+        if let Some(result) = self.ephemeral.sign(key_blob, data, hash) {
+            return result;
         }
         let vault = self.vault.lock().map_err(|_| AgentSignError::Unavailable)?;
 
@@ -201,16 +381,38 @@ impl AgentKeySource for VaultKeySource {
         let private = PrivateKey::from_openssh(&pem)
             .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
 
-        let sig: ssh_key::Signature = match private.key_data() {
-            KeypairData::Rsa(pair) => signature::Signer::try_sign(&(pair, hash.rsa_hash()), data)
-                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
-            _ => signature::Signer::try_sign(&private, data)
-                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
-        };
-        let mut out = Vec::new();
-        sig.encode(&mut out)
-            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
-        Ok(out)
+        sign_blob(&private, data, hash)
+    }
+
+    fn add(
+        &self,
+        private: ssh_key::PrivateKey,
+        comment: String,
+        requires_confirm: bool,
+        expires_at: Option<std::time::Instant>,
+    ) -> bool {
+        // Adds are refused while locked (the whole agent is dark) and
+        // when the user has not opted in.
+        if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+            return false;
+        }
+        self.ephemeral.add(private, comment, requires_confirm, expires_at)
+    }
+
+    fn remove(&self, key_blob: &[u8]) -> bool {
+        if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+            return false;
+        }
+        self.ephemeral.remove(key_blob)
+    }
+
+    fn remove_all(&self) -> bool {
+        if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::SeqCst) {
+            return false;
+        }
+        // Clearing an already-empty roster is still a success.
+        self.ephemeral.clear();
+        true
     }
 }
 
@@ -222,13 +424,29 @@ pub(crate) mod mock {
 
     /// In-memory key source for protocol tests: holds decrypted keys
     /// directly (a test convenience the vault-backed impl never does).
+    /// `new` mirrors the read-only default; [`writable`] mirrors the
+    /// opt-in `allow_add` mode.
+    ///
+    /// [`writable`]: MockKeySource::writable
     pub(crate) struct MockKeySource {
         keys: Vec<(Vec<u8>, PrivateKey, String)>,
         pub locked: std::sync::atomic::AtomicBool,
+        allow_add: bool,
+        ephemeral: EphemeralStore,
     }
 
     impl MockKeySource {
         pub(crate) fn new(keys: Vec<(PrivateKey, String)>) -> Self {
+            Self::build(keys, false)
+        }
+
+        /// A source that accepts ADD/REMOVE, like a production source
+        /// with `agent_server_allow_add` on.
+        pub(crate) fn writable(keys: Vec<(PrivateKey, String)>) -> Self {
+            Self::build(keys, true)
+        }
+
+        fn build(keys: Vec<(PrivateKey, String)>, allow_add: bool) -> Self {
             let keys = keys
                 .into_iter()
                 .map(|(k, label)| {
@@ -240,6 +458,8 @@ pub(crate) mod mock {
             Self {
                 keys,
                 locked: std::sync::atomic::AtomicBool::new(false),
+                allow_add,
+                ephemeral: EphemeralStore::default(),
             }
         }
     }
@@ -254,7 +474,9 @@ pub(crate) mod mock {
                 .map(|(blob, _, comment)| AgentPublicKey {
                     blob: blob.clone(),
                     comment: comment.clone(),
+                    requires_confirm: false,
                 })
+                .chain(self.ephemeral.list())
                 .collect()
         }
 
@@ -264,29 +486,91 @@ pub(crate) mod mock {
             data: &[u8],
             hash: SignHash,
         ) -> Result<Vec<u8>, AgentSignError> {
-            use ssh_key::private::KeypairData;
-            use signature::Signer;
-
             if self.locked.load(std::sync::atomic::Ordering::Relaxed) {
                 return Err(AgentSignError::Unavailable);
+            }
+            if let Some(result) = self.ephemeral.sign(key_blob, data, hash) {
+                return result;
             }
             let (_, key, _) = self
                 .keys
                 .iter()
                 .find(|(blob, _, _)| blob == key_blob)
                 .ok_or(AgentSignError::UnknownKey)?;
-
-            let sig: ssh_key::Signature = match key.key_data() {
-                KeypairData::Rsa(pair) => Signer::try_sign(&(pair, hash.rsa_hash()), data)
-                    .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
-                _ => Signer::try_sign(key, data)
-                    .map_err(|e| AgentSignError::SignFailed(e.to_string()))?,
-            };
-            let mut out = Vec::new();
-            sig.encode(&mut out)
-                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
-            Ok(out)
+            sign_blob(key, data, hash)
         }
+
+        fn add(
+            &self,
+            private: PrivateKey,
+            comment: String,
+            requires_confirm: bool,
+            expires_at: Option<std::time::Instant>,
+        ) -> bool {
+            if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::Relaxed) {
+                return false;
+            }
+            self.ephemeral.add(private, comment, requires_confirm, expires_at)
+        }
+
+        fn remove(&self, key_blob: &[u8]) -> bool {
+            if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::Relaxed) {
+                return false;
+            }
+            self.ephemeral.remove(key_blob)
+        }
+
+        fn remove_all(&self) -> bool {
+            if !self.allow_add || self.locked.load(std::sync::atomic::Ordering::Relaxed) {
+                return false;
+            }
+            self.ephemeral.clear();
+            true
+        }
+    }
+}
+
+/// Unit tests for the ephemeral store's own mechanics (expiry pruning,
+/// same-blob replacement); the wire-level behavior is covered by the
+/// protocol tests.
+#[cfg(test)]
+mod ephemeral_tests {
+    use super::*;
+
+    fn key(label: &str) -> ssh_key::PrivateKey {
+        let g = oryxis_vault::generate_key(label, "", oryxis_vault::GenerateSpec::Ed25519)
+            .unwrap();
+        ssh_key::PrivateKey::from_openssh(&g.private_pem).unwrap()
+    }
+
+    #[test]
+    fn expired_key_is_pruned_on_access() {
+        let store = EphemeralStore::default();
+        assert!(store.add(key("a"), "a".into(), false, Some(std::time::Instant::now())));
+        // The deadline has passed by the next access (retain keeps only
+        // strictly-future deadlines).
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        assert!(store.list().is_empty(), "expired key no longer advertised");
+        let blob = {
+            use ssh_encoding::Encode;
+            let k = key("b");
+            let mut blob = Vec::new();
+            k.public_key().key_data().encode(&mut blob).unwrap();
+            blob
+        };
+        assert!(store.sign(&blob, b"x", SignHash::Default).is_none());
+    }
+
+    #[test]
+    fn re_add_replaces_same_key() {
+        let store = EphemeralStore::default();
+        let k = key("a");
+        assert!(store.add(k.clone(), "first".into(), false, None));
+        assert!(store.add(k, "second".into(), true, None));
+        let listed = store.list();
+        assert_eq!(listed.len(), 1, "same blob is replaced, not duplicated");
+        assert_eq!(listed[0].comment, "second");
+        assert!(listed[0].requires_confirm, "constraints refreshed on re-add");
     }
 }
 
@@ -318,9 +602,19 @@ mod vault_source_tests {
     /// A second handle on the same file, unlocked, wrapped as the
     /// production source, mirroring `AgentRuntime::spawn`.
     fn agent_source(path: &std::path::Path) -> VaultKeySource {
+        agent_source_with(path, false)
+    }
+
+    fn agent_source_with(path: &std::path::Path, allow_add: bool) -> VaultKeySource {
         let mut agent = VaultStore::open(path).unwrap();
         agent.unlock("master").unwrap();
-        VaultKeySource::new(agent)
+        VaultKeySource::new(agent, allow_add)
+    }
+
+    /// A decrypted in-memory key, as an external ADD would deliver it.
+    fn external_key(label: &str) -> ssh_key::PrivateKey {
+        let g = generate_key(label, "", GenerateSpec::Ed25519).unwrap();
+        ssh_key::PrivateKey::from_openssh(&g.private_pem).unwrap()
     }
 
     #[test]
@@ -395,5 +689,43 @@ mod vault_source_tests {
         source.unlock(Some("master"));
         assert_eq!(source.list().len(), 1, "unlock restores the roster");
         assert!(source.sign(&blob, b"x", SignHash::Default).is_ok(), "unlock restores signing");
+    }
+
+    #[test]
+    fn add_refused_unless_opted_in() {
+        let (_dir, path, _id) = seed_vault();
+
+        // Default (allow_add off): the read-only oracle refuses every
+        // write op even though the vault is unlocked.
+        let source = agent_source(&path);
+        assert!(!source.add(external_key("ext"), "ext".into(), false, None));
+        assert!(!source.remove_all());
+
+        // Opted in: the add lands beside the vault key.
+        let source = agent_source_with(&path, true);
+        assert!(source.add(external_key("ext"), "ext".into(), false, None));
+        assert_eq!(source.list().len(), 2, "vault key + added key");
+    }
+
+    #[test]
+    fn lock_sweeps_added_keys() {
+        let (_dir, path, _id) = seed_vault();
+        let source = agent_source_with(&path, true);
+        assert!(source.add(external_key("ext"), "ext".into(), false, None));
+        assert_eq!(source.list().len(), 2);
+
+        // Lock: everything goes dark, INCLUDING the added key, and it
+        // stays gone after unlock (the client re-adds when it wants to).
+        source.lock();
+        assert!(source.list().is_empty());
+        assert!(!source.add(external_key("ext2"), "ext2".into(), false, None), "locked refuses adds");
+        source.unlock(Some("master"));
+        assert_eq!(source.list().len(), 1, "only the vault key survives the lock");
+
+        // REMOVE_ALL sweeps added keys but never the vault roster.
+        assert!(source.add(external_key("ext"), "ext".into(), false, None));
+        assert_eq!(source.list().len(), 2);
+        assert!(source.remove_all());
+        assert_eq!(source.list().len(), 1, "vault key untouched by REMOVE_ALL");
     }
 }

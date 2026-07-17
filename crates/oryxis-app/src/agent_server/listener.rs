@@ -13,7 +13,9 @@ pub(crate) use unix::{agent_socket_path, serve_unix};
 
 #[cfg(windows)]
 #[allow(unused_imports)]
-pub(crate) use windows::{agent_pipe_name, serve_pipe, windows_pre_bind_check};
+pub(crate) use windows::{
+    agent_pipe_name, openssh_pipe_name, serve_pipe, windows_pre_bind_check,
+};
 
 #[cfg(unix)]
 mod unix {
@@ -22,7 +24,7 @@ mod unix {
 
     use tokio::net::UnixListener;
 
-    use super::super::protocol::{serve_connection, ConfirmSender};
+    use super::super::protocol::{serve_connection, ConfirmMode};
     use super::super::source::AgentKeySource;
 
     /// `~/.oryxis/agent.sock`, the fixed path the user points
@@ -32,12 +34,12 @@ mod unix {
     }
 
     /// Bind the socket and accept forever, serving each connection with
-    /// `source`. `confirm` is `Some` when the per-signature prompt is
-    /// on. Returns on bind failure (surfaced to the toggle) or when the
-    /// task is aborted (toggle off / shutdown).
+    /// `source` under the `confirm` policy. Returns on bind failure
+    /// (surfaced to the toggle) or when the task is aborted (toggle
+    /// off / shutdown).
     pub(crate) async fn serve_unix<K>(
         source: Arc<K>,
-        confirm: Option<ConfirmSender>,
+        confirm: ConfirmMode,
     ) -> std::io::Result<()>
     where
         K: AgentKeySource + 'static,
@@ -79,8 +81,7 @@ mod unix {
             let peer = stream.peer_cred().ok().and_then(|c| peer_name(c.pid()));
             tokio::spawn(async move {
                 if let Err(e) =
-                    serve_connection(stream, source.as_ref(), confirm.as_ref(), peer.as_deref())
-                        .await
+                    serve_connection(stream, source.as_ref(), &confirm, peer.as_deref()).await
                 {
                     tracing::debug!(target = "oryxis::agent", error = %e, "connection ended");
                 }
@@ -155,7 +156,9 @@ mod unix {
                 let listener = tokio::net::UnixListener::bind(&sock2).unwrap();
                 std::fs::set_permissions(&sock2, std::fs::Permissions::from_mode(0o600)).unwrap();
                 let (stream, _) = listener.accept().await.unwrap();
-                serve_connection(stream, src.as_ref(), None, None).await.unwrap();
+                serve_connection(stream, src.as_ref(), &ConfirmMode::default(), None)
+                    .await
+                    .unwrap();
             });
 
             // Give the bind a moment, then check perms + drive it.
@@ -198,14 +201,23 @@ mod windows {
 
     use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
 
-    use super::super::protocol::{serve_connection, ConfirmSender};
+    use super::super::protocol::{serve_connection, ConfirmMode};
     use super::super::source::AgentKeySource;
 
-    /// The fixed pipe the user points `IdentityAgent` at. Never squat on
-    /// `\\.\pipe\openssh-ssh-agent` (single-owner, held by the OpenSSH
-    /// service when present).
+    /// The fixed pipe the user points `IdentityAgent` at. Our own name;
+    /// the OpenSSH one below is only ever taken via the opt-in alias.
     pub(crate) fn agent_pipe_name() -> Option<String> {
         Some(r"\\.\pipe\oryxis-ssh-agent".to_string())
+    }
+
+    /// The pipe the Windows OpenSSH agent service owns when it runs,
+    /// and the only name tools with a hardcoded agent target (KeePassXC
+    /// in "OpenSSH" mode, stock `ssh.exe` with no config) ever dial.
+    /// Served ONLY behind the `agent_server_openssh_pipe` opt-in, and
+    /// only when the name is free; the pre-bind probe refuses to fight
+    /// a running service for it.
+    pub(crate) fn openssh_pipe_name() -> String {
+        r"\\.\pipe\openssh-ssh-agent".to_string()
     }
 
     /// Synchronous busy probe, mirroring the unix `pre_bind_check`: a std
@@ -229,18 +241,20 @@ mod windows {
         }
     }
 
-    /// Bind the pipe and accept forever, serving each client with `source`.
+    /// Bind `name` and accept forever, serving each client with `source`.
     /// The first instance uses `first_pipe_instance(true)` so a hostile
     /// squatter that beat us to the name makes this fail rather than
     /// attach. Returns on a create error or when the task is aborted.
+    /// Called once for the Oryxis pipe and, behind the opt-in, once
+    /// more for the OpenSSH alias.
     pub(crate) async fn serve_pipe<K>(
+        name: String,
         source: Arc<K>,
-        confirm: Option<ConfirmSender>,
+        confirm: ConfirmMode,
     ) -> std::io::Result<()>
     where
         K: AgentKeySource + 'static,
     {
-        let name = agent_pipe_name().ok_or_else(|| std::io::Error::other("no pipe name"))?;
         let mut server = create_instance(&name, true)?;
         loop {
             server.connect().await?;
@@ -253,13 +267,8 @@ mod windows {
             let confirm = confirm.clone();
             let peer = client_peer(&connected);
             tokio::spawn(async move {
-                if let Err(e) = serve_connection(
-                    connected,
-                    source.as_ref(),
-                    confirm.as_ref(),
-                    peer.as_deref(),
-                )
-                .await
+                if let Err(e) =
+                    serve_connection(connected, source.as_ref(), &confirm, peer.as_deref()).await
                 {
                     tracing::debug!(target = "oryxis::agent", error = %e, "connection ended");
                 }
