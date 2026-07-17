@@ -1054,6 +1054,11 @@ pub struct Oryxis {
     /// share my screen", not "change my configuration". Toggled by
     /// the Ctrl+Shift+M hotkey and the status-bar chip.
     pub(crate) privacy_session_override: Option<bool>,
+    /// Whether the one-shot "Privacy Mode is masking output" hint toast
+    /// already fired (issue #78). Mirrors the per-install
+    /// `hint_privacy_mask` setting; in-memory so the draw-flag check in
+    /// `update` stays a branch, not a vault read.
+    pub(crate) privacy_hint_shown: bool,
     /// Privacy Mode always-mask list (issue #78): user-edited,
     /// comma-separated literals masked wherever they appear, on top of
     /// the vault-derived hostnames + usernames. Raw as typed; parsing

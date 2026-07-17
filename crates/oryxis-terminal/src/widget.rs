@@ -99,6 +99,19 @@ pub struct NetHud {
     pub silent_for_secs: Option<f32>,
 }
 
+/// Set by the draw pass whenever at least one privacy redaction bar was
+/// actually drawn this frame (issue #78). The app swaps it on its update
+/// loop to fire the one-shot "hover to peek, click to pin" hint toast; a
+/// process-wide flag because the draw path has no message channel (same
+/// spirit as the bounds-reporter slots).
+static PRIVACY_MASK_DRAWN: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Swap-read the first-mask signal (see [`PRIVACY_MASK_DRAWN`]).
+pub fn take_privacy_mask_drawn() -> bool {
+    PRIVACY_MASK_DRAWN.swap(false, std::sync::atomic::Ordering::Relaxed)
+}
+
 #[derive(Default)]
 pub struct TerminalWidgetState {
     selecting: bool,
@@ -185,6 +198,12 @@ pub struct TerminalWidgetState {
     /// cursor. `None` until the HUD has drawn once. A `Cell` because it is
     /// written from the immutable-`&self` draw path.
     hud_rect: std::cell::Cell<Option<Rectangle>>,
+    /// Whether the cursor sat over a privacy span on the last draw
+    /// (issue #78). Read by `mouse_interaction` for the pointer cursor,
+    /// the same "click does something here" affordance links get
+    /// (clicking pins the reveal). A `Cell` because it is written from
+    /// the immutable-`&self` draw path, like `hud_rect`.
+    hovered_privacy: std::cell::Cell<bool>,
     /// True between a left press that landed on the perf HUD and its
     /// release, so the release can't fall through to the selection /
     /// privacy-pin handling for the cells underneath the panel.
@@ -2152,6 +2171,11 @@ where
         if state.hovered_url.is_some() {
             return mouse::Interaction::Pointer;
         }
+        // Pointer over a privacy span (issue #78): hovering already
+        // peeks, the pointer says a click pins the reveal.
+        if self.privacy && state.hovered_privacy.get() {
+            return mouse::Interaction::Pointer;
+        }
         mouse::Interaction::Text
     }
 
@@ -2660,16 +2684,15 @@ where
                     }
 
                     // Privacy Mode masking: cells inside a privacy span (IP,
-                    // user@host, home-dir username, saved hostname) draw an inset
-                    // filled bar (after the background, below) instead of their
-                    // glyph. Every cell of the span is masked, separators
-                    // included: a visible `.` / `@` / `:` would reveal the
-                    // value's shape (octet count, username length), so the whole
-                    // token reads as one solid block. The vertical inset keeps
-                    // stacked masked lines from merging into a wall. The span the
-                    // cursor hovers is revealed (same hover-reveal as links), and
-                    // click-pinned values stay revealed.
-                    let mut mask_bar = false;
+                    // user@host, home-dir username, saved hostname) suppress
+                    // their glyph. Every cell of the span is masked,
+                    // separators included: a visible `.` / `@` / `:` would
+                    // reveal the value's shape (octet count, username
+                    // length). The redaction bar itself is drawn once per
+                    // SPAN after the cell loop (rounded rect + eye-slash,
+                    // issue #78), not per cell. The span the cursor hovers is
+                    // revealed (same hover-reveal as links), and click-pinned
+                    // values stay revealed.
                     if self.privacy && is_privacy_cell(&highlights, cd.row, cd.col) {
                         let in_extent = |&(r, sc, ec): &(u16, u16, u16)| {
                             cd.row == r && cd.col >= sc && cd.col <= ec
@@ -2677,26 +2700,6 @@ where
                         let revealed = hovered_privacy_extent.as_ref().is_some_and(in_extent)
                             || pinned_extents.iter().any(in_extent);
                         if !revealed {
-                            // Opaque tone blended toward the background, then
-                            // desaturated to neutral grey: keeping the theme hue
-                            // makes the mask mimic legitimate reverse-video
-                            // content (on a teal theme it reads as a highlight
-                            // banner, not a censor mark). Brightness is kept by
-                            // re-encoding the blend's linear luminance to sRGB.
-                            let blend = Color {
-                                r: palette.foreground.r * 0.45 + palette.background.r * 0.55,
-                                g: palette.foreground.g * 0.45 + palette.background.g * 0.55,
-                                b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
-                                a: 1.0,
-                            };
-                            let lum = relative_luminance(blend);
-                            let grey = if lum <= 0.003_130_8 {
-                                lum * 12.92
-                            } else {
-                                1.055 * lum.powf(1.0 / 2.4) - 0.055
-                            };
-                            fg = Color { r: grey, g: grey, b: grey, a: 1.0 };
-                            mask_bar = true;
                             glyph = ' ';
                         }
                     }
@@ -2710,19 +2713,6 @@ where
                     if !is_default_bg {
                         let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
                         frame.fill_rectangle(Point::new(x, y), Size::new(width, cell_h), bg);
-                    }
-
-                    // Privacy redaction bar: an inset filled rect (drawn over the
-                    // background) for a masked alphanumeric cell. The vertical inset
-                    // is what keeps stacked masked lines from merging into a wall.
-                    if mask_bar {
-                        let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
-                        let inset = (cell_h * 0.12).clamp(1.0, 3.0);
-                        frame.fill_rectangle(
-                            Point::new(x, y + inset),
-                            Size::new(width, (cell_h - inset * 2.0).max(1.0)),
-                            fg,
-                        );
                     }
 
                     // Draw character. Codepoints in the Unicode Private Use
@@ -2823,6 +2813,112 @@ where
                 }
                 if let Some(r) = run.take() {
                     flush_run(frame, r);
+                }
+
+                // Privacy redaction bars, one per span (issue #78): a rounded
+                // bar reads as a deliberate censor mark instead of legitimate
+                // reverse-video content, and spans wide enough carry a vector
+                // eye-slash cut out of the bar, the "this is masked, hover to
+                // peek" affordance no font glyph could give (the canvas draws
+                // raw geometry, so there is no bundled-font dependency).
+                // Masked cells drew no glyph above, so painting after the
+                // text pass covers nothing. The vertical inset keeps stacked
+                // masked lines from merging into a wall.
+                if self.privacy {
+                    // Opaque tone blended toward the background, then
+                    // desaturated to neutral grey: keeping the theme hue makes
+                    // the mask mimic reverse-video content (on a teal theme it
+                    // reads as a highlight banner, not a censor mark).
+                    // Brightness is kept by re-encoding the blend's linear
+                    // luminance to sRGB.
+                    let blend = Color {
+                        r: palette.foreground.r * 0.45 + palette.background.r * 0.55,
+                        g: palette.foreground.g * 0.45 + palette.background.g * 0.55,
+                        b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
+                        a: 1.0,
+                    };
+                    let lum = relative_luminance(blend);
+                    let grey = if lum <= 0.003_130_8 {
+                        lum * 12.92
+                    } else {
+                        1.055 * lum.powf(1.0 / 2.4) - 0.055
+                    };
+                    let bar_color = Color { r: grey, g: grey, b: grey, a: 1.0 };
+                    let mut any_masked = false;
+                    for ext in privacy_extents(&highlights) {
+                        let (row, start_col, end_col) = ext;
+                        let revealed = hovered_privacy_extent == Some(ext)
+                            || pinned_extents.contains(&ext);
+                        if revealed {
+                            continue;
+                        }
+                        any_masked = true;
+                        let inset = (cell_h * 0.12).clamp(1.0, 3.0);
+                        let bx = start_col as f32 * cell_w + TERM_PAD;
+                        let by = row as f32 * cell_h + TERM_PAD_TOP + inset;
+                        let bw = (end_col - start_col + 1) as f32 * cell_w;
+                        let bh = (cell_h - inset * 2.0).max(1.0);
+                        let radius = (bh * 0.30).clamp(2.0, 5.0);
+                        frame.fill(
+                            &canvas::Path::rounded_rectangle(
+                                Point::new(bx, by),
+                                Size::new(bw, bh),
+                                radius.into(),
+                            ),
+                            bar_color,
+                        );
+                        // Eye-slash cutout, centered, background-colored so it
+                        // reads as punched out of the bar. Only when the span
+                        // has room; short spans keep the bare rounded bar.
+                        if bw >= cell_w * 5.0 && bh >= 8.0 {
+                            let (cx, cy) = (bx + bw / 2.0, by + bh / 2.0);
+                            let eye_h = bh * 0.28;
+                            let eye_w = (eye_h * 2.6).min(bw * 0.5);
+                            let cutout = canvas::Stroke {
+                                style: canvas::stroke::Style::Solid(palette.background),
+                                width: (bh * 0.10).clamp(1.0, 1.6),
+                                line_cap: canvas::stroke::LineCap::Round,
+                                ..canvas::Stroke::default()
+                            };
+                            let almond = canvas::Path::new(|b| {
+                                b.move_to(Point::new(cx - eye_w / 2.0, cy));
+                                b.quadratic_curve_to(
+                                    Point::new(cx, cy - eye_h * 2.0),
+                                    Point::new(cx + eye_w / 2.0, cy),
+                                );
+                                b.quadratic_curve_to(
+                                    Point::new(cx, cy + eye_h * 2.0),
+                                    Point::new(cx - eye_w / 2.0, cy),
+                                );
+                            });
+                            frame.stroke(&almond, cutout);
+                            frame.fill(
+                                &canvas::Path::circle(
+                                    Point::new(cx, cy),
+                                    (eye_h * 0.45).max(1.0),
+                                ),
+                                palette.background,
+                            );
+                            let slash = canvas::Path::line(
+                                Point::new(cx - eye_w * 0.62, cy + eye_h * 1.5),
+                                Point::new(cx + eye_w * 0.62, cy - eye_h * 1.5),
+                            );
+                            frame.stroke(&slash, cutout);
+                        }
+                    }
+                    // First-mask signal for the app's one-shot hint toast
+                    // (issue #78): the draw pass has no message path, so a
+                    // process-wide flag the app swaps on its update loop is
+                    // the channel, same spirit as the bounds-reporter slots.
+                    if any_masked {
+                        PRIVACY_MASK_DRAWN.store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                    // Cache for `mouse_interaction`: pointer over a masked
+                    // (or just revealed) span signals "click pins the
+                    // reveal", the same affordance links get.
+                    widget_state
+                        .hovered_privacy
+                        .set(hovered_privacy_extent.is_some());
                 }
 
                 // Hand the cell snapshot buffer back so its capacity is reused

@@ -472,6 +472,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("privacy_never_mask") {
                 self.setting_privacy_never_mask = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("hint_privacy_mask") {
+                self.privacy_hint_shown = v == "true";
+            }
             // One-shot reset: Privacy Mode was never meant to be on by
             // default, yet some vaults carry a persisted
             // `privacy_mode = true`. Force it off once on upgrade; the

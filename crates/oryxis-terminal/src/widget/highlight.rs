@@ -680,6 +680,18 @@ pub(crate) fn is_privacy_cell(highlights: &[Highlight], row: u16, col: u16) -> b
 /// data the draw pass uses. The draw pass matches these against the
 /// click-pinned value set so every occurrence of a pinned value stays
 /// revealed, wherever it appears.
+/// All privacy span extents in the frame's highlight set, revealed or
+/// not. The draw pass turns each non-revealed one into a single
+/// span-level redaction bar (rounded rect + eye-slash, issue #78)
+/// instead of per-cell fills.
+pub(crate) fn privacy_extents(highlights: &[Highlight]) -> Vec<(u16, u16, u16)> {
+    highlights
+        .iter()
+        .filter(|h| h.kind == HighlightKind::Ip || h.kind.privacy_only())
+        .map(|h| (h.row, h.start_col, h.end_col))
+        .collect()
+}
+
 pub(crate) fn privacy_spans_with_text(
     highlights: &[Highlight],
     row_chars: &[(u16, Vec<(u16, char)>)],

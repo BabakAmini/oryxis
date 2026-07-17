@@ -94,6 +94,21 @@ impl Oryxis {
         // itself a message, so the gate is already open by the time the
         // first CursorMoved of that drag arrives.
         crate::subscription::set_mouse_interest(self.mouse_interest());
+        // One-shot Privacy Mode hint (issue #78): the first time a
+        // redaction bar actually draws, spell out how the reveal works
+        // ("hover to peek, click to pin"); getting silently masked with
+        // no affordance is exactly how the #53 confusion happened. The
+        // widget's draw pass has no message path, so it raises a
+        // process-wide flag this loop swaps. Fires once per install
+        // (`hint_` settings are per-install bookkeeping, excluded from
+        // portable export).
+        if oryxis_terminal::take_privacy_mask_drawn() && !self.privacy_hint_shown {
+            self.privacy_hint_shown = true;
+            self.persist_setting("hint_privacy_mask", "true");
+            let hint =
+                self.show_toast_secs(crate::i18n::t("privacy_hint_toast").to_string(), 6);
+            return Task::batch([task, hint]);
+        }
         task
     }
 

@@ -541,6 +541,7 @@ impl Oryxis {
                 setting_privacy_mode: false,
                 setting_debug_logging: false,
                 privacy_session_override: None,
+                privacy_hint_shown: false,
                 setting_privacy_always_mask: String::new(),
                 setting_privacy_never_mask: Oryxis::privacy_never_mask_default(),
                 download_mirror: Default::default(),
