@@ -1047,6 +1047,25 @@ pub struct Oryxis {
     /// setting, true while tracing events are also written to the
     /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
     pub(crate) setting_debug_logging: bool,
+    /// Privacy Mode session override (issue #78): `Some(v)` forces the
+    /// mode to `v` everywhere, above the global setting AND the
+    /// per-host overrides; `None` follows the configuration. Volatile
+    /// by design (never persisted): the use case is "I'm about to
+    /// share my screen", not "change my configuration". Toggled by
+    /// the Ctrl+Shift+M hotkey and the status-bar chip.
+    pub(crate) privacy_session_override: Option<bool>,
+    /// Privacy Mode always-mask list (issue #78): user-edited,
+    /// comma-separated literals masked wherever they appear, on top of
+    /// the vault-derived hostnames + usernames. Raw as typed; parsing
+    /// happens in `privacy_terms()`. Mirrors the `privacy_always_mask`
+    /// setting.
+    pub(crate) setting_privacy_always_mask: String,
+    /// Privacy Mode never-mask list (issue #78): user-edited,
+    /// comma-separated words the derived terms must NOT include,
+    /// seeded with `PRIVACY_NEVER_MASK_DEFAULT` (root, ubuntu, ...) so
+    /// shared usernames keep everyday output readable. Raw as typed.
+    /// Mirrors the `privacy_never_mask` setting.
+    pub(crate) setting_privacy_never_mask: String,
     /// Download-mirror block state (Settings > Advanced): persisted
     /// choice + custom-URL editing + probe outcome. The effective
     /// choice also lives in `net_mirror`'s process-wide slot so the

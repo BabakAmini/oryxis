@@ -100,6 +100,12 @@ pub enum HotkeyAction {
     ScrollbackPageUp,
     /// Page the scrollback down. Widget-side, like `ScrollbackPageUp`.
     ScrollbackPageDown,
+    /// Privacy Mode session override (issue #78): flip a volatile
+    /// forced-on/off state that sits above the global setting AND the
+    /// per-host overrides, for "I'm about to share my screen" moments.
+    /// Never persisted. Global (not `terminal_only`): the vault
+    /// surfaces mask too.
+    TogglePrivacyMode,
 }
 
 impl HotkeyAction {
@@ -137,6 +143,7 @@ impl HotkeyAction {
             ToggleSidebar,
             ToggleTabFiles,
             ToggleBroadcastInput,
+            TogglePrivacyMode,
             TerminalCopy,
             TerminalPaste,
             TerminalSelectAll,
@@ -180,6 +187,7 @@ impl HotkeyAction {
             ToggleSidebar => "toggle_sidebar",
             ToggleTabFiles => "toggle_tab_files",
             ToggleBroadcastInput => "toggle_broadcast_input",
+            TogglePrivacyMode => "toggle_privacy_mode",
             VaultSectionSlot => "vault_section_slot",
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
@@ -226,6 +234,7 @@ impl HotkeyAction {
             ToggleSidebar => "hotkey_toggle_sidebar",
             ToggleTabFiles => "hotkey_toggle_tab_files",
             ToggleBroadcastInput => "hotkey_toggle_broadcast_input",
+            TogglePrivacyMode => "hotkey_toggle_privacy_mode",
             VaultSectionSlot => "hotkey_vault_section_slot",
             VaultSectionPrev => "hotkey_vault_section_prev",
             VaultSectionNext => "hotkey_vault_section_next",
@@ -1109,6 +1118,12 @@ pub fn default_bindings() -> HotkeyMap {
     // across the tab's panes. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+U is readline kill-line).
     put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
+    // Ctrl+Shift+M (Cmd+Shift+M on macOS): Privacy Mode session
+    // override (issue #78). Shift lifts it out of the terminal
+    // control-sequence gate (plain Ctrl+M IS carriage return). Users
+    // who want an F-key can rebind (F11=fullscreen is the precedent);
+    // F1-F10 stay with TUI apps by default.
+    put(&mut m, TogglePrivacyMode, primary_ctrl, true, false, primary_logo, Char('m'));
     // Terminal clipboard (#75). Deliberately NOT built from the
     // primary_ctrl / primary_logo pair: the platforms disagree on more
     // than which modifier to use. Elsewhere the convention is

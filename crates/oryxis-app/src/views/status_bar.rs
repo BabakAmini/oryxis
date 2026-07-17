@@ -80,6 +80,18 @@ impl Oryxis {
             items.push(broadcast_segment_btn(idx, tab.broadcast));
             items.push(Space::new().width(10).into());
         }
+        // Privacy Mode chip (issue #78): visible whenever masking is
+        // globally effective or a session override is armed, so the
+        // state is never silent (the original #53 confusion). Clicking
+        // toggles the session override, same as the Ctrl+Shift+M
+        // hotkey.
+        if self.privacy_global_active() || self.privacy_session_override.is_some() {
+            items.push(privacy_segment_btn(
+                self.privacy_global_active(),
+                self.privacy_session_override.is_some(),
+            ));
+            items.push(Space::new().width(10).into());
+        }
         items.push(
             text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
                 .size(12)
@@ -131,6 +143,43 @@ fn mode_segment_btn(idx: usize, label: &str, active: bool) -> Element<'_, Messag
         btn = btn.on_press(Message::ToggleTabFilesMode(idx));
     }
     btn.into()
+}
+
+/// Privacy Mode chip in the status bar (issue #78). Accent-tinted
+/// while masking is effective; muted with a visible border while a
+/// session override forces it OFF (so "my per-host privacy is
+/// suspended" is readable from the bar). Clicking flips the session
+/// override, mirroring the hotkey.
+fn privacy_segment_btn(masking: bool, overridden: bool) -> Element<'static, Message> {
+    let c = OryxisColors::t();
+    let fg = if masking { c.accent } else { c.text_muted };
+    button(text(crate::i18n::t("privacy_chip")).size(11).color(fg))
+        .padding(Padding { top: 1.0, right: 8.0, bottom: 1.0, left: 8.0 })
+        .on_press(Message::TogglePrivacySessionOverride)
+        .style(move |_, status| {
+            let c = OryxisColors::t();
+            let bg = if masking {
+                Color { a: 0.12, ..c.accent }
+            } else {
+                match status {
+                    BtnStatus::Hovered | BtnStatus::Pressed => c.bg_hover,
+                    _ => Color::TRANSPARENT,
+                }
+            };
+            let border_color = if masking {
+                Color { a: 0.35, ..c.accent }
+            } else if overridden {
+                Color { a: 0.60, ..c.text_muted }
+            } else {
+                Color::TRANSPARENT
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(5.0), color: border_color, width: 1.0 },
+                ..Default::default()
+            }
+        })
+        .into()
 }
 
 /// Broadcast-input toggle in the status bar (C2). A single button

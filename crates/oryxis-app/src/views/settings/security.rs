@@ -472,7 +472,7 @@ impl Oryxis {
         // history and the retention window. Moved here from the
         // Terminal section, recordings are scrubbed for secrets
         // and sealed at rest, so they belong with the vault.
-        let privacy_mode_section = panel_section(column![
+        let mut privacy_rows = column![
             self.nav_toggle_row(
                 crate::i18n::t("privacy_mode_label"),
                 self.setting_privacy_mode,
@@ -481,7 +481,77 @@ impl Oryxis {
             Space::new().height(4),
             text(crate::i18n::t("privacy_mode_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
-        ]);
+        ];
+        // Mask lists (issue #78), shown only while the mode is on
+        // (toggle-hidden, the house rule for optional machinery).
+        // Always-mask: user literals joining the vault-derived terms.
+        // Never-mask: words the derived terms must skip, seeded with
+        // the generic usernames (root, ubuntu, ...) so `ls -l` output
+        // stays readable by default.
+        if self.setting_privacy_mode {
+            privacy_rows = privacy_rows
+                .push(Space::new().height(14))
+                .push(
+                    text(crate::i18n::t("privacy_always_mask_label"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("privacy_always_mask_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(8))
+                .push(self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "set-security-privacy-always",
+                    )),
+                    10.0,
+                    text_input(
+                        "internal.example.com, acme-corp",
+                        &self.setting_privacy_always_mask,
+                    )
+                    .id(iced::widget::Id::new("set-security-privacy-always"))
+                    .on_input(Message::SettingPrivacyAlwaysMaskChanged)
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                ))
+                .push(Space::new().height(14))
+                .push(
+                    text(crate::i18n::t("privacy_never_mask_label"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("privacy_never_mask_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(8))
+                .push(self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "set-security-privacy-never",
+                    )),
+                    10.0,
+                    text_input(
+                        "root, ubuntu, admin",
+                        &self.setting_privacy_never_mask,
+                    )
+                    .id(iced::widget::Id::new("set-security-privacy-never"))
+                    .on_input(Message::SettingPrivacyNeverMaskChanged)
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                ));
+        }
+        let privacy_mode_section = panel_section(privacy_rows);
 
         let session_logging_enabled = self.setting_session_logging;
         let mut session_logging_rows = column![

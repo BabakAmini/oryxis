@@ -1263,6 +1263,18 @@ pub enum Message {
     /// re-rendered the whole app 10x/s on Windows. Only constructed on
     /// Windows (the subscription is only mounted there).
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+    /// Privacy Mode session override (issue #78): press once to force
+    /// the opposite of the configured global state (above per-host
+    /// overrides too), press again to fall back to the settings.
+    /// Volatile, never persisted. Driven by the Ctrl+Shift+M hotkey
+    /// and the status-bar chip.
+    TogglePrivacySessionOverride,
+    /// Privacy Mode always-mask list edited (issue #78): literals
+    /// masked wherever they appear, on top of the derived terms.
+    SettingPrivacyAlwaysMaskChanged(String),
+    /// Privacy Mode never-mask list edited (issue #78): words the
+    /// derived terms must not include (generic usernames).
+    SettingPrivacyNeverMaskChanged(String),
     TrayMenuEvent(String),
     /// The tray icon was double-clicked (restore the window). Same
     /// event-driven delivery as [`TrayMenuEvent`].

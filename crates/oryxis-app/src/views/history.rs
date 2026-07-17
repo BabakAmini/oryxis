@@ -228,7 +228,7 @@ impl Oryxis {
             vec![search_slot, Space::new().width(10).into()];
         // Privacy reveal toggle, shown whenever Privacy Mode could mask
         // something in this view (global on, or any host forces it on).
-        let privacy_applies = self.setting_privacy_mode
+        let privacy_applies = self.privacy_global_active()
             || self.connections.iter().any(|c| c.privacy_mode == Some(true));
         if privacy_applies {
             row_items.push(self.keynav_toolbar_slot(
@@ -342,7 +342,7 @@ impl Oryxis {
                 .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id));
             let privacy_applies = viewer_conn
                 .map(|c| self.privacy_active(c))
-                .unwrap_or(self.setting_privacy_mode);
+                .unwrap_or_else(|| self.privacy_global_active());
             let mask = privacy_applies && !self.privacy_revealed;
             let privacy_terms = if mask { self.privacy_terms() } else { Vec::new() };
             let rich_spans: Vec<iced::widget::text::Span<'_, ()>> = spans
@@ -536,7 +536,7 @@ impl Oryxis {
         let mask = !self.privacy_revealed
             && conn
                 .map(|c| self.privacy_active(c))
-                .unwrap_or(self.setting_privacy_mode);
+                .unwrap_or_else(|| self.privacy_global_active());
         let host_str = match row.hostname {
             Some(h) if mask => crate::widgets::mask_blocks(h),
             Some(h) => h.to_string(),

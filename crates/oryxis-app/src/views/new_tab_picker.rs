@@ -384,7 +384,7 @@ impl Oryxis {
                 // below stay on the RAW strings.
                 let privacy_terms = self.privacy_terms();
                 let redact = |s: &str| {
-                    if self.setting_privacy_mode {
+                    if self.privacy_global_active() {
                         crate::widgets::redact_for_display(s, &privacy_terms)
                     } else {
                         s.to_string()

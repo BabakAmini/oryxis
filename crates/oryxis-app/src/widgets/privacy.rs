@@ -132,6 +132,41 @@ fn version_like_in_line(s: &str, start: usize, end: usize) -> bool {
     )
 }
 
+/// Split a user-edited privacy list (the "Always mask" / "Never mask"
+/// settings, issue #78): comma / semicolon / newline separated,
+/// trimmed, lowercased, empties dropped.
+pub(crate) fn parse_privacy_list(s: &str) -> impl Iterator<Item = String> + '_ {
+    s.split([',', ';', '\n'])
+        .map(|t| t.trim().to_ascii_lowercase())
+        .filter(|t| !t.is_empty())
+}
+
+/// Assemble the effective Privacy Mode terms (issue #78): the values
+/// derived from the vault (saved hostnames + usernames), minus the
+/// user's never-mask list, plus the user's always-mask list. The
+/// always list is NOT run through the never filter: an explicit add
+/// beats the seeded never defaults when the same word sits in both.
+/// Everything is lowercased, deduped and held to the same >= 4 chars
+/// floor the terminal widget applies to terms; masking every "web"
+/// or "db1" in sight would be noise, not privacy.
+pub(crate) fn assemble_privacy_terms<'a>(
+    derived: impl Iterator<Item = &'a str>,
+    always_mask: &str,
+    never_mask: &str,
+) -> Vec<String> {
+    let never: std::collections::HashSet<String> =
+        parse_privacy_list(never_mask).collect();
+    let mut terms: Vec<String> = derived
+        .map(|s| s.trim().to_ascii_lowercase())
+        .filter(|t| !never.contains(t))
+        .chain(parse_privacy_list(always_mask))
+        .filter(|t| t.len() >= 4)
+        .collect();
+    terms.sort_unstable();
+    terms.dedup();
+    terms
+}
+
 /// Mask exact, case-insensitive, token-bounded occurrences of `terms`
 /// (lowercase) in `s`. The literal-match counterpart of the terminal's
 /// KnownHost spans: plain DNS names have no detectable shape (file
@@ -239,7 +274,44 @@ pub(crate) fn privacy_reveal_btn<'a>(revealed: bool) -> Element<'a, Message> {
 
 #[cfg(test)]
 mod tests {
-    use super::{mask_blocks, redact_for_display};
+    use super::{assemble_privacy_terms, mask_blocks, redact_for_display};
+
+    #[test]
+    fn terms_include_usernames_and_respect_never_mask() {
+        // Saved usernames join the terms (issue #78: `ls -la` owner
+        // columns); generic ones on the never list stay readable.
+        let derived = ["web01.prod.internal", "koobs", "root"];
+        let terms = assemble_privacy_terms(
+            derived.iter().copied(),
+            "",
+            "root, admin, ubuntu",
+        );
+        assert_eq!(terms, vec!["koobs".to_string(), "web01.prod.internal".to_string()]);
+    }
+
+    #[test]
+    fn always_mask_beats_never_mask_and_length_floor_holds() {
+        // An explicit always-add wins over the seeded never default;
+        // sub-4-char entries are dropped like the widget drops them.
+        let terms = assemble_privacy_terms(
+            ["bob"].iter().copied(),
+            "ROOT, acme-corp, db1",
+            "root",
+        );
+        // "bob" (derived, < 4) and "db1" (always, < 4) fall to the
+        // floor; "root" survives via the always list, lowercased.
+        assert_eq!(terms, vec!["acme-corp".to_string(), "root".to_string()]);
+    }
+
+    #[test]
+    fn terms_dedupe_case_insensitively() {
+        let terms = assemble_privacy_terms(
+            ["Web01.Prod", "web01.prod"].iter().copied(),
+            "web01.prod",
+            "",
+        );
+        assert_eq!(terms, vec!["web01.prod".to_string()]);
+    }
 
     #[test]
     fn mask_blocks_covers_separators_too() {

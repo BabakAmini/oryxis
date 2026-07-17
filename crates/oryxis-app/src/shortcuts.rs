@@ -1123,6 +1123,10 @@ impl Oryxis {
                 Some(idx) => Task::done(Message::ToggleTabBroadcast(idx)),
                 None => Task::none(),
             },
+            // Privacy Mode session override (issue #78): volatile
+            // forced-on/off above the global setting and the per-host
+            // overrides; global, works from any surface.
+            TogglePrivacyMode => Task::done(Message::TogglePrivacySessionOverride),
             // Paste is the one clipboard action the dispatcher performs
             // itself: the widget can only write to a local PTY, so a
             // widget-side paste would silently do nothing over SSH.

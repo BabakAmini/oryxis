@@ -63,7 +63,7 @@ impl Oryxis {
             Space::new().width(0).into(),
             Space::new().width(Length::Fill).into(),
         ];
-        if self.setting_privacy_mode {
+        if self.privacy_global_active() {
             // Rendered on the empty path too (the toolbar survives the
             // empty state here), so it is always recorded.
             toolbar_items.push(self.keynav_toolbar_slot(
@@ -157,7 +157,7 @@ impl Oryxis {
             // toolbar reveals. Known hosts aren't tied to a saved connection,
             // so this follows the global setting.
             let host_title = format!("{}:{}", kh.hostname, kh.port);
-            let host_title = if self.setting_privacy_mode && !self.privacy_revealed {
+            let host_title = if self.privacy_global_active() && !self.privacy_revealed {
                 crate::widgets::mask_blocks(&host_title)
             } else {
                 host_title

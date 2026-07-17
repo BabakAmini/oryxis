@@ -200,30 +200,63 @@ impl Oryxis {
         )
     }
 
-    /// Whether Privacy Mode is active for a connection. Per-host
+    /// Usernames half the world's servers share: masking them would
+    /// turn every `ls -l` into noise without protecting anything
+    /// (issue #78). Seeds the editable never-mask setting on first
+    /// boot; the user's stored list is authoritative after that.
+    pub(crate) const PRIVACY_NEVER_MASK_DEFAULT: &'static [&'static str] = &[
+        "root", "admin", "administrator", "ubuntu", "debian", "centos",
+        "fedora", "alpine", "ec2-user", "azureuser", "opc", "core",
+        "vagrant", "ansible", "docker", "bitnami", "guest", "user",
+        "test", "postgres", "mysql", "redis", "mongodb", "oracle",
+        "git", "www-data", "nginx", "apache", "nobody", "daemon",
+    ];
+
+    /// The never-mask default as the comma-joined string the setting
+    /// stores and the Settings field displays.
+    pub(crate) fn privacy_never_mask_default() -> String {
+        Self::PRIVACY_NEVER_MASK_DEFAULT.join(", ")
+    }
+
+    /// The effective global Privacy Mode state: the volatile session
+    /// override (issue #78) wins over the persisted setting. Use this,
+    /// never `setting_privacy_mode` directly, when deciding whether a
+    /// surface without a per-host context masks.
+    pub(crate) fn privacy_global_active(&self) -> bool {
+        self.privacy_session_override
+            .unwrap_or(self.setting_privacy_mode)
+    }
+
+    /// Whether Privacy Mode is active for a connection. The session
+    /// override (issue #78) wins over EVERYTHING, per-host overrides
+    /// included: "I'm about to share my screen" must not leak through
+    /// a host configured with privacy off. Below it, the per-host
     /// override (`Connection.privacy_mode`) wins over the global
-    /// `setting_privacy_mode`; `None` inherits the global default.
+    /// setting; `None` inherits the global default.
     pub(crate) fn privacy_active(&self, conn: &oryxis_core::models::Connection) -> bool {
-        conn.privacy_mode.unwrap_or(self.setting_privacy_mode)
+        self.privacy_session_override
+            .unwrap_or_else(|| conn.privacy_mode.unwrap_or(self.setting_privacy_mode))
     }
 
     /// Strings Privacy Mode masks literally wherever they appear (live
     /// terminal + session-log viewer): every saved connection's host
-    /// address, lowercased and deduped. Plain DNS names have no
+    /// address AND username (issue #78: `ls -la` / `dir /Q` owner
+    /// columns), lowercased and deduped. Plain DNS names have no
     /// detectable shape (file extensions collide with ccTLDs: `main.rs`,
     /// `install.sh` are FQDN-shaped), so the known values are matched
-    /// exactly instead of guessed. Very short hosts are dropped, masking
-    /// every "web" in sight would be noise, not privacy.
+    /// exactly instead of guessed. The user's never-mask list (seeded
+    /// with `PRIVACY_NEVER_MASK_DEFAULT`) keeps shared usernames like
+    /// `root` readable; the always-mask list adds arbitrary literals
+    /// (company names, internal domains). Very short terms are dropped,
+    /// masking every "web" in sight would be noise, not privacy.
     pub(crate) fn privacy_terms(&self) -> Vec<String> {
-        let mut terms: Vec<String> = self
-            .connections
-            .iter()
-            .map(|c| c.hostname.trim().to_ascii_lowercase())
-            .filter(|h| h.len() >= 4)
-            .collect();
-        terms.sort_unstable();
-        terms.dedup();
-        terms
+        crate::widgets::assemble_privacy_terms(
+            self.connections.iter().flat_map(|c| {
+                std::iter::once(c.hostname.as_str()).chain(c.username.as_deref())
+            }),
+            &self.setting_privacy_always_mask,
+            &self.setting_privacy_never_mask,
+        )
     }
 
     /// Privacy Mode for a terminal pane, resolved from its label. Host
@@ -235,7 +268,7 @@ impl Oryxis {
             .iter()
             .find(|c| c.label == base)
             .map(|c| self.privacy_active(c))
-            .unwrap_or(self.setting_privacy_mode)
+            .unwrap_or_else(|| self.privacy_global_active())
     }
 
     /// A host/tab label as rendered under Privacy Mode (issue #78):
@@ -1066,6 +1099,31 @@ impl Oryxis {
                     "privacy_mode",
                     if self.setting_privacy_mode { "true" } else { "false" },
                 );
+            }
+            Message::TogglePrivacySessionOverride => {
+                // One press forces the opposite of the configured
+                // global state (per-host overrides included); the next
+                // press falls back to the settings. The toast spells
+                // the resulting state out because a silent flip is how
+                // the original #53 confusion happened.
+                self.privacy_session_override = match self.privacy_session_override {
+                    None => Some(!self.setting_privacy_mode),
+                    Some(_) => None,
+                };
+                let key = match self.privacy_session_override {
+                    Some(true) => "privacy_toast_session_on",
+                    Some(false) => "privacy_toast_session_off",
+                    None => "privacy_toast_follow",
+                };
+                return Ok(self.show_toast(crate::i18n::t(key).to_string()));
+            }
+            Message::SettingPrivacyAlwaysMaskChanged(v) => {
+                self.persist_setting("privacy_always_mask", &v);
+                self.setting_privacy_always_mask = v;
+            }
+            Message::SettingPrivacyNeverMaskChanged(v) => {
+                self.persist_setting("privacy_never_mask", &v);
+                self.setting_privacy_never_mask = v;
             }
             Message::SettingToggleDebugLogging => {
                 if self.setting_debug_logging {

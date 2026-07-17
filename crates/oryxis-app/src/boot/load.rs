@@ -462,6 +462,16 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("privacy_mode") {
                 self.setting_privacy_mode = v == "true";
             }
+            // Privacy mask lists (issue #78). The never list is seeded
+            // with the generic-username defaults at struct init; a
+            // stored value (even an empty string, the user clearing
+            // the field is a choice) replaces it wholesale.
+            if let Ok(Some(v)) = vault.get_setting("privacy_always_mask") {
+                self.setting_privacy_always_mask = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("privacy_never_mask") {
+                self.setting_privacy_never_mask = v;
+            }
             // One-shot reset: Privacy Mode was never meant to be on by
             // default, yet some vaults carry a persisted
             // `privacy_mode = true`. Force it off once on upgrade; the

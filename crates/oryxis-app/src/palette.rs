@@ -99,9 +99,8 @@ fn hotkey_category(action: HotkeyAction) -> PaletteCategory {
             PaletteCategory::Terminal
         }
         OpenSettings => PaletteCategory::Settings,
-        ToggleFullscreen | ShowCommandPalette | SwitchToTabSlot | CycleTabs => {
-            PaletteCategory::Session
-        }
+        ToggleFullscreen | ShowCommandPalette | SwitchToTabSlot | CycleTabs
+        | TogglePrivacyMode => PaletteCategory::Session,
     }
 }
 

@@ -39,7 +39,7 @@ impl Oryxis {
     fn progress_privacy_on(&self, progress: &crate::state::ConnectionProgress) -> bool {
         self.progress_connection(progress)
             .map(|c| self.privacy_active(c))
-            .unwrap_or(self.setting_privacy_mode)
+            .unwrap_or_else(|| self.privacy_global_active())
     }
 
     /// Redact a connection-progress string under Privacy Mode. The text is
