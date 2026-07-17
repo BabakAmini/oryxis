@@ -38,11 +38,22 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, BufWriter};
 use tokio::sync::mpsc;
 use zmodem2::{Action, Event, FileInfo, Position, Receiver, Sender};
 
 use crate::Direction;
+
+/// Floor between two streamed `Advanced` reports. Unthrottled, one
+/// report per ~1 KiB subpacket turns a large transfer into hundreds of
+/// thousands of UI messages; 100 ms keeps the overlay smooth while the
+/// exact figure always lands with the final per-file report.
+const PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Buffered file I/O capacity. Every `tokio::fs` operation dispatches
+/// to the blocking pool, so unbuffered per-subpacket I/O costs one
+/// dispatch (plus syscall) per ~1 KiB; this amortizes it to ~4 per MiB.
+const FILE_BUF_SIZE: usize = 256 * 1024;
 
 /// Where a transfer's bytes come from / go to. Chosen by the caller up
 /// front (see the no-blocking-dialogs note above).
@@ -169,13 +180,14 @@ async fn run_download(
     };
     let mut receiver = Receiver::new().map_err(|e| format!("zmodem init: {e:?}"))?;
     let mut pending = first_wire;
-    let mut dest: Option<tokio::fs::File> = None;
+    let mut dest: Option<BufWriter<tokio::fs::File>> = None;
     let mut dest_path: Option<PathBuf> = None;
     let mut name = String::new();
     let mut transferred: u64 = 0;
     let mut total: Option<u64> = None;
     let mut aborting = false;
     let mut finished = false;
+    let mut last_progress = std::time::Instant::now();
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -202,7 +214,10 @@ async fn run_download(
                 receiver
                     .file_written(n)
                     .map_err(|e| format!("zmodem file: {e:?}"))?;
-                let _ = io.progress.send(Progress::Advanced { transferred, total });
+                if last_progress.elapsed() >= PROGRESS_INTERVAL {
+                    last_progress = std::time::Instant::now();
+                    let _ = io.progress.send(Progress::Advanced { transferred, total });
+                }
             }
             Step::ReadFile { .. } => {
                 return Err("receiver asked to read a file (protocol error)".into());
@@ -210,7 +225,7 @@ async fn run_download(
             Step::Started { name: raw, size } => {
                 let safe = sanitize_name(&raw);
                 let (file, path) = create_download_file(&dest_dir, &safe).await?;
-                dest = Some(file);
+                dest = Some(BufWriter::with_capacity(FILE_BUF_SIZE, file));
                 // Report the on-disk name, which carries a " (N)"
                 // suffix when the advertised one was already taken.
                 name = path
@@ -229,6 +244,9 @@ async fn run_download(
                 if let Some(mut file) = dest.take() {
                     file.flush().await.map_err(|e| format!("flush: {e}"))?;
                 }
+                // Streamed reports are time-strided; snap the overlay
+                // to the exact figure before closing the file out.
+                let _ = io.progress.send(Progress::Advanced { transferred, total });
                 let _ = io.progress.send(Progress::FileDone {
                     name: name.clone(),
                     path: dest_path.take(),
@@ -327,11 +345,18 @@ async fn run_upload(
     let TransferSpec::Upload { source } = spec else {
         return Err("upload driver given a non-upload spec".into());
     };
-    let mut file = tokio::fs::File::open(&source)
+    let file = tokio::fs::File::open(&source)
         .await
         .map_err(|e| format!("open {}: {e}", source.display()))?;
     let size = file.metadata().await.map_err(|e| format!("stat: {e}"))?.len();
     let size32 = u32::try_from(size).map_err(|_| "file larger than 4 GiB (ZMODEM limit)")?;
+    // Read-ahead buffer + a position cursor: the machine requests
+    // sequential ~1 KiB slices, so seeking on every request would both
+    // defeat the buffer and pay two blocking-pool dispatches per
+    // subpacket. A real seek only happens on a retransmission rewind
+    // or a receiver-driven resume offset.
+    let mut file = BufReader::with_capacity(FILE_BUF_SIZE, file);
+    let mut file_pos: u64 = 0;
     let name = source
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -352,6 +377,7 @@ async fn run_upload(
     let mut pending = first_wire;
     let mut aborting = false;
     let mut finished = false;
+    let mut last_progress = std::time::Instant::now();
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -368,28 +394,40 @@ async fn run_upload(
                 sender.wire_written(n);
             }
             Step::ReadFile { offset, max_len } => {
-                file.seek(std::io::SeekFrom::Start(u64::from(offset)))
-                    .await
-                    .map_err(|e| format!("seek: {e}"))?;
+                let offset = u64::from(offset);
+                if offset != file_pos {
+                    file.seek(std::io::SeekFrom::Start(offset))
+                        .await
+                        .map_err(|e| format!("seek: {e}"))?;
+                }
                 let mut buf = vec![0u8; max_len];
                 let read = file.read(&mut buf).await.map_err(|e| format!("read: {e}"))?;
                 buf.truncate(read);
                 if read == 0 {
                     return Err("unexpected end of file during upload".into());
                 }
+                file_pos = offset + read as u64;
                 sender
                     .submit_file(&buf)
                     .map_err(|e| format!("zmodem submit: {e:?}"))?;
-                let _ = io.progress.send(Progress::Advanced {
-                    transferred: u64::from(offset) + read as u64,
-                    total: Some(size),
-                });
+                if last_progress.elapsed() >= PROGRESS_INTERVAL {
+                    last_progress = std::time::Instant::now();
+                    let _ = io.progress.send(Progress::Advanced {
+                        transferred: file_pos,
+                        total: Some(size),
+                    });
+                }
             }
             Step::WriteFile(_) => {
                 return Err("sender asked to write a file (protocol error)".into());
             }
             Step::Started { .. } => {}
             Step::FileDone => {
+                // Same exact-figure snap as the download side.
+                let _ = io.progress.send(Progress::Advanced {
+                    transferred: size,
+                    total: Some(size),
+                });
                 let _ = io.progress.send(Progress::FileDone {
                     name: name.clone(),
                     path: None,
@@ -760,9 +798,13 @@ mod tests {
                 .await
                 .expect("transfer deadlocked");
 
-            // The download side must have reported Completed.
+            // The download side must have reported Completed, and the
+            // last Advanced must be the exact total: streamed reports
+            // are time-throttled, so the per-file final snap is what
+            // guarantees the overlay never ends short.
             let mut completed = false;
             let mut saved: Option<PathBuf> = None;
+            let mut last_advanced = None;
             while let Ok(p) = p_down_rx.try_recv() {
                 match p {
                     Progress::Completed { trailing } => {
@@ -772,12 +814,18 @@ mod tests {
                             "loopback produced trailing bytes: {trailing:?}"
                         );
                     }
+                    Progress::Advanced { transferred, .. } => last_advanced = Some(transferred),
                     Progress::FileDone { path, .. } => saved = path,
                     Progress::Error(e) => panic!("download error: {e}"),
                     _ => {}
                 }
             }
             assert!(completed, "download never completed");
+            assert_eq!(
+                last_advanced,
+                Some(payload.len() as u64),
+                "final progress snap is not the exact total"
+            );
             // The upload side must complete too: it only can if the
             // download flushed its queued ZFIN reply before exiting
             // (issue #77's regression; the old driver returned on the
