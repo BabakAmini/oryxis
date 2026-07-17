@@ -80,10 +80,10 @@ impl Oryxis {
                 ),
                 Space::new().height(12),
                 // Features holds only the enable toggle; the confirm +
-                // socket rows live in their own section below.
+                // socket rows live in the Settings sidebar's SSH Agent
+                // section, which appears while the agent is enabled.
                 self.agent_server_toggle(),
             ]),
-            self.agent_server_config_section(),
             Space::new().height(18).into(),
             // Plugins list header: subtitle on the leading edge, the
             // global auto-update toggle on the trailing edge, one line.
@@ -297,7 +297,8 @@ impl Oryxis {
     /// The ssh-agent ENABLE toggle, shown in the Features section. Any
     /// runtime error is surfaced inline under it. Off unix (pre-Phase-3
     /// Windows) with no listener, the whole row is hidden. The confirm +
-    /// socket rows live in [`Self::agent_server_config_section`].
+    /// socket rows live in the sidebar's SSH Agent section
+    /// (`view_settings_agent`), visible only while the agent is on.
     fn agent_server_toggle(&self) -> Element<'_, Message> {
         // No socket path means no listener on this platform: hide it.
         if crate::agent_server::listener_socket_display().is_none() {
@@ -326,138 +327,6 @@ impl Oryxis {
         toggle
     }
 
-    /// The ssh-agent configuration section: the per-signature confirm
-    /// toggle plus the socket path and two setup snippets, in their own
-    /// titled `panel_section` below Features. Rendered only while the
-    /// agent is enabled (toggle-hidden rule); collapses to nothing
-    /// otherwise, so Features stays the single on/off surface.
-    fn agent_server_config_section(&self) -> Element<'_, Message> {
-        let Some(socket) = crate::agent_server::listener_socket_display() else {
-            return Space::new().height(0).into();
-        };
-        if !self.agent.enabled {
-            return Space::new().height(0).into();
-        }
-
-        let confirm = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::AgentConfirmToggled(!self.agent.confirm)),
-            8.0,
-            toggle_row_desc(
-                crate::i18n::t("agent_server_confirm"),
-                crate::i18n::t("agent_server_confirm_desc"),
-                self.agent.confirm,
-                Message::AgentConfirmToggled(!self.agent.confirm),
-            ),
-        );
-
-        let allow_add = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::AgentAllowAddToggled(
-                !self.agent.allow_add,
-            )),
-            8.0,
-            toggle_row_desc(
-                crate::i18n::t("agent_allow_add"),
-                crate::i18n::t("agent_allow_add_desc"),
-                self.agent.allow_add,
-                Message::AgentAllowAddToggled(!self.agent.allow_add),
-            ),
-        );
-
-        // The OpenSSH alias is a Windows concept (fixed pipe name);
-        // unix clients point SSH_AUTH_SOCK / IdentityAgent wherever
-        // they like, so the row would be dead weight there.
-        let openssh_pipe: Element<'_, Message> = if cfg!(windows) {
-            let toggle = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::AgentOpensshPipeToggled(
-                    !self.agent.openssh_pipe,
-                )),
-                8.0,
-                toggle_row_desc(
-                    crate::i18n::t("agent_openssh_pipe"),
-                    crate::i18n::t("agent_openssh_pipe_desc"),
-                    self.agent.openssh_pipe,
-                    Message::AgentOpensshPipeToggled(!self.agent.openssh_pipe),
-                ),
-            );
-            match &self.agent.alias_error {
-                Some(err) => column![
-                    Space::new().height(12),
-                    toggle,
-                    Space::new().height(6),
-                    text(err.clone()).size(11).color(OryxisColors::t().error),
-                ]
-                .into(),
-                None => column![Space::new().height(12), toggle].into(),
-            }
-        } else {
-            Space::new().height(0).into()
-        };
-
-        let copy_btn = |label_key: &'static str, msg: Message| -> Element<'_, Message> {
-            self.settings_nav_slot(
-                crate::keynav::RowAction::activate(msg.clone()),
-                6.0,
-                crate::widgets::styled_button(
-                    crate::i18n::t(label_key),
-                    msg,
-                    OryxisColors::t().bg_selected,
-                ),
-            )
-        };
-
-        let path_row = dir_row(vec![
-            text(socket)
-                .size(11)
-                .font(iced::Font::MONOSPACE)
-                .color(OryxisColors::t().text_secondary)
-                .into(),
-            Space::new().width(Length::Fill).into(),
-            copy_btn("agent_server_copy_path", Message::CopyAgentPath),
-        ])
-        .align_y(iced::Alignment::Center);
-
-        let body = panel_section(column![
-            confirm,
-            Space::new().height(12),
-            allow_add,
-            openssh_pipe,
-            Space::new().height(12),
-            crate::widgets::panel_field(crate::i18n::t("agent_server_path"), path_row.into()),
-            Space::new().height(10),
-            {
-                // `IdentityAgent` in ~/.ssh/config is the portable form and
-                // the ONLY one Windows-native OpenSSH honors for a pipe.
-                // The `SSH_AUTH_SOCK` export is a unix-shell idiom, so it
-                // only appears there (its snippet is a unix-socket path).
-                let mut row = vec![copy_btn(
-                    "agent_server_snippet_ssh_config",
-                    Message::CopyAgentSnippet(crate::state::AgentSnippetKind::SshConfig),
-                )];
-                if cfg!(unix) {
-                    row.push(Space::new().width(8).into());
-                    row.push(copy_btn(
-                        "agent_server_snippet_env",
-                        Message::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv),
-                    ));
-                }
-                dir_row(row)
-            },
-        ]);
-
-        // Leading gap separates this section from the Features block; the
-        // trailing gap before the plugins list is added by the caller.
-        column![
-            Space::new().height(18),
-            text(crate::i18n::t("agent_server"))
-                .size(13)
-                .color(OryxisColors::t().text_primary),
-            Space::new().height(8),
-            body,
-        ]
-        .width(Length::Fill)
-        .align_x(dir_align_x())
-        .into()
-    }
 }
 
 /// One provider row: icon + name + status badge, a version / hint
