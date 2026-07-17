@@ -596,7 +596,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "播放（空格）",
         "player_pause_tip" => "暂停（空格）",
         "player_restart_tip" => "重新开始",
-        "more_actions" => "更多操作",
         "player_speed_tip" => "播放速度",
         "player_empty" => "此录制没有可播放的输出",
         "export_cast_tip" => "导出 .cast（asciinema）",

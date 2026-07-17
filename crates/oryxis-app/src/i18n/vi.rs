@@ -733,7 +733,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Phát (Space)",
         "player_pause_tip" => "Tạm dừng (Space)",
         "player_restart_tip" => "Phát lại từ đầu",
-        "more_actions" => "Thao tác khác",
         "player_speed_tip" => "Tốc độ phát",
         "player_empty" => "Bản ghi này không có đầu ra phát được",
         "export_cast_tip" => "Xuất .cast (asciinema)",

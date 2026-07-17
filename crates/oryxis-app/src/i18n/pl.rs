@@ -739,7 +739,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Odtwórz (Spacja)",
         "player_pause_tip" => "Wstrzymaj (Spacja)",
         "player_restart_tip" => "Od nowa",
-        "more_actions" => "Więcej akcji",
         "player_speed_tip" => "Prędkość odtwarzania",
         "player_empty" => "To nagranie nie zawiera odtwarzalnego wyjścia",
         "export_cast_tip" => "Eksportuj .cast (asciinema)",

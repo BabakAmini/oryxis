@@ -735,7 +735,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "پخش (Space)",
         "player_pause_tip" => "مکث (Space)",
         "player_restart_tip" => "شروع دوباره",
-        "more_actions" => "کارهای بیشتر",
         "player_speed_tip" => "سرعت پخش",
         "player_empty" => "این ضبط خروجی قابل پخشی ندارد",
         "export_cast_tip" => "خروجی ‎.cast (asciinema)",

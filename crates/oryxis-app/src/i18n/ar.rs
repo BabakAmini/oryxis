@@ -751,7 +751,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "تشغيل (مسافة)",
         "player_pause_tip" => "إيقاف مؤقت (مسافة)",
         "player_restart_tip" => "إعادة التشغيل",
-        "more_actions" => "مزيد من الإجراءات",
         "player_speed_tip" => "سرعة التشغيل",
         "player_empty" => "لا يحتوي هذا التسجيل على مخرجات قابلة للتشغيل",
         "export_cast_tip" => "تصدير ‎.cast (asciinema)",

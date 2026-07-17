@@ -1161,9 +1161,6 @@ pub enum Message {
     /// Scrubber / arrow-key jump to a playback position (milliseconds).
     SessionPlayerSeek(f64),
     /// Playback clock tick (subscription mounted while playing on the
-    /// Toggle the viewer-header `...` menu (session-log actions minus
-    /// Play, which the viewer offers as its own header button).
-    ShowSessionLogViewerMenu(usize),
     /// History view).
     SessionPlayerTick,
     /// Ask for confirmation before deleting one recording; the

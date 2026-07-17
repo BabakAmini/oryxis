@@ -587,7 +587,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Abspielen (Leertaste)",
         "player_pause_tip" => "Pause (Leertaste)",
         "player_restart_tip" => "Neu starten",
-        "more_actions" => "Weitere Aktionen",
         "player_speed_tip" => "Wiedergabegeschwindigkeit",
         "player_empty" => "Diese Aufzeichnung enthält keine abspielbare Ausgabe",
         "export_cast_tip" => ".cast exportieren (asciinema)",

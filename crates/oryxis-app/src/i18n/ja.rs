@@ -596,7 +596,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "再生 (スペース)",
         "player_pause_tip" => "一時停止 (スペース)",
         "player_restart_tip" => "最初から再生",
-        "more_actions" => "その他の操作",
         "player_speed_tip" => "再生速度",
         "player_empty" => "この録画には再生可能な出力がありません",
         "export_cast_tip" => ".cast を書き出す (asciinema)",

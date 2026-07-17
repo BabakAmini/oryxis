@@ -733,7 +733,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "재생 (Space)",
         "player_pause_tip" => "일시정지 (Space)",
         "player_restart_tip" => "처음부터",
-        "more_actions" => "추가 작업",
         "player_speed_tip" => "재생 속도",
         "player_empty" => "이 녹화에는 재생할 수 있는 출력이 없습니다",
         "export_cast_tip" => ".cast 내보내기 (asciinema)",

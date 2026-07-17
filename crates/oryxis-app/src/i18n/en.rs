@@ -740,7 +740,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "player_play_tip" => "Play (Space)",
         "player_pause_tip" => "Pause (Space)",
         "player_restart_tip" => "Restart",
-        "more_actions" => "More actions",
         "player_speed_tip" => "Playback speed",
         "player_empty" => "This recording has no playable output",
         "export_cast_tip" => "Export .cast (asciinema)",

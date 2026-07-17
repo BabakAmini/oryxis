@@ -739,7 +739,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "चलाएँ (Space)",
         "player_pause_tip" => "रोकें (Space)",
         "player_restart_tip" => "फिर से शुरू करें",
-        "more_actions" => "अधिक कार्रवाइयाँ",
         "player_speed_tip" => "प्लेबैक गति",
         "player_empty" => "इस रिकॉर्डिंग में चलाने योग्य आउटपुट नहीं है",
         "export_cast_tip" => ".cast एक्सपोर्ट करें (asciinema)",

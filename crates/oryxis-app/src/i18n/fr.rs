@@ -596,7 +596,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Lecture (Espace)",
         "player_pause_tip" => "Pause (Espace)",
         "player_restart_tip" => "Recommencer",
-        "more_actions" => "Autres actions",
         "player_speed_tip" => "Vitesse de lecture",
         "player_empty" => "Cet enregistrement ne contient aucune sortie lisible",
         "export_cast_tip" => "Exporter .cast (asciinema)",

@@ -587,7 +587,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Riproduci (Spazio)",
         "player_pause_tip" => "Pausa (Spazio)",
         "player_restart_tip" => "Ricomincia",
-        "more_actions" => "Altre azioni",
         "player_speed_tip" => "Velocità di riproduzione",
         "player_empty" => "Questa registrazione non contiene output riproducibile",
         "export_cast_tip" => "Esporta .cast (asciinema)",
