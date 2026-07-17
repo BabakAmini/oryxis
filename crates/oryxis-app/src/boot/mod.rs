@@ -571,6 +571,7 @@ impl Oryxis {
                 setting_tab_accent_line: true,
                 setting_tab_accent_wash: true,
                 setting_tab_accent_text: true,
+                setting_tab_accent_color: "host".into(),
                 setting_tab_fill_style: "gradient".into(),
                 setting_tab_bar_position: "top".into(),
                 sftp_enabled: true,

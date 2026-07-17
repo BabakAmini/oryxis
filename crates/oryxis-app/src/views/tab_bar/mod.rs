@@ -366,17 +366,21 @@ impl Oryxis {
                 // Active-tab accent: the host's custom color if set, else the
                 // OS brand color (so an Ubuntu tab "breathes" orange), else the
                 // global accent for an empty (no-host) tab.
-                let host_accent = self
-                    .connections
-                    .iter()
-                    .find(|c| c.label == tab.label)
-                    .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
-                    .and_then(crate::widgets::parse_hex_color)
-                    .or_else(|| {
-                        detected_os.as_deref().map(|os| {
-                            crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
+                // `tab_accent_color = "app"` pins the accent to the global
+                // one: skip the whole per-host derivation (None falls back
+                // to the app accent downstream).
+                let host_accent = self.host_accent_enabled().then(|| {
+                    self.connections
+                        .iter()
+                        .find(|c| c.label == tab.label)
+                        .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
+                        .and_then(crate::widgets::parse_hex_color)
+                        .or_else(|| {
+                            detected_os.as_deref().map(|os| {
+                                crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
+                            })
                         })
-                    });
+                }).flatten();
                 // Privacy Mode redacts the rendered label (issue #78);
                 // hovering the tab reveals it, mirroring the card
                 // address. The width is computed from the same string
@@ -460,7 +464,12 @@ impl Oryxis {
             // active-tab fill and the tab text with that color
             // (JetBrains-style "respiração"). Otherwise the active
             // tab keeps the global accent.
-            let host_accent: Option<Color> = self.connections.iter()
+            let host_accent: Option<Color> = if !self.host_accent_enabled() {
+                // `tab_accent_color = "app"`: no per-host accent anywhere
+                // in the strip (fill, text, borders fall back to the app
+                // accent); the badge below keeps its brand colour.
+                None
+            } else { self.connections.iter()
                 .find(|c| c.label == base_label)
                 // `custom_color` is what the icon picker writes (the
                 // user-chosen accent). The legacy `color` field is a
@@ -489,7 +498,7 @@ impl Oryxis {
                     crate::os_icon::tab_label_cloud_brand(base_label).map(|brand| {
                         crate::os_icon::provider_icon(brand, OryxisColors::t().accent).1
                     })
-                });
+                }) };
             // Tabs always render the badge as a rounded square,
             // independent of the per-host override and the global
             // `default_host_icon` setting. Circular badges read as
@@ -577,7 +586,10 @@ impl Oryxis {
                 .and_then(crate::widgets::parse_hex_color);
             let tab_icon = sg_custom_icon.or(lt_icon);
             let tab_badge_color = sg_custom_color.or(lt_color);
-            let tab_accent = sg_custom_color.or(lt_color).or(host_accent);
+            let tab_accent = self
+                .host_accent_enabled()
+                .then(|| sg_custom_color.or(lt_color).or(host_accent))
+                .flatten();
             // Hybrid mode glyph (issue #61): the chip (>_ terminal /
             // folder files) only exists once the tab HAS an SFTP session
             // (owner QA 2026-07-05: a plain SSH tab shows no glyph; the
@@ -855,7 +867,9 @@ impl Oryxis {
                     .and_then(|g| g.icon_style.as_deref())
                     .filter(|s| !s.is_empty())
                     .map(|s| s.to_string());
-                let accent = sg_color.unwrap_or_else(|| OryxisColors::t().accent);
+                let accent = sg_color
+                    .filter(|_| self.host_accent_enabled())
+                    .unwrap_or_else(|| OryxisColors::t().accent);
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
                 Some((
                     drag_ghost(base_label, detected_os, compact, ghost_w, accent, self.setting_tab_accent_text, sg_icon, sg_color),
@@ -863,18 +877,18 @@ impl Oryxis {
                 ))
             } else if let Some(sftp_tab) = self.sftp_tabs.iter().find(|t| t.id == drag.from_id) {
                 let detected_os = self.tab_detected_os(&sftp_tab.label);
-                let accent = self
-                    .connections
-                    .iter()
-                    .find(|c| c.label == sftp_tab.label)
-                    .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
-                    .and_then(crate::widgets::parse_hex_color)
-                    .or_else(|| {
-                        detected_os.as_deref().map(|os| {
-                            crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
+                let accent = self.host_accent_enabled().then(|| {
+                    self.connections
+                        .iter()
+                        .find(|c| c.label == sftp_tab.label)
+                        .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
+                        .and_then(crate::widgets::parse_hex_color)
+                        .or_else(|| {
+                            detected_os.as_deref().map(|os| {
+                                crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
+                            })
                         })
-                    })
-                    .unwrap_or_else(|| OryxisColors::t().accent);
+                }).flatten().unwrap_or_else(|| OryxisColors::t().accent);
                 let compact = sftp_tab.pinned && compact_pins;
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
                 Some((

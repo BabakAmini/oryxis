@@ -173,6 +173,13 @@ impl Oryxis {
         }
     }
 
+    /// True when the strip derives its accent from the host (the
+    /// `tab_accent_color` setting's `"host"` default); false pins every
+    /// strip accent (fill, wash, hairline, text) to the app accent.
+    pub(crate) fn host_accent_enabled(&self) -> bool {
+        self.setting_tab_accent_color != "app"
+    }
+
     /// The accent colour the top bar "breathes": the active tab's
     /// per-host / per-session-group colour (or cloud brand) when a
     /// connection tab is open, else the app accent for Home / vault /
@@ -180,6 +187,9 @@ impl Oryxis {
     /// toggle, so both the bottom hairline and the bar wash share one
     /// source of truth.
     pub(crate) fn top_accent_tint(&self) -> Color {
+        if !self.host_accent_enabled() {
+            return OryxisColors::t().accent;
+        }
         if let Some(idx) = self.active_tab
             && let Some(tab) = self.tabs.get(idx)
         {

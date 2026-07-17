@@ -264,6 +264,22 @@ impl Oryxis {
             ),
             Space::new().height(8),
             self.nav_pick_row(
+                crate::i18n::t("tab_accent_color"),
+                vec!["host".to_string(), "app".to_string()],
+                self.setting_tab_accent_color.clone(),
+                |s: &String| {
+                    crate::i18n::t(if s == "app" {
+                        "tab_accent_color_app"
+                    } else {
+                        "tab_accent_color_host"
+                    })
+                    .to_string()
+                },
+                180.0,
+                Message::SettingTabAccentColorChanged,
+            ),
+            Space::new().height(8),
+            self.nav_pick_row(
                 crate::i18n::t("tab_fill_style"),
                 fill_options,
                 self.setting_tab_fill_style.clone(),

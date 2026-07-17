@@ -393,11 +393,29 @@ impl Oryxis {
     /// the top-bar wash, and the connection status dot. Sample tab labels
     /// are literal demo content (same convention as the font preview).
     pub(crate) fn tab_appearance_preview(&self) -> Element<'_, Message> {
-        let accent = OryxisColors::t().accent;
+        // The demo tab pretends to be an Ubuntu host: a brand colour
+        // clearly distinct from every shipped app accent, so the
+        // host-vs-app accent picker and the text toggle visibly change
+        // the preview (with the app accent they were invisible no-ops).
+        let host_demo = Color::from_rgb8(0xE9, 0x54, 0x20);
+        let accent = if self.host_accent_enabled() {
+            host_demo
+        } else {
+            OryxisColors::t().accent
+        };
+        // Same contrast validation the real strip applies (issue #79)
+        // before the accent renders as text or fill.
+        let text_accent =
+            crate::theme::readable_accent_on(accent, OryxisColors::t().bg_sidebar);
+        let label_color = if self.setting_tab_accent_text {
+            text_accent
+        } else {
+            OryxisColors::t().text_primary
+        };
         let solid = self.setting_tab_fill_style == "solid";
         // Reuse the real strip's fill helper so the preview can never
         // drift from what `tab_bar.rs` actually paints.
-        let active_bg = crate::views::tab_bar::active_tab_bg(accent, solid);
+        let active_bg = crate::views::tab_bar::active_tab_bg(text_accent, solid);
         // Connection status dot: the same green "connected" cue. Only
         // present (with its trailing gap) when the dot setting is on.
         let mut active_row: Vec<Element<'_, Message>> = Vec::new();
@@ -413,7 +431,7 @@ impl Oryxis {
             );
             active_row.push(Space::new().width(6).into());
         }
-        active_row.push(text("production-web").size(12).color(accent).into());
+        active_row.push(text("production-web").size(12).color(label_color).into());
         let active_tab = container(
             dir_row(active_row).align_y(iced::Alignment::Center),
         )

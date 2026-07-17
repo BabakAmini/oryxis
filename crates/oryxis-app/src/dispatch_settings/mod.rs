@@ -1406,6 +1406,14 @@ impl Oryxis {
                 self.setting_tab_fill_style = normalized.into();
                 self.persist_setting("tab_fill_style", normalized);
             }
+            Message::SettingTabAccentColorChanged(val) => {
+                let normalized = match val.as_str() {
+                    "app" => "app",
+                    _ => "host",
+                };
+                self.setting_tab_accent_color = normalized.into();
+                self.persist_setting("tab_accent_color", normalized);
+            }
             Message::SettingTabBarPositionChanged(val) => {
                 let normalized = match val.as_str() {
                     "bottom" => "bottom",

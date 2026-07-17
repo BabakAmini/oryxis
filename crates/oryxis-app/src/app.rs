@@ -1186,6 +1186,13 @@ pub struct Oryxis {
     /// text always uses the theme's neutral text colours; the accent
     /// keeps living in the badge, active wash, pinned border and dots.
     pub(crate) setting_tab_accent_text: bool,
+    /// Where the strip's accent colour comes from: `"host"` (default,
+    /// per-host custom colour, session-group colour, cloud brand or OS
+    /// brand) or `"app"` (always the global app accent, disabling
+    /// per-host colouring in the fill, wash, hairline and text at
+    /// once). OS badges keep their brand colour either way, identity
+    /// is the badge's job.
+    pub(crate) setting_tab_accent_color: String,
     /// Active-tab fill: `"gradient"` (default, the "lit from above"
     /// vertical accent fade) or `"solid"` (a single flat accent tint).
     /// Read by every tab/chip renderer via `active_tab_bg`.
