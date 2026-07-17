@@ -13,6 +13,33 @@
 //! The engine lives in the core binary, not a plugin: it must sit in
 //! the live byte path of the terminal, which a subprocess cannot reach,
 //! and `zmodem2` is small enough (no_std / heapless) to bundle freely.
+//!
+//! # Protocol coverage: deliberate exclusions
+//!
+//! Interop with lrzsz's `sz` / `rz` is the contract (enforced by the
+//! real-binary tests in `tests/lrzsz_interop.rs`). The following ZMODEM
+//! features are absent ON PURPOSE; do not "complete" them without
+//! revisiting the reasons:
+//!
+//! - **ZCOMMAND** (the remote executes commands on this machine): a
+//!   security hole with no redeeming use in an SSH client; lrzsz ships
+//!   with it disabled too. Never implement.
+//! - **ZCNL / ASCII conversion** (sender-flagged line-ending mangling):
+//!   misdetection corrupts data silently. Transfers are binary-exact,
+//!   always, matching `sz -b` and every modern client's default.
+//! - **Sender-driven file management** (replace-if-newer, append,
+//!   ZSKIP negotiation): downloads are strictly no-clobber, taking a
+//!   browser-style ` (N)` rename on collision, so a remote-controlled
+//!   file name can never truncate or overwrite local data.
+//! - **Files over 4 GiB**: wire positions are 32-bit in ZMODEM itself;
+//!   refused up front with a clear error instead of wrapping.
+//! - **XMODEM / YMODEM fallbacks**: strictly worse protocols with no
+//!   modern demand; the detector only arms on ZMODEM initiation.
+//!
+//! Known gaps that are planned rather than deliberate (download resume,
+//! multi-file upload, ZSINIT/`sz -e` handshake, handshake timeout
+//! retry) are mapped with designs in `plans/1.0/c9` (local, out of
+//! tree).
 
 pub mod detector;
 pub mod driver;
