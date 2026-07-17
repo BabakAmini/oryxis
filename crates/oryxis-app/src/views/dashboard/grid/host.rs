@@ -6,8 +6,21 @@ impl Oryxis {
     pub(crate) fn dashboard_host_cards(&self) -> Vec<(Element<'_, Message>, Color, DashNavItem)> {
         let mut host_cards: Vec<(Element<'_, Message>, Color, DashNavItem)> = Vec::new();
         let host_order = self.dashboard_host_order();
+        // One terms pass for every card: the redactor below runs per
+        // label and must not rebuild the hostname list per row.
+        let privacy_terms = self.privacy_terms();
         for idx in host_order.into_iter() {
             let conn = &self.connections[idx];
+            // Privacy Mode also redacts the LABEL (issue #78): labels
+            // routinely embed the hostname or IP, which made the card
+            // leak what the subtitle mask hides. Same hover reveal as
+            // the address; the icon badge takes the redacted label too
+            // so Initials style can't leak the leading letters.
+            let display_label = if self.privacy_active(conn) && self.hovered_card != Some(idx) {
+                crate::widgets::redact_for_display(&conn.label, &privacy_terms)
+            } else {
+                conn.label.clone()
+            };
             let is_connected = self.tabs.iter().any(|t| t.label == conn.label);
             let auth_label = crate::util::auth_method_label(&conn.auth_method);
             // Address shown only when the (off-by-default) setting is on,
@@ -94,7 +107,7 @@ impl Oryxis {
             let icon_box = crate::widgets::host_icon(
                 host_style,
                 badge_color,
-                &conn.label,
+                &display_label,
                 Some(glyph_el),
                 32.0,
             );
@@ -178,7 +191,7 @@ impl Oryxis {
                     ..Default::default()
                 });
                 dir_row(vec![
-                    text(&conn.label)
+                    text(display_label.clone())
                         .size(13)
                         .color(label_color)
                         .wrapping(iced::widget::text::Wrapping::None)
@@ -189,7 +202,7 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into()
             } else {
-                text(&conn.label)
+                text(display_label.clone())
                     .size(13)
                     .color(label_color)
                     .wrapping(iced::widget::text::Wrapping::None)

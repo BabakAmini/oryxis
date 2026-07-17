@@ -810,6 +810,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "Ustaw hasło",
         "no_active_connection" => "Brak aktywnego połączenia",
+        "status_bar_connected" => "połączono",
 
         // Host key verification
         "hk_unknown_title" => "Nieznany klucz hosta",

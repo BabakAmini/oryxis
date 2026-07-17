@@ -492,6 +492,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "Définir le Mot de passe",
         "no_active_connection" => "Aucune connexion active",
+        "status_bar_connected" => "connecté",
         "mcp_server" => "Serveur MCP",
         "enable_mcp_server" => "Activer le Serveur MCP",
         "mcp_server_desc" => "Permet aux assistants IA d'accéder à vos hôtes via le protocole MCP",

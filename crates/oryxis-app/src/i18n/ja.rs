@@ -492,6 +492,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "パスワードを設定",
         "no_active_connection" => "アクティブな接続なし",
+        "status_bar_connected" => "接続済み",
         "mcp_server" => "MCPサーバー",
         "enable_mcp_server" => "MCPサーバーを有効化",
         "mcp_server_desc" => "AIアシスタントがMCPプロトコルを通じてホストにアクセスできるようにします",

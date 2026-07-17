@@ -264,8 +264,9 @@ impl Oryxis {
                 t("no_matches")
             }));
         } else {
+            let privacy_terms = self.privacy_terms();
             for (pos, ci) in idxs.iter().enumerate() {
-                rows.push(self.connection_row(*ci, pos));
+                rows.push(self.connection_row(*ci, pos, &privacy_terms));
             }
         }
         rows
@@ -323,8 +324,9 @@ impl Oryxis {
         member_idxs.sort_by(|a, b| {
             self.connections[*b].last_used.cmp(&self.connections[*a].last_used)
         });
+        let privacy_terms = self.privacy_terms();
         for (pos, ci) in member_idxs.iter().enumerate() {
-            rows.push(self.connection_row(*ci, pos));
+            rows.push(self.connection_row(*ci, pos, &privacy_terms));
             any = true;
         }
         if !any {
@@ -375,6 +377,19 @@ impl Oryxis {
             ],
             Some(DynamicGroupState::Loaded { hosts, .. }) => {
                 let mut rows: Vec<Element<'a, Message>> = Vec::new();
+                // Dynamic hosts have no saved Connection (so no per-host
+                // override); the global Privacy Mode default decides and
+                // the display redactor catches address-shaped ids
+                // (issue #78). Filtering and the primary==id comparison
+                // below stay on the RAW strings.
+                let privacy_terms = self.privacy_terms();
+                let redact = |s: &str| {
+                    if self.setting_privacy_mode {
+                        crate::widgets::redact_for_display(s, &privacy_terms)
+                    } else {
+                        s.to_string()
+                    }
+                };
                 for h in hosts {
                     // Primary label: container name when set (ECS task with
                     // N containers), else the bare resource id.
@@ -426,8 +441,8 @@ impl Oryxis {
                     };
                     let row = resource_row(
                         msg.clone(),
-                        primary,
-                        secondary,
+                        redact(&primary),
+                        redact(&secondary),
                         status_upper.as_deref(),
                         connectable,
                     );
@@ -543,9 +558,17 @@ impl Oryxis {
     }
 
     /// A saved-connection row (mirrors the host card badge + breadcrumb),
-    /// emitting `ConnectSsh`. `pos` drives the zebra stripe.
-    fn connection_row(&self, ci: usize, pos: usize) -> Element<'_, Message> {
+    /// emitting `ConnectSsh`. `pos` drives the zebra stripe. `terms` is
+    /// the caller's one-per-list `privacy_terms()` pass; Privacy Mode
+    /// redacts the rendered label with it (issue #78). No hover reveal
+    /// here: the picker is transient and the search input echoes raw.
+    fn connection_row(&self, ci: usize, pos: usize, terms: &[String]) -> Element<'_, Message> {
         let conn = &self.connections[ci];
+        let display_label = if self.privacy_active(conn) {
+            crate::widgets::redact_for_display(&conn.label, terms)
+        } else {
+            conn.label.clone()
+        };
         let group_name = conn.group_id.and_then(|gid| {
             self.groups.iter().find(|g| g.id == gid).map(|g| g.label.clone())
         });
@@ -573,12 +596,12 @@ impl Oryxis {
             .and_then(crate::widgets::parse_hex_color)
             .unwrap_or(default_color);
         let glyph_el: Element<'_, Message> = glyph.view(12.0, Color::WHITE);
-        let badge = crate::widgets::host_icon(badge_style, badge_color, &conn.label, Some(glyph_el), 26.0);
+        let badge = crate::widgets::host_icon(badge_style, badge_color, &display_label, Some(glyph_el), 26.0);
         self.modal_nav_slot(
             crate::keynav::RowAction::activate(Message::ConnectSsh(ci)),
             6.0,
             false,
-            picker_row(ci, &conn.label, breadcrumb, zebra_bg, badge),
+            picker_row(ci, &display_label, breadcrumb, zebra_bg, badge),
         )
     }
 }
@@ -903,7 +926,9 @@ fn hover_row_style(_: &iced::Theme, status: BtnStatus) -> button::Style {
 
 fn picker_row<'a>(
     conn_idx: usize,
-    label: &'a str,
+    // Plain `&str` (not `&'a str`): the caller passes a per-frame
+    // redacted label under Privacy Mode (issue #78).
+    label: &str,
     breadcrumb: String,
     zebra_bg: Color,
     badge: Element<'a, Message>,

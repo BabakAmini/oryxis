@@ -811,6 +811,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "ตั้งรหัสผ่าน",
         "no_active_connection" => "ไม่มีการเชื่อมต่อที่ใช้งานอยู่",
+        "status_bar_connected" => "เชื่อมต่อแล้ว",
 
         // Host key verification
         "hk_unknown_title" => "คีย์โฮสต์ที่ไม่รู้จัก",

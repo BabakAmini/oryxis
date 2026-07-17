@@ -90,7 +90,10 @@ pub(crate) fn area_tab<'a>(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn sftp_session_tab<'a>(
     idx: usize,
-    label: &'a str,
+    // Plain `&str` (not `&'a str`): the caller passes a per-frame
+    // redacted label under Privacy Mode (issue #78), so the element
+    // must not borrow it.
+    label: &str,
     is_active: bool,
     width: f32,
     host_accent: Option<Color>,
@@ -245,7 +248,10 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, host_accent: Opt
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn session_tab<'a>(
     idx: usize,
-    label: &'a str,
+    // Plain `&str` (not `&'a str`): the caller passes a per-frame
+    // redacted label under Privacy Mode (issue #78), so the element
+    // must not borrow it.
+    label: &str,
     pane_count: usize,
     is_active: bool,
     is_hovered: bool,

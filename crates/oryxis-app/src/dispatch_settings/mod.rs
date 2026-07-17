@@ -238,6 +238,29 @@ impl Oryxis {
             .unwrap_or(self.setting_privacy_mode)
     }
 
+    /// A host/tab label as rendered under Privacy Mode (issue #78):
+    /// labels routinely embed the address (quick-connect labels
+    /// literally are `user@host`, users name hosts after their
+    /// hostname), so masked surfaces run them through the same display
+    /// redactor as recorded output. `lookup` is the label that keys
+    /// the saved connection (a tab's automatic label, so a custom
+    /// rename keeps the per-host override); `display` is what actually
+    /// renders. Callers with a hover-reveal state skip the call while
+    /// hovered, mirroring the card address reveal. `terms` comes from
+    /// one `privacy_terms()` call per view pass, never per row.
+    pub(crate) fn privacy_display_label(
+        &self,
+        lookup: &str,
+        display: &str,
+        terms: &[String],
+    ) -> String {
+        if self.privacy_active_for_label(lookup) {
+            crate::widgets::redact_for_display(display, terms)
+        } else {
+            display.to_string()
+        }
+    }
+
     /// Effective terminal palette for a known `Connection`. Per-host
     /// override wins, then the global override, then the app theme.
     pub(crate) fn resolve_terminal_palette_for_connection(

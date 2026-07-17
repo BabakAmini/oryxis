@@ -804,6 +804,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "Đặt mật khẩu",
         "no_active_connection" => "Không có kết nối hoạt động",
+        "status_bar_connected" => "đã kết nối",
 
         // Host key verification
         "hk_unknown_title" => "Khóa máy chủ không xác định",

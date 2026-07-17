@@ -348,6 +348,10 @@ impl Oryxis {
         // difference otherwise shifts positions on each live-slide swap and
         // bounces the dragged tab back and forth over a seam.
         let dragging_any = self.tab_drag.map(|d| d.active).unwrap_or(false);
+        // One terms pass for the whole strip: Privacy Mode redacts the
+        // rendered tab labels below (issue #78) and must not rebuild
+        // the hostname list per tab.
+        let privacy_terms = self.privacy_terms();
         // Display order follows `tab_order` (the authoritative, drag-reorderable
         // unified order), partitioned pinned-first across both kinds. Each
         // `TabRef` maps to its current storage index. SFTP refs are skipped
@@ -373,6 +377,20 @@ impl Oryxis {
                             crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
                         })
                     });
+                // Privacy Mode redacts the rendered label (issue #78);
+                // hovering the tab reveals it, mirroring the card
+                // address. The width is computed from the same string
+                // that renders so truncation stays consistent.
+                let display_label =
+                    if self.hovered_sftp_tab == Some(idx) {
+                        tab.display_label().to_string()
+                    } else {
+                        self.privacy_display_label(
+                            &tab.label,
+                            tab.display_label(),
+                            &privacy_terms,
+                        )
+                    };
                 // Width mirrors the terminal model: NATURAL when active,
                 // content-hugged otherwise, uniform during a drag.
                 let width = if dragging_any {
@@ -380,7 +398,7 @@ impl Oryxis {
                 } else if is_active {
                     TAB_NATURAL_WIDTH
                 } else {
-                    tab_content_width(tab.display_label(), close_on_right, false)
+                    tab_content_width(&display_label, close_on_right, false)
                 };
                 // The dragged tab floats as a ghost (below); leave a same-width
                 // gap here that the other tabs slide around, like terminal tabs.
@@ -395,7 +413,7 @@ impl Oryxis {
                 } else if compact_pins && tab.pinned {
                     tab_items.push(sftp_pinned_chip(idx, is_active, host_accent, solid_fill));
                 } else {
-                    tab_items.push(sftp_session_tab(idx, tab.display_label(), is_active, width, host_accent, tab.pinned, solid_fill));
+                    tab_items.push(sftp_session_tab(idx, &display_label, is_active, width, host_accent, tab.pinned, solid_fill));
                 }
                 continue;
             }
@@ -412,8 +430,19 @@ impl Oryxis {
             // A split tab shows the focused pane's label + icon; a single
             // pane shows the tab's own label. Lookups (accent, OS badge)
             // key on the automatic label so a custom rename stays
-            // display-only.
-            let display_label = tab.display_label(self.tab_auto_title(tab));
+            // display-only. Privacy Mode redacts the rendered label
+            // (issue #78), keyed on the automatic label so a rename
+            // keeps the per-host override; hovering the tab reveals it,
+            // mirroring the card address.
+            let display_label = if is_hovered {
+                tab.display_label(self.tab_auto_title(tab)).to_string()
+            } else {
+                self.privacy_display_label(
+                    tab.auto_label(self.tab_auto_title(tab)),
+                    tab.display_label(self.tab_auto_title(tab)),
+                    &privacy_terms,
+                )
+            };
             let base_label = tab
                 .auto_label(self.tab_auto_title(tab))
                 .trim_end_matches(" (disconnected)");
@@ -591,7 +620,7 @@ impl Oryxis {
             } else {
                 tab_items.push(session_tab(
                     idx,
-                    display_label,
+                    &display_label,
                     tab.pane_count(),
                     is_active,
                     is_hovered,
@@ -779,14 +808,18 @@ impl Oryxis {
             && let Some(drag) = self.tab_drag
         {
             if let Some(tab) = self.tabs.iter().find(|t| t._id == drag.from_id) {
-                let base_label = tab
-                    .display_label(self.tab_auto_title(tab))
-                    .trim_end_matches(" (disconnected)")
-                    .to_string();
                 let lookup_label = tab
                     .auto_label(self.tab_auto_title(tab))
                     .trim_end_matches(" (disconnected)")
                     .to_string();
+                // The ghost renders the same redacted label as the tab it
+                // mirrors (issue #78); mid-drag there is no hover reveal.
+                let base_label = self.privacy_display_label(
+                    &lookup_label,
+                    tab.display_label(self.tab_auto_title(tab))
+                        .trim_end_matches(" (disconnected)"),
+                    &privacy_terms,
+                );
                 let detected_os = self.tab_detected_os(&lookup_label);
                 let compact = tab.pinned && compact_pins;
                 let session_group = tab
@@ -821,7 +854,19 @@ impl Oryxis {
                     .unwrap_or_else(|| OryxisColors::t().accent);
                 let compact = sftp_tab.pinned && compact_pins;
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
-                Some((sftp_drag_ghost(sftp_tab.display_label().to_string(), compact, ghost_w, accent), ghost_w))
+                Some((
+                    sftp_drag_ghost(
+                        self.privacy_display_label(
+                            &sftp_tab.label,
+                            sftp_tab.display_label(),
+                            &privacy_terms,
+                        ),
+                        compact,
+                        ghost_w,
+                        accent,
+                    ),
+                    ghost_w,
+                ))
             } else {
                 None
             }

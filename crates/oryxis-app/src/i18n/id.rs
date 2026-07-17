@@ -804,6 +804,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "version" => concat!("Oryxis v", env!("CARGO_PKG_VERSION")),
         "set_password" => "Atur Kata Sandi",
         "no_active_connection" => "Tidak ada koneksi aktif",
+        "status_bar_connected" => "terhubung",
 
         // Host key verification
         "hk_unknown_title" => "Kunci Host Tidak Dikenal",

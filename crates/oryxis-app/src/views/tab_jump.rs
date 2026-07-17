@@ -21,6 +21,9 @@ impl Oryxis {
         // match while searching).
         self.modal_nav_reset();
         let needle = self.tab_jump_search.to_lowercase();
+        // One terms pass for every row: Privacy Mode redacts the
+        // rendered tab labels below (issue #78).
+        let privacy_terms = self.privacy_terms();
 
         // ── Tabs section ───────────────────────────────────────────────
         // Every open tab is a row; current one gets the accent bg.
@@ -29,14 +32,21 @@ impl Oryxis {
         for (idx, tab) in self.tabs.iter().enumerate() {
             // Show (and search) what the strip shows, custom rename
             // included; the badge lookup keys on the automatic label so a
-            // rename doesn't lose the OS / brand icon.
-            let label = tab
+            // rename doesn't lose the OS / brand icon. The search matches
+            // the RAW label (the needle is the user's own typing), the
+            // rendered row is redacted under Privacy Mode (issue #78).
+            let raw_label = tab
                 .display_label(self.tab_auto_title(tab))
                 .trim_end_matches(" (disconnected)")
                 .to_string();
-            if !needle.is_empty() && !label.to_lowercase().contains(&needle) {
+            if !needle.is_empty() && !raw_label.to_lowercase().contains(&needle) {
                 continue;
             }
+            let label = self.privacy_display_label(
+                tab.auto_label(self.tab_auto_title(tab)),
+                &raw_label,
+                &privacy_terms,
+            );
             had_match = true;
             let is_active = self.active_tab == Some(idx);
             // Match the tab-bar's OS-coloured badge so users recognise

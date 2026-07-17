@@ -12,7 +12,15 @@ impl Oryxis {
     pub(crate) fn view_status_bar(&self) -> Element<'_, Message> {
         let status_text = if let Some(idx) = self.active_tab {
             if let Some(tab) = self.tabs.get(idx) {
-                format!("● {}, connected", tab.label)
+                // Privacy Mode redacts the label here too (issue #78):
+                // the status bar sits in every screenshot. No hover
+                // reveal on a passive text line; the tab strip has one.
+                let label = self.privacy_display_label(
+                    &tab.label,
+                    &tab.label,
+                    &self.privacy_terms(),
+                );
+                format!("● {}, {}", label, crate::i18n::t("status_bar_connected"))
             } else {
                 crate::i18n::t("no_active_connection").into()
             }
