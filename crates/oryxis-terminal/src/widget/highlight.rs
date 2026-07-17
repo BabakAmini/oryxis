@@ -201,6 +201,46 @@ pub(crate) struct Highlight {
     kind: HighlightKind,
 }
 
+/// Per-class Privacy Mode gates (issue #78): each `false` stops that
+/// class from MASKING. Detection still runs for address spans (they
+/// double as keyword highlights), a disabled class just classifies
+/// them as the never-masked keyword kind instead of `Ip`. The
+/// saved-hostname / saved-username classes have no flag here: those
+/// are literal terms the app filters out of `privacy_terms` before
+/// they reach this crate. All on by default.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrivacyClasses {
+    /// Public IP addresses (v4 + v6).
+    pub public_ips: bool,
+    /// Private / loopback / link-local addresses (10/8, 127/8,
+    /// 169.254/16, 172.16/12, 192.168/16, `::1`, `fe80::`, ULA).
+    pub private_ips: bool,
+    /// The username shape heuristics: `user@host` prompt tokens and
+    /// home-directory names (`/home/<u>`, `C:\Users\<u>`).
+    pub usernames: bool,
+}
+
+impl Default for PrivacyClasses {
+    fn default() -> Self {
+        Self { public_ips: true, private_ips: true, usernames: true }
+    }
+}
+
+/// Whether an IPv6 literal is machine-local: loopback (`::1`),
+/// link-local (`fe80::/10`) or a unique-local address (`fc00::/7`).
+/// The counterpart of [`ipv4_is_private_or_loopback`] for the
+/// private-IPs privacy class.
+pub fn ipv6_is_local(s: &str) -> bool {
+    let l = s.to_ascii_lowercase();
+    l == "::1"
+        || l.starts_with("fe8")
+        || l.starts_with("fe9")
+        || l.starts_with("fea")
+        || l.starts_with("feb")
+        || l.starts_with("fc")
+        || l.starts_with("fd")
+}
+
 /// Scan row text for IPv4/IPv6 addresses, URLs, and Unix file paths (no
 /// regex). Takes `(row, non-blank cells)` pairs; rows with no printable
 /// chars are simply absent (the draw pass builds this per frame, so a
@@ -212,6 +252,7 @@ pub(crate) fn detect_highlights(
     palette: &TerminalPalette,
     privacy: bool,
     privacy_terms: &[String],
+    classes: PrivacyClasses,
 ) -> Vec<Highlight> {
     let ip_color = palette.ansi[5];   // magenta
     let url_color = palette.ansi[4];  // blue
@@ -294,10 +335,18 @@ pub(crate) fn detect_highlights(
                     continue;
                 }
                 let text = &row_str[start..end];
-                let kind = if privacy_terms.iter().any(|t| t == text)
-                    || ipv4_is_private_or_loopback(text)
-                    || !quad_dot_version_context(&row_str, start)
-                {
+                // Address-vs-version classification first (issue #53),
+                // then the per-class privacy gates (issue #78): a
+                // disabled IP class demotes the span to the
+                // never-masked VersionQuad kind so keyword coloring
+                // survives. A vault-term hit always masks: the terms
+                // list is already class-filtered app-side.
+                let term_hit = privacy_terms.iter().any(|t| t == text);
+                let private = ipv4_is_private_or_loopback(text);
+                let address_like =
+                    term_hit || private || !quad_dot_version_context(&row_str, start);
+                let class_on = if private { classes.private_ips } else { classes.public_ips };
+                let kind = if address_like && (term_hit || class_on) {
                     HighlightKind::Ip
                 } else {
                     HighlightKind::VersionQuad
@@ -350,12 +399,24 @@ pub(crate) fn detect_highlights(
                     h.row == row && s2 as u16 >= h.start_col && (s2 as u16) <= h.end_col
                 });
                 if !glued && !dominated && looks_like_ipv6(&row_str[s2..e2]) {
+                    // Per-class gate (issue #78): a disabled class
+                    // keeps the keyword color but never masks, same
+                    // demotion the IPv4 arm applies.
+                    let class_on = if ipv6_is_local(&row_str[s2..e2]) {
+                        classes.private_ips
+                    } else {
+                        classes.public_ips
+                    };
                     highlights.push(Highlight {
                         row,
                         start_col: s2 as u16,
                         end_col: (e2 - 1) as u16,
                         color: ip_color,
-                        kind: HighlightKind::Ip,
+                        kind: if class_on {
+                            HighlightKind::Ip
+                        } else {
+                            HighlightKind::VersionQuad
+                        },
                     });
                 }
                 i = j;
@@ -367,8 +428,9 @@ pub(crate) fn detect_highlights(
         // alnum plus `. _ -` (host labels, usernames, email locals). This
         // catches the unix prompt (`root@web`), emails, and typed
         // `ssh user@host` targets, all of which are sensitive. Never
-        // colored, only masked, so it runs solely under Privacy Mode.
-        if privacy {
+        // colored, only masked, so it runs solely under Privacy Mode
+        // and only while the usernames class is on (issue #78).
+        if privacy && classes.usernames {
             let is_tok = |b: u8| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-';
             let mut i = 0;
             while i < len {
@@ -404,8 +466,9 @@ pub(crate) fn detect_highlights(
         // `C:\Users\<name>`, `/home/<name>` or `/Users/<name>` (Windows /
         // Linux / macOS prompts and paths). Only the name segment is
         // masked, the rest of the path stays readable. Markers compare
-        // case-insensitively (`c:\users\` prompts exist too).
-        if privacy {
+        // case-insensitively (`c:\users\` prompts exist too). Gated by
+        // the usernames class like the prompt tokens (issue #78).
+        if privacy && classes.usernames {
             let is_tok = |b: u8| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-';
             const MARKERS: [&[u8]; 3] = [b"\\users\\", b"/home/", b"/users/"];
             let mut i = 0;
@@ -724,6 +787,7 @@ pub(crate) fn privacy_value_at_cell(
     term: &alacritty_terminal::Term<crate::backend::EventProxy>,
     palette: &TerminalPalette,
     privacy_terms: &[String],
+    classes: PrivacyClasses,
     line: i32,
     col: u16,
 ) -> Option<String> {
@@ -747,7 +811,7 @@ pub(crate) fn privacy_value_at_cell(
         return None;
     }
     let rows = [(0u16, cols)];
-    let highlights = detect_highlights(&rows, palette, true, privacy_terms);
+    let highlights = detect_highlights(&rows, palette, true, privacy_terms, classes);
     privacy_spans_with_text(&highlights, &rows)
         .into_iter()
         .find(|((_, sc, ec), _)| col >= *sc && col <= *ec)
@@ -1078,7 +1142,7 @@ pub(crate) fn smart_span_at(
     // containment test. `detect_highlights` takes (row, cells) pairs; a
     // single synthetic row 0 is enough as long as we match on the same key.
     let rows = [(0u16, cols)];
-    let hit = detect_highlights(&rows, palette, false, &[]).into_iter().any(|h| {
+    let hit = detect_highlights(&rows, palette, false, &[], PrivacyClasses::default()).into_iter().any(|h| {
         h.row == 0
             && h.kind != HighlightKind::Number
             && h.start_col <= right
@@ -1105,7 +1169,7 @@ mod tests {
     /// `(start, end)` byte spans of the UserDir highlights detected in `s`.
     fn user_dir_spans(s: &str, privacy: bool) -> Vec<(usize, usize)> {
         let rows = rows_from(s);
-        detect_highlights(&rows, &TerminalPalette::default(), privacy, &[])
+        detect_highlights(&rows, &TerminalPalette::default(), privacy, &[], PrivacyClasses::default())
             .into_iter()
             .filter(|h| h.kind == HighlightKind::UserDir)
             .map(|h| (h.start_col as usize, h.end_col as usize))
@@ -1167,7 +1231,7 @@ mod tests {
     fn user_dir_cells_are_privacy_cells() {
         let s = r"PS C:\Users\koobs> ";
         let rows = rows_from(s);
-        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
         let name_start = s.find("koobs").unwrap() as u16;
         // Every cell of the name is masked; the separators around it are not.
         for col in name_start..name_start + 5 {
@@ -1186,7 +1250,7 @@ mod tests {
     fn user_dir_is_never_a_syntax_color() {
         let s = r"cd C:\Users\koobs";
         let rows = rows_from(s);
-        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
         let name_start = s.find("koobs").unwrap() as u16;
         // The Windows path isn't a Unix-path highlight and UserDir itself
         // must not tint cells, so the name carries no keyword color.
@@ -1196,7 +1260,7 @@ mod tests {
     /// `(start, end)` spans of Ip-kind highlights detected in `s`.
     fn ip_spans(s: &str) -> Vec<(usize, usize)> {
         let rows = rows_from(s);
-        detect_highlights(&rows, &TerminalPalette::default(), false, &[])
+        detect_highlights(&rows, &TerminalPalette::default(), false, &[], PrivacyClasses::default())
             .into_iter()
             .filter(|h| h.kind == HighlightKind::Ip)
             .map(|h| (h.start_col as usize, h.end_col as usize))
@@ -1284,7 +1348,7 @@ mod tests {
     fn term_spans(s: &str, terms: &[&str]) -> Vec<String> {
         let rows = rows_from(s);
         let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms, PrivacyClasses::default())
             .into_iter()
             .filter(|h| h.kind == HighlightKind::KnownHost)
             .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
@@ -1313,7 +1377,7 @@ mod tests {
     fn known_host_terms_require_privacy_mode() {
         let rows = rows_from("ping web01 ok");
         let terms = vec!["web01".to_string()];
-        let hs = detect_highlights(&rows, &TerminalPalette::default(), false, &terms);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), false, &terms, PrivacyClasses::default());
         assert!(hs.iter().all(|h| h.kind != HighlightKind::KnownHost));
     }
 
@@ -1321,7 +1385,7 @@ mod tests {
     fn version_quad_texts(s: &str, terms: &[&str]) -> Vec<String> {
         let rows = rows_from(s);
         let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms, PrivacyClasses::default())
             .into_iter()
             .filter(|h| h.kind == HighlightKind::VersionQuad)
             .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
@@ -1332,7 +1396,7 @@ mod tests {
     fn masked_ip_texts(s: &str, terms: &[&str]) -> Vec<String> {
         let rows = rows_from(s);
         let terms: Vec<String> = terms.iter().map(|t| t.to_string()).collect();
-        detect_highlights(&rows, &TerminalPalette::default(), true, &terms)
+        detect_highlights(&rows, &TerminalPalette::default(), true, &terms, PrivacyClasses::default())
             .into_iter()
             .filter(|h| h.kind == HighlightKind::Ip)
             .map(|h| s[h.start_col as usize..=h.end_col as usize].to_string())
@@ -1429,7 +1493,7 @@ mod tests {
     fn version_quads_keep_the_keyword_color_and_skip_privacy() {
         let s = "version 3.9.0.2 ok";
         let rows = rows_from(s);
-        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
         let start = s.find("3.9.0.2").unwrap() as u16;
         // Colored like an Ip span...
         assert_eq!(
@@ -1450,8 +1514,8 @@ mod tests {
         let s = "version 3.9.0.2 ok";
         let rows = rows_from(s);
         let start = s.find("3.9.0.2").unwrap() as u16;
-        let on = detect_highlights(&rows, &TerminalPalette::default(), true, &[]);
-        let off = detect_highlights(&rows, &TerminalPalette::default(), false, &[]);
+        let on = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
+        let off = detect_highlights(&rows, &TerminalPalette::default(), false, &[], PrivacyClasses::default());
         assert_eq!(
             highlight_color_at(&on, 0, start),
             highlight_color_at(&off, 0, start)

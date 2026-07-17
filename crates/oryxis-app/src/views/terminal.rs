@@ -369,6 +369,7 @@ impl Oryxis {
             .with_perf_overlay(self.setting_perf_overlay)
             .with_privacy(self.privacy_active_for_label(&pane.label))
             .with_privacy_terms(&self.privacy_terms())
+            .with_privacy_classes(self.privacy_classes())
             .with_smart_contrast(self.setting_smart_contrast)
             // C5: a host with `disable_mouse_reporting` keeps clicks local
             // even when the remote turns on mouse tracking.
@@ -495,7 +496,7 @@ impl Oryxis {
         let colors = OryxisColors::t();
         let (label, fg) = if link.allowed {
             let shown = if self.privacy_active_for_label(pane_label) {
-                crate::widgets::redact_for_display(&link.target, &self.privacy_terms())
+                crate::widgets::redact_for_display(&link.target, &self.privacy_terms(), self.privacy_classes())
             } else {
                 link.target.clone()
             };

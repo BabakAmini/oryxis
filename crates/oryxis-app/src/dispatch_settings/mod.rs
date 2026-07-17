@@ -250,13 +250,37 @@ impl Oryxis {
     /// (company names, internal domains). Very short terms are dropped,
     /// masking every "web" in sight would be noise, not privacy.
     pub(crate) fn privacy_terms(&self) -> Vec<String> {
+        // Per-class gates (issue #78 block 1): a disabled hostnames /
+        // usernames class drops those derived values here, at the
+        // source, so every terms consumer (terminal spans, display
+        // redactor, AI context) honours it for free. The always-mask
+        // list is class-less: an explicit user entry always masks.
         crate::widgets::assemble_privacy_terms(
             self.connections.iter().flat_map(|c| {
-                std::iter::once(c.hostname.as_str()).chain(c.username.as_deref())
+                let host = self
+                    .setting_privacy_mask_hostnames
+                    .then_some(c.hostname.as_str());
+                let user = if self.setting_privacy_mask_usernames {
+                    c.username.as_deref()
+                } else {
+                    None
+                };
+                host.into_iter().chain(user)
             }),
             &self.setting_privacy_always_mask,
             &self.setting_privacy_never_mask,
         )
+    }
+
+    /// The per-class gates in the terminal widget's shape (issue #78).
+    /// The hostnames class has no flag there: it exists only as terms,
+    /// filtered in [`Self::privacy_terms`].
+    pub(crate) fn privacy_classes(&self) -> oryxis_terminal::PrivacyClasses {
+        oryxis_terminal::PrivacyClasses {
+            public_ips: self.setting_privacy_mask_public_ips,
+            private_ips: self.setting_privacy_mask_private_ips,
+            usernames: self.setting_privacy_mask_usernames,
+        }
     }
 
     /// Privacy Mode for a terminal pane, resolved from its label. Host
@@ -288,7 +312,7 @@ impl Oryxis {
         terms: &[String],
     ) -> String {
         if self.privacy_active_for_label(lookup) {
-            crate::widgets::redact_for_display(display, terms)
+            crate::widgets::redact_for_display(display, terms, self.privacy_classes())
         } else {
             display.to_string()
         }
@@ -1124,6 +1148,30 @@ impl Oryxis {
             Message::SettingPrivacyNeverMaskChanged(v) => {
                 self.persist_setting("privacy_never_mask", &v);
                 self.setting_privacy_never_mask = v;
+            }
+            Message::TogglePrivacyMaskClass(class) => {
+                use crate::messages::PrivacyMaskClass;
+                let (key, field): (&str, &mut bool) = match class {
+                    PrivacyMaskClass::PublicIps => (
+                        "privacy_mask_public_ips",
+                        &mut self.setting_privacy_mask_public_ips,
+                    ),
+                    PrivacyMaskClass::PrivateIps => (
+                        "privacy_mask_private_ips",
+                        &mut self.setting_privacy_mask_private_ips,
+                    ),
+                    PrivacyMaskClass::Usernames => (
+                        "privacy_mask_usernames",
+                        &mut self.setting_privacy_mask_usernames,
+                    ),
+                    PrivacyMaskClass::Hostnames => (
+                        "privacy_mask_hostnames",
+                        &mut self.setting_privacy_mask_hostnames,
+                    ),
+                };
+                *field = !*field;
+                let value = if *field { "true" } else { "false" };
+                self.persist_setting(key, value);
             }
             Message::SettingToggleDebugLogging => {
                 if self.setting_debug_logging {

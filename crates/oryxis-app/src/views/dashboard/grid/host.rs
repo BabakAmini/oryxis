@@ -17,7 +17,7 @@ impl Oryxis {
             // the address; the icon badge takes the redacted label too
             // so Initials style can't leak the leading letters.
             let display_label = if self.privacy_active(conn) && self.hovered_card != Some(idx) {
-                crate::widgets::redact_for_display(&conn.label, &privacy_terms)
+                crate::widgets::redact_for_display(&conn.label, &privacy_terms, self.privacy_classes())
             } else {
                 conn.label.clone()
             };

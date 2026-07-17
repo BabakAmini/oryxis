@@ -1083,6 +1083,18 @@ pub struct Oryxis {
     /// shared usernames keep everyday output readable. Raw as typed.
     /// Mirrors the `privacy_never_mask` setting.
     pub(crate) setting_privacy_never_mask: String,
+    /// Per-class Privacy Mode gates (issue #78 block 1), all default
+    /// on; each mirrors a `privacy_mask_*` setting. Public IPs get
+    /// their own switch because documentation screenshots sometimes
+    /// NEED the public address visible while everything else masks.
+    pub(crate) setting_privacy_mask_public_ips: bool,
+    /// Private / loopback / link-local addresses (v4 + v6).
+    pub(crate) setting_privacy_mask_private_ips: bool,
+    /// Username shapes (`user@host`, `/home/<u>`, `C:\Users\<u>`) AND
+    /// the saved-connection usernames inside the terms list.
+    pub(crate) setting_privacy_mask_usernames: bool,
+    /// Saved-connection hostnames inside the terms list.
+    pub(crate) setting_privacy_mask_hostnames: bool,
     /// Settings > Advanced debug logging: mirror of the `debug_logging`
     /// setting, true while tracing events are also written to the
     /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).

@@ -57,7 +57,7 @@ impl Oryxis {
             return s.to_string();
         }
         let conn = self.progress_connection(progress);
-        let mut out = crate::widgets::redact_for_display(s, &self.privacy_terms());
+        let mut out = crate::widgets::redact_for_display(s, &self.privacy_terms(), self.privacy_classes());
         if let Some(c) = conn {
             if !c.hostname.is_empty() {
                 out = out.replace(&c.hostname, &crate::widgets::mask_blocks(&c.hostname));

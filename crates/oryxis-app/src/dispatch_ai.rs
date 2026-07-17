@@ -34,6 +34,7 @@ fn capture_terminal_context(
     terminal: &std::sync::Mutex<crate::state::TerminalState>,
     n_lines: usize,
     privacy_terms: Option<&[String]>,
+    privacy_classes: oryxis_terminal::PrivacyClasses,
 ) -> String {
     let Ok(state) = terminal.lock() else {
         return String::new();
@@ -45,7 +46,7 @@ fn capture_terminal_context(
         .tail_text(n_lines)
         .into_iter()
         .map(|l| match privacy_terms {
-            Some(terms) => crate::widgets::redact_for_display(&l, terms),
+            Some(terms) => crate::widgets::redact_for_display(&l, terms, privacy_classes),
             None => l,
         })
         .collect::<Vec<_>>()
@@ -321,8 +322,12 @@ impl Oryxis {
 
         // Snapshot the last ~50 lines of terminal output for context,
         // redacted when Privacy Mode is active for this pane.
-        let terminal_context =
-            capture_terminal_context(&terminal, 50, privacy_terms.as_deref());
+        let terminal_context = capture_terminal_context(
+            &terminal,
+            50,
+            privacy_terms.as_deref(),
+            self.privacy_classes(),
+        );
 
         let tab = &mut self.tabs[idx];
         tab.chat_loading = true;
@@ -1038,6 +1043,9 @@ impl Oryxis {
                 let privacy_terms = self
                     .privacy_active_for_label(&pane_label)
                     .then(|| self.privacy_terms());
+                // Captured before the detached poll below: the spawn
+                // can't borrow `self` (same reason the terms are).
+                let privacy_classes = self.privacy_classes();
 
                 // Write the command, clearing any half-typed prompt line
                 // first (Ctrl+U) so the AI's command isn't concatenated onto
@@ -1130,6 +1138,7 @@ impl Oryxis {
                                 &terminal,
                                 40,
                                 privacy_terms.as_deref(),
+                                privacy_classes,
                             );
                             if snapshot != last_snapshot {
                                 last_snapshot = snapshot;

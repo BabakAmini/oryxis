@@ -15,6 +15,18 @@ use oryxis_core::models::port_forward_rule::ForwardKind;
 
 use crate::state::{ConnectionStep, SettingsSection, View};
 
+/// The four per-class Privacy Mode gates (issue #78 block 1), each
+/// mirroring a `privacy_mask_*` setting. The usernames class covers
+/// both the shape heuristics (`user@host`, home dirs) and the
+/// saved-connection usernames inside the terms list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrivacyMaskClass {
+    PublicIps,
+    PrivateIps,
+    Usernames,
+    Hostnames,
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Vault
@@ -1146,6 +1158,9 @@ pub enum Message {
     /// Scrubber / arrow-key jump to a playback position (milliseconds).
     SessionPlayerSeek(f64),
     /// Playback clock tick (subscription mounted while playing on the
+    /// Toggle the viewer-header `...` menu (session-log actions minus
+    /// Play, which the viewer offers as its own header button).
+    ShowSessionLogViewerMenu(usize),
     /// History view).
     SessionPlayerTick,
     /// Ask for confirmation before deleting one recording; the
@@ -1287,6 +1302,8 @@ pub enum Message {
     /// Privacy Mode never-mask list edited (issue #78): words the
     /// derived terms must not include (generic usernames).
     SettingPrivacyNeverMaskChanged(String),
+    /// Flip one per-class Privacy Mode gate (issue #78 block 1).
+    TogglePrivacyMaskClass(PrivacyMaskClass),
     /// Flip the Settings > Advanced debug logging (tracing events also
     /// written to the exportable `~/.oryxis/oryxis-debug.log`).
     SettingToggleDebugLogging,

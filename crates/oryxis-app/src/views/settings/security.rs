@@ -489,6 +489,35 @@ impl Oryxis {
         // the generic usernames (root, ubuntu, ...) so `ls -l` output
         // stays readable by default.
         if self.setting_privacy_mode {
+            // Per-class gates (issue #78 block 1), all on by default.
+            // Public IPs get their own switch because documentation
+            // screenshots sometimes NEED the public address readable
+            // while everything else stays masked. Deliberately NOT a
+            // terminal-vs-app-UI split: a half-enabled mode is exactly
+            // the kind of state that made #53 confusing.
+            use crate::messages::PrivacyMaskClass;
+            privacy_rows = privacy_rows
+                .push(Space::new().height(10))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("privacy_class_public_ips"),
+                    self.setting_privacy_mask_public_ips,
+                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::PublicIps),
+                ))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("privacy_class_private_ips"),
+                    self.setting_privacy_mask_private_ips,
+                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::PrivateIps),
+                ))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("privacy_class_usernames"),
+                    self.setting_privacy_mask_usernames,
+                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::Usernames),
+                ))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("privacy_class_hostnames"),
+                    self.setting_privacy_mask_hostnames,
+                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::Hostnames),
+                ));
             privacy_rows = privacy_rows
                 .push(Space::new().height(14))
                 .push(

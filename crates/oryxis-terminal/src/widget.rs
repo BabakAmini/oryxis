@@ -69,7 +69,10 @@ pub(crate) use clipboard::{open_url, set_clipboard_text};
 pub(crate) use highlight::*;
 // Shared with the app-side session-log redaction so both sides agree on
 // what is IPv6-shaped.
-pub use highlight::{ipv4_is_private_or_loopback, looks_like_ipv6, quad_dot_is_version_like};
+pub use highlight::{
+    ipv4_is_private_or_loopback, ipv6_is_local, looks_like_ipv6, quad_dot_is_version_like,
+    PrivacyClasses,
+};
 pub(crate) use perf::*;
 pub(crate) use selection::{next_click_count, union_selection, SelectGranularity};
 
@@ -259,6 +262,10 @@ struct RenderKey {
     bold_is_bright: bool,
     /// Order-independent digest of `privacy_terms` (0 when privacy is off).
     privacy_terms_hash: u64,
+    /// Per-class privacy gates (issue #78): flipping a class in
+    /// Settings must invalidate the cached geometry or stale masks
+    /// linger until the next content epoch.
+    privacy_classes: PrivacyClasses,
     /// Order-independent digest of the click-pinned privacy set (0 when off).
     pinned_privacy_hash: u64,
     /// `BufferSearch::generation` (0 when no search is open): bumped on every
@@ -400,6 +407,12 @@ pub struct TerminalView<Message = ()> {
     /// DNS names have no detectable shape, so the known values are
     /// matched exactly instead of guessed.
     privacy_terms: Vec<String>,
+    /// Per-class Privacy Mode gates (issue #78): which detector
+    /// classes may mask (public IPs / private IPs / username shapes).
+    /// The terms list above is class-filtered app-side, so it carries
+    /// no flag here. All on by default; irrelevant while `privacy` is
+    /// off.
+    privacy_classes: PrivacyClasses,
     /// When true, cells whose foreground and background end up
     /// perceptually too close (e.g. PowerShell's `$PSStyle.FileInfo
     /// .Directory` blue-on-blue, LS_COLORS' `ow` green-on-green) get
@@ -683,6 +696,7 @@ impl<Message> TerminalView<Message> {
             net_hud: None,
             privacy: false,
             privacy_terms: Vec::new(),
+            privacy_classes: PrivacyClasses::default(),
             smart_contrast: true,
             mouse_reporting: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
@@ -806,6 +820,13 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_privacy(mut self, on: bool) -> Self {
         self.privacy = on;
+        self
+    }
+
+    /// Per-class Privacy Mode gates (issue #78): which detector
+    /// classes may mask. No-op while privacy is off.
+    pub fn with_privacy_classes(mut self, classes: PrivacyClasses) -> Self {
+        self.privacy_classes = classes;
         self
     }
 
@@ -1777,6 +1798,7 @@ where
                             &state.backend.term,
                             &state.palette,
                             &self.privacy_terms,
+                            self.privacy_classes,
                             line,
                             col,
                         )
@@ -2293,6 +2315,11 @@ where
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
             privacy_terms_hash: if self.privacy { hash_terms(&self.privacy_terms) } else { 0 },
+            privacy_classes: if self.privacy {
+                self.privacy_classes
+            } else {
+                PrivacyClasses::default()
+            },
             pinned_privacy_hash: if self.privacy {
                 hash_pinned(&widget_state.pinned_privacy)
             } else {
@@ -2530,7 +2557,13 @@ where
                 let highlights_start = perf_on.then(std::time::Instant::now);
                 let scan_for_tint = self.keyword_highlight && !self.performance;
                 let highlights = if scan_for_tint || self.privacy {
-                    detect_highlights(&row_chars, palette, self.privacy, &self.privacy_terms)
+                    detect_highlights(
+                        &row_chars,
+                        palette,
+                        self.privacy,
+                        &self.privacy_terms,
+                        self.privacy_classes,
+                    )
                 } else {
                     Vec::new()
                 };

@@ -385,7 +385,7 @@ impl Oryxis {
                 let privacy_terms = self.privacy_terms();
                 let redact = |s: &str| {
                     if self.privacy_global_active() {
-                        crate::widgets::redact_for_display(s, &privacy_terms)
+                        crate::widgets::redact_for_display(s, &privacy_terms, self.privacy_classes())
                     } else {
                         s.to_string()
                     }
@@ -565,7 +565,7 @@ impl Oryxis {
     fn connection_row(&self, ci: usize, pos: usize, terms: &[String]) -> Element<'_, Message> {
         let conn = &self.connections[ci];
         let display_label = if self.privacy_active(conn) {
-            crate::widgets::redact_for_display(&conn.label, terms)
+            crate::widgets::redact_for_display(&conn.label, terms, self.privacy_classes())
         } else {
             conn.label.clone()
         };

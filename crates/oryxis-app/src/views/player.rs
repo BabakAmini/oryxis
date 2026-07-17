@@ -30,7 +30,7 @@ impl Oryxis {
             .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id));
         let privacy_applies = conn
             .map(|c| self.privacy_active(c))
-            .unwrap_or(self.setting_privacy_mode);
+            .unwrap_or_else(|| self.privacy_global_active());
         let mask = privacy_applies && !self.privacy_revealed;
 
         // ── Header: title, geometry chip, reveal, close ──
@@ -114,6 +114,7 @@ impl Oryxis {
             .with_performance(self.setting_performance_mode)
             .with_privacy(mask)
             .with_privacy_terms(&self.privacy_terms())
+            .with_privacy_classes(self.privacy_classes())
             .with_smart_contrast(self.setting_smart_contrast)
             .with_word_delimiters(&self.setting_word_delimiters);
         let term_bg = {

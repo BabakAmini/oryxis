@@ -24,7 +24,11 @@ pub(crate) fn mask_blocks(s: &str) -> String {
 /// sensitive too. For home dirs only the name segment is masked, the
 /// surrounding path stays readable. Returns the input unchanged when
 /// nothing matches.
-pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
+pub(crate) fn redact_for_display(
+    s: &str,
+    terms: &[String],
+    classes: oryxis_terminal::PrivacyClasses,
+) -> String {
     use std::sync::OnceLock;
     static RE: OnceLock<regex::Regex> = OnceLock::new();
     let re = RE.get_or_init(|| {
@@ -50,9 +54,16 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
         for caps in re.captures_iter(s) {
             let whole = caps.get(0).expect("regex match always has a group 0");
             if let Some(m) = caps.name("hd") {
-                // Home-dir match: mask only the captured name.
-                out.push_str(&s[last..m.start()]);
-                out.push_str(&mask_blocks(m.as_str()));
+                // Home-dir match: mask only the captured name. Gated by
+                // the usernames class (issue #78 block 1).
+                if classes.usernames {
+                    out.push_str(&s[last..m.start()]);
+                    out.push_str(&mask_blocks(m.as_str()));
+                } else {
+                    out.push_str(&s[last..whole.end()]);
+                    last = whole.end();
+                    continue;
+                }
             } else if let Some(m) = caps.name("v6") {
                 // IPv6 candidate: trim prose colons, reject runs glued to
                 // a word (std::io) or that fail the shared validator.
@@ -73,7 +84,14 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
                 let is_wordish = |x: u8| x.is_ascii_alphanumeric() || x == b'_' || x == b'.';
                 let glued = (a > 0 && is_wordish(bytes[a - 1]))
                     || (b < s.len() && (bytes[b].is_ascii_alphanumeric() || bytes[b] == b'_'));
-                if !glued && oryxis_terminal::looks_like_ipv6(&s[a..ce]) {
+                // Per-class gate (issue #78 block 1), mirroring the
+                // terminal widget's split.
+                let class_on = if oryxis_terminal::ipv6_is_local(&s[a..ce]) {
+                    classes.private_ips
+                } else {
+                    classes.public_ips
+                };
+                if !glued && class_on && oryxis_terminal::looks_like_ipv6(&s[a..ce]) {
                     out.push_str(&s[last..a]);
                     out.push_str(&mask_blocks(&s[a..b]));
                     out.push_str(&s[b..whole.end()]);
@@ -92,10 +110,18 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
                 let range_valid = text
                     .split('.')
                     .all(|g| g.parse::<u16>().is_ok_and(|v| v <= 255));
+                // Per-class gates (issue #78 block 1): a vault-term hit
+                // always masks (the terms list is already
+                // class-filtered); otherwise the private / public class
+                // switch decides, mirroring the terminal widget.
+                let term_hit = terms.iter().any(|t| t == text);
+                let private = oryxis_terminal::ipv4_is_private_or_loopback(text);
                 let mask = range_valid
-                    && (terms.iter().any(|t| t == text)
-                        || oryxis_terminal::ipv4_is_private_or_loopback(text)
-                        || !version_like_in_line(s, m.start(), m.end()));
+                    && (term_hit
+                        || (private && classes.private_ips)
+                        || (!private
+                            && classes.public_ips
+                            && !version_like_in_line(s, m.start(), m.end())));
                 if mask {
                     out.push_str(&s[last..m.start()]);
                     out.push_str(&mask_blocks(text));
@@ -103,8 +129,13 @@ pub(crate) fn redact_for_display(s: &str, terms: &[String]) -> String {
                     out.push_str(&s[last..m.end()]);
                 }
             } else {
-                out.push_str(&s[last..whole.start()]);
-                out.push_str(&mask_blocks(whole.as_str()));
+                // The bare `user@host` alternation: usernames class.
+                if classes.usernames {
+                    out.push_str(&s[last..whole.start()]);
+                    out.push_str(&mask_blocks(whole.as_str()));
+                } else {
+                    out.push_str(&s[last..whole.end()]);
+                }
             }
             last = whole.end();
         }
@@ -275,6 +306,12 @@ pub(crate) fn privacy_reveal_btn<'a>(revealed: bool) -> Element<'a, Message> {
 #[cfg(test)]
 mod tests {
     use super::{assemble_privacy_terms, mask_blocks, redact_for_display};
+    use oryxis_terminal::PrivacyClasses;
+
+    /// Every class on, the default runtime state.
+    fn all() -> PrivacyClasses {
+        PrivacyClasses::default()
+    }
 
     #[test]
     fn terms_include_usernames_and_respect_never_mask() {
@@ -323,7 +360,7 @@ mod tests {
     #[test]
     fn redacts_ip_and_user_host() {
         assert_eq!(
-            redact_for_display("ssh deploy@web from 192.168.0.4", &[]),
+            redact_for_display("ssh deploy@web from 192.168.0.4", &[], all()),
             format!("ssh {} from {}", mask_blocks("deploy@web"), mask_blocks("192.168.0.4"))
         );
     }
@@ -334,11 +371,11 @@ mod tests {
         // display: a URI can embed `user@host` or an IP that Privacy Mode
         // must hide just like the live terminal cells do.
         assert_eq!(
-            redact_for_display("https://deploy@web.example.com/path", &[]),
+            redact_for_display("https://deploy@web.example.com/path", &[], all()),
             format!("https://{}/path", mask_blocks("deploy@web.example.com")),
         );
         assert_eq!(
-            redact_for_display("http://192.168.0.4:8080/admin", &[]),
+            redact_for_display("http://192.168.0.4:8080/admin", &[], all()),
             format!("http://{}:8080/admin", mask_blocks("192.168.0.4")),
         );
     }
@@ -346,7 +383,7 @@ mod tests {
     #[test]
     fn redacts_windows_home_dir_username_only() {
         assert_eq!(
-            redact_for_display(r"PS C:\Users\koobs> winget upgrade", &[]),
+            redact_for_display(r"PS C:\Users\koobs> winget upgrade", &[], all()),
             format!(r"PS C:\Users\{}> winget upgrade", mask_blocks("koobs"))
         );
     }
@@ -354,11 +391,11 @@ mod tests {
     #[test]
     fn redacts_unix_home_dir_username_only() {
         assert_eq!(
-            redact_for_display("cd /home/wilson/dev", &[]),
+            redact_for_display("cd /home/wilson/dev", &[], all()),
             format!("cd /home/{}/dev", mask_blocks("wilson"))
         );
         assert_eq!(
-            redact_for_display("/Users/wilson/Library", &[]),
+            redact_for_display("/Users/wilson/Library", &[], all()),
             format!("/Users/{}/Library", mask_blocks("wilson"))
         );
     }
@@ -366,7 +403,7 @@ mod tests {
     #[test]
     fn home_dir_marker_is_case_insensitive() {
         assert_eq!(
-            redact_for_display(r"c:\users\bob>", &[]),
+            redact_for_display(r"c:\users\bob>", &[], all()),
             format!(r"c:\users\{}>", mask_blocks("bob"))
         );
     }
@@ -374,7 +411,7 @@ mod tests {
     #[test]
     fn plain_text_is_untouched() {
         assert_eq!(
-            redact_for_display("winget upgrade Name Id", &[]),
+            redact_for_display("winget upgrade Name Id", &[], all()),
             "winget upgrade Name Id"
         );
     }
@@ -382,15 +419,15 @@ mod tests {
     #[test]
     fn redacts_ipv6_forms() {
         assert_eq!(
-            redact_for_display("ping ::1 ok", &[]),
+            redact_for_display("ping ::1 ok", &[], all()),
             format!("ping {} ok", mask_blocks("::1"))
         );
         assert_eq!(
-            redact_for_display("via 2001:db8::1 dev eth0", &[]),
+            redact_for_display("via 2001:db8::1 dev eth0", &[], all()),
             format!("via {} dev eth0", mask_blocks("2001:db8::1"))
         );
         assert_eq!(
-            redact_for_display("addr 2001:0db8:85a3:0000:0000:8a2e:0370:7334", &[]),
+            redact_for_display("addr 2001:0db8:85a3:0000:0000:8a2e:0370:7334", &[], all()),
             format!("addr {}", mask_blocks("2001:0db8:85a3:0000:0000:8a2e:0370:7334"))
         );
     }
@@ -398,7 +435,7 @@ mod tests {
     #[test]
     fn ipv6_with_embedded_ipv4_is_fully_masked() {
         assert_eq!(
-            redact_for_display("nat ::ffff:192.0.2.1 ok", &[]),
+            redact_for_display("nat ::ffff:192.0.2.1 ok", &[], all()),
             format!("nat {} ok", mask_blocks("::ffff:192.0.2.1"))
         );
     }
@@ -406,15 +443,15 @@ mod tests {
     #[test]
     fn timestamps_and_rust_paths_are_not_ipv6() {
         assert_eq!(
-            redact_for_display("12:34:56 build ok", &[]),
+            redact_for_display("12:34:56 build ok", &[], all()),
             "12:34:56 build ok"
         );
         assert_eq!(
-            redact_for_display("error in std::io::Error", &[]),
+            redact_for_display("error in std::io::Error", &[], all()),
             "error in std::io::Error"
         );
         assert_eq!(
-            redact_for_display("mac aa:bb:cc:dd:ee:ff up", &[]),
+            redact_for_display("mac aa:bb:cc:dd:ee:ff up", &[], all()),
             "mac aa:bb:cc:dd:ee:ff up"
         );
     }
@@ -423,12 +460,12 @@ mod tests {
     fn known_terms_masked_token_bounded_case_insensitive() {
         let terms = vec!["web01.prod.internal".to_string()];
         assert_eq!(
-            redact_for_display("Connected to WEB01.prod.internal ok", &terms),
+            redact_for_display("Connected to WEB01.prod.internal ok", &terms, all()),
             format!("Connected to {} ok", mask_blocks("WEB01.prod.internal"))
         );
         // Inside a longer token: no match.
         assert_eq!(
-            redact_for_display("web01.prod.internal-backup", &terms),
+            redact_for_display("web01.prod.internal-backup", &terms, all()),
             "web01.prod.internal-backup"
         );
     }
@@ -438,12 +475,12 @@ mod tests {
         // A version-word glued to the token keeps it readable: this is
         // per-candidate evidence, not a row-wide keyword (issue #53).
         assert_eq!(
-            redact_for_display("pandoc version 3.9.0.2 installed", &[]),
+            redact_for_display("pandoc version 3.9.0.2 installed", &[], all()),
             "pandoc version 3.9.0.2 installed"
         );
-        assert_eq!(redact_for_display("running v1.2.3.4 now", &[]), "running v1.2.3.4 now");
+        assert_eq!(redact_for_display("running v1.2.3.4 now", &[], all()), "running v1.2.3.4 now");
         // A slash-terminated agent product string is a local marker too.
-        assert_eq!(redact_for_display("Server nginx/1.2.3.4 x", &[]), "Server nginx/1.2.3.4 x");
+        assert_eq!(redact_for_display("Server nginx/1.2.3.4 x", &[], all()), "Server nginx/1.2.3.4 x");
     }
 
     #[test]
@@ -455,12 +492,12 @@ mod tests {
         // carry a local marker (see the test above) stay readable.
         let s = "Python 3  Python.3  3.9.0.2  3.13.0  winget";
         assert_eq!(
-            redact_for_display(s, &[]),
+            redact_for_display(s, &[], all()),
             format!("Python 3  Python.3  {}  3.13.0  winget", mask_blocks("3.9.0.2"))
         );
         let s2 = "Visual Studio Code  1.96.0.0  1.96.0.1";
         assert_eq!(
-            redact_for_display(s2, &[]),
+            redact_for_display(s2, &[], all()),
             format!(
                 "Visual Studio Code  {}  {}",
                 mask_blocks("1.96.0.0"),
@@ -475,13 +512,13 @@ mod tests {
         // sharing a line with a genuine version token must still mask.
         let s = "app 5.6.7 listening on 8.8.8.8";
         assert_eq!(
-            redact_for_display(s, &[]),
+            redact_for_display(s, &[], all()),
             format!("app 5.6.7 listening on {}", mask_blocks("8.8.8.8"))
         );
         // Two distinct public IPs on one route line: both mask.
         let s2 = "default via 203.0.113.1 dev eth0 src 203.0.113.55";
         assert_eq!(
-            redact_for_display(s2, &[]),
+            redact_for_display(s2, &[], all()),
             format!(
                 "default via {} dev eth0 src {}",
                 mask_blocks("203.0.113.1"),
@@ -495,7 +532,7 @@ mod tests {
         // The keyword on line 1 must not classify the address on line 2.
         let s = "checking for updates\nconnected to 203.0.113.7 ok";
         assert_eq!(
-            redact_for_display(s, &[]),
+            redact_for_display(s, &[], all()),
             format!("checking for updates\nconnected to {} ok", mask_blocks("203.0.113.7"))
         );
     }
@@ -504,18 +541,18 @@ mod tests {
     fn range_invalid_quad_dot_not_redacted() {
         // The regex arm was shape-only; it now adopts the widget's octet
         // range check, so `999.1.1.1` stops over-masking.
-        assert_eq!(redact_for_display("token 999.1.1.1 raw", &[]), "token 999.1.1.1 raw");
+        assert_eq!(redact_for_display("token 999.1.1.1 raw", &[], all()), "token 999.1.1.1 raw");
     }
 
     #[test]
     fn real_ips_still_redacted() {
         assert_eq!(
-            redact_for_display("ping 8.8.8.8", &[]),
+            redact_for_display("ping 8.8.8.8", &[], all()),
             format!("ping {}", mask_blocks("8.8.8.8"))
         );
         // Private ranges override version context.
         assert_eq!(
-            redact_for_display("update available at 192.168.1.10", &[]),
+            redact_for_display("update available at 192.168.1.10", &[], all()),
             format!("update available at {}", mask_blocks("192.168.1.10"))
         );
     }
@@ -524,8 +561,38 @@ mod tests {
     fn vault_term_quad_dot_always_redacted() {
         let terms = vec!["3.9.0.2".to_string()];
         assert_eq!(
-            redact_for_display("installed 3.9.0.2 available", &terms),
+            redact_for_display("installed 3.9.0.2 available", &terms, all()),
             format!("installed {} available", mask_blocks("3.9.0.2"))
+        );
+    }
+
+    #[test]
+    fn class_gates_disable_each_shape() {
+        // Usernames off: prompt tokens and home-dir names stay readable.
+        let no_users = PrivacyClasses { usernames: false, ..PrivacyClasses::default() };
+        assert_eq!(
+            redact_for_display("ssh deploy@web in /home/bob", &[], no_users),
+            "ssh deploy@web in /home/bob"
+        );
+        // Public IPs off: the private range still masks.
+        let no_public = PrivacyClasses { public_ips: false, ..PrivacyClasses::default() };
+        assert_eq!(
+            redact_for_display("ping 8.8.8.8 and 192.168.0.4", &[], no_public),
+            format!("ping 8.8.8.8 and {}", mask_blocks("192.168.0.4"))
+        );
+        // Private IPs off: public masks, loopback v6 stays readable.
+        let no_private = PrivacyClasses { private_ips: false, ..PrivacyClasses::default() };
+        assert_eq!(
+            redact_for_display("ping 8.8.8.8 and 192.168.0.4 ::1", &[], no_private),
+            format!("ping {} and 192.168.0.4 ::1", mask_blocks("8.8.8.8"))
+        );
+        // A vault term always masks: class filtering happens upstream in
+        // privacy_terms(), so a term that reached this fn is wanted.
+        let none = PrivacyClasses { public_ips: false, private_ips: false, usernames: false };
+        let terms = vec!["8.8.8.8".to_string()];
+        assert_eq!(
+            redact_for_display("ping 8.8.8.8", &terms, none),
+            format!("ping {}", mask_blocks("8.8.8.8"))
         );
     }
 
@@ -534,7 +601,7 @@ mod tests {
         let terms = vec!["prod.internal".to_string(), "web01.prod.internal".to_string()];
         // Both terms match at overlapping positions; output masks the
         // region once and keeps total length.
-        let out = redact_for_display("web01.prod.internal down", &terms);
+        let out = redact_for_display("web01.prod.internal down", &terms, all());
         assert_eq!(out, format!("{} down", mask_blocks("web01.prod.internal")));
     }
 }

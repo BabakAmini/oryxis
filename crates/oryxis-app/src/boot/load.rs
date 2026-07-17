@@ -475,6 +475,19 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("hint_privacy_mask") {
                 self.privacy_hint_shown = v == "true";
             }
+            // Per-class mask gates (issue #78 block 1): absent = on.
+            if let Ok(Some(v)) = vault.get_setting("privacy_mask_public_ips") {
+                self.setting_privacy_mask_public_ips = v != "false";
+            }
+            if let Ok(Some(v)) = vault.get_setting("privacy_mask_private_ips") {
+                self.setting_privacy_mask_private_ips = v != "false";
+            }
+            if let Ok(Some(v)) = vault.get_setting("privacy_mask_usernames") {
+                self.setting_privacy_mask_usernames = v != "false";
+            }
+            if let Ok(Some(v)) = vault.get_setting("privacy_mask_hostnames") {
+                self.setting_privacy_mask_hostnames = v != "false";
+            }
             // One-shot reset: Privacy Mode was never meant to be on by
             // default, yet some vaults carry a persisted
             // `privacy_mode = true`. Force it off once on upgrade; the
