@@ -134,9 +134,9 @@ inherits = "release"
 debug = "line-tables-only"
 split-debuginfo = "packed"
 
-# zmodem2 from our fork's oryxis-integration branch (configurable flow
-# control + manual file acceptance/resume + ZSINIT handling) while the
-# upstream PRs are in review:
-# https://codeberg.org/jarkko/zmodem2 <- wilsonglasser/zmodem2
+# zmodem2 from our fork's configurable-flow-control branch (flow
+# control + manual file acceptance/resume + ZSINIT handling), the
+# single upstream PR's head, while it is in review:
+# https://codeberg.org/jarkko/zmodem2/pulls/5
 [patch.crates-io]
-zmodem2 = { git = "https://codeberg.org/wilsonglasser/zmodem2.git", rev = "726314fcbc55e5eee7faa0831a1a08e2378f3d5c" }
+zmodem2 = { git = "https://codeberg.org/wilsonglasser/zmodem2.git", rev = "db4bfedf24b4bcedb12a3ce547eb4f45feca64b3" }
