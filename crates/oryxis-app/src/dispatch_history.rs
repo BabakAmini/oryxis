@@ -213,6 +213,102 @@ impl Oryxis {
                 );
                 return Ok(save_text_file_task(body, default_name, "txt"));
             }
+            Message::ExportSessionGif(log_id) => {
+                self.overlay = None;
+                if self.gif_export_running {
+                    return Ok(self
+                        .show_toast(crate::i18n::t("gif_export_started").to_string()));
+                }
+                // Plugin not installed yet: park the export and open the
+                // consent modal; `PluginInstallDone("gif", Ok)` resumes.
+                let Some(binary) = crate::gif_export::resolve_binary() else {
+                    self.pending_gif_export = Some(log_id);
+                    return Ok(self.update(Message::ShowPluginInstallModal(
+                        crate::gif_export::PROVIDER_ID.to_string(),
+                    )));
+                };
+                // Same source as the .cast export: flush first, resolve
+                // the terminal type + theme like the live pane did (the
+                // embedded theme is what colors the GIF; agg reads it
+                // from the header, no plumbing across the process).
+                self.flush_session_logs_final();
+                let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
+                    return Ok(Task::none());
+                };
+                let Some(vault) = &self.vault else {
+                    return Ok(Task::none());
+                };
+                let events = match vault.get_session_events(&log_id) {
+                    Ok(ev) => ev,
+                    Err(e) => {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("history_export_failed")
+                                .replace("{error}", &e.to_string()),
+                        ));
+                    }
+                };
+                let conn = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == entry.connection_id);
+                let term = conn
+                    .and_then(|c| c.terminal_type.as_deref())
+                    .unwrap_or("xterm-256color");
+                let palette = conn
+                    .map(|c| self.resolve_terminal_palette_for_connection(c))
+                    .unwrap_or_else(|| self.resolve_global_terminal_palette());
+                let body =
+                    build_asciicast(&entry.label, entry.started_at, term, &palette, &events);
+                let default_name = format!(
+                    "oryxis-{}-{}.gif",
+                    crate::util::sanitize_file_stem(&entry.label),
+                    entry.started_at.format("%Y%m%d-%H%M%S"),
+                );
+                self.gif_export_running = true;
+                let start_toast = self
+                    .show_toast_secs(crate::i18n::t("gif_export_started").to_string(), 4);
+                let render = Task::perform(
+                    async move {
+                        // Save dialog off the UI thread; a dismissed
+                        // dialog reports nothing (None).
+                        let picked = tokio::task::spawn_blocking(move || {
+                            rfd::FileDialog::new()
+                                .set_file_name(&default_name)
+                                .add_filter("gif", &["gif"])
+                                .save_file()
+                        })
+                        .await
+                        .ok()
+                        .flatten();
+                        match picked {
+                            None => None,
+                            Some(path) => Some(
+                                crate::gif_export::render(binary, body, path).await,
+                            ),
+                        }
+                    },
+                    Message::GifExportFinished,
+                );
+                return Ok(Task::batch([start_toast, render]));
+            }
+            Message::GifExportFinished(outcome) => {
+                self.gif_export_running = false;
+                match outcome {
+                    None => {}
+                    Some(Ok(path)) => {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("history_export_done")
+                                .replace("{path}", &path),
+                        ));
+                    }
+                    Some(Err(cause)) => {
+                        return Ok(self.show_toast(
+                            crate::i18n::t("history_export_failed")
+                                .replace("{error}", &cause),
+                        ));
+                    }
+                }
+            }
             Message::RequestDeleteSessionLog(idx) => {
                 // Reached from the row kebab; drop it before the dialog.
                 self.overlay = None;

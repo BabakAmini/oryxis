@@ -598,6 +598,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "播放速度",
         "player_empty" => "此錄製沒有可播放的輸出",
         "export_cast_tip" => "匯出 .cast（asciinema）",
+        "export_gif_tip" => "匯出 GIF",
+        "gif_export_started" => "正在算繪 GIF...",
         "export_transcript_tip" => "匯出文字記錄（.txt）",
         "export_commands_tip" => "匯出輸入的指令（.txt）",
         "session_export_commands_empty" => "此工作階段未記錄任何輸入的指令",

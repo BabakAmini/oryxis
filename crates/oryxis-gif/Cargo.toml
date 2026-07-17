@@ -1,0 +1,30 @@
+# Standalone crate, NOT a workspace member (see [workspace] exclude in
+# the repo root): agg drags gifski + resvg + fontdb (~2-4 min of extra
+# compile and a much fatter lockfile), which is exactly why GIF export
+# is a downloaded plugin instead of in-core. This crate has its own
+# Cargo.lock; the `release-gif.yml` workflow builds it by manifest
+# path, and the app only ever sees the released binary.
+[package]
+name = "oryxis-gif"
+version = "0.1.0"
+edition = "2021"
+# GPL (not the workspace AGPL): agg is GPL-3.0-or-later and this
+# binary links it as a library. Fine for the AGPL app via the GPLv3
+# s13 compatibility, and the subprocess boundary keeps the distance.
+license = "GPL-3.0-or-later"
+authors = ["Wilson Glasser <wilsonglasser@gmail.com>"]
+repository = "https://github.com/wilsonglasser/oryxis"
+description = "Oryxis GIF export plugin: renders a recorded session (.cast) to GIF via agg"
+
+[[bin]]
+name = "oryxis-gif"
+path = "src/main.rs"
+
+[dependencies]
+# Pinned by tag: the manifest + signature pipeline pins the released
+# binary, and the tag pin keeps rebuilds byte-comparable across time.
+agg = { git = "https://github.com/asciinema/agg", tag = "v1.9.0" }
+
+[profile.release]
+strip = true
+lto = true

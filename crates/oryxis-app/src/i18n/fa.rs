@@ -737,6 +737,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "سرعت پخش",
         "player_empty" => "این ضبط خروجی قابل پخشی ندارد",
         "export_cast_tip" => "خروجی ‎.cast (asciinema)",
+        "export_gif_tip" => "خروجی GIF",
+        "gif_export_started" => "در حال رندر GIF...",
         "export_transcript_tip" => "خروجی متن جلسه (.txt)",
         "export_commands_tip" => "خروجی فرمان‌های تایپ‌شده (.txt)",
         "session_export_commands_empty" => "هیچ فرمان تایپ‌شده‌ای در این نشست ثبت نشده است",

@@ -26,6 +26,12 @@ members = [
     "crates/oryxis-app",
     "crates/oryxis-mcp",
 ]
+# The GIF plugin is deliberately OUTSIDE the workspace: it exists to
+# keep agg's render stack (gifski, resvg, fontdb) out of the app, and
+# a workspace membership would put that stack right back into every
+# `cargo check --workspace` and the shared Cargo.lock. It has its own
+# lockfile and is built by manifest path in release-gif.yml.
+exclude = ["crates/oryxis-gif"]
 
 
 [workspace.package]

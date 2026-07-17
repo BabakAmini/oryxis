@@ -1125,6 +1125,14 @@ pub enum Message {
     /// Export only the commands typed during a recorded session (the
     /// 'c' chunks) as a plain-text file.
     ExportSessionCommands(Uuid),
+    /// Render a recorded session to an animated GIF via the
+    /// `oryxis-gif` plugin (downloaded on first use). Opens the plugin
+    /// install modal when the binary isn't present yet and resumes the
+    /// export after the install.
+    ExportSessionGif(Uuid),
+    /// Outcome of a GIF render: `None` = save dialog dismissed (no
+    /// toast), `Some(Ok(path))` / `Some(Err(cause))` otherwise.
+    GifExportFinished(Option<Result<String, String>>),
     CloseSessionLogView,
     /// Open the in-app session player for a recording (issue #71):
     /// replays the timed chunks through a read-only terminal backend.

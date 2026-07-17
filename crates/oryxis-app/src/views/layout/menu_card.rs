@@ -27,6 +27,14 @@ impl Oryxis {
                     Message::ExportSessionCast(log_id),
                     OryxisColors::t().text_secondary,
                 ));
+                // Renders through the downloaded oryxis-gif plugin;
+                // the handler opens the install modal on first use.
+                col = col.push(self.menu_item(
+                    iced_fonts::lucide::image(),
+                    crate::i18n::t("export_gif_tip"),
+                    Message::ExportSessionGif(log_id),
+                    OryxisColors::t().text_secondary,
+                ));
             }
             col = col.push(self.menu_item(
                 iced_fonts::lucide::file_text(),

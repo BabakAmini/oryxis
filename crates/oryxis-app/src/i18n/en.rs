@@ -742,6 +742,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "player_speed_tip" => "Playback speed",
         "player_empty" => "This recording has no playable output",
         "export_cast_tip" => "Export .cast (asciinema)",
+        "export_gif_tip" => "Export GIF",
+        "gif_export_started" => "Rendering GIF...",
         "export_transcript_tip" => "Export transcript (.txt)",
         "export_commands_tip" => "Export typed commands (.txt)",
         "session_export_commands_empty" => "No typed commands recorded in this session",

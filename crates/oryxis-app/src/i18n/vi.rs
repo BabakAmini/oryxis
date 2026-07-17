@@ -735,6 +735,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Tốc độ phát",
         "player_empty" => "Bản ghi này không có đầu ra phát được",
         "export_cast_tip" => "Xuất .cast (asciinema)",
+        "export_gif_tip" => "Xuất GIF",
+        "gif_export_started" => "Đang kết xuất GIF...",
         "export_transcript_tip" => "Xuất bản ghi (.txt)",
         "export_commands_tip" => "Xuất các lệnh đã gõ (.txt)",
         "session_export_commands_empty" => "Không có lệnh đã gõ nào được ghi trong phiên này",

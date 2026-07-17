@@ -753,6 +753,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "سرعة التشغيل",
         "player_empty" => "لا يحتوي هذا التسجيل على مخرجات قابلة للتشغيل",
         "export_cast_tip" => "تصدير ‎.cast (asciinema)",
+        "export_gif_tip" => "تصدير GIF",
+        "gif_export_started" => "جارٍ إنشاء GIF...",
         "export_transcript_tip" => "تصدير النص (.txt)",
         "export_commands_tip" => "تصدير الأوامر المكتوبة (.txt)",
         "session_export_commands_empty" => "لا توجد أوامر مكتوبة مسجلة في هذه الجلسة",

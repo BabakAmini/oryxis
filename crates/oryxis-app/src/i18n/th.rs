@@ -741,6 +741,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "ความเร็วในการเล่น",
         "player_empty" => "การบันทึกนี้ไม่มีเอาต์พุตที่เล่นได้",
         "export_cast_tip" => "ส่งออก .cast (asciinema)",
+        "export_gif_tip" => "ส่งออก GIF",
+        "gif_export_started" => "กำลังเรนเดอร์ GIF...",
         "export_transcript_tip" => "ส่งออกทรานสคริปต์ (.txt)",
         "export_commands_tip" => "ส่งออกคำสั่งที่พิมพ์ (.txt)",
         "session_export_commands_empty" => "ไม่มีคำสั่งที่พิมพ์ถูกบันทึกในเซสชันนี้",

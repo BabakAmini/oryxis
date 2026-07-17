@@ -477,6 +477,8 @@ impl Oryxis {
                 session_logs_total: 0,
                 viewing_session_log: None,
                 session_player: None,
+                pending_gif_export: None,
+                gif_export_running: false,
                 hovered_log_row: None,
                 show_snippet_panel: false,
                 snippet_label: String::new(),

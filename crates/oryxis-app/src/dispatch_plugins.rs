@@ -29,6 +29,10 @@ const KNOWN_PLUGINS: &[(&str, &str)] = &[
     ("gcp", "Google Cloud"),
     ("azure", "Microsoft Azure"),
     ("mcp", "Oryxis MCP Server"),
+    // Distribution-only like MCP, but spawned by the app itself: the
+    // History screen's "Export GIF" renders a recording through it
+    // (see `crate::gif_export`). No JSON-RPC protocol, just a CLI.
+    ("gif", "GIF Export (agg)"),
 ];
 
 /// Provider ids that back a cloud account (i.e. everything in
@@ -365,6 +369,9 @@ impl Oryxis {
 
             Message::HidePluginInstallModal => {
                 self.plugin_install_modal = None;
+                // A dismissed consent modal also drops any GIF export
+                // that was parked on the install finishing.
+                self.pending_gif_export = None;
                 Ok(Task::none())
             }
 
@@ -507,6 +514,26 @@ impl Oryxis {
                 } else {
                     Task::none()
                 };
+                // A GIF export that opened this install resumes now
+                // that the binary is in place; an install failure
+                // drops it (the failure is already on the panel row).
+                if id == crate::gif_export::PROVIDER_ID
+                    && let Some(log_id) = self.pending_gif_export.take()
+                {
+                    let installed = matches!(
+                        self.plugins
+                            .iter()
+                            .find(|p| p.provider_id == id)
+                            .map(|p| &p.status),
+                        Some(PluginUiStatus::Installed(_))
+                    );
+                    if installed {
+                        return Ok(Task::batch([
+                            task,
+                            Task::done(Message::ExportSessionGif(log_id)),
+                        ]));
+                    }
+                }
                 Ok(task)
             }
 

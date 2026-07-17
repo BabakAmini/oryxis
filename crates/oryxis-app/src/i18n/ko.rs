@@ -735,6 +735,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "재생 속도",
         "player_empty" => "이 녹화에는 재생할 수 있는 출력이 없습니다",
         "export_cast_tip" => ".cast 내보내기 (asciinema)",
+        "export_gif_tip" => "GIF 내보내기",
+        "gif_export_started" => "GIF 렌더링 중...",
         "export_transcript_tip" => "전사본 내보내기 (.txt)",
         "export_commands_tip" => "입력한 명령 내보내기 (.txt)",
         "session_export_commands_empty" => "이 세션에 기록된 입력 명령이 없습니다",

@@ -1,4 +1,7 @@
 /target/
+# The GIF plugin crate lives outside the workspace (own lockfile,
+# own target dir); its Cargo.lock IS committed, its target isn't.
+/crates/oryxis-gif/target/
 .idea
 .env
 signaling-worker/wrangler.jsonc

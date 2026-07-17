@@ -598,6 +598,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "再生速度",
         "player_empty" => "この録画には再生可能な出力がありません",
         "export_cast_tip" => ".cast を書き出す (asciinema)",
+        "export_gif_tip" => "GIF を書き出す",
+        "gif_export_started" => "GIF をレンダリング中...",
         "export_transcript_tip" => "トランスクリプトを書き出す (.txt)",
         "export_commands_tip" => "入力したコマンドを書き出す (.txt)",
         "session_export_commands_empty" => "このセッションに記録された入力コマンドはありません",

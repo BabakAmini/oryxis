@@ -741,6 +741,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Ταχύτητα αναπαραγωγής",
         "player_empty" => "Αυτή η εγγραφή δεν έχει αναπαραγώγιμη έξοδο",
         "export_cast_tip" => "Εξαγωγή .cast (asciinema)",
+        "export_gif_tip" => "Εξαγωγή GIF",
+        "gif_export_started" => "Απόδοση GIF...",
         "export_transcript_tip" => "Εξαγωγή απομαγνητοφώνησης (.txt)",
         "export_commands_tip" => "Εξαγωγή πληκτρολογημένων εντολών (.txt)",
         "session_export_commands_empty" => "Καμία πληκτρολογημένη εντολή καταγεγραμμένη σε αυτή τη συνεδρία",

@@ -735,6 +735,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Oynatma hızı",
         "player_empty" => "Bu kayıtta oynatılabilir çıktı yok",
         "export_cast_tip" => ".cast dışa aktar (asciinema)",
+        "export_gif_tip" => "GIF dışa aktar",
+        "gif_export_started" => "GIF oluşturuluyor...",
         "export_transcript_tip" => "Dökümü dışa aktar (.txt)",
         "export_commands_tip" => "Yazılan komutları dışa aktar (.txt)",
         "session_export_commands_empty" => "Bu oturumda kaydedilmiş yazılan komut yok",

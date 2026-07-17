@@ -741,6 +741,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "प्लेबैक गति",
         "player_empty" => "इस रिकॉर्डिंग में चलाने योग्य आउटपुट नहीं है",
         "export_cast_tip" => ".cast एक्सपोर्ट करें (asciinema)",
+        "export_gif_tip" => "GIF एक्सपोर्ट करें",
+        "gif_export_started" => "GIF रेंडर हो रहा है...",
         "export_transcript_tip" => "ट्रांसक्रिप्ट एक्सपोर्ट करें (.txt)",
         "export_commands_tip" => "टाइप की गई कमांड एक्सपोर्ट करें (.txt)",
         "session_export_commands_empty" => "इस सेशन में कोई टाइप की गई कमांड रिकॉर्ड नहीं हुई",

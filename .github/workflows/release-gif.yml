@@ -1,0 +1,213 @@
+name: Release GIF plugin
+
+# Triggered by tags of the form `gif-v0.1.0`. Builds the `oryxis-gif`
+# binary (a thin agg wrapper, see crates/oryxis-gif) for every
+# supported platform, signs each with the production Ed25519 key,
+# uploads everything to the GitHub Release, and publishes the
+# `gif.json` manifest alongside.
+#
+# Like MCP, this is a plugin from a distribution standpoint only:
+# there is no JSON-RPC protocol, the app spawns the binary with plain
+# CLI args (`oryxis-gif <in.cast> <out.gif>`). The manifest's
+# `protocol_versions: [1]` only satisfies the host's non-empty
+# intersection filter.
+#
+# The crate lives OUTSIDE the workspace (its agg dependency tree is
+# the whole reason GIF export is a plugin), so every cargo invocation
+# here goes through --manifest-path and the target dir sits under
+# crates/oryxis-gif/target.
+
+on:
+  push:
+    tags:
+      - 'gif-v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: linux-x86_64
+            runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            ext: ''
+          - label: linux-aarch64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            ext: ''
+          - label: macos-aarch64
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            ext: ''
+          - label: windows-x86_64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            ext: '.exe'
+          - label: windows-aarch64
+            runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            ext: '.exe'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            crates/oryxis-gif/target/
+          key: gif-plugin-${{ matrix.label }}-${{ hashFiles('crates/oryxis-gif/Cargo.lock') }}
+
+      - name: Build plugin (release)
+        run: cargo build --release --manifest-path crates/oryxis-gif/Cargo.toml --target ${{ matrix.target }}
+
+      # No explicit strip step: the crate's release profile already
+      # sets `strip = true` + LTO.
+
+      - name: Build signer
+        run: cargo build --release -p oryxis-plugin-signer
+
+      - name: Sign + hash
+        shell: bash
+        env:
+          ORYXIS_SIGNING_KEY: ${{ secrets.ORYXIS_SIGNING_KEY }}
+        run: |
+          set -euo pipefail
+          BIN="crates/oryxis-gif/target/${{ matrix.target }}/release/oryxis-gif${{ matrix.ext }}"
+          OUT="dist/oryxis-gif-${{ matrix.label }}${{ matrix.ext }}"
+          mkdir -p dist
+          cp "$BIN" "$OUT"
+          # The signer prints `sha256 = …`, `signature_b64 = …`,
+          # and `size = …` on three separate lines.
+          ./target/release/oryxis-plugin-signer sign "$BIN" > "$OUT.signinfo"
+          grep '^sha256'        "$OUT.signinfo" | awk '{print $3}' > "$OUT.sha256"
+          grep '^signature_b64' "$OUT.signinfo" | awk '{print $3}' > "$OUT.sig"
+          grep '^size'          "$OUT.signinfo" | awk '{print $3}' > "$OUT.size"
+          rm "$OUT.signinfo"
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          # Plugin releases must never claim GitHub's "Latest" flag — the
+          # website's /releases/latest/ download links target the app release.
+          make_latest: false
+          files: |
+            dist/oryxis-gif-${{ matrix.label }}${{ matrix.ext }}
+            dist/oryxis-gif-${{ matrix.label }}${{ matrix.ext }}.sig
+            dist/oryxis-gif-${{ matrix.label }}${{ matrix.ext }}.sha256
+            dist/oryxis-gif-${{ matrix.label }}${{ matrix.ext }}.size
+
+  manifest:
+    name: Publish manifest
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve version
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG='${{ github.ref_name }}'
+          echo "tag=$TAG"        >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#gif-v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download sidecars from the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern 'oryxis-gif-*.sha256' \
+            --pattern 'oryxis-gif-*.sig' \
+            --pattern 'oryxis-gif-*.size' \
+            --dir assets
+
+      - name: Build gif.json
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.tag.outputs.version }}'
+          TAG='${{ steps.tag.outputs.tag }}'
+          BASE="https://github.com/${{ github.repository }}/releases/download/${TAG}"
+
+          # Build the binaries array via jq so JSON escaping is correct
+          # and we avoid heredocs (which collide with the YAML block
+          # scalar's indent rules: a dedented `EOF` ends the YAML scalar
+          # before bash sees it).
+          binaries='[]'
+          for sha_file in assets/oryxis-gif-*.sha256; do
+            [ -f "$sha_file" ] || continue
+            base="${sha_file%.sha256}"
+            name=$(basename "$base")
+            # Parse `os` + `arch` from the filename:
+            #   oryxis-gif-linux-x86_64
+            #   oryxis-gif-windows-aarch64.exe
+            stripped="${name#oryxis-gif-}"
+            stripped="${stripped%.exe}"
+            os="${stripped%-*}"
+            arch="${stripped##*-}"
+            sha=$(cat "$base.sha256")
+            sig=$(cat "$base.sig")
+            size=$(cat "$base.size")
+            binaries=$(echo "$binaries" | jq \
+              --arg os "$os" \
+              --arg arch "$arch" \
+              --arg url "$BASE/$name" \
+              --arg sha "$sha" \
+              --arg sig "$sig" \
+              --argjson size "$size" \
+              '. + [{os: $os, arch: $arch, url: $url, sha256: $sha, signature: $sig, size: $size}]')
+          done
+
+          jq -n \
+            --arg version "$VERSION" \
+            --argjson binaries "$binaries" \
+            '{
+              provider_id: "gif",
+              versions: [
+                {
+                  version: $version,
+                  protocol_versions: [1],
+                  min_app: "0.9.0",
+                  binaries: $binaries
+                }
+              ]
+            }' > gif.json
+
+          echo '--- gif.json ---'
+          cat gif.json
+
+      - name: Upload gif.json to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          make_latest: false
+          files: gif.json
+
+  # Sync the published assets + API snapshots to the download mirror
+  # (dl.oryxis.app / dl-cn.oryxis.app), the Auto fallback for networks
+  # where GitHub is blocked (mainland China). Layout contract lives in
+  # publish-mirror.yml and net_mirror.rs.
+  mirror:
+    name: Publish to download mirror
+    needs: [manifest]
+    uses: ./.github/workflows/publish-mirror.yml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets: inherit

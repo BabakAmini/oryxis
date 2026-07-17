@@ -33,6 +33,7 @@ mod dispatch_navigation;
 mod dispatch_onboarding;
 mod dispatch_history;
 mod dispatch_player;
+mod gif_export;
 mod dispatch_command_history;
 mod dispatch_mcp;
 mod dispatch_sync;

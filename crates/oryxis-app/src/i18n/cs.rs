@@ -741,6 +741,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Rychlost přehrávání",
         "player_empty" => "Tato nahrávka neobsahuje přehratelný výstup",
         "export_cast_tip" => "Exportovat .cast (asciinema)",
+        "export_gif_tip" => "Exportovat GIF",
+        "gif_export_started" => "Vykreslování GIF...",
         "export_transcript_tip" => "Exportovat přepis (.txt)",
         "export_commands_tip" => "Exportovat zadané příkazy (.txt)",
         "session_export_commands_empty" => "V této relaci nebyly zaznamenány žádné zadané příkazy",

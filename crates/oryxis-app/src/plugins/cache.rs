@@ -71,6 +71,7 @@ pub fn version_dir(provider_id: &str, version: &str) -> Result<PathBuf, PluginEr
 pub fn binary_name(provider_id: &str) -> String {
     let base = match provider_id {
         "mcp" => "oryxis-mcp".to_string(),
+        "gif" => "oryxis-gif".to_string(),
         id => format!("oryxis-cloud-{id}-plugin"),
     };
     if cfg!(windows) {

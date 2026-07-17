@@ -735,6 +735,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Kecepatan pemutaran",
         "player_empty" => "Rekaman ini tidak memiliki keluaran yang dapat diputar",
         "export_cast_tip" => "Ekspor .cast (asciinema)",
+        "export_gif_tip" => "Ekspor GIF",
+        "gif_export_started" => "Merender GIF...",
         "export_transcript_tip" => "Ekspor transkrip (.txt)",
         "export_commands_tip" => "Ekspor perintah yang diketik (.txt)",
         "session_export_commands_empty" => "Tidak ada perintah yang diketik terekam di sesi ini",

@@ -741,6 +741,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "מהירות ניגון",
         "player_empty" => "בהקלטה זו אין פלט הניתן לניגון",
         "export_cast_tip" => "ייצוא .cast (asciinema)",
+        "export_gif_tip" => "ייצוא GIF",
+        "gif_export_started" => "מרנדר GIF...",
         "export_transcript_tip" => "ייצוא תמליל (.txt)",
         "export_commands_tip" => "ייצוא פקודות שהוקלדו (.txt)",
         "session_export_commands_empty" => "לא הוקלטו פקודות בסשן הזה",

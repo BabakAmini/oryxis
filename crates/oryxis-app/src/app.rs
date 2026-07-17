@@ -878,6 +878,12 @@ pub struct Oryxis {
     /// surface on the History view while `Some`. Mutually exclusive
     /// with `viewing_session_log` (opening either closes the other).
     pub(crate) session_player: Option<crate::state::SessionPlayer>,
+    /// Recording waiting for the `gif` plugin install to finish; the
+    /// `PluginInstallDone("gif", Ok)` handler resumes the export.
+    pub(crate) pending_gif_export: Option<Uuid>,
+    /// One GIF render at a time: re-entry shows the "rendering" toast
+    /// instead of racing two renders over the save dialog.
+    pub(crate) gif_export_running: bool,
     /// Session-log row under the cursor (Logs view); drives the
     /// clickable-row hover highlight.
     pub(crate) hovered_log_row: Option<Uuid>,

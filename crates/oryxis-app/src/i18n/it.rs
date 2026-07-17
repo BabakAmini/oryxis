@@ -589,6 +589,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_speed_tip" => "Velocità di riproduzione",
         "player_empty" => "Questa registrazione non contiene output riproducibile",
         "export_cast_tip" => "Esporta .cast (asciinema)",
+        "export_gif_tip" => "Esporta GIF",
+        "gif_export_started" => "Rendering della GIF...",
         "export_transcript_tip" => "Esporta trascrizione (.txt)",
         "export_commands_tip" => "Esporta comandi digitati (.txt)",
         "session_export_commands_empty" => "Nessun comando digitato registrato in questa sessione",
