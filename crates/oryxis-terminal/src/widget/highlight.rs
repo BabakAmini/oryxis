@@ -343,9 +343,6 @@ pub(crate) fn detect_highlights(
                 let dominated = highlights.iter().any(|h| {
                     h.row == row && start as u16 >= h.start_col && (start as u16) <= h.end_col
                 });
-                if dominated {
-                    continue;
-                }
                 let text = &row_str[start..end];
                 // Address-vs-version classification first (issue #53),
                 // then the per-class privacy gates (issue #78): a
@@ -358,7 +355,19 @@ pub(crate) fn detect_highlights(
                 let address_like =
                     term_hit || private || !quad_dot_version_context(&row_str, start);
                 let class_on = if private { classes.private_ips } else { classes.public_ips };
-                let kind = if address_like && (term_hit || class_on) {
+                let masked = address_like && (term_hit || class_on);
+                // A candidate already owned by an earlier span (a scraped
+                // URL) is normally skipped. But the app-side redactor is
+                // not URL-aware and masks an address inside a URL host, so
+                // under Privacy Mode push an OVERLAPPING Ip span for that
+                // one case (the draw pass masks any cell a privacy_only
+                // span covers, and leaves the URL's color on the rest). A
+                // non-masked candidate stays skipped so it does not fight
+                // the URL's color.
+                if dominated && !(privacy && masked) {
+                    continue;
+                }
+                let kind = if masked {
                     HighlightKind::Ip
                 } else {
                     HighlightKind::VersionQuad
@@ -410,7 +419,7 @@ pub(crate) fn detect_highlights(
                 let dominated = highlights.iter().any(|h| {
                     h.row == row && s2 as u16 >= h.start_col && (s2 as u16) <= h.end_col
                 });
-                if !glued && !dominated && looks_like_ipv6(&row_str[s2..e2]) {
+                if !glued && looks_like_ipv6(&row_str[s2..e2]) {
                     // Per-class gate (issue #78): a disabled class
                     // keeps the keyword color but never masks, same
                     // demotion the IPv4 arm applies.
@@ -419,17 +428,23 @@ pub(crate) fn detect_highlights(
                     } else {
                         classes.public_ips
                     };
-                    highlights.push(Highlight {
-                        row,
-                        start_col: s2 as u16,
-                        end_col: (e2 - 1) as u16,
-                        color: ip_color,
-                        kind: if class_on {
-                            HighlightKind::Ip
-                        } else {
-                            HighlightKind::VersionQuad
-                        },
-                    });
+                    // Same URL-host exception as the IPv4 arm: a candidate
+                    // dominated by a scraped URL is skipped unless Privacy
+                    // Mode would mask it, in which case an overlapping Ip
+                    // span masks the host inside the URL.
+                    if !dominated || (privacy && class_on) {
+                        highlights.push(Highlight {
+                            row,
+                            start_col: s2 as u16,
+                            end_col: (e2 - 1) as u16,
+                            color: ip_color,
+                            kind: if class_on {
+                                HighlightKind::Ip
+                            } else {
+                                HighlightKind::VersionQuad
+                            },
+                        });
+                    }
                 }
                 i = j;
             }
@@ -1301,6 +1316,36 @@ mod tests {
             .filter(|h| h.kind == HighlightKind::Ip)
             .map(|h| (h.start_col as usize, h.end_col as usize))
             .collect()
+    }
+
+    #[test]
+    fn an_ip_inside_a_url_is_masked_under_privacy() {
+        // The app-side redactor (redact_for_display) is not URL-aware and
+        // masks a bare address inside a URL host; the terminal must agree.
+        // Under Privacy Mode the host's cells are privacy cells even though
+        // a Url span also covers them, while the scheme / path are not.
+        let s = "see https://8.8.8.8/admin now";
+        let rows = rows_from(s);
+        let hs = detect_highlights(
+            &rows,
+            &TerminalPalette::default(),
+            true,
+            &[],
+            PrivacyClasses::default(),
+        );
+        let ip_at = s.find("8.8.8.8").unwrap() as u16;
+        let ip_len = "8.8.8.8".len() as u16;
+        for col in ip_at..ip_at + ip_len {
+            assert!(is_privacy_cell(&hs, 0, col), "col {col} in the URL host should mask");
+        }
+        // The '/' just before and after the host stay part of the URL, not
+        // masked.
+        assert!(!is_privacy_cell(&hs, 0, ip_at - 1));
+        assert!(!is_privacy_cell(&hs, 0, ip_at + ip_len));
+
+        // With Privacy Mode off, the address stays owned by the URL span
+        // and is not separately highlighted (no masking to do).
+        assert!(ip_spans(s).is_empty());
     }
 
     fn ip_texts(s: &str) -> Vec<String> {
