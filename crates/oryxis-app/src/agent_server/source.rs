@@ -380,12 +380,19 @@ impl AgentKeySource for VaultKeySource {
             })
             .ok_or(AgentSignError::UnknownKey)?;
 
-        let pem = vault
-            .get_key_private(&key.id)
-            .map_err(|e| AgentSignError::SignFailed(e.to_string()))?
-            .ok_or(AgentSignError::Unavailable)?;
-        // The decrypted key is zeroized on drop by ssh_key.
-        let private = PrivateKey::from_openssh(&pem)
+        // The vault getter hands back a plain `String`; wrap it so the
+        // decrypted PEM (the same key material as the parsed key) is
+        // wiped when it drops, not left in freed heap. Honours the
+        // module's decrypt-per-signature / nothing-cached contract.
+        let pem = zeroize::Zeroizing::new(
+            vault
+                .get_key_private(&key.id)
+                .map_err(|e| AgentSignError::SignFailed(e.to_string()))?
+                .ok_or(AgentSignError::Unavailable)?,
+        );
+        // The parsed key is zeroized on drop by ssh_key; the PEM above
+        // by the Zeroizing wrapper.
+        let private = PrivateKey::from_openssh(&*pem)
             .map_err(|e| AgentSignError::SignFailed(e.to_string()))?;
 
         sign_blob(&private, data, hash)

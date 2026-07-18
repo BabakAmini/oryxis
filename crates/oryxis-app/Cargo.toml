@@ -68,6 +68,9 @@ oryxis-plugin-protocol = { workspace = true }
 # `CloudProvider` is an async trait, the app needs `async-trait` to
 # implement it for `PluginProvider`.
 async-trait = "0.1"
+# Zeroize the decrypted private-key PEM in the agent sign path so the
+# decrypt-per-signature contract leaves no plaintext copy in freed heap.
+zeroize = { workspace = true }
 # Ed25519 verify-only for plugin binary signatures. The workspace
 # pin carries `rand_core` (sync needs key generation); the plugin
 # host only ever calls `VerifyingKey::verify`, the extra feature is

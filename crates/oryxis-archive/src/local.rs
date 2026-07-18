@@ -100,7 +100,12 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<(), ArchiveError> {
         #[cfg(unix)]
         if let Some(mode) = entry.unix_mode() {
             use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode & 0o7777));
+            // Mask to the permission bits only (0o777), dropping
+            // setuid / setgid / sticky (0o7000): Info-ZIP's `unzip`
+            // strips them too, since honouring them from an untrusted
+            // archive is a needless risk (a setgid file dropped into a
+            // shared-group directory, say).
+            let _ = std::fs::set_permissions(&target, std::fs::Permissions::from_mode(mode & 0o777));
         }
     }
     Ok(())
