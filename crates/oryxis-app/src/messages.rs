@@ -1901,6 +1901,11 @@ pub enum Message {
     /// Fetch the hosted manifest for a provider and compare against
     /// the installed version.
     PluginCheckUpdates(String),
+    /// Header action: run the update check for every installed plugin.
+    PluginCheckAllUpdates,
+    /// Toggle the kebab menu on a plugin row (secondary actions:
+    /// check for updates, auto-update override, uninstall).
+    ShowPluginMenu(String),
     /// Manifest fetch finished, `Ok` carries the parsed manifest.
     PluginManifestFetched(String, Result<Box<crate::plugins::PluginManifest>, String>),
     /// Open / close the first-use install opt-in modal for a provider.

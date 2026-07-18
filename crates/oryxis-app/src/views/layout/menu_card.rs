@@ -279,6 +279,64 @@ impl Oryxis {
         ].into()
     }
 
+    /// Plugin-row kebab: the secondary actions the compact row doesn't
+    /// carry inline. Installed rows get check-for-updates, the per-row
+    /// auto-update override (check glyph = on) and uninstall; a dev
+    /// build only offers removing the cached downloads it shadows.
+    pub(crate) fn build_menu_plugin_actions(&self, provider_id: &str) -> Element<'_, Message> {
+        use crate::state::PluginUiStatus;
+        let Some(entry) = self.plugins.iter().find(|p| p.provider_id == provider_id) else {
+            return column![].into();
+        };
+        let id = entry.provider_id.clone();
+        let mut items = column![];
+        match &entry.status {
+            PluginUiStatus::DevBuild if entry.cached_install => {
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::trash(),
+                    crate::i18n::t("plugin_action_remove_downloads"),
+                    Message::PluginUninstall(id),
+                    OryxisColors::t().error,
+                ));
+            }
+            PluginUiStatus::Installed(_) | PluginUiStatus::UpdateAvailable { .. } => {
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::refresh_cw(),
+                    crate::i18n::t("plugin_action_check_updates"),
+                    Message::PluginCheckUpdates(id.clone()),
+                    OryxisColors::t().text_secondary,
+                ));
+                // Toggle row: stays open on click (mirrors the tag
+                // filter menus), the check glyph tracks the new state.
+                items = items.push(if entry.auto_update {
+                    self.menu_item(
+                        iced_fonts::lucide::check(),
+                        crate::i18n::t("plugins_auto_update"),
+                        Message::PluginToggleAutoUpdate(id.clone(), false),
+                        OryxisColors::t().accent,
+                    )
+                } else {
+                    self.menu_item(
+                        iced_fonts::lucide::circle(),
+                        crate::i18n::t("plugins_auto_update"),
+                        Message::PluginToggleAutoUpdate(id.clone(), true),
+                        OryxisColors::t().text_muted,
+                    )
+                });
+                items = items.push(self.menu_item(
+                    iced_fonts::lucide::trash(),
+                    crate::i18n::t("plugin_action_uninstall"),
+                    Message::PluginUninstall(id),
+                    OryxisColors::t().error,
+                ));
+            }
+            // The kebab only renders on the states above; an in-flight
+            // or not-installed row that somehow opens it gets nothing.
+            _ => {}
+        }
+        items.into()
+    }
+
     pub(crate) fn build_menu_cloud_provider_picker(&self) -> Element<'_, Message> {
         // The "+ Host ▾" add menu: one row per entry of the shared add
         // catalog (`views::add_actions`), which the first-run empty

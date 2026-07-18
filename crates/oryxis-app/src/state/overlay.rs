@@ -81,6 +81,10 @@ pub(crate) enum OverlayContent {
     /// right-click (the app can't reach the widget's live selection).
     /// Position lives in `OverlayState.x/y` (window-absolute).
     TerminalContextMenu(Uuid, Option<String>),
+    /// Kebab menu on a Plugins-panel row. Carries the provider id.
+    /// Items depend on the row's status: check for updates, the
+    /// auto-update override toggle, uninstall / remove downloads.
+    PluginActions(String),
 }
 
 /// Which side-panel input the shared group picker is currently

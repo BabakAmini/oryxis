@@ -85,14 +85,28 @@ impl Oryxis {
                 self.agent_server_toggle(),
             ]),
             Space::new().height(18).into(),
-            // Plugins list header: subtitle on the leading edge, the
-            // global auto-update toggle on the trailing edge, one line.
+            // Plugins list header: subtitle on the leading edge; the
+            // list-wide actions (one update check for every installed
+            // row + the global auto-update toggle) on the trailing
+            // edge, one line. Per-row copies of both moved into the
+            // row kebab as override / retry affordances.
             dir_row(vec![
                 text(crate::i18n::t("plugins_subtitle"))
                     .size(12)
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::PluginCheckAllUpdates),
+                    6.0,
+                    pill_button(
+                        crate::i18n::t("plugin_action_check_updates"),
+                        Some(Message::PluginCheckAllUpdates),
+                        OryxisColors::t().text_secondary,
+                        false,
+                    ),
+                ),
+                Space::new().width(14).into(),
                 self.settings_nav_slot(
                     crate::keynav::RowAction::activate(Message::PluginToggleGlobalAutoUpdate(
                         !self.plugins_auto_update_global,
@@ -329,10 +343,14 @@ impl Oryxis {
 
 }
 
-/// One provider row: icon + name + status badge, a version / hint
-/// line, the action buttons, and (when installed) the per-plugin
-/// auto-update toggle. Takes the app so the pill actions and the
-/// auto-update toggle register as keyboard rows at construction.
+/// One provider row, single-line: brand icon + name + version +
+/// status badge on the leading edge, the status's primary action and
+/// the kebab trigger on the trailing edge. Secondary actions (check
+/// for updates, the auto-update override, uninstall) live in the
+/// kebab menu (`build_menu_plugin_actions`), also reachable by
+/// right-clicking the row. Only an error / dev-build hint adds a
+/// second line. Takes the app so every control registers as a
+/// keyboard row at construction, in visual order.
 fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Message> {
     let id = entry.provider_id.clone();
 
@@ -367,18 +385,30 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
         ),
     };
 
-    // Secondary line: version, version transition, hint, or error.
+    // Inline version tail next to the name: current version, or the
+    // available transition. The pin rides the same slot so the row
+    // stays one line.
+    let mut version = match &entry.status {
+        PluginUiStatus::Installed(v) => Some(format!("v{v}")),
+        PluginUiStatus::UpdateAvailable { current, latest } => {
+            Some(format!("v{current} \u{2192} v{latest}"))
+        }
+        _ => None,
+    };
+    if let Some(pinned) = &entry.pinned_version {
+        let pin = format!("{} v{pinned}", crate::i18n::t("plugin_pinned"));
+        version = Some(match version {
+            Some(v) => format!("{v} \u{00B7} {pin}"),
+            None => pin,
+        });
+    }
+
+    // Second line only where one is genuinely needed: an install /
+    // fetch error, or the dev-build explainer.
     let detail: Option<(String, Color)> = match &entry.status {
         PluginUiStatus::DevBuild => Some((
             crate::i18n::t("plugin_dev_build_hint").to_string(),
             OryxisColors::t().text_muted,
-        )),
-        PluginUiStatus::Installed(v) => {
-            Some((format!("v{v}"), OryxisColors::t().text_secondary))
-        }
-        PluginUiStatus::UpdateAvailable { current, latest } => Some((
-            format!("v{current}  \u{2192}  v{latest}"),
-            OryxisColors::t().text_secondary,
         )),
         PluginUiStatus::Failed(msg) => {
             Some((msg.clone(), OryxisColors::t().error))
@@ -409,43 +439,33 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
     } else {
         crate::os_icon::provider_icon(&entry.provider_id, OryxisColors::t().accent)
     };
-    let header = dir_row(vec![
+
+    let mut row_items: Vec<Element<'_, Message>> = vec![
         brand_icon.view(16.0, brand_icon_color),
         Space::new().width(10).into(),
         text(&entry.display_name)
             .size(14)
             .color(OryxisColors::t().text_primary)
             .into(),
-        Space::new().width(10).into(),
-        badge.into(),
-        Space::new().width(Length::Fill).into(),
-    ])
-    .align_y(iced::Alignment::Center);
-
-    let mut card = column![header].spacing(6);
-
-    if let Some((line, color)) = detail {
-        card = card.push(text(line).size(11).color(color));
-    }
-
-    // A user-pinned version, when set, holds the updater on a
-    // specific release. Surfaced here so the pin is visible.
-    if let Some(pinned) = &entry.pinned_version {
-        card = card.push(
-            text(format!("{} v{pinned}", crate::i18n::t("plugin_pinned")))
-                .size(10)
-                .color(OryxisColors::t().text_muted),
+    ];
+    if let Some(v) = version {
+        row_items.push(Space::new().width(8).into());
+        row_items.push(
+            text(v).size(11).color(OryxisColors::t().text_secondary).into(),
         );
     }
+    row_items.push(Space::new().width(10).into());
+    row_items.push(badge.into());
+    row_items.push(Space::new().width(Length::Fill).into());
 
-    // Action buttons, per status. Every button here has a real
-    // message (a disabled `pill_button(None)` never reaches this
-    // match), so each one is recorded as a keyboard row, in visual
-    // order: primary action first, then the secondary one.
-    let mut actions: Vec<Element<'_, Message>> = Vec::new();
+    // Primary action per status, trailing edge. Everything secondary
+    // is in the kebab, so a healthy installed row carries no inline
+    // button at all. Every button here has a real message (a disabled
+    // `pill_button(None)` never reaches this match), so each one is
+    // recorded as a keyboard row, in visual order.
     match &entry.status {
         PluginUiStatus::NotInstalled => {
-            actions.push(app.settings_nav_slot(
+            row_items.push(app.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
                 6.0,
                 pill_button(
@@ -457,7 +477,7 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
             ));
         }
         PluginUiStatus::UpdateAvailable { .. } => {
-            actions.push(app.settings_nav_slot(
+            row_items.push(app.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::PluginInstall(id.clone())),
                 6.0,
                 pill_button(
@@ -467,61 +487,9 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
                     true,
                 ),
             ));
-            actions.push(Space::new().width(8).into());
-            actions.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
-                6.0,
-                pill_button(
-                    crate::i18n::t("plugin_action_uninstall"),
-                    Some(Message::PluginUninstall(id.clone())),
-                    OryxisColors::t().error,
-                    false,
-                ),
-            ));
-        }
-        PluginUiStatus::Installed(_) => {
-            actions.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginCheckUpdates(id.clone())),
-                6.0,
-                pill_button(
-                    crate::i18n::t("plugin_action_check_updates"),
-                    Some(Message::PluginCheckUpdates(id.clone())),
-                    OryxisColors::t().text_secondary,
-                    false,
-                ),
-            ));
-            actions.push(Space::new().width(8).into());
-            actions.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
-                6.0,
-                pill_button(
-                    crate::i18n::t("plugin_action_uninstall"),
-                    Some(Message::PluginUninstall(id.clone())),
-                    OryxisColors::t().error,
-                    false,
-                ),
-            ));
-        }
-        PluginUiStatus::DevBuild => {
-            // No "Check for updates" here: a locally built dev binary
-            // can't be updated by this panel, so the button was just
-            // noise repeated on every card. Only the cached downloads it
-            // shadows (and the MCP launcher copy) are removable.
-            if entry.cached_install {
-                actions.push(app.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::PluginUninstall(id.clone())),
-                    6.0,
-                    pill_button(
-                        crate::i18n::t("plugin_action_remove_downloads"),
-                        Some(Message::PluginUninstall(id.clone())),
-                        OryxisColors::t().error,
-                        false,
-                    ),
-                ));
-            }
         }
         PluginUiStatus::Failed(_) => {
-            actions.push(app.settings_nav_slot(
+            row_items.push(app.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::PluginCheckUpdates(id.clone())),
                 6.0,
                 pill_button(
@@ -531,8 +499,8 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
                     false,
                 ),
             ));
-            actions.push(Space::new().width(8).into());
-            actions.push(app.settings_nav_slot(
+            row_items.push(Space::new().width(8).into());
+            row_items.push(app.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
                 6.0,
                 pill_button(
@@ -543,41 +511,47 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
                 ),
             ));
         }
-        // Checking / Downloading: in-flight, no actions.
-        PluginUiStatus::Checking | PluginUiStatus::Downloading => {}
+        // Installed / dev-build rows act through the kebab; in-flight
+        // rows (checking / downloading) have nothing to click.
+        PluginUiStatus::Installed(_)
+        | PluginUiStatus::DevBuild
+        | PluginUiStatus::Checking
+        | PluginUiStatus::Downloading => {}
     }
 
-    if !actions.is_empty() {
-        card = card.push(Space::new().height(2));
-        card = card.push(dir_row(actions).align_y(iced::Alignment::Center));
-    }
-
-    // Per-plugin auto-update toggle, only meaningful once installed.
-    if matches!(
+    // Kebab trigger, on every row that has secondary actions. Always
+    // visible (Settings controls aren't hover-revealed cards) and a
+    // recorded keyboard row like the pills.
+    let has_menu = matches!(
         entry.status,
         PluginUiStatus::Installed(_) | PluginUiStatus::UpdateAvailable { .. }
-    ) {
-        card = card.push(Space::new().height(2));
-        card = card.push(
-            container(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginToggleAutoUpdate(
-                    id.clone(),
-                    !entry.auto_update,
-                )),
-                8.0,
-                crate::widgets::toggle_switch_labeled(
-                    crate::i18n::t("plugins_auto_update"),
-                    entry.auto_update,
-                    Message::PluginToggleAutoUpdate(id.clone(), !entry.auto_update),
-                ),
-            ))
-            .width(Length::Fill)
-            .align_x(dir_align_x()),
-        );
+    ) || (matches!(entry.status, PluginUiStatus::DevBuild) && entry.cached_install);
+    if has_menu {
+        row_items.push(Space::new().width(8).into());
+        row_items.push(app.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::ShowPluginMenu(id.clone())),
+            6.0,
+            crate::widgets::card_kebab_button(
+                OryxisColors::t().text_muted,
+                true,
+                Message::ShowPluginMenu(id.clone()),
+            )
+            .into(),
+        ));
     }
 
-    container(card)
-        .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 })
+    // The detail line must hug the leading edge under RTL, hence the
+    // dir-aware alignment (the width:Fill gives it slack to align in).
+    let mut card = column![dir_row(row_items).align_y(iced::Alignment::Center)]
+        .spacing(6)
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+    if let Some((line, color)) = detail {
+        card = card.push(text(line).size(11).color(color));
+    }
+
+    let styled = container(card)
+        .padding(Padding { top: 10.0, right: 16.0, bottom: 10.0, left: 16.0 })
         .width(Length::Fill)
         .style(|_| container::Style {
             // Match the `panel_section` bg used elsewhere in Settings
@@ -590,8 +564,17 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
                 width: 1.0,
             },
             ..Default::default()
-        })
-        .into()
+        });
+
+    if has_menu {
+        // Right-click anywhere on the row opens the same kebab menu
+        // (app-wide card convention).
+        iced::widget::MouseArea::new(styled)
+            .on_right_press(Message::ShowPluginMenu(id))
+            .into()
+    } else {
+        styled.into()
+    }
 }
 
 /// Small action button. `accent_color` tints the border + label;

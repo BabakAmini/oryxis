@@ -30,6 +30,9 @@ impl Oryxis {
             OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
             // "Exposed to agent" / "Remove certificate" must not wrap.
             OverlayContent::KeyActions(_) => 210.0,
+            // "Check for updates" / "Remove downloaded files" +
+            // translations on one line.
+            OverlayContent::PluginActions(_) => 230.0,
             OverlayContent::CloudDiscoverGroupPicker => {
                 let b = self.cloud_discover_default_group_combo_bounds.get();
                 if b.width > 0.0 { b.width } else { 308.0 }
@@ -72,6 +75,7 @@ impl Oryxis {
             }
             OverlayContent::SidebarFilesBackground { .. } => 5.0,
             OverlayContent::HostActions(_) => 8.0,
+            OverlayContent::PluginActions(_) => 3.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
             OverlayContent::SplitMenu => 3.0,
@@ -215,6 +219,7 @@ impl Oryxis {
             OverlayContent::HostActions(idx) => self.build_menu_host_actions(*idx),
             OverlayContent::SessionGroupActions(idx) => self.build_menu_session_group_actions(*idx),
             OverlayContent::KeyActions(idx) => self.build_menu_key_actions(*idx),
+            OverlayContent::PluginActions(id) => self.build_menu_plugin_actions(id),
             OverlayContent::IdentityActions(idx) => self.build_menu_identity_actions(*idx),
             OverlayContent::SnippetActions(idx) => self.build_menu_snippet_actions(*idx),
             OverlayContent::KeychainAdd => self.build_menu_keychain_add(),

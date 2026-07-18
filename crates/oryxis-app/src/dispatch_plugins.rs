@@ -280,7 +280,61 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
+            Message::ShowPluginMenu(id) => {
+                use crate::state::{OverlayContent, OverlayState};
+                // Toggle, mirroring the other card kebabs.
+                let already = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::PluginActions(i)) if *i == id
+                );
+                if already {
+                    self.overlay = None;
+                } else {
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::PluginActions(id),
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+                Ok(Task::none())
+            }
+
+            Message::PluginCheckAllUpdates => {
+                // Header action: one click checks every row that can
+                // be updated from here (installed via the cache; dev
+                // builds and not-installed providers have nothing to
+                // check against).
+                let ids: Vec<String> = self
+                    .plugins
+                    .iter()
+                    .filter(|p| {
+                        matches!(
+                            p.status,
+                            PluginUiStatus::Installed(_)
+                                | PluginUiStatus::UpdateAvailable { .. }
+                        )
+                    })
+                    .map(|p| p.provider_id.clone())
+                    .collect();
+                let tasks: Vec<Task<Message>> = ids
+                    .into_iter()
+                    .filter_map(|id| {
+                        self.handle_plugins(Message::PluginCheckUpdates(id)).ok()
+                    })
+                    .collect();
+                Ok(Task::batch(tasks))
+            }
+
             Message::PluginCheckUpdates(id) => {
+                // Fired from the row kebab too: drop the menu so the
+                // badge flip to "checking" is visible right away.
+                if matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::PluginActions(_))
+                ) {
+                    self.overlay = None;
+                }
                 if let Some(entry) =
                     self.plugins.iter_mut().find(|p| p.provider_id == id)
                 {
@@ -538,6 +592,9 @@ impl Oryxis {
             }
 
             Message::PluginUninstall(id) => {
+                // Reached from the row kebab: the confirm dialog takes
+                // over, the menu must not linger under it.
+                self.overlay = None;
                 // Destructive: route through a confirmation dialog whose
                 // primary action carries the real removal message.
                 let display = self
