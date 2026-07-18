@@ -407,11 +407,17 @@ pub(crate) fn ctrl_key_bytes(key: &keyboard::Key) -> Option<Vec<u8>> {
         let ctrl = match ch {
             b'a'..=b'z' => ch - b'a' + 1,
             b'A'..=b'Z' => ch - b'A' + 1,
+            // The C0 block maps `@`..`_` (0x40..0x5f) to 0x00..0x1f, i.e.
+            // `ch & 0x1f`; `@` (0x40) folds to NUL exactly like the letters.
+            b'@' => 0,
             b'[' => 27,
             b'\\' => 28,
             b']' => 29,
             b'^' => 30,
             b'_' => 31,
+            // The one exception to `ch & 0x1f`: Ctrl+? is DEL (127), not 31,
+            // matching xterm / the historical teletype mapping.
+            b'?' => 127,
             _ => return None,
         };
         Some(vec![ctrl])
@@ -637,6 +643,18 @@ mod tests {
         assert_eq!(nb(Named::Space, Modifiers::CTRL, false), vec![0x00]);
         // Plain Space stays a plain space.
         assert_eq!(nb(Named::Space, Modifiers::empty(), false), b" ");
+    }
+
+    #[test]
+    fn ctrl_at_is_nul_and_ctrl_question_is_del() {
+        // Completes the C0 table: `@` folds to NUL like a letter (0x40 &
+        // 0x1f), `?` is the DEL exception (127, not 31). Reached through
+        // the plain-Ctrl branch when the layout puts these on an unshifted
+        // key (or via Ctrl+Alt); Ctrl+Shift on a US layout stays swallowed.
+        let at = Press::ch("@").text(Some("\u{0}")).mods(Modifiers::CTRL);
+        assert_eq!(at.on(Platform::Linux).unwrap(), vec![0x00]);
+        let q = Press::ch("?").text(Some("\u{7f}")).mods(Modifiers::CTRL);
+        assert_eq!(q.on(Platform::Linux).unwrap(), vec![0x7f]);
     }
 
     #[test]
