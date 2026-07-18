@@ -141,10 +141,11 @@ impl Oryxis {
     /// Keyboard layer for the player surface: while it is up on the
     /// History view (and no modal sits over it) the transport keys
     /// belong to the player: Space play/pause, Left/Right seek,
-    /// Home restart, Esc close. Everything else falls through so app
-    /// hotkeys keep working. This is the surface's keyboard-operability
-    /// wiring: a media scrubber, like the terminal canvas, is driven by
-    /// dedicated transport keys rather than `RowAction` slot walking.
+    /// Home restart, `s` cycle speed, `m` toggle Reveal (when masking
+    /// applies), Esc close. Everything else falls through so app hotkeys
+    /// keep working. This is the surface's keyboard-operability wiring: a
+    /// media scrubber, like the terminal canvas, is driven by dedicated
+    /// transport keys rather than `RowAction` slot walking.
     pub(crate) fn handle_player_key(
         &mut self,
         event: &keyboard::Event,
@@ -162,6 +163,18 @@ impl Oryxis {
             return None;
         }
         let clock = player.clock_ms;
+        let log_id = player.log_id;
+        // Whether the Reveal toggle is offered for this recording (same
+        // resolution as the view): only then does `m` mean anything.
+        // Computed here so the `player` borrow is released before the
+        // `self.update` below.
+        let privacy_applies = self
+            .session_logs
+            .iter()
+            .find(|e| e.id == log_id)
+            .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id))
+            .map(|c| self.privacy_active(c))
+            .unwrap_or_else(|| self.privacy_global_active());
         let msg = match key {
             keyboard::Key::Named(keyboard::key::Named::Space) => {
                 Message::SessionPlayerTogglePlay
@@ -180,6 +193,17 @@ impl Oryxis {
             }
             keyboard::Key::Named(keyboard::key::Named::Home) => {
                 Message::SessionPlayerRestart
+            }
+            // Speed cycle ('s') and Reveal toggle ('m'), the two header
+            // chips that were mouse-only. `m` is inert unless masking is
+            // in play, mirroring the button being hidden then.
+            keyboard::Key::Character(c) if c.as_str().eq_ignore_ascii_case("s") => {
+                Message::SessionPlayerSpeedCycle
+            }
+            keyboard::Key::Character(c)
+                if c.as_str().eq_ignore_ascii_case("m") && privacy_applies =>
+            {
+                Message::TogglePrivacyReveal
             }
             _ => return None,
         };
