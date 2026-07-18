@@ -128,6 +128,26 @@ pub fn can_compress(shell: RemoteShell, tools: ArchiveTools, kind: ArchiveKind) 
     }
 }
 
+/// Whether the extract command these params synthesize invokes `unzip`.
+/// Unlike `tar`, `unzip` exits 1 on benign warnings (trailing garbage,
+/// extra bytes) while still extracting everything, so the caller maps
+/// exit code 1 to success ONLY for unzip. This is the single source of
+/// truth for that decision; it must track [`extract_command`]'s tool
+/// choice byte for byte (the `extract_uses_unzip_matches_command` test
+/// pins them together).
+pub fn extract_uses_unzip(shell: RemoteShell, tools: ArchiveTools, kind: ArchiveKind) -> bool {
+    if !matches!(kind, ArchiveKind::Zip) {
+        return false;
+    }
+    match shell {
+        // POSIX prefers unzip for zip; without it, bsdtar (`tar -xf`).
+        RemoteShell::Posix => tools.unzip,
+        // Windows tar.exe (bsdtar) reads zip, so it wins when present;
+        // unzip is the fallback.
+        RemoteShell::Windows => !tools.tar,
+    }
+}
+
 /// Wrap a POSIX command so the user's login shell only parses one
 /// single-quoted literal (fish and csh diverge from POSIX on loops,
 /// `&&`, and escaping; `sh -c '<literal>'` is common ground).
@@ -318,6 +338,40 @@ mod tests {
         assert!(can_compress(RemoteShell::Posix, bsd_only(), Zip));
         assert!(!can_compress(RemoteShell::Posix, gnu_no_unzip, Zip));
         assert!(!can_compress(RemoteShell::Posix, gnu(), Tar));
+    }
+
+    #[test]
+    fn extract_uses_unzip_matches_command() {
+        // The exit-code policy in the app keys off `extract_uses_unzip`;
+        // it must agree with the tool `extract_command` actually picks for
+        // every supported (shell, tools, kind). Paths here are chosen with
+        // no "unzip" substring so the command scan is an honest oracle.
+        use ArchiveKind::*;
+        let shells = [RemoteShell::Posix, RemoteShell::Windows];
+        let kinds = [Zip, TarGz, Tar, TarBz2, TarXz, TarZst];
+        let tool_sets = [
+            ArchiveTools { tar: true, bsdtar: false, unzip: true, zip: true },
+            ArchiveTools { tar: true, bsdtar: true, unzip: false, zip: false },
+            ArchiveTools { tar: false, bsdtar: true, unzip: false, zip: false },
+            ArchiveTools { tar: false, bsdtar: false, unzip: true, zip: false },
+            ArchiveTools { tar: true, bsdtar: false, unzip: false, zip: false },
+        ];
+        for shell in shells {
+            for &kind in &kinds {
+                for tools in tool_sets {
+                    if !can_extract(shell, tools, kind) {
+                        continue;
+                    }
+                    let cmd =
+                        extract_command(shell, tools, kind, "/a/plain.arc", "/a/dest").unwrap();
+                    assert_eq!(
+                        cmd.contains("unzip "),
+                        extract_uses_unzip(shell, tools, kind),
+                        "shell={shell:?} kind={kind:?} tools={tools:?} cmd={cmd}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

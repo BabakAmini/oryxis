@@ -328,13 +328,16 @@ impl Oryxis {
                     return Ok(Task::done(Message::SftpOpResult(side, e.to_string(), true)));
                 }
             };
+            // Only unzip's benign exit 1 is tolerated; tar failures stay
+            // failures.
+            let tolerate_warning = remote_cmd::extract_uses_unzip(shell, tools, kind);
             Task::perform(
                 async move {
                     client
                         .create_dir(&dest_abs)
                         .await
                         .map_err(|e| e.to_string())?;
-                    run_remote_archive_cmd(&client, &cmd).await
+                    run_remote_archive_cmd(&client, &cmd, tolerate_warning).await
                 },
                 move |r| {
                     Message::sftp_owned(
@@ -452,8 +455,10 @@ impl Oryxis {
                     return Ok(Task::done(Message::SftpOpResult(side, e.to_string(), true)));
                 }
             };
+            // Compression (zip/tar) reports real failure as any nonzero
+            // code; only a clean exit is success.
             Task::perform(
-                async move { run_remote_archive_cmd(&client, &cmd).await },
+                async move { run_remote_archive_cmd(&client, &cmd, false).await },
                 move |r| {
                     Message::sftp_owned(
                         owner,
@@ -671,10 +676,17 @@ fn existing_names(pane: &PaneState) -> Vec<String> {
 /// Run a synthesized archive command on the exec channel, mapping the
 /// exit status to a user-facing error. `unzip` exits 1 for benign
 /// warnings (e.g. trailing garbage) while still extracting, so 1 is
-/// accepted for unzip commands specifically.
-async fn run_remote_archive_cmd(client: &SftpClient, cmd: &str) -> Result<(), String> {
+/// accepted only when the caller says this is an unzip extraction
+/// (`tolerate_warning`). Keying that off the caller's operation, not a
+/// substring of `cmd`, means a hostile file name containing "unzip "
+/// can't turn a real tar failure into a false success.
+async fn run_remote_archive_cmd(
+    client: &SftpClient,
+    cmd: &str,
+    tolerate_warning: bool,
+) -> Result<(), String> {
     let (code, _out, err) = client.exec(cmd).await.map_err(|e| e.to_string())?;
-    let ok = code == 0 || (code == 1 && cmd.contains("unzip "));
+    let ok = code == 0 || (code == 1 && tolerate_warning);
     if ok {
         Ok(())
     } else {
