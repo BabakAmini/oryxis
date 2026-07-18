@@ -479,6 +479,52 @@ where
             Err(error) => return RunOutcome::Parse(error.to_string()),
         };
 
+        // A multi-character `type "text"` floods the bounded
+        // per-subscription event channels: the emulator broadcasts
+        // every interaction to subscriptions, and a live PTY tab
+        // consumes its keystrokes there, so overflow silently DROPS
+        // characters mid-string (a `printf` one-liner typed into bash
+        // would lose random bytes and leave the shell at a `>`
+        // continuation prompt). Feed literal text one character at a
+        // time, draining the queue between characters so the channel
+        // never fills; the original line is still recorded (and
+        // replayed) as one instruction.
+        use iced_test::instruction::{Interaction, Keyboard};
+        if let Instruction::Interact(Interaction::Keyboard(Keyboard::Typewrite(text))) =
+            &instruction
+            && text.chars().count() > 1
+        {
+            let chars: Vec<char> = text.chars().collect();
+            let last = chars.len() - 1;
+            for (i, ch) in chars.into_iter().enumerate() {
+                let single = Instruction::Interact(Interaction::Keyboard(
+                    Keyboard::Typewrite(ch.to_string()),
+                ));
+                self.emulator.run(program, &single);
+                if i < last {
+                    self.drain(program);
+                    std::thread::sleep(Duration::from_millis(2));
+                }
+            }
+            let pump = self.pump_until_ready(program, self.timeout);
+            // Per-character runs each emit their own Ready; sweep the
+            // stragglers so the NEXT instruction's pump can't mistake
+            // one for its own completion.
+            self.drain(program);
+            return match pump {
+                Pump::Ready => {
+                    self.history.push(instruction.to_string());
+                    RunOutcome::Done
+                }
+                Pump::Timeout => {
+                    self.history.push(instruction.to_string());
+                    RunOutcome::Timeout
+                }
+                Pump::Failed(instruction) => RunOutcome::Failed(instruction),
+                Pump::Closed => RunOutcome::Closed,
+            };
+        }
+
         self.emulator.run(program, &instruction);
         match self.pump_until_ready(program, self.timeout) {
             Pump::Ready => {
