@@ -113,6 +113,13 @@ pub(crate) struct SessionPlayer {
     /// Timeline length in milliseconds (last event's time).
     pub duration_ms: i64,
     pub playing: bool,
+    /// While the user drags the scrubber, the pending target in
+    /// milliseconds. The knob and time label follow it live (O(1)), but
+    /// the emulator is only rebuilt/replayed once, on release
+    /// ([`commit_scrub`]). Without this a backward drag rebuilt and
+    /// replayed the whole timeline on every per-millisecond slider
+    /// event, freezing the UI on a long recording.
+    pub scrub: Option<f64>,
     /// Clock multiplier, one of [`PLAYER_SPEEDS`].
     pub speed: f32,
     /// Wall-clock instant of the previous tick while playing; `None`
@@ -153,6 +160,7 @@ impl SessionPlayer {
             clock_ms: 0.0,
             duration_ms,
             playing: true,
+            scrub: None,
             speed: 1.0,
             last_tick: None,
             terminal,
@@ -220,6 +228,8 @@ impl SessionPlayer {
     /// needed; see the issue #71 spec). A failed rebuild leaves the
     /// current frame in place rather than blanking the player.
     pub fn seek(&mut self, target_ms: f64) {
+        // A committed seek supersedes any in-flight scrub preview.
+        self.scrub = None;
         let target = target_ms.clamp(0.0, self.duration_ms as f64);
         if target < self.clock_ms {
             let Ok(fresh) = Self::build_terminal(self.initial_geometry, &self.palette) else {
@@ -240,8 +250,29 @@ impl SessionPlayer {
         }
     }
 
+    /// The position the transport should display: the live scrub target
+    /// while dragging, otherwise the playback clock.
+    pub fn display_ms(&self) -> f64 {
+        self.scrub.unwrap_or(self.clock_ms)
+    }
+
+    /// Record a scrubber drag without touching the emulator (cheap): the
+    /// knob and label follow, the frame catches up on release.
+    pub fn scrub_to(&mut self, target_ms: f64) {
+        self.scrub = Some(target_ms.clamp(0.0, self.duration_ms as f64));
+    }
+
+    /// Apply the pending scrub target once, on release (a single
+    /// rebuild/replay instead of one per drag event).
+    pub fn commit_scrub(&mut self) {
+        if let Some(target) = self.scrub.take() {
+            self.seek(target);
+        }
+    }
+
     /// Restart from zero, playing.
     pub fn restart(&mut self) {
+        self.scrub = None;
         self.seek(0.0);
         self.playing = true;
         self.last_tick = Some(Instant::now());
@@ -388,6 +419,33 @@ mod tests {
         assert_eq!(cell(&p, 0, 1), ' ');
         assert_eq!((p.cols, p.rows), (120, 30));
         assert_eq!(p.next_event, 2);
+    }
+
+    #[test]
+    fn scrub_defers_the_rebuild_to_commit() {
+        let mut p = player_over(&[
+            ev(Some(0), 'o', b"A"),
+            ev(Some(1_000), 'o', b"B"),
+        ]);
+        p.seek(1_000.0);
+        assert_eq!(cell(&p, 0, 1), 'B');
+        let events_at_end = p.next_event;
+
+        // Dragging backward only moves the knob/label; the emulator is
+        // untouched (no replay), so the frame still shows the end.
+        p.scrub_to(100.0);
+        assert_eq!(p.display_ms(), 100.0, "knob follows the scrub");
+        assert_eq!(p.clock_ms, 1_000.0, "clock not moved yet");
+        assert_eq!(p.next_event, events_at_end, "no rebuild during the drag");
+        assert_eq!(cell(&p, 0, 1), 'B', "frame unchanged until release");
+
+        // Release applies it once: clock jumps back and the frame
+        // rebuilds to the earlier position.
+        p.commit_scrub();
+        assert_eq!(p.scrub, None);
+        assert_eq!(p.clock_ms, 100.0);
+        assert_eq!(p.display_ms(), 100.0);
+        assert_eq!(cell(&p, 0, 1), ' ', "past the future event again");
     }
 
     #[test]

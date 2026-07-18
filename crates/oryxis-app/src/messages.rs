@@ -1158,8 +1158,14 @@ pub enum Message {
     SessionPlayerRestart,
     /// Cycle the playback speed through the preset steps.
     SessionPlayerSpeedCycle,
-    /// Scrubber / arrow-key jump to a playback position (milliseconds).
+    /// Arrow-key jump to a playback position (milliseconds); applies
+    /// immediately (a single discrete step).
     SessionPlayerSeek(f64),
+    /// Scrubber drag in progress: record the target so the knob/label
+    /// follow live, but defer the emulator rebuild to release.
+    SessionPlayerScrub(f64),
+    /// Scrubber released: apply the pending scrub target once.
+    SessionPlayerScrubCommit,
     /// Playback clock tick (subscription mounted while playing on the
     /// History view).
     SessionPlayerTick,

@@ -160,18 +160,23 @@ impl Oryxis {
             crate::i18n::t("player_restart_tip"),
             Message::SessionPlayerRestart,
         );
+        // The knob and label follow the live scrub target while dragging,
+        // the playback clock otherwise.
+        let display_ms = p.display_ms();
         let time_label = format!(
             "{} / {}",
-            format_clock(p.clock_ms as i64),
+            format_clock(display_ms as i64),
             format_clock(p.duration_ms),
         );
-        // Scrubber over the full timeline in milliseconds. Backward
-        // drags rebuild + replay (fast; see `SessionPlayer::seek`).
+        // Scrubber over the full timeline in milliseconds. Dragging only
+        // records the target (cheap); the one rebuild/replay a backward
+        // jump needs happens on release, not per per-ms slider event.
         let scrubber = iced::widget::slider(
             0.0..=(p.duration_ms.max(1) as f64),
-            p.clock_ms.clamp(0.0, p.duration_ms as f64),
-            Message::SessionPlayerSeek,
+            display_ms.clamp(0.0, p.duration_ms as f64),
+            Message::SessionPlayerScrub,
         )
+        .on_release(Message::SessionPlayerScrubCommit)
         .step(1.0)
         .width(Length::Fill);
         // Speed chip: cycles the preset steps; trailing x reads the

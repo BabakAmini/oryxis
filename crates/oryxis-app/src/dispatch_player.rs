@@ -109,6 +109,16 @@ impl Oryxis {
                     p.seek(target_ms);
                 }
             }
+            Message::SessionPlayerScrub(target_ms) => {
+                if let Some(p) = &mut self.session_player {
+                    p.scrub_to(target_ms);
+                }
+            }
+            Message::SessionPlayerScrubCommit => {
+                if let Some(p) = &mut self.session_player {
+                    p.commit_scrub();
+                }
+            }
             Message::SessionPlayerTick => {
                 if let Some(p) = &mut self.session_player
                     && p.playing
