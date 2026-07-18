@@ -141,35 +141,38 @@ impl AgentRuntime {
         }
         #[cfg(windows)]
         {
-            // Busy-probe synchronously (a std client open, no reactor) so
-            // the toggle can revert with a clear error; the real bind runs
-            // inside the accept task (pipe creation needs an entered
-            // runtime context that `spawn()` does not guarantee).
-            if let Some(name) = listener::agent_pipe_name() {
-                listener::windows_pre_bind_check(&name)?;
-            }
+            // Create the anti-squat FIRST pipe instance synchronously here,
+            // BEFORE the toggle is confirmed: a squatter (or any other bind
+            // failure) then reverts the toggle with a clear error instead of
+            // leaving it on with a dead listener behind a `tracing::warn`.
+            // This replaces the old probe-then-bind-in-task pair (one
+            // authoritative mechanism, no TOCTOU). Creating the server needs
+            // the same entered-runtime context the `tokio::spawn` below
+            // needs, which we already have.
+            let name = listener::agent_pipe_name()
+                .ok_or_else(|| "no agent pipe name on this platform".to_string())?;
+            let first = listener::create_first_instance(&name)
+                .map_err(|e| format!("agent pipe unavailable: {e}"))?;
             let src = source.clone();
             let confirm_main = confirm_mode.clone();
             let mut tasks = vec![tokio::spawn(async move {
-                let name = listener::agent_pipe_name().unwrap_or_default();
-                if let Err(e) = listener::serve_pipe(name, src, confirm_main).await {
+                if let Err(e) = listener::serve_pipe(name, first, src, confirm_main).await {
                     tracing::warn!(target = "oryxis::agent", error = %e, "agent listener stopped");
                 }
             })];
 
             // The OpenSSH alias is best-effort: a busy name (the real
             // agent service, another agent) must not take the whole
-            // feature down, so its probe failure is surfaced, not
-            // returned.
+            // feature down, so its bind failure is surfaced, not returned.
             let mut alias_error = None;
             if openssh_alias {
                 let alias = listener::openssh_pipe_name();
-                match listener::windows_pre_bind_check(&alias) {
-                    Ok(()) => {
+                match listener::create_first_instance(&alias) {
+                    Ok(first) => {
                         let src = source.clone();
                         tasks.push(tokio::spawn(async move {
                             if let Err(e) =
-                                listener::serve_pipe(alias, src, confirm_mode).await
+                                listener::serve_pipe(alias, first, src, confirm_mode).await
                             {
                                 tracing::warn!(
                                     target = "oryxis::agent",
@@ -179,7 +182,7 @@ impl AgentRuntime {
                             }
                         }));
                     }
-                    Err(e) => alias_error = Some(e),
+                    Err(e) => alias_error = Some(format!("openssh alias unavailable: {e}")),
                 }
             }
             Ok((

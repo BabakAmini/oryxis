@@ -14,7 +14,7 @@ pub(crate) use unix::{agent_socket_path, serve_unix};
 #[cfg(windows)]
 #[allow(unused_imports)]
 pub(crate) use windows::{
-    agent_pipe_name, openssh_pipe_name, serve_pipe, windows_pre_bind_check,
+    agent_pipe_name, create_first_instance, openssh_pipe_name, serve_pipe,
 };
 
 #[cfg(unix)]
@@ -220,42 +220,32 @@ mod windows {
         r"\\.\pipe\openssh-ssh-agent".to_string()
     }
 
-    /// Synchronous busy probe, mirroring the unix `pre_bind_check`: a std
-    /// client open reports whether a pipe of this name already exists. No
-    /// tokio reactor is touched here (the real bind happens later, inside
-    /// the async accept task, because pipe creation needs an entered
-    /// runtime context that `spawn()` does not guarantee).
-    pub(crate) fn windows_pre_bind_check(name: &str) -> Result<(), String> {
-        use std::fs::OpenOptions;
-        use std::io::ErrorKind;
-        match OpenOptions::new().read(true).write(true).open(name) {
-            // A server answered: another agent already owns the name.
-            Ok(_) => Err("another agent is already listening on the pipe".to_string()),
-            Err(e) => match e.kind() {
-                // Nothing there: free to create.
-                ErrorKind::NotFound => Ok(()),
-                // ERROR_PIPE_BUSY (all instances busy) or a foreign pipe we
-                // cannot open: something owns the name, refuse.
-                _ => Err(format!("pipe name unavailable: {e}")),
-            },
-        }
+    /// Create the anti-squat FIRST pipe instance (`first_pipe_instance(true)`,
+    /// which fails rather than attaches if a hostile squatter already owns
+    /// the name). Done by the caller, synchronously, BEFORE the toggle is
+    /// confirmed: a bind failure then reverts the toggle with a clear error
+    /// instead of leaving it on with a dead listener (there is no
+    /// probe-then-bind TOCTOU because this IS the bind). Creating the server
+    /// needs the same entered-runtime context `tokio::spawn` needs, which
+    /// the caller already has.
+    pub(crate) fn create_first_instance(name: &str) -> std::io::Result<NamedPipeServer> {
+        create_instance(name, true)
     }
 
-    /// Bind `name` and accept forever, serving each client with `source`.
-    /// The first instance uses `first_pipe_instance(true)` so a hostile
-    /// squatter that beat us to the name makes this fail rather than
-    /// attach. Returns on a create error or when the task is aborted.
-    /// Called once for the Oryxis pipe and, behind the opt-in, once
-    /// more for the OpenSSH alias.
+    /// Serve the pipe, driving the accept loop off the pre-created `first`
+    /// instance. Returns on a create error or when the task is aborted.
+    /// Called once for the Oryxis pipe and, behind the opt-in, once more
+    /// for the OpenSSH alias.
     pub(crate) async fn serve_pipe<K>(
         name: String,
+        first: NamedPipeServer,
         source: Arc<K>,
         confirm: ConfirmMode,
     ) -> std::io::Result<()>
     where
         K: AgentKeySource + 'static,
     {
-        let mut server = create_instance(&name, true)?;
+        let mut server = first;
         loop {
             server.connect().await?;
             let connected = server;
