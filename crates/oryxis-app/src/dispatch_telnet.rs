@@ -138,7 +138,10 @@ impl Oryxis {
             step: ConnectionStep::Connecting,
             logs: vec![(
                 ConnectionStep::Connecting,
-                format!("Connecting to {}:{} (Telnet)...", conn.hostname, conn.port),
+                format!(
+                    "Starting a new Telnet connection to \"{}\" port {}",
+                    conn.hostname, conn.port
+                ),
             )],
             failed: false,
             origin,

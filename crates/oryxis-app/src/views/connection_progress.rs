@@ -65,6 +65,18 @@ impl Oryxis {
             if let Some(u) = c.username.as_deref().filter(|u| !u.is_empty()) {
                 out = out.replace(u, &crate::widgets::mask_blocks(u));
             }
+            // The route-context log line names the proxy endpoint, whose
+            // DNS hostname the generic regex can't catch. Resolve it the
+            // same way the connect does: identity reference wins over the
+            // inline config.
+            let proxy_host = c
+                .proxy_identity_id
+                .and_then(|pid| self.proxy_identities.iter().find(|p| p.id == pid))
+                .map(|p| p.host.as_str())
+                .or(c.proxy.as_ref().map(|p| p.host.as_str()));
+            if let Some(h) = proxy_host.filter(|h| !h.is_empty()) {
+                out = out.replace(h, &crate::widgets::mask_blocks(h));
+            }
         }
         out
     }
@@ -492,17 +504,33 @@ impl Oryxis {
 
             (status, body, btm)
         } else {
-            // Normal connection progress / failure: a vertical timeline of
-            // log lines. This deliberately drops the horizontal "two big
-            // bullets joined by a line" bar so the screen reads as our own
-            // rather than a Termius clone.
+            // Normal connection progress / failure: the journey bar on top
+            // answers the state at a glance (and keeps the screen alive
+            // while dialing); the vertical timeline below stays the
+            // detailed log.
             let status_text = if failed {
                 crate::i18n::t("connection_failed_log")
             } else {
                 crate::i18n::t("connecting_status")
             };
             let status_color = if failed { OryxisColors::t().error } else { OryxisColors::t().text_secondary };
-            let status: Element<'_, Message> = text(status_text).size(14).color(status_color).into();
+            let title = container(
+                text(status_text)
+                    .size(15)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Semibold,
+                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                    })
+                    .color(status_color),
+            )
+            .width(Length::Fill)
+            .align_x(Horizontal::Center);
+            let status: Element<'_, Message> = column![
+                Space::new().height(8),
+                title,
+                Space::new().height(4),
+            ]
+            .into();
 
             (status, self.view_connection_log_timeline(progress, failed, pulse), self.view_connection_log_buttons(progress, failed))
         };
@@ -607,75 +635,143 @@ impl Oryxis {
             // The in-flight node pulses only while we're still connecting.
             let is_active = !failed && is_last;
 
-            // Node color matches the old per-line icon coloring.
+            // Step tones tell the story at a glance: network (accent) ->
+            // secured channel (success) -> credentials (warning). The old
+            // text_muted for Connecting made the enlarged discs read as
+            // disabled, so every step carries a real color now.
             let node_color = if is_error {
                 OryxisColors::t().error
             } else {
                 match step {
-                    ConnectionStep::Connecting => OryxisColors::t().text_muted,
-                    ConnectionStep::Handshake => OryxisColors::t().accent,
+                    ConnectionStep::Connecting => OryxisColors::t().accent,
+                    ConnectionStep::Handshake => OryxisColors::t().success,
                     ConnectionStep::Authenticating => OryxisColors::t().warning,
                 }
             };
 
-            // Marker: alert glyph for errors, pulsing ring for the active
-            // node, solid dot otherwise. All sized to sit centered on the
-            // rail so the connector line stays vertically aligned.
-            let marker: Element<'_, Message> = if is_error {
-                iced_fonts::lucide::circle_alert().size(14).color(node_color).into()
-            } else if is_active {
-                let bw = 1.5 + pulse * 1.5;
-                let fill = Color { a: 0.55 + pulse * 0.25, ..node_color };
-                container(Space::new())
-                    .width(Length::Fixed(13.0))
-                    .height(Length::Fixed(13.0))
-                    .style(move |_| container::Style {
-                        background: Some(Background::Color(fill)),
-                        border: Border { radius: Radius::from(7.0), color: node_color, width: bw },
-                        ..Default::default()
-                    })
-                    .into()
+            // Step glyph inside the node disc: what this line was DOING,
+            // not just a dot. Errors get the alert glyph in the same disc
+            // shape so the column stays visually aligned.
+            let glyph: Element<'_, Message> = if is_error {
+                iced_fonts::lucide::circle_alert().size(15).color(node_color).into()
             } else {
-                container(Space::new())
-                    .width(Length::Fixed(10.0))
-                    .height(Length::Fixed(10.0))
-                    .style(move |_| container::Style {
-                        background: Some(Background::Color(node_color)),
-                        border: Border { radius: Radius::from(5.0), ..Default::default() },
-                        ..Default::default()
-                    })
-                    .into()
+                match step {
+                    ConnectionStep::Connecting => {
+                        iced_fonts::lucide::plug().size(15).color(node_color).into()
+                    }
+                    ConnectionStep::Handshake => {
+                        iced_fonts::lucide::shield_check().size(15).color(node_color).into()
+                    }
+                    ConnectionStep::Authenticating => {
+                        iced_fonts::lucide::key_round().size(15).color(node_color).into()
+                    }
+                }
             };
 
-            // Connector descends from this node toward the next one. Dimmed so
-            // it reads as a guide line, not a solid bar. Omitted on the last
-            // node so the line doesn't dangle below the final marker.
-            let line_color = Color { a: 0.6, ..node_color };
+            // Marker: a tinted 28 px disc around the glyph. The in-flight
+            // node breathes: its ring width, halo alpha and tint ride the
+            // pulse; settled nodes keep a quiet 1 px ring.
+            let (ring_w, ring_a, tint_a) = if is_active {
+                (2.0 + pulse * 2.0, 0.40 + pulse * 0.45, 0.18 + pulse * 0.12)
+            } else if is_error {
+                (1.0, 0.60, 0.18)
+            } else {
+                (1.0, 0.35, 0.14)
+            };
+            let marker: Element<'_, Message> = container(glyph)
+                .center_x(Length::Fixed(28.0))
+                .center_y(Length::Fixed(28.0))
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: tint_a, ..node_color })),
+                    border: Border {
+                        radius: Radius::from(14.0),
+                        color: Color { a: ring_a, ..node_color },
+                        width: ring_w,
+                    },
+                    ..Default::default()
+                })
+                .into();
+
+            // Connector descends from this node toward the next one. Dimmed
+            // so it reads as a guide line, not a solid bar. The segment
+            // feeding the in-flight node carries a spark sliding down the
+            // rail (portion-split overlay, no pixel math), so the motion
+            // points at the step that's actually working. Omitted on the
+            // last node so the line doesn't dangle below the final marker.
+            // The segment is tinted like the node it FEEDS (the one below),
+            // so the lead-in to an error is red, not the color of the step
+            // that happened to precede it.
+            let feeds_active = !failed && i + 2 == n;
             let connector: Element<'_, Message> = if is_last {
                 Space::new().into()
             } else {
-                container(Space::new().width(Length::Fixed(2.0)))
+                let (next_step, next_msg) = &progress.logs[i + 1];
+                let next_color = if next_msg.starts_with("Error") {
+                    OryxisColors::t().error
+                } else {
+                    match next_step {
+                        ConnectionStep::Connecting => OryxisColors::t().accent,
+                        ConnectionStep::Handshake => OryxisColors::t().success,
+                        ConnectionStep::Authenticating => OryxisColors::t().warning,
+                    }
+                };
+                let line_color = Color { a: 0.55, ..next_color };
+                let line: Element<'_, Message> = container(Space::new())
                     .width(Length::Fixed(2.0))
                     .height(Length::Fill)
                     .style(move |_| container::Style {
                         background: Some(Background::Color(line_color)),
                         ..Default::default()
                     })
+                    .into();
+                if feeds_active {
+                    // Spark riding the same tint, eased lap ~1.2 s on the
+                    // 100 ms anim tick.
+                    let lap = (self.connect_anim_tick % 12) as f32 / 12.0;
+                    let eased = lap * lap * (3.0 - 2.0 * lap);
+                    let pos = ((eased * 1000.0) as u16).clamp(1, 999);
+                    let spark = container(Space::new())
+                        .width(Length::Fixed(7.0))
+                        .height(Length::Fixed(7.0))
+                        .style(move |_| container::Style {
+                            background: Some(Background::Color(next_color)),
+                            border: Border {
+                                radius: Radius::from(3.5),
+                                color: Color { a: 0.35, ..next_color },
+                                width: 2.0,
+                            },
+                            ..Default::default()
+                        });
+                    iced::widget::Stack::with_children(vec![
+                        container(line).center_x(Length::Fixed(8.0)).height(Length::Fill).into(),
+                        column![
+                            Space::new().height(Length::FillPortion(pos)),
+                            container(spark).center_x(Length::Fixed(8.0)),
+                            Space::new().height(Length::FillPortion(1000 - pos)),
+                        ]
+                        .height(Length::Fill)
+                        .into(),
+                    ])
+                    .width(Length::Fixed(8.0))
+                    .height(Length::Fill)
                     .into()
+                } else {
+                    line
+                }
             };
 
-            // Rail: small top nudge to center the marker on the first text
-            // line, the marker, then the fill connector. The column is
+            // Rail: the marker, then the fill connector. The column is
             // Fill-height so the connector stretches to the row's height
             // (driven by the message cell).
-            let rail = column![Space::new().height(Length::Fixed(2.0)), marker, connector]
+            let rail = column![marker, connector]
                 .align_x(Horizontal::Center)
-                .width(Length::Fixed(22.0))
+                .width(Length::Fixed(32.0))
                 .height(Length::Fill);
 
-            // Selectable message. Bottom padding (except last) gives the rows
-            // breathing room and lets the connector span cleanly to the next
-            // node.
+            // Selectable message, top-padded to sit centered against the
+            // disc's first line. Bottom padding (except last) gives the
+            // rows breathing room and lets the connector span cleanly to
+            // the next node.
             let span: iced::widget::text::Span<'_, ()> =
                 iced::widget::text::Span::new(self.redact_progress(progress, msg))
                     .color(OryxisColors::t().text_secondary);
@@ -683,14 +779,14 @@ impl Oryxis {
                 .size(13)
                 .selectable(true);
             let message_cell = container(message).width(Length::Fill).padding(Padding {
-                top: 0.0,
+                top: 6.0,
                 right: 0.0,
-                bottom: if is_last { 0.0 } else { 14.0 },
+                bottom: if is_last { 0.0 } else { 20.0 },
                 left: 0.0,
             });
 
             rows.push(
-                row![rail, Space::new().width(8), message_cell]
+                row![rail, Space::new().width(10), message_cell]
                     .align_y(iced::Alignment::Start)
                     .into(),
             );

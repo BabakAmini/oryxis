@@ -1398,7 +1398,13 @@ impl Oryxis {
                     label: label.clone(),
                     hostname: hostname.clone(),
                     step: ConnectionStep::Connecting,
-                    logs: vec![(ConnectionStep::Connecting, format!("Connecting to {}...", conn.hostname))],
+                    logs: vec![(
+                        ConnectionStep::Connecting,
+                        format!(
+                            "Starting a new connection to \"{}\" port {}",
+                            conn.hostname, conn.port
+                        ),
+                    )],
                     failed: false,
                     origin,
                     tab_idx,
@@ -1467,7 +1473,23 @@ impl Oryxis {
                         })
                     })
                     .unwrap_or_else(|| "root".into());
-                let auth_method_label = format!("{:?}", conn.auth_method);
+                // Human wording for the "Authenticating as ... using ..."
+                // log line ({:?} printed enum variant names like
+                // "PasswordPrompt").
+                let auth_method_label = match conn.auth_method {
+                    oryxis_core::models::connection::AuthMethod::Auto => "auto-detect",
+                    oryxis_core::models::connection::AuthMethod::Password => "password",
+                    oryxis_core::models::connection::AuthMethod::PasswordPrompt => {
+                        "prompted password"
+                    }
+                    oryxis_core::models::connection::AuthMethod::Key => "public key",
+                    oryxis_core::models::connection::AuthMethod::Agent => "SSH agent",
+                    oryxis_core::models::connection::AuthMethod::Interactive => {
+                        "keyboard-interactive"
+                    }
+                    oryxis_core::models::connection::AuthMethod::Certificate => "certificate",
+                }
+                .to_string();
                 let keepalive = self.effective_keepalive(&conn);
                 let address_family = conn.address_family;
                 let rekey_limit_mb = conn.rekey_limit_mb;
@@ -1738,17 +1760,53 @@ impl Oryxis {
                             }
                         }
 
+                        // Route context up front: the dial happens inside
+                        // `establish_transport`, so jump chains and proxies
+                        // are announced here or never.
+                        if !conn.jump_chain.is_empty() {
+                            let n = conn.jump_chain.len();
+                            let _ = sender.send(SshStreamMsg::Progress(
+                                ConnectionStep::Connecting,
+                                format!(
+                                    "Routing through {} jump host{}",
+                                    n,
+                                    if n == 1 { "" } else { "s" }
+                                ),
+                            )).await;
+                        }
+                        if let Some(ref proxy) = conn.proxy {
+                            // A command proxy's line is user-authored and can
+                            // embed credentials, so only its type is logged.
+                            let via = match proxy.proxy_type {
+                                oryxis_core::models::connection::ProxyType::Socks5 =>
+                                    format!("Using SOCKS5 proxy {}:{}", proxy.host, proxy.port),
+                                oryxis_core::models::connection::ProxyType::Socks4 =>
+                                    format!("Using SOCKS4 proxy {}:{}", proxy.host, proxy.port),
+                                oryxis_core::models::connection::ProxyType::Http =>
+                                    format!("Using HTTP proxy {}:{}", proxy.host, proxy.port),
+                                oryxis_core::models::connection::ProxyType::Command(_) =>
+                                    "Using command proxy".to_string(),
+                            };
+                            let _ = sender.send(SshStreamMsg::Progress(
+                                ConnectionStep::Connecting,
+                                via,
+                            )).await;
+                        }
+
                         // Step 1: TCP connection + SSH handshake + host key verification
                         let _ = sender.send(SshStreamMsg::Progress(
                             ConnectionStep::Connecting,
-                            format!("Connecting to {}:{}...", conn_host, conn_port),
+                            format!(
+                                "Resolving address and connecting to \"{}\" port {}...",
+                                conn_host, conn_port
+                            ),
                         )).await;
 
                         let mut handle = match engine.establish_transport(&conn, resolver.as_ref()).await {
                             Ok(h) => {
                                 let _ = sender.send(SshStreamMsg::Progress(
                                     ConnectionStep::Handshake,
-                                    format!("Connected to {}:{}, handshake OK", conn_host, conn_port),
+                                    "Connection established, SSH handshake complete and host key verified".to_string(),
                                 )).await;
                                 h
                             }
@@ -1761,8 +1819,22 @@ impl Oryxis {
                                         server_offers: nf.server_offers,
                                     }).await;
                                 } else {
+                                    // The engine error repeats the layers this
+                                    // line already states ("Connection failed:"
+                                    // + "host:port:"); strip them so the log
+                                    // reads as one sentence, not three nested
+                                    // prefixes.
+                                    let raw = e.to_string();
+                                    let mut root = raw.as_str();
+                                    if let Some(s) = root.strip_prefix("Connection failed: ") {
+                                        root = s;
+                                    }
+                                    let addr_prefix = format!("{}:{}: ", conn_host, conn_port);
+                                    if let Some(s) = root.strip_prefix(&addr_prefix) {
+                                        root = s;
+                                    }
                                     let _ = sender.send(SshStreamMsg::Error(
-                                        format!("Connection to {}:{} failed: {}", conn_host, conn_port, e),
+                                        format!("Connection to \"{}\" port {} failed: {}", conn_host, conn_port, root),
                                     )).await;
                                 }
                                 return;
@@ -1772,7 +1844,7 @@ impl Oryxis {
                         // Step 2: Authentication
                         let _ = sender.send(SshStreamMsg::Progress(
                             ConnectionStep::Authenticating,
-                            format!("Authenticating as \"{}\" ({})...", username, auth_method_label),
+                            format!("Authenticating as \"{}\" using {}...", username, auth_method_label),
                         )).await;
 
                         let auth_material = private_key
@@ -1800,6 +1872,10 @@ impl Oryxis {
                                 format!("Port forwards: {}", fwd_summary.join(", ")),
                             )).await;
                         }
+                        let _ = sender.send(SshStreamMsg::Progress(
+                            ConnectionStep::Authenticating,
+                            "Opening terminal session and requesting a PTY...".to_string(),
+                        )).await;
                         match engine.open_session(handle, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, &conn.port_forwards).await {
                             Ok((session, mut rx)) => {
                                 let session = Arc::new(session);
@@ -1813,7 +1889,7 @@ impl Oryxis {
                             }
                             Err(e) => {
                                 let _ = sender.send(SshStreamMsg::Error(
-                                    format!("Session setup failed: {}", e),
+                                    format!("Terminal session setup failed: {}", e),
                                 )).await;
                             }
                         }
