@@ -503,16 +503,19 @@ impl Oryxis {
                     self.setting_privacy_mask_public_ips,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::PublicIps),
                 ))
+                .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_private_ips"),
                     self.setting_privacy_mask_private_ips,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::PrivateIps),
                 ))
+                .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_usernames"),
                     self.setting_privacy_mask_usernames,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::Usernames),
                 ))
+                .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_hostnames"),
                     self.setting_privacy_mask_hostnames,
@@ -710,7 +713,7 @@ impl Oryxis {
         );
 
         let mut export_import_section: iced::widget::Column<'_, Message> = column![
-            text(crate::i18n::t("export_import")).size(14).color(OryxisColors::t().text_muted),
+            text(crate::i18n::t("export_import")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(8),
             dir_row(vec![export_btn, Space::new().width(8).into(), import_btn, Space::new().width(8).into(), import_sftp_btn]),
         ];
@@ -1136,8 +1139,8 @@ impl Oryxis {
         );
         let mut ssh_config_section: iced::widget::Column<'_, Message> = column![
             text(t("ssh_config_import"))
-                .size(14)
-                .color(OryxisColors::t().text_muted),
+                .size(13)
+                .color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("ssh_config_import_desc"))
                 .size(11)
@@ -1158,18 +1161,26 @@ impl Oryxis {
         scrollable(
             container(
                 column![
+                    crate::widgets::settings_group_header(crate::i18n::t("security_group_vault")),
+                    Space::new().height(8),
                     panel_section(column![password_toggle]),
                     password_section,
                     biometric_section,
-                    Space::new().height(24),
+                    Space::new().height(16),
                     lock_row,
-                    Space::new().height(24),
+                    Space::new().height(16),
                     auto_lock_section,
-                    Space::new().height(12),
+                    Space::new().height(18),
+                    crate::widgets::settings_group_header(crate::i18n::t("security_group_privacy")),
+                    Space::new().height(8),
                     privacy_mode_section,
-                    Space::new().height(12),
+                    Space::new().height(18),
+                    crate::widgets::settings_group_header(crate::i18n::t("security_group_logging")),
+                    Space::new().height(8),
                     logging_section,
-                    Space::new().height(24),
+                    Space::new().height(18),
+                    crate::widgets::settings_group_header(crate::i18n::t("security_group_import_export")),
+                    Space::new().height(8),
                     // Vault export/import and the SSH config importer
                     // share one import/export card.
                     panel_section(

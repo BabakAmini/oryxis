@@ -85,7 +85,7 @@ impl Oryxis {
         // Debug logging, the performance HUD and the environment
         // report are one diagnostics theme, so they share a card.
         let diagnostics_section = panel_section(debug_col.push(Space::new().height(16)).push(column![
-            text(t("env_info")).size(14).color(OryxisColors::t().text_muted),
+            text(t("env_info")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("env_info_desc")).size(11).color(OryxisColors::t().text_muted),
             Space::new().height(10),

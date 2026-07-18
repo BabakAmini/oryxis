@@ -58,8 +58,6 @@ impl Oryxis {
         // must set up to sync across networks. Answers the recurring
         // "is sync required / where does my data go?" question.
         let how_section = panel_section(column![
-            text(crate::i18n::t("sync_how_title")).size(14).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
             text(crate::i18n::t("sync_how_body"))
                 .size(12)
                 .color(OryxisColors::t().text_secondary),
@@ -72,7 +70,9 @@ impl Oryxis {
         .align_x(dir_align_x());
 
         content_col = content_col
-            .push(Space::new().height(12))
+            .push(Space::new().height(18))
+            .push(crate::widgets::settings_group_header(crate::i18n::t("sync_how_title")))
+            .push(Space::new().height(8))
             .push(how_section);
 
         if self.sync.enabled {
@@ -135,13 +135,145 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into(),
             );
-            let transport_section = panel_section(column![
-                text(crate::i18n::t("sync_transport"))
-                    .size(14)
-                    .color(OryxisColors::t().text_muted),
-                Space::new().height(8),
-                transport_row,
-            ]);
+            let mut transport_col = column![transport_row];
+            // SFTP-transport config joins the Transport card so the
+            // method picker and its settings read as one theme; built
+            // here so the keyboard rows record before Options renders.
+            if is_sftp {
+                // SFTP-transport config: host, remote path, passphrase,
+                // status, and the group/known-host notes.
+                // Host field opens the same rich "Select a host" modal as
+                // the SFTP file browser (OS badge + label + address +
+                // search), not a flat dropdown. The trigger shows the
+                // current selection or a placeholder.
+                let selected_conn = self
+                    .sync.sftp.host_id
+                    .and_then(|id| self.connections.iter().find(|c| c.id == id));
+                let host_trigger_inner: Element<'_, Message> = if let Some(c) = selected_conn {
+                    dir_row(vec![
+                        host_badge(c, &self.setting_default_host_icon, 22.0),
+                        Space::new().width(10).into(),
+                        text(c.label.clone())
+                            .size(13)
+                            .color(OryxisColors::t().text_primary)
+                            .into(),
+                        Space::new().width(Length::Fill).into(),
+                        text("\u{25BE}").size(12).color(OryxisColors::t().text_muted).into(),
+                    ])
+                    .align_y(iced::Alignment::Center)
+                    .into()
+                } else {
+                    dir_row(vec![
+                        text(crate::i18n::t("select_a_host"))
+                            .size(13)
+                            .color(OryxisColors::t().text_muted)
+                            .into(),
+                        Space::new().width(Length::Fill).into(),
+                        text("\u{25BE}").size(12).color(OryxisColors::t().text_muted).into(),
+                    ])
+                    .align_y(iced::Alignment::Center)
+                    .into()
+                };
+                let host_pick = self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::SyncSftpOpenPicker),
+                    8.0,
+                    button(host_trigger_inner)
+                        .on_press(Message::SyncSftpOpenPicker)
+                        .padding(10)
+                        .width(300)
+                        .style(|_, status| {
+                            let c = OryxisColors::t();
+                            let border = match status {
+                                BtnStatus::Hovered => c.accent_hover,
+                                _ => c.border,
+                            };
+                            button::Style {
+                                background: Some(Background::Color(c.bg_surface)),
+                                text_color: c.text_primary,
+                                border: Border {
+                                    radius: Radius::from(8.0),
+                                    width: 1.0,
+                                    color: border,
+                                },
+                                ..Default::default()
+                            }
+                        })
+                        .into(),
+                );
+                let path_input = self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("set-sync-sftp-path")),
+                    10.0,
+                    text_input(
+                        "/home/user/oryxis-sync/",
+                        &self.sync.sftp.remote_path,
+                    )
+                    .id(iced::widget::Id::new("set-sync-sftp-path"))
+                    .on_input(Message::SyncSftpPathChanged)
+                    .padding(10)
+                    .width(300)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                );
+                let passphrase_input = self.settings_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new(
+                        "set-sync-sftp-passphrase",
+                    )),
+                    10.0,
+                    text_input(
+                        crate::i18n::t("sftp_sync_passphrase_placeholder"),
+                        &self.sync.sftp.passphrase,
+                    )
+                    .id(iced::widget::Id::new("set-sync-sftp-passphrase"))
+                    .on_input(Message::SyncSftpPassphraseChanged)
+                    .secure(true)
+                    .padding(10)
+                    .width(300)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                );
+                let mut sftp_section_col = column![
+                    text(crate::i18n::t("sftp_sync_title"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                    Space::new().height(8),
+                    panel_field(crate::i18n::t("sftp_sync_host"), host_pick),
+                    Space::new().height(8),
+                    panel_field(crate::i18n::t("sftp_sync_path"), path_input),
+                    Space::new().height(8),
+                    panel_field(
+                        crate::i18n::t("sftp_sync_passphrase"),
+                        passphrase_input,
+                    ),
+                ];
+                // (The round status lives under the Sync Now button in the
+                // options panel above, not here, so feedback sits next to
+                // the control that triggers it.)
+                sftp_section_col = sftp_section_col
+                    .push(Space::new().height(12))
+                    .push(
+                        text(crate::i18n::t("sftp_sync_note_group"))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .push(Space::new().height(4))
+                    .push(
+                        text(crate::i18n::t("sftp_sync_note_bridge"))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .push(Space::new().height(4))
+                    .push(
+                        text(crate::i18n::t("sftp_sync_note_hostkey"))
+                            .size(11)
+                            .color(OryxisColors::t().text_muted),
+                    );
+                transport_col = transport_col
+                    .push(Space::new().height(16))
+                    .push(sftp_section_col);
+            }
+            let transport_section = panel_section(transport_col);
 
             let mode_label = if self.sync.mode == "auto" { t("sync_mode_auto") } else { t("sync_mode_manual") };
             let auto_label = t("sync_mode_auto").to_string();
@@ -203,8 +335,6 @@ impl Oryxis {
             );
 
             let mut options_section: iced::widget::Column<'_, Message> = column![
-                text(crate::i18n::t("sync_options")).size(14).color(OryxisColors::t().text_muted),
-                Space::new().height(8),
                 mode_row,
                 Space::new().height(8),
                 passwords_toggle,
@@ -329,147 +459,16 @@ impl Oryxis {
             }
 
             content_col = content_col
-                .push(Space::new().height(12))
+                .push(Space::new().height(18))
+                .push(crate::widgets::settings_group_header(crate::i18n::t("sync_transport")))
+                .push(Space::new().height(8))
                 .push(transport_section)
-                .push(Space::new().height(12))
+                .push(Space::new().height(18))
+                .push(crate::widgets::settings_group_header(crate::i18n::t("sync_options")))
+                .push(Space::new().height(8))
                 .push(panel_section(options_section));
 
-            if is_sftp {
-                // SFTP-transport config: host, remote path, passphrase,
-                // status, and the group/known-host notes.
-                // Host field opens the same rich "Select a host" modal as
-                // the SFTP file browser (OS badge + label + address +
-                // search), not a flat dropdown. The trigger shows the
-                // current selection or a placeholder.
-                let selected_conn = self
-                    .sync.sftp.host_id
-                    .and_then(|id| self.connections.iter().find(|c| c.id == id));
-                let host_trigger_inner: Element<'_, Message> = if let Some(c) = selected_conn {
-                    dir_row(vec![
-                        host_badge(c, &self.setting_default_host_icon, 22.0),
-                        Space::new().width(10).into(),
-                        text(c.label.clone())
-                            .size(13)
-                            .color(OryxisColors::t().text_primary)
-                            .into(),
-                        Space::new().width(Length::Fill).into(),
-                        text("\u{25BE}").size(12).color(OryxisColors::t().text_muted).into(),
-                    ])
-                    .align_y(iced::Alignment::Center)
-                    .into()
-                } else {
-                    dir_row(vec![
-                        text(crate::i18n::t("select_a_host"))
-                            .size(13)
-                            .color(OryxisColors::t().text_muted)
-                            .into(),
-                        Space::new().width(Length::Fill).into(),
-                        text("\u{25BE}").size(12).color(OryxisColors::t().text_muted).into(),
-                    ])
-                    .align_y(iced::Alignment::Center)
-                    .into()
-                };
-                let host_pick = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SyncSftpOpenPicker),
-                    8.0,
-                    button(host_trigger_inner)
-                        .on_press(Message::SyncSftpOpenPicker)
-                        .padding(10)
-                        .width(300)
-                        .style(|_, status| {
-                            let c = OryxisColors::t();
-                            let border = match status {
-                                BtnStatus::Hovered => c.accent_hover,
-                                _ => c.border,
-                            };
-                            button::Style {
-                                background: Some(Background::Color(c.bg_surface)),
-                                text_color: c.text_primary,
-                                border: Border {
-                                    radius: Radius::from(8.0),
-                                    width: 1.0,
-                                    color: border,
-                                },
-                                ..Default::default()
-                            }
-                        })
-                        .into(),
-                );
-                let path_input = self.settings_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new("set-sync-sftp-path")),
-                    10.0,
-                    text_input(
-                        "/home/user/oryxis-sync/",
-                        &self.sync.sftp.remote_path,
-                    )
-                    .id(iced::widget::Id::new("set-sync-sftp-path"))
-                    .on_input(Message::SyncSftpPathChanged)
-                    .padding(10)
-                    .width(300)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-                );
-                let passphrase_input = self.settings_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new(
-                        "set-sync-sftp-passphrase",
-                    )),
-                    10.0,
-                    text_input(
-                        crate::i18n::t("sftp_sync_passphrase_placeholder"),
-                        &self.sync.sftp.passphrase,
-                    )
-                    .id(iced::widget::Id::new("set-sync-sftp-passphrase"))
-                    .on_input(Message::SyncSftpPassphraseChanged)
-                    .secure(true)
-                    .padding(10)
-                    .width(300)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-                );
-                let mut sftp_section_col = column![
-                    text(crate::i18n::t("sftp_sync_title"))
-                        .size(14)
-                        .color(OryxisColors::t().text_muted),
-                    Space::new().height(8),
-                    panel_field(crate::i18n::t("sftp_sync_host"), host_pick),
-                    Space::new().height(8),
-                    panel_field(crate::i18n::t("sftp_sync_path"), path_input),
-                    Space::new().height(8),
-                    panel_field(
-                        crate::i18n::t("sftp_sync_passphrase"),
-                        passphrase_input,
-                    ),
-                ];
-                // (The round status lives under the Sync Now button in the
-                // options panel above, not here, so feedback sits next to
-                // the control that triggers it.)
-                sftp_section_col = sftp_section_col
-                    .push(Space::new().height(12))
-                    .push(
-                        text(crate::i18n::t("sftp_sync_note_group"))
-                            .size(11)
-                            .color(OryxisColors::t().text_muted),
-                    )
-                    .push(Space::new().height(4))
-                    .push(
-                        text(crate::i18n::t("sftp_sync_note_bridge"))
-                            .size(11)
-                            .color(OryxisColors::t().text_muted),
-                    )
-                    .push(Space::new().height(4))
-                    .push(
-                        text(crate::i18n::t("sftp_sync_note_hostkey"))
-                            .size(11)
-                            .color(OryxisColors::t().text_muted),
-                    );
-                let sftp_section = panel_section(sftp_section_col);
-
-                content_col = content_col
-                    .push(Space::new().height(12))
-                    .push(sftp_section);
-            } else {
+            if !is_sftp {
                 // Device info
                 let device_name_input = self.settings_nav_slot(
                     crate::keynav::RowAction::input(iced::widget::Id::new(
@@ -488,19 +487,17 @@ impl Oryxis {
                     .into(),
                 );
 
-                let device_section = panel_section(column![
-                    text(crate::i18n::t("sync_device")).size(14).color(OryxisColors::t().text_muted),
-                    Space::new().height(8),
+                let device_col = column![
                     text(crate::i18n::t("sync_device_name")).size(12).color(OryxisColors::t().text_muted),
                     Space::new().height(4),
                     device_name_input,
-                ]);
+                ];
 
                 // Pairing. The sub-view depends on `sync_pairing.state`:
                 // Idle shows the two entry buttons; Hosting shows the
                 // generated code; Joining shows the code + address form.
                 let mut pairing_section: iced::widget::Column<'_, Message> = column![
-                    text(crate::i18n::t("sync_pairing")).size(14).color(OryxisColors::t().text_muted),
+                    text(crate::i18n::t("sync_pairing")).size(13).color(OryxisColors::t().text_primary),
                     Space::new().height(8),
                 ];
 
@@ -866,9 +863,7 @@ impl Oryxis {
                         .into(),
                 );
 
-                let advanced_section = panel_section(column![
-                    text(crate::i18n::t("sync_advanced")).size(14).color(OryxisColors::t().text_muted),
-                    Space::new().height(8),
+                let advanced_col = column![
                     text(crate::i18n::t("sync_signaling_url")).size(12).color(OryxisColors::t().text_muted),
                     Space::new().height(4),
                     signaling_input,
@@ -884,7 +879,7 @@ impl Oryxis {
                     text(crate::i18n::t("sync_listen_port")).size(12).color(OryxisColors::t().text_muted),
                     Space::new().height(4),
                     port_input,
-                ]);
+                ];
 
                 // "Set up your own relay" wizard: generates ready-to-paste
                 // server files for the self-hosted oryxis-relay and adopts
@@ -1094,14 +1089,22 @@ impl Oryxis {
                 }
 
                 content_col = content_col
-                    .push(Space::new().height(12))
-                    .push(device_section)
-                    .push(Space::new().height(12))
-                    .push(panel_section(pairing_section))
-                    .push(Space::new().height(12))
-                    .push(advanced_section)
-                    .push(Space::new().height(12))
-                    .push(panel_section(wizard_col));
+                    .push(Space::new().height(18))
+                    .push(crate::widgets::settings_group_header(crate::i18n::t("sync_device")))
+                    .push(Space::new().height(8))
+                    .push(panel_section(
+                        device_col
+                            .push(Space::new().height(16))
+                            .push(pairing_section),
+                    ))
+                    .push(Space::new().height(18))
+                    .push(crate::widgets::settings_group_header(crate::i18n::t("sync_advanced")))
+                    .push(Space::new().height(8))
+                    .push(panel_section(
+                        advanced_col
+                            .push(Space::new().height(16))
+                            .push(wizard_col),
+                    ));
             }
         }
         content_col = content_col.push(Space::new().height(24));

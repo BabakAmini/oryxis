@@ -192,7 +192,7 @@ impl Oryxis {
         // describes. Logs combines connection events + session
         // recordings, matching what the Logs view lists.
         let vault_section = panel_section(column![
-            text(crate::i18n::t("vault_stats")).size(14).color(OryxisColors::t().text_muted),
+            text(crate::i18n::t("vault_stats")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(8),
             self.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::ChangeView(

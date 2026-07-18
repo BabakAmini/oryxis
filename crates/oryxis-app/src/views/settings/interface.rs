@@ -183,11 +183,10 @@ impl Oryxis {
         // Tab fill style: gradient (default) vs a flat accent tint.
         // Token-as-value pattern like the other tab pickers.
         let fill_options = vec!["gradient".to_string(), "solid".to_string()];
-        // The whole Tabs & top bar group is one card: strip layout,
-        // status bar, the accent toggles and the fill style, closing
-        // with the live preview (issue #79 feedback: the accent
-        // toggles read as a separate unlabeled group when boxed
-        // apart from the tab settings).
+        // Tabs card: per-tab chrome only (close button, pinned
+        // style, status dot, accent text/colour and fill). The
+        // strip-level knobs live in the Top bar card below; the
+        // shared live preview sits outside both (#79 review).
         let tabs_section = panel_section(column![
             self.nav_pick_row(
                 crate::i18n::t("close_button_position"),
@@ -221,48 +220,10 @@ impl Oryxis {
                 Message::SettingPinnedTabStyleChanged,
             ),
             Space::new().height(8),
-            self.nav_pick_row(
-                crate::i18n::t("tab_bar_position"),
-                vec!["top".to_string(), "bottom".to_string()],
-                self.setting_tab_bar_position.clone(),
-                |s: &String| {
-                    crate::i18n::t(if s == "bottom" {
-                        "tab_bar_position_bottom"
-                    } else {
-                        "tab_bar_position_top"
-                    })
-                    .to_string()
-                },
-                180.0,
-                Message::SettingTabBarPositionChanged,
-            ),
-            Space::new().height(4),
-            text(crate::i18n::t("tab_bar_position_desc"))
-                .size(11)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("show_tab_status_dot"),
                 self.setting_show_tab_status_dot,
                 Message::SettingToggleShowTabStatusDot,
-            ),
-            Space::new().height(8),
-            self.nav_toggle_row(
-                crate::i18n::t("show_status_bar"),
-                self.setting_show_status_bar,
-                Message::SettingToggleShowStatusBar,
-            ),
-            Space::new().height(8),
-            self.nav_toggle_row(
-                crate::i18n::t("tab_accent_line"),
-                self.setting_tab_accent_line,
-                Message::SettingToggleTabAccentLine,
-            ),
-            Space::new().height(8),
-            self.nav_toggle_row(
-                crate::i18n::t("tab_accent_wash"),
-                self.setting_tab_accent_wash,
-                Message::SettingToggleTabAccentWash,
             ),
             Space::new().height(8),
             self.nav_toggle_row(
@@ -302,8 +263,48 @@ impl Oryxis {
                 180.0,
                 Message::SettingTabFillStyleChanged,
             ),
-            Space::new().height(12),
-            self.tab_appearance_preview(),
+        ]);
+
+        // Top bar card: strip-level knobs (bar position, status bar,
+        // the bottom hairline and the whole-bar wash).
+        let top_bar_section = panel_section(column![
+            self.nav_pick_row(
+                crate::i18n::t("tab_bar_position"),
+                vec!["top".to_string(), "bottom".to_string()],
+                self.setting_tab_bar_position.clone(),
+                |s: &String| {
+                    crate::i18n::t(if s == "bottom" {
+                        "tab_bar_position_bottom"
+                    } else {
+                        "tab_bar_position_top"
+                    })
+                    .to_string()
+                },
+                180.0,
+                Message::SettingTabBarPositionChanged,
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("tab_bar_position_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.nav_toggle_row(
+                crate::i18n::t("show_status_bar"),
+                self.setting_show_status_bar,
+                Message::SettingToggleShowStatusBar,
+            ),
+            Space::new().height(8),
+            self.nav_toggle_row(
+                crate::i18n::t("tab_accent_line"),
+                self.setting_tab_accent_line,
+                Message::SettingToggleTabAccentLine,
+            ),
+            Space::new().height(8),
+            self.nav_toggle_row(
+                crate::i18n::t("tab_accent_wash"),
+                self.setting_tab_accent_wash,
+                Message::SettingToggleTabAccentWash,
+            ),
         ]);
 
         // ── Theme ──
@@ -511,6 +512,14 @@ impl Oryxis {
             gh(crate::i18n::t("interface_group_tabs")),
             Space::new().height(8),
             tabs_section,
+            Space::new().height(18),
+            gh(crate::i18n::t("interface_group_top_bar")),
+            Space::new().height(8),
+            top_bar_section,
+            Space::new().height(12),
+            // Shared live preview (tab chips + hairline), outside
+            // both cards since it renders the two groups at once.
+            self.tab_appearance_preview(),
             Space::new().height(18),
             gh(crate::i18n::t("interface_group_theme")),
             Space::new().height(8),

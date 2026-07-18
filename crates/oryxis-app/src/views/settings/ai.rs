@@ -157,7 +157,7 @@ impl Oryxis {
             provider_col = provider_col
                 .push(Space::new().height(12))
                 .push(panel_field(
-                    "API Key",
+                    crate::i18n::t("api_key"),
                     dir_row(vec![key_input, Space::new().width(8).into(), save_btn])
                         .align_y(iced::Alignment::Center)
                         .into(),
