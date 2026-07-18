@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "不允許的連結類型：{scheme}",
         "broadcast_pane_unmute" => "取消靜音此窗格",
         "broadcast_paste_notice" => "此次貼上將傳送到 {count} 個窗格。",
-        "broadcast_single_pane_hint" => "廣播已啟用，但在您分割此分頁之前不會執行任何動作。",
+        "broadcast_needs_split_hint" => "廣播需要分割窗格。請先分割此分頁。",
         "hotkey_toggle_broadcast_input" => "切換廣播輸入",
         "renderer_backend" => "圖形渲染器",
         "renderer_backend_desc" => "自動會選擇最佳 GPU 路徑（優先 Vulkan）。OpenGL 是針對 Vulkan/DX12 驅動程式損壞的 GPU 的相容選項；軟體（CPU）永遠正確渲染。重新啟動後生效。",

@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "許可されていないリンクの種類: {scheme}",
         "broadcast_pane_unmute" => "このペインのミュートを解除",
         "broadcast_paste_notice" => "この貼り付けは {count} 個のペインに送信されます。",
-        "broadcast_single_pane_hint" => "ブロードキャストは有効ですが、このタブを分割するまで何も起こりません。",
+        "broadcast_needs_split_hint" => "ブロードキャストには分割ペインが必要です。先にこのタブを分割してください。",
         "hotkey_toggle_broadcast_input" => "入力のブロードキャストを切り替え",
         "renderer_backend" => "グラフィックレンダラー",
         "renderer_backend_desc" => "自動は最適なGPUパスを選択します（Vulkan優先）。OpenGLはVulkan/DX12ドライバーが壊れたGPU向けの互換オプションです。ソフトウェア（CPU）は常に正しく描画します。再起動後に適用されます。",

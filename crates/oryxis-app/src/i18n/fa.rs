@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "نوع پیوند مجاز نیست: {scheme}",
         "broadcast_pane_unmute" => "باصدا کردن این قاب",
         "broadcast_paste_notice" => "این چسباندن به {count} قاب ارسال می‌شود.",
-        "broadcast_single_pane_hint" => "پخش فعال است، اما تا زمانی که این زبانه را تقسیم نکنید کاری انجام نمی‌دهد.",
+        "broadcast_needs_split_hint" => "پخش به پنل‌های تقسیم‌شده نیاز دارد. ابتدا این زبانه را تقسیم کنید.",
         "hotkey_toggle_broadcast_input" => "تغییر وضعیت پخش ورودی",
         "renderer_backend" => "موتور رندر گرافیکی",
         "renderer_backend_desc" => "حالت خودکار بهترین مسیر GPU را انتخاب می‌کند (ابتدا Vulkan). OpenGL گزینه سازگاری برای GPUهایی با درایورهای خراب Vulkan/DX12 است؛ نرم‌افزاری (CPU) همیشه درست رندر می‌کند. برای اعمال، برنامه را دوباره اجرا کنید.",

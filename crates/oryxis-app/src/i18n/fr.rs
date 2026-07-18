@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Type de lien non autorisé : {scheme}",
         "broadcast_pane_unmute" => "Réactiver ce volet",
         "broadcast_paste_notice" => "Ce collage sera envoyé à {count} volets.",
-        "broadcast_single_pane_hint" => "La diffusion est activée, mais elle ne fait rien tant que vous n'avez pas divisé cet onglet.",
+        "broadcast_needs_split_hint" => "La diffusion nécessite des panneaux divisés. Divisez d'abord cet onglet.",
         "hotkey_toggle_broadcast_input" => "Activer/désactiver la diffusion de saisie",
         "renderer_backend" => "Moteur de rendu",
         "renderer_backend_desc" => "Automatique choisit le meilleur chemin GPU (Vulkan d'abord). OpenGL est une option de compatibilité pour les GPU aux pilotes Vulkan/DX12 défectueux ; Software (CPU) rend toujours correctement. Redémarrez pour appliquer.",

@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "ไม่อนุญาตลิงก์ประเภทนี้: {scheme}",
         "broadcast_pane_unmute" => "เปิดรับแผงนี้",
         "broadcast_paste_notice" => "การวางนี้จะส่งไปยัง {count} แผง",
-        "broadcast_single_pane_hint" => "การกระจายสัญญาณเปิดใช้งานอยู่ แต่จะไม่ทำอะไรจนกว่าคุณจะแบ่งแท็บนี้",
+        "broadcast_needs_split_hint" => "การกระจายสัญญาณต้องใช้หน้าต่างแบบแบ่ง โปรดแบ่งแท็บนี้ก่อน",
         "hotkey_toggle_broadcast_input" => "สลับการกระจายสัญญาณอินพุต",
         "renderer_backend" => "ตัวเรนเดอร์กราฟิก",
         "renderer_backend_desc" => "อัตโนมัติจะเลือกเส้นทาง GPU ที่ดีที่สุด (Vulkan ก่อน) OpenGL เป็นตัวเลือกความเข้ากันได้สำหรับ GPU ที่ไดรเวอร์ Vulkan/DX12 มีปัญหา ส่วน Software (CPU) เรนเดอร์ได้ถูกต้องเสมอ รีสตาร์ตเพื่อให้มีผล",

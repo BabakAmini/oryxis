@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "İzin verilmeyen bağlantı türü: {scheme}",
         "broadcast_pane_unmute" => "Bu bölmenin susturmasını kaldır",
         "broadcast_paste_notice" => "Bu yapıştırma {count} bölmeye gider.",
-        "broadcast_single_pane_hint" => "Yayın etkin, ancak bu sekmeyi bölene kadar hiçbir şey yapmaz.",
+        "broadcast_needs_split_hint" => "Yayın bölünmüş paneller gerektirir. Önce bu sekmeyi bölün.",
         "hotkey_toggle_broadcast_input" => "Girdi yayınını aç/kapat",
         "renderer_backend" => "Grafik işleyici",
         "renderer_backend_desc" => "Otomatik en iyi GPU yolunu seçer (önce Vulkan). OpenGL, Vulkan/DX12 sürücüleri bozuk GPU'lar için bir uyumluluk seçeneğidir; Yazılım (CPU) her zaman doğru işler. Uygulamak için yeniden başlatın.",

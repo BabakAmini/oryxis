@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "不允许的链接类型：{scheme}",
         "broadcast_pane_unmute" => "取消静音此窗格",
         "broadcast_paste_notice" => "此次粘贴将发送到 {count} 个窗格。",
-        "broadcast_single_pane_hint" => "广播已启用，但在您拆分此标签页之前不会执行任何操作。",
+        "broadcast_needs_split_hint" => "广播需要拆分窗格。请先拆分此标签页。",
         "hotkey_toggle_broadcast_input" => "切换广播输入",
         "renderer_backend" => "图形渲染器",
         "renderer_backend_desc" => "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。",

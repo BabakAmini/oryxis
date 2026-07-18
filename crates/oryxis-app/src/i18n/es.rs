@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Tipo de enlace no permitido: {scheme}",
         "broadcast_pane_unmute" => "Reactivar este panel",
         "broadcast_paste_notice" => "Este pegado va a {count} paneles.",
-        "broadcast_single_pane_hint" => "La difusión está activada, pero no hace nada hasta que dividas esta pestaña.",
+        "broadcast_needs_split_hint" => "La difusión necesita paneles divididos. Divide esta pestaña primero.",
         "hotkey_toggle_broadcast_input" => "Alternar difusión de entrada",
         "renderer_backend" => "Renderizador gráfico",
         "renderer_backend_desc" => "Automático elige la mejor ruta de GPU (Vulkan primero). OpenGL es una opción de compatibilidad para GPU con controladores Vulkan/DX12 defectuosos; Software (CPU) siempre renderiza correctamente. Reinicia para aplicar.",

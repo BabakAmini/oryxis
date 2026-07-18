@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Linktyp nicht erlaubt: {scheme}",
         "broadcast_pane_unmute" => "Stummschaltung dieses Bereichs aufheben",
         "broadcast_paste_notice" => "Dieser Einfügevorgang geht an {count} Bereiche.",
-        "broadcast_single_pane_hint" => "Rundsenden ist aktiviert, bewirkt aber nichts, bis du diesen Tab teilst.",
+        "broadcast_needs_split_hint" => "Rundsenden benötigt geteilte Bereiche. Teile zuerst diesen Tab.",
         "hotkey_toggle_broadcast_input" => "Eingabe-Rundsenden umschalten",
         "renderer_backend" => "Grafik-Renderer",
         "renderer_backend_desc" => "Automatisch wählt den besten GPU-Pfad (Vulkan zuerst). OpenGL ist eine Kompatibilitätsoption für GPUs mit defekten Vulkan/DX12-Treibern; Software (CPU) rendert immer korrekt. Neustart erforderlich.",

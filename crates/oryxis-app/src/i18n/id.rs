@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Jenis tautan tidak diizinkan: {scheme}",
         "broadcast_pane_unmute" => "Nyalakan kembali panel ini",
         "broadcast_paste_notice" => "Tempelan ini menuju ke {count} panel.",
-        "broadcast_single_pane_hint" => "Siaran aktif, tetapi tidak melakukan apa pun hingga Anda membagi tab ini.",
+        "broadcast_needs_split_hint" => "Siaran memerlukan panel terpisah. Bagi tab ini terlebih dahulu.",
         "hotkey_toggle_broadcast_input" => "Alihkan input siaran",
         "renderer_backend" => "Perender grafis",
         "renderer_backend_desc" => "Otomatis memilih jalur GPU terbaik (Vulkan lebih dulu). OpenGL adalah opsi kompatibilitas untuk GPU dengan driver Vulkan/DX12 yang rusak; Perangkat lunak (CPU) selalu merender dengan benar. Mulai ulang untuk menerapkan.",

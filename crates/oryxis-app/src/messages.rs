@@ -634,6 +634,9 @@ pub enum Message {
     /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
     /// snippets to every pane of the tab at `usize`. Toggled by the status
     /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.
+    /// Arming requires a split tab: on a single-pane tab the handler
+    /// refuses with a hint toast (the segment and menu entry are not
+    /// rendered there, so only the hotkey / palette reach it).
     ToggleTabBroadcast(usize),
     /// Broadcast input (C2): flip whether the pane at `Uuid` participates in
     /// its tab's broadcast (the per-pane observer opt-out).

@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Недопустимий тип посилання: {scheme}",
         "broadcast_pane_unmute" => "Увімкнути цю панель",
         "broadcast_paste_notice" => "Ця вставка надійде до {count} панелей.",
-        "broadcast_single_pane_hint" => "Трансляцію ввімкнено, але вона нічого не робить, доки ви не розділите цю вкладку.",
+        "broadcast_needs_split_hint" => "Для трансляції потрібні розділені панелі. Спочатку розділіть цю вкладку.",
         "hotkey_toggle_broadcast_input" => "Перемкнути трансляцію вводу",
         "renderer_backend" => "Графічний рендерер",
         "renderer_backend_desc" => "Автоматично обирає найкращий шлях GPU (спочатку Vulkan). OpenGL — варіант сумісності для GPU з несправними драйверами Vulkan/DX12; Software (CPU) завжди рендерить коректно. Перезапустіть, щоб застосувати.",

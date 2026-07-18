@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Loại liên kết không được phép: {scheme}",
         "broadcast_pane_unmute" => "Bật lại khung này",
         "broadcast_paste_notice" => "Thao tác dán này sẽ đến {count} khung.",
-        "broadcast_single_pane_hint" => "Chế độ phát đã bật, nhưng không có tác dụng cho đến khi bạn chia tách thẻ này.",
+        "broadcast_needs_split_hint" => "Chế độ phát cần các khung chia tách. Hãy chia tách thẻ này trước.",
         "hotkey_toggle_broadcast_input" => "Bật/tắt phát đầu vào",
         "renderer_backend" => "Trình kết xuất đồ họa",
         "renderer_backend_desc" => "Tự động chọn đường dẫn GPU tốt nhất (ưu tiên Vulkan). OpenGL là tùy chọn tương thích cho GPU có driver Vulkan/DX12 bị lỗi; Phần mềm (CPU) luôn hiển thị đúng. Khởi động lại để áp dụng.",

@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Niedozwolony typ łącza: {scheme}",
         "broadcast_pane_unmute" => "Wyłącz wyciszenie tego panelu",
         "broadcast_paste_notice" => "To wklejenie trafi do {count} paneli.",
-        "broadcast_single_pane_hint" => "Rozgłaszanie jest włączone, ale nic nie robi, dopóki nie podzielisz tej karty.",
+        "broadcast_needs_split_hint" => "Rozgłaszanie wymaga podzielonych paneli. Najpierw podziel tę kartę.",
         "hotkey_toggle_broadcast_input" => "Przełącz rozgłaszanie wejścia",
         "renderer_backend" => "Renderer graficzny",
         "renderer_backend_desc" => "Automatyczny wybiera najlepszą ścieżkę GPU (najpierw Vulkan). OpenGL to opcja zgodności dla GPU z uszkodzonymi sterownikami Vulkan/DX12; Software (CPU) zawsze renderuje poprawnie. Uruchom ponownie, aby zastosować.",

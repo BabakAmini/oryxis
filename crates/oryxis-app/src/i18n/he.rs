@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "סוג קישור לא מותר: {scheme}",
         "broadcast_pane_unmute" => "ביטול השתקת חלונית זו",
         "broadcast_paste_notice" => "הדבקה זו תישלח אל {count} חלוניות.",
-        "broadcast_single_pane_hint" => "השידור פעיל, אך אינו עושה דבר עד שתפצל לשונית זו.",
+        "broadcast_needs_split_hint" => "השידור דורש חלוניות מפוצלות. פצל תחילה לשונית זו.",
         "hotkey_toggle_broadcast_input" => "החלפת מצב שידור קלט",
         "renderer_backend" => "מנוע גרפיקה",
         "renderer_backend_desc" => "אוטומטי בוחר את נתיב ה-GPU הטוב ביותר (Vulkan קודם). OpenGL הוא נעץ תאימות לכרטיסי מסך עם דרייברי Vulkan/DX12 שבורים; תוכנה (CPU) תמיד מרנדרת נכון. נדרשת הפעלה מחדש.",

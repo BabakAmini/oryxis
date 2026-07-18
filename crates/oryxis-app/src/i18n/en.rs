@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "link_target_blocked" => "Link type not allowed: {scheme}",
         "broadcast_pane_unmute" => "Unmute this pane",
         "broadcast_paste_notice" => "This paste goes to {count} panes.",
-        "broadcast_single_pane_hint" => "Broadcast is armed, but it does nothing until you split this tab.",
+        "broadcast_needs_split_hint" => "Broadcast needs split panes. Split this tab first.",
         "hotkey_toggle_broadcast_input" => "Toggle broadcast input",
         "renderer_backend" => "Graphics renderer",
         "renderer_backend_desc" => "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply.",

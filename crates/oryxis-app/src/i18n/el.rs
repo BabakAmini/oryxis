@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Μη επιτρεπτός τύπος συνδέσμου: {scheme}",
         "broadcast_pane_unmute" => "Κατάργηση σίγασης αυτού του τμήματος",
         "broadcast_paste_notice" => "Αυτή η επικόλληση θα σταλεί σε {count} τμήματα.",
-        "broadcast_single_pane_hint" => "Η μετάδοση είναι ενεργοποιημένη, αλλά δεν κάνει τίποτα μέχρι να χωρίσετε αυτήν την καρτέλα.",
+        "broadcast_needs_split_hint" => "Η μετάδοση απαιτεί διαχωρισμένα παράθυρα. Χωρίστε πρώτα αυτήν την καρτέλα.",
         "hotkey_toggle_broadcast_input" => "Εναλλαγή μετάδοσης εισόδου",
         "renderer_backend" => "Μηχανή γραφικών",
         "renderer_backend_desc" => "Το Αυτόματα επιλέγει την καλύτερη διαδρομή GPU (πρώτα Vulkan). Το OpenGL είναι επιλογή συμβατότητας για GPU με προβληματικούς οδηγούς Vulkan/DX12. Το Λογισμικό (CPU) αποδίδει πάντα σωστά. Απαιτείται επανεκκίνηση.",

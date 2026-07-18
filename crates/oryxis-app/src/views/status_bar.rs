@@ -73,9 +73,12 @@ impl Oryxis {
         // Broadcast input segment (C2): a single toggle for the active
         // terminal tab. Redundant with the tab menu + hotkey by design (the
         // status bar is optional). Armed state is warning-tinted so the "keys
-        // go everywhere" mode is loud even from the bar.
+        // go everywhere" mode is loud even from the bar. Only rendered when
+        // the tab is split, same precondition-gating as the Terminal/Files
+        // segments above (broadcast is inert on a single pane).
         if let Some(idx) = self.active_tab
             && let Some(tab) = self.tabs.get(idx)
+            && tab.pane_grid.panes.len() >= 2
         {
             items.push(broadcast_segment_btn(idx, tab.broadcast));
             items.push(Space::new().width(10).into());

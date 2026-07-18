@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "허용되지 않는 링크 유형: {scheme}",
         "broadcast_pane_unmute" => "이 패널 음소거 해제",
         "broadcast_paste_notice" => "이 붙여넣기는 {count}개의 패널로 전송됩니다.",
-        "broadcast_single_pane_hint" => "브로드캐스트가 활성화되었지만, 이 탭을 분할하기 전에는 아무 동작도 하지 않습니다.",
+        "broadcast_needs_split_hint" => "브로드캐스트에는 분할된 창이 필요합니다. 먼저 이 탭을 분할하세요.",
         "hotkey_toggle_broadcast_input" => "입력 브로드캐스트 전환",
         "renderer_backend" => "그래픽 렌더러",
         "renderer_backend_desc" => "자동은 최적의 GPU 경로를 선택합니다(Vulkan 우선). OpenGL은 Vulkan/DX12 드라이버가 손상된 GPU를 위한 호환 옵션입니다. 소프트웨어(CPU)는 항상 올바르게 렌더링합니다. 재시작 후 적용됩니다.",

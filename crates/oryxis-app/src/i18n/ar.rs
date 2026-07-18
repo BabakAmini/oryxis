@@ -386,7 +386,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "نوع الرابط غير مسموح: {scheme}",
         "broadcast_pane_unmute" => "إلغاء كتم هذا اللوح",
         "broadcast_paste_notice" => "سيتم لصق هذا في {count} من الألواح.",
-        "broadcast_single_pane_hint" => "البث مُفعّل، لكنه لا يفعل شيئًا حتى تقسم علامة التبويب هذه.",
+        "broadcast_needs_split_hint" => "يحتاج البث إلى ألواح مقسّمة. قسّم علامة التبويب هذه أولاً.",
         "hotkey_toggle_broadcast_input" => "تبديل بث الإدخال",
         "renderer_backend" => "محرّك العرض الرسومي",
         "renderer_backend_desc" => "يختار الوضع التلقائي أفضل مسار GPU (Vulkan أولاً). OpenGL خيار توافق لوحدات GPU ذات برامج تشغيل Vulkan/DX12 المعطلة؛ البرمجي (CPU) يعرض دائمًا بشكل صحيح. أعد التشغيل للتطبيق.",

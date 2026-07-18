@@ -145,14 +145,17 @@ impl Oryxis {
         ];
         // Broadcast input across the tab's panes (C2): a check glyph +
         // warning tint mark the armed state, matching the pane borders and
-        // status segment.
-        let broadcasting = self.tabs.get(idx).map(|t| t.broadcast).unwrap_or(false);
-        let (bc_glyph, bc_color) = if broadcasting {
-            (iced_fonts::lucide::check(), OryxisColors::t().warning)
-        } else {
-            (iced_fonts::lucide::radio(), OryxisColors::t().text_secondary)
-        };
-        items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::ToggleTabBroadcast(idx), bc_color));
+        // status segment. Only offered on split tabs (broadcast is inert on
+        // a single pane; arming is refused there anyway).
+        if self.tabs.get(idx).is_some_and(|t| t.pane_grid.panes.len() >= 2) {
+            let broadcasting = self.tabs.get(idx).map(|t| t.broadcast).unwrap_or(false);
+            let (bc_glyph, bc_color) = if broadcasting {
+                (iced_fonts::lucide::check(), OryxisColors::t().warning)
+            } else {
+                (iced_fonts::lucide::radio(), OryxisColors::t().text_secondary)
+            };
+            items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::ToggleTabBroadcast(idx), bc_color));
+        }
         // Open an SFTP tab for this host: offered when the SFTP
         // feature is on AND the tab has a live SSH session to reuse
         // or matches a saved connection (so it isn't shown on

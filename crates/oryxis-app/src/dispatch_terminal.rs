@@ -381,6 +381,16 @@ impl Oryxis {
                 if let Some((_closed, sibling)) = tab.pane_grid.close(target) {
                     tab.focused = sibling;
                 }
+                // Back to a single pane: disarm broadcast (its control
+                // surfaces are hidden for unsplit tabs, so a lingering
+                // armed state would be invisible) and drop the survivor's
+                // opt-out so a later re-arm starts clean.
+                if tab.pane_grid.panes.len() < 2 && tab.broadcast {
+                    tab.broadcast = false;
+                    for pane in tab.pane_grid.panes.values_mut() {
+                        pane.broadcast_opt_out = false;
+                    }
+                }
                 // Drop quick-connect entries (and their in-memory
                 // credentials) that no pane references anymore.
                 self.prune_quick_connects();
@@ -943,21 +953,22 @@ impl Oryxis {
             // ── Broadcast input (C2) ──
             Message::ToggleTabBroadcast(idx) => {
                 if let Some(tab) = self.tabs.get_mut(idx) {
+                    // Broadcast only exists across split panes: an unsplit
+                    // tab refuses to arm and says why. The status segment
+                    // and menu entry are hidden there, so this path is only
+                    // reachable via the hotkey / command palette. Disarming
+                    // stays unconditional so no state can ever get stuck.
+                    if !tab.broadcast && tab.pane_grid.panes.len() < 2 {
+                        self.set_toast(crate::i18n::t("broadcast_needs_split_hint").to_string());
+                        return Ok(crate::shortcuts::toast_clear_after_secs(4));
+                    }
                     tab.broadcast = !tab.broadcast;
-                    let single_pane = tab.pane_grid.panes.len() < 2;
                     if !tab.broadcast {
                         // Disarm: clear every opt-out so a later re-arm
                         // starts clean (all panes participate).
                         for pane in tab.pane_grid.panes.values_mut() {
                             pane.broadcast_opt_out = false;
                         }
-                    }
-                    // Arming a not-yet-split tab is allowed but inert; a
-                    // hint is cheaper than disabling the control and
-                    // explaining why it is greyed out.
-                    if tab.broadcast && single_pane {
-                        self.set_toast(crate::i18n::t("broadcast_single_pane_hint").to_string());
-                        return Ok(crate::shortcuts::toast_clear_after_secs(4));
                     }
                 }
             }

@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Nepovolený typ odkazu: {scheme}",
         "broadcast_pane_unmute" => "Zrušit ztlumení tohoto panelu",
         "broadcast_paste_notice" => "Toto vložení přejde do {count} panelů.",
-        "broadcast_single_pane_hint" => "Vysílání je připraveno, ale nic neudělá, dokud tuto kartu nerozdělíte.",
+        "broadcast_needs_split_hint" => "Vysílání vyžaduje rozdělené panely. Nejprve tuto kartu rozdělte.",
         "hotkey_toggle_broadcast_input" => "Přepnout vysílání vstupu",
         "renderer_backend" => "Grafický renderer",
         "renderer_backend_desc" => "Automaticky zvolí nejlepší GPU cestu (nejprve Vulkan). OpenGL je kompatibilitní volba pro GPU s rozbitými ovladači Vulkan/DX12; Software (CPU) vykresluje vždy správně. Změna vyžaduje restart.",

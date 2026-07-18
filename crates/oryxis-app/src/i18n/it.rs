@@ -385,7 +385,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "Tipo di link non consentito: {scheme}",
         "broadcast_pane_unmute" => "Riattiva questo riquadro",
         "broadcast_paste_notice" => "Questo incolla andrà a {count} riquadri.",
-        "broadcast_single_pane_hint" => "La trasmissione è attiva, ma non fa nulla finché non dividi questa scheda.",
+        "broadcast_needs_split_hint" => "La trasmissione richiede riquadri divisi. Dividi prima questa scheda.",
         "hotkey_toggle_broadcast_input" => "Attiva/disattiva trasmissione input",
         "renderer_backend" => "Renderer grafico",
         "renderer_backend_desc" => "Automatico sceglie il percorso GPU migliore (prima Vulkan). OpenGL è un'opzione di compatibilità per GPU con driver Vulkan/DX12 difettosi; Software (CPU) rende sempre correttamente. Riavvia per applicare.",

@@ -405,7 +405,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "link_target_blocked" => "लिंक प्रकार की अनुमति नहीं है: {scheme}",
         "broadcast_pane_unmute" => "इस पैनल को अनम्यूट करें",
         "broadcast_paste_notice" => "यह पेस्ट {count} पैनलों में जाएगा।",
-        "broadcast_single_pane_hint" => "प्रसारण सक्रिय है, लेकिन जब तक आप इस टैब को विभाजित नहीं करते, यह कुछ नहीं करता।",
+        "broadcast_needs_split_hint" => "प्रसारण के लिए विभाजित फलक आवश्यक हैं। पहले इस टैब को विभाजित करें।",
         "hotkey_toggle_broadcast_input" => "प्रसारण इनपुट टॉगल करें",
         "renderer_backend" => "ग्राफ़िक्स रेंडरर",
         "renderer_backend_desc" => "ऑटोमैटिक सबसे अच्छा GPU पथ चुनता है (पहले Vulkan)। OpenGL उन GPU के लिए संगतता विकल्प है जिनके Vulkan/DX12 ड्राइवर खराब हैं; सॉफ़्टवेयर (CPU) हमेशा सही रेंडर करता है। लागू करने के लिए रीस्टार्ट करें।",
