@@ -209,6 +209,13 @@ impl Oryxis {
             if !action.primary_editable() || action == HotkeyAction::ShowCommandPalette {
                 continue;
             }
+            // Widget-dispatched actions (copy / select-all / scrollback
+            // paging) only fire from a keystroke reaching the terminal
+            // canvas; RunHotkeyAction just swallows them, so a palette
+            // click would be a dead row. Leave them out.
+            if action.widget_dispatched() {
+                continue;
+            }
             // Mirror the exact gate the keyboard loop applies before it
             // calls dispatch_hotkey_action (shortcuts.rs): terminal_only
             // needs a focused terminal, vault_only needs the vault area.

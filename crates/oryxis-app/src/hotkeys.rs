@@ -279,6 +279,20 @@ impl HotkeyAction {
         )
     }
 
+    /// Actions the terminal WIDGET performs from its own canvas state
+    /// (selection, scroll offset), which `dispatch_hotkey_action` only
+    /// swallows. They fire from a real keystroke reaching the widget,
+    /// never from a `RunHotkeyAction` message, so the command palette
+    /// (which dispatches the message) must not list them: a click would
+    /// silently do nothing.
+    pub fn widget_dispatched(self) -> bool {
+        use HotkeyAction::*;
+        matches!(
+            self,
+            TerminalCopy | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown
+        )
+    }
+
     /// Whether the action only applies in the vault area (Home and
     /// its sub-sections). The dispatch loop skips these elsewhere,
     /// leaving the key free: Ctrl+PageUp/Down inside a terminal tab
