@@ -331,13 +331,22 @@ impl Oryxis {
         let page_up = get(ScrollbackPageUp);
         let page_down = get(ScrollbackPageDown);
         Box::new(move |key, mods| {
-            if copy.match_event(key, mods).is_some() {
+            // Mirror the router's terminal gate: a chord that is a bare
+            // control sequence (a user rebinding Copy to Ctrl+C, say)
+            // must reach the PTY as its control byte, NOT trigger the
+            // widget gesture. Without this the router lets ^C fall
+            // through to the PTY (SIGINT) while the widget ALSO copies,
+            // so one keystroke both copies and kills the process. The
+            // widget only runs with the PTY owning keys, so the gate is
+            // unconditional here (no find-bar exemption to weigh).
+            let live = |b: &crate::hotkeys::HotkeyBinding| !b.is_terminal_control_sequence();
+            if copy.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::Copy)
-            } else if select_all.match_event(key, mods).is_some() {
+            } else if select_all.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::SelectAll)
-            } else if page_up.match_event(key, mods).is_some() {
+            } else if page_up.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::ScrollPageUp)
-            } else if page_down.match_event(key, mods).is_some() {
+            } else if page_down.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::ScrollPageDown)
             } else {
                 None

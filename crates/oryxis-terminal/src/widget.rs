@@ -2070,11 +2070,12 @@ where
             // selection out from under a copy, and snap the view straight
             // back to the live edge after a page-up.
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
-                if self
-                    .chords
-                    .as_ref()
-                    .and_then(|f| f(key, modifiers))
-                    .is_some() =>
+                if self.focused
+                    && self
+                        .chords
+                        .as_ref()
+                        .and_then(|f| f(key, modifiers))
+                        .is_some() =>
             {
                 // Re-resolve without unwrapping: the guard above already
                 // proved this is Some, so the `?` never fires.
@@ -2176,20 +2177,22 @@ where
             // all chords are handled by earlier arms that return first, so a
             // copy is never treated as a terminal keystroke here.
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
-                if !matches!(
-                    key,
-                    keyboard::Key::Named(
-                        keyboard::key::Named::Control
-                            | keyboard::key::Named::Shift
-                            | keyboard::key::Named::Alt
-                            | keyboard::key::Named::Super
-                            | keyboard::key::Named::Hyper
-                            | keyboard::key::Named::Meta
+                if self.focused
+                    && !matches!(
+                        key,
+                        keyboard::Key::Named(
+                            keyboard::key::Named::Control
+                                | keyboard::key::Named::Shift
+                                | keyboard::key::Named::Alt
+                                | keyboard::key::Named::Super
+                                | keyboard::key::Named::Hyper
+                                | keyboard::key::Named::Meta
+                        )
                     )
-                ) && (widget_state.selection.is_some()
-                    || widget_state.select_anchor.is_some()
-                    || (self.reset_scroll_on_keypress
-                        && widget_state.scroll_offset.get() != 0)) =>
+                    && (widget_state.selection.is_some()
+                        || widget_state.select_anchor.is_some()
+                        || (self.reset_scroll_on_keypress
+                            && widget_state.scroll_offset.get() != 0)) =>
             {
                 widget_state.selection = None;
                 widget_state.select_anchor = None;
