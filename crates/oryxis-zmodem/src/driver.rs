@@ -241,6 +241,22 @@ async fn run_download(
             }
             Step::WriteFile(bytes) => {
                 let n = bytes.len();
+                // A correct sender writes exactly the size it announced in
+                // ZFILE, so a stream that runs past it is a protocol
+                // violation, not a valid transfer. Reject it when the size
+                // is known: this bounds an auto-armed download against a
+                // hostile host trying to overrun the disk, and keeps the
+                // fork's u32 file position from wrapping past 4 GiB. An
+                // unannounced size (`total == None`) has no ceiling to
+                // check here.
+                if let Some(t) = total
+                    && t > 0
+                    && transferred.saturating_add(n as u64) > t
+                {
+                    return Err(format!(
+                        "sender exceeded the advertised size ({t} bytes); aborting"
+                    ));
+                }
                 if let Some(file) = dest.as_mut() {
                     file.write_all(&bytes)
                         .await
@@ -268,9 +284,20 @@ async fn run_download(
                 // byte and the rename heals (sz answers ZRPOS(total)
                 // with an immediate ZEOF and the rename runs below).
                 let advertised = size.unwrap_or(0);
-                let existing = match tokio::fs::metadata(&part).await {
-                    Ok(m) if m.is_file() => Some(m.len()),
-                    _ => None,
+                // `symlink_metadata` does NOT follow a link, so a hostile
+                // pre-planted `<name>.oryxis-part` symlink (pointing at
+                // ~/.bashrc, say) is seen as a symlink and never resumed
+                // THROUGH: only a real file we wrote reaches the append
+                // path below. Anything else at that path (symlink, dir) is
+                // stale or hostile, so drop it and restart fresh under the
+                // create_new (O_EXCL) path.
+                let existing = match tokio::fs::symlink_metadata(&part).await {
+                    Ok(m) if m.file_type().is_file() => Some(m.len()),
+                    Ok(_) => {
+                        let _ = tokio::fs::remove_file(&part).await;
+                        None
+                    }
+                    Err(_) => None,
                 };
                 let resume_at = match existing {
                     Some(len) if advertised > 0 && len > 0 && len <= advertised => len,
