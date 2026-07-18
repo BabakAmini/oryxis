@@ -438,7 +438,10 @@ impl Oryxis {
                 let notif_mode = self.setting_notification_mode;
                 let win_focused = self.window_focused;
                 let mut flash_pane: Option<uuid::Uuid> = None;
-                let mut pending_notification: Option<String> = None;
+                // (pane label, OSC 9 body). The label rides along so the
+                // body can be redacted under Privacy Mode at delivery time
+                // (resolved after the tabs borrow ends, like smart tabs).
+                let mut pending_notification: Option<(String, String)> = None;
                 let capture_enabled = self.setting_command_history;
                 let log_full = self.setting_session_log_full;
                 // Smart tabs: policy snapshots taken before the tabs borrow.
@@ -601,7 +604,8 @@ impl Oryxis {
                             ));
                         }
                     }
-                    pending_notification = new_notification;
+                    pending_notification =
+                        new_notification.map(|body| (pane.label.clone(), body));
                     if let Some(cwd) = new_cwd {
                         cwd_changed = pane.cwd.as_deref() != Some(cwd.as_str());
                         pane.cwd = Some(cwd);
@@ -697,8 +701,24 @@ impl Oryxis {
                 // noise) and falls back to a toast if the native call fails (no
                 // daemon / no AppUserModelID on a non-installed Windows build).
                 let mut toast_shown = false;
-                if let Some(text) = pending_notification {
-                    let body = text.trim();
+                if let Some((label, text)) = pending_notification {
+                    let trimmed = text.trim();
+                    // The OSC 9 body is server-supplied. Under Privacy Mode
+                    // the OS notification center keeps plaintext around and
+                    // the terminal's masking is render-only, so redact it
+                    // here before it leaves, exactly like the smart-tab
+                    // bodies below. The title stays the generic "Oryxis"
+                    // (no host identity), so only the body needs it.
+                    let body_owned = if self.privacy_active_for_label(&label) {
+                        crate::widgets::redact_for_display(
+                            trimmed,
+                            &self.privacy_terms(),
+                            self.privacy_classes(),
+                        )
+                    } else {
+                        trimmed.to_string()
+                    };
+                    let body = body_owned.as_str();
                     if !body.is_empty() {
                         let show_toast = match notif_mode {
                             crate::util::NotificationMode::Off => false,
