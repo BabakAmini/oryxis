@@ -756,15 +756,29 @@ fn sanitize_name(raw: &[u8]) -> String {
     if base.is_empty() || base == ".." {
         return "received.bin".to_string();
     }
+    // Neutralize Windows-reserved punctuation. A colon is the dangerous
+    // one: `PathBuf::push`/`join` treats a `C:evil.exe` component as a
+    // drive-relative path and REPLACES the whole download path, and
+    // `name:stream` opens an NTFS alternate data stream. The rest
+    // (`<>"|?*`) can never appear in a real Windows name; a peer sending
+    // them is hostile or careless. Replace rather than reject so the
+    // transfer still lands somewhere safe under the chosen folder.
+    let base: String = base
+        .chars()
+        .map(|c| match c {
+            ':' | '<' | '>' | '"' | '|' | '?' | '*' => '_',
+            other => other,
+        })
+        .collect();
     // Windows matches device names on the part before the first dot
     // ("CON.txt" still opens the console). Defused on every platform so
     // a download folder that later syncs to a Windows machine stays
     // portable.
-    let stem = base.split('.').next().unwrap_or(base);
+    let stem = base.split('.').next().unwrap_or(&base);
     if is_windows_reserved(stem) {
         format!("_{base}")
     } else {
-        base.to_string()
+        base
     }
 }
 
@@ -797,6 +811,19 @@ mod tests {
         assert_eq!(sanitize_name(b""), "received.bin");
         assert_eq!(sanitize_name(b"..."), "received.bin");
         assert_eq!(sanitize_name(b"/"), "received.bin");
+    }
+
+    #[test]
+    fn sanitize_neutralizes_windows_drive_and_ads() {
+        // `C:evil.exe` is a drive-relative component: on Windows
+        // `dest.join(it)` would drop the download dir entirely. The
+        // colon must not survive.
+        assert_eq!(sanitize_name(b"C:evil.exe"), "C_evil.exe");
+        assert_eq!(sanitize_name(b"report.pdf:hidden"), "report.pdf_hidden");
+        assert_eq!(sanitize_name(b"a<b>c|d?e*f\"g"), "a_b_c_d_e_f_g");
+        // The colon collapses into the stem, so `CON:x` becomes the
+        // harmless `CON_x` (no longer the bare reserved device name).
+        assert_eq!(sanitize_name(b"CON:x"), "CON_x");
     }
 
     #[test]
