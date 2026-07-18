@@ -33,6 +33,15 @@ pub fn sh_quote(s: &str) -> Result<String, ArchiveError> {
 /// means the string is not a real Windows path). `%` is also rejected:
 /// cmd.exe expands `%VAR%` inside double quotes and offers no reliable
 /// command-line escape for it.
+///
+/// The name comes from a remote listing, so it is NOT trusted to be a
+/// real Windows path: a hostile server can return any byte string. When
+/// the host's default shell is PowerShell (a configuration this crate
+/// supports), a double-quoted argument still undergoes `$(...)` / `$var`
+/// / backtick expansion, so `$` and the backtick are rejected too. `$`
+/// is legal in genuine Windows names, but there is no portable escape
+/// that is inert under both cmd.exe and PowerShell, so we refuse rather
+/// than risk command injection.
 pub fn win_quote(s: &str) -> Result<String, ArchiveError> {
     let bad = |what: &str| {
         Err(ArchiveError::UnsafeName(format!(
@@ -47,6 +56,12 @@ pub fn win_quote(s: &str) -> Result<String, ArchiveError> {
     }
     if s.contains('%') {
         return bad("a percent sign (cmd.exe variable expansion)");
+    }
+    if s.contains('$') {
+        return bad("a dollar sign (PowerShell variable expansion)");
+    }
+    if s.contains('`') {
+        return bad("a backtick (PowerShell escape / subexpression)");
     }
     Ok(format!("\"{s}\""))
 }
@@ -95,5 +110,14 @@ mod tests {
         assert!(win_quote("a\"b.zip").is_err());
         assert!(win_quote("a\nb.zip").is_err());
         assert!(win_quote("a\u{1b}b.zip").is_err());
+    }
+
+    #[test]
+    fn win_quote_rejects_powershell_expansion() {
+        // A hostile SFTP listing can return these; under a PowerShell
+        // default shell a double-quoted argument still expands them.
+        assert!(win_quote("$(calc.exe).zip").is_err());
+        assert!(win_quote("$env:PATH.zip").is_err());
+        assert!(win_quote("a`b.zip").is_err());
     }
 }

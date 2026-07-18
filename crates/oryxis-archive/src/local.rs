@@ -69,11 +69,28 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<(), ArchiveError> {
             .unix_mode()
             .is_some_and(|m| m & 0o170_000 == 0o120_000)
         {
-            // Symlink entry: content is the target path.
+            // Symlink entry: content is the target path. `enclosed_name`
+            // only vetted the entry's OWN path, not where the link
+            // points. A link to an absolute path or one climbing out
+            // with `..` would let a LATER file entry (`link/inner`)
+            // write THROUGH it, outside `dest`, because `File::create`
+            // follows symlinks. Refuse those; a link that stays relative
+            // and `..`-free can only resolve back inside `dest`.
             let mut link_target = String::new();
             entry
                 .read_to_string(&mut link_target)
                 .map_err(|e| ArchiveError::Malformed(format!("symlink {}: {e}", target.display())))?;
+            let tp = Path::new(&link_target);
+            if tp.is_absolute()
+                || tp
+                    .components()
+                    .any(|c| matches!(c, std::path::Component::ParentDir))
+            {
+                return Err(ArchiveError::Unsupported(format!(
+                    "symlink target escapes the archive root: {} -> {link_target}",
+                    entry.name()
+                )));
+            }
             std::os::unix::fs::symlink(&link_target, &target)?;
             continue;
         }
@@ -378,6 +395,39 @@ mod tests {
         let err = extract_archive(ArchiveKind::Zip, &out, &dest).unwrap_err();
         assert!(matches!(err, ArchiveError::Unsupported(_)), "{err}");
         assert!(!tmp.path().join("a.t").exists(), "escape file must not exist");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn zip_symlink_escape_is_refused() {
+        use std::io::Write;
+        use zip::write::SimpleFileOptions;
+        // A symlink entry pointing outside the extraction root, followed
+        // by a file entry that would write THROUGH it. `enclosed_name`
+        // clears both entry names; only the symlink-target check stops
+        // the escape.
+        let tmp = tempfile::tempdir().unwrap();
+        let secret = tmp.path().join("secret");
+        std::fs::create_dir(&secret).unwrap();
+        let out = tmp.path().join("evil.zip");
+        {
+            let f = File::create(&out).unwrap();
+            let mut zw = zip::ZipWriter::new(f);
+            // Absolute target: `File::create` through this link would
+            // land in `secret/`, outside `dest`.
+            zw.add_symlink("pwn", secret.to_str().unwrap(), SimpleFileOptions::default())
+                .unwrap();
+            zw.start_file("pwn/planted", SimpleFileOptions::default()).unwrap();
+            zw.write_all(b"owned").unwrap();
+            zw.finish().unwrap();
+        }
+        let dest = tmp.path().join("dest");
+        let err = extract_archive(ArchiveKind::Zip, &out, &dest).unwrap_err();
+        assert!(matches!(err, ArchiveError::Unsupported(_)), "{err}");
+        assert!(
+            !secret.join("planted").exists(),
+            "file must not be written through the symlink"
+        );
     }
 
     #[test]
