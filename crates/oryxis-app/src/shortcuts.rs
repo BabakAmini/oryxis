@@ -329,6 +329,12 @@ impl Oryxis {
             self.overlay = None;
             return true;
         }
+        // The SFTP right-click row menu is the same weight as an overlay
+        // dropdown; Esc dismisses it like its click-outside backdrop.
+        if self.sftp.row_menu.is_some() {
+            self.sftp.row_menu = None;
+            return true;
+        }
         // Walk the Esc-close priority order and dismiss the first open
         // modal. `close_modal` is a compiler-checked exhaustive match, so a
         // new modal can't be added without deciding its cleanup; adding it

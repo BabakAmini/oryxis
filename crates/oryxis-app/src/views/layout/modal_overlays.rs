@@ -474,7 +474,12 @@ impl Oryxis {
                 compress_tgz: !in_zip && compress_tgz,
             }
         };
+        // Record the menu's rows into the modal keynav layer (only one
+        // such surface renders per frame) so the SFTP row menu is
+        // keyboard-navigable.
+        self.modal_nav_reset();
         let menu = crate::views::sftp::row_context_menu_box(
+            self,
             row_menu,
             cross_pane_ready,
             source_is_remote,

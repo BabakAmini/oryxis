@@ -98,6 +98,9 @@ pub(crate) enum ModalSurface {
     /// menu kinds without requiring PartialEq on the payload.
     Overlay(std::mem::Discriminant<crate::state::OverlayContent>),
     Burger,
+    /// The SFTP right-click row context menu (`sftp.row_menu`), which
+    /// lives outside the `overlay` / `Modal` systems.
+    SftpRowMenu,
 }
 
 /// Selection + per-frame row recording for the modal layer.
