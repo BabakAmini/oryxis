@@ -336,7 +336,15 @@ impl Oryxis {
         // suspends the clock (the handler clamps the resume delta, so
         // the absence never counts as playback time). ~30 fps is the
         // live-terminal ballpark and keeps scrubbing responsive.
+        //
+        // Watching is not user activity (only real input resets the idle
+        // clock), so a soft auto-lock can fire mid-playback. Gate on the
+        // unlocked state like the other subscriptions do, or the clock
+        // keeps advancing behind the lock screen: CPU burned, position
+        // lost on return, and the documented "subscriptions unmount
+        // while locked" contract broken.
         if self.active_view == crate::state::View::History
+            && self.vault_ui.state == crate::state::VaultState::Unlocked
             && self.session_player.as_ref().is_some_and(|p| p.playing)
         {
             subs.push(

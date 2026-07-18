@@ -1774,6 +1774,15 @@ impl Oryxis {
                     self.key_import_public_content = iced::widget::text_editor::Content::new();
                     self.key_import_cert_content = iced::widget::text_editor::Content::new();
                     self.cert_viewer = None;
+                    // The session player / log viewer hold DECRYPTED
+                    // recording bytes (a session that ran `cat
+                    // /etc/shadow` keeps that output in the emulator grid
+                    // / rendered spans). That is secret-bearing UI like a
+                    // revealed secret, so it must not sit in RAM behind
+                    // the lock screen; it can only be rebuilt from the
+                    // vault after unlock anyway.
+                    self.session_player = None;
+                    self.viewing_session_log = None;
                     // The ssh-agent goes dark (keys ungated) while locked;
                     // the listener stays up so a `git` sees an empty agent.
                     self.agent_on_lock();
@@ -1984,6 +1993,12 @@ impl Oryxis {
                         self.key_import_public_content = iced::widget::text_editor::Content::new();
                         self.key_import_cert_content = iced::widget::text_editor::Content::new();
                         self.cert_viewer = None;
+                        // Decrypted session-recording bytes (player grid /
+                        // rendered viewer spans) are secret-bearing and
+                        // have no business surviving an explicit "I'm
+                        // done"; the soft lock sweeps these too.
+                        self.session_player = None;
+                        self.viewing_session_log = None;
                         self.vault_ui.new_password.clear();
                         self.vault_ui.confirm_password.clear();
                         self.sftp.picker_open = false;
