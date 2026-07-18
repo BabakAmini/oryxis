@@ -742,6 +742,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Přehrát (mezerník)",
         "player_pause_tip" => "Pozastavit (mezerník)",
         "player_restart_tip" => "Od začátku",
+        "player_view_log" => "Zobrazit záznam",
         "player_speed_tip" => "Rychlost přehrávání",
         "player_empty" => "Tato nahrávka neobsahuje přehratelný výstup",
         "export_cast_tip" => "Exportovat .cast (asciinema)",

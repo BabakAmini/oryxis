@@ -775,10 +775,11 @@ impl Oryxis {
     }
 }
 
-/// Small bordered header button for the session-log viewer, matching
-/// the Close button's look: an icon, optionally with a label, hover
-/// fill for feedback (the app-wide button convention).
-fn viewer_header_btn<'a>(
+/// Small bordered header button for the session-log viewer and the
+/// player header, matching the Close button's look: an icon,
+/// optionally with a label, hover fill for feedback (the app-wide
+/// button convention).
+pub(super) fn viewer_header_btn<'a>(
     icon: Element<'a, Message>,
     label: Option<&'a str>,
     msg: Message,

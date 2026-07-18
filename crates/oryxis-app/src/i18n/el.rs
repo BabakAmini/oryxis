@@ -742,6 +742,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Αναπαραγωγή (Space)",
         "player_pause_tip" => "Παύση (Space)",
         "player_restart_tip" => "Από την αρχή",
+        "player_view_log" => "Προβολή καταγραφής",
         "player_speed_tip" => "Ταχύτητα αναπαραγωγής",
         "player_empty" => "Αυτή η εγγραφή δεν έχει αναπαραγώγιμη έξοδο",
         "export_cast_tip" => "Εξαγωγή .cast (asciinema)",

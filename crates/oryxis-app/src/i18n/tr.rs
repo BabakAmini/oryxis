@@ -736,6 +736,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Oynat (Boşluk)",
         "player_pause_tip" => "Duraklat (Boşluk)",
         "player_restart_tip" => "Baştan başlat",
+        "player_view_log" => "Kaydı görüntüle",
         "player_speed_tip" => "Oynatma hızı",
         "player_empty" => "Bu kayıtta oynatılabilir çıktı yok",
         "export_cast_tip" => ".cast dışa aktar (asciinema)",

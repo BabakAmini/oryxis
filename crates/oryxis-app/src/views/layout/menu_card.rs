@@ -11,8 +11,9 @@ impl Oryxis {
         self.build_menu_session_log_actions_impl(idx, true)
     }
 
-    /// The viewer-header `...` variant: the viewer carries a dedicated
-    /// Play button, so the menu skips the Play row.
+    /// The viewer-header `...` variant, shared by the static viewer
+    /// and the player header: both surfaces carry their own play
+    /// affordance, so the menu skips the Play row.
     pub(crate) fn build_menu_session_log_viewer_actions(
         &self,
         idx: usize,

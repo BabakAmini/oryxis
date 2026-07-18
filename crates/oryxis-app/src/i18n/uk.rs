@@ -736,6 +736,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Відтворити (Пробіл)",
         "player_pause_tip" => "Пауза (Пробіл)",
         "player_restart_tip" => "Спочатку",
+        "player_view_log" => "Переглянути журнал",
         "player_speed_tip" => "Швидкість відтворення",
         "player_empty" => "У цьому записі немає відтворюваного виводу",
         "export_cast_tip" => "Експорт .cast (asciinema)",

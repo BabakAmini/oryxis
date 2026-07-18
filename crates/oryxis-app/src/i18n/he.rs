@@ -742,6 +742,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "נגן (רווח)",
         "player_pause_tip" => "השהה (רווח)",
         "player_restart_tip" => "התחל מחדש",
+        "player_view_log" => "הצג יומן",
         "player_speed_tip" => "מהירות ניגון",
         "player_empty" => "בהקלטה זו אין פלט הניתן לניגון",
         "export_cast_tip" => "ייצוא .cast (asciinema)",

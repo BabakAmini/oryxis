@@ -736,6 +736,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Putar (Spasi)",
         "player_pause_tip" => "Jeda (Spasi)",
         "player_restart_tip" => "Mulai ulang",
+        "player_view_log" => "Lihat log",
         "player_speed_tip" => "Kecepatan pemutaran",
         "player_empty" => "Rekaman ini tidak memiliki keluaran yang dapat diputar",
         "export_cast_tip" => "Ekspor .cast (asciinema)",

@@ -55,6 +55,43 @@ impl Oryxis {
             header_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
             header_items.push(Space::new().width(8).into());
         }
+        // Recording actions, mirroring the static viewer's header: a
+        // "View log" button back to the log-only surface plus the same
+        // `...` menu (exports + delete). Resolved by index like the
+        // viewer does; a row deleted underneath the player simply
+        // drops the affordances.
+        if let Some(idx) = self.session_logs.iter().position(|e| e.id == p.log_id) {
+            header_items.push(super::history::viewer_header_btn(
+                iced_fonts::lucide::file_text()
+                    .size(11)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+                Some(crate::i18n::t("player_view_log")),
+                Message::ViewSessionLog(p.log_id),
+            ));
+            header_items.push(Space::new().width(8).into());
+            let menu_open = matches!(
+                self.overlay.as_ref().map(|o| &o.content),
+                Some(crate::state::OverlayContent::SessionLogViewerActions(i)) if *i == idx
+            );
+            header_items.push(crate::views::terminal::icon_tooltip(
+                super::history::viewer_header_btn(
+                    // Same glyph the card kebabs draw.
+                    text("\u{22EE}")
+                        .size(13)
+                        .color(if menu_open {
+                            OryxisColors::t().text_primary
+                        } else {
+                            OryxisColors::t().text_muted
+                        })
+                        .into(),
+                    None,
+                    Message::ShowSessionLogViewerMenu(idx),
+                ),
+                crate::i18n::t("more_actions"),
+            ));
+            header_items.push(Space::new().width(8).into());
+        }
         header_items.push(
             button(
                 container(

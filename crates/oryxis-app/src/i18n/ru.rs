@@ -590,6 +590,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "Воспроизвести (Пробел)",
         "player_pause_tip" => "Пауза (Пробел)",
         "player_restart_tip" => "Сначала",
+        "player_view_log" => "Показать журнал",
         "player_speed_tip" => "Скорость воспроизведения",
         "player_empty" => "В этой записи нет воспроизводимого вывода",
         "export_cast_tip" => "Экспорт .cast (asciinema)",

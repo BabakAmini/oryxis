@@ -742,6 +742,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "player_play_tip" => "เล่น (Space)",
         "player_pause_tip" => "หยุดชั่วคราว (Space)",
         "player_restart_tip" => "เริ่มใหม่",
+        "player_view_log" => "ดูบันทึก",
         "player_speed_tip" => "ความเร็วในการเล่น",
         "player_empty" => "การบันทึกนี้ไม่มีเอาต์พุตที่เล่นได้",
         "export_cast_tip" => "ส่งออก .cast (asciinema)",
