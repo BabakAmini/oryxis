@@ -65,13 +65,14 @@ const FILE_BUF_SIZE: usize = 256 * 1024;
 const RECV_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const RECV_SILENT_WINDOWS: u32 = 6;
 
-/// Hard ceiling for a download whose ZFILE announced no size (`size == 0`):
-/// an announced size is already enforced byte-for-byte below, but an
-/// unannounced one has no sender-supplied bound, so a hostile host could
-/// stream forever and fill the disk. `zmodem2`'s file position is a `u32`,
-/// so it wraps past 4 GiB regardless; capping just under that both blocks
-/// the disk-fill and stops the fork's position from overflowing. It is a
-/// protocol ceiling, not a product setting: a real unannounced transfer
+/// Hard ceiling for a download. An announced ZFILE size is enforced
+/// byte-for-byte below, but an unannounced one (`size == 0`) has no
+/// sender-supplied bound, so a hostile host could stream forever and fill
+/// the disk. `zmodem2`'s file position is a `u32` (the fork hands us the
+/// ZFILE size as a `Position`, so `total` is already <= `u32::MAX`), and
+/// this doubles as the floor the announced ceiling is clamped to, so even
+/// a future fork that widened `Position` could not push the position past
+/// a wrap. It is a protocol ceiling, not a product setting: a transfer
 /// that legitimately needs >4 GiB cannot be expressed in this ZMODEM
 /// implementation anyway.
 const MAX_UNANNOUNCED_DOWNLOAD: u64 = u32::MAX as u64;
@@ -295,26 +296,20 @@ async fn run_download(
                 let n = bytes.len();
                 // A correct sender writes exactly the size it announced in
                 // ZFILE, so a stream that runs past it is a protocol
-                // violation, not a valid transfer. Reject it when the size
-                // is known: this bounds an auto-armed download against a
-                // hostile host trying to overrun the disk, and keeps the
-                // fork's u32 file position from wrapping past 4 GiB.
+                // violation, not a valid transfer. The effective ceiling is
+                // the announced size, or the protocol's u32 position limit
+                // when nothing was announced (or, defensively, when a size
+                // above that limit was) - so a hostile host can neither
+                // overrun the disk nor push the fork's u32 file position
+                // past a wrap, regardless of what it claims in ZFILE.
                 let after = transferred.saturating_add(n as u64);
-                if let Some(t) = total
-                    && t > 0
-                {
-                    if after > t {
-                        return Err(format!(
-                            "sender exceeded the advertised size ({t} bytes); aborting"
-                        ));
-                    }
-                } else if after > MAX_UNANNOUNCED_DOWNLOAD {
-                    // No advertised size (`total` is None or 0): fall back to
-                    // the protocol ceiling so an unbounded hostile stream
-                    // can't fill the disk (and the fork's u32 position can't
-                    // wrap).
+                let ceiling = match total {
+                    Some(t) if t > 0 => t.min(MAX_UNANNOUNCED_DOWNLOAD),
+                    _ => MAX_UNANNOUNCED_DOWNLOAD,
+                };
+                if after > ceiling {
                     return Err(format!(
-                        "unannounced download exceeded {MAX_UNANNOUNCED_DOWNLOAD} bytes; aborting"
+                        "download exceeded its {ceiling}-byte ceiling; aborting"
                     ));
                 }
                 if let Some(file) = dest.as_mut() {
@@ -1122,6 +1117,76 @@ mod tests {
             assert!(!errored, "a peer cancel must not surface as Error");
             // We do not echo a cancel: the peer already cancelled and is
             // exiting, so no CANCEL sequence should reach the wire.
+            let mut sent = Vec::new();
+            while let Ok(b) = wire_out_rx.try_recv() {
+                sent.extend_from_slice(&b);
+            }
+            assert!(
+                !sent.windows(crate::CANCEL.len()).any(|w| w == crate::CANCEL),
+                "must not echo a cancel back at a peer that already cancelled"
+            );
+
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
+    }
+
+    /// The upload side of the peer-cancel fix: a remote `rz` that the user
+    /// Ctrl-C's sends the same CAN run. The sender parks on recv waiting
+    /// for the receiver's ZRINIT, so without the wire scan it too would
+    /// sit through the ~60 s watchdog. It rides the same `peer_cancelled`
+    /// helper as the download, but timing is exactly where "symmetric
+    /// code" and "tested" diverge, so it gets its own loopback.
+    #[test]
+    fn a_peer_cancel_run_ends_the_upload_at_once() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir =
+                std::env::temp_dir().join(format!("oryxis-zm-upcan-{}", std::process::id()));
+            let _ = tokio::fs::create_dir_all(&dir).await;
+            let src = dir.join("payload.bin");
+            tokio::fs::write(&src, vec![7u8; 4096]).await.unwrap();
+
+            let (wire_tx, wire_in) = mpsc::unbounded_channel();
+            let (wire_out_tx, mut wire_out_rx) = mpsc::unbounded_channel();
+            let (p_tx, mut p_rx) = mpsc::unbounded_channel();
+            let abort = Arc::new(AtomicBool::new(false));
+
+            let task = tokio::spawn(run(
+                Direction::Upload,
+                TransferSpec::Upload { sources: vec![src] },
+                Vec::new(),
+                TransferIo {
+                    wire_in,
+                    wire_out: wire_out_tx,
+                    progress: p_tx,
+                    abort: abort.clone(),
+                },
+            ));
+            // The sender flushes ZFILE and parks waiting for the receiver
+            // to answer; it never does. Then the remote `rz` is cancelled.
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            wire_tx.send(crate::CANCEL.to_vec()).unwrap();
+
+            tokio::time::timeout(std::time::Duration::from_secs(2), task)
+                .await
+                .expect("peer cancel did not end the upload promptly")
+                .unwrap();
+
+            let mut aborted = false;
+            let mut errored = false;
+            while let Ok(p) = p_rx.try_recv() {
+                match p {
+                    Progress::Aborted => aborted = true,
+                    Progress::Error(_) => errored = true,
+                    _ => {}
+                }
+            }
+            assert!(aborted, "a peer cancel must end the upload in Aborted");
+            assert!(!errored, "a peer cancel must not surface as Error");
             let mut sent = Vec::new();
             while let Ok(b) = wire_out_rx.try_recv() {
                 sent.extend_from_slice(&b);
