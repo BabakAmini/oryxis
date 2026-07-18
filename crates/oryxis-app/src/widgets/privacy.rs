@@ -129,12 +129,24 @@ pub(crate) fn redact_for_display(
                     out.push_str(&s[last..m.end()]);
                 }
             } else {
-                // The bare `user@host` alternation: usernames class.
+                // The bare `user@host` alternation.
+                out.push_str(&s[last..whole.start()]);
+                let tok = whole.as_str();
                 if classes.usernames {
-                    out.push_str(&s[last..whole.start()]);
-                    out.push_str(&mask_blocks(whole.as_str()));
+                    out.push_str(&mask_blocks(tok));
+                } else if let Some(at) = tok.find('@') {
+                    // Usernames class off: keep the name, but a host part
+                    // that is itself an IP must still mask by its own
+                    // class. The regex consumes `deploy@8.8.8.8` as one
+                    // user@host token, so the v4/v6 scanner never sees the
+                    // address; the live terminal masks it independently,
+                    // so the log must match. Re-run redaction on just the
+                    // host side (a bare hostname there stays, that shape
+                    // is the terms list's job, not this token).
+                    out.push_str(&tok[..=at]);
+                    out.push_str(&redact_for_display(&tok[at + 1..], terms, classes));
                 } else {
-                    out.push_str(&s[last..whole.end()]);
+                    out.push_str(tok);
                 }
             }
             last = whole.end();
@@ -593,6 +605,28 @@ mod tests {
         assert_eq!(
             redact_for_display("ping 8.8.8.8", &terms, none),
             format!("ping {}", mask_blocks("8.8.8.8"))
+        );
+    }
+
+    #[test]
+    fn usernames_off_still_masks_an_ip_after_the_at() {
+        // The name stays, but the IP host part masks by its own class,
+        // matching the live terminal (which scans the IP independently).
+        let no_users = PrivacyClasses { usernames: false, ..PrivacyClasses::default() };
+        assert_eq!(
+            redact_for_display("ssh deploy@8.8.8.8 now", &[], no_users),
+            format!("ssh deploy@{} now", mask_blocks("8.8.8.8"))
+        );
+        // A hostname after @ stays (that shape is the terms list's job).
+        assert_eq!(
+            redact_for_display("ssh deploy@web now", &[], no_users),
+            "ssh deploy@web now"
+        );
+        // Public-IPs also off: the IP after @ stays readable.
+        let none = PrivacyClasses { public_ips: false, private_ips: false, usernames: false };
+        assert_eq!(
+            redact_for_display("ssh deploy@8.8.8.8", &[], none),
+            "ssh deploy@8.8.8.8"
         );
     }
 

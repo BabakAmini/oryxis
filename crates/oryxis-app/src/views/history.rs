@@ -531,11 +531,27 @@ impl Oryxis {
             .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
             .and_then(crate::widgets::parse_hex_color)
             .unwrap_or(default_color);
+        // Privacy Mode: mask the connection label (its own row title AND
+        // the badge initials derived from it) plus the hostname below.
+        // The label routinely carries user@host or the hostname itself,
+        // so leaving it raw leaked exactly what the tab bar / status bar
+        // / dashboard already mask. Per-host override wins; a deleted
+        // host falls back to the global default; the Reveal toggle flips
+        // it off.
+        let mask = !self.privacy_revealed
+            && conn
+                .map(|c| self.privacy_active(c))
+                .unwrap_or_else(|| self.privacy_global_active());
+        let display_label: String = if mask {
+            crate::widgets::mask_blocks(row.label)
+        } else {
+            row.label.to_string()
+        };
         let glyph_el: Element<'_, Message> = glyph.view(14.0, Color::WHITE);
         let badge = crate::widgets::host_icon(
             icon_style,
             icon_color,
-            row.label,
+            &display_label,
             Some(glyph_el),
             28.0,
         );
@@ -580,14 +596,9 @@ impl Oryxis {
             ..Default::default()
         });
 
-        // Privacy Mode: mask the hostname (a known sensitive value) and
-        // scrub any IP / user@host inside a failure message. Per-host
-        // override wins; a deleted host falls back to the global default.
-        // The Reveal toggle in the toolbar / viewer flips it off.
-        let mask = !self.privacy_revealed
-            && conn
-                .map(|c| self.privacy_active(c))
-                .unwrap_or_else(|| self.privacy_global_active());
+        // Privacy Mode (`mask` computed above with the label): mask the
+        // hostname (a known sensitive value) and scrub any IP / user@host
+        // inside a failure message.
         let host_str = match row.hostname {
             Some(h) if mask => crate::widgets::mask_blocks(h),
             Some(h) => h.to_string(),
@@ -703,7 +714,7 @@ impl Oryxis {
                 Space::new().width(12).into(),
                 column![
                     crate::widgets::dir_row(vec![
-                        text(row.label)
+                        text(display_label)
                             .size(13)
                             .color(OryxisColors::t().text_primary)
                             .into(),
