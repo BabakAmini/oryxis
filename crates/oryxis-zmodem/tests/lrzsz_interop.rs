@@ -17,7 +17,9 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec, run};
+use oryxis_zmodem::{
+    DEFAULT_STREAMING_WINDOW, Direction, Progress, TransferIo, TransferSpec, run,
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 use tokio::sync::mpsc;
@@ -529,7 +531,10 @@ async fn upload_multiple_files_to_real_rz() {
     };
     let driver = tokio::spawn(run(
         Direction::Upload,
-        TransferSpec::Upload { sources },
+        TransferSpec::Upload {
+            sources,
+            streaming_window: DEFAULT_STREAMING_WINDOW,
+        },
         Vec::new(),
         io,
     ));
@@ -601,7 +606,10 @@ async fn upload_to_real_rz() {
     };
     let driver = tokio::spawn(run(
         Direction::Upload,
-        TransferSpec::Upload { sources: vec![src] },
+        TransferSpec::Upload {
+            sources: vec![src],
+            streaming_window: DEFAULT_STREAMING_WINDOW,
+        },
         Vec::new(),
         io,
     ));

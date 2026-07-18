@@ -65,6 +65,30 @@ const FILE_BUF_SIZE: usize = 256 * 1024;
 const RECV_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const RECV_SILENT_WINDOWS: u32 = 6;
 
+/// The sender's streaming window: subpackets pushed before it waits for
+/// a ZACK. Chosen by the caller per transport. On a reliable, possibly
+/// high-latency link (SSH, or Telnet over TCP) a wide window amortises
+/// the round trip and is what makes streaming fast. A byte-rate-limited
+/// serial line is the opposite case: a wide window just piles up ~1 MiB
+/// of in-flight data that takes minutes to drain, and the upload sits
+/// silent waiting for the ZACK the whole time, tripping the watchdog on
+/// a perfectly healthy transfer. Serial uses a small window instead; it
+/// costs almost no throughput there because a serial round trip is
+/// milliseconds, so the window barely needs to amortise anything.
+pub const DEFAULT_STREAMING_WINDOW: usize = 1024;
+pub const SERIAL_STREAMING_WINDOW: usize = 32;
+
+/// Upload watchdog. A slow serial line legitimately goes silent while a
+/// full streaming window drains, far longer than any fixed ceiling could
+/// safely allow, so the deadline adapts: the peer is declared gone only
+/// after `MARGIN` times the wall-clock the PREVIOUS window actually took.
+/// `MIN` floors it so a fast link (SSH) keeps a prompt dead-peer
+/// detection, and `BOOTSTRAP` covers the very first window, before any
+/// duration has been measured.
+const UPLOAD_WATCHDOG_MARGIN: u32 = 2;
+const UPLOAD_WATCHDOG_MIN: std::time::Duration = std::time::Duration::from_secs(60);
+const UPLOAD_WATCHDOG_BOOTSTRAP: std::time::Duration = std::time::Duration::from_secs(150);
+
 /// Hard ceiling for a download. An announced ZFILE size is enforced
 /// byte-for-byte below, but an unannounced one (`size == 0`) has no
 /// sender-supplied bound, so a hostile host could stream forever and fill
@@ -125,7 +149,13 @@ pub enum TransferSpec {
     /// advertised (sanitized) name.
     Download { dest_dir: PathBuf },
     /// Upload: send these local files, in order, in one session.
-    Upload { sources: Vec<PathBuf> },
+    /// `streaming_window` is the sender's in-flight subpacket window,
+    /// picked by the caller per transport (see [`DEFAULT_STREAMING_WINDOW`]
+    /// and [`SERIAL_STREAMING_WINDOW`]).
+    Upload {
+        sources: Vec<PathBuf>,
+        streaming_window: usize,
+    },
 }
 
 /// Progress and terminal outcome, streamed to the app.
@@ -605,12 +635,31 @@ impl UploadFile {
     }
 }
 
+/// How long the upload may wait for the next peer reply before declaring
+/// the peer gone, given how long the PREVIOUS window took to come back
+/// (`None` before the first one). Adapts to the link so a slow serial
+/// window is not mistaken for a dead peer, while a fast link keeps a
+/// prompt detection via the floor. Pure so the policy is unit-tested
+/// without driving a whole transfer.
+fn upload_watchdog_allowance(window_took: Option<std::time::Duration>) -> std::time::Duration {
+    window_took
+        .map(|d| {
+            d.saturating_mul(UPLOAD_WATCHDOG_MARGIN)
+                .max(UPLOAD_WATCHDOG_MIN)
+        })
+        .unwrap_or(UPLOAD_WATCHDOG_BOOTSTRAP)
+}
+
 async fn run_upload(
     spec: TransferSpec,
     first_wire: Vec<u8>,
     io: &mut TransferIo,
 ) -> Result<Outcome, String> {
-    let TransferSpec::Upload { sources } = spec else {
+    let TransferSpec::Upload {
+        sources,
+        streaming_window,
+    } = spec
+    else {
         return Err("upload driver given a non-upload spec".into());
     };
     if sources.is_empty() {
@@ -623,12 +672,15 @@ async fn run_upload(
 
     let mut sender = Sender::new().map_err(|e| format!("zmodem init: {e:?}"))?;
     // When the remote `rz` allows streaming (lrzsz advertises a zero
-    // buffer with CANOVIO), widen the default 10-subpacket window to
-    // 1024 (1 MiB between ZACK waits). Not usize::MAX: the wire-out
-    // channel is unbounded with no backpressure signal from the
-    // transport, so the periodic acknowledgement is what keeps at most
-    // ~1 MiB of file data in flight in memory on a slow link.
-    sender.set_streaming_window(1024);
+    // buffer with CANOVIO), widen the default 10-subpacket window to the
+    // caller's transport-appropriate size (subpackets between ZACK
+    // waits). Not usize::MAX: the wire-out channel is unbounded with no
+    // backpressure signal from the transport, so the periodic
+    // acknowledgement is what bounds how much file data is in flight in
+    // memory (and, on a serial line, keeps that in-flight window small
+    // enough that the upload watchdog below never mistakes a slow drain
+    // for a dead peer).
+    sender.set_streaming_window(streaming_window);
 
     let (index, first) = queue.next().expect("sources checked non-empty");
     let mut current = UploadFile::open(&first).await?;
@@ -654,7 +706,16 @@ async fn run_upload(
     let mut aborting = false;
     let mut finished = false;
     let mut last_progress = std::time::Instant::now();
-    let mut silent_windows: u32 = 0;
+    // Adaptive upload watchdog state. `wait_started` is set when the
+    // sender blocks for a peer reply and stays set (across however many
+    // wire deliveries a fragmented reply arrives in) until the sender
+    // actually RESUMES producing data; `window_took` is that measured
+    // drain-plus-ack duration of the last completed window, which sizes
+    // the deadline for the next wait. Keying off the sender's
+    // block->resume transition rather than raw wire arrivals keeps a
+    // fragmented ZACK from collapsing the measurement to milliseconds.
+    let mut window_took: Option<std::time::Duration> = None;
+    let mut wait_started: Option<std::time::Instant> = None;
     // Same peer-cancel watch as the download side: a remote `rz` that was
     // Ctrl-C'd sends the CAN run, which the fork ignores, so catch it here
     // and end the upload at once.
@@ -673,11 +734,20 @@ async fn run_upload(
         }
         match decode(sender.poll()) {
             Step::WriteWire(bytes) => {
+                // First productive step after a wait: the sender resumed,
+                // so the wait just ended. Record how long it took to size
+                // the next window's deadline.
+                if let Some(t) = wait_started.take() {
+                    window_took = Some(t.elapsed());
+                }
                 let n = bytes.len();
                 let _ = io.wire_out.send(bytes);
                 sender.wire_written(n);
             }
             Step::ReadFile { offset, max_len } => {
+                if let Some(t) = wait_started.take() {
+                    window_took = Some(t.elapsed());
+                }
                 let offset = u64::from(offset);
                 if offset != current.pos {
                     current
@@ -773,9 +843,21 @@ async fn run_upload(
                     if aborting {
                         return Ok(Outcome::Aborted);
                     }
+                    // Mark the start of the wait, but only on first entry:
+                    // a reply that arrives fragmented re-enters this branch
+                    // without the sender having resumed, and the clock must
+                    // keep running from the original block so the measured
+                    // window is the true drain time, not the gap between
+                    // fragments.
+                    if wait_started.is_none() {
+                        wait_started = Some(std::time::Instant::now());
+                    }
                     match tokio::time::timeout(RECV_TIMEOUT, io.wire_in.recv()).await {
                         Ok(Some(bytes)) => {
-                            silent_windows = 0;
+                            // Do not measure or clear `wait_started` here:
+                            // these bytes may be only part of the reply. The
+                            // window is timed when the sender actually
+                            // resumes (the WriteWire/ReadFile arms above).
                             if peer_cancelled(&mut peer_cancel_run, &bytes) {
                                 return Ok(Outcome::Aborted);
                             }
@@ -783,8 +865,17 @@ async fn run_upload(
                         }
                         Ok(None) => return Err("connection closed during transfer".into()),
                         Err(_) => {
-                            silent_windows += 1;
-                            if silent_windows >= RECV_SILENT_WINDOWS {
+                            // A slow serial window legitimately stays silent
+                            // while ~its worth of data drains, so allow up to
+                            // MARGIN times what the previous window took
+                            // (floored so a fast link keeps a prompt
+                            // dead-peer detection, BOOTSTRAP for the first
+                            // window before any measurement).
+                            let allowance = upload_watchdog_allowance(window_took);
+                            let waited = wait_started
+                                .map(|t| t.elapsed())
+                                .unwrap_or_default();
+                            if waited >= allowance {
                                 return Err("peer stopped responding".into());
                             }
                             // Re-queue the handshake volley if one is
@@ -916,6 +1007,38 @@ fn is_windows_reserved(stem: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The upload watchdog adapts to the link instead of a fixed 60 s
+    /// ceiling: a window that took longer than the old ceiling to come
+    /// back grants proportionally more silence next time (the serial
+    /// upload fix), while a fast link keeps a prompt floor and the first
+    /// window gets the bootstrap grant.
+    #[test]
+    fn upload_watchdog_allowance_adapts_to_the_link() {
+        use std::time::Duration;
+        // No measurement yet (first window): the bootstrap grant.
+        assert_eq!(
+            upload_watchdog_allowance(None),
+            UPLOAD_WATCHDOG_BOOTSTRAP
+        );
+        // A fast window stays at the floor, so a dead peer is still
+        // caught promptly on a quick link.
+        assert_eq!(
+            upload_watchdog_allowance(Some(Duration::from_millis(200))),
+            UPLOAD_WATCHDOG_MIN
+        );
+        // A slow serial window (100 s) that the old fixed 60 s ceiling
+        // would have killed now grants MARGIN times its own duration.
+        let slow = Duration::from_secs(100);
+        assert_eq!(
+            upload_watchdog_allowance(Some(slow)),
+            slow * UPLOAD_WATCHDOG_MARGIN
+        );
+        assert!(
+            upload_watchdog_allowance(Some(slow)) > Duration::from_secs(60),
+            "a healthy slow window must outlast the old fixed ceiling"
+        );
+    }
 
     #[test]
     fn sanitize_strips_path_traversal_and_separators() {
@@ -1177,7 +1300,10 @@ mod tests {
 
             let task = tokio::spawn(run(
                 Direction::Upload,
-                TransferSpec::Upload { sources: vec![src] },
+                TransferSpec::Upload {
+                    sources: vec![src],
+                    streaming_window: DEFAULT_STREAMING_WINDOW,
+                },
                 Vec::new(),
                 TransferIo {
                     wire_in,
@@ -1364,7 +1490,10 @@ mod tests {
 
             let up = tokio::spawn(run(
                 Direction::Upload,
-                TransferSpec::Upload { sources: vec![src.clone()] },
+                TransferSpec::Upload {
+                    sources: vec![src.clone()],
+                    streaming_window: DEFAULT_STREAMING_WINDOW,
+                },
                 Vec::new(),
                 TransferIo {
                     wire_in: down2up_rx,

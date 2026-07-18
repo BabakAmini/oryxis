@@ -60,16 +60,28 @@ impl Oryxis {
         // corrupts binary frames), so it gets the IAC-doubling-only raw
         // sender; serial's `write_sender` is already the raw, echo-free
         // wire path; an SSH PTY channel is 8-bit clean as-is.
-        let Some(wire_out) = self
+        let Some((wire_out, is_serial)) = self
             .pane_by_id(pane_id)
             .and_then(|p| p.session.as_ref())
-            .map(|s| match s {
-                TerminalTransport::Telnet(t) => t.raw_write_sender(),
-                other => other.write_sender(),
+            .map(|s| {
+                // Serial is byte-rate-limited: it needs a small streaming
+                // window so the upload watchdog never mistakes a slow drain
+                // for a dead peer (see the driver's window constants).
+                let is_serial = matches!(s, TerminalTransport::Serial(_));
+                let wire_out = match s {
+                    TerminalTransport::Telnet(t) => t.raw_write_sender(),
+                    other => other.write_sender(),
+                };
+                (wire_out, is_serial)
             })
         else {
             // No transport (local shell): nothing to run the protocol on.
             return Task::none();
+        };
+        let streaming_window = if is_serial {
+            oryxis_zmodem::SERIAL_STREAMING_WINDOW
+        } else {
+            oryxis_zmodem::DEFAULT_STREAMING_WINDOW
         };
 
         let (wire_tx, wire_in) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
@@ -137,6 +149,7 @@ impl Oryxis {
                                     .iter()
                                     .map(|h| h.path().to_path_buf())
                                     .collect(),
+                                streaming_window,
                             }),
                             _ => {
                                 // Declined: cancel the waiting remote `rz`
