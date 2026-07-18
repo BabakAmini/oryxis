@@ -1510,6 +1510,14 @@ impl Oryxis {
                 self.sftp.new_entry = None;
             }
             Message::SftpRowEnter(side, path, is_dir) => {
+                // With the right-click menu open, the pixels in the gaps
+                // between its items still sit over the list rows behind it,
+                // so a bare on_enter would light up a row under the menu.
+                // The list is inert while the menu is up (no drag is in
+                // flight then either), so ignore the hover entirely.
+                if self.sftp.row_menu.is_some() {
+                    return Ok(Task::none());
+                }
                 self.sftp.hovered_row = Some((side, path, is_dir));
                 // Promote a pending drag to active once the cursor reaches a
                 // row in the *other* pane. This is a secondary trigger: the
@@ -1770,6 +1778,14 @@ impl Oryxis {
                 // visible surface (standalone view OR a hybrid tab's Files
                 // mode), where the PTY byte routing is disabled.
                 if !self.sftp_surface_visible() {
+                    return Err(Message::KeyboardEvent(ke));
+                }
+                // While the right-click row context menu is open it owns the
+                // keyboard through the modal keynav router (arrows move its
+                // rows, Enter fires, Esc closes). Decline every key here so
+                // list nav / type-ahead / Ctrl+A don't steal them; this
+                // handler runs before the modal router in the chain.
+                if self.sftp.row_menu.is_some() {
                     return Err(Message::KeyboardEvent(ke));
                 }
                 // Consume the activation-swallow flag on the first keyboard
