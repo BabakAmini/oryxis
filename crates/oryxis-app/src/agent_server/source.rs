@@ -293,6 +293,13 @@ impl VaultKeySource {
                 None => v.open_without_password().is_ok(),
             };
             if ok {
+                // Sweep again before reopening the gate: an `add` that
+                // read `locked == false` just before `lock()` flipped it
+                // could have inserted its key AFTER `lock()`'s clear (the
+                // gate check is outside the ephemeral mutex). That key is
+                // invisible while locked but would resurface here; clear
+                // it so "swept on lock" holds across the race window.
+                self.ephemeral.clear();
                 self.locked.store(false, std::sync::atomic::Ordering::SeqCst);
             }
         }

@@ -80,6 +80,12 @@ async fn run_plugin(
     if out.status.success() {
         return Ok(());
     }
+    // A non-zero exit may leave a truncated .gif at the destination. The
+    // plugin deletes its own partial on a render error, but a process
+    // killed by a signal / OOM never reaches that cleanup, so sweep it
+    // here too: the user picked this path, and a half-written GIF sitting
+    // next to the error toast is worse than none.
+    let _ = tokio::fs::remove_file(output).await;
     // The plugin prints a single `oryxis-gif: <cause>` line on stderr;
     // surface its last non-empty line so agg's root cause reaches the
     // toast instead of a bare exit code.

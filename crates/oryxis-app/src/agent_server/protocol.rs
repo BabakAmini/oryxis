@@ -179,9 +179,13 @@ fn add_identity<K: AgentKeySource>(
     let Ok(keypair) = KeypairData::decode(&mut reader) else {
         return failure();
     };
-    let Ok(comment) = String::decode(&mut reader) else {
+    // The comment is opaque bytes to OpenSSH; a non-UTF-8 comment (a
+    // legacy-encoded name from ssh-add) must not sink the whole add.
+    // Decode the length-prefixed bytes and lossy-convert for display.
+    let Ok(comment_bytes) = Vec::<u8>::decode(&mut reader) else {
         return failure();
     };
+    let comment = String::from_utf8_lossy(&comment_bytes).into_owned();
 
     let mut requires_confirm = false;
     let mut lifetime_secs: Option<u32> = None;
