@@ -137,10 +137,45 @@ pub(crate) fn pty_bytes(
         return key_to_named_bytes(press.key, &mods, app_cursor, quirks);
     }
 
-    // Ctrl+Shift+<key> is not a shell control sequence; the clipboard
-    // trio lives here by convention and was already consumed upstream by
-    // the hotkey table or the widget, like any other registered chord.
+    // Ctrl+Shift + a cursor / editing / function key gets the xterm
+    // modified-key sequence every real terminal sends (Ctrl+Shift+Left =
+    // ESC[1;6D; param 6 = base 1 + shift 1 + ctrl 4), so a TUI that reads
+    // modifiers sees the combo instead of nothing. Any Ctrl+Shift chord
+    // bound to an app action (the clipboard trio, palette, files, ...)
+    // was already consumed upstream by the hotkey table / widget, so a
+    // Ctrl+Shift press that reaches here is unbound. Everything else under
+    // Ctrl+Shift (letters, Enter, Tab, Space, Backspace, Escape) is not a
+    // terminal sequence and stays swallowed, as before.
     if mods.control() && mods.shift() {
+        if matches!(
+            press.key,
+            keyboard::Key::Named(
+                keyboard::key::Named::ArrowUp
+                    | keyboard::key::Named::ArrowDown
+                    | keyboard::key::Named::ArrowLeft
+                    | keyboard::key::Named::ArrowRight
+                    | keyboard::key::Named::Home
+                    | keyboard::key::Named::End
+                    | keyboard::key::Named::PageUp
+                    | keyboard::key::Named::PageDown
+                    | keyboard::key::Named::Insert
+                    | keyboard::key::Named::Delete
+                    | keyboard::key::Named::F1
+                    | keyboard::key::Named::F2
+                    | keyboard::key::Named::F3
+                    | keyboard::key::Named::F4
+                    | keyboard::key::Named::F5
+                    | keyboard::key::Named::F6
+                    | keyboard::key::Named::F7
+                    | keyboard::key::Named::F8
+                    | keyboard::key::Named::F9
+                    | keyboard::key::Named::F10
+                    | keyboard::key::Named::F11
+                    | keyboard::key::Named::F12
+            )
+        ) {
+            return key_to_named_bytes(press.key, &mods, app_cursor, quirks);
+        }
         return None;
     }
 
@@ -608,6 +643,40 @@ mod tests {
     fn ctrl_shift_chords_are_swallowed() {
         let p = Press::ch("c").mods(Modifiers::CTRL.union(Modifiers::SHIFT));
         assert_eq!(p.on(Platform::Linux), None);
+    }
+
+    #[test]
+    fn ctrl_shift_named_keys_emit_the_xterm_modified_sequence() {
+        // Cursor / editing / function keys under Ctrl+Shift are now
+        // normalized to the param-6 form real terminals send, instead of
+        // being swallowed. (The encoder-level form is covered by
+        // `modified_arrows_use_xterm_parameter_and_stay_csi`; this checks
+        // the end-to-end pty_bytes path that used to drop them.)
+        //
+        // NOTE the arrows are DEFAULT-bound to FocusPane* (terminal_only),
+        // so under stock bindings Ctrl+Shift+Left is consumed by the hotkey
+        // router upstream and never reaches pty_bytes; this asserts the
+        // unit behaviour that applies once those chords are rebound/freed.
+        // Home / PageUp / etc. have no Ctrl+Shift default, so they reach
+        // the PTY as-is.
+        let cs = Modifiers::CTRL.union(Modifiers::SHIFT);
+        assert_eq!(
+            Press::named(Named::ArrowLeft).mods(cs).on(Platform::Linux).unwrap(),
+            b"\x1b[1;6D"
+        );
+        assert_eq!(
+            Press::named(Named::PageUp).mods(cs).on(Platform::Linux).unwrap(),
+            b"\x1b[5;6~"
+        );
+        assert_eq!(
+            Press::named(Named::Home).mods(cs).on(Platform::Linux).unwrap(),
+            b"\x1b[1;6H"
+        );
+        // Non-sequence keys under Ctrl+Shift stay swallowed: characters
+        // (the clipboard trio / hotkeys) and Enter / Tab / Space.
+        assert_eq!(Press::ch("c").mods(cs).on(Platform::Linux), None);
+        assert_eq!(Press::named(Named::Enter).mods(cs).on(Platform::Linux), None);
+        assert_eq!(Press::named(Named::Space).mods(cs).on(Platform::Linux), None);
     }
 
     #[test]

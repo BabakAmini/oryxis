@@ -109,9 +109,11 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **International keyboards done right.** AltGr-composed characters (the
   bepo `_`, the German `@`, `{`, `[`) reach the shell as text on every
   platform instead of being eaten as control chords, and Ctrl+Space sends
-  NUL. On macOS the Option key composes characters like every native
-  terminal, with a per-host "Option as Meta" override (off / left / right /
-  both) for readline and emacs users.
+  NUL. Ctrl+Shift with a cursor, editing or function key sends the xterm
+  modified sequence (`ESC[1;6D` for Ctrl+Shift+Left) like a real terminal,
+  so modifier-aware TUIs see the combo. On macOS the Option key composes
+  characters like every native terminal, with a per-host "Option as Meta"
+  override (off / left / right / both) for readline and emacs users.
 - **System mono font enumeration**, configurable font size (10-24px,
   `Ctrl + = / - / 0`), bold-to-bright colors, scrollback reset on keypress
   and/or output, and an opt-in performance HUD (frame time vs budget, RTT
