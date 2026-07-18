@@ -230,15 +230,27 @@ impl Default for PrivacyClasses {
 /// link-local (`fe80::/10`) or a unique-local address (`fc00::/7`).
 /// The counterpart of [`ipv4_is_private_or_loopback`] for the
 /// private-IPs privacy class.
+///
+/// Parses the address rather than matching text prefixes: the prefix
+/// form misclassified short hextets (`fe8::` is the group `0fe8`, a
+/// GLOBAL address, not `fe80::/10`; `fc::` is `00fc`, not `fc00::/7`)
+/// and missed an uncompressed loopback (`0:0:0:0:0:0:0:1`). A privacy
+/// class deciding what to mask must get the range right.
 pub fn ipv6_is_local(s: &str) -> bool {
-    let l = s.to_ascii_lowercase();
-    l == "::1"
-        || l.starts_with("fe8")
-        || l.starts_with("fe9")
-        || l.starts_with("fea")
-        || l.starts_with("feb")
-        || l.starts_with("fc")
-        || l.starts_with("fd")
+    // Strip a `[...]` wrapper and a `%zone` suffix the scanner may
+    // include before parsing the address itself.
+    let core = s.trim().trim_start_matches('[').trim_end_matches(']');
+    let core = core.split('%').next().unwrap_or(core);
+    let Ok(addr) = core.parse::<std::net::Ipv6Addr>() else {
+        return false;
+    };
+    if addr.is_loopback() {
+        return true;
+    }
+    let seg0 = addr.segments()[0];
+    // link-local fe80::/10 (top 10 bits 1111111010) or unique-local
+    // fc00::/7 (top 7 bits 1111110).
+    (seg0 & 0xffc0) == 0xfe80 || (seg0 & 0xfe00) == 0xfc00
 }
 
 /// Scan row text for IPv4/IPv6 addresses, URLs, and Unix file paths (no
@@ -1154,6 +1166,30 @@ pub(crate) fn smart_span_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ipv6_local_classification_uses_real_ranges() {
+        // Loopback in both forms.
+        assert!(ipv6_is_local("::1"));
+        assert!(ipv6_is_local("0:0:0:0:0:0:0:1"));
+        // Genuine link-local / ULA.
+        assert!(ipv6_is_local("fe80::1"));
+        assert!(ipv6_is_local("febf::abcd"));
+        assert!(ipv6_is_local("fc00::1"));
+        assert!(ipv6_is_local("fd12:3456::1"));
+        assert!(ipv6_is_local("[fe80::1]"));
+        assert!(ipv6_is_local("fe80::1%eth0"));
+        // Short hextets that the old prefix check wrongly called local:
+        // fe8 = 0fe8 (global), fc = 00fc (global).
+        assert!(!ipv6_is_local("fe8::1"));
+        assert!(!ipv6_is_local("fc::1"));
+        // fec0::/10 (site-local, deprecated) is NOT fe80::/10.
+        assert!(!ipv6_is_local("fec0::1"));
+        // Global and mapped-public stay public.
+        assert!(!ipv6_is_local("2001:db8::1"));
+        assert!(!ipv6_is_local("::ffff:8.8.8.8"));
+        assert!(!ipv6_is_local("not-an-address"));
+    }
 
     fn rows_from(s: &str) -> Vec<(u16, Vec<(u16, char)>)> {
         vec![(
