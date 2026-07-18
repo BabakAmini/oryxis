@@ -225,6 +225,17 @@ impl AgentRuntime {
 
 impl Drop for AgentRuntime {
     fn drop(&mut self) {
+        // Aborting the accept task(s) only stops NEW connections. The
+        // per-connection tasks are detached and each holds a clone of
+        // `source`; without this they would keep listing and signing
+        // with vault keys after the feature is toggled off (or a
+        // settings restart drops this runtime), invisibly if `confirm`
+        // is off. Locking the source flips the shared gate every
+        // sign/list/add checks and sweeps ephemeral keys, so those
+        // survivors go dark immediately. Safe across a stop+start
+        // restart: `spawn` always builds a fresh `source`, so the new
+        // runtime is unaffected by locking this old one.
+        self.source.lock();
         for task in &self.tasks {
             task.abort();
         }
