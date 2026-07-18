@@ -82,6 +82,10 @@ pub(crate) fn sftp_drag_ghost<'a>(
     label: String,
     compact: bool,
     width: f32,
+    // Ungated host brand for the badge (survives `tab_accent_color =
+    // "app"`), like the live SFTP tab.
+    badge_accent: Color,
+    // Gated accent for the label / outline only.
     accent: Color,
     // `tab_accent_text` setting: mirrors `drag_ghost`.
     accent_text: bool,
@@ -94,7 +98,7 @@ pub(crate) fn sftp_drag_ghost<'a>(
         .center_x(Length::Fixed(TAB_ICON_SLOT))
         .center_y(Length::Fixed(TAB_ICON_SLOT))
         .style(move |_| container::Style {
-            background: Some(Background::Color(accent)),
+            background: Some(Background::Color(badge_accent)),
             border: Border { radius: Radius::from(4.0), ..Default::default() },
             ..Default::default()
         });

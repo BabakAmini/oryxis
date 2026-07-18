@@ -96,6 +96,13 @@ pub(crate) fn sftp_session_tab<'a>(
     label: &str,
     is_active: bool,
     width: f32,
+    // The mounted host's brand colour, NOT gated by `tab_accent_color`:
+    // the folder badge always carries the host identity (matching the
+    // terminal tabs' OS badge) even when the accent source is pinned to
+    // the app. Falls back to the app accent for a no-host tab.
+    badge_accent: Color,
+    // The gated accent (None when `tab_accent_color = "app"`): drives the
+    // text, border and gradient wash only.
     host_accent: Option<Color>,
     // `tab_accent_text` setting: when false the label / close X render
     // in the theme's neutral text colours instead of the host accent.
@@ -103,12 +110,13 @@ pub(crate) fn sftp_session_tab<'a>(
     pinned: bool,
     solid_fill: bool,
 ) -> Element<'a, Message> {
-    // The raw host colour fills the badge (white glyph on top stays
-    // legible); the contrast-validated variant (issue #79) is what may
-    // render as text, border and gradient wash over the strip.
-    let badge_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
-    let effective_accent =
-        crate::theme::readable_accent_on(badge_accent, OryxisColors::t().bg_sidebar);
+    // The contrast-validated (issue #79) gated accent is what may render
+    // as text, border and gradient wash over the strip; the raw brand
+    // colour fills the badge (white glyph on top stays legible).
+    let effective_accent = crate::theme::readable_accent_on(
+        host_accent.unwrap_or_else(|| OryxisColors::t().accent),
+        OryxisColors::t().bg_sidebar,
+    );
     let active_fg = if accent_text {
         effective_accent
     } else {
@@ -212,22 +220,23 @@ pub(crate) fn sftp_session_tab<'a>(
 /// Compact (Chrome-style) pinned SFTP tab: icon-only folder chip at a fixed
 /// width. Select on click, right-click opens the context menu. Mirrors
 /// `pinned_tab_chip` for the SFTP side.
-pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, host_accent: Option<Color>, solid_fill: bool) -> Element<'a, Message> {
-    let accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
-    // Folder glyph (SFTP identity) tinted with the host color.
+pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Color, host_accent: Option<Color>, solid_fill: bool) -> Element<'a, Message> {
+    // Folder glyph (SFTP identity) tinted with the host brand, ungated so
+    // the identity survives `tab_accent_color = "app"`.
     let badge = container(iced_fonts::lucide::folder_tree().size(12).color(Color::WHITE))
         .center_x(Length::Fixed(TAB_ICON_SLOT))
         .center_y(Length::Fixed(TAB_ICON_SLOT))
         .style(move |_| container::Style {
-            background: Some(Background::Color(accent)),
+            background: Some(Background::Color(badge_accent)),
             border: Border { radius: Radius::from(4.0), ..Default::default() },
             ..Default::default()
         });
     // Contrast-validated (issue #79) so a black brand colour still
     // produces a visible "lit from above" active wash on dark themes.
+    let wash_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
     let bg: Background = if is_active {
         active_tab_bg(
-            crate::theme::readable_accent_on(accent, OryxisColors::t().bg_sidebar),
+            crate::theme::readable_accent_on(wash_accent, OryxisColors::t().bg_sidebar),
             solid_fill,
         )
     } else {

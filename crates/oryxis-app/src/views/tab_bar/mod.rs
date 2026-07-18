@@ -369,18 +369,23 @@ impl Oryxis {
                 // `tab_accent_color = "app"` pins the accent to the global
                 // one: skip the whole per-host derivation (None falls back
                 // to the app accent downstream).
-                let host_accent = self.host_accent_enabled().then(|| {
-                    self.connections
-                        .iter()
-                        .find(|c| c.label == tab.label)
-                        .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
-                        .and_then(crate::widgets::parse_hex_color)
-                        .or_else(|| {
-                            detected_os.as_deref().map(|os| {
-                                crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
-                            })
+                // The host brand colour (custom or OS), derived ONCE and
+                // ungated: the folder badge always shows it (host
+                // identity is the badge's job, like the terminal OS
+                // badge). `tab_accent_color = "app"` only pins the gated
+                // accent that drives text / wash / border.
+                let brand = self.connections
+                    .iter()
+                    .find(|c| c.label == tab.label)
+                    .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
+                    .and_then(crate::widgets::parse_hex_color)
+                    .or_else(|| {
+                        detected_os.as_deref().map(|os| {
+                            crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
                         })
-                }).flatten();
+                    });
+                let badge_accent = brand.unwrap_or_else(|| OryxisColors::t().accent);
+                let host_accent = self.host_accent_enabled().then_some(brand).flatten();
                 // Privacy Mode redacts the rendered label (issue #78);
                 // hovering the tab reveals it, mirroring the card
                 // address. The width is computed from the same string
@@ -415,9 +420,9 @@ impl Oryxis {
                     let gap_w = if compact_pins && tab.pinned { CHIP_W } else { width };
                     tab_items.push(Space::new().width(gap_w).height(TAB_HEIGHT).into());
                 } else if compact_pins && tab.pinned {
-                    tab_items.push(sftp_pinned_chip(idx, is_active, host_accent, solid_fill));
+                    tab_items.push(sftp_pinned_chip(idx, is_active, badge_accent, host_accent, solid_fill));
                 } else {
-                    tab_items.push(sftp_session_tab(idx, &display_label, is_active, width, host_accent, self.setting_tab_accent_text, tab.pinned, solid_fill));
+                    tab_items.push(sftp_session_tab(idx, &display_label, is_active, width, badge_accent, host_accent, self.setting_tab_accent_text, tab.pinned, solid_fill));
                 }
                 continue;
             }
@@ -877,18 +882,24 @@ impl Oryxis {
                 ))
             } else if let Some(sftp_tab) = self.sftp_tabs.iter().find(|t| t.id == drag.from_id) {
                 let detected_os = self.tab_detected_os(&sftp_tab.label);
-                let accent = self.host_accent_enabled().then(|| {
-                    self.connections
-                        .iter()
-                        .find(|c| c.label == sftp_tab.label)
-                        .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
-                        .and_then(crate::widgets::parse_hex_color)
-                        .or_else(|| {
-                            detected_os.as_deref().map(|os| {
-                                crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
-                            })
+                let brand = self.connections
+                    .iter()
+                    .find(|c| c.label == sftp_tab.label)
+                    .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
+                    .and_then(crate::widgets::parse_hex_color)
+                    .or_else(|| {
+                        detected_os.as_deref().map(|os| {
+                            crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
                         })
-                }).flatten().unwrap_or_else(|| OryxisColors::t().accent);
+                    });
+                // Badge keeps the brand ungated; the label/outline accent
+                // honours `tab_accent_color`.
+                let badge_accent = brand.unwrap_or_else(|| OryxisColors::t().accent);
+                let accent = self
+                    .host_accent_enabled()
+                    .then_some(brand)
+                    .flatten()
+                    .unwrap_or_else(|| OryxisColors::t().accent);
                 let compact = sftp_tab.pinned && compact_pins;
                 let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
                 Some((
@@ -900,6 +911,7 @@ impl Oryxis {
                         ),
                         compact,
                         ghost_w,
+                        badge_accent,
                         accent,
                         self.setting_tab_accent_text,
                     ),

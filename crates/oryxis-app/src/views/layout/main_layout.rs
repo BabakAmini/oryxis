@@ -62,7 +62,15 @@ impl Oryxis {
         // connection screens so settings / dashboard don't look like
         // they belong to whichever host happened to be open last.
         let accent_tint: Option<Color> = if self.setting_tab_accent_line {
-            Some(self.top_accent_tint())
+            // Run the host colour through the same contrast validator the
+            // tab text uses: a near-background brand (AlmaLinux black on a
+            // dark theme, a pale one on a light theme) would paint an
+            // invisible line, which reads as "the setting is broken", the
+            // exact #79 class this line belongs to.
+            Some(crate::theme::readable_accent_on(
+                self.top_accent_tint(),
+                OryxisColors::t().bg_sidebar,
+            ))
         } else {
             None
         };
