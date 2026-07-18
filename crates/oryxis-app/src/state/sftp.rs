@@ -303,6 +303,12 @@ pub(crate) struct SftpState {
     /// navigation so the cursor follows the move; consumed by the load
     /// handler (remote loads are async, so it can't be applied inline).
     pub pending_focus: Option<(SftpPaneSide, SftpPendingFocus)>,
+    /// Screen-space bounds of the row (or the `..` parent row) that holds
+    /// the keyboard cursor in the focused pane, written every frame by a
+    /// `bounds_reporter` wrapper around that one row. Read when the Menu
+    /// key / Shift+F10 opens the row context menu so it anchors on the
+    /// focused row instead of the (irrelevant) mouse position.
+    pub focus_row_bounds: crate::widgets::BoundsCell,
 }
 
 /// The keyboard cursor target to apply after a directory listing loads.
@@ -377,6 +383,7 @@ impl Default for SftpState {
             parent_cursor: false,
             suppress_hover: false,
             pending_focus: None,
+            focus_row_bounds: crate::widgets::new_bounds_cell(),
         }
     }
 }

@@ -496,6 +496,96 @@ impl Oryxis {
         Task::none()
     }
 
+    /// Open the row context menu on the keyboard-focused row (the Menu key
+    /// / Shift+F10), anchored on that row's on-screen bounds rather than
+    /// the mouse. The keyboard peer of a right-click: a focused entry opens
+    /// its row menu, the `..` cursor opens the pane's background menu, and
+    /// with neither focused (fresh pane, nothing selected) it is a no-op.
+    pub(crate) fn sftp_open_focus_row_menu(&mut self) -> Task<Message> {
+        let side = self.sftp.focused_side;
+        // Both the focused entry and the `..` row report their bounds via a
+        // `bounds_reporter`, so this is the last-drawn cursor rect. Anchor
+        // just inside the leading edge and drop from the bottom so the menu
+        // opens below the row, like a right-click at that spot.
+        let bounds = self.sftp.focus_row_bounds.get();
+        let x = bounds.x + 8.0;
+        let y = bounds.y + bounds.height;
+        let target = self
+            .sftp
+            .selected_rows
+            .last()
+            .filter(|(s, _)| *s == side)
+            .map(|(_, p)| p.clone());
+        if let Some(path) = target {
+            let is_dir = self.sftp_entry_is_dir(side, &path);
+            self.sftp.row_menu = Some(crate::state::SftpRowMenu {
+                side,
+                path,
+                is_dir,
+                is_background: false,
+                x,
+                y,
+            });
+        } else if self.sftp.parent_cursor {
+            // Cursor on ".." : the pane-level (background) menu, whose
+            // `path` carries the pane's current directory.
+            let pane = self.sftp.pane(side);
+            let dir = if pane.is_remote {
+                pane.remote_path.clone()
+            } else {
+                pane.local_path.to_string_lossy().into_owned()
+            };
+            self.sftp.row_menu = Some(crate::state::SftpRowMenu {
+                side,
+                path: dir,
+                is_dir: true,
+                is_background: true,
+                x,
+                y,
+            });
+        } else {
+            // No entry selected and not on ".." : nothing to anchor on.
+            return Task::none();
+        }
+        // The keypress is consumed here and never reaches the modal keynav
+        // router, so prime its keyboard-visible state and default selection
+        // directly: a menu opened by a key should ring row 0 at once, not
+        // after a warm-up arrow press.
+        self.keynav.modal.kbd.set(true);
+        self.keynav.modal.selected = Some((crate::keynav::ModalSurface::SftpRowMenu, 0));
+        Task::none()
+    }
+
+    /// Whether the focused-pane entry at `path` is a directory, matching
+    /// the exact full-path construction the rows were built with so a
+    /// keyboard-opened menu shows the same action set a right-click would.
+    /// Mirrors the rows' raw `is_dir`, where a symlink reports `false`.
+    fn sftp_entry_is_dir(&self, side: crate::state::SftpPaneSide, path: &str) -> bool {
+        let pane = self.sftp.pane(side);
+        if pane.is_remote {
+            let base = pane.remote_path.trim_end_matches('/');
+            pane.remote_entries
+                .iter()
+                .find_map(|e| {
+                    let full = if base.is_empty() {
+                        format!("/{}", e.name)
+                    } else {
+                        format!("{base}/{}", e.name)
+                    };
+                    (full == path).then_some(e.is_dir)
+                })
+                .unwrap_or(false)
+        } else {
+            pane.local_entries
+                .iter()
+                .find_map(|e| {
+                    (pane.local_path.join(&e.name).to_string_lossy() == path)
+                        .then_some(e.is_dir)
+                })
+                .unwrap_or(false)
+        }
+    }
+
     /// Rough hit-test for "is the cursor inside the remote pane?". Used
     /// at file-drop time to decide whether the OS drop targets the remote
     /// upload path. The panes split the content area 50/50 so we just

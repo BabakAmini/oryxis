@@ -576,14 +576,23 @@ impl Oryxis {
             if pane.local_path.parent().is_some() {
                 let parent_selected =
                     self.sftp.parent_cursor && self.sftp.focused_side == side;
-                col = col.push(parent_row(
+                let prow = parent_row(
                     side,
                     parent_selected,
                     self.sftp.suppress_hover,
                     &ordered_cols,
                     col_widths,
                     layout,
-                ));
+                );
+                // Report the `..` row's bounds while it holds the keyboard
+                // cursor so the Menu key / Shift+F10 can anchor the pane's
+                // background menu on it.
+                let prow = if parent_selected {
+                    crate::widgets::bounds_reporter(prow, self.sftp.focus_row_bounds.clone())
+                } else {
+                    prow
+                };
+                col = col.push(prow);
             }
             if let Some(err) = &pane.error {
                 // Keep the ".." row above so a permission-denied (or any
@@ -606,6 +615,18 @@ impl Oryxis {
                     .filter(|(s, _)| *s == side)
                     .map(|(_, p)| p.as_str())
                     .collect();
+                // The keyboard cursor is the last selected row in the
+                // focused pane; that one row reports its bounds for the
+                // Menu-key anchor.
+                let focus_path: Option<String> = if self.sftp.focused_side == side {
+                    self.sftp
+                        .selected_rows
+                        .last()
+                        .filter(|(s, _)| *s == side)
+                        .map(|(_, p)| p.clone())
+                } else {
+                    None
+                };
                 // Tint a local folder row that's the drop target while
                 // a cross-pane internal drag is in flight.
                 let internal_cross_pane = self
@@ -633,7 +654,8 @@ impl Oryxis {
                             .hovered_row
                             .as_ref()
                             .is_some_and(|(s, p, _)| *s == side && p == &path_str);
-                    col = col.push(file_row_local(
+                    let is_focus = focus_path.as_deref() == Some(path_str.as_str());
+                    let row_el = file_row_local(
                         side,
                         entry.name.clone(),
                         entry.is_dir,
@@ -650,7 +672,16 @@ impl Oryxis {
                         &ordered_cols,
                         col_widths,
                         layout,
-                    ));
+                    );
+                    let row_el = if is_focus {
+                        crate::widgets::bounds_reporter(
+                            row_el,
+                            self.sftp.focus_row_bounds.clone(),
+                        )
+                    } else {
+                        row_el
+                    };
+                    col = col.push(row_el);
                 }
             }
             sftp_list_scrollable(
@@ -750,14 +781,21 @@ impl Oryxis {
             if pane.remote_path != "/" && !pane.remote_path.is_empty() {
                 let parent_selected =
                     self.sftp.parent_cursor && self.sftp.focused_side == side;
-                col = col.push(parent_row(
+                let prow = parent_row(
                     side,
                     parent_selected,
                     self.sftp.suppress_hover,
                     &ordered_cols,
                     col_widths,
                     layout,
-                ));
+                );
+                // Anchor for the Menu key when the `..` row is the cursor.
+                let prow = if parent_selected {
+                    crate::widgets::bounds_reporter(prow, self.sftp.focus_row_bounds.clone())
+                } else {
+                    prow
+                };
+                col = col.push(prow);
             }
             // Same per-pane invariants as the local branch, hoisted out
             // of the entry loop: rename state, the selected paths as a
@@ -770,6 +808,16 @@ impl Oryxis {
                 .filter(|(s, _)| *s == side)
                 .map(|(_, p)| p.as_str())
                 .collect();
+            // Keyboard cursor for the Menu-key anchor (focused pane only).
+            let focus_path: Option<String> = if self.sftp.focused_side == side {
+                self.sftp
+                    .selected_rows
+                    .last()
+                    .filter(|(s, _)| *s == side)
+                    .map(|(_, p)| p.clone())
+            } else {
+                None
+            };
             let parent = pane.remote_path.trim_end_matches('/');
             let internal_cross_pane = self
                 .sftp
@@ -800,7 +848,8 @@ impl Oryxis {
                         .as_ref()
                         .is_some_and(|(s, p, _)| *s == side && p == &full);
                 let is_selected = selected_paths.contains(full.as_str());
-                col = col.push(file_row_remote(
+                let is_focus = focus_path.as_deref() == Some(full.as_str());
+                let row_el = file_row_remote(
                     side,
                     entry.name.clone(),
                     entry.is_dir,
@@ -818,7 +867,13 @@ impl Oryxis {
                     &ordered_cols,
                     col_widths,
                     layout,
-                ));
+                );
+                let row_el = if is_focus {
+                    crate::widgets::bounds_reporter(row_el, self.sftp.focus_row_bounds.clone())
+                } else {
+                    row_el
+                };
+                col = col.push(row_el);
             }
             sftp_list_scrollable(
                 col,

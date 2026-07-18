@@ -1894,6 +1894,17 @@ impl Oryxis {
                         Named::ArrowLeft => return Ok(self.sftp_focus_parent()),
                         // Tab switches the focused pane.
                         Named::Tab => return Ok(self.sftp_toggle_pane_focus()),
+                        // The dedicated Menu key (and Shift+F10, its
+                        // keyboard equivalent on boards without one) opens
+                        // the row context menu on the focused row, the
+                        // keyboard peer of a right-click. Plain F10 keeps
+                        // falling through to the PTY.
+                        Named::ContextMenu => {
+                            return Ok(self.sftp_open_focus_row_menu());
+                        }
+                        Named::F10 if modifiers.shift() => {
+                            return Ok(self.sftp_open_focus_row_menu());
+                        }
                         _ => {}
                     }
                 }
