@@ -65,11 +65,56 @@ const FILE_BUF_SIZE: usize = 256 * 1024;
 const RECV_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const RECV_SILENT_WINDOWS: u32 = 6;
 
+/// Hard ceiling for a download whose ZFILE announced no size (`size == 0`):
+/// an announced size is already enforced byte-for-byte below, but an
+/// unannounced one has no sender-supplied bound, so a hostile host could
+/// stream forever and fill the disk. `zmodem2`'s file position is a `u32`,
+/// so it wraps past 4 GiB regardless; capping just under that both blocks
+/// the disk-fill and stops the fork's position from overflowing. It is a
+/// protocol ceiling, not a product setting: a real unannounced transfer
+/// that legitimately needs >4 GiB cannot be expressed in this ZMODEM
+/// implementation anyway.
+const MAX_UNANNOUNCED_DOWNLOAD: u64 = u32::MAX as u64;
+
 /// Suffix for in-flight downloads. The finished file only appears
 /// under its real name once complete (FileDone renames it), and a
 /// leftover part file after a crash, cancel or disconnect is the
 /// anchor the next transfer of the same file resumes from.
 pub const PART_SUFFIX: &str = ".oryxis-part";
+
+/// The `CAN` byte (0x18, also ZDLE). A run of these on the wire is the
+/// lrzsz cancel a remote `sz`/`rz` sends when the user Ctrl-C's it.
+const CAN: u8 = 0x18;
+
+/// How many consecutive raw `CAN` bytes count as a peer cancel. `zmodem2`
+/// does not act on the cancel race (its framer only leaves Idle on ZPAD),
+/// so we detect it ourselves before feeding the fork. A literal 0x18 in
+/// file data is always ZDLE-escaped (`0x18 0x58`) and every header /
+/// subpacket puts a non-0x18 type byte right after its single leading
+/// ZDLE, so an unescaped run of 0x18 on the wire can only be a deliberate
+/// cancel. lrzsz's own receiver fires at 5 (our own [`crate::CANCEL`]
+/// sends 8), so 5 catches a real peer promptly without waiting out the
+/// silent-window watchdog (~60 s).
+const PEER_CANCEL_RUN: u8 = 5;
+
+/// Scan a freshly received wire chunk for the lrzsz cancel sequence,
+/// carrying the trailing `CAN` run in `run` so a cancel split across two
+/// reads is still caught. Runs on RAW wire bytes only (before they reach
+/// the fork's framer), which is what makes the unescaped-run test sound.
+/// Returns `true` once the run reaches [`PEER_CANCEL_RUN`].
+fn peer_cancelled(run: &mut u8, bytes: &[u8]) -> bool {
+    for &b in bytes {
+        if b == CAN {
+            *run = run.saturating_add(1);
+            if *run >= PEER_CANCEL_RUN {
+                return true;
+            }
+        } else {
+            *run = 0;
+        }
+    }
+    false
+}
 
 /// Where a transfer's bytes come from / go to. Chosen by the caller up
 /// front (see the no-blocking-dialogs note above).
@@ -223,6 +268,13 @@ async fn run_download(
     // Consecutive RECV_TIMEOUT windows with no wire bytes; reset on any
     // data. Bounds how long a vanished peer can park the receive loop.
     let mut silent_windows: u32 = 0;
+    // Trailing run of raw CAN bytes, carried across reads so a remote
+    // `sz` that was Ctrl-C'd ends the transfer at once instead of parking
+    // the diverted pane until the silent-window watchdog trips.
+    let mut peer_cancel_run: u8 = 0;
+    if peer_cancelled(&mut peer_cancel_run, &pending) {
+        return Ok(Outcome::Aborted);
+    }
     let mut last_progress = std::time::Instant::now();
 
     loop {
@@ -246,15 +298,23 @@ async fn run_download(
                 // violation, not a valid transfer. Reject it when the size
                 // is known: this bounds an auto-armed download against a
                 // hostile host trying to overrun the disk, and keeps the
-                // fork's u32 file position from wrapping past 4 GiB. An
-                // unannounced size (`total == None`) has no ceiling to
-                // check here.
+                // fork's u32 file position from wrapping past 4 GiB.
+                let after = transferred.saturating_add(n as u64);
                 if let Some(t) = total
                     && t > 0
-                    && transferred.saturating_add(n as u64) > t
                 {
+                    if after > t {
+                        return Err(format!(
+                            "sender exceeded the advertised size ({t} bytes); aborting"
+                        ));
+                    }
+                } else if after > MAX_UNANNOUNCED_DOWNLOAD {
+                    // No advertised size (`total` is None or 0): fall back to
+                    // the protocol ceiling so an unbounded hostile stream
+                    // can't fill the disk (and the fork's u32 position can't
+                    // wrap).
                     return Err(format!(
-                        "sender exceeded the advertised size ({t} bytes); aborting"
+                        "unannounced download exceeded {MAX_UNANNOUNCED_DOWNLOAD} bytes; aborting"
                     ));
                 }
                 if let Some(file) = dest.as_mut() {
@@ -423,6 +483,9 @@ async fn run_download(
                     match tokio::time::timeout(RECV_TIMEOUT, io.wire_in.recv()).await {
                         Ok(Some(bytes)) => {
                             silent_windows = 0;
+                            if peer_cancelled(&mut peer_cancel_run, &bytes) {
+                                return Ok(Outcome::Aborted);
+                            }
                             pending = bytes;
                         }
                         Ok(None) => return Err("connection closed during transfer".into()),
@@ -577,6 +640,13 @@ async fn run_upload(
     let mut finished = false;
     let mut last_progress = std::time::Instant::now();
     let mut silent_windows: u32 = 0;
+    // Same peer-cancel watch as the download side: a remote `rz` that was
+    // Ctrl-C'd sends the CAN run, which the fork ignores, so catch it here
+    // and end the upload at once.
+    let mut peer_cancel_run: u8 = 0;
+    if peer_cancelled(&mut peer_cancel_run, &pending) {
+        return Ok(Outcome::Aborted);
+    }
 
     loop {
         if !aborting && io.abort.load(Ordering::Relaxed) {
@@ -691,6 +761,9 @@ async fn run_upload(
                     match tokio::time::timeout(RECV_TIMEOUT, io.wire_in.recv()).await {
                         Ok(Some(bytes)) => {
                             silent_windows = 0;
+                            if peer_cancelled(&mut peer_cancel_run, &bytes) {
+                                return Ok(Outcome::Aborted);
+                            }
                             pending = bytes;
                         }
                         Ok(None) => return Err("connection closed during transfer".into()),
@@ -983,6 +1056,79 @@ mod tests {
             assert!(
                 sent.windows(crate::CANCEL.len()).any(|w| w == crate::CANCEL),
                 "no CANCEL sequence on the wire after abort"
+            );
+
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
+    }
+
+    /// A remote `sz` that the user Ctrl-C's sends the lrzsz CAN run; the
+    /// fork's framer ignores it, so without our own detection the pane
+    /// would sit through the full silent-window watchdog (~60 s) and end
+    /// in `Error`. The wire-level `peer_cancelled` scan must instead end
+    /// the transfer with a prompt `Aborted` and NOT echo a cancel back.
+    #[test]
+    fn a_peer_cancel_run_ends_the_download_at_once() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir =
+                std::env::temp_dir().join(format!("oryxis-zm-peercan-{}", std::process::id()));
+            let _ = tokio::fs::create_dir_all(&dir).await;
+
+            let (wire_tx, wire_in) = mpsc::unbounded_channel();
+            let (wire_out_tx, mut wire_out_rx) = mpsc::unbounded_channel();
+            let (p_tx, mut p_rx) = mpsc::unbounded_channel();
+            let abort = Arc::new(AtomicBool::new(false));
+
+            let task = tokio::spawn(run(
+                Direction::Download,
+                TransferSpec::Download { dest_dir: dir.clone() },
+                Vec::new(),
+                TransferIo {
+                    wire_in,
+                    wire_out: wire_out_tx,
+                    progress: p_tx,
+                    abort: abort.clone(),
+                },
+            ));
+            // Let the receiver flush its opening wire and park on recv.
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            // The remote `sz` is cancelled: it sends the canonical CAN
+            // run. We never touch `abort` (this is the PEER cancelling,
+            // not the user).
+            wire_tx.send(crate::CANCEL.to_vec()).unwrap();
+
+            // Well under RECV_TIMEOUT (10 s), let alone the 60 s watchdog:
+            // if this times out, the wire scan failed to catch the cancel.
+            tokio::time::timeout(std::time::Duration::from_secs(2), task)
+                .await
+                .expect("peer cancel did not end the transfer promptly")
+                .unwrap();
+
+            let mut aborted = false;
+            let mut errored = false;
+            while let Ok(p) = p_rx.try_recv() {
+                match p {
+                    Progress::Aborted => aborted = true,
+                    Progress::Error(_) => errored = true,
+                    _ => {}
+                }
+            }
+            assert!(aborted, "a peer cancel must end in Aborted");
+            assert!(!errored, "a peer cancel must not surface as Error");
+            // We do not echo a cancel: the peer already cancelled and is
+            // exiting, so no CANCEL sequence should reach the wire.
+            let mut sent = Vec::new();
+            while let Ok(b) = wire_out_rx.try_recv() {
+                sent.extend_from_slice(&b);
+            }
+            assert!(
+                !sent.windows(crate::CANCEL.len()).any(|w| w == crate::CANCEL),
+                "must not echo a cancel back at a peer that already cancelled"
             );
 
             let _ = tokio::fs::remove_dir_all(&dir).await;

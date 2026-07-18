@@ -35,11 +35,6 @@
 //!   refused up front with a clear error instead of wrapping.
 //! - **XMODEM / YMODEM fallbacks**: strictly worse protocols with no
 //!   modern demand; the detector only arms on ZMODEM initiation.
-//!
-//! Known gaps that are planned rather than deliberate (download resume,
-//! multi-file upload, ZSINIT/`sz -e` handshake, handshake timeout
-//! retry) are mapped with designs in `plans/1.0/c9` (local, out of
-//! tree).
 
 pub mod detector;
 pub mod driver;
