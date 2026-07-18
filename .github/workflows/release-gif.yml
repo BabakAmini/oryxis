@@ -70,7 +70,11 @@ jobs:
           key: gif-plugin-${{ matrix.label }}-${{ hashFiles('crates/oryxis-gif/Cargo.lock') }}
 
       - name: Build plugin (release)
-        run: cargo build --release --manifest-path crates/oryxis-gif/Cargo.toml --target ${{ matrix.target }}
+        # --locked makes the committed Cargo.lock authoritative: agg is
+        # declared with a mutable `tag` in Cargo.toml but the lock pins its
+        # exact commit, so a moved/retagged upstream can't silently change
+        # what a signed plugin binary is built from.
+        run: cargo build --release --locked --manifest-path crates/oryxis-gif/Cargo.toml --target ${{ matrix.target }}
 
       # No explicit strip step: the crate's release profile already
       # sets `strip = true` + LTO.
