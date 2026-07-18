@@ -540,14 +540,34 @@ async fn swallow_over_and_out(
                 // with 0x0d 0x8a 0x11).
                 0x11 | 0x13 | b'\r' | b'\n' | 0x8d | 0x8a | 0x91 if seen == 0 => {}
                 // First byte past the sign-off (or something that is
-                // not one): the terminal's from here on.
-                _ => return chunk[i..].to_vec(),
+                // not one): the terminal's from here on. A shell prompt
+                // can trail in the same chunk (returned here) or in ones
+                // already queued behind it (drained below).
+                _ => return drain_buffered(wire_in, chunk[i..].to_vec()),
             }
         }
         if seen == 2 {
-            return Vec::new();
+            // The "OO" landed exactly at a chunk boundary; a prompt the
+            // peer sent right behind it may already be queued. Drain what
+            // is buffered now (never blocks) so it reaches the terminal
+            // instead of being dropped when the divert tears down. Bytes
+            // that arrive later, after this returns, still ride the normal
+            // post-transfer path.
+            return drain_buffered(wire_in, Vec::new());
         }
     }
+}
+
+/// Append every wire chunk already queued in `wire_in` (non-blocking) to
+/// `head`. Used at the end of the sign-off eater to sweep a shell prompt
+/// that coalesced right behind the peer's "OO" before the pane's divert
+/// is torn down, since those queued bytes would otherwise be dropped with
+/// the transfer's receiver.
+fn drain_buffered(wire_in: &mut mpsc::UnboundedReceiver<Vec<u8>>, mut head: Vec<u8>) -> Vec<u8> {
+    while let Ok(chunk) = wire_in.try_recv() {
+        head.extend_from_slice(&chunk);
+    }
+    head
 }
 
 /// One upload source: a buffered reader plus its bookkeeping. The
@@ -1225,6 +1245,19 @@ mod tests {
             tx.send(b"O".to_vec()).unwrap();
             tx.send(b"O$ ".to_vec()).unwrap();
             assert_eq!(swallow_over_and_out(&mut rx, Vec::new()).await, b"$ ");
+
+            // "OO" ends the chunk exactly, with the prompt already queued
+            // in the next: the drain sweeps it instead of dropping it when
+            // the divert tears down (the post-OO byte-loss fix).
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            tx.send(b"$ prompt".to_vec()).unwrap();
+            assert_eq!(swallow_over_and_out(&mut rx, b"OO".to_vec()).await, b"$ prompt");
+
+            // Same, but the trailing prompt spans several queued chunks.
+            let (tx, mut rx) = mpsc::unbounded_channel();
+            tx.send(b"$ ".to_vec()).unwrap();
+            tx.send(b"more".to_vec()).unwrap();
+            assert_eq!(swallow_over_and_out(&mut rx, b"OO".to_vec()).await, b"$ more");
 
             // No sign-off at all: whatever came belongs to the terminal.
             let (_tx, mut rx) = mpsc::unbounded_channel();
