@@ -14,7 +14,7 @@ impl Oryxis {
         let log_path = crate::logging::log_path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "-".to_string());
-        let debug_section = panel_section(column![
+        let debug_col = column![
             self.nav_toggle_row(
                 t("debug_logging"),
                 self.setting_debug_logging,
@@ -46,10 +46,8 @@ impl Oryxis {
                     ),
                 ),
             ]),
-        ]);
-
-        // ── Performance HUD ──
-        let perf_section = panel_section(column![
+            // ── Performance HUD ──
+            Space::new().height(16),
             self.nav_toggle_row(
                 t("perf_overlay"),
                 self.setting_perf_overlay,
@@ -57,7 +55,7 @@ impl Oryxis {
             ),
             Space::new().height(4),
             text(t("perf_overlay_desc")).size(11).color(OryxisColors::t().text_muted),
-        ]);
+        ];
 
         // ── Environment information ──
         // The report is rendered verbatim so the user sees exactly what
@@ -84,7 +82,9 @@ impl Oryxis {
                 .replacen("{t}", &p.t.to_string(), 1),
             None => t("kdf_params_default").to_string(),
         };
-        let env_section = panel_section(column![
+        // Debug logging, the performance HUD and the environment
+        // report are one diagnostics theme, so they share a card.
+        let diagnostics_section = panel_section(debug_col.push(Space::new().height(16)).push(column![
             text(t("env_info")).size(14).color(OryxisColors::t().text_muted),
             Space::new().height(4),
             text(t("env_info_desc")).size(11).color(OryxisColors::t().text_muted),
@@ -104,18 +104,14 @@ impl Oryxis {
                     OryxisColors::t().accent,
                 ),
             ),
-        ]);
+        ]));
 
         scrollable(
             container(
                 column![
                     mirror_section,
                     Space::new().height(12),
-                    debug_section,
-                    Space::new().height(12),
-                    perf_section,
-                    Space::new().height(12),
-                    env_section,
+                    diagnostics_section,
                     Space::new().height(24),
                 ]
                 .width(Length::Fill)

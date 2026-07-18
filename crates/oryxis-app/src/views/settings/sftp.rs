@@ -11,7 +11,7 @@ impl Oryxis {
         // construction, so everything below is built only when it
         // actually renders (`sftp_enabled`).
         self.keynav_settings_reset();
-        let build_concurrency_section = || panel_section(column![
+        let build_concurrency_block = || column![
             text(t("transfer_parallelism"))
                 .size(13)
                 .color(OryxisColors::t().text_primary),
@@ -32,14 +32,14 @@ impl Oryxis {
                     .align_x(dir_align_x())
                     .into(),
             ),
-        ]);
+        ];
 
         let timeout_input = |label: &str,
                              hint: &str,
                              value: &str,
                              id: &'static str,
                              on_input: fn(String) -> Message| {
-            panel_section(column![
+            column![
                 text(label.to_string())
                     .size(13)
                     .color(OryxisColors::t().text_primary),
@@ -60,7 +60,7 @@ impl Oryxis {
                         .align_x(dir_align_x())
                         .into(),
                 ),
-            ])
+            ]
         };
 
         // Enable/disable lives on the Plugins screen now; this
@@ -91,42 +91,48 @@ impl Oryxis {
                     Message::ToggleSftpForceOsc7,
                 ),
             ]);
+            // Parallelism + the four timeout knobs are one transfer-
+            // tuning theme, so they share a single card (each block
+            // keeps its 13 px sub-title, 16 px between blocks).
+            let tuning_section = panel_section(
+                build_concurrency_block()
+                    .push(Space::new().height(16))
+                    .push(timeout_input(
+                        t("connect_timeout"),
+                        t("connect_timeout_desc"),
+                        &self.setting_sftp_connect_timeout,
+                        "set-sftp-connect-timeout",
+                        Message::SettingSftpConnectTimeoutChanged,
+                    ))
+                    .push(Space::new().height(16))
+                    .push(timeout_input(
+                        t("auth_timeout"),
+                        t("auth_timeout_desc"),
+                        &self.setting_sftp_auth_timeout,
+                        "set-sftp-auth-timeout",
+                        Message::SettingSftpAuthTimeoutChanged,
+                    ))
+                    .push(Space::new().height(16))
+                    .push(timeout_input(
+                        t("channel_open_timeout"),
+                        t("channel_open_timeout_desc"),
+                        &self.setting_sftp_session_timeout,
+                        "set-sftp-session-timeout",
+                        Message::SettingSftpSessionTimeoutChanged,
+                    ))
+                    .push(Space::new().height(16))
+                    .push(timeout_input(
+                        t("operation_timeout"),
+                        t("operation_timeout_desc"),
+                        &self.setting_sftp_op_timeout,
+                        "set-sftp-op-timeout",
+                        Message::SettingSftpOpTimeoutChanged,
+                    )),
+            );
             content_col = content_col
                 .push(osc7_section)
                 .push(Space::new().height(12))
-                .push(build_concurrency_section())
-                .push(Space::new().height(12))
-                .push(timeout_input(
-                    t("connect_timeout"),
-                    t("connect_timeout_desc"),
-                    &self.setting_sftp_connect_timeout,
-                    "set-sftp-connect-timeout",
-                    Message::SettingSftpConnectTimeoutChanged,
-                ))
-                .push(Space::new().height(12))
-                .push(timeout_input(
-                    t("auth_timeout"),
-                    t("auth_timeout_desc"),
-                    &self.setting_sftp_auth_timeout,
-                    "set-sftp-auth-timeout",
-                    Message::SettingSftpAuthTimeoutChanged,
-                ))
-                .push(Space::new().height(12))
-                .push(timeout_input(
-                    t("channel_open_timeout"),
-                    t("channel_open_timeout_desc"),
-                    &self.setting_sftp_session_timeout,
-                    "set-sftp-session-timeout",
-                    Message::SettingSftpSessionTimeoutChanged,
-                ))
-                .push(Space::new().height(12))
-                .push(timeout_input(
-                    t("operation_timeout"),
-                    t("operation_timeout_desc"),
-                    &self.setting_sftp_op_timeout,
-                    "set-sftp-op-timeout",
-                    Message::SettingSftpOpTimeoutChanged,
-                ));
+                .push(tuning_section);
         }
         content_col = content_col.push(Space::new().height(24));
 

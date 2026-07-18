@@ -209,13 +209,12 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
             );
-        // Selection / clipboard behaviour.
-        let toggles_section = panel_section(toggles_col);
-
-        // Word delimiters + scrollback are constructed here (they render
-        // right after the toggles card) so their keyboard rows record in
-        // visual order.
-        let word_delimiters_section = panel_section(column![
+        // The whole Behavior group shares one card: selection /
+        // clipboard toggles, then the word-delimiter and scrollback
+        // sub-blocks (each keeps its 13 px sub-title). Constructed
+        // in visual order so the keyboard rows record in order.
+        let toggles_col = toggles_col.push(Space::new().height(16));
+        let word_delimiters_block = column![
             text(crate::i18n::t("word_delimiters")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_word_delimiters_desc"))
@@ -245,9 +244,9 @@ impl Oryxis {
                     ),
                 ),
             ]).align_y(iced::Alignment::Center),
-        ]);
+        ];
 
-        let scrollback_section = panel_section(column![
+        let scrollback_block = column![
             text(crate::i18n::t("scrollback")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_scrollback_desc"))
@@ -279,11 +278,18 @@ impl Oryxis {
                 self.setting_scrollback_reset_output,
                 Message::ToggleScrollbackResetOutput,
             ),
-        ]);
+        ];
+        let behavior_section = panel_section(
+            toggles_col
+                .push(word_delimiters_block)
+                .push(Space::new().height(16))
+                .push(scrollback_block),
+        );
 
-        // Text rendering toggles (their own card so they sit under
-        // the Appearance group, not mixed with clipboard behaviour).
-        let text_render_section = panel_section(column![
+        // Text rendering toggles open the Appearance card (under the
+        // Appearance group header, not mixed with clipboard
+        // behaviour); the font sub-blocks follow in the same card.
+        let text_render_col = column![
             self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::ToggleBoldIsBright),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
@@ -337,11 +343,11 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::SettingToggleSmartTabs),
             self.smart_tabs_threshold_row(),
-        ]);
+        ];
 
         // The +/- stepper maps naturally onto the picker action:
         // Left decreases, Right increases the font size.
-        let font_size_section = panel_section(column![
+        let font_size_block = column![
             self.settings_nav_slot(
                 crate::keynav::RowAction::picker(
                     Some(Message::TerminalFontSizeDecrease),
@@ -388,7 +394,7 @@ impl Oryxis {
                 }).into(),
                 ]).align_y(iced::Alignment::Center).into(),
             ),
-        ]);
+        ];
 
         // Font picker. The list comes from a fontdb scan of
         // monospace families installed on the system (cached
@@ -462,7 +468,7 @@ impl Oryxis {
             &self.terminal_font_name,
             Message::TerminalFontChanged,
         );
-        let font_picker_section = panel_section(column![
+        let font_picker_block = column![
             text(crate::i18n::t("terminal_font")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_font_desc"))
@@ -484,7 +490,19 @@ impl Oryxis {
             ),
             Space::new().height(12),
             font_preview,
-        ]);
+        ];
+        // One Appearance card: rendering toggles, then the font
+        // size stepper and the font picker + live sample. The
+        // terminal-theme gallery keeps its own card below (its own
+        // sub-theme, and a grid that large reads better boxed
+        // separately).
+        let appearance_section = panel_section(
+            text_render_col
+                .push(Space::new().height(16))
+                .push(font_size_block)
+                .push(Space::new().height(16))
+                .push(font_picker_block),
+        );
 
         // Terminal theme picker. First card is the "follow
         // app theme" sentinel (terminal_theme_override = None);
@@ -597,19 +615,11 @@ impl Oryxis {
                 column![
                     gh(crate::i18n::t("terminal_group_behavior")),
                     Space::new().height(8),
-                    toggles_section,
-                    Space::new().height(12),
-                    word_delimiters_section,
-                    Space::new().height(12),
-                    scrollback_section,
+                    behavior_section,
                     Space::new().height(18),
                     gh(crate::i18n::t("terminal_group_appearance")),
                     Space::new().height(8),
-                    text_render_section,
-                    Space::new().height(12),
-                    font_size_section,
-                    Space::new().height(12),
-                    font_picker_section,
+                    appearance_section,
                     Space::new().height(12),
                     theme_picker_section,
                     Space::new().height(18),

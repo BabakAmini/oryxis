@@ -30,7 +30,7 @@ impl Oryxis {
             // still highlights the language it falls back to.
             crate::i18n::Language::active().code().to_string()
         };
-        let language_section = panel_section(column![self.nav_pick_row(
+        let language_row = self.nav_pick_row(
             crate::i18n::t("language"),
             lang_options,
             active_lang_token,
@@ -43,7 +43,7 @@ impl Oryxis {
             },
             200.0,
             Message::LanguageChanged,
-        )]);
+        );
 
         // Layout direction picker, Auto (follow language) by
         // default; explicit LTR/RTL overrides regardless of
@@ -57,14 +57,14 @@ impl Oryxis {
             crate::i18n::LayoutDirection::active().label_key(),
         )
         .to_string();
-        let layout_dir_section = panel_section(column![self.nav_pick_row(
+        let layout_dir_row = self.nav_pick_row(
             crate::i18n::t("layout_direction"),
             dir_options,
             active_dir_name,
             |s: &String| s.clone(),
             240.0,
             Message::LayoutDirectionChanged,
-        )]);
+        );
 
         // Layout mode picker: same token-as-value pattern as
         // the close-button picker. The display closure
@@ -73,7 +73,14 @@ impl Oryxis {
             "horizontal".to_string(),
             "vertical".to_string(),
         ];
-        let layout_section = panel_section(column![
+        // One card for the whole General group (language, layout
+        // direction, navigation): the rows share a theme, so they
+        // share a container instead of one box per row.
+        let general_section = panel_section(column![
+            language_row,
+            Space::new().height(16),
+            layout_dir_row,
+            Space::new().height(16),
             self.nav_pick_row(
                 crate::i18n::t("nav_orientation"),
                 layout_options,
@@ -96,10 +103,17 @@ impl Oryxis {
         ]);
 
         // ── Dashboard ──
-        // The dashboard appearance toggles read as one cluster, so
-        // they share a single card (matching the tabs group) instead
-        // of one box per toggle. Each toggle keeps its muted
-        // description line; 12 px separates the rows.
+        // The whole Dashboard group shares one card: appearance
+        // toggles plus the default-icon picker and its live card
+        // preview. Each toggle keeps its muted description line;
+        // 12 px separates the rows, 16 px the icon sub-block.
+        let icon_options = vec![
+            "circular".to_string(),
+            "square".to_string(),
+            "rounded".to_string(),
+            "outline".to_string(),
+            "initials".to_string(),
+        ];
         let dashboard_section = panel_section(column![
             self.nav_toggle_row(
                 crate::i18n::t("flatten_hosts_label"),
@@ -130,18 +144,9 @@ impl Oryxis {
             text(crate::i18n::t("card_accent_glass_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
-        ]);
-
-        // Default host icon picker: tokens drive the value,
-        // localized labels come from `to_string`.
-        let icon_options = vec![
-            "circular".to_string(),
-            "square".to_string(),
-            "rounded".to_string(),
-            "outline".to_string(),
-            "initials".to_string(),
-        ];
-        let icon_section = panel_section(column![
+            Space::new().height(16),
+            // Default host icon picker: tokens drive the value,
+            // localized labels come from `to_string`.
             self.nav_pick_row(
                 crate::i18n::t("default_host_icon"),
                 icon_options,
@@ -175,6 +180,14 @@ impl Oryxis {
             "left".to_string(),
             "right".to_string(),
         ];
+        // Tab fill style: gradient (default) vs a flat accent tint.
+        // Token-as-value pattern like the other tab pickers.
+        let fill_options = vec!["gradient".to_string(), "solid".to_string()];
+        // The whole Tabs & top bar group is one card: strip layout,
+        // status bar, the accent toggles and the fill style, closing
+        // with the live preview (issue #79 feedback: the accent
+        // toggles read as a separate unlabeled group when boxed
+        // apart from the tab settings).
         let tabs_section = panel_section(column![
             self.nav_pick_row(
                 crate::i18n::t("close_button_position"),
@@ -233,12 +246,7 @@ impl Oryxis {
                 self.setting_show_tab_status_dot,
                 Message::SettingToggleShowTabStatusDot,
             ),
-        ]);
-
-        // Tab fill style: gradient (default) vs a flat accent tint.
-        // Token-as-value pattern like the other tab pickers.
-        let fill_options = vec!["gradient".to_string(), "solid".to_string()];
-        let status_bar_section = panel_section(column![
+            Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("show_status_bar"),
                 self.setting_show_status_bar,
@@ -424,13 +432,11 @@ impl Oryxis {
             text(crate::i18n::t("performance_mode_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
-        ]);
-
-        // Terminal teaching hints (the mouse-capture toast, the
-        // "hold Ctrl and click" link toast) are governed by one
-        // tri-state mode. `Once` (default) shows each a single time
-        // per pane; `Always` repeats; `Never` silences them.
-        let hints_section = panel_section(column![
+            Space::new().height(16),
+            // Terminal teaching hints (the mouse-capture toast, the
+            // "hold Ctrl and click" link toast) are governed by one
+            // tri-state mode. `Once` (default) shows each a single
+            // time per pane; `Always` repeats; `Never` silences them.
             self.nav_pick_row(
                 crate::i18n::t("terminal_hints"),
                 crate::util::HintMode::ALL
@@ -496,23 +502,15 @@ impl Oryxis {
         let mut content_col = column![
             gh(crate::i18n::t("interface_group_general")),
             Space::new().height(8),
-            language_section,
-            Space::new().height(12),
-            layout_dir_section,
-            Space::new().height(12),
-            layout_section,
+            general_section,
             Space::new().height(18),
             gh(crate::i18n::t("interface_group_dashboard")),
             Space::new().height(8),
             dashboard_section,
-            Space::new().height(12),
-            icon_section,
             Space::new().height(18),
             gh(crate::i18n::t("interface_group_tabs")),
             Space::new().height(8),
             tabs_section,
-            Space::new().height(12),
-            status_bar_section,
             Space::new().height(18),
             gh(crate::i18n::t("interface_group_theme")),
             Space::new().height(8),
@@ -527,16 +525,14 @@ impl Oryxis {
                 .push(Space::new().height(8));
         }
 
-        // Advanced: renderer backend + reset hints, plus the
-        // system tray toggles on Windows (a no-op elsewhere, so
-        // hidden on macOS/Linux).
+        // Advanced: renderer backend + performance mode + teaching
+        // hints in one card, plus the system tray toggles on Windows
+        // (a no-op elsewhere, so hidden on macOS/Linux).
         content_col = content_col
             .push(Space::new().height(10))
             .push(gh(crate::i18n::t("interface_group_advanced")))
             .push(Space::new().height(8))
-            .push(rendering_section)
-            .push(Space::new().height(12))
-            .push(hints_section);
+            .push(rendering_section);
         if let Some(tray) = tray_section {
             content_col = content_col
                 .push(Space::new().height(12))

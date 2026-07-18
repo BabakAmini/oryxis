@@ -299,7 +299,11 @@ impl Oryxis {
         }
         let new_conn_defaults_section = panel_section(new_conn_defaults_col);
 
-        let keepalive_section = panel_section(column![
+        // Session behaviour shares one card: keepalive, the
+        // auto-reconnect pair and OS detection are all "what happens
+        // while connected" knobs, so they live together instead of
+        // one box per item.
+        let session_section = panel_section(column![
             text(crate::i18n::t("keepalive_interval")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_keepalive_desc"))
@@ -316,13 +320,10 @@ impl Oryxis {
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
             ),
-        ]);
-
-        let auto_reconnect_enabled = self.setting_auto_reconnect;
-        let auto_reconnect_section = panel_section(column![
+            Space::new().height(16),
             self.nav_toggle_row(
                 crate::i18n::t("auto_reconnect"),
-                auto_reconnect_enabled,
+                self.setting_auto_reconnect,
                 Message::SettingToggleAutoReconnect,
             ),
             Space::new().height(4),
@@ -342,13 +343,10 @@ impl Oryxis {
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
             ),
-        ]);
-
-        let os_detection_enabled = self.setting_os_detection;
-        let os_detection_section = panel_section(column![
+            Space::new().height(16),
             self.nav_toggle_row(
                 crate::i18n::t("os_detection"),
-                os_detection_enabled,
+                self.setting_os_detection,
                 Message::SettingToggleOsDetection,
             ),
             Space::new().height(4),
@@ -361,11 +359,7 @@ impl Oryxis {
                 column![
                     new_conn_defaults_section,
                     Space::new().height(12),
-                    keepalive_section,
-                    Space::new().height(12),
-                    auto_reconnect_section,
-                    Space::new().height(12),
-                    os_detection_section,
+                    session_section,
                     Space::new().height(24),
                 ]
                 .width(Length::Fill)

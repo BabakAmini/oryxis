@@ -621,19 +621,21 @@ impl Oryxis {
                         .size(11).color(OryxisColors::t().text_muted),
                 );
         }
-        let session_logging_section = panel_section(session_logging_rows);
-
-        let connection_history_enabled = self.setting_connection_history;
-        let connection_history_section = panel_section(column![
-            self.nav_toggle_row(
+        // Session recording, connection history and the retention
+        // window are one logging theme, so they share a single card
+        // below (16 px between the sub-blocks).
+        let logging_rows = session_logging_rows
+            .push(Space::new().height(16))
+            .push(self.nav_toggle_row(
                 crate::i18n::t("connection_history"),
-                connection_history_enabled,
+                self.setting_connection_history,
                 Message::SettingToggleConnectionHistory,
-            ),
-            Space::new().height(4),
-            text(t("setting_connection_history_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-        ]);
+            ))
+            .push(Space::new().height(4))
+            .push(
+                text(t("setting_connection_history_desc"))
+                    .size(11).color(OryxisColors::t().text_muted),
+            );
 
         // Retention: auto-delete connection events + finished
         // recordings past the picked age. Codes are stable
@@ -653,7 +655,7 @@ impl Oryxis {
             &retention_selected,
             Message::LogsRetentionChanged,
         );
-        let logs_retention_section = panel_section(column![
+        let logging_section = panel_section(logging_rows.push(Space::new().height(16)).push(column![
             text(crate::i18n::t("log_retention_label"))
                 .size(13)
                 .color(OryxisColors::t().text_primary),
@@ -686,7 +688,7 @@ impl Oryxis {
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
                 .into(),
             ),
-        ]);
+        ]));
 
         // Export/Import section
         let export_btn = self.settings_nav_slot(
@@ -1166,15 +1168,15 @@ impl Oryxis {
                     Space::new().height(12),
                     privacy_mode_section,
                     Space::new().height(12),
-                    session_logging_section,
-                    Space::new().height(12),
-                    connection_history_section,
-                    Space::new().height(12),
-                    logs_retention_section,
+                    logging_section,
                     Space::new().height(24),
-                    panel_section(export_import_section),
-                    Space::new().height(12),
-                    panel_section(ssh_config_section),
+                    // Vault export/import and the SSH config importer
+                    // share one import/export card.
+                    panel_section(
+                        export_import_section
+                            .push(Space::new().height(16))
+                            .push(ssh_config_section),
+                    ),
                     Space::new().height(24),
                 ]
                 .width(Length::Fill)
