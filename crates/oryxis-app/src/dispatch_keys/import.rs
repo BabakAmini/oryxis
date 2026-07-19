@@ -18,11 +18,11 @@ use crate::state::{OverlayContent, OverlayState, View};
 impl Oryxis {
     pub(super) fn handle_keys_import(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: KeysMessage,
+    ) -> Result<Task<Message>, KeysMessage> {
         match message {
             // -- Keys --
-            Message::Keys(KeysMessage::ShowKeyPanel) => {
+            KeysMessage::ShowKeyPanel => {
                 // Also navigate to the Keys screen, the import panel is rendered
                 // inside view_keys(), so the user needs to be there to see it
                 // (e.g. when they click "+ Key" from the host editor).
@@ -46,12 +46,12 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::ShowKeyPanelPublicFocus) => {
+            KeysMessage::ShowKeyPanelPublicFocus => {
                 // The ADD menu's "Import public key" entry (B3): the same
                 // import panel, opened with the public-key field focused,
                 // the security-key delegation flow (paste the sk- line,
                 // no private material exists to import).
-                let open = self.handle_keys(Message::Keys(KeysMessage::ShowKeyPanel))?;
+                let open = self.handle_keys(KeysMessage::ShowKeyPanel);
                 return Ok(Task::batch([
                     open,
                     iced::widget::operation::focus(iced::widget::Id::new(
@@ -59,12 +59,12 @@ impl Oryxis {
                     )),
                 ]));
             }
-            Message::Keys(KeysMessage::ShowKeyPanelCertFocus) => {
+            KeysMessage::ShowKeyPanelCertFocus => {
                 // The ADD menu's "Certificate" entry (B2.1): the same
                 // import panel (a certificate lives on its key, one
                 // entity), opened with the certificate field focused so
                 // the intent lands somewhere visible.
-                let open = self.handle_keys(Message::Keys(KeysMessage::ShowKeyPanel))?;
+                let open = self.handle_keys(KeysMessage::ShowKeyPanel);
                 return Ok(Task::batch([
                     open,
                     iced::widget::operation::focus(iced::widget::Id::new(
@@ -72,7 +72,7 @@ impl Oryxis {
                     )),
                 ]));
             }
-            Message::Keys(KeysMessage::HideKeyPanel) => {
+            KeysMessage::HideKeyPanel => {
                 self.show_key_panel = false;
                 self.key_import_form.editing_id = None;
                 self.key_import_form.passphrase.clear();
@@ -89,8 +89,8 @@ impl Oryxis {
                 self.key_error = None;
                 self.key_success = None;
             }
-            Message::Keys(KeysMessage::KeyImportLabelChanged(v)) => self.key_import_form.label = v,
-            Message::Keys(KeysMessage::KeyContentAction(action)) => {
+            KeysMessage::KeyImportLabelChanged(v) => self.key_import_form.label = v,
+            KeysMessage::KeyContentAction(action) => {
                 self.key_import_content.perform(action);
                 let new_text = self.key_import_content.text();
                 // Re-detect on every edit. If the user pastes an encrypted
@@ -107,15 +107,15 @@ impl Oryxis {
                 }
                 self.key_import_form.pem = new_text;
             }
-            Message::Keys(KeysMessage::KeyImportPassphraseChanged(v)) => {
+            KeysMessage::KeyImportPassphraseChanged(v) => {
                 self.key_import_form.passphrase = v;
                 // Clear stale "wrong passphrase" feedback as the user types.
                 self.key_error = None;
             }
-            Message::Keys(KeysMessage::KeyImportPassphraseToggleVisibility) => {
+            KeysMessage::KeyImportPassphraseToggleVisibility => {
                 self.key_import_form.passphrase_visible = !self.key_import_form.passphrase_visible;
             }
-            Message::Keys(KeysMessage::BrowseKeyFile) => {
+            KeysMessage::BrowseKeyFile => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let file = rfd::FileDialog::new()
@@ -166,7 +166,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Keys(KeysMessage::KeyFileLoaded(filename, content, public, cert)) => {
+            KeysMessage::KeyFileLoaded(filename, content, public, cert) => {
                 if self.key_import_form.label.is_empty() {
                     self.key_import_form.label = filename;
                 }
@@ -199,7 +199,7 @@ impl Oryxis {
                 // a second toast in the main keychain area is just noise.
                 self.key_success = None;
             }
-            Message::Keys(KeysMessage::KeyImportPublicAction(action)) => {
+            KeysMessage::KeyImportPublicAction(action) => {
                 let edited = action.is_edit();
                 self.key_import_public_content.perform(action);
                 if edited {
@@ -207,19 +207,19 @@ impl Oryxis {
                     self.key_error = None;
                 }
             }
-            Message::Keys(KeysMessage::KeyFileBrowseError(err)) => {
+            KeysMessage::KeyFileBrowseError(err) => {
                 if !err.contains("cancelled") {
                     self.key_error = Some(err);
                 }
             }
-            Message::Keys(KeysMessage::ImportKey) => return self.import_key_from_form(),
-            Message::Keys(KeysMessage::RequestDeleteKey(idx)) => {
+            KeysMessage::ImportKey => return Ok(self.import_key_from_form()),
+            KeysMessage::RequestDeleteKey(idx) => {
                 if let Some(key) = self.keys.get(idx) {
                     let name = key.label.clone();
                     self.confirm_remove(name, Message::Keys(KeysMessage::DeleteKey(idx)));
                 }
             }
-            Message::Keys(KeysMessage::DeleteKey(idx)) => {
+            KeysMessage::DeleteKey(idx) => {
                 if let Some(key) = self.keys.get(idx) {
                     let id = key.id;
                     if let Some(vault) = &self.vault {
@@ -231,7 +231,7 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::ShowKeyMenu(idx)) => {
+            KeysMessage::ShowKeyMenu(idx) => {
                 if self.key_context_menu == Some(idx) {
                     self.key_context_menu = None;
                     self.overlay = None;
@@ -245,13 +245,13 @@ impl Oryxis {
                     });
                 }
             }
-            Message::Keys(KeysMessage::HideKeyMenu) => {
+            KeysMessage::HideKeyMenu => {
                 self.key_context_menu = None;
                 self.identity_context_menu = None;
                 self.show_keychain_add_menu = false;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::EditKey(idx)) => {
+            KeysMessage::EditKey(idx) => {
                 if let Some(key) = self.keys.get(idx) {
                     self.key_import_form.editing_id = Some(key.id);
                     self.key_import_form.label = key.label.clone();
@@ -281,13 +281,13 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::Keys(KeysMessage::KeySearchChanged(v)) => {
+            KeysMessage::KeySearchChanged(v) => {
                 self.key_search = v;
             }
-            Message::Keys(KeysMessage::SnippetSearchChanged(v)) => {
+            KeysMessage::SnippetSearchChanged(v) => {
                 self.snippet_search = v;
             }
-            Message::Keys(KeysMessage::HistorySearchChanged(v)) => {
+            KeysMessage::HistorySearchChanged(v) => {
                 self.history_search = v;
             }
 
@@ -299,12 +299,12 @@ impl Oryxis {
     /// The `ImportKey` save path: validate the form, import the key
     /// (public-only or private, with passphrase handling) and persist
     /// it. Extracted verbatim from the former inline match arm.
-    fn import_key_from_form(&mut self) -> Result<Task<Message>, Message> {
+    fn import_key_from_form(&mut self) -> Task<Message> {
         let pem_empty = self.key_import_form.pem.trim().is_empty();
         if pem_empty && self.key_import_form.public_key.trim().is_empty() {
             self.key_error =
                 Some(crate::i18n::t("key_select_file_first").into());
-            return Ok(Task::none());
+            return Task::none();
         }
         // Public-only import (B3): no private material at all, the
         // security-key / delegation path. The row persists with an
@@ -322,7 +322,7 @@ impl Oryxis {
             if input.contains("-----BEGIN") {
                 self.key_error =
                     Some(crate::i18n::t("public_key_only_error").to_string());
-                return Ok(Task::none());
+                return Task::none();
             }
             let mut key = match oryxis_vault::import_public_key(&label, &input) {
                 Ok(key) => key,
@@ -330,7 +330,7 @@ impl Oryxis {
                     self.key_error = Some(
                         crate::i18n::t("public_key_invalid_error").to_string(),
                     );
-                    return Ok(Task::none());
+                    return Task::none();
                 }
             };
             let editing = self.key_import_form.editing_id.is_some();
@@ -363,7 +363,7 @@ impl Oryxis {
                                 Err(err_key) => {
                                     self.key_error =
                                         Some(crate::i18n::t(err_key).to_string());
-                                    return Ok(Task::none());
+                                    return Task::none();
                                 }
                             }
                             // Carry the stored key's algorithm so a
@@ -380,7 +380,7 @@ impl Oryxis {
                                 crate::i18n::t("public_key_mismatch_error")
                                     .to_string(),
                             );
-                            return Ok(Task::none());
+                            return Task::none();
                         }
                     }
                 }
@@ -397,7 +397,7 @@ impl Oryxis {
                 Err(err_key) => {
                     self.key_error =
                         Some(crate::i18n::t(err_key).to_string());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
             }
             if let Some(vault) = &self.vault {
@@ -420,7 +420,7 @@ impl Oryxis {
                     Err(e) => self.key_error = Some(e.to_string()),
                 }
             }
-            return Ok(Task::none());
+            return Task::none();
         }
         // If we already know the key is encrypted but the user
         // clicked Save with an empty passphrase, give explicit
@@ -428,7 +428,7 @@ impl Oryxis {
         if self.key_import_form.passphrase_required && self.key_import_form.passphrase.is_empty() {
             self.key_error =
                 Some(crate::i18n::t("key_passphrase_required_msg").to_string());
-            return Ok(Task::none());
+            return Task::none();
         }
         let label = if self.key_import_form.label.is_empty() {
             "imported-key".to_string()
@@ -470,7 +470,7 @@ impl Oryxis {
                     Ok(None) => {}
                     Err(key) => {
                         self.key_error = Some(crate::i18n::t(key).to_string());
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 }
                 // Validate + attach the certificate. A mismatch or a
@@ -484,7 +484,7 @@ impl Oryxis {
                     Ok(cert) => generated.key.certificate = cert,
                     Err(key) => {
                         self.key_error = Some(crate::i18n::t(key).to_string());
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 }
                 if let Some(vault) = &self.vault {
@@ -529,7 +529,7 @@ impl Oryxis {
             }
             Err(e) => self.key_error = Some(format!("Import failed: {}", e)),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
 

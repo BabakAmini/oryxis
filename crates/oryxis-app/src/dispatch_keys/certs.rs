@@ -14,10 +14,10 @@ use crate::app::{KeysMessage, Message, Oryxis};
 impl Oryxis {
     pub(super) fn handle_keys_certs(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: KeysMessage,
+    ) -> Result<Task<Message>, KeysMessage> {
         match message {
-            Message::Keys(KeysMessage::KeyImportCertAction(action)) => {
+            KeysMessage::KeyImportCertAction(action) => {
                 let edited = action.is_edit();
                 self.key_import_cert_content.perform(action);
                 if edited {
@@ -26,7 +26,7 @@ impl Oryxis {
                     self.key_error = None;
                 }
             }
-            Message::Keys(KeysMessage::BrowseCertFile) => {
+            KeysMessage::BrowseCertFile => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let file = rfd::FileDialog::new()
@@ -46,7 +46,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Keys(KeysMessage::CertFileLoaded(content)) => {
+            KeysMessage::CertFileLoaded(content) => {
                 self.key_import_form.certificate = content.trim().to_string();
                 self.key_import_cert_content =
                     text_editor::Content::with_text(content.trim());
@@ -54,17 +54,17 @@ impl Oryxis {
                 self.key_import_form.cert_detected = false;
                 self.key_error = None;
             }
-            Message::Keys(KeysMessage::ViewKeyCertificate(idx)) => {
+            KeysMessage::ViewKeyCertificate(idx) => {
                 if let Some(data) = self.build_cert_viewer(idx) {
                     self.cert_viewer = Some(data);
                 }
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::CloseCertViewer) => {
+            KeysMessage::CloseCertViewer => {
                 self.cert_viewer = None;
             }
-            Message::Keys(KeysMessage::RequestRemoveKeyCertificate(idx)) => {
+            KeysMessage::RequestRemoveKeyCertificate(idx) => {
                 if let Some(key) = self.keys.get(idx) {
                     let name = key.label.clone();
                     self.confirm_remove(name, Message::Keys(KeysMessage::RemoveKeyCertificate(idx)));
@@ -76,7 +76,7 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::RemoveKeyCertificate(idx)) => {
+            KeysMessage::RemoveKeyCertificate(idx) => {
                 if let Some(key) = self.keys.get(idx) {
                     let mut key = key.clone();
                     key.certificate = None;

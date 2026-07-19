@@ -17,7 +17,7 @@ mod import;
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, KeysMessage, Oryxis};
 
 impl Oryxis {
     /// Dispatch a keys/identities `Message` to the matching submodule
@@ -27,24 +27,23 @@ impl Oryxis {
     /// handlers (or the inline match) get their turn.
     pub(crate) fn handle_keys(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: KeysMessage,
+    ) -> Task<Message> {
         let message = match self.handle_keys_import(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         let message = match self.handle_keys_generate(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         let message = match self.handle_keys_certs(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
-        let message = match self.handle_keys_identities(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        Err(message)
+        if let Ok(task) = self.handle_keys_identities(message) {
+            return task;
+        }
+        Task::none()
     }
 }

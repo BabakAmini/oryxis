@@ -193,6 +193,7 @@ impl Oryxis {
             | Message::TogglePrivacyReveal
             | Message::NoOp => return self.handle_global(message),
             Message::Settings(m) => return self.handle_settings(m),
+            Message::Keys(m) => return self.handle_keys(m),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -203,7 +204,6 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_sftp_archive);
         let message = try_handler!(self, message, handle_sftp);
         let message = try_handler!(self, message, handle_ssh);
-        let message = try_handler!(self, message, handle_keys);
         let message = try_handler!(self, message, handle_cloud);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);

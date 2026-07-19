@@ -13,11 +13,11 @@ use crate::state::View;
 impl Oryxis {
     pub(super) fn handle_keys_generate(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: KeysMessage,
+    ) -> Result<Task<Message>, KeysMessage> {
         match message {
             // -- Key generation (keychain > ADD > Generate key) --
-            Message::Keys(KeysMessage::ShowKeyGeneratePanel) => {
+            KeysMessage::ShowKeyGeneratePanel => {
                 self.active_view = View::Keys;
                 self.active_tab = None;
                 // Mutually exclusive with the import/identity panels.
@@ -30,19 +30,19 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::Keys(KeysMessage::HideKeyGeneratePanel) => {
+            KeysMessage::HideKeyGeneratePanel => {
                 self.show_key_generate_panel = false;
                 self.key_generate_form = crate::state::KeyGenerateForm::default();
             }
-            Message::Keys(KeysMessage::KeyGenLabelChanged(v)) => {
+            KeysMessage::KeyGenLabelChanged(v) => {
                 self.key_generate_form.label = v;
                 self.key_generate_form.error = None;
             }
-            Message::Keys(KeysMessage::KeyGenCommentChanged(v)) => self.key_generate_form.comment = v,
-            Message::Keys(KeysMessage::KeyGenAlgoSelected(a)) => self.key_generate_form.algo = a,
-            Message::Keys(KeysMessage::KeyGenBitsSelected(b)) => self.key_generate_form.rsa_bits = b,
-            Message::Keys(KeysMessage::KeyGenCurveSelected(c)) => self.key_generate_form.ecdsa_curve = c,
-            Message::Keys(KeysMessage::GenerateKey) => {
+            KeysMessage::KeyGenCommentChanged(v) => self.key_generate_form.comment = v,
+            KeysMessage::KeyGenAlgoSelected(a) => self.key_generate_form.algo = a,
+            KeysMessage::KeyGenBitsSelected(b) => self.key_generate_form.rsa_bits = b,
+            KeysMessage::KeyGenCurveSelected(c) => self.key_generate_form.ecdsa_curve = c,
+            KeysMessage::GenerateKey => {
                 if self.key_generate_form.working {
                     return Ok(Task::none());
                 }
@@ -78,7 +78,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Keys(KeysMessage::KeyGenerated(result)) => {
+            KeysMessage::KeyGenerated(result) => {
                 self.key_generate_form.working = false;
                 match result {
                     Ok(generated) => {
@@ -110,12 +110,12 @@ impl Oryxis {
                     Err(e) => self.key_generate_form.error = Some(e),
                 }
             }
-            Message::Keys(KeysMessage::CopyGeneratedPublicKey) => {
+            KeysMessage::CopyGeneratedPublicKey => {
                 if let Some(result) = &self.key_generate_form.result {
                     return Ok(iced::clipboard::write(result.public_key.clone()).discard());
                 }
             }
-            Message::Keys(KeysMessage::SaveGeneratedPublicKeyFile) => {
+            KeysMessage::SaveGeneratedPublicKeyFile => {
                 let Some(result) = self.key_generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
@@ -138,23 +138,23 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Keys(KeysMessage::KeyGenExportPassphraseChanged(v)) => {
+            KeysMessage::KeyGenExportPassphraseChanged(v) => {
                 self.key_generate_form.export_passphrase = v;
                 self.key_generate_form.error = None;
             }
-            Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmChanged(v)) => {
+            KeysMessage::KeyGenExportPassphraseConfirmChanged(v) => {
                 self.key_generate_form.export_passphrase_confirm = v;
                 self.key_generate_form.error = None;
             }
-            Message::Keys(KeysMessage::KeyGenExportPassphraseToggleVisibility) => {
+            KeysMessage::KeyGenExportPassphraseToggleVisibility => {
                 self.key_generate_form.export_passphrase_visible =
                     !self.key_generate_form.export_passphrase_visible;
             }
-            Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility) => {
+            KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility => {
                 self.key_generate_form.export_passphrase_confirm_visible =
                     !self.key_generate_form.export_passphrase_confirm_visible;
             }
-            Message::Keys(KeysMessage::ExportGeneratedPrivateKey) => {
+            KeysMessage::ExportGeneratedPrivateKey => {
                 let Some(result) = self.key_generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
