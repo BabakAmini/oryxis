@@ -17,10 +17,10 @@ impl Oryxis {
     /// `handle_terminal`'s chain falls through.
     pub(super) fn handle_terminal_keyboard(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: TerminalMessage,
+    ) -> Result<Task<Message>, TerminalMessage> {
         match message {
-            Message::Terminal(TerminalMessage::KeyboardEvent(event)) => {
+            TerminalMessage::KeyboardEvent(event) => {
                 // Track modifier state for downstream consumers (SFTP
                 // ctrl/shift-click selection). Always update first so
                 // every later branch in this handler sees fresh state.

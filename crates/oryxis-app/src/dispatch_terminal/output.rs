@@ -222,11 +222,11 @@ impl Oryxis {
     /// every other variant so `handle_terminal`'s chain falls through.
     pub(super) fn handle_terminal_output(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: TerminalMessage,
+    ) -> Result<Task<Message>, TerminalMessage> {
         match message {
             // -- Terminal I/O --
-            Message::Terminal(TerminalMessage::PtyOutput(pane_id, mut bytes)) => {
+            TerminalMessage::PtyOutput(pane_id, mut bytes) => {
                 // ── ZMODEM interception (before any emulator processing) ──
                 // While a transfer owns the pane, output is protocol wire:
                 // hand it to the driver and stop. Otherwise the initiation
