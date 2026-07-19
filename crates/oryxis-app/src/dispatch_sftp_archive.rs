@@ -25,6 +25,7 @@ use std::sync::Arc;
 use iced::Task;
 
 use crate::app::{Message, Oryxis};
+use crate::sftp_helpers::{exec_checked, ExecTolerance};
 use crate::state::{
     ArchiveDone, PaneState, SftpLogLevel, SftpPaneSide, ZipBrowse, ZipIndexedPayload,
 };
@@ -792,7 +793,8 @@ fn existing_names(pane: &PaneState) -> Vec<String> {
 }
 
 /// Run a synthesized archive command on the exec channel, mapping the
-/// exit status to a user-facing error. `unzip` exits 1 for benign
+/// exit status to a user-facing error via the shared
+/// [`crate::sftp_helpers::exec_checked`]. `unzip` exits 1 for benign
 /// warnings (e.g. trailing garbage) while still extracting, so 1 is
 /// accepted only when the caller says this is an unzip extraction
 /// (`tolerate_warning`). Keying that off the caller's operation, not a
@@ -803,18 +805,16 @@ async fn run_remote_archive_cmd(
     cmd: &str,
     tolerate_warning: bool,
 ) -> Result<(), String> {
-    let (code, _out, err) = client.exec(cmd).await.map_err(|e| e.to_string())?;
-    let ok = code == 0 || (code == 1 && tolerate_warning);
-    if ok {
-        Ok(())
+    let tolerance = if tolerate_warning {
+        ExecTolerance::AcceptWarning
     } else {
-        let err = err.trim();
-        if err.is_empty() {
-            Err(format!("archive command exited with code {code}"))
-        } else {
-            Err(err.to_string())
-        }
-    }
+        ExecTolerance::Strict
+    };
+    exec_checked(client, cmd, tolerance, |code| {
+        format!("archive command exited with code {code}")
+    })
+    .await
+    .map(|_| ())
 }
 
 /// Sync bridge: `RangedSource` over the async SFTP ranged-read handle.

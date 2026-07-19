@@ -476,38 +476,73 @@ pub(crate) async fn unique_name_in_remote_dir(
     Ok(unique_entry_name(basename, |n| !names.contains(n)))
 }
 
-/// Run a remote `cp`/`cp -r` over the exec channel with single-quote
-/// escaping, mapping the exit code to `Ok(())` / `Err(message)`. `--`
-/// prevents dashes in names from being parsed as flags. `recursive`
-/// selects `cp -r --` vs `cp --` and the matching exit-code label.
+/// How [`exec_checked`] maps the remote exit code to success.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExecTolerance {
+    /// Only a clean exit (code 0) is success.
+    Strict,
+    /// Exit code 1 is also accepted. `unzip` exits 1 for benign
+    /// warnings (e.g. trailing garbage) while still extracting, so the
+    /// archive extract path opts in when the synthesized command is an
+    /// unzip run.
+    AcceptWarning,
+}
+
+/// Run `cmd` on the live handle's exec channel and map the exit status
+/// to `Ok(stdout)` / `Err(message)`. A failing exit prefers the
+/// command's own (trimmed) stderr text; when stderr is empty the
+/// caller-supplied `fallback` renders a message from the exit code, so
+/// each call site keeps its own wording.
+pub(crate) async fn exec_checked(
+    client: &oryxis_ssh::SftpClient,
+    cmd: &str,
+    tolerance: ExecTolerance,
+    fallback: impl FnOnce(u32) -> String,
+) -> Result<String, String> {
+    let (code, out, err) = client.exec(cmd).await.map_err(|e| e.to_string())?;
+    let ok = code == 0 || (code == 1 && tolerance == ExecTolerance::AcceptWarning);
+    if ok {
+        Ok(out)
+    } else {
+        let err = err.trim();
+        if err.is_empty() {
+            Err(fallback(code))
+        } else {
+            Err(err.to_string())
+        }
+    }
+}
+
+/// Run a remote `cp`/`cp -r` over the exec channel, mapping the exit
+/// code to `Ok(())` / `Err(message)`. Paths are quoted with the archive
+/// crate's [`oryxis_archive::quote::sh_quote`], the same hostile-name
+/// boundary the remote archive commands go through (it also rejects
+/// line breaks outright instead of trusting the login shell to keep
+/// them literal). `--` prevents dashes in names from being parsed as
+/// flags. `recursive` selects `cp -r --` vs `cp --` and the matching
+/// exit-code label.
 pub(crate) async fn remote_cp(
     client: &oryxis_ssh::SftpClient,
     src: &str,
     dst: &str,
     recursive: bool,
 ) -> Result<(), String> {
-    let escaped_src = src.replace('\'', "'\\''");
-    let escaped_dst = dst.replace('\'', "'\\''");
+    let quoted_src = oryxis_archive::quote::sh_quote(src).map_err(|e| e.to_string())?;
+    let quoted_dst = oryxis_archive::quote::sh_quote(dst).map_err(|e| e.to_string())?;
     let cmd = if recursive {
-        format!("cp -r -- '{}' '{}'", escaped_src, escaped_dst)
+        format!("cp -r -- {quoted_src} {quoted_dst}")
     } else {
-        format!("cp -- '{}' '{}'", escaped_src, escaped_dst)
+        format!("cp -- {quoted_src} {quoted_dst}")
     };
-    let (code, _out, err) = client.exec(&cmd).await.map_err(|e| e.to_string())?;
-    if code == 0 {
-        Ok(())
-    } else {
-        let msg = err.trim();
-        if msg.is_empty() {
-            Err(if recursive {
-                format!("cp -r exited {code}")
-            } else {
-                format!("cp exited {code}")
-            })
+    exec_checked(client, &cmd, ExecTolerance::Strict, |code| {
+        if recursive {
+            format!("cp -r exited {code}")
         } else {
-            Err(msg.to_string())
+            format!("cp exited {code}")
         }
-    }
+    })
+    .await
+    .map(|_| ())
 }
 
 /// Pick a name that doesn't collide with any existing entry in the same
