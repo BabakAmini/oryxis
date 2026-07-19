@@ -17,7 +17,7 @@ use oryxis_core::models::group::Group;
 use oryxis_core::models::{PaneLayout, PaneSource, SessionGroup};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{SessionGroupMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+use crate::app::{TerminalMessage, SessionGroupMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 use crate::session_group_helpers::{
     apply_scripts, from_split_axis, prune_layout, rows_from_layout, snapshot_tab_layout,
 };
@@ -448,7 +448,7 @@ impl Oryxis {
         }
         for l in pending.locals {
             let pid = l.pane_id;
-            tasks.push(Task::stream(l.stream).map(move |bytes| Message::PtyOutput(pid, bytes)));
+            tasks.push(Task::stream(l.stream).map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pid, bytes))));
         }
         tasks.push(self.tab_scroll_to_active());
         Task::batch(tasks)

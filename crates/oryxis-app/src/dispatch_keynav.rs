@@ -1,6 +1,6 @@
 //! Vault-area focus-zone keyboard router.
 //!
-//! Helper impl called from the `Message::KeyboardEvent` arm in
+//! Helper impl called from the `|v| Message::Terminal(TerminalMessage::KeyboardEvent(v))` arm in
 //! `dispatch_terminal.rs` (same pattern as `shortcuts.rs`, not a
 //! `try_handler!` link: `KeyboardEvent` stays owned by
 //! `handle_terminal`). Returns `Some(task)` when the event was

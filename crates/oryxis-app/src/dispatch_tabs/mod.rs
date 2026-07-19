@@ -12,7 +12,7 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -191,7 +191,7 @@ impl Oryxis {
                 if let Some(tab) = self.active_tab.and_then(|i| self.tabs.get(i))
                     && !tab.files_mode
                 {
-                    return Ok(self.update(Message::TerminalSearchOpen));
+                    return Ok(self.update(Message::Terminal(TerminalMessage::TerminalSearchOpen)));
                 }
                 if let Some(id) = self.active_view_search_id() {
                     return Ok(iced::widget::operation::focus(id));

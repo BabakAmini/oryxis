@@ -139,8 +139,8 @@ impl Oryxis {
     pub(crate) fn build_menu_tab_actions(&self, idx: usize) -> Element<'_, Message> {
         let mut items = column![
             self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::StartRenameTab(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::DuplicateTab(idx), OryxisColors::t().text_secondary),
         ];
         // Broadcast input across the tab's panes (C2): a check glyph +
@@ -154,7 +154,7 @@ impl Oryxis {
             } else {
                 (iced_fonts::lucide::radio(), OryxisColors::t().text_secondary)
             };
-            items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::ToggleTabBroadcast(idx), bc_color));
+            items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx)), bc_color));
         }
         // Open an SFTP tab for this host: offered when the SFTP
         // feature is on AND the tab has a live SSH session to reuse
@@ -294,8 +294,8 @@ impl Oryxis {
     pub(crate) fn build_menu_split(&self) -> Element<'_, Message> {
         let items = column![
             context_menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::ShowNewTabPicker, OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::SplitPane(iced::widget::pane_grid::Axis::Vertical), OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::SplitPane(iced::widget::pane_grid::Axis::Horizontal), OryxisColors::t().text_secondary),
+            context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary),
+            context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
         ];
         // Keep the popover open while the cursor is over it (hover
         // bridge from the `+` button into the menu).
@@ -845,7 +845,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::copy(),
                 crate::i18n::t("terminal_copy"),
-                Message::TerminalCopySelection(text.clone()),
+                Message::Terminal(TerminalMessage::TerminalCopySelection(text.clone())),
                 OryxisColors::t().text_secondary,
             ));
         }
@@ -853,19 +853,19 @@ impl Oryxis {
             .push(self.menu_item(
                 iced_fonts::lucide::copy_check(),
                 crate::i18n::t("terminal_copy_all"),
-                Message::TerminalCopyAll(pane_id),
+                Message::Terminal(TerminalMessage::TerminalCopyAll(pane_id)),
                 OryxisColors::t().text_secondary,
             ))
             .push(self.menu_item(
                 iced_fonts::lucide::clipboard_paste(),
                 crate::i18n::t("terminal_paste"),
-                Message::TerminalPasteFromClipboard,
+                Message::Terminal(TerminalMessage::TerminalPasteFromClipboard),
                 OryxisColors::t().text_secondary,
             ))
             .push(self.menu_item(
                 iced_fonts::lucide::eraser(),
                 crate::i18n::t("terminal_clear_scrollback"),
-                Message::TerminalClearScrollback(pane_id),
+                Message::Terminal(TerminalMessage::TerminalClearScrollback(pane_id)),
                 OryxisColors::t().text_secondary,
             ));
         items.into()

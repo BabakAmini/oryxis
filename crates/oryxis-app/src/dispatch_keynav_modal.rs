@@ -1,6 +1,6 @@
 //! Keyboard router for the modal / overlay-menu layer.
 //!
-//! Runs from the `Message::KeyboardEvent` arm in `dispatch_terminal.rs`
+//! Runs from the `|v| Message::Terminal(TerminalMessage::KeyboardEvent(v))` arm in `dispatch_terminal.rs`
 //! BEFORE the vault keynav router: while a navigable modal, dropdown
 //! menu or the burger menu is open, this layer owns the movement and
 //! activation keys. It never consumes Esc (that stays with

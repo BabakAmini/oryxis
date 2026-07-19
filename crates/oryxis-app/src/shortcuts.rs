@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -525,7 +525,7 @@ impl Oryxis {
         Some(parts.join(" + "))
     }
 
-    /// Main entry point for `dispatch_terminal::Message::KeyboardEvent`.
+    /// Main entry point for `dispatch_terminal::|v| Message::Terminal(TerminalMessage::KeyboardEvent(v))`.
     /// Returns `Some(task)` when the event was consumed (by capture
     /// mode, a binding match, or the Esc-closes-modal fallback), or
     /// `None` to let the caller fall through to PTY routing.
@@ -976,7 +976,7 @@ impl Oryxis {
                 // tab when it's the last pane. Elsewhere there are no
                 // panes, so close the active tab directly.
                 if self.active_view == View::Terminal || self.active_tab.is_some() {
-                    Task::done(Message::ClosePane)
+                    Task::done(Message::Terminal(TerminalMessage::ClosePane))
                 } else if let Some(idx) = self.active_tab {
                     Task::done(Message::CloseTab(idx))
                 } else {
@@ -1092,22 +1092,22 @@ impl Oryxis {
             // Terminal split panes. The loop only reaches these in the
             // terminal view (terminal_only gate), so no view check here.
             SplitPaneVertical => {
-                Task::done(Message::SplitPane(iced::widget::pane_grid::Axis::Vertical))
+                Task::done(Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Vertical)))
             }
             SplitPaneHorizontal => {
-                Task::done(Message::SplitPane(iced::widget::pane_grid::Axis::Horizontal))
+                Task::done(Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Horizontal)))
             }
             FocusPaneLeft => {
-                Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Left))
+                Task::done(Message::Terminal(TerminalMessage::FocusPaneDir(iced::widget::pane_grid::Direction::Left)))
             }
             FocusPaneRight => {
-                Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Right))
+                Task::done(Message::Terminal(TerminalMessage::FocusPaneDir(iced::widget::pane_grid::Direction::Right)))
             }
             FocusPaneUp => {
-                Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Up))
+                Task::done(Message::Terminal(TerminalMessage::FocusPaneDir(iced::widget::pane_grid::Direction::Up)))
             }
             FocusPaneDown => {
-                Task::done(Message::FocusPaneDir(iced::widget::pane_grid::Direction::Down))
+                Task::done(Message::Terminal(TerminalMessage::FocusPaneDir(iced::widget::pane_grid::Direction::Down)))
             }
             // Ring the sidebar lists (Snippets / History); repeat
             // presses cycle the two tabs. Terminal-only like the
@@ -1126,7 +1126,7 @@ impl Oryxis {
             // Broadcast input: arm / disarm fan-out across the focused
             // tab's panes.
             ToggleBroadcastInput => match self.active_tab {
-                Some(idx) => Task::done(Message::ToggleTabBroadcast(idx)),
+                Some(idx) => Task::done(Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx))),
                 None => Task::none(),
             },
             // Privacy Mode session override (issue #78): volatile

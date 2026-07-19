@@ -17,7 +17,7 @@ use oryxis_core::models::cloud::TransportKind;
 use oryxis_ssh::{SshEngine, SshSession};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{SshMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+use crate::app::{TerminalMessage, SshMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 use crate::state::{ConnectionProgress, ConnectionStep, SshStreamMsg, TerminalTab};
 
 /// Items streamed from a per-pane SSH connect (split-into-host). Mirrors
@@ -816,7 +816,7 @@ impl Oryxis {
                             Message::Ssh(SshMessage::SshKbiPrompt(quick_origin, query))
                         }
                         SshStreamMsg::Data(data) => {
-                            Message::PtyOutput(pane_id, data)
+                            Message::Terminal(TerminalMessage::PtyOutput(pane_id, data))
                         }
                         SshStreamMsg::Banner(text) => Message::Ssh(SshMessage::SshBanner(text)),
                         SshStreamMsg::Error(err) => Message::Ssh(SshMessage::SshError(err)),
@@ -889,7 +889,7 @@ impl Oryxis {
         };
         self.active_tab = Some(tab_idx);
         let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-        Task::stream(stream).map(move |bytes| Message::PtyOutput(pane_id, bytes))
+        Task::stream(stream).map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pane_id, bytes)))
     }
 
     /// Resolve the `Connection` a pane was opened from, via its `PaneOrigin`
@@ -1266,7 +1266,7 @@ impl Oryxis {
             PaneConnMsg::Connected(s) => {
                 Message::Ssh(SshMessage::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s)))
             }
-            PaneConnMsg::Data(d) => Message::PtyOutput(pane_id, d),
+            PaneConnMsg::Data(d) => Message::Terminal(TerminalMessage::PtyOutput(pane_id, d)),
             PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
             PaneConnMsg::Error(e) => Message::Ssh(SshMessage::PaneConnectError(pane_id, e)),
         })

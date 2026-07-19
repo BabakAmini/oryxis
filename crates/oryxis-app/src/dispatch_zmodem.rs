@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec};
 
-use crate::app::{ZmodemMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, ZmodemMessage, Message, Oryxis};
 use crate::state::{TerminalTransport, ZmodemPane};
 
 impl Oryxis {
@@ -273,7 +273,7 @@ impl Oryxis {
                 if replay.is_empty() {
                     Ok(Task::none())
                 } else {
-                    Ok(self.update(Message::PtyOutput(pane_id, replay)))
+                    Ok(self.update(Message::Terminal(TerminalMessage::PtyOutput(pane_id, replay))))
                 }
             }
             Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir) => Ok(Task::perform(

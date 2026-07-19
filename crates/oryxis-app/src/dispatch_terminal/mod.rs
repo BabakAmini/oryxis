@@ -19,7 +19,7 @@ mod output;
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TerminalMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Tear down every remote session (SSH or Telnet) in a tab.
@@ -113,7 +113,7 @@ impl Oryxis {
         };
         match message {
             // -- Split panes --
-            Message::FocusPane(pane) => {
+            Message::Terminal(TerminalMessage::FocusPane(pane)) => {
                 if let Some(tab_idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(tab_idx)
                 {
@@ -135,14 +135,14 @@ impl Oryxis {
                 // need a mount or a cwd catch-up (no-op otherwise).
                 return Ok(self.sidebar_files_sync());
             }
-            Message::ResizePane(ev) => {
+            Message::Terminal(TerminalMessage::ResizePane(ev)) => {
                 if let Some(tab_idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(tab_idx)
                 {
                     tab.pane_grid.resize(ev.split, ev.ratio);
                 }
             }
-            Message::SplitPane(axis) => {
+            Message::Terminal(TerminalMessage::SplitPane(axis)) => {
                 // Open the connection picker to choose what fills the new
                 // pane (a host, or a local shell). The selection routes into
                 // a split via `pending_pane_split` instead of a new tab.
@@ -160,7 +160,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::SplitTabPane(tab_idx, axis) => {
+            Message::Terminal(TerminalMessage::SplitTabPane(tab_idx, axis)) => {
                 // From a tab's right-click menu: focus that tab first, then
                 // open the picker to fill the new split pane.
                 self.overlay = None;
@@ -179,7 +179,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::ClosePane => {
+            Message::Terminal(TerminalMessage::ClosePane) => {
                 let Some(tab_idx) = self.active_tab else {
                     return Ok(Task::none());
                 };
@@ -215,7 +215,7 @@ impl Oryxis {
                 // credentials) that no pane references anymore.
                 self.prune_quick_connects();
             }
-            Message::FocusPaneDir(dir) => {
+            Message::Terminal(TerminalMessage::FocusPaneDir(dir)) => {
                 if let Some(tab_idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(tab_idx)
                     && let Some(adj) = tab.pane_grid.adjacent(tab.focused, dir)
@@ -223,7 +223,7 @@ impl Oryxis {
                     tab.focused = adj;
                 }
             }
-            Message::TerminalBellFlashEnd(pane_id) => {
+            Message::Terminal(TerminalMessage::TerminalBellFlashEnd(pane_id)) => {
                 if let Some(pane) = self
                     .tabs
                     .iter_mut()
@@ -233,7 +233,7 @@ impl Oryxis {
                     pane.bell_flash = false;
                 }
             }
-            Message::TerminalSyncFlush(pane_id) => {
+            Message::Terminal(TerminalMessage::TerminalSyncFlush(pane_id)) => {
                 if let Some(pane) = self
                     .tabs
                     .iter_mut()
@@ -266,13 +266,13 @@ impl Oryxis {
                             async move {
                                 tokio::time::sleep(remaining).await;
                             },
-                            move |_| Message::TerminalSyncFlush(pane_id),
+                            move |_| Message::Terminal(TerminalMessage::TerminalSyncFlush(pane_id)),
                         ));
                     }
                 }
             }
             // ── Scrollback find-bar (C1) ──
-            Message::TerminalSearchOpen => {
+            Message::Terminal(TerminalMessage::TerminalSearchOpen) => {
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                 {
@@ -291,7 +291,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::TerminalSearchInput(v) => {
+            Message::Terminal(TerminalMessage::TerminalSearchInput(v)) => {
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                 {
@@ -302,7 +302,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::TerminalSearchStep(forward) => {
+            Message::Terminal(TerminalMessage::TerminalSearchStep(forward)) => {
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                     && let Ok(mut state) = tab.active_mut().terminal.lock()
@@ -310,7 +310,7 @@ impl Oryxis {
                     state.search_step(forward);
                 }
             }
-            Message::TerminalSearchClose => {
+            Message::Terminal(TerminalMessage::TerminalSearchClose) => {
                 if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                 {
@@ -322,7 +322,7 @@ impl Oryxis {
                 }
             }
             // ── Broadcast input (C2) ──
-            Message::ToggleTabBroadcast(idx) => {
+            Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx)) => {
                 if let Some(tab) = self.tabs.get_mut(idx) {
                     // Broadcast only exists across split panes: an unsplit
                     // tab refuses to arm and says why. The status segment
@@ -343,7 +343,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::TogglePaneBroadcastOptOut(pane_id) => {
+            Message::Terminal(TerminalMessage::TogglePaneBroadcastOptOut(pane_id)) => {
                 if let Some(pane) = self
                     .tabs
                     .iter_mut()
@@ -355,7 +355,7 @@ impl Oryxis {
             }
             // Periodic batched write of recorded output. Only mounted by
             // the subscription while at least one pane is recording.
-            Message::SessionLogFlushTick => {
+            Message::Terminal(TerminalMessage::SessionLogFlushTick) => {
                 self.flush_session_logs();
             }
             // Right-click paste from the terminal widget. Mirrors the
@@ -363,7 +363,7 @@ impl Oryxis {
             // otherwise. Without this, the widget's fallback write only
             // reached the local PTY and right-click looked broken on
             // every SSH tab.
-            Message::TerminalPasteFromClipboard => {
+            Message::Terminal(TerminalMessage::TerminalPasteFromClipboard) => {
                 // Also the terminal context-menu Paste row: dismiss the
                 // menu (its item sits over the backdrop, so the backdrop
                 // never sees the click). Idempotent for the other callers
@@ -376,7 +376,7 @@ impl Oryxis {
                     self.paste_text_into_active(&text);
                 }
             }
-            Message::ShowTerminalContextMenu(pane_id, x, y, selection) => {
+            Message::Terminal(TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, selection)) => {
                 // Focus the right-clicked pane first (standard context-menu
                 // behavior), so all rows act on the same pane: Copy All /
                 // Clear Scrollback are pane-targeted by id, and Paste
@@ -402,7 +402,7 @@ impl Oryxis {
                     y,
                 });
             }
-            Message::TerminalCopySelection(text) => {
+            Message::Terminal(TerminalMessage::TerminalCopySelection(text)) => {
                 self.overlay = None;
                 if !text.is_empty()
                     && let Ok(mut clip) = arboard::Clipboard::new()
@@ -410,7 +410,7 @@ impl Oryxis {
                     let _ = clip.set_text(text);
                 }
             }
-            Message::TerminalCopyAll(pane_id) => {
+            Message::Terminal(TerminalMessage::TerminalCopyAll(pane_id)) => {
                 self.overlay = None;
                 if let Some(pane) = self.pane_by_id(pane_id)
                     && let Ok(state) = pane.terminal.lock()
@@ -424,7 +424,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::TerminalClearScrollback(pane_id) => {
+            Message::Terminal(TerminalMessage::TerminalClearScrollback(pane_id)) => {
                 self.overlay = None;
                 if let Some(pane) = self.pane_by_id(pane_id)
                     && let Ok(mut state) = pane.terminal.lock()
@@ -434,12 +434,12 @@ impl Oryxis {
             }
             // Careful-paste confirmation: release the parked multi-line
             // text into the session, or drop it.
-            Message::ConfirmPendingPaste => {
+            Message::Terminal(TerminalMessage::ConfirmPendingPaste) => {
                 if let Some(text) = self.pending_paste.take() {
                     self.write_paste_to_active(&text);
                 }
             }
-            Message::CancelPendingPaste => {
+            Message::Terminal(TerminalMessage::CancelPendingPaste) => {
                 self.pending_paste = None;
             }
             // Synthesized input from the terminal widget: mouse-tracking
@@ -447,12 +447,12 @@ impl Oryxis {
             // wheel-to-arrow translation in alt-screen. Same SSH-or-local
             // routing as keystrokes; without this the widget's local-PTY
             // fallback would never reach the remote session.
-            Message::TerminalInput(bytes) => {
+            Message::Terminal(TerminalMessage::TerminalInput(bytes)) => {
                 if let Some(tab_idx) = self.active_tab {
                     self.write_input_to_tab(tab_idx, &bytes);
                 }
             }
-            Message::TerminalMouseCaptureHint => {
+            Message::Terminal(TerminalMessage::TerminalMouseCaptureHint) => {
                 // Mark the focused pane so HintMode::Once retires the hint
                 // (harmless under Always, where the view ignores the flag).
                 if let Some(tab_idx) = self.active_tab
@@ -464,7 +464,7 @@ impl Oryxis {
                 // to read, not a one-word "Copied" confirmation.
                 return Ok(self.show_toast_secs(crate::i18n::t("mouse_capture_hint").to_string(), 5));
             }
-            Message::TerminalLinkClickHint => {
+            Message::Terminal(TerminalMessage::TerminalLinkClickHint) => {
                 // Plain click on a link without Ctrl: teach the gesture with
                 // a toast at the moment it missed (replaces the old hover
                 // tooltip). Mark the focused pane so HintMode::Once retires
@@ -488,7 +488,7 @@ impl Oryxis {
             // focused it handles its own Commit and inserts the text itself;
             // the host-panel / modal guards keep that from also hitting the
             // session.
-            Message::TerminalImeCommit(text) => {
+            Message::Terminal(TerminalMessage::TerminalImeCommit(text)) => {
                 if text.is_empty() || self.show_host_panel || self.any_modal_blocks_input() {
                     return Ok(Task::none());
                 }

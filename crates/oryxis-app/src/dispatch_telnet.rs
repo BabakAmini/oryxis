@@ -16,7 +16,7 @@ use uuid::Uuid;
 use oryxis_telnet::{TelnetConfig, TelnetSession};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{SshMessage, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis};
+use crate::app::{TerminalMessage, SshMessage, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis};
 use crate::state::{ConnectionProgress, ConnectionStep, TerminalTab, TerminalTransport};
 
 impl Oryxis {
@@ -162,7 +162,7 @@ impl Oryxis {
                         let transport = TerminalTransport::Telnet(Arc::new(session));
                         let _ = sender.send(Message::Ssh(SshMessage::SshConnected(pane_id, transport))).await;
                         while let Some(data) = rx.recv().await {
-                            if sender.send(Message::PtyOutput(pane_id, data)).await.is_err() {
+                            if sender.send(Message::Terminal(TerminalMessage::PtyOutput(pane_id, data))).await.is_err() {
                                 break;
                             }
                         }
@@ -223,7 +223,7 @@ impl Oryxis {
                         let transport = TerminalTransport::Telnet(Arc::new(session));
                         let _ = sender.send(Message::Ssh(SshMessage::SshConnected(pane_id, transport))).await;
                         while let Some(data) = rx.recv().await {
-                            if sender.send(Message::PtyOutput(pane_id, data)).await.is_err() {
+                            if sender.send(Message::Terminal(TerminalMessage::PtyOutput(pane_id, data))).await.is_err() {
                                 break;
                             }
                         }

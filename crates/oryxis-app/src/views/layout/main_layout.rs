@@ -328,7 +328,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_paste_dialog(pending),
-                    Some(Message::CancelPendingPaste),
+                    Some(Message::Terminal(TerminalMessage::CancelPendingPaste)),
                     0.0,
                 ),
                 resize_overlay,

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
 
@@ -65,7 +65,7 @@ impl Oryxis {
     pub fn subscription(&self) -> Subscription<Message> {
         let events = iced::event::listen_with(|event, _status, _window| {
             match event {
-                iced::event::Event::Keyboard(ke) => Some(Message::KeyboardEvent(ke)),
+                iced::event::Event::Keyboard(ke) => Some(Message::Terminal(TerminalMessage::KeyboardEvent(ke))),
                 // Text committed by the OS IME (composed CJK characters,
                 // etc.). Routed to the active PTY in dispatch_terminal,
                 // behind the same focus guards as KeyboardEvent. Preedit /
@@ -73,7 +73,7 @@ impl Oryxis {
                 // the final commit needs forwarding.
                 iced::event::Event::InputMethod(
                     iced::advanced::input_method::Event::Commit(text),
-                ) => Some(Message::TerminalImeCommit(text)),
+                ) => Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text))),
                 iced::event::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     // Always record the raw position (cheap, no message):
                     // `update()` syncs `self.mouse_position` from these on
@@ -281,7 +281,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
-                    .map(|_| Message::SessionLogFlushTick),
+                    .map(|_| Message::Terminal(TerminalMessage::SessionLogFlushTick)),
             );
         }
 

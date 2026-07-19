@@ -9,7 +9,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TerminalMessage, Message, Oryxis};
 
 /// Flush a pane's recorded-output buffer to the vault once it reaches
 /// this size, so a burst (e.g. an `apt upgrade` dump) doesn't sit in
@@ -226,7 +226,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Terminal I/O --
-            Message::PtyOutput(pane_id, mut bytes) => {
+            Message::Terminal(TerminalMessage::PtyOutput(pane_id, mut bytes)) => {
                 // ── ZMODEM interception (before any emulator processing) ──
                 // While a transfer owns the pane, output is protocol wire:
                 // hand it to the driver and stop. Otherwise the initiation
@@ -643,7 +643,7 @@ impl Oryxis {
                         async move {
                             tokio::time::sleep(remaining).await;
                         },
-                        move |_| Message::TerminalSyncFlush(pane_id),
+                        move |_| Message::Terminal(TerminalMessage::TerminalSyncFlush(pane_id)),
                     ));
                 }
                 if let Some(fp) = flash_pane {
@@ -652,7 +652,7 @@ impl Oryxis {
                         async move {
                             tokio::time::sleep(std::time::Duration::from_millis(120)).await;
                         },
-                        move |_| Message::TerminalBellFlashEnd(fp),
+                        move |_| Message::Terminal(TerminalMessage::TerminalBellFlashEnd(fp)),
                     ));
                 }
                 if toast_shown {

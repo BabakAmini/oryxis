@@ -23,7 +23,7 @@ use oryxis_cloud::CloudProviderRegistry;
 use oryxis_core::models::cloud_profile::CloudProfile;
 use uuid::Uuid;
 
-use crate::app::{CloudMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, CloudMessage, Message, Oryxis};
 use crate::state::{CloudAuthChoice, CloudDiscoverState, CloudProviderChoice};
 
 impl Oryxis {
@@ -221,7 +221,7 @@ impl Oryxis {
                     // chain the end-of-session notice so the pane never
                     // goes silently dead (issue #38 follow-up).
                     Task::stream(stream)
-                        .map(move |bytes| Message::PtyOutput(pane_id, bytes))
+                        .map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pane_id, bytes)))
                         .chain(Task::done(Message::Cloud(CloudMessage::PluginSessionEnded(pane_id)))),
                 ])
             }

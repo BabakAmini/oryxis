@@ -385,7 +385,7 @@ pub(crate) fn spawn_local_shell(
             let stream = UnboundedReceiverStream::new(rx);
             Task::batch(vec![
                 app.tab_scroll_to_active(),
-                Task::stream(stream).map(move |bytes| Message::PtyOutput(pane_id, bytes)),
+                Task::stream(stream).map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pane_id, bytes))),
             ])
         }
         Err(e) => {

@@ -9,7 +9,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{NavigationMessage, VaultMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, NavigationMessage, VaultMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Handle the `KeyboardEvent` chord resolver + PTY key routing.
@@ -20,7 +20,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::KeyboardEvent(event) => {
+            Message::Terminal(TerminalMessage::KeyboardEvent(event)) => {
                 // Track modifier state for downstream consumers (SFTP
                 // ctrl/shift-click selection). Always update first so
                 // every later branch in this handler sees fresh state.
@@ -167,12 +167,12 @@ impl Oryxis {
                     if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event {
                         match key {
                             keyboard::Key::Named(keyboard::key::Named::Enter) => {
-                                return Ok(Task::done(Message::TerminalSearchStep(
+                                return Ok(Task::done(Message::Terminal(TerminalMessage::TerminalSearchStep(
                                     !modifiers.shift(),
-                                )));
+                                ))));
                             }
                             keyboard::Key::Named(keyboard::key::Named::Escape) => {
-                                return Ok(Task::done(Message::TerminalSearchClose));
+                                return Ok(Task::done(Message::Terminal(TerminalMessage::TerminalSearchClose)));
                             }
                             _ => {}
                         }

@@ -5,7 +5,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TerminalMessage, Message, Oryxis};
 use crate::theme::OryxisColors;
 
 impl Oryxis {
@@ -200,7 +200,7 @@ fn broadcast_segment_btn(idx: usize, armed: bool) -> Element<'static, Message> {
     let fg = if armed { c.warning } else { c.text_muted };
     button(text(crate::i18n::t("broadcast_input")).size(11).color(fg))
         .padding(Padding { top: 1.0, right: 8.0, bottom: 1.0, left: 8.0 })
-        .on_press(Message::ToggleTabBroadcast(idx))
+        .on_press(Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx)))
         .style(move |_, status| {
             let c = OryxisColors::t();
             let bg = if armed {

@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{ZmodemMessage, AiMessage, Message, Oryxis};
+use crate::app::{TerminalMessage, ZmodemMessage, AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -108,8 +108,8 @@ impl Oryxis {
                             }),
                     )
                 })
-                .on_click(Message::FocusPane)
-                .on_resize(8, Message::ResizePane)
+                .on_click(|v| Message::Terminal(TerminalMessage::FocusPane(v)))
+                .on_resize(8, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
                 .spacing(if multipane { 4 } else { 0 })
                 .width(Length::Fill)
                 .height(Length::Fill);
@@ -386,8 +386,8 @@ impl Oryxis {
             .with_word_delimiters(&self.setting_word_delimiters)
             .on_font_size_increase(Message::TerminalFontSizeIncrease)
             .on_font_size_decrease(Message::TerminalFontSizeDecrease)
-            .on_paste_request(Message::TerminalPasteFromClipboard)
-            .on_terminal_input(Message::TerminalInput)
+            .on_paste_request(Message::Terminal(TerminalMessage::TerminalPasteFromClipboard))
+            .on_terminal_input(|v| Message::Terminal(TerminalMessage::TerminalInput(v)))
             .on_link_opened(Message::TerminalLinkOpened);
         // The perf HUD's `net` row: link quality from the SSH session's
         // RTT probe window. Only sampled while the HUD can render it, so
@@ -414,17 +414,17 @@ impl Oryxis {
         if self.setting_terminal_right_click == crate::util::RightClickMode::Menu {
             let pane_id = pane.id;
             term_view = term_view.on_context_menu(move |x, y, sel| {
-                Message::ShowTerminalContextMenu(pane_id, x, y, sel)
+                Message::Terminal(TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, sel))
             });
         }
         // Wire the teaching hints only while they should still show for
         // this pane, so the widget stops emitting once HintMode::Once has
         // retired them (and never emits under Never).
         if self.setting_hint_mode.should_show(pane.mouse_hint_shown) {
-            term_view = term_view.on_mouse_capture_hint(|| Message::TerminalMouseCaptureHint);
+            term_view = term_view.on_mouse_capture_hint(|| Message::Terminal(TerminalMessage::TerminalMouseCaptureHint));
         }
         if self.setting_hint_mode.should_show(pane.link_hint_shown) {
-            term_view = term_view.on_link_click_hint(|| Message::TerminalLinkClickHint);
+            term_view = term_view.on_link_click_hint(|| Message::Terminal(TerminalMessage::TerminalLinkClickHint));
         }
         // Wrap the canvas so the focused pane asks the OS to enable its IME.
         // The terminal is a canvas (not a text_input), so without this winit
@@ -554,7 +554,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(22.0)),
         )
         .padding(0)
-        .on_press(Message::TogglePaneBroadcastOptOut(pane_id))
+        .on_press(Message::Terminal(TerminalMessage::TogglePaneBroadcastOptOut(pane_id)))
         .style(move |_, status| {
             let bg = match status {
                 BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
@@ -592,7 +592,7 @@ impl Oryxis {
         };
         let input = text_input(t("terminal_search_placeholder"), &pane.search_query)
             .id(iced::widget::Id::new("terminal-buffer-search"))
-            .on_input(Message::TerminalSearchInput)
+            .on_input(|v| Message::Terminal(TerminalMessage::TerminalSearchInput(v)))
             .width(Length::Fixed(200.0))
             .padding(6);
         let counter = text(count_label)
@@ -603,18 +603,18 @@ impl Oryxis {
             input.into(),
             container(counter).center_y(Length::Fixed(28.0)).into(),
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::chevron_up(), Message::TerminalSearchStep(false)),
+                chat_header_btn(iced_fonts::lucide::chevron_up(), Message::Terminal(TerminalMessage::TerminalSearchStep(false))),
                 t("terminal_search_prev"),
             ),
             icon_tooltip(
                 chat_header_btn(
                     iced_fonts::lucide::chevron_down(),
-                    Message::TerminalSearchStep(true),
+                    Message::Terminal(TerminalMessage::TerminalSearchStep(true)),
                 ),
                 t("terminal_search_next"),
             ),
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::TerminalSearchClose),
+                chat_header_btn(iced_fonts::lucide::x(), Message::Terminal(TerminalMessage::TerminalSearchClose)),
                 t("terminal_search_close"),
             ),
         ])

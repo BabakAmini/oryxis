@@ -273,25 +273,25 @@ impl Oryxis {
                         self.modal_nav_reset();
                         self.modal_nav_slot_default(
                             crate::keynav::RowAction::activate(
-                                Message::ConfirmPendingPaste,
+                                Message::Terminal(TerminalMessage::ConfirmPendingPaste),
                             ),
                             6.0,
                             true,
                             styled_button(
                                 crate::i18n::t("careful_paste_confirm"),
-                                Message::ConfirmPendingPaste,
+                                Message::Terminal(TerminalMessage::ConfirmPendingPaste),
                                 c.accent,
                             ),
                         )
                     },
                     Space::new().width(8).into(),
                     self.modal_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CancelPendingPaste),
+                        crate::keynav::RowAction::activate(Message::Terminal(TerminalMessage::CancelPendingPaste)),
                         6.0,
                         false,
                         styled_button(
                             crate::i18n::t("cancel"),
-                            Message::CancelPendingPaste,
+                            Message::Terminal(TerminalMessage::CancelPendingPaste),
                             c.text_muted,
                         ),
                     ),

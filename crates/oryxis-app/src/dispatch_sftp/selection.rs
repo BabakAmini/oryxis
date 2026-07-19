@@ -9,7 +9,7 @@ use iced::Task;
 
 use std::time::Duration;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TerminalMessage, Message, Oryxis};
 use crate::state::SftpPaneSide;
 
 /// Max gap between two clicks on the same folder to count as a double-click.
@@ -400,7 +400,7 @@ impl Oryxis {
                     self.sftp.selection_anchor = Some(target);
                 }
             }
-            Message::KeyboardEvent(ke) => {
+            Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {
                 // Type-ahead: while a row is selected in the SFTP view,
                 // typing letters jumps the selection to the first entry whose
                 // name starts with what's been typed. Only plain printable
@@ -410,7 +410,7 @@ impl Oryxis {
                 // visible surface (standalone view OR a hybrid tab's Files
                 // mode), where the PTY byte routing is disabled.
                 if !self.sftp_surface_visible() {
-                    return Err(Message::KeyboardEvent(ke));
+                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
                 }
                 // While the right-click row context menu is open it owns the
                 // keyboard through the modal keynav router (arrows move its
@@ -418,7 +418,7 @@ impl Oryxis {
                 // list nav / type-ahead / Ctrl+A don't steal them; this
                 // handler runs before the modal router in the chain.
                 if self.sftp.row_menu.is_some() {
-                    return Err(Message::KeyboardEvent(ke));
+                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
                 }
                 // Consume the activation-swallow flag on the first keyboard
                 // event after an inline-input commit: the trailing Enter from
@@ -557,7 +557,7 @@ impl Oryxis {
                     None
                 };
                 let Some(ch) = ch else {
-                    return Err(Message::KeyboardEvent(ke));
+                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
                 };
                 // Type-ahead works from any keyboard cursor: a selected row
                 // (the selection's pane is the focus) or the ".." parent row
