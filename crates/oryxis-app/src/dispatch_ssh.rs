@@ -2373,14 +2373,16 @@ impl Oryxis {
 /// Whether an attached OpenSSH certificate line is past its validity
 /// window against the local clock (B2). Advisory only, drives the
 /// connect-time toast; the server clock remains authoritative and the
-/// engine offers the cert regardless. Unparseable / unbounded certs are
-/// never reported as expired.
+/// engine offers the cert regardless. Unparseable certs are never
+/// reported as expired; OpenSSH encodes "forever" as `u64::MAX` only,
+/// so a `valid_before` of 0 is a window that ended at the epoch and
+/// counts as expired.
 pub(crate) fn certificate_is_expired(cert_line: &str) -> bool {
     let Ok(cert) = ssh_key::Certificate::from_openssh(cert_line.trim()) else {
         return false;
     };
     let before = cert.valid_before();
-    if before == 0 || before == u64::MAX {
+    if before == u64::MAX {
         return false;
     }
     let now = chrono::Utc::now().timestamp().max(0) as u64;

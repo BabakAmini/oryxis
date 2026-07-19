@@ -83,7 +83,7 @@ impl Oryxis {
                     // participating pane, not just the focused one. Gated on
                     // `multipane`: broadcast is inert on a lone pane (nothing
                     // to fan out to), so the heavy border would misread as a
-                    // warning — the chip + status segment carry the armed
+                    // warning; the chip + status segment carry the armed
                     // state there until the tab is split.
                     let (border_color, border_width) = if participating && multipane {
                         (OryxisColors::t().warning, 2.0)
@@ -575,15 +575,19 @@ impl Oryxis {
 
     /// The scrollback find-bar row (C1): needle input + `N / M` counter +
     /// prev / next / close. The match set lives on the widget's
-    /// `TerminalState.search`; the counter is read under a short lock here.
+    /// `TerminalState.search`; the counter is read without blocking here.
     fn terminal_find_bar<'a>(&'a self, pane: &'a crate::state::Pane) -> Element<'a, Message> {
         let colors = OryxisColors::t();
-        let count = pane.terminal.lock().ok().and_then(|s| s.search_count());
+        // Read non-blocking like the link chip: a PTY output burst holds
+        // this same lock, and a blocking read would hitch the paint. On
+        // contention skip the counter this frame (a skipped frame is
+        // invisible) rather than showing a misleading "no matches".
+        let count = pane.terminal.try_lock().ok().map(|s| s.search_count());
         let count_label = match count {
-            Some((cur, total)) if total > 0 => t("terminal_search_count")
+            Some(Some((cur, total))) if total > 0 => t("terminal_search_count")
                 .replace("{current}", &cur.to_string())
                 .replace("{total}", &total.to_string()),
-            _ if !pane.search_query.is_empty() => t("terminal_search_no_matches").to_string(),
+            Some(_) if !pane.search_query.is_empty() => t("terminal_search_no_matches").to_string(),
             _ => String::new(),
         };
         let input = text_input(t("terminal_search_placeholder"), &pane.search_query)

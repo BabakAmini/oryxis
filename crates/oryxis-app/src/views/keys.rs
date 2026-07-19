@@ -1012,10 +1012,17 @@ impl Oryxis {
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
                     .on_press(Message::HideKeyGeneratePanel)
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
-                    .style(|_, _| button::Style {
-                        background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                        border: Border { radius: Radius::from(6.0), ..Default::default() },
-                        ..Default::default()
+                    .style(|_, status| {
+                        let bg = match status {
+                            BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                            BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                            _ => OryxisColors::t().bg_surface,
+                        };
+                        button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border { radius: Radius::from(6.0), ..Default::default() },
+                            ..Default::default()
+                        }
                     })
                     .into(),
             ])
@@ -1085,20 +1092,30 @@ impl Oryxis {
                 Space::new().height(8),
             ];
             // Export passphrase pair; empty pair = plaintext export with
-            // an explicit warning line.
+            // an explicit warning line. Keyboard rows per field: the
+            // input, then its reveal eye (recorded by `wrap_eye`).
             self.panel_nav_record(crate::keynav::RowAction::input(
                 iced::widget::Id::new("keygen-export-pass"),
             ));
             col = col.push(crate::widgets::panel_field(
                 t("keygen_export_passphrase"),
-                text_input("", &form.export_passphrase)
-                    .id(iced::widget::Id::new("keygen-export-pass"))
-                    .on_input(Message::KeyGenExportPassphraseChanged)
-                    .secure(true)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
+                crate::widgets::password_input_with_eye_nav(
+                    "",
+                    &form.export_passphrase,
+                    Message::KeyGenExportPassphraseChanged,
+                    None,
+                    form.export_passphrase_visible,
+                    Message::KeyGenExportPassphraseToggleVisibility,
+                    10.0,
+                    Some(iced::widget::Id::new("keygen-export-pass")),
+                    |eye| self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(
+                            Message::KeyGenExportPassphraseToggleVisibility,
+                        ),
+                        6.0,
+                        eye,
+                    ),
+                ),
             ));
             col = col.push(Space::new().height(8));
             self.panel_nav_record(crate::keynav::RowAction::input(
@@ -1106,14 +1123,23 @@ impl Oryxis {
             ));
             col = col.push(crate::widgets::panel_field(
                 t("keygen_export_passphrase_confirm"),
-                text_input("", &form.export_passphrase_confirm)
-                    .id(iced::widget::Id::new("keygen-export-pass-confirm"))
-                    .on_input(Message::KeyGenExportPassphraseConfirmChanged)
-                    .secure(true)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
+                crate::widgets::password_input_with_eye_nav(
+                    "",
+                    &form.export_passphrase_confirm,
+                    Message::KeyGenExportPassphraseConfirmChanged,
+                    None,
+                    form.export_passphrase_confirm_visible,
+                    Message::KeyGenExportPassphraseConfirmToggleVisibility,
+                    10.0,
+                    Some(iced::widget::Id::new("keygen-export-pass-confirm")),
+                    |eye| self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(
+                            Message::KeyGenExportPassphraseConfirmToggleVisibility,
+                        ),
+                        6.0,
+                        eye,
+                    ),
+                ),
             ));
             if form.export_passphrase.is_empty() && form.export_passphrase_confirm.is_empty() {
                 col = col.push(Space::new().height(6));

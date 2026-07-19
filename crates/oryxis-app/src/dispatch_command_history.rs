@@ -172,7 +172,7 @@ impl Oryxis {
         // Capture mirrors ONCE per tab, and only when the ACTIVE pane
         // actually received the bytes. A pane mid-ZMODEM (or, under
         // broadcast, one opted out) is not in `targets`, so a keystroke it
-        // never got must not land in its command history — this preserves
+        // never got must not land in its command history; this preserves
         // the pre-broadcast funnel, which returned before capture when the
         // active pane was transferring. Broadcast still records the command
         // a single time against the active pane, never N× (see

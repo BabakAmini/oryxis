@@ -216,6 +216,14 @@ impl Oryxis {
                 self.key_generate_form.export_passphrase_confirm = v;
                 self.key_generate_form.error = None;
             }
+            Message::KeyGenExportPassphraseToggleVisibility => {
+                self.key_generate_form.export_passphrase_visible =
+                    !self.key_generate_form.export_passphrase_visible;
+            }
+            Message::KeyGenExportPassphraseConfirmToggleVisibility => {
+                self.key_generate_form.export_passphrase_confirm_visible =
+                    !self.key_generate_form.export_passphrase_confirm_visible;
+            }
             Message::ExportGeneratedPrivateKey => {
                 let Some(result) = self.key_generate_form.result.clone() else {
                     return Ok(Task::none());

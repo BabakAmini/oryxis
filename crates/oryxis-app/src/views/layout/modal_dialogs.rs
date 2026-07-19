@@ -224,7 +224,7 @@ impl Oryxis {
                 .into(),
         );
 
-        let buttons = row![
+        let buttons = crate::widgets::dir_row(vec![
             self.modal_nav_slot_default(
                 crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
                     allow: false,
@@ -238,7 +238,7 @@ impl Oryxis {
                     OryxisColors::t().error,
                 ),
             ),
-            Space::new().width(8),
+            Space::new().width(8).into(),
             self.modal_nav_slot(
                 crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
                     allow: true,
@@ -252,7 +252,7 @@ impl Oryxis {
                     OryxisColors::t().accent,
                 ),
             ),
-        ];
+        ]);
 
         let dialog = container(
             column![

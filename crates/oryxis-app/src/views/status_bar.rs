@@ -162,7 +162,14 @@ fn privacy_segment_btn(masking: bool, overridden: bool) -> Element<'static, Mess
         .style(move |_, status| {
             let c = OryxisColors::t();
             let bg = if masking {
-                Color { a: 0.12, ..c.accent }
+                // Same accent tint at idle; the alpha rises on hover and a
+                // bit more on press so the active chip still gives feedback.
+                let a = match status {
+                    BtnStatus::Pressed => 0.24,
+                    BtnStatus::Hovered => 0.18,
+                    _ => 0.12,
+                };
+                Color { a, ..c.accent }
             } else {
                 match status {
                     BtnStatus::Hovered | BtnStatus::Pressed => c.bg_hover,
@@ -197,7 +204,14 @@ fn broadcast_segment_btn(idx: usize, armed: bool) -> Element<'static, Message> {
         .style(move |_, status| {
             let c = OryxisColors::t();
             let bg = if armed {
-                Color { a: 0.14, ..c.warning }
+                // Same warning tint at idle; the alpha rises on hover and a
+                // bit more on press so the armed chip still gives feedback.
+                let a = match status {
+                    BtnStatus::Pressed => 0.26,
+                    BtnStatus::Hovered => 0.20,
+                    _ => 0.14,
+                };
+                Color { a, ..c.warning }
             } else {
                 match status {
                     BtnStatus::Hovered | BtnStatus::Pressed => c.bg_hover,

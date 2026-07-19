@@ -93,10 +93,20 @@ impl Oryxis {
             ..Default::default()
         })
         .into();
-        let shortcut_hint: Element<'_, Message> = text("Ctrl+Shift+P")
-            .size(11)
-            .color(OryxisColors::t().text_muted)
-            .into();
+        // Rendered from the LIVE binding map like the row chips, so macOS
+        // shows Cmd and a rebind stays correct; unbound drops the hint.
+        let shortcut_hint: Element<'_, Message> = match self
+            .hotkey_bindings
+            .get(&crate::hotkeys::HotkeyAction::ShowCommandPalette)
+            .and_then(|b| b.badges())
+            .map(|badges| badges.join("+"))
+        {
+            Some(badge) if !badge.is_empty() => text(badge)
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+            _ => Space::new().width(0).into(),
+        };
 
         let search_header = container(
             dir_row(vec![

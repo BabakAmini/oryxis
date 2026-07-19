@@ -663,6 +663,9 @@ pub(crate) struct KeyGenerateForm {
     /// with the form.
     pub export_passphrase: String,
     pub export_passphrase_confirm: String,
+    /// Reveal toggles for the pair's eye buttons, one per field.
+    pub export_passphrase_visible: bool,
+    pub export_passphrase_confirm_visible: bool,
 }
 
 impl Default for KeyGenerateForm {
@@ -679,6 +682,8 @@ impl Default for KeyGenerateForm {
             result: None,
             export_passphrase: String::new(),
             export_passphrase_confirm: String::new(),
+            export_passphrase_visible: false,
+            export_passphrase_confirm_visible: false,
         }
     }
 }

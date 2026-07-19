@@ -195,11 +195,11 @@ fn zip_crumb<'a>(
         OryxisColors::t().text_secondary
     };
     let content: Element<'a, Message> = if is_archive_chip {
-        row![
-            iced_fonts::lucide::archive().size(11).color(color),
-            Space::new().width(4),
-            text(label).size(11).color(color),
-        ]
+        crate::widgets::dir_row(vec![
+            iced_fonts::lucide::archive().size(11).color(color).into(),
+            Space::new().width(4).into(),
+            text(label).size(11).color(color).into(),
+        ])
         .align_y(iced::Alignment::Center)
         .into()
     } else {

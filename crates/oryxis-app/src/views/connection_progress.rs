@@ -786,9 +786,13 @@ impl Oryxis {
             });
 
             rows.push(
-                row![rail, Space::new().width(10), message_cell]
-                    .align_y(iced::Alignment::Start)
-                    .into(),
+                crate::widgets::dir_row(vec![
+                    rail.into(),
+                    Space::new().width(10).into(),
+                    message_cell.into(),
+                ])
+                .align_y(iced::Alignment::Start)
+                .into(),
             );
         }
 

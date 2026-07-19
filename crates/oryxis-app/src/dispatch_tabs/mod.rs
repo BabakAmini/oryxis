@@ -186,7 +186,7 @@ impl Oryxis {
                 // find-bar (C1). `active_tab` is cleared on navigation into
                 // the vault / settings / SFTP surfaces, so its presence means
                 // the terminal surface is the one on screen; the hybrid Files
-                // (SFTP) mode is excluded — it has its own remote filter,
+                // (SFTP) mode is excluded, since it has its own remote filter,
                 // reached through `active_view_search_id` below.
                 if let Some(tab) = self.active_tab.and_then(|i| self.tabs.get(i))
                     && !tab.files_mode

@@ -80,10 +80,13 @@ impl Oryxis {
         let trailing: Element<'_, Message> = if buttons_overflow {
             self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,
-                crate::widgets::toolbar_overflow_icon(matches!(
-                    self.overlay.as_ref().map(|o| &o.content),
-                    Some(crate::state::OverlayContent::ToolbarOverflow)
-                )),
+                crate::widgets::bounds_reporter(
+                    crate::widgets::toolbar_overflow_icon(matches!(
+                        self.overlay.as_ref().map(|o| &o.content),
+                        Some(crate::state::OverlayContent::ToolbarOverflow)
+                    )),
+                    self.toolbar_overflow_btn_bounds.clone(),
+                ),
             )
         } else {
             self.keynav_toolbar_slot(crate::keynav::ToolbarItem::Primary, primary)
