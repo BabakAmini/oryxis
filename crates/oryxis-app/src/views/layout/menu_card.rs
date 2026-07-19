@@ -192,7 +192,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 glyph,
                 label,
-                Message::KeyExposeViaAgentToggled(key.id),
+                Message::Agent(AgentMessage::KeyExposeViaAgentToggled(key.id)),
                 OryxisColors::t().text_secondary,
             ));
         }

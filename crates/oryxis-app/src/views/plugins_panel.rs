@@ -12,7 +12,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{AiMessage, SyncMessage, Message, Oryxis};
+use crate::app::{AgentMessage, AiMessage, SyncMessage, Message, Oryxis};
 use crate::state::{PluginUiEntry, PluginUiStatus};
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_section, toggle_row_desc};
@@ -320,13 +320,13 @@ impl Oryxis {
         }
 
         let toggle = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::AgentServerToggled(!self.agent.enabled)),
+            crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentServerToggled(!self.agent.enabled))),
             8.0,
             toggle_row_desc(
                 crate::i18n::t("agent_server"),
                 crate::i18n::t("agent_server_desc"),
                 self.agent.enabled,
-                Message::AgentServerToggled(!self.agent.enabled),
+                Message::Agent(AgentMessage::AgentServerToggled(!self.agent.enabled)),
             ),
         );
 

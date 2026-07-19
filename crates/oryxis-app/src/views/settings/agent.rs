@@ -23,28 +23,28 @@ impl Oryxis {
             && self.agent.enabled
         {
             let confirm = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::AgentConfirmToggled(
+                crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentConfirmToggled(
                     !self.agent.confirm,
-                )),
+                ))),
                 8.0,
                 crate::widgets::toggle_row_desc(
                     t("agent_server_confirm"),
                     t("agent_server_confirm_desc"),
                     self.agent.confirm,
-                    Message::AgentConfirmToggled(!self.agent.confirm),
+                    Message::Agent(AgentMessage::AgentConfirmToggled(!self.agent.confirm)),
                 ),
             );
 
             let allow_add = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::AgentAllowAddToggled(
+                crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentAllowAddToggled(
                     !self.agent.allow_add,
-                )),
+                ))),
                 8.0,
                 crate::widgets::toggle_row_desc(
                     t("agent_allow_add"),
                     t("agent_allow_add_desc"),
                     self.agent.allow_add,
-                    Message::AgentAllowAddToggled(!self.agent.allow_add),
+                    Message::Agent(AgentMessage::AgentAllowAddToggled(!self.agent.allow_add)),
                 ),
             );
 
@@ -53,15 +53,15 @@ impl Oryxis {
             // they like, so the row would be dead weight there.
             let openssh_pipe: Element<'_, Message> = if cfg!(windows) {
                 let toggle = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::AgentOpensshPipeToggled(
+                    crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentOpensshPipeToggled(
                         !self.agent.openssh_pipe,
-                    )),
+                    ))),
                     8.0,
                     crate::widgets::toggle_row_desc(
                         t("agent_openssh_pipe"),
                         t("agent_openssh_pipe_desc"),
                         self.agent.openssh_pipe,
-                        Message::AgentOpensshPipeToggled(!self.agent.openssh_pipe),
+                        Message::Agent(AgentMessage::AgentOpensshPipeToggled(!self.agent.openssh_pipe)),
                     ),
                 );
                 match &self.agent.alias_error {
@@ -93,7 +93,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                copy_btn("agent_server_copy_path", Message::CopyAgentPath),
+                copy_btn("agent_server_copy_path", Message::Agent(AgentMessage::CopyAgentPath)),
             ])
             .align_y(iced::Alignment::Center);
 
@@ -115,13 +115,13 @@ impl Oryxis {
                         // only appears there (its snippet is a unix-socket path).
                         let mut row = vec![copy_btn(
                             "agent_server_snippet_ssh_config",
-                            Message::CopyAgentSnippet(crate::state::AgentSnippetKind::SshConfig),
+                            Message::Agent(AgentMessage::CopyAgentSnippet(crate::state::AgentSnippetKind::SshConfig)),
                         )];
                         if cfg!(unix) {
                             row.push(Space::new().width(8).into());
                             row.push(copy_btn(
                                 "agent_server_snippet_env",
-                                Message::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv),
+                                Message::Agent(AgentMessage::CopyAgentSnippet(crate::state::AgentSnippetKind::ShellEnv)),
                             ));
                         }
                         dir_row(row)

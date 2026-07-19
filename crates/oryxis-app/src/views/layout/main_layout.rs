@@ -312,7 +312,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_agent_confirm_dialog(card),
-                    Some(Message::AgentConfirmDecision { allow: false, always: false }),
+                    Some(Message::Agent(AgentMessage::AgentConfirmDecision { allow: false, always: false })),
                     0.0,
                 ),
                 resize_overlay,

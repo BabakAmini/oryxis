@@ -213,12 +213,12 @@ impl Oryxis {
         }
 
         let always_row = self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::AgentConfirmToggleAlways),
+            crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentConfirmToggleAlways)),
             4.0,
             false,
             iced::widget::checkbox(always)
                 .label(crate::i18n::t("agent_confirm_always_session"))
-                .on_toggle(|_| Message::AgentConfirmToggleAlways)
+                .on_toggle(|_| Message::Agent(AgentMessage::AgentConfirmToggleAlways))
                 .size(16)
                 .text_size(13)
                 .into(),
@@ -226,29 +226,29 @@ impl Oryxis {
 
         let buttons = crate::widgets::dir_row(vec![
             self.modal_nav_slot_default(
-                crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
+                crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentConfirmDecision {
                     allow: false,
                     always: false,
-                }),
+                })),
                 6.0,
                 true,
                 styled_button(
                     crate::i18n::t("agent_confirm_deny"),
-                    Message::AgentConfirmDecision { allow: false, always: false },
+                    Message::Agent(AgentMessage::AgentConfirmDecision { allow: false, always: false }),
                     OryxisColors::t().error,
                 ),
             ),
             Space::new().width(8).into(),
             self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::AgentConfirmDecision {
+                crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentConfirmDecision {
                     allow: true,
                     always,
-                }),
+                })),
                 6.0,
                 false,
                 styled_button(
                     crate::i18n::t("agent_confirm_allow"),
-                    Message::AgentConfirmDecision { allow: true, always },
+                    Message::Agent(AgentMessage::AgentConfirmDecision { allow: true, always }),
                     OryxisColors::t().accent,
                 ),
             ),

@@ -7,13 +7,13 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AgentMessage, Message, Oryxis};
 use crate::state::AgentSnippetKind;
 
 impl Oryxis {
     pub(crate) fn handle_agent(&mut self, message: Message) -> Result<Task<Message>, Message> {
         match message {
-            Message::AgentServerToggled(on) => {
+            Message::Agent(AgentMessage::AgentServerToggled(on)) => {
                 self.agent.error = None;
                 if on {
                     return Ok(self.start_agent_server());
@@ -22,7 +22,7 @@ impl Oryxis {
                 self.agent.enabled = false;
                 self.persist_setting("agent_server_enabled", "false");
             }
-            Message::AgentConfirmToggled(on) => {
+            Message::Agent(AgentMessage::AgentConfirmToggled(on)) => {
                 self.agent.confirm = on;
                 self.persist_setting(
                     "agent_server_confirm",
@@ -35,7 +35,7 @@ impl Oryxis {
                     return Ok(self.start_agent_server());
                 }
             }
-            Message::AgentAllowAddToggled(on) => {
+            Message::Agent(AgentMessage::AgentAllowAddToggled(on)) => {
                 self.agent.allow_add = on;
                 self.persist_setting(
                     "agent_server_allow_add",
@@ -47,7 +47,7 @@ impl Oryxis {
                     return Ok(self.start_agent_server());
                 }
             }
-            Message::AgentOpensshPipeToggled(on) => {
+            Message::Agent(AgentMessage::AgentOpensshPipeToggled(on)) => {
                 self.agent.openssh_pipe = on;
                 self.persist_setting(
                     "agent_server_openssh_pipe",
@@ -58,7 +58,7 @@ impl Oryxis {
                     return Ok(self.start_agent_server());
                 }
             }
-            Message::KeyExposeViaAgentToggled(id) => {
+            Message::Agent(AgentMessage::KeyExposeViaAgentToggled(id)) => {
                 if let Some(vault) = &self.vault
                     && let Some(key) = self.keys.iter_mut().find(|k| k.id == id)
                 {
@@ -69,7 +69,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::AgentConfirmAsk(card) => {
+            Message::Agent(AgentMessage::AgentConfirmAsk(card)) => {
                 // The state machine auto-approves a granted key, queues
                 // behind a live prompt, or shows it (returning the seq to
                 // arm the auto-dismiss timer for).
@@ -78,24 +78,24 @@ impl Oryxis {
                     None => Task::none(),
                 });
             }
-            Message::AgentConfirmToggleAlways => {
+            Message::Agent(AgentMessage::AgentConfirmToggleAlways) => {
                 self.agent.confirm_always = !self.agent.confirm_always;
             }
-            Message::AgentConfirmDecision { allow, always } => {
+            Message::Agent(AgentMessage::AgentConfirmDecision { allow, always }) => {
                 self.agent.decide_confirm(allow, always);
                 return Ok(self.advance_confirm_queue());
             }
-            Message::AgentConfirmTimedOut(seq) => {
+            Message::Agent(AgentMessage::AgentConfirmTimedOut(seq)) => {
                 if self.agent.confirm_timed_out(seq) {
                     return Ok(self.advance_confirm_queue());
                 }
             }
-            Message::CopyAgentPath => {
+            Message::Agent(AgentMessage::CopyAgentPath) => {
                 if let Some(path) = crate::agent_server::listener_socket_display() {
                     return Ok(iced::clipboard::write(path).discard());
                 }
             }
-            Message::CopyAgentSnippet(kind) => {
+            Message::Agent(AgentMessage::CopyAgentSnippet(kind)) => {
                 if let Some(snippet) = self.agent_snippet(kind) {
                     return Ok(iced::clipboard::write(snippet).discard());
                 }
@@ -138,12 +138,12 @@ impl Oryxis {
                 // prompt through it.
                 let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(confirm_rx);
                 Task::stream(stream).map(|ask| {
-                    Message::AgentConfirmAsk(crate::state::AgentConfirmCard {
+                    Message::Agent(AgentMessage::AgentConfirmAsk(crate::state::AgentConfirmCard {
                         key_comment: ask.key_comment,
                         key_fingerprint: ask.key_fingerprint,
                         peer: ask.peer,
                         responder: std::sync::Arc::new(std::sync::Mutex::new(Some(ask.respond))),
-                    })
+                    }))
                 })
             }
             Err(e) => {
@@ -228,6 +228,6 @@ const CONFIRM_UI_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(6
 fn confirm_timeout_task(seq: u64) -> Task<Message> {
     Task::perform(
         async move { tokio::time::sleep(CONFIRM_UI_TIMEOUT).await },
-        move |()| Message::AgentConfirmTimedOut(seq),
+        move |()| Message::Agent(AgentMessage::AgentConfirmTimedOut(seq)),
     )
 }
