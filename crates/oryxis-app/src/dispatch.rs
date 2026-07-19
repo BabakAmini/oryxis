@@ -170,6 +170,12 @@ impl Oryxis {
             Message::ProxyIdentity(m) => return self.handle_proxy_identity(m),
             Message::CommandHistory(m) => return self.handle_command_history(m),
             Message::Navigation(m) => return self.handle_navigation(m),
+            Message::Ai(m) => return self.handle_ai(m),
+            Message::Plugin(m) => return self.handle_plugins(m),
+            Message::Snippet(m) => return self.handle_snippets(m),
+            Message::Vault(m) => return self.handle_vault(m),
+            Message::Sync(m) => return self.handle_sync(m),
+            Message::Mcp(m) => return self.handle_mcp(m),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -182,22 +188,16 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_ssh);
         let message = try_handler!(self, message, handle_settings);
         let message = try_handler!(self, message, handle_keys);
-        let message = try_handler!(self, message, handle_plugins);
         let message = try_handler!(self, message, handle_cloud);
-        let message = try_handler!(self, message, handle_ai);
         let message = try_handler!(self, message, handle_editor);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
         let message = try_handler!(self, message, handle_sidebar_files);
         let message = try_handler!(self, message, handle_share);
         let message = try_handler!(self, message, handle_tray);
-        let message = try_handler!(self, message, handle_vault);
         let message = try_handler!(self, message, handle_onboarding);
-        let message = try_handler!(self, message, handle_snippets);
         let message = try_handler!(self, message, handle_history);
         let message = try_handler!(self, message, handle_player);
-        let message = try_handler!(self, message, handle_mcp);
-        let message = try_handler!(self, message, handle_sync);
 
         // Every Message variant is now claimed by one of the domain handlers
         // in the `try_handler!` chain above. Anything reaching here is an

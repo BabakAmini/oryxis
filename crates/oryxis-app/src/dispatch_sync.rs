@@ -13,11 +13,11 @@ use crate::app::{Message, Oryxis, SyncMessage};
 impl Oryxis {
     pub(crate) fn handle_sync(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SyncMessage,
+    ) -> Task<Message> {
         match message {
             // ── Sync ──
-            Message::Sync(SyncMessage::ToggleEnabled) => {
+            SyncMessage::ToggleEnabled => {
                 self.sync.enabled = !self.sync.enabled;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_enabled", if self.sync.enabled { "true" } else { "false" });
@@ -35,14 +35,14 @@ impl Oryxis {
                         .to_string(),
                     );
                 } else if self.sync.enabled {
-                    return Ok(self.start_sync_engine());
+                    return self.start_sync_engine();
                 } else {
                     self.stop_sync_engine();
                     self.sync.status =
                         Some(crate::i18n::t("sync_status_stopped").to_string());
                 }
             }
-            Message::Sync(SyncMessage::TogglePasswords) => {
+            SyncMessage::TogglePasswords => {
                 self.sync.passwords = !self.sync.passwords;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting(
@@ -51,50 +51,50 @@ impl Oryxis {
                     );
                 }
             }
-            Message::Sync(SyncMessage::ModeChanged(v)) => {
+            SyncMessage::ModeChanged(v) => {
                 self.sync.mode = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_mode", &v);
                 }
             }
-            Message::Sync(SyncMessage::DeviceNameChanged(v)) => {
+            SyncMessage::DeviceNameChanged(v) => {
                 self.sync.device_name = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_device_name", &v);
                 }
             }
-            Message::Sync(SyncMessage::SignalingUrlChanged(v)) => {
+            SyncMessage::SignalingUrlChanged(v) => {
                 self.sync.signaling_url = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_signaling_url", &v);
                 }
             }
-            Message::Sync(SyncMessage::SignalingTokenChanged(v)) => {
+            SyncMessage::SignalingTokenChanged(v) => {
                 self.sync.signaling_token = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_signaling_token", &v);
                 }
             }
-            Message::Sync(SyncMessage::RelayUrlChanged(v)) => {
+            SyncMessage::RelayUrlChanged(v) => {
                 self.sync.relay_url = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_relay_url", &v);
                 }
             }
-            Message::Sync(SyncMessage::ListenPortChanged(v)) => {
+            SyncMessage::ListenPortChanged(v) => {
                 self.sync.listen_port = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_listen_port", &v);
                 }
             }
-            Message::Sync(SyncMessage::WizardToggle) => {
+            SyncMessage::WizardToggle => {
                 let w = &mut self.sync.relay_wizard;
                 w.open = !w.open;
                 if w.open && w.token.is_empty() {
                     w.token = fresh_relay_token();
                 }
             }
-            Message::Sync(SyncMessage::WizardDomainChanged(v)) => {
+            SyncMessage::WizardDomainChanged(v) => {
                 self.sync.relay_wizard.domain = v;
                 self.sync.relay_wizard.result = None;
                 // Editing the endpoint invalidates any in-flight probe:
@@ -102,25 +102,25 @@ impl Oryxis {
                 // arrival instead of persisting a never-tested value.
                 self.sync.relay_wizard.testing_snapshot = None;
             }
-            Message::Sync(SyncMessage::WizardPortChanged(v)) => {
+            SyncMessage::WizardPortChanged(v) => {
                 self.sync.relay_wizard.port = v;
                 self.sync.relay_wizard.result = None;
                 self.sync.relay_wizard.testing_snapshot = None;
             }
-            Message::Sync(SyncMessage::WizardFormatChanged(f)) => {
+            SyncMessage::WizardFormatChanged(f) => {
                 self.sync.relay_wizard.format = f;
             }
-            Message::Sync(SyncMessage::WizardRegenToken) => {
+            SyncMessage::WizardRegenToken => {
                 self.sync.relay_wizard.token = fresh_relay_token();
                 self.sync.relay_wizard.result = None;
                 self.sync.relay_wizard.testing_snapshot = None;
             }
-            Message::Sync(SyncMessage::WizardTest) => {
+            SyncMessage::WizardTest => {
                 let Some(base) = self.sync.relay_wizard.base_url() else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 if self.sync.relay_wizard.testing {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 self.sync.relay_wizard.testing = true;
                 self.sync.relay_wizard.result = None;
@@ -130,7 +130,7 @@ impl Oryxis {
                 // never persisted untested.
                 self.sync.relay_wizard.testing_snapshot =
                     Some((base.clone(), self.sync.relay_wizard.token.clone()));
-                return Ok(Task::perform(
+                return Task::perform(
                     async move {
                         // The wizard sets up a self-hosted `oryxis-relay`
                         // binary, whose `/healthz` is unauthenticated
@@ -181,9 +181,9 @@ impl Oryxis {
                         }
                     },
                     |v| Message::Sync(SyncMessage::WizardTestResult(v)),
-                ));
+                );
             }
-            Message::Sync(SyncMessage::WizardTestResult(r)) => {
+            SyncMessage::WizardTestResult(r) => {
                 self.sync.relay_wizard.testing = false;
                 // The probe tested the SNAPSHOT taken when it started,
                 // not whatever the form says now. A domain / port /
@@ -195,7 +195,7 @@ impl Oryxis {
                     self.sync.relay_wizard.testing_snapshot.take()
                 else {
                     self.sync.relay_wizard.result = None;
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let ok = r.is_ok();
                 self.sync.relay_wizard.result = Some(r);
@@ -215,11 +215,11 @@ impl Oryxis {
                     // it so the new endpoint takes effect now.
                     if self.sync.engine_running {
                         self.stop_sync_engine();
-                        return Ok(self.start_sync_engine());
+                        return self.start_sync_engine();
                     }
                 }
             }
-            Message::Sync(SyncMessage::StartPairing) => {
+            SyncMessage::StartPairing => {
                 // Host a real pairing code on the engine. The engine
                 // also emits `PairingCodeGenerated`, but we set the
                 // code + state here directly so the UI flips instantly.
@@ -235,7 +235,7 @@ impl Oryxis {
                         Some(crate::i18n::t("sync_status_disabled").to_string());
                 }
             }
-            Message::Sync(SyncMessage::CancelHostingPairing) => {
+            SyncMessage::CancelHostingPairing => {
                 if let Some(runtime) = &self.sync.runtime {
                     runtime.handle().cancel_hosting_pairing();
                 }
@@ -243,25 +243,25 @@ impl Oryxis {
                 self.sync.pairing.link = None;
                 self.sync.pairing.state = crate::state::SyncPairingState::Idle;
             }
-            Message::Sync(SyncMessage::JoinPairingRequested) => {
+            SyncMessage::JoinPairingRequested => {
                 self.sync.pairing.state = crate::state::SyncPairingState::Joining;
                 self.sync.pairing.join_code_input.clear();
                 self.sync.pairing.join_target_input.clear();
                 self.sync.pairing.join_link_input.clear();
             }
-            Message::Sync(SyncMessage::JoinCodeChanged(v)) => {
+            SyncMessage::JoinCodeChanged(v) => {
                 self.sync.pairing.join_code_input = v;
             }
-            Message::Sync(SyncMessage::JoinTargetChanged(v)) => {
+            SyncMessage::JoinTargetChanged(v) => {
                 self.sync.pairing.join_target_input = v;
             }
-            Message::Sync(SyncMessage::JoinLinkChanged(v)) => {
+            SyncMessage::JoinLinkChanged(v) => {
                 self.sync.pairing.join_link_input = v;
             }
-            Message::Sync(SyncMessage::JoinPairingCancel) => {
+            SyncMessage::JoinPairingCancel => {
                 self.sync.pairing.state = crate::state::SyncPairingState::Idle;
             }
-            Message::Sync(SyncMessage::PairWithDiscovered(device_id)) => {
+            SyncMessage::PairWithDiscovered(device_id) => {
                 if let Some(peer) = self
                     .sync.discovered
                     .iter()
@@ -273,18 +273,18 @@ impl Oryxis {
                     self.sync.pairing.join_target_input = peer.addr.to_string();
                 }
             }
-            Message::Sync(SyncMessage::JoinPairingByLink) => {
+            SyncMessage::JoinPairingByLink => {
                 let Some(runtime) = &self.sync.runtime else {
                     self.sync.status =
                         Some(crate::i18n::t("sync_status_disabled").to_string());
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let link = self.sync.pairing.join_link_input.trim().to_string();
                 if oryxis_sync::parse_pairing_link(&link).is_none() {
                     self.sync.status = Some(
                         crate::i18n::t("sync_pairing_bad_link").to_string(),
                     );
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let handle = runtime.handle();
                 // Keep at Joining so the inline status + form stay
@@ -292,24 +292,24 @@ impl Oryxis {
                 // handler decides whether to drop back to Idle.
                 self.sync.status =
                     Some(crate::i18n::t("sync_pairing_connecting").to_string());
-                return Ok(Task::perform(
+                return Task::perform(
                     async move {
                         let _ = handle.join_pairing_remote(&link).await;
                     },
                     |()| Message::NoOp,
-                ));
+                );
             }
-            Message::Sync(SyncMessage::JoinPairingConnect) => {
+            SyncMessage::JoinPairingConnect => {
                 let Some(runtime) = &self.sync.runtime else {
                     self.sync.status =
                         Some(crate::i18n::t("sync_status_disabled").to_string());
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let code = self.sync.pairing.join_code_input.trim().to_string();
                 if code.len() != 6 || !code.chars().all(|c| c.is_ascii_digit()) {
                     self.sync.status =
                         Some(crate::i18n::t("sync_pairing_invalid_code").to_string());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let addr: std::net::SocketAddr =
                     match self.sync.pairing.join_target_input.trim().parse() {
@@ -318,7 +318,7 @@ impl Oryxis {
                             self.sync.status = Some(
                                 crate::i18n::t("sync_pairing_bad_address").to_string(),
                             );
-                            return Ok(Task::none());
+                            return Task::none();
                         }
                     };
                 let handle = runtime.handle();
@@ -330,30 +330,30 @@ impl Oryxis {
                     Some(crate::i18n::t("sync_pairing_connecting").to_string());
                 // join_pairing emits PairingCompleted / PairingFailed,
                 // which the SyncEngineEvent arm turns into UI state.
-                return Ok(Task::perform(
+                return Task::perform(
                     async move {
                         let _ = handle.join_pairing(addr, code).await;
                     },
                     |()| Message::NoOp,
-                ));
+                );
             }
-            Message::Sync(SyncMessage::UnpairDevice(peer_id)) => {
+            SyncMessage::UnpairDevice(peer_id) => {
                 if let Some(vault) = &self.vault {
                     let _ = vault.delete_sync_peer(&peer_id);
                     self.sync.peers = vault.list_sync_peers().unwrap_or_default();
                 }
             }
-            Message::Sync(SyncMessage::Now) => {
+            SyncMessage::Now => {
                 // SFTP transport: a manual round goes through the
                 // snapshot path, not the P2P engine.
                 if self.sync.transport == "sftp" {
-                    return Ok(self.run_sftp_sync_round());
+                    return self.run_sftp_sync_round();
                 }
                 if self.sync.in_progress {
                     // Defensive: shouldn't fire because the UI swaps
                     // Sync Now for Cancel while a sync is running,
                     // but if a stray click does land, ignore it.
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let Some(runtime) = &self.sync.runtime {
                     let handle = runtime.handle();
@@ -366,7 +366,7 @@ impl Oryxis {
                     // abort channel. Whichever fires first wins; the
                     // sync future is dropped, which closes the QUIC
                     // connection mid-handshake (quinn cleans up).
-                    return Ok(Task::perform(
+                    return Task::perform(
                         async move {
                             tokio::select! {
                                 r = tokio::time::timeout(
@@ -381,12 +381,12 @@ impl Oryxis {
                             }
                         },
                         |v| Message::Sync(SyncMessage::NowFinished(v)),
-                    ));
+                    );
                 }
                 self.sync.status =
                     Some(crate::i18n::t("sync_status_disabled").to_string());
             }
-            Message::Sync(SyncMessage::CancelInProgress) => {
+            SyncMessage::CancelInProgress => {
                 if let Some(tx) = self.sync.abort_tx.take() {
                     let _ = tx.send(());
                 }
@@ -395,7 +395,7 @@ impl Oryxis {
                 // clears it there, so the Cancel button stays visible
                 // until the cancellation actually settles.
             }
-            Message::Sync(SyncMessage::TransportChanged(v)) => {
+            SyncMessage::TransportChanged(v) => {
                 if v != self.sync.transport {
                     // Leaving P2P: tear the engine down so QUIC/mDNS stop.
                     // Entering P2P (and enabled): bring it up.
@@ -408,11 +408,11 @@ impl Oryxis {
                     if v == "sftp" {
                         self.stop_sync_engine();
                     } else if self.sync.enabled {
-                        return Ok(self.start_sync_engine());
+                        return self.start_sync_engine();
                     }
                 }
             }
-            Message::Sync(SyncMessage::SftpHostChanged(id)) => {
+            SyncMessage::SftpHostChanged(id) => {
                 self.sync.sftp.host_id = Some(id);
                 self.sync.sftp.picker_open = false;
                 self.sync.sftp.picker_search.clear();
@@ -420,30 +420,30 @@ impl Oryxis {
                     let _ = vault.set_setting("sync_sftp_host_id", &id.to_string());
                 }
             }
-            Message::Sync(SyncMessage::SftpOpenPicker) => {
+            SyncMessage::SftpOpenPicker => {
                 self.sync.sftp.picker_open = true;
                 self.sync.sftp.picker_search.clear();
             }
-            Message::Sync(SyncMessage::SftpClosePicker) => {
+            SyncMessage::SftpClosePicker => {
                 self.sync.sftp.picker_open = false;
                 self.sync.sftp.picker_search.clear();
             }
-            Message::Sync(SyncMessage::SftpPickerSearch(v)) => {
+            SyncMessage::SftpPickerSearch(v) => {
                 self.sync.sftp.picker_search = v;
             }
-            Message::Sync(SyncMessage::SftpPathChanged(v)) => {
+            SyncMessage::SftpPathChanged(v) => {
                 self.sync.sftp.remote_path = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_sftp_remote_path", &v);
                 }
             }
-            Message::Sync(SyncMessage::SftpPassphraseChanged(v)) => {
+            SyncMessage::SftpPassphraseChanged(v) => {
                 self.sync.sftp.passphrase = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_sync_sftp_passphrase(&v);
                 }
             }
-            Message::Sync(SyncMessage::SftpTick) => {
+            SyncMessage::SftpTick => {
                 // Auto-cadence tick. Only act in SFTP+enabled+auto and
                 // when no round is already running; otherwise the tick
                 // is a no-op (the subscription keeps firing regardless).
@@ -452,10 +452,10 @@ impl Oryxis {
                     && self.sync.mode == "auto"
                     && !self.sync.sftp.in_progress
                 {
-                    return Ok(self.run_sftp_sync_round());
+                    return self.run_sftp_sync_round();
                 }
             }
-            Message::Sync(SyncMessage::SftpDone(result)) => {
+            SyncMessage::SftpDone(result) => {
                 self.sync.sftp.in_progress = false;
                 if result.is_ok() {
                     // The merge ran on a separate vault handle, so the
@@ -464,7 +464,7 @@ impl Oryxis {
                 }
                 self.sync.sftp.status = Some(result);
             }
-            Message::Sync(SyncMessage::NowFinished(result)) => {
+            SyncMessage::NowFinished(result) => {
                 self.sync.in_progress = false;
                 self.sync.abort_tx = None;
                 match result {
@@ -492,7 +492,7 @@ impl Oryxis {
                     self.sync.peers = vault.list_sync_peers().unwrap_or_default();
                 }
             }
-            Message::Sync(SyncMessage::EngineEvent(event)) => {
+            SyncMessage::EngineEvent(event) => {
                 use oryxis_sync::SyncEvent;
                 match event {
                     SyncEvent::PeerDiscovered { device_id, device_name, addr, .. } => {
@@ -619,10 +619,8 @@ impl Oryxis {
                     }
                 }
             }
-
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
 

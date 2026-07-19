@@ -146,12 +146,12 @@ impl Oryxis {
 
     pub(crate) fn handle_snippets(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SnippetMessage,
+    ) -> Task<Message> {
         match message {
             // -- Local shell --
             // -- Snippets --
-            Message::Snippet(SnippetMessage::ShowSnippetPanel) => {
+            SnippetMessage::ShowSnippetPanel => {
                 self.overlay = None;
                 self.show_snippet_panel = true;
                 self.snippet_label.clear();
@@ -164,22 +164,22 @@ impl Oryxis {
                 self.snippet_error = None;
                 self.reset_snippet_group_combo();
             }
-            Message::Snippet(SnippetMessage::HideSnippetPanel) => {
+            SnippetMessage::HideSnippetPanel => {
                 self.show_snippet_panel = false;
                 self.snippet_hotkey_capturing = false;
             }
-            Message::Snippet(SnippetMessage::SnippetLabelChanged(v)) => self.snippet_label = v,
-            Message::Snippet(SnippetMessage::SnippetGroupChanged(v)) => self.snippet_group = v,
-            Message::Snippet(SnippetMessage::SnippetTagsChanged(v)) => self.snippet_tags_input = v,
-            Message::Snippet(SnippetMessage::SnippetCommandAction(action)) => self.snippet_command.perform(action),
-            Message::Snippet(SnippetMessage::ToggleSnippetTagFilter) => {
+            SnippetMessage::SnippetLabelChanged(v) => self.snippet_label = v,
+            SnippetMessage::SnippetGroupChanged(v) => self.snippet_group = v,
+            SnippetMessage::SnippetTagsChanged(v) => self.snippet_tags_input = v,
+            SnippetMessage::SnippetCommandAction(action) => self.snippet_command.perform(action),
+            SnippetMessage::ToggleSnippetTagFilter => {
                 self.setting_snippet_tag_filter = !self.setting_snippet_tag_filter;
                 self.persist_setting(
                     "snippet_tag_filter",
                     if self.setting_snippet_tag_filter { "true" } else { "false" },
                 );
             }
-            Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu) => {
+            SnippetMessage::ShowSnippetTagFilterMenu => {
                 use crate::state::{OverlayContent, OverlayState};
                 let already = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -210,7 +210,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::Snippet(SnippetMessage::ToggleSnippetTagFilterTag(tag)) => {
+            SnippetMessage::ToggleSnippetTagFilterTag(tag) => {
                 // Multi-select, dropdown stays open (backdrop closes).
                 match self
                     .snippet_filter_tags
@@ -224,31 +224,31 @@ impl Oryxis {
                 }
                 self.keynav.focus = None;
             }
-            Message::Snippet(SnippetMessage::ClearSnippetTagFilter) => {
+            SnippetMessage::ClearSnippetTagFilter => {
                 self.snippet_filter_tags.clear();
                 self.overlay = None;
                 self.keynav.focus = None;
             }
-            Message::Snippet(SnippetMessage::OpenSnippetGroup(name)) => {
+            SnippetMessage::OpenSnippetGroup(name) => {
                 self.active_snippet_group = Some(name);
                 self.snippet_search.clear();
                 self.keynav.focus = None;
             }
-            Message::Snippet(SnippetMessage::CloseSnippetGroup) => {
+            SnippetMessage::CloseSnippetGroup => {
                 self.active_snippet_group = None;
                 self.keynav.focus = None;
             }
-            Message::Snippet(SnippetMessage::OpenSidebarSnippetGroup(name)) => {
+            SnippetMessage::OpenSidebarSnippetGroup(name) => {
                 self.sidebar_snippet_group = Some(name);
                 // The row list is about to change shape; land the ring
                 // back at the top on the next engage.
                 self.keynav.sidebar_selected = None;
             }
-            Message::Snippet(SnippetMessage::CloseSidebarSnippetGroup) => {
+            SnippetMessage::CloseSidebarSnippetGroup => {
                 self.sidebar_snippet_group = None;
                 self.keynav.sidebar_selected = None;
             }
-            Message::Snippet(SnippetMessage::ShowSnippetMenu(idx)) => {
+            SnippetMessage::ShowSnippetMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle: clicking the kebab again (or on the same card)
                 // dismisses the popup, mirroring the host-card menu.
@@ -265,7 +265,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::Snippet(SnippetMessage::EditSnippet(idx)) => {
+            SnippetMessage::EditSnippet(idx) => {
                 // Reached from the card kebab menu, close the popup.
                 self.snippet_context_menu = None;
                 self.overlay = None;
@@ -286,10 +286,10 @@ impl Oryxis {
                     self.reset_snippet_group_combo();
                 }
             }
-            Message::Snippet(SnippetMessage::SaveSnippet) => {
+            SnippetMessage::SaveSnippet => {
                 if self.snippet_label.is_empty() || self.snippet_command.text().trim().is_empty() {
                     self.snippet_error = Some("Label and command are required".into());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let mut snip = if let Some(id) = self.snippet_editing_id {
                     self.snippets.iter().find(|s| s.id == id).cloned()
@@ -316,13 +316,13 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Snippet(SnippetMessage::RequestDeleteSnippet(idx)) => {
+            SnippetMessage::RequestDeleteSnippet(idx) => {
                 if let Some(snip) = self.snippets.get(idx) {
                     let name = snip.label.clone();
                     self.confirm_remove(name, Message::Snippet(SnippetMessage::DeleteSnippet(idx)));
                 }
             }
-            Message::Snippet(SnippetMessage::DeleteSnippet(idx)) => {
+            SnippetMessage::DeleteSnippet(idx) => {
                 // Reached from the card kebab menu or the edit panel,
                 // close the popup either way.
                 self.snippet_context_menu = None;
@@ -336,10 +336,10 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Snippet(SnippetMessage::RunSnippet(idx)) => {
-                return Ok(self.snippet_send_or_prompt(idx, true));
+            SnippetMessage::RunSnippet(idx) => {
+                return self.snippet_send_or_prompt(idx, true);
             }
-            Message::Snippet(SnippetMessage::ApplySudoPassword) => {
+            SnippetMessage::ApplySudoPassword => {
                 // Resolve the active terminal's connection by label, decrypt
                 // its stored password, and type it + Enter. The password is
                 // never logged (only PTY output is recorded, and sudo turns
@@ -369,47 +369,44 @@ impl Oryxis {
                 })()
                 .unwrap_or("no_stored_password");
                 self.set_toast(crate::i18n::t(toast_key).to_string());
-                return Ok(Task::perform(
+                return Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(1800)).await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
-            Message::Snippet(SnippetMessage::PasteSnippet(idx)) => {
+            SnippetMessage::PasteSnippet(idx) => {
                 // Same injection path as RunSnippet, but without the
                 // trailing newline so the user reviews and presses
                 // Enter themselves.
-                return Ok(self.snippet_send_or_prompt(idx, false));
+                return self.snippet_send_or_prompt(idx, false);
             }
-            Message::Snippet(SnippetMessage::SnippetVarChanged(i, v)) => {
+            SnippetMessage::SnippetVarChanged(i, v) => {
                 if let Some(pending) = self.pending_snippet_vars.as_mut()
                     && let Some(slot) = pending.vars.get_mut(i)
                 {
                     slot.1 = v;
                 }
             }
-            Message::Snippet(SnippetMessage::ConfirmSnippetVars) => {
+            SnippetMessage::ConfirmSnippetVars => {
                 if let Some(pending) = self.pending_snippet_vars.take() {
                     let cmd =
                         crate::util::substitute_snippet_vars(&pending.command, &pending.vars);
                     self.inject_snippet_text(&cmd, pending.run);
                 }
             }
-            Message::Snippet(SnippetMessage::CancelSnippetVars) => {
+            SnippetMessage::CancelSnippetVars => {
                 self.pending_snippet_vars = None;
             }
-            Message::Snippet(SnippetMessage::SnippetHotkeyCaptureStart) => {
+            SnippetMessage::SnippetHotkeyCaptureStart => {
                 self.snippet_hotkey_capturing = true;
             }
-            Message::Snippet(SnippetMessage::SnippetHotkeyClear) => {
+            SnippetMessage::SnippetHotkeyClear => {
                 self.snippet_hotkey = None;
                 self.snippet_hotkey_capturing = false;
             }
-
-
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
