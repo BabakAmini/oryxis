@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod remote_desktop;
+pub use remote_desktop::RemoteDesktopMessage;
 mod tray;
 pub use tray::TrayMessage;
 mod player;
@@ -1337,21 +1339,8 @@ pub enum Message {
     /// Periodic idle check while the vault is unlocked and auto-lock is
     /// enabled; locks when the idle threshold is crossed.
     AutoLockTick,
-    /// Tunnel + client-spawn result: `Ok((session, local_port))` keeps
-    /// the managed forward alive; `Err` is a ready-to-toast message. The
-    /// `u64` is the launch generation, so a stale result from a superseded
-    /// launch can't clobber a newer tunnel for the same host.
-    RemoteDesktopReady(
-        Uuid,
-        u64,
-        Result<(std::sync::Arc<oryxis_ssh::ForwardSession>, u16), String>,
-    ),
-    /// The ephemeral RDP/VNC tunnel closed on its own (desktop client
-    /// disconnected and it went idle). Carries the launch generation so
-    /// only the matching map entry is dropped.
-    RemoteDesktopClientClosed(Uuid, u64),
-    /// Tear down the RDP/VNC tunnel for this host connection id.
-    StopRemoteDesktop(Uuid),
+    // RemoteDesktop (handle_remote_desktop)
+    RemoteDesktop(RemoteDesktopMessage),
     /// Copy the canonical ssh:// URL of the host at this index (card
     /// context-menu action).
     CopyHostSshUrl(usize),

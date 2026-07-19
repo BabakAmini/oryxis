@@ -31,7 +31,7 @@ use iced::Task;
 use oryxis_core::models::Connection;
 use oryxis_ssh::SshEngine;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{RemoteDesktopMessage, Message, Oryxis};
 use crate::remote_desktop::{program_on_path, resolve_command};
 
 impl Oryxis {
@@ -40,7 +40,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::RemoteDesktopReady(conn_id, seq, res) => {
+            Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopReady(conn_id, seq, res)) => {
                 match res {
                     Ok((session, port)) => {
                         // Replace any prior tunnel for this host. The old
@@ -58,7 +58,7 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
-            Message::RemoteDesktopClientClosed(conn_id, seq) => {
+            Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopClientClosed(conn_id, seq)) => {
                 // The tunnel closed on its own. Drop the entry only if it is
                 // still the one this stream owns: a superseded launch (Stop +
                 // relaunch) must not evict the newer tunnel.
@@ -71,7 +71,7 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
-            Message::StopRemoteDesktop(conn_id) => {
+            Message::RemoteDesktop(RemoteDesktopMessage::StopRemoteDesktop(conn_id)) => {
                 if let Some((_, session)) = self.remote_desktop_forwards.remove(&conn_id) {
                     return Ok(Task::perform(
                         async move { session.cancel().await },
@@ -314,16 +314,16 @@ impl Oryxis {
                         // receiver does not keep the `ForwardSession` alive.
                         let mut closed = session.subscribe_cancel();
                         let _ = sender
-                            .send(Message::RemoteDesktopReady(conn_id, seq, Ok((session, port))))
+                            .send(Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopReady(conn_id, seq, Ok((session, port)))))
                             .await;
                         let _ = closed.wait_for(|&c| c).await;
                         let _ = sender
-                            .send(Message::RemoteDesktopClientClosed(conn_id, seq))
+                            .send(Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopClientClosed(conn_id, seq)))
                             .await;
                     }
                     Err(msg) => {
                         let _ = sender
-                            .send(Message::RemoteDesktopReady(conn_id, seq, Err(msg)))
+                            .send(Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopReady(conn_id, seq, Err(msg))))
                             .await;
                     }
                 }

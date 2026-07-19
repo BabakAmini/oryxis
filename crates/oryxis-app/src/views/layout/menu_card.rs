@@ -134,7 +134,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::monitor_x(),
                 crate::i18n::t("stop_remote_desktop"),
-                Message::StopRemoteDesktop(cid),
+                Message::RemoteDesktop(RemoteDesktopMessage::StopRemoteDesktop(cid)),
                 OryxisColors::t().error,
             ));
         }
