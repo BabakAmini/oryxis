@@ -36,8 +36,8 @@ pub(crate) fn redact_for_display(
         // IP that might sit inside them. Home dirs aren't URL-aware:
         // display masking is reversible via Reveal, so erring toward
         // hiding is acceptable. The IPv4 candidate is shape-only here and
-        // validated in code below (octet range plus the shared version-
-        // string classifier, issue #53), mirroring the terminal widget.
+        // validated in code below (octet range), mirroring the terminal
+        // widget.
         // The IPv6 candidate is loose (any hex/colon run with 2+ colons,
         // plus an optional dotted-quad tail for `::ffff:192.0.2.1`) and is
         // validated in code below, regex alternation alone can't express
@@ -102,10 +102,12 @@ pub(crate) fn redact_for_display(
                 continue;
             } else if let Some(m) = caps.name("v4") {
                 // Quad-dot candidate: adopt the widget's octet-range check
-                // (the shape-only regex over-masked `999.1.1.1` before),
-                // then classify version string vs address with the shared
-                // helper (issue #53). Vault terms and private/loopback
-                // ranges always mask, overrides win over version context.
+                // (the shape-only regex over-masked `999.1.1.1` before).
+                // Every range-valid quad masks per its class: the issue #53
+                // version-context exemption was removed 2026-07-19
+                // (mirroring the terminal widget), since hostile output
+                // could use a "version" prefix to leave a real address
+                // readable.
                 let text = m.as_str();
                 let range_valid = text
                     .split('.')
@@ -119,9 +121,7 @@ pub(crate) fn redact_for_display(
                 let mask = range_valid
                     && (term_hit
                         || (private && classes.private_ips)
-                        || (!private
-                            && classes.public_ips
-                            && !version_like_in_line(s, m.start(), m.end())));
+                        || (!private && classes.public_ips));
                 if mask {
                     out.push_str(&s[last..m.start()]);
                     out.push_str(&mask_blocks(text));
@@ -160,19 +160,6 @@ pub(crate) fn redact_for_display(
         out = mask_terms(&out, terms);
     }
     out
-}
-
-/// Line-scoped adapter for the shared version-string classifier: the
-/// session-log viewer redacts whole recorded blobs, so the row context the
-/// terminal widget classifies against is the line around the match here.
-fn version_like_in_line(s: &str, start: usize, end: usize) -> bool {
-    let line_start = s[..start].rfind(['\n', '\r']).map(|p| p + 1).unwrap_or(0);
-    let line_end = s[end..].find(['\n', '\r']).map(|p| end + p).unwrap_or(s.len());
-    oryxis_terminal::quad_dot_is_version_like(
-        &s[line_start..line_end],
-        start - line_start,
-        end - line_start,
-    )
 }
 
 /// Split a user-edited privacy list (the "Always mask" / "Never mask"
@@ -483,16 +470,20 @@ mod tests {
     }
 
     #[test]
-    fn version_with_local_marker_not_redacted() {
-        // A version-word glued to the token keeps it readable: this is
-        // per-candidate evidence, not a row-wide keyword (issue #53).
+    fn version_marked_quads_redact_like_any_address() {
+        // The issue #53 version-marker exemption was removed 2026-07-19
+        // (owner call): a range-valid quad is byte-for-byte an address
+        // and hostile output could print `version <ip>` to keep a real
+        // one readable. Accidentally masking a version string is the
+        // accepted error, mirroring the terminal widget.
         assert_eq!(
             redact_for_display("pandoc version 3.9.0.2 installed", &[], all()),
-            "pandoc version 3.9.0.2 installed"
+            format!("pandoc version {} installed", mask_blocks("3.9.0.2"))
         );
-        assert_eq!(redact_for_display("running v1.2.3.4 now", &[], all()), "running v1.2.3.4 now");
-        // A slash-terminated agent product string is a local marker too.
-        assert_eq!(redact_for_display("Server nginx/1.2.3.4 x", &[], all()), "Server nginx/1.2.3.4 x");
+        assert_eq!(
+            redact_for_display("Server nginx/1.2.3.4 x", &[], all()),
+            format!("Server nginx/{} x", mask_blocks("1.2.3.4"))
+        );
     }
 
     #[test]

@@ -1,25 +1,28 @@
 viewport: 1200x750
 mode: Zen
 -----
-# Issue #53: version-shaped quad-dot tokens (winget/rustc tables) must
-# stay readable under Privacy Mode while real addresses keep the mask.
-# The terminal canvas is invisible to `expect`, so the masking itself
-# is validated via the saved screenshot (version rows readable, the
-# PING and RFC1918 rows as block glyphs); the expects keep the flow
-# honest. Starts from first-run: the batch runner wipes the sandbox
-# before every test.
+# Every range-valid quad-dot masks under Privacy Mode, including
+# version-shaped tokens (the issue #53 exemption was removed
+# 2026-07-19: hostile output could print "version <ip>" to keep a real
+# address readable; masking a version string accidentally is the
+# accepted error). The terminal canvas is invisible to `expect`, so the
+# masking itself is validated via the saved screenshot (EVERY quad row
+# as block glyphs: the winget table, the pandoc version line, PING and
+# RFC1918); the expects keep the flow honest. Starts from first-run:
+# the batch runner wipes the sandbox before every test.
 expect "Welcome to Oryxis"
 click "Skip"
 click "Continue without password"
 expect "Create host"
 
 # Enable Privacy Mode (Settings > Security & Privacy). The toggle is
-# addressed by coordinate; the fixed viewport keeps it stable.
+# addressed by coordinate; the fixed viewport keeps it stable. Row
+# moved 410 -> 450 with the themed settings cards (8ca62618).
 click (1175, 64)
 expect "Security & Privacy"
 click "Security & Privacy"
 expect "Privacy mode"
-click (1140, 410)
+click (1140, 450)
 settle 800
 
 # Open a local shell; a live PTY never quiesces, so drop the

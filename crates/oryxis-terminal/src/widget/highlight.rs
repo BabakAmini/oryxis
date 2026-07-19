@@ -23,12 +23,12 @@ enum HighlightKind {
     /// `install.sh` are FQDN-shaped), so the known values are matched
     /// literally instead. Privacy-only, never colored.
     KnownHost,
-    /// A range-valid quad-dot token classified as a version string
-    /// (`3.9.0.2` in a winget upgrade table) rather than an address, per
-    /// issue #53. Colors exactly like [`HighlightKind::Ip`] but is
-    /// excluded from Privacy Mode masking; the classification is
-    /// [`quad_dot_is_version_like`], with vault-term and private-range
-    /// overrides forcing `Ip` before the heuristics run.
+    /// An address-shaped token whose privacy class is DISABLED: colors
+    /// exactly like [`HighlightKind::Ip`] but is excluded from Privacy
+    /// Mode masking. (The name is historical: issue #53 once exempted
+    /// version-shaped quads from masking; that heuristic was removed
+    /// 2026-07-19 because hostile output could abuse it to display a
+    /// real IP unmasked, and only the class-off demotion remains.)
     VersionQuad,
 }
 
@@ -127,54 +127,6 @@ pub fn scan_quad_dot_candidates(row: &str) -> Vec<(usize, usize)> {
         i += 1;
     }
     out
-}
-
-/// Version-context signals for a range-valid quad-dot candidate at
-/// `row[start..]` (issue #53). PER-CANDIDATE only: the evidence must be
-/// glued to THIS token, never merely somewhere on the row. A masking
-/// candidate is by definition a valid all-<=255 dotted quad, so it is
-/// byte-for-byte indistinguishable from an IPv4 address; only a marker
-/// attached to the token itself tells the two apart, either a
-/// version-word right before it (`v` / `ver` / `version` / `versão`,
-/// with or without a trailing colon: `v 1.2.3.4`, `version: 1.2.3.4`,
-/// `pandoc version 1.2.3.4`) or a `product/1.2.3.4` agent string
-/// (slash-terminated word).
-///
-/// Row-wide signals (a keyword anywhere on the line, or a sibling
-/// version token elsewhere) are deliberately NOT used: they would
-/// unmask an unrelated public IP that happens to share the line (an
-/// access-log or `ip route` row), which is the exact leak class #53's
-/// masking exists to prevent. In Privacy Mode the safe error is to mask,
-/// so a bare `3.9.0.2` with no local marker classifies as an address.
-/// A directly-attached `v3.9.0.2` never reaches here; the scanner's glue
-/// rule already dropped it.
-fn quad_dot_version_context(row: &str, start: usize) -> bool {
-    // The token immediately before the candidate, split on ANY ASCII
-    // whitespace (a tab-separated `version:\t1.2.3.4` is still glued).
-    let trimmed = row[..start].trim_end_matches([' ', '\t']);
-    let tok = &trimmed[trimmed.rfind([' ', '\t']).map(|p| p + 1).unwrap_or(0)..];
-    if tok.is_empty() {
-        return false;
-    }
-    // Unicode-aware lowercase so `VERSÃO` folds to `versão` (the ASCII
-    // fold would leave `Ã` and miss the pt-BR keyword).
-    let lower = tok.to_lowercase();
-    let word = lower.strip_suffix(':').unwrap_or(&lower);
-    if matches!(word, "v" | "ver" | "version" | "versão") {
-        return true;
-    }
-    let tb = tok.as_bytes();
-    tb.len() >= 2 && tb[tb.len() - 1] == b'/' && tb[tb.len() - 2].is_ascii_alphabetic()
-}
-
-/// Whether the range-valid quad-dot at `row[start..end]` reads as a
-/// version string rather than an address. Shared with the app-side
-/// session-log redaction (`redact_for_display`) so live terminal and
-/// recorded output classify identically. Callers apply the two masking
-/// overrides FIRST (vault-term hit, [`ipv4_is_private_or_loopback`]);
-/// those always win over version context.
-pub fn quad_dot_is_version_like(row: &str, start: usize, _end: usize) -> bool {
-    quad_dot_version_context(row, start)
 }
 
 /// Whether an IPv4 candidate sits in private/loopback/link-local space
@@ -354,10 +306,15 @@ pub(crate) fn detect_highlights(
         }
 
         // --- IPv4: digit groups separated by dots (4 groups, each 0-255).
-        // Version-shaped candidates (winget/rustc tables, issue #53)
-        // classify as VersionQuad: same keyword color, excluded from
-        // Privacy masking. Vault-saved addresses and private/loopback
-        // ranges always stay Ip, overrides win over version context.
+        // EVERY range-valid quad masks under Privacy Mode (per its class
+        // gate): version-shaped tokens ("version 1.2.3.4") used to be
+        // exempted (issue #53), but a valid quad is byte-for-byte
+        // indistinguishable from an address, so hostile output could use
+        // the version prefix to display a real IP unmasked. Owner call
+        // 2026-07-19: masking an actual version string accidentally is
+        // the acceptable error. VersionQuad survives only as the
+        // "colored, never masked" kind for candidates whose privacy
+        // class is off.
         {
             let candidates = scan_quad_dot_candidates(&row_str);
             for &(start, end) in &candidates {
@@ -365,18 +322,15 @@ pub(crate) fn detect_highlights(
                     h.row == row && start as u16 >= h.start_col && (start as u16) <= h.end_col
                 });
                 let text = &row_str[start..end];
-                // Address-vs-version classification first (issue #53),
-                // then the per-class privacy gates (issue #78): a
-                // disabled IP class demotes the span to the
-                // never-masked VersionQuad kind so keyword coloring
-                // survives. A vault-term hit always masks: the terms
-                // list is already class-filtered app-side.
+                // Per-class privacy gates (issue #78): a disabled IP
+                // class demotes the span to the never-masked VersionQuad
+                // kind so keyword coloring survives. A vault-term hit
+                // always masks: the terms list is already class-filtered
+                // app-side.
                 let term_hit = privacy_terms.iter().any(|t| t == text);
                 let private = ipv4_is_private_or_loopback(text);
-                let address_like =
-                    term_hit || private || !quad_dot_version_context(&row_str, start);
                 let class_on = if private { classes.private_ips } else { classes.public_ips };
-                let masked = address_like && (term_hit || class_on);
+                let masked = term_hit || class_on;
                 // A candidate already owned by an earlier span (a scraped
                 // URL) is normally skipped. But the app-side redactor is
                 // not URL-aware and masks an address inside a URL host, so
@@ -1600,16 +1554,23 @@ mod tests {
     }
 
     #[test]
-    fn version_keyword_and_prefix_rows_not_masked() {
-        // A version-word or product-slash glued to the token keeps it
-        // readable (per-candidate evidence).
-        assert!(masked_ip_texts("pandoc version 3.9.0.2 installed", &[]).is_empty());
-        assert!(masked_ip_texts("agent curl/8.4.0.1 sent", &[]).is_empty());
-        assert!(masked_ip_texts("ver 1.2.3.4", &[]).is_empty());
-        assert_eq!(version_quad_texts("ver 1.2.3.4", &[]), vec!["1.2.3.4"]);
-        // A row-wide keyword is NOT local evidence: `available` sits away
-        // from the quad, and unmasking on it would leak a sibling public
-        // IP on an access-log line, so the quad masks.
+    fn version_marked_quads_mask_like_any_address() {
+        // The issue #53 version-context exemption is gone (owner call
+        // 2026-07-19): a hostile server could print `version 203.0.113.7`
+        // to display a real address unmasked, and a range-valid quad is
+        // byte-for-byte indistinguishable from one. Masking an actual
+        // version string accidentally is the accepted error.
+        assert_eq!(
+            masked_ip_texts("pandoc version 3.9.0.2 installed", &[]),
+            vec!["3.9.0.2"]
+        );
+        assert_eq!(masked_ip_texts("agent curl/8.4.0.1 sent", &[]), vec!["8.4.0.1"]);
+        assert_eq!(masked_ip_texts("ver 1.2.3.4", &[]), vec!["1.2.3.4"]);
+        assert_eq!(
+            masked_ip_texts("version 203.0.113.7", &[]),
+            vec!["203.0.113.7"]
+        );
+        assert!(version_quad_texts("ver 1.2.3.4", &[]).is_empty());
         assert_eq!(masked_ip_texts("rustc 1.96.0.0 available", &[]), vec!["1.96.0.0"]);
     }
 
@@ -1670,18 +1631,24 @@ mod tests {
     }
 
     #[test]
-    fn version_quads_keep_the_keyword_color_and_skip_privacy() {
-        let s = "version 3.9.0.2 ok";
+    fn class_off_quads_keep_the_keyword_color_and_skip_privacy() {
+        // With the public-IPs class disabled the span demotes to
+        // VersionQuad: colored like an Ip span, never a privacy cell.
+        // This is the only remaining path to that kind now that the
+        // version-context exemption is gone.
+        let s = "ping 203.0.113.7 ok";
         let rows = rows_from(s);
-        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
-        let start = s.find("3.9.0.2").unwrap() as u16;
-        // Colored like an Ip span...
+        let classes = PrivacyClasses {
+            public_ips: false,
+            ..PrivacyClasses::default()
+        };
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], classes);
+        let start = s.find("203.0.113.7").unwrap() as u16;
         assert_eq!(
             highlight_color_at(&hs, 0, start),
             Some(TerminalPalette::default().ansi[5])
         );
-        // ...but never a privacy cell.
-        for col in start..start + 7 {
+        for col in start..start + 11 {
             assert!(!is_privacy_cell(&hs, 0, col), "col {col} must not mask");
         }
         assert_eq!(privacy_span_at(&hs, 0, start), None);

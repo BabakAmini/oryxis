@@ -70,7 +70,7 @@ pub(crate) use highlight::*;
 // Shared with the app-side session-log redaction so both sides agree on
 // what is IPv6-shaped.
 pub use highlight::{
-    ipv4_is_private_or_loopback, ipv6_is_local, looks_like_ipv6, quad_dot_is_version_like,
+    ipv4_is_private_or_loopback, ipv6_is_local, looks_like_ipv6,
     PrivacyClasses,
 };
 pub(crate) use perf::*;
