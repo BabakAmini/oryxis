@@ -346,6 +346,11 @@ pub(crate) struct SftpState {
     /// whose generation still matches runs, so fast typing searches once
     /// (with the full buffer) instead of jumping on every key.
     pub type_ahead_gen: u64,
+    /// Set when the last type-ahead keystroke repeated the same single
+    /// character (Windows-Explorer style): the debounced search then advances
+    /// to the *next* match for that character instead of narrowing the buffer,
+    /// so pressing one letter repeatedly cycles through all its matches.
+    pub type_ahead_cycle: bool,
     /// Bytes transferred so far in the active transfer, incremented by the
     /// SFTP engine as chunks move. Drives the live progress bar (polled by
     /// a tick subscription while a transfer runs).
@@ -451,6 +456,7 @@ impl Default for SftpState {
             pending_rename: None,
             swallow_next_activate: false,
             type_ahead_gen: 0,
+            type_ahead_cycle: false,
             transfer_bytes_done: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             transfer_bytes_total: 0,
             log: Vec::new(),

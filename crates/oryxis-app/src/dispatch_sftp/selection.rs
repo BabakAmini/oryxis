@@ -418,10 +418,12 @@ impl Oryxis {
                 if prefix.is_empty() {
                     return Ok(Task::none());
                 }
-                // Cycle when the sequence matches the previous one (the user
-                // re-typed the same search): advance past the current
-                // selection instead of restarting at the top.
-                let cycle = prefix == self.sftp.type_ahead_committed;
+                // Cycle when the last keystroke repeated a single character
+                // (Windows-style) or the user re-typed the whole previous
+                // search after a pause: advance past the current selection
+                // instead of restarting at the top.
+                let cycle =
+                    self.sftp.type_ahead_cycle || prefix == self.sftp.type_ahead_committed;
 
                 // Snapshot the displayed entries as (name, full_path) in
                 // display order (same hidden + filter rules as the view).
@@ -704,22 +706,36 @@ impl Oryxis {
                     // re-typing the same search cycles to the next match.
                     self.sftp.type_ahead_committed = std::mem::take(&mut self.sftp.type_ahead);
                 }
-                for lc in ch.to_lowercase() {
-                    self.sftp.type_ahead.push(lc);
+                let lc: String = ch.to_lowercase().collect();
+                // Windows-Explorer single-character cycling: while a search is
+                // live, pressing the SAME single character again advances to the
+                // next match instead of narrowing the buffer to "aa". A
+                // different character narrows; a pause (elapsed) starts fresh.
+                let repeat = !elapsed && self.sftp.type_ahead == lc;
+                if !repeat {
+                    self.sftp.type_ahead.push_str(&lc);
                 }
+                self.sftp.type_ahead_cycle = repeat;
                 self.sftp.type_ahead_at = Some(now);
                 // Type-ahead moves the keyboard cursor too; mute mouse hover.
                 self.sftp.suppress_hover = true;
-                // Debounce: bump the generation and search only after a short
-                // pause, so fast typing ("cla") resolves once with the full
-                // buffer instead of jumping on every key (c -> cl -> cla).
                 self.sftp.type_ahead_gen = self.sftp.type_ahead_gen.wrapping_add(1);
                 let generation = self.sftp.type_ahead_gen;
-                Ok(Task::perform(
-                    async move {
-                        tokio::time::sleep(TYPE_AHEAD_DEBOUNCE).await;
-                    },
-                    move |_| Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)),
-                ))
+                if repeat {
+                    // Cycle immediately so each repeat of the key advances one
+                    // step (debouncing would collapse a fast "eee" into one jump).
+                    Ok(Task::done(Message::Sftp(SftpMessage::SftpTypeAheadFire(
+                        generation,
+                    ))))
+                } else {
+                    // Debounce narrowing so fast typing ("cla") resolves once
+                    // with the full buffer instead of jumping on every key.
+                    Ok(Task::perform(
+                        async move {
+                            tokio::time::sleep(TYPE_AHEAD_DEBOUNCE).await;
+                        },
+                        move |_| Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)),
+                    ))
+                }
     }
 }
