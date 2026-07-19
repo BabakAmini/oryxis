@@ -133,12 +133,12 @@ pub enum SettingsMessage {
     /// Volatile, never persisted. Driven by the Ctrl+Shift+M hotkey
     /// and the status-bar chip.
     TogglePrivacySessionOverride,
-    /// Privacy Mode always-mask list edited (issue #78): literals
+    /// Privacy Mode always-mask textarea action (issue #78): literals
     /// masked wherever they appear, on top of the derived terms.
-    SettingPrivacyAlwaysMaskChanged(String),
-    /// Privacy Mode never-mask list edited (issue #78): words the
+    SettingPrivacyAlwaysMaskAction(text_editor::Action),
+    /// Privacy Mode never-mask textarea action (issue #78): words the
     /// derived terms must not include (generic usernames).
-    SettingPrivacyNeverMaskChanged(String),
+    SettingPrivacyNeverMaskAction(text_editor::Action),
     /// Flip one per-class Privacy Mode gate (issue #78 block 1).
     TogglePrivacyMaskClass(PrivacyMaskClass),
     /// Flip the Settings > Advanced debug logging (tracing events also

@@ -24,6 +24,31 @@ pub fn rounded_input_style(_theme: &Theme, status: text_input::Status) -> text_i
     }
 }
 
+/// Shared style for multi-line `text_editor`s, matching
+/// `rounded_input_style` so textareas sit next to single-line inputs
+/// with the same geometry and focus feedback.
+pub fn rounded_text_editor_style(
+    _theme: &Theme,
+    status: iced::widget::text_editor::Status,
+) -> iced::widget::text_editor::Style {
+    let c = OryxisColors::t();
+    let (border_color, border_width) = match status {
+        iced::widget::text_editor::Status::Focused { .. } => (c.accent, 1.5),
+        _ => (c.border, 1.0),
+    };
+    iced::widget::text_editor::Style {
+        background: Background::Color(c.bg_surface),
+        border: Border {
+            radius: Radius::from(INPUT_RADIUS),
+            width: border_width,
+            color: border_color,
+        },
+        placeholder: c.text_muted,
+        value: c.text_primary,
+        selection: c.accent,
+    }
+}
+
 /// Shared menu style for `combo_box` dropdowns. Matches the app's
 /// surface + border palette so the native overlay reads like the rest
 /// of the popovers. Apply via `.menu_style(combo_menu_style)`.

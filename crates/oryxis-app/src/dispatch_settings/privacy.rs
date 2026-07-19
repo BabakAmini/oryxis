@@ -157,13 +157,28 @@ impl Oryxis {
                 };
                 return Ok(self.show_toast(crate::i18n::t(key).to_string()));
             }
-            Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskChanged(v)) => {
-                self.persist_setting("privacy_always_mask", &v);
-                self.privacy.always_mask = v;
+            Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskAction(action)) => {
+                // Textarea buffer first; the `String` mirror (what
+                // `privacy_terms()` reads per frame) and the vault row
+                // only refresh on actual edits, not cursor motion.
+                let was_edit = action.is_edit();
+                self.privacy.always_mask_editor.perform(action);
+                if was_edit {
+                    self.privacy.always_mask =
+                        self.privacy.always_mask_editor.text();
+                    let v = self.privacy.always_mask.clone();
+                    self.persist_setting("privacy_always_mask", &v);
+                }
             }
-            Message::Settings(SettingsMessage::SettingPrivacyNeverMaskChanged(v)) => {
-                self.persist_setting("privacy_never_mask", &v);
-                self.privacy.never_mask = v;
+            Message::Settings(SettingsMessage::SettingPrivacyNeverMaskAction(action)) => {
+                let was_edit = action.is_edit();
+                self.privacy.never_mask_editor.perform(action);
+                if was_edit {
+                    self.privacy.never_mask =
+                        self.privacy.never_mask_editor.text();
+                    let v = self.privacy.never_mask.clone();
+                    self.persist_setting("privacy_never_mask", &v);
+                }
             }
             Message::Settings(SettingsMessage::TogglePrivacyMaskClass(class)) => {
                 use crate::messages::PrivacyMaskClass;

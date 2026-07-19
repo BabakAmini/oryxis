@@ -467,9 +467,13 @@ impl Oryxis {
             // stored value (even an empty string, the user clearing
             // the field is a choice) replaces it wholesale.
             if let Ok(Some(v)) = vault.get_setting("privacy_always_mask") {
+                self.privacy.always_mask_editor =
+                    iced::widget::text_editor::Content::with_text(&v);
                 self.privacy.always_mask = v;
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_never_mask") {
+                self.privacy.never_mask_editor =
+                    iced::widget::text_editor::Content::with_text(&v);
                 self.privacy.never_mask = v;
             }
             if let Ok(Some(v)) = vault.get_setting("hint_privacy_mask") {

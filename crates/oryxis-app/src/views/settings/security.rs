@@ -556,17 +556,18 @@ impl Oryxis {
                         "set-security-privacy-always",
                     )),
                     10.0,
-                    text_input(
-                        "internal.example.com, acme-corp",
-                        &self.privacy.always_mask,
-                    )
-                    .id(iced::widget::Id::new("set-security-privacy-always"))
-                    .on_input(|v| Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskChanged(v)))
-                    .padding(10)
-                    .width(Length::Fill)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
+                    // Multi-line textarea: long lists wrap instead of
+                    // scrolling out of a one-line input; newlines
+                    // separate entries like commas (parse_privacy_list
+                    // splits on both). Auto-grows with the content.
+                    iced::widget::text_editor(&self.privacy.always_mask_editor)
+                        .placeholder("internal.example.com, acme-corp")
+                        .id(iced::widget::Id::new("set-security-privacy-always"))
+                        .on_action(|a| Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskAction(a)))
+                        .padding(10)
+                        .height(Length::Shrink)
+                        .style(crate::widgets::rounded_text_editor_style)
+                        .into(),
                 ))
                 .push(Space::new().height(14))
                 .push(
@@ -586,17 +587,14 @@ impl Oryxis {
                         "set-security-privacy-never",
                     )),
                     10.0,
-                    text_input(
-                        "root, ubuntu, admin",
-                        &self.privacy.never_mask,
-                    )
-                    .id(iced::widget::Id::new("set-security-privacy-never"))
-                    .on_input(|v| Message::Settings(SettingsMessage::SettingPrivacyNeverMaskChanged(v)))
-                    .padding(10)
-                    .width(Length::Fill)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
+                    iced::widget::text_editor(&self.privacy.never_mask_editor)
+                        .placeholder("root, ubuntu, admin")
+                        .id(iced::widget::Id::new("set-security-privacy-never"))
+                        .on_action(|a| Message::Settings(SettingsMessage::SettingPrivacyNeverMaskAction(a)))
+                        .padding(10)
+                        .height(Length::Shrink)
+                        .style(crate::widgets::rounded_text_editor_style)
+                        .into(),
                 ));
         }
         panel_section(privacy_rows)

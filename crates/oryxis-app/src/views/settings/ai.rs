@@ -177,24 +177,7 @@ impl Oryxis {
                 .on_action(|v| Message::Ai(AiMessage::AiSystemPromptAction(v)))
                 .padding(10)
                 .height(Length::Shrink)
-                .style(|_theme, status| {
-                    let c = OryxisColors::t();
-                    let (border_color, border_width) = match status {
-                        iced::widget::text_editor::Status::Focused { .. } => (c.accent, 1.5),
-                        _ => (c.border, 1.0),
-                    };
-                    iced::widget::text_editor::Style {
-                        background: iced::Background::Color(c.bg_surface),
-                        border: iced::Border {
-                            radius: iced::border::Radius::from(crate::widgets::INPUT_RADIUS),
-                            width: border_width,
-                            color: border_color,
-                        },
-                        placeholder: c.text_muted,
-                        value: c.text_primary,
-                        selection: c.accent,
-                    }
-                })
+                .style(crate::widgets::rounded_text_editor_style)
                 .into();
             let prompt_section = panel_section(column![
                 panel_field(t("additional_system_prompt"), prompt_editor),

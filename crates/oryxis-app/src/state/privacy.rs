@@ -53,6 +53,15 @@ pub(crate) struct PrivacyState {
     /// masked behind muted blocks; the toolbar / viewer "Reveal" button
     /// flips this to show the raw values. Reset whenever the view is left.
     pub revealed: bool,
+    /// Multi-line edit buffer behind the always-mask textarea. The
+    /// `String` mirror above stays the read side (`privacy_terms()`
+    /// runs per frame; `Content::text()` allocates), synced on every
+    /// edit action. `text_editor::Content` is not `Clone`, same
+    /// arrangement as `AiState::system_prompt`.
+    pub always_mask_editor: iced::widget::text_editor::Content,
+    /// Multi-line edit buffer behind the never-mask textarea; see
+    /// `always_mask_editor`.
+    pub never_mask_editor: iced::widget::text_editor::Content,
 }
 
 /// Manual impl (not derived) because the mask gates default ON and the
@@ -60,17 +69,22 @@ pub(crate) struct PrivacyState {
 /// old loose fields initialized in `boot`.
 impl Default for PrivacyState {
     fn default() -> Self {
+        let never_mask = crate::app::Oryxis::privacy_never_mask_default();
         Self {
             mode: false,
             session_override: None,
             hint_shown: false,
             always_mask: String::new(),
-            never_mask: crate::app::Oryxis::privacy_never_mask_default(),
             mask_public_ips: true,
             mask_private_ips: true,
             mask_usernames: true,
             mask_hostnames: true,
             revealed: false,
+            always_mask_editor: iced::widget::text_editor::Content::new(),
+            never_mask_editor: iced::widget::text_editor::Content::with_text(
+                &never_mask,
+            ),
+            never_mask,
         }
     }
 }
