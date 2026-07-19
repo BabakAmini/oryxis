@@ -169,33 +169,55 @@ impl Oryxis {
     }
 
     pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
-        // Converted domains (Step C): each sub-enum routes straight to its
-        // type-safe handler; everything else falls through to the shrinking
-        // `try_handler!` chain below. New domains land in this match.
-        let message = match message {
-            Message::KnownHost(m) => return self.handle_known_hosts(m),
-            Message::RemoteDesktop(m) => return self.handle_remote_desktop(m),
-            Message::SessionGroup(m) => return self.handle_session_group(m),
-            Message::Zmodem(m) => return self.handle_zmodem(m),
-            Message::Update(m) => return self.handle_update(m),
-            Message::PortForward(m) => return self.handle_port_forwards(m),
-            Message::Agent(m) => return self.handle_agent(m),
-            Message::ProxyIdentity(m) => return self.handle_proxy_identity(m),
-            Message::CommandHistory(m) => return self.handle_command_history(m),
-            Message::Navigation(m) => return self.handle_navigation(m),
-            Message::Ai(m) => return self.handle_ai(m),
-            Message::Plugin(m) => return self.handle_plugins(m),
-            Message::Snippet(m) => return self.handle_snippets(m),
-            Message::Vault(m) => return self.handle_vault(m),
-            Message::Sync(m) => return self.handle_sync(m),
-            Message::Mcp(m) => return self.handle_mcp(m),
-            Message::Editor(m) => return self.handle_editor(m),
-            Message::Share(m) => return self.handle_share(m),
-            Message::Tray(m) => return self.handle_tray(m),
-            Message::Onboarding(m) => return self.handle_onboarding(m),
-            Message::Player(m) => return self.handle_player(m),
-            Message::SidebarFiles(m) => return self.handle_sidebar_files(m),
-            Message::History(m) => return self.handle_history(m),
+        // Exhaustive routing table: every domain's sub-enum goes straight to
+        // its type-safe `handle_*(XMessage) -> Task` handler; the cross-cutting
+        // globals go to `handle_global`. No catch-all, so the compiler enforces
+        // that every message wrapper is routed (add an arm for a new domain).
+        // Replaced the old 34-deep `try_handler!` fall-through chain (Step C of
+        // the Message sub-enum conversion).
+        match message {
+            Message::KnownHost(m) => self.handle_known_hosts(m),
+            Message::RemoteDesktop(m) => self.handle_remote_desktop(m),
+            Message::SessionGroup(m) => self.handle_session_group(m),
+            Message::Zmodem(m) => self.handle_zmodem(m),
+            Message::Update(m) => self.handle_update(m),
+            Message::PortForward(m) => self.handle_port_forwards(m),
+            Message::Agent(m) => self.handle_agent(m),
+            Message::ProxyIdentity(m) => self.handle_proxy_identity(m),
+            Message::CommandHistory(m) => self.handle_command_history(m),
+            Message::Navigation(m) => self.handle_navigation(m),
+            Message::Ai(m) => self.handle_ai(m),
+            Message::Plugin(m) => self.handle_plugins(m),
+            Message::Snippet(m) => self.handle_snippets(m),
+            Message::Vault(m) => self.handle_vault(m),
+            Message::Sync(m) => self.handle_sync(m),
+            Message::Mcp(m) => self.handle_mcp(m),
+            Message::Editor(m) => self.handle_editor(m),
+            Message::Share(m) => self.handle_share(m),
+            Message::Tray(m) => self.handle_tray(m),
+            Message::Onboarding(m) => self.handle_onboarding(m),
+            Message::Player(m) => self.handle_player(m),
+            Message::SidebarFiles(m) => self.handle_sidebar_files(m),
+            Message::History(m) => self.handle_history(m),
+            Message::Settings(m) => self.handle_settings(m),
+            Message::Keys(m) => self.handle_keys(m),
+            Message::Cloud(m) => self.handle_cloud(m),
+            Message::Ssh(m) => self.handle_ssh(m),
+            Message::Tabs(m) => self.handle_tabs(m),
+            Message::Sftp(m) => self.handle_sftp_domain(m),
+            // `SftpFor` is normally unwrapped to `Sftp` by `route_sftp_async`
+            // (in `update`) before dispatch; handle it defensively if it ever
+            // arrives here directly.
+            Message::SftpFor(_, inner) => self.handle_sftp_domain(*inner),
+            // SFTP type-ahead / list-nav peek runs before the terminal owns
+            // the key (preserves the old try-chain ordering).
+            Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {
+                match self.sftp_type_ahead(ke) {
+                    Ok(task) => task,
+                    Err(ke) => self.handle_terminal(TerminalMessage::KeyboardEvent(ke)),
+                }
+            }
+            Message::Terminal(m) => self.handle_terminal(m),
             // Cross-cutting globals (handled outside any single domain).
             Message::OpenUrl(_)
             | Message::CopyToClipboard(_)
@@ -204,35 +226,8 @@ impl Oryxis {
             | Message::ErrorDialogDismiss
             | Message::ErrorDialogRunAction
             | Message::TogglePrivacyReveal
-            | Message::NoOp => return self.handle_global(message),
-            Message::Settings(m) => return self.handle_settings(m),
-            Message::Keys(m) => return self.handle_keys(m),
-            Message::Cloud(m) => return self.handle_cloud(m),
-            Message::Sftp(m) => return self.handle_sftp_domain(m),
-            // SFTP type-ahead / list-nav peek runs before the terminal owns
-            // the key (preserves the old try-chain ordering).
-            Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {
-                match self.sftp_type_ahead(ke) {
-                    Ok(task) => return task,
-                    Err(ke) => {
-                        return self
-                            .handle_terminal(TerminalMessage::KeyboardEvent(ke))
-                    }
-                }
-            }
-            Message::Terminal(m) => return self.handle_terminal(m),
-            Message::Ssh(m) => return self.handle_ssh(m),
-            Message::Tabs(m) => return self.handle_tabs(m),
-            other => other,
-        };
-        // Domain-specific handlers each claim a slice of `Message`
-        // variants and return `Err(message)` for everything else, so
-        // the chain naturally falls through to the inline match below.
-
-        // The match above is exhaustive over every wrapper + global, so this
-        // is unreachable in practice; kept as a defensive no-op.
-        let _ = message;
-        Task::none()
+            | Message::NoOp => self.handle_global(message),
+        }
     }
 
     /// Push the current window state (hidden + tab labels) into the
