@@ -288,6 +288,7 @@ impl Oryxis {
                         .with_totp_secret(totp_secret.as_deref())
                         .with_keepalive(keepalive)
                         .with_address_family(conn.address_family)
+                        .with_rekey_limit_mb(conn.rekey_limit_mb)
                         .with_pinned_agent_key(pinned_agent.as_deref())
                         .with_algorithm_overrides(
                             conn.ciphers.clone(),
@@ -334,6 +335,7 @@ impl Oryxis {
                 .with_totp_secret(totp_secret.as_deref())
                 .with_keepalive(keepalive)
                 .with_address_family(conn.address_family)
+                .with_rekey_limit_mb(conn.rekey_limit_mb)
                 .with_pinned_agent_key(pinned_agent.as_deref())
                 .with_algorithm_overrides(
                     conn.ciphers.clone(),

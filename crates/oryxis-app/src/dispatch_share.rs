@@ -802,6 +802,8 @@ impl Oryxis {
         // /resolver pipeline as the terminal connect, with the host-key
         // ask channel wired to the shared verification modal.
         let (password, private_key, certificate) = self.resolve_credentials(&conn);
+        // Agent-auth pin (B3), same rule as the tab connect.
+        let pinned_agent = self.pinned_agent_public(&conn);
         let resolver = self.make_jump_resolver(&conn);
         let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
@@ -834,6 +836,8 @@ impl Oryxis {
                     .with_totp_secret(totp_secret.as_deref())
                     .with_keepalive(keepalive)
                     .with_address_family(conn.address_family)
+                    .with_rekey_limit_mb(conn.rekey_limit_mb)
+                    .with_pinned_agent_key(pinned_agent.as_deref())
                     .with_algorithm_overrides(
                         conn.ciphers.clone(),
                         conn.kex.clone(),

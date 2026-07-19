@@ -165,6 +165,8 @@ impl Oryxis {
             gw.proxy = vault.resolve_proxy(&gw).ok().flatten();
         }
         let (password, private_key, certificate) = self.resolve_forward_credentials(&gw);
+        // Agent-auth pin (B3), same rule as the tab connect.
+        let pinned_agent = self.pinned_agent_public(&gw);
         let totp_secret = self
             .vault
             .as_ref()
@@ -174,6 +176,7 @@ impl Oryxis {
         let keepalive = self.effective_keepalive(&gw);
         // The tunnel socket goes to the GATEWAY, so its preference rules.
         let address_family = gw.address_family;
+        let rekey_limit_mb = gw.rekey_limit_mb;
         let username = rd_username;
         let conn_id = conn.id;
         let target_host = desktop_host;
@@ -225,6 +228,8 @@ impl Oryxis {
                     )
                     .with_keepalive(keepalive)
                     .with_address_family(address_family)
+                    .with_rekey_limit_mb(rekey_limit_mb)
+                    .with_pinned_agent_key(pinned_agent.as_deref())
                     .with_strict_host_key(true)
                     .with_algorithm_overrides(
                         algo_ciphers,

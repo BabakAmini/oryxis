@@ -234,7 +234,12 @@ impl Oryxis {
             Message::SftpPickHost(idx) => {
                 let conn = match self.connections.get(idx).cloned() {
                     Some(c) => c,
-                    None => return Ok(Task::none()),
+                    None => {
+                        // Bail-out must drop any one-shot initial-path hint or
+                        // it would leak into the next unrelated mount.
+                        self.sftp_open_at_path = None;
+                        return Ok(Task::none());
+                    }
                 };
                 // The picker connects the host into whichever pane it was
                 // opened for.
@@ -322,6 +327,8 @@ impl Oryxis {
                 // for SFTP. Same credential pipeline as Message::ConnectSsh,
                 // but without spawning a terminal tab.
                 let (password, private_key, certificate) = self.resolve_credentials(&conn);
+                // Agent-auth pin (B3), same rule as the tab connect.
+                let pinned_agent = self.pinned_agent_public(&conn);
                 let resolver = self.make_jump_resolver(&conn);
                 let host_key_check = self.make_host_key_check();
                 let keepalive = self.effective_keepalive(&conn);
@@ -363,6 +370,8 @@ impl Oryxis {
                             .with_totp_secret(totp_secret.as_deref())
                             .with_keepalive(keepalive)
                             .with_address_family(conn.address_family)
+                            .with_rekey_limit_mb(conn.rekey_limit_mb)
+                            .with_pinned_agent_key(pinned_agent.as_deref())
                             .with_algorithm_overrides(
                                 conn.ciphers.clone(),
                                 conn.kex.clone(),
