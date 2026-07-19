@@ -20,6 +20,11 @@ site
 /*.md
 !/README.md
 !/README.zh-CN.md
+!/README.zh-TW.md
+!/README.ja.md
+!/README.ko.md
+!/README.fa.md
+!/README.pt-BR.md
 !/CHANGELOG.md
 !/SELF_HOSTING.md
 !/SECURITY.md
