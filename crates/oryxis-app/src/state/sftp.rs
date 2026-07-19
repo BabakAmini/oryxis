@@ -92,6 +92,83 @@ pub(crate) struct PaneState {
     /// (extract / compress / copy-out) is running; also blocks starting
     /// a second one on the same pane.
     pub archive_busy: Option<String>,
+    /// Mount generation of this pane. Stamped from the process-global
+    /// listing counter (`sftp_methods::next_list_seq`) by
+    /// [`PaneState::note_mounted`], which the mount pipeline reaches
+    /// through `spawn_archive_probe` on every `SftpHostMounted`. Async
+    /// archive completions capture it (inside an [`ArchiveOpToken`]) at
+    /// spawn time and drop their result when it no longer matches, so a
+    /// slow zip index / extract / compress / copy-out / tool probe
+    /// finishing after the pane was remounted to another host can't
+    /// install the previous host's state. Globally-unique numbering
+    /// (not a per-pane counter) means a token can't accidentally match
+    /// another surface's pane after a hybrid park / hoist swap either.
+    pub mount_seq: u64,
+}
+
+impl PaneState {
+    /// Stamp a fresh mount generation. Called (via
+    /// `spawn_archive_probe`) right after `SftpHostMounted` reset the
+    /// pane for a new host: every archive completion still in flight
+    /// for the previous mount now carries a stale token.
+    pub(crate) fn note_mounted(&mut self) {
+        self.mount_seq = crate::sftp_methods::next_list_seq();
+    }
+
+    /// Identity of "this pane, as currently mounted", captured when an
+    /// archive operation is spawned and checked when its async
+    /// completion lands. `is_remote` rides along because switching the
+    /// pane back to Local doesn't remount (so doesn't bump
+    /// `mount_seq`) but still invalidates any in-flight result.
+    pub(crate) fn archive_op_token(&self) -> ArchiveOpToken {
+        ArchiveOpToken {
+            mount_seq: self.mount_seq,
+            is_remote: self.is_remote,
+        }
+    }
+
+    /// True when a token captured at op start still describes this
+    /// pane: no remount happened and its Local / remote nature is
+    /// unchanged. Handlers drop stale completions instead of applying
+    /// them.
+    pub(crate) fn archive_op_current(&self, token: ArchiveOpToken) -> bool {
+        self.mount_seq == token.mount_seq && self.is_remote == token.is_remote
+    }
+
+    /// Whether the op that captured `token` still owns this pane's
+    /// `archive_busy` flag. Ownership survives a Local switch (same
+    /// generation, only `is_remote` flipped, and the per-pane start
+    /// guard means no other op could have set the flag since) but not
+    /// a remount: the mount reset sweeps the flag and a newer op may
+    /// have claimed it in the meantime.
+    pub(crate) fn archive_op_owns_busy(&self, token: ArchiveOpToken) -> bool {
+        self.mount_seq == token.mount_seq
+    }
+}
+
+/// Snapshot of a pane's mount identity at archive-op spawn time (see
+/// [`PaneState::archive_op_token`]). Carried through the async archive
+/// messages; a completion whose token is no longer current is dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ArchiveOpToken {
+    pub mount_seq: u64,
+    pub is_remote: bool,
+}
+
+/// Payload of `Message::SftpArchiveDone`. `side` is the pane whose
+/// contents the operation changed (refresh target on success, error
+/// surface on failure); `busy_side` is the pane the op marked
+/// `archive_busy` at start. They differ only for copy-out, which marks
+/// the SOURCE pane busy while writing into the destination (`side`).
+/// Each side carries the token captured for its pane at spawn time so
+/// the completion clears / applies exactly what this op touched.
+#[derive(Debug, Clone)]
+pub(crate) struct ArchiveDone {
+    pub side: SftpPaneSide,
+    pub token: ArchiveOpToken,
+    pub busy_side: SftpPaneSide,
+    pub busy_token: ArchiveOpToken,
+    pub result: Result<String, String>,
 }
 
 /// Virtual zip-browse state for one pane (see [`PaneState::zip`]).
@@ -1328,6 +1405,76 @@ mod column_tests {
         assert!(vis.is_visible(SftpColumn::Name));
         // Name visibility is not written to the persisted string.
         assert!(!vis.as_storage_str().split(',').any(|p| p == "name"));
+    }
+}
+
+#[cfg(test)]
+mod archive_op_tests {
+    use super::*;
+
+    fn remote_pane() -> PaneState {
+        PaneState {
+            is_remote: true,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn token_survives_unrelated_pane_mount() {
+        // A mount on one pane must not invalidate (or unlock the busy
+        // flag of) an op running on the OTHER pane: the busy clear and
+        // staleness checks are strictly per-pane.
+        let mut left = remote_pane();
+        let mut right = remote_pane();
+        left.note_mounted();
+        right.note_mounted();
+        let right_token = right.archive_op_token();
+        // The left pane remounts while the right pane's op is in
+        // flight; the right pane's completion must still apply.
+        left.note_mounted();
+        assert!(right.archive_op_current(right_token));
+        assert!(right.archive_op_owns_busy(right_token));
+    }
+
+    #[test]
+    fn remount_invalidates_token_and_busy_ownership() {
+        let mut pane = remote_pane();
+        pane.note_mounted();
+        let token = pane.archive_op_token();
+        assert!(pane.archive_op_current(token));
+        // Remounted to another host mid-op: the result is stale and,
+        // because the mount reset swept `archive_busy` (a newer op may
+        // own it now), the completion must not clear the flag either.
+        pane.note_mounted();
+        assert!(!pane.archive_op_current(token));
+        assert!(!pane.archive_op_owns_busy(token));
+    }
+
+    #[test]
+    fn local_switch_invalidates_result_but_keeps_busy_ownership() {
+        // Switching the pane back to Local doesn't remount (no
+        // `note_mounted`), so the generation is unchanged: the result
+        // is stale (wrong pane nature) but the busy flag is still this
+        // op's to clear, nothing else could have set it.
+        let mut pane = remote_pane();
+        pane.note_mounted();
+        let token = pane.archive_op_token();
+        pane.is_remote = false;
+        assert!(!pane.archive_op_current(token));
+        assert!(pane.archive_op_owns_busy(token));
+    }
+
+    #[test]
+    fn mount_generations_are_globally_unique() {
+        // Two panes never share a generation, so a token captured on
+        // one surface's pane can't match another's after a hybrid
+        // park / hoist swap.
+        let mut a = remote_pane();
+        let mut b = remote_pane();
+        a.note_mounted();
+        b.note_mounted();
+        assert_ne!(a.mount_seq, b.mount_seq);
+        assert!(!b.archive_op_current(a.archive_op_token()));
     }
 }
 

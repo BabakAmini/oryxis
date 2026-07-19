@@ -25,7 +25,9 @@ use std::sync::Arc;
 use iced::Task;
 
 use crate::app::{Message, Oryxis};
-use crate::state::{PaneState, SftpLogLevel, SftpPaneSide, ZipBrowse, ZipIndexedPayload};
+use crate::state::{
+    ArchiveDone, PaneState, SftpLogLevel, SftpPaneSide, ZipBrowse, ZipIndexedPayload,
+};
 use oryxis_archive::names::{self, ArchiveKind};
 use oryxis_archive::ranged::RangedSource;
 use oryxis_archive::remote::{self as remote_cmd, RemoteShell};
@@ -37,11 +39,19 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SftpToolsProbed(side, shell, tools) => {
+            Message::SftpToolsProbed(side, token, shell, tools) => {
+                let pane = self.sftp.pane_mut(side);
+                // A probe outliving its mount (the pane was remounted
+                // to another host, or switched back to Local, while it
+                // ran) is stale: drop it, the current mount spawned its
+                // own probe.
+                if !pane.archive_op_current(token) {
+                    return Ok(Task::none());
+                }
                 // Stored even when empty: `Some` with no tools means
                 // "probed, nothing there", which hides the remote
                 // extract/compress menu items instead of re-probing.
-                self.sftp.pane_mut(side).archive_tools = Some((shell, tools));
+                pane.archive_tools = Some((shell, tools));
             }
             Message::SftpZipOpen(side, path) => {
                 self.sftp.row_menu = None;
@@ -53,6 +63,9 @@ impl Oryxis {
                     }
                 }
                 let owner = self.current_sftp_owner();
+                // Mount identity at spawn time: the completion drops
+                // itself when the pane was remounted meanwhile.
+                let token = self.sftp.pane(side).archive_op_token();
                 let is_remote = self.sftp.pane(side).is_remote;
                 let task = if is_remote {
                     let Some(client) = self.sftp.pane(side).client.clone() else {
@@ -85,7 +98,7 @@ impl Oryxis {
                         move |r| {
                             Message::sftp_owned(
                                 owner,
-                                Message::SftpZipIndexed(side, path.clone(), r),
+                                Message::SftpZipIndexed(side, path.clone(), token, r),
                             )
                         },
                     )
@@ -107,7 +120,7 @@ impl Oryxis {
                         move |r| {
                             Message::sftp_owned(
                                 owner,
-                                Message::SftpZipIndexed(side, path.clone(), r),
+                                Message::SftpZipIndexed(side, path.clone(), token, r),
                             )
                         },
                     )
@@ -116,8 +129,39 @@ impl Oryxis {
                     Some(crate::i18n::t("archive_reading").to_string());
                 return Ok(task);
             }
-            Message::SftpZipIndexed(side, archive_path, result) => {
-                self.sftp.pane_mut(side).archive_busy = None;
+            Message::SftpZipIndexed(side, archive_path, token, result) => {
+                {
+                    let pane = self.sftp.pane_mut(side);
+                    // Only the op that set the busy flag may clear it:
+                    // after a remount the mount reset already swept it
+                    // and a NEWER op may own it now (a same-generation
+                    // completion always owns it, the per-pane start
+                    // guard forbids two concurrent ops on one pane).
+                    if pane.archive_op_owns_busy(token) {
+                        pane.archive_busy = None;
+                    }
+                    if !pane.archive_op_current(token) {
+                        // The pane was remounted (or switched back to
+                        // Local) while the index was read: installing
+                        // it would put the OLD host's index and ranged
+                        // handle over the new listing. Drop the result
+                        // silently, returning the server-side handle
+                        // when the old session still holds one (best-
+                        // effort, mirroring SftpZipClose: dropping the
+                        // Arc would also tear the channel down).
+                        let close_task = match result
+                            .ok()
+                            .and_then(|p| p.remote_src)
+                            .and_then(|s| Arc::try_unwrap(s).ok())
+                        {
+                            Some(file) => {
+                                Task::future(async move { file.close().await }).discard()
+                            }
+                            None => Task::none(),
+                        };
+                        return Ok(close_task);
+                    }
+                }
                 match result {
                     Err(e) => return Ok(Task::done(Message::SftpOpResult(side, e, true))),
                     Ok(payload) => {
@@ -196,9 +240,33 @@ impl Oryxis {
                 self.sftp.row_menu = None;
                 return self.start_archive_compress(side, kind, target);
             }
-            Message::SftpArchiveDone(side, result) => {
-                self.sftp.left.archive_busy = None;
-                self.sftp.right.archive_busy = None;
+            Message::SftpArchiveDone(done) => {
+                let ArchiveDone {
+                    side,
+                    token,
+                    busy_side,
+                    busy_token,
+                    result,
+                } = done;
+                {
+                    // Clear exactly the pane this op marked busy (copy-
+                    // out marks the SOURCE while `side` is the
+                    // destination), never the other pane: a concurrent
+                    // op there keeps its own guard. And only while the
+                    // flag is still this op's: after a remount the
+                    // mount reset swept it and a newer op may own it.
+                    let busy_pane = self.sftp.pane_mut(busy_side);
+                    if busy_pane.archive_op_owns_busy(busy_token) {
+                        busy_pane.archive_busy = None;
+                    }
+                }
+                if !self.sftp.pane(side).archive_op_current(token) {
+                    // The affected pane was remounted (or switched back
+                    // to Local) while the op ran: its outcome belongs
+                    // to the previous mount. Show nothing, refresh
+                    // nothing.
+                    return Ok(Task::none());
+                }
                 match result {
                     Ok(label) => {
                         self.push_sftp_log(SftpLogLevel::Ok, label);
@@ -247,7 +315,15 @@ impl Oryxis {
     /// falls back to the Windows probe pair. An exec-less server (e.g.
     /// chrooted `internal-sftp`) simply yields an empty toolset, which
     /// keeps the remote archive actions hidden.
-    pub(crate) fn spawn_archive_probe(&self, side: SftpPaneSide) -> Task<Message> {
+    pub(crate) fn spawn_archive_probe(&mut self, side: SftpPaneSide) -> Task<Message> {
+        // Every mount funnels through here (`SftpHostMounted` calls it
+        // right after resetting the pane for the new host), so this is
+        // where the pane's mount generation is stamped: any archive
+        // completion still in flight for the previous mount (zip
+        // index, extract / compress / copy-out, this very probe) now
+        // carries a stale token and drops itself on arrival.
+        self.sftp.pane_mut(side).note_mounted();
+        let token = self.sftp.pane(side).archive_op_token();
         let Some(client) = self.sftp.pane(side).client.clone() else {
             return Task::none();
         };
@@ -277,7 +353,7 @@ impl Oryxis {
                     (RemoteShell::Posix, tools)
                 }
             },
-            move |(shell, tools)| Message::SftpToolsProbed(side, shell, tools),
+            move |(shell, tools)| Message::SftpToolsProbed(side, token, shell, tools),
         )
     }
 
@@ -310,6 +386,9 @@ impl Oryxis {
             dest_name
         );
         let owner = self.current_sftp_owner();
+        // The op changes and busies the same pane; capture its mount
+        // identity so a post-remount completion drops itself.
+        let token = pane.archive_op_token();
         let task = if pane.is_remote {
             let Some((shell, tools)) = pane.archive_tools else {
                 return Ok(Task::done(Message::SftpOpResult(
@@ -342,7 +421,13 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(side, r.map(|()| label.clone())),
+                        Message::SftpArchiveDone(ArchiveDone {
+                            side,
+                            token,
+                            busy_side: side,
+                            busy_token: token,
+                            result: r.map(|()| label.clone()),
+                        }),
                     )
                 },
             )
@@ -361,7 +446,13 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(side, r.map(|()| label.clone())),
+                        Message::SftpArchiveDone(ArchiveDone {
+                            side,
+                            token,
+                            busy_side: side,
+                            busy_token: token,
+                            result: r.map(|()| label.clone()),
+                        }),
                     )
                 },
             )
@@ -431,6 +522,9 @@ impl Oryxis {
             items.len()
         );
         let owner = self.current_sftp_owner();
+        // Same-pane op: one token covers both the refresh gate and the
+        // busy-clear gate of the completion.
+        let token = pane.archive_op_token();
         let task = if pane.is_remote {
             let Some((shell, tools)) = pane.archive_tools else {
                 return Ok(Task::done(Message::SftpOpResult(
@@ -462,7 +556,13 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(side, r.map(|()| label.clone())),
+                        Message::SftpArchiveDone(ArchiveDone {
+                            side,
+                            token,
+                            busy_side: side,
+                            busy_token: token,
+                            result: r.map(|()| label.clone()),
+                        }),
                     )
                 },
             )
@@ -481,7 +581,13 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(side, r.map(|()| label.clone())),
+                        Message::SftpArchiveDone(ArchiveDone {
+                            side,
+                            token,
+                            busy_side: side,
+                            busy_token: token,
+                            result: r.map(|()| label.clone()),
+                        }),
                     )
                 },
             )
@@ -567,6 +673,12 @@ impl Oryxis {
         };
         let label = format!("{} {}", crate::i18n::t("archive_log_copied"), base);
         let owner = self.current_sftp_owner();
+        // Copy-out busies the SOURCE pane (the one browsing the
+        // archive) while the DESTINATION pane receives the files, so
+        // the completion carries a token per pane: the busy clear is
+        // gated on the source's, the refresh on the destination's.
+        let busy_token = self.sftp.pane(side).archive_op_token();
+        let dest_token = self.sftp.pane(other).archive_op_token();
         self.sftp.pane_mut(side).archive_busy =
             Some(crate::i18n::t("archive_copying").to_string());
         Ok(Task::perform(
@@ -574,7 +686,13 @@ impl Oryxis {
             move |r| {
                 Message::sftp_owned(
                     owner,
-                    Message::SftpArchiveDone(other, r.map(|()| label.clone())),
+                    Message::SftpArchiveDone(ArchiveDone {
+                        side: other,
+                        token: dest_token,
+                        busy_side: side,
+                        busy_token,
+                        result: r.map(|()| label.clone()),
+                    }),
                 )
             },
         ))

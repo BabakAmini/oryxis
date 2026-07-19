@@ -524,10 +524,14 @@ pub enum Message {
     // transfer queue does.
     /// Open a zip archive (real full path) for virtual browsing.
     SftpZipOpen(crate::state::SftpPaneSide, String),
-    /// Central directory parsed (archive real path, payload or error).
+    /// Central directory parsed (archive real path, mount token
+    /// captured at spawn, payload or error). A token that no longer
+    /// matches the pane means the pane was remounted (or switched back
+    /// to Local) while the index was read: the result is dropped.
     SftpZipIndexed(
         crate::state::SftpPaneSide,
         String,
+        crate::state::ArchiveOpToken,
         Result<crate::state::ZipIndexedPayload, String>,
     ),
     /// Navigate to a directory INSIDE the browsed archive ("" = root).
@@ -546,11 +550,17 @@ pub enum Message {
         oryxis_archive::names::ArchiveKind,
         String,
     ),
-    /// Archive operation finished: log label or error; refreshes `side`.
-    SftpArchiveDone(crate::state::SftpPaneSide, Result<String, String>),
-    /// Once-per-mount remote tool probe result.
+    /// Archive operation finished: log label or error. The payload
+    /// carries which pane the op changed (refresh / error target) and
+    /// which pane it marked busy, each with the mount token captured at
+    /// spawn, so completions clear / apply exactly what this op touched
+    /// and stale (post-remount) results are dropped.
+    SftpArchiveDone(crate::state::ArchiveDone),
+    /// Once-per-mount remote tool probe result. The token is the mount
+    /// generation the probe was spawned for; a stale one is dropped.
     SftpToolsProbed(
         crate::state::SftpPaneSide,
+        crate::state::ArchiveOpToken,
         oryxis_archive::remote::RemoteShell,
         oryxis_archive::remote::ArchiveTools,
     ),
@@ -1556,6 +1566,8 @@ pub enum Message {
     SaveGeneratedPublicKeyFile,
     KeyGenExportPassphraseChanged(String),
     KeyGenExportPassphraseConfirmChanged(String),
+    KeyGenExportPassphraseToggleVisibility,
+    KeyGenExportPassphraseConfirmToggleVisibility,
     /// Export the generated private key to a file, passphrase-
     /// encrypted when the pair fields are non-empty.
     ExportGeneratedPrivateKey,
