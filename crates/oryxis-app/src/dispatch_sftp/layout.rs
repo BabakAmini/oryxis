@@ -1,0 +1,117 @@
+//! Pane chrome arms split out of `dispatch_sftp`: the actions / drives
+//! / filter popovers, column toggles / resize / auto-fit / drag, the
+//! transfer-log toggle and the split / log resize drags. Called from
+//! `handle_sftp`.
+
+#![allow(clippy::result_large_err)]
+
+use iced::Task;
+
+use crate::app::{Message, Oryxis};
+use crate::state::SftpPaneSide;
+
+impl Oryxis {
+    /// Auto-fit `col` in `side`'s pane to the widest value across every row
+    /// (issue #45). Measures through the renderer's font system, sets the new
+    /// width (clamped), then re-seeds + persists the column template.
+    fn autofit_sftp_column(&mut self, side: SftpPaneSide, col: crate::state::SftpColumn) {
+        let target = {
+            let pane = self.sftp.pane(side);
+            crate::views::sftp::autofit_column_width(
+                pane.is_remote,
+                &pane.remote_entries,
+                &pane.local_entries,
+                col,
+            )
+        };
+        self.sftp.pane_mut(side).columns.width.set_autofit(col, target);
+        self.sftp_columns_template = self.sftp.pane(side).columns.clone();
+        self.persist_sftp_columns();
+    }
+
+    pub(super) fn handle_sftp_layout(
+        &mut self,
+        message: Message,
+    ) -> Result<Task<Message>, Message> {
+        match message {
+            Message::SftpToggleActions(side) => {
+                let now = !self.sftp.pane(side).actions_open;
+                self.sftp.left.actions_open = false;
+                self.sftp.right.actions_open = false;
+                self.sftp.left.drives_open = false;
+                self.sftp.left.filter_open = false;
+                self.sftp.right.filter_open = false;
+                self.sftp.pane_mut(side).actions_open = now;
+            }
+            Message::SftpToggleDrives(side) => {
+                let now = !self.sftp.pane(side).drives_open;
+                self.sftp.left.actions_open = false;
+                self.sftp.right.actions_open = false;
+                self.sftp.left.drives_open = false;
+                self.sftp.right.drives_open = false;
+                self.sftp.pane_mut(side).drives_open = now;
+            }
+            Message::SftpCloseMenus => {
+                self.sftp.close_menus();
+            }
+            Message::SftpToggleColumn(side, col) => {
+                // Per-pane toggle; the actions menu stays open so the user can
+                // flip several columns in one pass. The edited pane becomes the
+                // new persisted template seed.
+                self.sftp.pane_mut(side).columns.toggle(col);
+                self.sftp_columns_template = self.sftp.pane(side).columns.clone();
+                self.persist_sftp_columns();
+            }
+            Message::SftpColResizeStart(side, col) => {
+                let start_w = self.sftp.pane(side).columns.width.get(col);
+                self.sftp_col_resize = Some((side, col, self.mouse_position.x, start_w));
+                self.sftp.close_menus();
+            }
+            Message::SftpColAutoFit(side, col) => {
+                self.autofit_sftp_column(side, col);
+            }
+            Message::SftpColDragStart(side, col) => {
+                self.sftp_col_drag = Some(crate::state::SftpColDrag {
+                    side,
+                    col,
+                    press_x: self.mouse_position.x,
+                    active: false,
+                });
+            }
+            Message::SftpColHovered(side, col) => {
+                self.sftp_hovered_col = Some((side, col));
+            }
+            Message::SftpColUnhovered => {
+                self.sftp_hovered_col = None;
+            }
+            Message::SftpToggleFilterSearch(side) => {
+                let now = !self.sftp.pane(side).filter_open;
+                self.sftp.close_menus();
+                self.sftp.pane_mut(side).filter_open = now;
+                if now {
+                    // Focus the popover input so the user can type immediately.
+                    let id = match side {
+                        SftpPaneSide::Left => "sftp-filter-pop-left",
+                        SftpPaneSide::Right => "sftp-filter-pop-right",
+                    };
+                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(id)));
+                }
+            }
+            Message::SftpToggleLog => {
+                self.sftp.log_open = !self.sftp.log_open;
+            }
+            Message::SftpSplitResizeStart => {
+                // Capture the cursor x and current ratio; the MouseMoved
+                // handler computes the delta against these.
+                self.sftp_split_drag = Some((self.mouse_position.x, self.sftp_split_ratio));
+            }
+            Message::SftpLogResizeStart => {
+                // Capture the cursor y and current log height; the MouseMoved
+                // handler computes the delta against these.
+                self.sftp_log_drag = Some((self.mouse_position.y, self.sftp.log_height));
+            }
+            m => return Err(m),
+        }
+        Ok(Task::none())
+    }
+}
