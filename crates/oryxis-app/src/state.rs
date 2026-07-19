@@ -325,7 +325,7 @@ pub(crate) struct QuickAuthOption {
     pub label: String,
 }
 
-/// Manual impl so a Debug-formatted `Message::QuickConnect` (message
+/// Manual impl so a Debug-formatted `|v| Message::Ssh(SshMessage::QuickConnect(v))` (message
 /// tracing, debug log file) never prints the typed credentials.
 impl std::fmt::Debug for QuickConnectEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

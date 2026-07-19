@@ -31,7 +31,7 @@ use iced::Task;
 use oryxis_core::models::Connection;
 use oryxis_ssh::SshEngine;
 
-use crate::app::{RemoteDesktopMessage, Message, Oryxis};
+use crate::app::{SshMessage, RemoteDesktopMessage, Message, Oryxis};
 use crate::remote_desktop::{program_on_path, resolve_command};
 
 impl Oryxis {
@@ -241,7 +241,7 @@ impl Oryxis {
                 let mut hk_sender = sender.clone();
                 let _hk_bridge = tokio::spawn(async move {
                     while let Some((query, resp_tx)) = hk_ask_rx.recv().await {
-                        let _ = hk_sender.send(Message::SshHostKeyVerify(query)).await;
+                        let _ = hk_sender.send(Message::Ssh(SshMessage::SshHostKeyVerify(query))).await;
                         let accepted = hk_resp_rx.recv().await.unwrap_or(false);
                         let _ = resp_tx.send(accepted);
                     }
@@ -250,7 +250,7 @@ impl Oryxis {
                 let mut kbi_sender = sender.clone();
                 let _kbi_bridge = tokio::spawn(async move {
                     while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
-                        let _ = kbi_sender.send(Message::SshKbiPrompt(None, query)).await;
+                        let _ = kbi_sender.send(Message::Ssh(SshMessage::SshKbiPrompt(None, query))).await;
                         let answers = kbi_resp_rx.recv().await.unwrap_or(None);
                         let _ = resp_tx.send(answers);
                     }

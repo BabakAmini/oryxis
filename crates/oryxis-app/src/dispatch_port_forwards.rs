@@ -21,7 +21,7 @@ use oryxis_core::models::connection::{AuthMethod, Connection};
 use oryxis_core::models::port_forward_rule::PortForwardRule;
 use oryxis_ssh::{ConnectionResolver, ForwardSession, HostKeyQuery, SshEngine};
 
-use crate::app::{PortForwardMessage, Message, Oryxis};
+use crate::app::{SshMessage, PortForwardMessage, Message, Oryxis};
 
 /// Items streamed out of an interactive (manual-toggle) forward connect:
 /// either a host-key question for the UI modal, or the final result.
@@ -384,14 +384,14 @@ impl Oryxis {
         });
 
         Task::stream(stream).map(move |m| match m {
-            PfStreamMsg::HostKey(q) => Message::SshHostKeyVerify(q),
+            PfStreamMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
             PfStreamMsg::Done(r) => Message::PortForward(PortForwardMessage::PortForwardStarted(id, r)),
-            PfStreamMsg::NoCommonAlgo { category, server_offers } => Message::SshNoCommonAlgo {
+            PfStreamMsg::NoCommonAlgo { category, server_offers } => Message::Ssh(SshMessage::SshNoCommonAlgo {
                 conn_id: pf_conn_id,
                 category,
                 server_offers,
                 retry: Box::new(Message::PortForward(PortForwardMessage::StartPortForward(id))),
-            },
+            }),
         })
     }
 

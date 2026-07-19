@@ -16,7 +16,7 @@ use uuid::Uuid;
 use oryxis_telnet::{TelnetConfig, TelnetSession};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis};
+use crate::app::{SshMessage, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis};
 use crate::state::{ConnectionProgress, ConnectionStep, TerminalTab, TerminalTransport};
 
 impl Oryxis {
@@ -127,7 +127,7 @@ impl Oryxis {
         if let crate::state::ProgressOrigin::Quick(id) = origin
             && let Some(entry) = self.quick_connects.get(&id)
         {
-            new_tab.relaunch = Some(Box::new(Message::QuickConnect(Box::new(entry.clone()))));
+            new_tab.relaunch = Some(Box::new(Message::Ssh(SshMessage::QuickConnect(Box::new(entry.clone())))));
         }
         let pane_id = new_tab.active().id;
         self.tabs.push(new_tab);
@@ -160,20 +160,20 @@ impl Oryxis {
                 match TelnetSession::connect(config).await {
                     Ok((session, mut rx)) => {
                         let transport = TerminalTransport::Telnet(Arc::new(session));
-                        let _ = sender.send(Message::SshConnected(pane_id, transport)).await;
+                        let _ = sender.send(Message::Ssh(SshMessage::SshConnected(pane_id, transport))).await;
                         while let Some(data) = rx.recv().await {
                             if sender.send(Message::PtyOutput(pane_id, data)).await.is_err() {
                                 break;
                             }
                         }
-                        let _ = sender.send(Message::SshDisconnected(pane_id)).await;
+                        let _ = sender.send(Message::Ssh(SshMessage::SshDisconnected(pane_id))).await;
                     }
                     Err(e) => {
                         let _ = sender
-                            .send(Message::SshError(format!(
+                            .send(Message::Ssh(SshMessage::SshError(format!(
                                 "Connection to {}:{} failed: {}",
                                 conn_host, conn_port, e
-                            )))
+                            ))))
                             .await;
                     }
                 }
@@ -221,17 +221,17 @@ impl Oryxis {
                 match TelnetSession::connect(config).await {
                     Ok((session, mut rx)) => {
                         let transport = TerminalTransport::Telnet(Arc::new(session));
-                        let _ = sender.send(Message::SshConnected(pane_id, transport)).await;
+                        let _ = sender.send(Message::Ssh(SshMessage::SshConnected(pane_id, transport))).await;
                         while let Some(data) = rx.recv().await {
                             if sender.send(Message::PtyOutput(pane_id, data)).await.is_err() {
                                 break;
                             }
                         }
-                        let _ = sender.send(Message::SshDisconnected(pane_id)).await;
+                        let _ = sender.send(Message::Ssh(SshMessage::SshDisconnected(pane_id))).await;
                     }
                     Err(e) => {
                         let _ = sender
-                            .send(Message::PaneConnectError(pane_id, e.to_string()))
+                            .send(Message::Ssh(SshMessage::PaneConnectError(pane_id, e.to_string())))
                             .await;
                     }
                 }

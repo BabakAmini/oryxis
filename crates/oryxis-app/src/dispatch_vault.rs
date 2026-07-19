@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{VaultMessage, Message, Oryxis};
+use crate::app::{SshMessage, VaultMessage, Message, Oryxis};
 use crate::state::{VaultState, View};
 use oryxis_vault::VaultError;
 
@@ -148,7 +148,7 @@ impl Oryxis {
                                     .iter()
                                     .position(|c| c.id == connect_id)
                             {
-                                unlock_tasks.push(Task::done(Message::ConnectSsh(idx)));
+                                unlock_tasks.push(Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))));
                             } else {
                                 // Land on Home with the host search focused
                                 // so the user can type / keyboard-navigate

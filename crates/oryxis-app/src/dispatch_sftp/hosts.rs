@@ -14,7 +14,7 @@ use std::time::Duration;
 use oryxis_ssh::SshEngine;
 
 use super::initial_remote_listing;
-use crate::app::{Message, Oryxis, SftpMessage};
+use crate::app::{SshMessage, Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::sort_remote_entries;
 use crate::state::SftpPaneSide;
 
@@ -143,7 +143,7 @@ impl Oryxis {
                 }
 
                 // No existing tab, open a brand-new SSH session, just
-                // for SFTP. Same credential pipeline as Message::ConnectSsh,
+                // for SFTP. Same credential pipeline as |v| Message::Ssh(SshMessage::ConnectSsh(v)),
                 // but without spawning a terminal tab.
                 let (password, private_key, certificate) = self.resolve_credentials(&conn);
                 // Agent-auth pin (B3), same rule as the tab connect.
@@ -254,7 +254,7 @@ impl Oryxis {
                     },
                 );
                 return Ok(Task::stream(stream).map(move |m| match m {
-                    SftpConnectMsg::HostKey(q) => Message::SshHostKeyVerify(q),
+                    SftpConnectMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
                     SftpConnectMsg::Done(Ok((session, client, path, entries))) => {
                         Message::sftp_owned(
                             owner,
@@ -272,12 +272,12 @@ impl Oryxis {
                         Message::sftp_owned(owner, SftpMessage::RemoteError(target, e))
                     }
                     SftpConnectMsg::NoCommonAlgo { category, server_offers } => {
-                        Message::SshNoCommonAlgo {
+                        Message::Ssh(SshMessage::SshNoCommonAlgo {
                             conn_id: sftp_conn_id,
                             category,
                             server_offers,
                             retry: Box::new(Message::SftpPickHost(idx)),
-                        }
+                        })
                     }
                 }));
             }

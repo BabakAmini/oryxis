@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SshMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 use crate::widgets::{dir_align_x, dir_row};
@@ -146,9 +146,9 @@ impl Oryxis {
                 quick_target,
                 format!("{}: {}", t("quick_connect"), conn.label),
                 false,
-                Message::QuickConnect(Box::new(
+                Message::Ssh(SshMessage::QuickConnect(Box::new(
                     crate::state::QuickConnectEntry::bare(conn),
-                )),
+                ))),
             ));
         }
         let quick_section: Element<'_, Message> = column![

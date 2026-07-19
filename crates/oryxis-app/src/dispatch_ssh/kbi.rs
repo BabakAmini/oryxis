@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SshMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_ssh_kbi(
@@ -15,7 +15,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SshKbiPrompt(quick, query) => {
+            Message::Ssh(SshMessage::SshKbiPrompt(quick, query)) => {
                 // One empty answer buffer per prompt, parallel to query.prompts.
                 self.kbi_inputs = vec![String::new(); query.prompts.len()];
                 self.pending_kbi_prompt = Some(query);
@@ -28,12 +28,12 @@ impl Oryxis {
                     crate::state::KBI_FIRST_INPUT_ID,
                 )));
             }
-            Message::SshKbiInput(idx, value) => {
+            Message::Ssh(SshMessage::SshKbiInput(idx, value)) => {
                 if let Some(slot) = self.kbi_inputs.get_mut(idx) {
                     *slot = value;
                 }
             }
-            Message::SshKbiSubmit => {
+            Message::Ssh(SshMessage::SshKbiSubmit) => {
                 let answers = std::mem::take(&mut self.kbi_inputs);
                 self.pending_kbi_prompt = None;
                 self.pending_kbi_quick = None;
@@ -41,7 +41,7 @@ impl Oryxis {
                     let _ = tx.try_send(Some(answers));
                 }
             }
-            Message::SshKbiCancel => {
+            Message::Ssh(SshMessage::SshKbiCancel) => {
                 self.pending_kbi_prompt = None;
                 self.pending_kbi_quick = None;
                 self.kbi_inputs.clear();
@@ -49,7 +49,7 @@ impl Oryxis {
                     let _ = tx.try_send(None);
                 }
             }
-            Message::QuickAuthSwitch(quick_id, choice) => {
+            Message::Ssh(SshMessage::QuickAuthSwitch(quick_id, choice)) => {
                 // Mutate the ephemeral entry so this retry and every later
                 // reconnect of the tab carry the picked identity / key. The
                 // auth method stays Auto: the ladder tries the new material
@@ -97,7 +97,7 @@ impl Oryxis {
                 }) {
                     // Failed-connect screen: the old stream is already dead,
                     // retry directly with the mutated entry.
-                    return Ok(self.update(Message::SshRetry));
+                    return Ok(self.update(Message::Ssh(SshMessage::SshRetry)));
                 }
             }
 

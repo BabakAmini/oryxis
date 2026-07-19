@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis, SftpMessage};
+use crate::app::{SshMessage, Message, Oryxis, SftpMessage};
 
 impl Oryxis {
     pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Result<Task<Message>, Message> {
@@ -347,7 +347,7 @@ impl Oryxis {
                 && c.protocol
                     == oryxis_core::models::connection::ConnectionProtocol::Ssh
         }) {
-            return Ok(self.update(Message::ConnectSsh(ci)));
+            return Ok(self.update(Message::Ssh(SshMessage::ConnectSsh(ci))));
         }
         Ok(Task::none())
     }

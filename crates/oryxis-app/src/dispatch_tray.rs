@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{TrayMessage, Message, Oryxis};
+use crate::app::{SshMessage, TrayMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_tray(
@@ -386,7 +386,7 @@ impl Oryxis {
                 {
                     return Ok(Task::batch(vec![
                         Task::done(Message::Tray(TrayMessage::Show)),
-                        Task::done(Message::ConnectSsh(idx)),
+                        Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))),
                     ]));
                 }
             }

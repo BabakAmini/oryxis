@@ -17,7 +17,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::Group;
 
-use crate::app::{CloudMessage, Message, Oryxis};
+use crate::app::{SshMessage, CloudMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::DynamicGroupState;
 use crate::theme::OryxisColors;
@@ -161,9 +161,9 @@ impl Oryxis {
         // very first row (Enter activates it via `NewTabPickerSubmit`).
         // Raw input, not the lowercased needle: usernames keep their case.
         if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search) {
-            let msg = Message::QuickConnect(Box::new(crate::state::QuickConnectEntry::bare(
+            let msg = Message::Ssh(SshMessage::QuickConnect(Box::new(crate::state::QuickConnectEntry::bare(
                 conn.clone(),
-            )));
+            ))));
             rows.push(self.modal_nav_slot(
                 crate::keynav::RowAction::activate(msg),
                 6.0,
@@ -598,7 +598,7 @@ impl Oryxis {
         let glyph_el: Element<'_, Message> = glyph.view(12.0, Color::WHITE);
         let badge = crate::widgets::host_icon(badge_style, badge_color, &display_label, Some(glyph_el), 26.0);
         self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::ConnectSsh(ci)),
+            crate::keynav::RowAction::activate(Message::Ssh(SshMessage::ConnectSsh(ci))),
             6.0,
             false,
             picker_row(ci, &display_label, breadcrumb, zebra_bg, badge),
@@ -798,9 +798,9 @@ fn quick_connect_row<'a>(conn: oryxis_core::models::Connection) -> Element<'a, M
         ])
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::QuickConnect(Box::new(
+    .on_press(Message::Ssh(SshMessage::QuickConnect(Box::new(
         crate::state::QuickConnectEntry::bare(conn),
-    )))
+    ))))
     .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
     .width(Length::Fill)
     .style(|_, status| {
@@ -954,7 +954,7 @@ fn picker_row<'a>(
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
             .width(Length::Fill),
     )
-    .on_press(Message::ConnectSsh(conn_idx))
+    .on_press(Message::Ssh(SshMessage::ConnectSsh(conn_idx)))
     .width(Length::Fill)
     .style(move |_, status| {
         let bg = match status {

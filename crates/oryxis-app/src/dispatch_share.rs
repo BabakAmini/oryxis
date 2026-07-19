@@ -10,7 +10,7 @@ use iced::futures::SinkExt;
 use iced::Task;
 use oryxis_ssh::SshEngine;
 
-use crate::app::{ShareMessage, Message, Oryxis};
+use crate::app::{SshMessage, ShareMessage, Message, Oryxis};
 
 /// Result of an SFTP backup transfer once the session is up: either the
 /// byte count written (export) or the validated blob read back (import).
@@ -910,17 +910,17 @@ impl Oryxis {
             },
         );
         Ok(Task::stream(stream).map(move |m| match m {
-            BackupConnectMsg::HostKey(q) => Message::SshHostKeyVerify(q),
+            BackupConnectMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
             BackupConnectMsg::Done(Ok(outcome)) => done_ok(outcome),
             BackupConnectMsg::Done(Err(e)) if is_import => Message::Share(ShareMessage::SftpBackupImportDone(Err(e))),
             BackupConnectMsg::Done(Err(e)) => Message::Share(ShareMessage::SftpBackupExportDone(Err(e))),
             BackupConnectMsg::NoCommonAlgo { category, server_offers } => {
-                Message::SshNoCommonAlgo {
+                Message::Ssh(SshMessage::SshNoCommonAlgo {
                     conn_id: backup_conn_id,
                     category,
                     server_offers,
                     retry: Box::new(Message::Share(ShareMessage::SftpBackupConfirm)),
-                }
+                })
             }
         }))
     }

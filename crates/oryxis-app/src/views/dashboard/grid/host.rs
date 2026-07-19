@@ -252,7 +252,7 @@ impl Oryxis {
                 )
                 .padding(card_padding),
             )
-            .on_press(Message::ConnectSsh(idx))
+            .on_press(Message::Ssh(SshMessage::ConnectSsh(idx)))
             .width(Length::Fill)
             .style(move |_, status| {
                 let bg = match status {

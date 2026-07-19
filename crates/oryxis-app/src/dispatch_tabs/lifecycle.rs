@@ -7,7 +7,7 @@
 use iced::Task;
 use oryxis_core::models::cloud::TransportKind;
 
-use crate::app::{CloudMessage, Message, Oryxis};
+use crate::app::{SshMessage, CloudMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -284,9 +284,9 @@ impl Oryxis {
                 self.remember_terminal_tab_focus(i);
             }
             let rebuild = match (conn_idx, quick_entry) {
-                (Some(ci), _) => Some(Message::ConnectSsh(ci)),
+                (Some(ci), _) => Some(Message::Ssh(SshMessage::ConnectSsh(ci))),
                 (None, Some(entry)) => {
-                    Some(Message::QuickConnect(Box::new(entry)))
+                    Some(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))))
                 }
                 (None, None) => None,
             };
@@ -339,7 +339,7 @@ impl Oryxis {
                 .trim_start_matches(crate::app::SSM_TAB_PREFIX)
                 .to_string();
             if let Some(ci) = self.connections.iter().position(|c| c.label == base_label) {
-                return Ok(Task::done(Message::ConnectSsh(ci)));
+                return Ok(Task::done(Message::Ssh(SshMessage::ConnectSsh(ci))));
             }
         }
         Ok(Task::none())
@@ -367,7 +367,7 @@ impl Oryxis {
                 .connections
                 .iter()
                 .position(|c| c.id == *id)
-                .map(Message::ConnectSsh),
+                .map(|v| Message::Ssh(SshMessage::ConnectSsh(v))),
             PinnedTabSpec::LocalShell { program, args, label } => {
                 Some(Message::OpenLocalShellWith {
                     program: program.clone(),

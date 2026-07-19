@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SshMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_ssh_hostkey(
@@ -16,7 +16,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SshHostKeyVerify(query) => {
+            Message::Ssh(SshMessage::SshHostKeyVerify(query)) => {
                 self.pending_host_key = Some(query);
                 // Bind the responder to this prompt by cloning the staging
                 // slot. A connect that starts later overwrites only the
@@ -27,20 +27,20 @@ impl Oryxis {
                 // unknown hops), and every answer rides the same sender.
                 self.active_host_key_tx = self.host_key_response_tx.clone();
             }
-            Message::SshHostKeyReject => {
+            Message::Ssh(SshMessage::SshHostKeyReject) => {
                 self.pending_host_key = None;
                 if let Some(tx) = self.active_host_key_tx.take() {
                     let _ = tx.try_send(false);
                 }
             }
-            Message::SshHostKeyContinue => {
+            Message::Ssh(SshMessage::SshHostKeyContinue) => {
                 // Accept for this session but don't save to known hosts
                 self.pending_host_key = None;
                 if let Some(tx) = self.active_host_key_tx.take() {
                     let _ = tx.try_send(true);
                 }
             }
-            Message::SshHostKeyAcceptAndSave => {
+            Message::Ssh(SshMessage::SshHostKeyAcceptAndSave) => {
                 // Accept and save to known hosts
                 if let (Some(query), Some(vault)) = (&self.pending_host_key, &self.vault) {
                     let kh = oryxis_core::models::known_host::KnownHost::new(
@@ -54,7 +54,7 @@ impl Oryxis {
                     let _ = tx.try_send(true);
                 }
             }
-            Message::SshNoCommonAlgo { conn_id, category, server_offers, retry } => {
+            Message::Ssh(SshMessage::SshNoCommonAlgo { conn_id, category, server_offers, retry }) => {
                 // Only offer the fallback when the failed category is still
                 // Auto. If it's already pinned (manually, or by a prior
                 // accept that expanded everything) and STILL has no match,
@@ -92,7 +92,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::LegacyAlgoCancel => {
+            Message::Ssh(SshMessage::LegacyAlgoCancel) => {
                 self.pending_legacy_algo = None;
                 let msg = crate::i18n::t("legacy_algo_cancelled");
                 if let Some(ref mut progress) = self.connecting {
@@ -117,7 +117,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::LegacyAlgoAccept { remember } => {
+            Message::Ssh(SshMessage::LegacyAlgoAccept { remember }) => {
                 let Some(pending) = self.pending_legacy_algo.take() else {
                     return Ok(Task::none());
                 };

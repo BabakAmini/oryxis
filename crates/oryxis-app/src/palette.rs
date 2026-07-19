@@ -13,7 +13,7 @@
 //! (mirroring `TabJumpSelect`), never a list index, so a query change
 //! between the recording frame and the keypress can't misfire.
 
-use crate::app::{VaultMessage, Message, Oryxis};
+use crate::app::{SshMessage, VaultMessage, Message, Oryxis};
 use crate::hotkeys::HotkeyAction;
 use crate::i18n::t;
 use crate::state::View;
@@ -257,7 +257,7 @@ impl Oryxis {
                 keywords: "connect_host_ssh",
                 hotkey: None,
                 category: PaletteCategory::Vault,
-                message: Message::ConnectSsh(ci),
+                message: Message::Ssh(SshMessage::ConnectSsh(ci)),
                 enabled: true,
             });
         }

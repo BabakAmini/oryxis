@@ -8,7 +8,7 @@ use iced::{Point, Task};
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
+use crate::app::{SshMessage, UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
 use crate::state::{ConnectionForm, SettingsSection, VaultState, View};
 
 mod load;
@@ -706,7 +706,7 @@ impl Oryxis {
                 .iter()
                 .position(|c| c.id == connect_id)
         {
-            tasks.push(Task::done(Message::ConnectSsh(idx)));
+            tasks.push(Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))));
         }
         // Bring the sync engine up if the vault is already open and the
         // user left sync enabled. When the vault is locked we defer to

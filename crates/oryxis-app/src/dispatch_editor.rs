@@ -9,7 +9,7 @@ use iced::Task;
 use oryxis_core::models::connection::{AuthMethod, Connection, ProxyType};
 use oryxis_core::models::group::Group;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SshMessage, Message, Oryxis};
 use crate::state::{ConnectionForm, PortForwardForm, ProxyKind};
 
 impl Oryxis {
@@ -1191,7 +1191,7 @@ impl Oryxis {
                 self.show_host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
-                return Ok(self.update(Message::QuickConnect(Box::new(entry))));
+                return Ok(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry)))));
             }
             Message::EditorCancel => {
                 self.show_host_panel = false;

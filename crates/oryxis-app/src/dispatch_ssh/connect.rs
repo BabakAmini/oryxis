@@ -17,7 +17,7 @@ use oryxis_core::models::cloud::TransportKind;
 use oryxis_ssh::{SshEngine, SshSession};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+use crate::app::{SshMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 use crate::state::{ConnectionProgress, ConnectionStep, SshStreamMsg, TerminalTab};
 
 /// Items streamed from a per-pane SSH connect (split-into-host). Mirrors
@@ -288,7 +288,7 @@ impl Oryxis {
                     // ad-hoc session. "Duplicate in New Window" auto-hides
                     // on it (a child process cannot resolve an unsaved id).
                     new_tab.relaunch =
-                        Some(Box::new(Message::QuickConnect(Box::new(entry.clone()))));
+                        Some(Box::new(Message::Ssh(SshMessage::QuickConnect(Box::new(entry.clone())))));
                 }
                 // Stable id of this tab's pane: PTY output and
                 // session events route to it, so the right pane
@@ -510,13 +510,13 @@ impl Oryxis {
                 // entry; the handler reuses it by id, so in-place mutations
                 // (expanded algorithms) survive the round trip.
                 let retry_msg = match origin {
-                    crate::state::ProgressOrigin::Saved(i) => Message::ConnectSsh(i),
+                    crate::state::ProgressOrigin::Saved(i) => Message::Ssh(SshMessage::ConnectSsh(i)),
                     crate::state::ProgressOrigin::Quick(id) => {
-                        Message::QuickConnect(Box::new(
+                        Message::Ssh(SshMessage::QuickConnect(Box::new(
                             self.quick_connects.get(&id).cloned().unwrap_or_else(
                                 || crate::state::QuickConnectEntry::bare(conn.clone()),
                             ),
-                        ))
+                        )))
                     }
                 };
                 let stream = iced::stream::channel::<SshStreamMsg>(128, move |mut sender: iced::futures::channel::mpsc::Sender<SshStreamMsg>| {
@@ -803,33 +803,33 @@ impl Oryxis {
                     self.tab_scroll_to_active(),
                     Task::stream(stream).map(move |msg| match msg {
                         SshStreamMsg::Progress(step, log) => {
-                            Message::SshProgress(step, log)
+                            Message::Ssh(SshMessage::SshProgress(step, log))
                         }
-                        SshStreamMsg::Connected(session) => Message::SshConnected(
+                        SshStreamMsg::Connected(session) => Message::Ssh(SshMessage::SshConnected(
                             pane_id,
                             crate::state::TerminalTransport::Ssh(session),
-                        ),
+                        )),
                         SshStreamMsg::HostKeyVerify(query) => {
-                            Message::SshHostKeyVerify(query)
+                            Message::Ssh(SshMessage::SshHostKeyVerify(query))
                         }
                         SshStreamMsg::KbiPrompt(query) => {
-                            Message::SshKbiPrompt(quick_origin, query)
+                            Message::Ssh(SshMessage::SshKbiPrompt(quick_origin, query))
                         }
                         SshStreamMsg::Data(data) => {
                             Message::PtyOutput(pane_id, data)
                         }
-                        SshStreamMsg::Banner(text) => Message::SshBanner(text),
-                        SshStreamMsg::Error(err) => Message::SshError(err),
+                        SshStreamMsg::Banner(text) => Message::Ssh(SshMessage::SshBanner(text)),
+                        SshStreamMsg::Error(err) => Message::Ssh(SshMessage::SshError(err)),
                         SshStreamMsg::NoCommonAlgo { category, server_offers } => {
-                            Message::SshNoCommonAlgo {
+                            Message::Ssh(SshMessage::SshNoCommonAlgo {
                                 conn_id: map_conn_id,
                                 category,
                                 server_offers,
                                 retry: Box::new(retry_msg.clone()),
-                            }
+                            })
                         }
                         SshStreamMsg::Disconnected => {
-                            Message::SshDisconnected(pane_id)
+                            Message::Ssh(SshMessage::SshDisconnected(pane_id))
                         }
                     }),
                 ]);
@@ -938,7 +938,7 @@ impl Oryxis {
             .as_ref()
             .is_some_and(|c| c.transport_pref != TransportKind::Ssh)
         {
-            return self.update(Message::ConnectSsh(conn_idx));
+            return self.update(Message::Ssh(SshMessage::ConnectSsh(conn_idx)));
         }
 
         // Display-only terminal, fed by the SSH stream (same as a normal SSH
@@ -1260,15 +1260,15 @@ impl Oryxis {
         });
 
         Task::stream(stream).map(move |m| match m {
-            PaneConnMsg::HostKey(q) => Message::SshHostKeyVerify(q),
-            PaneConnMsg::Kbi(q) => Message::SshKbiPrompt(quick_id, q),
-            PaneConnMsg::Banner(text) => Message::SshPaneBanner(pane_id, text),
+            PaneConnMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+            PaneConnMsg::Kbi(q) => Message::Ssh(SshMessage::SshKbiPrompt(quick_id, q)),
+            PaneConnMsg::Banner(text) => Message::Ssh(SshMessage::SshPaneBanner(pane_id, text)),
             PaneConnMsg::Connected(s) => {
-                Message::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s))
+                Message::Ssh(SshMessage::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s)))
             }
             PaneConnMsg::Data(d) => Message::PtyOutput(pane_id, d),
-            PaneConnMsg::Disconnected => Message::SshDisconnected(pane_id),
-            PaneConnMsg::Error(e) => Message::PaneConnectError(pane_id, e),
+            PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
+            PaneConnMsg::Error(e) => Message::Ssh(SshMessage::PaneConnectError(pane_id, e)),
         })
     }
 }

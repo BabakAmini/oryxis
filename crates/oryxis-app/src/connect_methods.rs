@@ -39,7 +39,7 @@ impl Oryxis {
     }
 
     /// Resolve `(password, private_key_pem, certificate)` for a connection,
-    /// same rules as `Message::ConnectSsh`: prefer identity-linked
+    /// same rules as `|v| Message::Ssh(SshMessage::ConnectSsh(v))`: prefer identity-linked
     /// credentials, fall back to per-connection vault entries. The
     /// certificate is resolved from the SAME key as the pem.
     pub(crate) fn resolve_credentials(

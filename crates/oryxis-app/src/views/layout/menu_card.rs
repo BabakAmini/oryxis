@@ -109,7 +109,7 @@ impl Oryxis {
             ConnectionProtocol::Ssh | ConnectionProtocol::Telnet
         );
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::ConnectSsh(idx), OryxisColors::t().success),
+            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::Ssh(SshMessage::ConnectSsh(idx)), OryxisColors::t().success),
             self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
         ];

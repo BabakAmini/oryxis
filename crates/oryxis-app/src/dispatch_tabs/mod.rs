@@ -12,7 +12,7 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -400,9 +400,9 @@ impl Oryxis {
                 }
                 if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search)
                 {
-                    return Ok(self.update(Message::QuickConnect(Box::new(
+                    return Ok(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
                         crate::state::QuickConnectEntry::bare(conn),
-                    ))));
+                    )))));
                 }
                 let top = self.keynav.modal.items.borrow().first().cloned();
                 if let Some(msg) = top.and_then(|a| a.activate) {

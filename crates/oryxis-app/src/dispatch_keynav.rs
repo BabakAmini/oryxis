@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -440,14 +440,14 @@ impl Oryxis {
                             })
                     });
                     if let Some(idx) = exact {
-                        return Some(self.update(Message::ConnectSsh(idx)));
+                        return Some(self.update(Message::Ssh(SshMessage::ConnectSsh(idx))));
                     }
                     // Then the ad-hoc target (matches the toolbar's
                     // "Enter to connect" hint chip).
                     if let Some(conn) = self.quick_connect_target(&input) {
-                        return Some(self.update(Message::QuickConnect(Box::new(
+                        return Some(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
                             crate::state::QuickConnectEntry::bare(conn),
-                        ))));
+                        )))));
                     }
                     // Finally the top filtered result.
                     let first = self.keynav.content_rows.borrow().iter().flatten().copied().next();
@@ -580,7 +580,7 @@ impl Oryxis {
         let msg = match item {
             NavItem::Dash(DashNavItem::Group(gid)) => Message::Navigation(NavigationMessage::OpenGroup(gid)),
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(i)),
-            NavItem::Dash(DashNavItem::Host(i)) => Message::ConnectSsh(i),
+            NavItem::Dash(DashNavItem::Host(i)) => Message::Ssh(SshMessage::ConnectSsh(i)),
             NavItem::Key(i) => Message::EditKey(i),
             NavItem::Identity(i) => Message::EditIdentity(i),
             NavItem::Snippet(i) => Message::Snippet(SnippetMessage::RunSnippet(i)),

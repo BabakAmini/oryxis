@@ -14,7 +14,7 @@ use iced::widget::column;
 pub(crate) use uuid::Uuid;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{CloudMessage, NavigationMessage, DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
+pub(crate) use crate::app::{SshMessage, CloudMessage, NavigationMessage, DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::os_icon::BrandIcon;
 pub(crate) use crate::theme::OryxisColors;
@@ -635,9 +635,9 @@ impl Oryxis {
             ])
             .align_x(iced::alignment::Horizontal::Center),
         )
-        .on_press(Message::QuickConnect(Box::new(
+        .on_press(Message::Ssh(SshMessage::QuickConnect(Box::new(
             crate::state::QuickConnectEntry::bare(conn),
-        )))
+        ))))
         .padding(Padding { top: 24.0, right: 32.0, bottom: 24.0, left: 32.0 })
         .style(|_, status| {
             let (bg, bc) = match status {

@@ -6,7 +6,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SshMessage, Message, Oryxis};
 use crate::state::ConnectionStep;
 use crate::theme::OryxisColors;
 
@@ -155,7 +155,7 @@ impl Oryxis {
                     container(text(crate::i18n::t("edit_host")).size(13).color(OryxisColors::t().text_primary))
                         .padding(Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 }),
                 )
-                .on_press(Message::SshEditFromProgress)
+                .on_press(Message::Ssh(SshMessage::SshEditFromProgress))
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(OryxisColors::t().bg_surface)),
                     border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -265,13 +265,13 @@ impl Oryxis {
             let mut btm_row = row![
                 crate::widgets::styled_button(
                     crate::i18n::t("cancel"),
-                    Message::LegacyAlgoCancel,
+                    Message::Ssh(SshMessage::LegacyAlgoCancel),
                     OryxisColors::t().text_muted,
                 ),
                 Space::new().width(Length::Fill),
                 crate::widgets::styled_button(
                     crate::i18n::t("legacy_algo_connect_once"),
-                    Message::LegacyAlgoAccept { remember: false },
+                    Message::Ssh(SshMessage::LegacyAlgoAccept { remember: false }),
                     if is_quick {
                         OryxisColors::t().accent
                     } else {
@@ -283,7 +283,7 @@ impl Oryxis {
                 btm_row = btm_row.push(Space::new().width(8)).push(
                     crate::widgets::styled_button(
                         crate::i18n::t("legacy_algo_always"),
-                        Message::LegacyAlgoAccept { remember: true },
+                        Message::Ssh(SshMessage::LegacyAlgoAccept { remember: true }),
                         OryxisColors::t().accent,
                     ),
                 );
@@ -317,8 +317,8 @@ impl Oryxis {
                 let prompt_label = self.redact_progress(progress, &prompt.prompt);
                 let value = self.kbi_inputs.get(i).map(|s| s.as_str()).unwrap_or("");
                 let mut input = text_input(&prompt_label, value)
-                    .on_input(move |v| Message::SshKbiInput(i, v))
-                    .on_submit(Message::SshKbiSubmit)
+                    .on_input(move |v| Message::Ssh(SshMessage::SshKbiInput(i, v)))
+                    .on_submit(Message::Ssh(SshMessage::SshKbiSubmit))
                     .padding(10)
                     .size(14);
                 // First field gets the shared id so the prompt handler can
@@ -360,7 +360,7 @@ impl Oryxis {
                 container(text(crate::i18n::t("cancel")).size(13).color(OryxisColors::t().text_primary))
                     .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
             )
-            .on_press(Message::SshKbiCancel)
+            .on_press(Message::Ssh(SshMessage::SshKbiCancel))
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -381,7 +381,7 @@ impl Oryxis {
                     )
                     .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
                 )
-                .on_press(Message::SshKbiSubmit)
+                .on_press(Message::Ssh(SshMessage::SshKbiSubmit))
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(OryxisColors::t().accent)),
                     border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -454,7 +454,7 @@ impl Oryxis {
                 container(text(crate::i18n::t("close")).size(13).color(OryxisColors::t().text_primary))
                     .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
             )
-            .on_press(Message::SshHostKeyReject)
+            .on_press(Message::Ssh(SshMessage::SshHostKeyReject))
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -465,7 +465,7 @@ impl Oryxis {
                 container(text(crate::i18n::t("hk_continue")).size(13).color(OryxisColors::t().text_primary))
                     .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
             )
-            .on_press(Message::SshHostKeyContinue)
+            .on_press(Message::Ssh(SshMessage::SshHostKeyContinue))
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border { radius: Radius::from(8.0), color: OryxisColors::t().border, width: 1.0 },
@@ -486,7 +486,7 @@ impl Oryxis {
                     )
                     .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
                 )
-                .on_press(Message::SshHostKeyAcceptAndSave)
+                .on_press(Message::Ssh(SshMessage::SshHostKeyAcceptAndSave))
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(OryxisColors::t().success)),
                     border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -597,7 +597,7 @@ impl Oryxis {
             options,
             |o: &crate::state::QuickAuthOption| o.label.clone(),
         )
-        .on_select(move |o| Message::QuickAuthSwitch(quick_id, o.choice))
+        .on_select(move |o| Message::Ssh(SshMessage::QuickAuthSwitch(quick_id, o.choice)))
         .placeholder(crate::i18n::t("quick_auth_pick"))
         .width(Length::Fill)
         .padding(10)
@@ -852,7 +852,7 @@ impl Oryxis {
             container(text(crate::i18n::t("close")).size(13).color(OryxisColors::t().text_primary))
                 .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
         )
-        .on_press(Message::SshCloseProgress)
+        .on_press(Message::Ssh(SshMessage::SshCloseProgress))
         .style(|_, _| button::Style {
             background: Some(Background::Color(OryxisColors::t().bg_surface)),
             border: Border { radius: Radius::from(8.0), ..Default::default() },
@@ -873,7 +873,7 @@ impl Oryxis {
                 )
                 .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
             )
-            .on_press(Message::SshRetry)
+            .on_press(Message::Ssh(SshMessage::SshRetry))
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().success)),
                 border: Border { radius: Radius::from(8.0), ..Default::default() },
