@@ -323,8 +323,8 @@ impl Oryxis {
                 Space::new().height(12),
                 text_input(crate::i18n::t("tab_name"), input)
                     .id(iced::widget::Id::new(TAB_RENAME_INPUT_ID))
-                    .on_input(Message::TabRenameInput)
-                    .on_submit(Message::ConfirmTabRename)
+                    .on_input(|v| Message::Tabs(TabsMessage::TabRenameInput(v)))
+                    .on_submit(Message::Tabs(TabsMessage::ConfirmTabRename))
                     .padding(10)
                     .width(Length::Fill)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
@@ -336,9 +336,9 @@ impl Oryxis {
                     .align_x(dir_align_x()),
                 Space::new().height(12),
                 dir_row(vec![
-                    styled_button(crate::i18n::t("save"), Message::ConfirmTabRename, OryxisColors::t().accent),
+                    styled_button(crate::i18n::t("save"), Message::Tabs(TabsMessage::ConfirmTabRename), OryxisColors::t().accent),
                     Space::new().width(8).into(),
-                    styled_button(crate::i18n::t("cancel"), Message::CancelTabRename, OryxisColors::t().text_muted),
+                    styled_button(crate::i18n::t("cancel"), Message::Tabs(TabsMessage::CancelTabRename), OryxisColors::t().text_muted),
                 ]),
             ]
             .width(Length::Fill)
@@ -365,16 +365,16 @@ impl Oryxis {
                     .align_x(dir_align_x()),
                 Space::new().height(12),
                 text_input(crate::i18n::t("folder_name"), input)
-                    .on_input(Message::FolderRenameInput)
-                    .on_submit(Message::ConfirmRenameFolder)
+                    .on_input(|v| Message::Tabs(TabsMessage::FolderRenameInput(v)))
+                    .on_submit(Message::Tabs(TabsMessage::ConfirmRenameFolder))
                     .padding(10)
                     .width(Length::Fill)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
                 Space::new().height(12),
                 dir_row(vec![
-                    styled_button(crate::i18n::t("save"), Message::ConfirmRenameFolder, OryxisColors::t().accent),
+                    styled_button(crate::i18n::t("save"), Message::Tabs(TabsMessage::ConfirmRenameFolder), OryxisColors::t().accent),
                     Space::new().width(8).into(),
-                    styled_button(crate::i18n::t("cancel"), Message::CancelFolderModal, OryxisColors::t().text_muted),
+                    styled_button(crate::i18n::t("cancel"), Message::Tabs(TabsMessage::CancelFolderModal), OryxisColors::t().text_muted),
                 ]),
             ]
             .width(Length::Fill)
@@ -455,41 +455,41 @@ impl Oryxis {
         use crate::keynav::RowAction;
         let actions = if host_count == 0 {
             column![self.modal_nav_slot_default(
-                RowAction::activate(Message::DeleteFolderWithHosts),
+                RowAction::activate(Message::Tabs(TabsMessage::DeleteFolderWithHosts)),
                 12.0,
                 false,
                 folder_choice_card(
                     iced_fonts::lucide::trash(),
                     crate::i18n::t("delete_folder_empty"),
                     crate::i18n::t("delete_folder_empty_desc"),
-                    Message::DeleteFolderWithHosts,
+                    Message::Tabs(TabsMessage::DeleteFolderWithHosts),
                     c.error,
                 ),
             )]
         } else {
             column![
                 self.modal_nav_slot_default(
-                    RowAction::activate(Message::DeleteFolderKeepHosts),
+                    RowAction::activate(Message::Tabs(TabsMessage::DeleteFolderKeepHosts)),
                     12.0,
                     false,
                     folder_choice_card(
                         iced_fonts::lucide::folder_open(),
                         crate::i18n::t("delete_folder_keep_hosts"),
                         crate::i18n::t("delete_folder_keep_hosts_desc"),
-                        Message::DeleteFolderKeepHosts,
+                        Message::Tabs(TabsMessage::DeleteFolderKeepHosts),
                         c.accent,
                     ),
                 ),
                 Space::new().height(10),
                 self.modal_nav_slot(
-                    RowAction::activate(Message::DeleteFolderWithHosts),
+                    RowAction::activate(Message::Tabs(TabsMessage::DeleteFolderWithHosts)),
                     12.0,
                     false,
                     folder_choice_card(
                         iced_fonts::lucide::trash(),
                         crate::i18n::t("delete_folder_with_hosts"),
                         crate::i18n::t("delete_folder_with_hosts_desc"),
-                        Message::DeleteFolderWithHosts,
+                        Message::Tabs(TabsMessage::DeleteFolderWithHosts),
                         c.error,
                     ),
                 ),
@@ -504,10 +504,10 @@ impl Oryxis {
                 actions,
                 Space::new().height(14),
                 self.modal_nav_slot(
-                    RowAction::activate(Message::CancelFolderModal),
+                    RowAction::activate(Message::Tabs(TabsMessage::CancelFolderModal)),
                     8.0,
                     false,
-                    ghost_button(crate::i18n::t("cancel"), Message::CancelFolderModal),
+                    ghost_button(crate::i18n::t("cancel"), Message::Tabs(TabsMessage::CancelFolderModal)),
                 ),
             ]
             .width(Length::Fill)

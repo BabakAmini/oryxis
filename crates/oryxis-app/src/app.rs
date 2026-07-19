@@ -40,7 +40,7 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::{Message, EditorMessage, KeysMessage, SidebarFilesMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
+pub use crate::messages::{Message, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
@@ -530,7 +530,7 @@ pub struct Oryxis {
     pub(crate) window_fullscreen: bool,
     /// True for ~3 s after entering fullscreen so the "Press F11 to
     /// exit" banner renders. Cleared by a scheduled
-    /// `Message::FullscreenHintHide`. Mirrors Chrome / Firefox where
+    /// `Message::Tabs(TabsMessage::FullscreenHintHide)`. Mirrors Chrome / Firefox where
     /// the on-enter hint fades on its own and the X close affordance
     /// then only shows on top-edge hover.
     pub(crate) fullscreen_hint_visible: bool,

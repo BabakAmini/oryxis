@@ -5,7 +5,7 @@ pub(crate) use iced::widget::{button, container, text, text_input, MouseArea, Sp
 pub(crate) use iced::window::Direction;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{EditorMessage, KeysMessage, SidebarFilesMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, RemoteDesktopMessage, Message, Oryxis, PlayerMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, ShareMessage, SnippetMessage};
+pub(crate) use crate::app::{TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, RemoteDesktopMessage, Message, Oryxis, PlayerMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, ShareMessage, SnippetMessage};
 pub(crate) use crate::state::{OverlayContent, OverlayState, View};
 pub(crate) use crate::theme::OryxisColors;
 pub(crate) use crate::widgets::{context_menu_item, dir_align_x, dir_row, styled_button};

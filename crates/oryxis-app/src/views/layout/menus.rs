@@ -369,7 +369,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
-        .on_press(Message::ToggleSubnavOverflow)
+        .on_press(Message::Tabs(TabsMessage::ToggleSubnavOverflow))
         .into();
         Stack::new()
             .push(backdrop)
@@ -588,7 +588,7 @@ impl Oryxis {
             item("settings", Message::Navigation(NavigationMessage::ChangeView(View::Settings)), hk_settings),
             sep,
             item("local_shell", Message::OpenLocalShell, hk_local_shell),
-            item("new_window", Message::SpawnNewWindow, hk_new_window),
+            item("new_window", Message::Tabs(TabsMessage::SpawnNewWindow), hk_new_window),
             item("check_for_updates_now", Message::Update(UpdateMessage::CheckForUpdateManual), None),
             lock_item,
         ]
@@ -630,7 +630,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
-        .on_press(Message::ToggleBurgerMenu)
+        .on_press(Message::Tabs(TabsMessage::ToggleBurgerMenu))
         .into();
         Stack::new()
             .push(backdrop)

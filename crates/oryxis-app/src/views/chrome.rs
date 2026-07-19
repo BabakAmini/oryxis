@@ -8,7 +8,7 @@ use iced::widget::{button, container, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length};
 use iced_fonts::codicon as cd;
 
-use crate::app::Message;
+use crate::app::{Message, TabsMessage};
 use crate::theme::OryxisColors;
 
 /// Chrome bar height, must match the main view's `BAR_HEIGHT` so the lock
@@ -26,16 +26,16 @@ pub(crate) fn window_chrome_bar<'a>() -> Element<'a, Message> {
             .width(Length::Fill)
             .height(Length::Fixed(CHROME_HEIGHT)),
     )
-    .on_press(Message::WindowDrag)
+    .on_press(Message::Tabs(TabsMessage::WindowDrag))
     .into();
 
     // Lock screen doesn't know whether the window is currently maximized; the
     // toggle works either way, so we always show the maximize glyph here.
     // `dir_row` flips the trio under RTL so close ends up on the leading edge.
     let controls: Element<'_, Message> = crate::widgets::dir_row(vec![
-        chrome_btn(cd::chrome_minimize(), Message::WindowMinimize, OryxisColors::t().text_secondary),
-        chrome_btn(cd::chrome_maximize(), Message::WindowMaximizeToggle, OryxisColors::t().text_secondary),
-        chrome_btn(cd::chrome_close(), Message::WindowClose, OryxisColors::t().error),
+        chrome_btn(cd::chrome_minimize(), Message::Tabs(TabsMessage::WindowMinimize), OryxisColors::t().text_secondary),
+        chrome_btn(cd::chrome_maximize(), Message::Tabs(TabsMessage::WindowMaximizeToggle), OryxisColors::t().text_secondary),
+        chrome_btn(cd::chrome_close(), Message::Tabs(TabsMessage::WindowClose), OryxisColors::t().error),
     ])
     .align_y(iced::Alignment::Center)
     .into();

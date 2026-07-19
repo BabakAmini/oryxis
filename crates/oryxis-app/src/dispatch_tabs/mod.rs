@@ -12,7 +12,7 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{TabsMessage, TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -46,39 +46,39 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Card interactions --
-            Message::CardHovered(idx) => {
+            Message::Tabs(TabsMessage::CardHovered(idx)) => {
                 self.hovered_card = Some(idx);
             }
-            Message::CardUnhovered => {
+            Message::Tabs(TabsMessage::CardUnhovered) => {
                 self.hovered_card = None;
             }
-            Message::FolderCardHovered(gid) => {
+            Message::Tabs(TabsMessage::FolderCardHovered(gid)) => {
                 self.hovered_folder_card = Some(gid);
             }
-            Message::FolderCardUnhovered => {
+            Message::Tabs(TabsMessage::FolderCardUnhovered) => {
                 self.hovered_folder_card = None;
             }
-            Message::KeyCardHovered(idx) => {
+            Message::Tabs(TabsMessage::KeyCardHovered(idx)) => {
                 self.hovered_key_card = Some(idx);
             }
-            Message::KeyCardUnhovered => {
+            Message::Tabs(TabsMessage::KeyCardUnhovered) => {
                 self.hovered_key_card = None;
             }
-            Message::IdentityCardHovered(idx) => {
+            Message::Tabs(TabsMessage::IdentityCardHovered(idx)) => {
                 self.hovered_identity_card = Some(idx);
             }
-            Message::SnippetCardHovered(idx) => {
+            Message::Tabs(TabsMessage::SnippetCardHovered(idx)) => {
                 self.hovered_snippet_card = Some(idx);
             }
-            Message::SnippetCardUnhovered => {
+            Message::Tabs(TabsMessage::SnippetCardUnhovered) => {
                 self.hovered_snippet_card = None;
             }
-            Message::IdentityCardUnhovered => {
+            Message::Tabs(TabsMessage::IdentityCardUnhovered) => {
                 self.hovered_identity_card = None;
             }
-            Message::MouseMoved(pos) => return self.handle_mouse_moved(pos),
-            Message::WindowResized(size) => return self.handle_window_resized(size),
-            Message::WindowMoved(pos) => {
+            Message::Tabs(TabsMessage::MouseMoved(pos)) => return self.handle_mouse_moved(pos),
+            Message::Tabs(TabsMessage::WindowResized(size)) => return self.handle_window_resized(size),
+            Message::Tabs(TabsMessage::WindowMoved(pos)) => {
                 // Same skip rule as the windowed-size tracking above:
                 // maximize / fullscreen park the window at the monitor
                 // origin, and the optimistic flags flip before that
@@ -96,9 +96,9 @@ impl Oryxis {
                     self.window_windowed_pos = Some(pos);
                 }
             }
-            Message::WindowEnsureOnScreen => return self.handle_window_ensure_on_screen(),
-            Message::WindowFocusChanged(focused) => return self.handle_window_focus_changed(focused),
-            Message::SsmKeepaliveTick => {
+            Message::Tabs(TabsMessage::WindowEnsureOnScreen) => return self.handle_window_ensure_on_screen(),
+            Message::Tabs(TabsMessage::WindowFocusChanged(focused)) => return self.handle_window_focus_changed(focused),
+            Message::Tabs(TabsMessage::SsmKeepaliveTick) => {
                 // Toggle each SSM/ECS terminal between `base` and
                 // `base - 1` rows. Every tick is therefore a genuine size
                 // change, which fires a SIGWINCH the plugin forwards to
@@ -121,7 +121,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::WindowDrag => {
+            Message::Tabs(TabsMessage::WindowDrag) => {
                 if !self.consume_window_press() {
                     return Ok(Task::none());
                 }
@@ -130,7 +130,7 @@ impl Oryxis {
                     None => Task::none(),
                 }));
             }
-            Message::WindowResizeDrag(direction) => {
+            Message::Tabs(TabsMessage::WindowResizeDrag(direction)) => {
                 // Ignore resize requests while maximized, the window has no
                 // borders to grab and the OS will reject/misbehave on WinIt.
                 if self.window_maximized {
@@ -144,9 +144,9 @@ impl Oryxis {
                     None => Task::none(),
                 }));
             }
-            Message::WindowExpandVertical => return self.handle_window_expand_vertical(),
-            Message::WindowMinimize => return self.handle_window_minimize(),
-            Message::WindowMaximizeToggle => {
+            Message::Tabs(TabsMessage::WindowExpandVertical) => return self.handle_window_expand_vertical(),
+            Message::Tabs(TabsMessage::WindowMinimize) => return self.handle_window_minimize(),
+            Message::Tabs(TabsMessage::WindowMaximizeToggle) => {
                 self.window_maximized = !self.window_maximized;
                 // Cheap write, and it keeps the restored state accurate
                 // even when the process later dies without reaching an
@@ -157,12 +157,12 @@ impl Oryxis {
                     None => Task::none(),
                 }));
             }
-            Message::WindowClose => return self.handle_window_close(),
-            Message::WindowFullscreenToggle => return self.handle_window_fullscreen_toggle(),
-            Message::FullscreenHintHide => {
+            Message::Tabs(TabsMessage::WindowClose) => return self.handle_window_close(),
+            Message::Tabs(TabsMessage::WindowFullscreenToggle) => return self.handle_window_fullscreen_toggle(),
+            Message::Tabs(TabsMessage::FullscreenHintHide) => {
                 self.fullscreen_hint_visible = false;
             }
-            Message::SpawnNewWindow => {
+            Message::Tabs(TabsMessage::SpawnNewWindow) => {
                 // Burger menu fires this. Drop both the context-menu
                 // overlay AND the burger panel itself so the menu
                 // doesn't linger on top of the freshly-spawned window.
@@ -173,12 +173,12 @@ impl Oryxis {
                 self.show_burger_menu = false;
                 self.spawn_oryxis_child(None);
             }
-            Message::ActivateStripSlot(slot) => {
+            Message::Tabs(TabsMessage::ActivateStripSlot(slot)) => {
                 if let Some(msg) = self.strip_slot_target(slot) {
                     return Ok(Task::done(msg));
                 }
             }
-            Message::FocusViewSearch => {
+            Message::Tabs(TabsMessage::FocusViewSearch) => {
                 // Ctrl+F always returns keynav to the canonical idle
                 // state (search = "zone zero", `focus == None`).
                 self.keynav.focus = None;
@@ -197,7 +197,7 @@ impl Oryxis {
                     return Ok(iced::widget::operation::focus(id));
                 }
             }
-            Message::HideOverlayMenu => {
+            Message::Tabs(TabsMessage::HideOverlayMenu) => {
                 self.overlay = None;
                 self.card_context_menu = None;
                 self.snippet_context_menu = None;
@@ -205,7 +205,7 @@ impl Oryxis {
                 self.identity_context_menu = None;
                 self.show_keychain_add_menu = false;
             }
-            Message::ShowCardMenu(idx) => {
+            Message::Tabs(TabsMessage::ShowCardMenu(idx)) => {
                 if self.card_context_menu == Some(idx) {
                     self.card_context_menu = None;
                     self.overlay = None;
@@ -219,18 +219,18 @@ impl Oryxis {
                     });
                 }
             }
-            Message::HideCardMenu => {
+            Message::Tabs(TabsMessage::HideCardMenu) => {
                 self.card_context_menu = None;
                 self.overlay = None;
             }
 
             // -- Tabs --
-            Message::SelectTab(idx) => return self.handle_select_tab(idx),
-            Message::ToggleTabFilesMode(idx) => return self.handle_toggle_tab_files_mode(idx),
-            Message::DetachTabSftp(idx) => return self.handle_detach_tab_sftp(idx),
-            Message::CloseTabSftpSession(idx) => return self.handle_close_tab_sftp_session(idx),
-            Message::OpenTerminalForSftpTab(idx) => return self.handle_open_terminal_for_sftp_tab(idx),
-            Message::TabHovered(idx) => {
+            Message::Tabs(TabsMessage::SelectTab(idx)) => return self.handle_select_tab(idx),
+            Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)) => return self.handle_toggle_tab_files_mode(idx),
+            Message::Tabs(TabsMessage::DetachTabSftp(idx)) => return self.handle_detach_tab_sftp(idx),
+            Message::Tabs(TabsMessage::CloseTabSftpSession(idx)) => return self.handle_close_tab_sftp_session(idx),
+            Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)) => return self.handle_open_terminal_for_sftp_tab(idx),
+            Message::Tabs(TabsMessage::TabHovered(idx)) => {
                 self.hovered_tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).
                 self.hovered_sftp_tab = None;
@@ -249,10 +249,10 @@ impl Oryxis {
                     self.slide_tab_in_order(drag.from_id, target);
                 }
             }
-            Message::TabUnhovered => {
+            Message::Tabs(TabsMessage::TabUnhovered) => {
                 self.hovered_tab = None;
             }
-            Message::TabDragToEnd => {
+            Message::Tabs(TabsMessage::TabDragToEnd) => {
                 // Trailing drop zone: the live-slide only ever moves the
                 // dragged tab to *before* a hovered tab, so the slot after the
                 // last tab is unreachable by hovering. Entering the `+` area
@@ -261,7 +261,7 @@ impl Oryxis {
                     self.slide_tab_to_partition_end(drag.from_id);
                 }
             }
-            Message::ShowNewTabPicker => {
+            Message::Tabs(TabsMessage::ShowNewTabPicker) => {
                 // Opening the picker from the `+` button always targets a new
                 // tab, never a split (only SplitPane sets that).
                 self.overlay = None; // dismiss the `+` hover popover if open
@@ -275,12 +275,12 @@ impl Oryxis {
                     crate::state::NEW_TAB_PICKER_SEARCH_ID,
                 )));
             }
-            Message::HideNewTabPicker => {
+            Message::Tabs(TabsMessage::HideNewTabPicker) => {
                 self.show_new_tab_picker = false;
                 self.pending_pane_split = None;
                 self.new_tab_picker_group = None;
             }
-            Message::NewTabPickerOpenGroup(gid) => {
+            Message::Tabs(TabsMessage::NewTabPickerOpenGroup(gid)) => {
                 // Drill into the group; the search box now filters this
                 // group's members instead of the top-level list, so clear
                 // the leftover top-level needle.
@@ -295,11 +295,11 @@ impl Oryxis {
                         .unwrap_or_else(|_| Task::none()));
                 }
             }
-            Message::NewTabPickerBack => {
+            Message::Tabs(TabsMessage::NewTabPickerBack) => {
                 self.new_tab_picker_group = None;
                 self.new_tab_picker_search.clear();
             }
-            Message::PickLocalShell => {
+            Message::Tabs(TabsMessage::PickLocalShell) => {
                 self.show_new_tab_picker = false;
                 if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
                     return Ok(self.local_shell_into_pane(tab_idx, target, axis));
@@ -307,23 +307,23 @@ impl Oryxis {
                 // No split pending: open a local shell in a new tab.
                 return Ok(self.update(Message::OpenLocalShell));
             }
-            Message::ShowTabJump => {
+            Message::Tabs(TabsMessage::ShowTabJump) => {
                 self.show_tab_jump = true;
                 self.tab_jump_search.clear();
             }
-            Message::ToggleBurgerMenu => {
+            Message::Tabs(TabsMessage::ToggleBurgerMenu) => {
                 self.show_burger_menu = !self.show_burger_menu;
             }
-            Message::ToggleSubnavOverflow => {
+            Message::Tabs(TabsMessage::ToggleSubnavOverflow) => {
                 self.show_subnav_overflow = !self.show_subnav_overflow;
             }
-            Message::HideTabJump => {
+            Message::Tabs(TabsMessage::HideTabJump) => {
                 self.show_tab_jump = false;
             }
-            Message::TabJumpSearchChanged(v) => {
+            Message::Tabs(TabsMessage::TabJumpSearchChanged(v)) => {
                 self.tab_jump_search = v;
             }
-            Message::TabBarWheel(dy) => {
+            Message::Tabs(TabsMessage::TabBarWheel(dy)) => {
                 // Vertical wheel over the tab bar scrolls horizontally
                 // iced's horizontal-only scrollable ignores y deltas, so
                 // we translate them via scroll_by here. Sign flip so
@@ -334,11 +334,11 @@ impl Oryxis {
                     iced::widget::scrollable::AbsoluteOffset { x: -dy, y: 0.0 },
                 ));
             }
-            Message::TabJumpSelect(inner) => {
+            Message::Tabs(TabsMessage::TabJumpSelect(inner)) => {
                 self.show_tab_jump = false;
                 return Ok(Task::done(*inner));
             }
-            Message::ShowCommandPalette => {
+            Message::Tabs(TabsMessage::ShowCommandPalette) => {
                 // The palette assumes an unlocked vault (its actions do).
                 // The hotkey path already gates on this; guard here too so
                 // no other producer can open it over the lock screen.
@@ -352,27 +352,27 @@ impl Oryxis {
                     iced::widget::Id::new(crate::palette::PALETTE_INPUT_ID),
                 ));
             }
-            Message::HideCommandPalette => {
+            Message::Tabs(TabsMessage::HideCommandPalette) => {
                 self.palette.open = false;
                 self.palette.query.clear();
             }
-            Message::PaletteQueryChanged(v) => {
+            Message::Tabs(TabsMessage::PaletteQueryChanged(v)) => {
                 self.palette.query = v;
             }
-            Message::PaletteActivate(inner) => {
+            Message::Tabs(TabsMessage::PaletteActivate(inner)) => {
                 // Two-step dispatch like TabJumpSelect: close first, then
                 // fire the row's real message (it may open another modal).
                 self.palette.open = false;
                 self.palette.query.clear();
                 return Ok(Task::done(*inner));
             }
-            Message::RunHotkeyAction(action) => {
+            Message::Tabs(TabsMessage::RunHotkeyAction(action)) => {
                 return Ok(self.dispatch_hotkey_action(
                     action,
                     crate::hotkeys::FamilyMatch::Plain,
                 ));
             }
-            Message::OpenSettingsSection(section) => {
+            Message::Tabs(TabsMessage::OpenSettingsSection(section)) => {
                 // Switch to Settings AND select the section:
                 // ChangeSettingsSection alone assumes the view is open.
                 let t1 = self.update(Message::Navigation(NavigationMessage::ChangeView(View::Settings)));
@@ -380,10 +380,10 @@ impl Oryxis {
                 return Ok(Task::batch([t1, t2]));
             }
             Message::NoOp => {}
-            Message::NewTabPickerSearchChanged(v) => {
+            Message::Tabs(TabsMessage::NewTabPickerSearchChanged(v)) => {
                 self.new_tab_picker_search = v;
             }
-            Message::NewTabPickerSubmit => {
+            Message::Tabs(TabsMessage::NewTabPickerSubmit) => {
                 // Enter in the picker. Owned by the search input's
                 // on_submit (the modal key router declines Enter here
                 // so the two paths can never double-fire). Priority:
@@ -409,7 +409,7 @@ impl Oryxis {
                     return Ok(self.update(msg));
                 }
             }
-            Message::ShowIconPicker(conn_id) => {
+            Message::Tabs(TabsMessage::ShowIconPicker(conn_id)) => {
                 // Pre-fill the picker with the icon the user is
                 // currently seeing on the host card: custom override
                 // first, then auto-detected OS, then the generic
@@ -435,7 +435,7 @@ impl Oryxis {
                 self.icon_picker.for_local_terminal = false;
                 self.show_icon_picker = true;
             }
-            Message::HideIconPicker => {
+            Message::Tabs(TabsMessage::HideIconPicker) => {
                 self.show_icon_picker = false;
                 self.icon_picker.for_id = None;
                 self.icon_picker.for_group_form = false;
@@ -445,23 +445,23 @@ impl Oryxis {
                 self.icon_picker.icon_search.clear();
                 self.icon_color_popover = None;
             }
-            Message::IconPickerSelectIcon(name) => {
+            Message::Tabs(TabsMessage::IconPickerSelectIcon(name)) => {
                 self.icon_picker.icon = Some(name);
             }
-            Message::IconPickerIconSearchChanged(q) => {
+            Message::Tabs(TabsMessage::IconPickerIconSearchChanged(q)) => {
                 self.icon_picker.icon_search = q;
             }
-            Message::IconPickerOpenColorPopover => {
+            Message::Tabs(TabsMessage::IconPickerOpenColorPopover) => {
                 self.icon_color_popover = Some(self.mouse_position);
             }
-            Message::IconPickerCloseColorPopover => {
+            Message::Tabs(TabsMessage::IconPickerCloseColorPopover) => {
                 self.icon_color_popover = None;
             }
-            Message::IconPickerSelectColor(hex) => {
+            Message::Tabs(TabsMessage::IconPickerSelectColor(hex)) => {
                 self.icon_picker.hex_input = hex.clone();
                 self.icon_picker.color = Some(hex);
             }
-            Message::IconPickerHexInputChanged(v) => {
+            Message::Tabs(TabsMessage::IconPickerHexInputChanged(v)) => {
                 self.icon_picker.hex_input = v.clone();
                 // Validate + commit only on well-formed #RRGGBB.
                 let trimmed = v.trim().trim_start_matches('#');
@@ -469,10 +469,10 @@ impl Oryxis {
                     self.icon_picker.color = Some(format!("#{}", trimmed.to_uppercase()));
                 }
             }
-            Message::IconPickerSave => return self.handle_icon_picker_save(),
-            Message::IconPickerResetAuto => return self.handle_icon_picker_reset_auto(),
-            Message::CloseTab(idx) => return self.handle_close_tab(idx),
-            Message::ShowTabMenu(idx) => {
+            Message::Tabs(TabsMessage::IconPickerSave) => return self.handle_icon_picker_save(),
+            Message::Tabs(TabsMessage::IconPickerResetAuto) => return self.handle_icon_picker_reset_auto(),
+            Message::Tabs(TabsMessage::CloseTab(idx)) => return self.handle_close_tab(idx),
+            Message::Tabs(TabsMessage::ShowTabMenu(idx)) => {
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::TabActions(idx),
@@ -480,7 +480,7 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::ShowSplitMenu => {
+            Message::Tabs(TabsMessage::ShowSplitMenu) => {
                 // Hover popover under `+`. Only meaningful with a terminal
                 // tab open (something to split); otherwise `+` just opens a
                 // new tab on click. Anchored under the cursor (over `+`).
@@ -502,10 +502,10 @@ impl Oryxis {
                     });
                 }
             }
-            Message::SplitMenuEnter => {
+            Message::Tabs(TabsMessage::SplitMenuEnter) => {
                 self.split_menu_hovered = true;
             }
-            Message::SplitMenuLeave => {
+            Message::Tabs(TabsMessage::SplitMenuLeave) => {
                 // Left the `+` button or the popover. Defer the close briefly
                 // so moving from the button INTO the menu (which re-enters
                 // via `SplitMenuEnter`) doesn't flap it shut.
@@ -514,10 +514,10 @@ impl Oryxis {
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(180)).await;
                     },
-                    |_| Message::SplitMenuCloseIfIdle,
+                    |_| Message::Tabs(TabsMessage::SplitMenuCloseIfIdle),
                 ));
             }
-            Message::SplitMenuCloseIfIdle => {
+            Message::Tabs(TabsMessage::SplitMenuCloseIfIdle) => {
                 if !self.split_menu_hovered
                     && matches!(
                         self.overlay.as_ref().map(|o| &o.content),
@@ -527,20 +527,20 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::ToggleTabPin(idx) => {
+            Message::Tabs(TabsMessage::ToggleTabPin(idx)) => {
                 self.overlay = None;
                 if let Some(tab) = self.tabs.get_mut(idx) {
                     tab.pinned = !tab.pinned;
                 }
                 self.persist_pinned_tabs();
             }
-            Message::ReconnectTab(idx) => return self.handle_reconnect_tab(idx),
-            Message::DuplicateTab(idx) => return self.handle_duplicate_tab(idx),
-            Message::DuplicateInNewWindow(idx) => {
+            Message::Tabs(TabsMessage::ReconnectTab(idx)) => return self.handle_reconnect_tab(idx),
+            Message::Tabs(TabsMessage::DuplicateTab(idx)) => return self.handle_duplicate_tab(idx),
+            Message::Tabs(TabsMessage::DuplicateInNewWindow(idx)) => {
                 self.overlay = None;
                 self.spawn_oryxis_child(Some(idx));
             }
-            Message::ShowFolderActions(gid) => {
+            Message::Tabs(TabsMessage::ShowFolderActions(gid)) => {
                 // Anchor the menu to the cursor, matches the host-card
                 // "..." pattern. The global MouseMoved subscription keeps
                 // `mouse_position` fresh.
@@ -551,7 +551,7 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::StartRenameFolder(gid) => {
+            Message::Tabs(TabsMessage::StartRenameFolder(gid)) => {
                 self.overlay = None;
                 let current = self
                     .groups
@@ -561,12 +561,12 @@ impl Oryxis {
                     .unwrap_or_default();
                 self.folder_rename = Some((gid, current));
             }
-            Message::FolderRenameInput(val) => {
+            Message::Tabs(TabsMessage::FolderRenameInput(val)) => {
                 if let Some((_, ref mut buf)) = self.folder_rename {
                     *buf = val;
                 }
             }
-            Message::ConfirmRenameFolder => {
+            Message::Tabs(TabsMessage::ConfirmRenameFolder) => {
                 if let Some((gid, new_label)) = self.folder_rename.take() {
                     let trimmed = new_label.trim();
                     if !trimmed.is_empty()
@@ -580,12 +580,12 @@ impl Oryxis {
                     }
                 }
             }
-            Message::CancelFolderModal => {
+            Message::Tabs(TabsMessage::CancelFolderModal) => {
                 self.folder_rename = None;
                 self.close_modal(crate::state::Modal::FolderDelete);
             }
             // -- Tab rename (transient custom name) --
-            Message::StartRenameTab(idx) => {
+            Message::Tabs(TabsMessage::StartRenameTab(idx)) => {
                 self.overlay = None;
                 if let Some(tab) = self.tabs.get(idx) {
                     // Prefill with what the strip currently shows (custom
@@ -605,7 +605,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::StartRenameSftpTab(idx) => {
+            Message::Tabs(TabsMessage::StartRenameSftpTab(idx)) => {
                 self.overlay = None;
                 if let Some(tab) = self.sftp_tabs.get(idx) {
                     let current = tab.display_label().to_string();
@@ -615,12 +615,12 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::TabRenameInput(val) => {
+            Message::Tabs(TabsMessage::TabRenameInput(val)) => {
                 if let Some((_, ref mut buf)) = self.tab_rename {
                     *buf = val;
                 }
             }
-            Message::ConfirmTabRename => {
+            Message::Tabs(TabsMessage::ConfirmTabRename) => {
                 if let Some((tab_ref, name)) = self.tab_rename.take() {
                     let trimmed = name.trim();
                     // Empty clears the custom name: the automatic label
@@ -645,10 +645,10 @@ impl Oryxis {
                     }
                 }
             }
-            Message::CancelTabRename => {
+            Message::Tabs(TabsMessage::CancelTabRename) => {
                 self.tab_rename = None;
             }
-            Message::EditGroup(gid) => {
+            Message::Tabs(TabsMessage::EditGroup(gid)) => {
                 self.overlay = None;
                 if let Some(group) = self.groups.iter().find(|g| g.id == gid) {
                     self.group_edit.id = Some(gid);
@@ -665,10 +665,10 @@ impl Oryxis {
                     self.cloud_discover_visible = false;
                 }
             }
-            Message::GroupEditLabelChanged(v) => {
+            Message::Tabs(TabsMessage::GroupEditLabelChanged(v)) => {
                 self.group_edit.label = v;
             }
-            Message::ShowGroupEditIconPicker => {
+            Message::Tabs(TabsMessage::ShowGroupEditIconPicker) => {
                 self.icon_picker.icon = if self.group_edit.icon.is_empty() {
                     None
                 } else {
@@ -687,7 +687,7 @@ impl Oryxis {
                 self.icon_picker.for_local_terminal = false;
                 self.show_icon_picker = true;
             }
-            Message::SaveGroupEdit => {
+            Message::Tabs(TabsMessage::SaveGroupEdit) => {
                 if let Some(gid) = self.group_edit.id {
                     let trimmed = self.group_edit.label.trim().to_string();
                     if !trimmed.is_empty()
@@ -713,15 +713,15 @@ impl Oryxis {
                 self.group_edit.visible = false;
                 self.group_edit.id = None;
             }
-            Message::CancelGroupEdit => {
+            Message::Tabs(TabsMessage::CancelGroupEdit) => {
                 self.group_edit.visible = false;
                 self.group_edit.id = None;
             }
-            Message::StartDeleteFolder(gid) => {
+            Message::Tabs(TabsMessage::StartDeleteFolder(gid)) => {
                 self.overlay = None;
                 self.folder_delete = Some(gid);
             }
-            Message::DeleteFolderKeepHosts => {
+            Message::Tabs(TabsMessage::DeleteFolderKeepHosts) => {
                 if let Some(gid) = self.folder_delete {
                     // Move every host inside the folder to the root.
                     for conn in self.connections.iter_mut() {
@@ -755,7 +755,7 @@ impl Oryxis {
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }
             }
-            Message::DeleteFolderWithHosts => {
+            Message::Tabs(TabsMessage::DeleteFolderWithHosts) => {
                 if let Some(gid) = self.folder_delete {
                     // Drop every host inside the folder, then the folder.
                     let to_drop: Vec<_> = self
@@ -791,7 +791,7 @@ impl Oryxis {
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }
             }
-            Message::CloseOtherTabs(idx) => {
+            Message::Tabs(TabsMessage::CloseOtherTabs(idx)) => {
                 self.overlay = None;
                 if idx < self.tabs.len() {
                     // Keep the clicked tab and every pinned tab (pinned tabs
@@ -815,7 +815,7 @@ impl Oryxis {
                     self.reanchor_connecting_after_filter(connecting_id);
                 }
             }
-            Message::CloseAllTabs => {
+            Message::Tabs(TabsMessage::CloseAllTabs) => {
                 self.overlay = None;
                 let connecting_id = self
                     .connecting

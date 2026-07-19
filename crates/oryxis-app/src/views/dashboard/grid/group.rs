@@ -336,7 +336,7 @@ impl Oryxis {
                                 crate::widgets::card_kebab_button(
                                     OryxisColors::t().text_muted,
                                     true,
-                                    Message::ShowFolderActions(gid),
+                                    Message::Tabs(TabsMessage::ShowFolderActions(gid)),
                                 )
                                 .into()
                             } else {
@@ -382,9 +382,9 @@ impl Oryxis {
                             // dots-button visibility, and right-click opens
                             // the kebab menu (app-wide card convention).
                             let wrapped = MouseArea::new(folder_element)
-                                .on_enter(Message::FolderCardHovered(gid))
-                                .on_exit(Message::FolderCardUnhovered)
-                                .on_right_press(Message::ShowFolderActions(gid));
+                                .on_enter(Message::Tabs(TabsMessage::FolderCardHovered(gid)))
+                                .on_exit(Message::Tabs(TabsMessage::FolderCardUnhovered))
+                                .on_right_press(Message::Tabs(TabsMessage::ShowFolderActions(gid)));
                             group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
                         }
             }

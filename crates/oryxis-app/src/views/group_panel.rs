@@ -8,7 +8,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TabsMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_field, panel_section};
@@ -30,7 +30,7 @@ impl Oryxis {
                     .into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(20).color(OryxisColors::t().text_muted))
-                    .on_press(Message::CancelGroupEdit)
+                    .on_press(Message::Tabs(TabsMessage::CancelGroupEdit))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -57,7 +57,7 @@ impl Oryxis {
                 .center_x(Length::Fixed(36.0))
                 .center_y(Length::Fixed(36.0)),
         )
-        .on_press(Message::ShowGroupEditIconPicker)
+        .on_press(Message::Tabs(TabsMessage::ShowGroupEditIconPicker))
         .padding(0)
         .style(move |_, _| button::Style {
             background: Some(Background::Color(badge_bg)),
@@ -74,8 +74,8 @@ impl Oryxis {
                     10.0,
                     text_input(crate::i18n::t("group_placeholder"), &self.group_edit.label)
                         .id(iced::widget::Id::new("group-edit-name"))
-                        .on_input(Message::GroupEditLabelChanged)
-                        .on_submit(Message::SaveGroupEdit)
+                        .on_input(|v| Message::Tabs(TabsMessage::GroupEditLabelChanged(v)))
+                        .on_submit(Message::Tabs(TabsMessage::SaveGroupEdit))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style)
                         .align_x(dir_align_x())
@@ -86,7 +86,7 @@ impl Oryxis {
             panel_field(
                 crate::i18n::t("group_icon_color"),
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ShowGroupEditIconPicker),
+                    crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::ShowGroupEditIconPicker)),
                     8.0,
                     icon_badge.into(),
                 ),
@@ -108,7 +108,7 @@ impl Oryxis {
         // Full-width Save, standardized with the host editor's footer
         // (the header × acts as Cancel).
         let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SaveGroupEdit),
+            crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::SaveGroupEdit)),
             8.0,
             button(
                 container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
@@ -116,7 +116,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .center_x(Length::Fill),
             )
-            .on_press(Message::SaveGroupEdit)
+            .on_press(Message::Tabs(TabsMessage::SaveGroupEdit))
             .width(Length::Fill)
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().accent)),

@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{SshMessage, TrayMessage, Message, Oryxis};
+use crate::app::{TabsMessage, SshMessage, TrayMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_tray(
@@ -376,7 +376,7 @@ impl Oryxis {
                 if idx < self.tabs.len() {
                     return Ok(Task::batch(vec![
                         Task::done(Message::Tray(TrayMessage::Show)),
-                        Task::done(Message::SelectTab(idx)),
+                        Task::done(Message::Tabs(TabsMessage::SelectTab(idx))),
                     ]));
                 }
             }

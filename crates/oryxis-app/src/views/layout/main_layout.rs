@@ -4,7 +4,7 @@ use super::*;
 use iced::widget::column;
 
 /// Widget id of the tab-rename dialog's input, focused on open (see
-/// `Message::StartRenameTab` / `StartRenameSftpTab` in `dispatch_tabs.rs`).
+/// `|v| Message::Tabs(TabsMessage::StartRenameTab(v))` / `StartRenameSftpTab` in `dispatch_tabs.rs`).
 pub(crate) const TAB_RENAME_INPUT_ID: &str = "tab-rename-input";
 
 impl Oryxis {
@@ -343,7 +343,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_tab_rename_dialog(input),
-                    Some(Message::CancelTabRename),
+                    Some(Message::Tabs(TabsMessage::CancelTabRename)),
                     0.0,
                 ),
                 resize_overlay,
@@ -357,7 +357,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_folder_rename_dialog(input),
-                    Some(Message::CancelFolderModal),
+                    Some(Message::Tabs(TabsMessage::CancelFolderModal)),
                     0.0,
                 ),
                 resize_overlay,
@@ -372,7 +372,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_folder_delete_dialog(gid),
-                    Some(Message::CancelFolderModal),
+                    Some(Message::Tabs(TabsMessage::CancelFolderModal)),
                     0.0,
                 ),
                 resize_overlay,
@@ -400,7 +400,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.view_new_tab_picker(),
-                    Some(Message::HideNewTabPicker),
+                    Some(Message::Tabs(TabsMessage::HideNewTabPicker)),
                     0.0,
                 ),
                 resize_overlay,
@@ -414,7 +414,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.view_tab_jump_modal(),
-                    Some(Message::HideTabJump),
+                    Some(Message::Tabs(TabsMessage::HideTabJump)),
                     0.0,
                 ),
                 resize_overlay,
@@ -429,7 +429,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.view_command_palette(),
-                    Some(Message::HideCommandPalette),
+                    Some(Message::Tabs(TabsMessage::HideCommandPalette)),
                     0.0,
                 ),
                 resize_overlay,
@@ -637,7 +637,7 @@ impl Oryxis {
                 )
                 .center(Length::Fixed(28.0)),
             )
-            .on_press(Message::WindowFullscreenToggle)
+            .on_press(Message::Tabs(TabsMessage::WindowFullscreenToggle))
             .style(|_, status| {
                 let bg = match status {
                     iced::widget::button::Status::Hovered => OryxisColors::t().error,

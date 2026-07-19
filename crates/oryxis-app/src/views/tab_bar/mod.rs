@@ -13,7 +13,7 @@ pub(crate) use iced::widget::button::Status as BtnStatus;
 pub(crate) use iced::widget::{button, container, row, scrollable, text, MouseArea, Space};
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{NavigationMessage, Message, Oryxis, AiMessage};
+pub(crate) use crate::app::{TabsMessage, NavigationMessage, Message, Oryxis, AiMessage};
 pub(crate) use crate::state::View;
 pub(crate) use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 
@@ -84,8 +84,8 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fixed(BAR_HEIGHT)),
         )
-        .on_press(Message::WindowDrag)
-        .on_double_click(Message::WindowMaximizeToggle)
+        .on_press(Message::Tabs(TabsMessage::WindowDrag))
+        .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
         .into();
 
         let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
@@ -131,17 +131,17 @@ impl Oryxis {
         crate::widgets::dir_row(vec![
             window_btn(
                 iced_fonts::codicon::chrome_minimize(),
-                Message::WindowMinimize,
+                Message::Tabs(TabsMessage::WindowMinimize),
                 OryxisColors::t().text_secondary,
             ),
             window_btn(
                 max_icon,
-                Message::WindowMaximizeToggle,
+                Message::Tabs(TabsMessage::WindowMaximizeToggle),
                 OryxisColors::t().text_secondary,
             ),
             window_btn(
                 iced_fonts::codicon::chrome_close(),
-                Message::WindowClose,
+                Message::Tabs(TabsMessage::WindowClose),
                 OryxisColors::t().error,
             ),
         ])
@@ -694,7 +694,7 @@ impl Oryxis {
             new_tab_btn(!strip_overflow),
             self.plus_btn_bounds.clone(),
         ))
-        .on_enter(Message::TabDragToEnd)
+        .on_enter(Message::Tabs(TabsMessage::TabDragToEnd))
         .into();
         let mut docked_plus: Option<Element<'_, Message>> = None;
         if strip_overflow {
@@ -748,10 +748,10 @@ impl Oryxis {
                 .width(Length::Fill)
                 .padding(strip_padding),
         )
-        .on_press(Message::WindowDrag)
+        .on_press(Message::Tabs(TabsMessage::WindowDrag))
         // Native title-bar convention: double-click the drag area to
         // toggle maximize.
-        .on_double_click(Message::WindowMaximizeToggle)
+        .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
         // Vertical wheel translates to horizontal scroll on the tab
         // strip. The horizontal scrollable inside doesn't capture a
         // pure-y wheel event (iced only steers wheel along the
@@ -762,7 +762,7 @@ impl Oryxis {
                 iced::mouse::ScrollDelta::Lines { y, .. } => y * 60.0,
                 iced::mouse::ScrollDelta::Pixels { y, .. } => y,
             };
-            Message::TabBarWheel(y)
+            Message::Tabs(TabsMessage::TabBarWheel(y))
         })
         .into();
 

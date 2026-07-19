@@ -7,7 +7,7 @@
 
 use iced::{Point, Task};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TabsMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -470,7 +470,7 @@ impl Oryxis {
                 async {
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 },
-                |_| Message::FullscreenHintHide,
+                |_| Message::Tabs(TabsMessage::FullscreenHintHide),
             );
             return Ok(Task::batch([mode_task, hide_task]));
         }

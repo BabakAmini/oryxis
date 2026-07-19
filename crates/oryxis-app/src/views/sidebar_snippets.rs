@@ -9,7 +9,7 @@ use iced::widget::{button, column, container, scrollable, text, MouseArea, Space
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{TabsMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -744,7 +744,7 @@ fn snippet_row<'a>(
     };
 
     MouseArea::new(row_el)
-        .on_enter(Message::SnippetCardHovered(idx))
-        .on_exit(Message::SnippetCardUnhovered)
+        .on_enter(Message::Tabs(TabsMessage::SnippetCardHovered(idx)))
+        .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered))
         .into()
 }

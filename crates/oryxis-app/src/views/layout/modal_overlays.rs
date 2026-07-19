@@ -377,7 +377,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
-            .on_press(Message::HideOverlayMenu)
+            .on_press(Message::Tabs(TabsMessage::HideOverlayMenu))
             .into();
             stack = stack.push(backdrop);
         }

@@ -479,7 +479,7 @@ pub(crate) fn session_tab<'a>(
                 ..Default::default()
             }
         })
-        .on_press(Message::CloseTab(idx))
+        .on_press(Message::Tabs(TabsMessage::CloseTab(idx)))
         .into()
     };
 
@@ -541,7 +541,7 @@ pub(crate) fn session_tab<'a>(
             .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 2.0 }),
     )
     .width(Length::Fixed(width))
-    .on_press(Message::SelectTab(idx))
+    .on_press(Message::Tabs(TabsMessage::SelectTab(idx)))
     .style(move |_, status| {
         let hover_bg: Background = match status {
             BtnStatus::Hovered if !is_active => {
@@ -589,9 +589,9 @@ pub(crate) fn session_tab<'a>(
     };
 
     MouseArea::new(tab_el)
-        .on_enter(Message::TabHovered(idx))
-        .on_exit(Message::TabUnhovered)
-        .on_right_press(Message::ShowTabMenu(idx))
+        .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))
+        .on_exit(Message::Tabs(TabsMessage::TabUnhovered))
+        .on_right_press(Message::Tabs(TabsMessage::ShowTabMenu(idx)))
         .into()
 }
 
@@ -715,7 +715,7 @@ pub(crate) fn tab_mode_chip<'a>(idx: usize, fm: bool, fg: Color) -> Element<'a, 
             .center_y(Length::Fixed(MODE_CHIP)),
     )
     .padding(0)
-    .on_press(Message::ToggleTabFilesMode(idx))
+    .on_press(Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)))
     .style(move |_, status| {
         // The app's dark surface as the chip fill (owner QA: the
         // translucent accent wash read washed-out over the active
@@ -878,7 +878,7 @@ pub(crate) fn pinned_tab_chip<'a>(
             .center_y(Length::Fixed(TAB_HEIGHT)),
     )
     .width(Length::Fixed(chip_w))
-    .on_press(Message::SelectTab(idx))
+    .on_press(Message::Tabs(TabsMessage::SelectTab(idx)))
     .style(move |_, status| {
         // Active chip paints the same "lit from above" gradient as the
         // other tabs (one visual language for "active" in the strip);
@@ -894,8 +894,8 @@ pub(crate) fn pinned_tab_chip<'a>(
         button::Style { background: Some(bg), border, ..Default::default() }
     });
     MouseArea::new(btn)
-        .on_enter(Message::TabHovered(idx))
-        .on_exit(Message::TabUnhovered)
-        .on_right_press(Message::ShowTabMenu(idx))
+        .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))
+        .on_exit(Message::Tabs(TabsMessage::TabUnhovered))
+        .on_right_press(Message::Tabs(TabsMessage::ShowTabMenu(idx)))
         .into()
 }

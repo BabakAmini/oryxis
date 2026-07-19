@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TabsMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::palette::{PaletteCategory, PaletteRow, PALETTE_INPUT_ID};
 use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
@@ -68,7 +68,7 @@ impl Oryxis {
         // ── Search header ──────────────────────────────────────────────
         let search_input = text_input(t("command_palette_placeholder"), &self.palette.query)
             .id(iced::widget::Id::new(PALETTE_INPUT_ID))
-            .on_input(Message::PaletteQueryChanged)
+            .on_input(|v| Message::Tabs(TabsMessage::PaletteQueryChanged(v)))
             .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
             .size(13)
             .style(crate::widgets::rounded_input_style)
@@ -213,7 +213,7 @@ impl Oryxis {
 
         let msg = row.message.clone();
         let btn: Element<'a, Message> = button(content)
-            .on_press_with(move || Message::PaletteActivate(Box::new(msg.clone())))
+            .on_press_with(move || Message::Tabs(TabsMessage::PaletteActivate(Box::new(msg.clone()))))
             .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
             .width(Length::Fill)
             .style(move |_, status| {
@@ -235,9 +235,9 @@ impl Oryxis {
             .into();
 
         self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::PaletteActivate(Box::new(
+            crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::PaletteActivate(Box::new(
                 row.message,
-            ))),
+            )))),
             6.0,
             false,
             btn,

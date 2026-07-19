@@ -21,7 +21,7 @@ pub(crate) fn new_tab_btn<'a>(inline: bool) -> Element<'a, Message> {
             .center(Length::Fixed(height))
             .height(Length::Fixed(height)),
     )
-    .on_press(Message::ShowNewTabPicker)
+    .on_press(Message::Tabs(TabsMessage::ShowNewTabPicker))
     .padding(0)
     .style(move |_, status| {
         let bg = match status {
@@ -38,8 +38,8 @@ pub(crate) fn new_tab_btn<'a>(inline: bool) -> Element<'a, Message> {
     // Click = new tab (default). Hovering reveals the New-Tab / Split
     // popover (no-op unless a terminal tab is open, see `ShowSplitMenu`).
     MouseArea::new(btn)
-        .on_enter(Message::ShowSplitMenu)
-        .on_exit(Message::SplitMenuLeave)
+        .on_enter(Message::Tabs(TabsMessage::ShowSplitMenu))
+        .on_exit(Message::Tabs(TabsMessage::SplitMenuLeave))
         .into()
 }
 
@@ -58,7 +58,7 @@ pub(crate) fn tab_jump_btn<'a>() -> Element<'a, Message> {
         .center(Length::Fixed(DOTS_BUTTON_WIDTH))
         .height(Length::Fixed(BAR_HEIGHT)),
     )
-    .on_press(Message::ShowTabJump)
+    .on_press(Message::Tabs(TabsMessage::ShowTabJump))
     .padding(0)
     .style(move |_, status| {
         // Match the window-chrome / new-tab buttons' subtle hover
@@ -127,7 +127,7 @@ pub(crate) fn burger_menu_btn<'a>(is_open: bool) -> Element<'a, Message> {
         .center_y(Length::Fixed(BAR_HEIGHT))
         .padding(Padding { top: 0.0, right: 11.0, bottom: 0.0, left: 11.0 }),
     )
-    .on_press(Message::ToggleBurgerMenu)
+    .on_press(Message::Tabs(TabsMessage::ToggleBurgerMenu))
     .padding(0)
     .style(move |_, status| {
         let bg = match status {

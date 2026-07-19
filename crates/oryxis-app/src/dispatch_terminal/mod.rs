@@ -19,7 +19,7 @@ mod output;
 
 use iced::Task;
 
-use crate::app::{TerminalMessage, Message, Oryxis};
+use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Tear down every remote session (SSH or Telnet) in a tab.
@@ -185,7 +185,7 @@ impl Oryxis {
                 };
                 // Last pane in the tab: closing it closes the whole tab.
                 if self.tabs[tab_idx].pane_grid.panes.len() <= 1 {
-                    return Ok(self.update(Message::CloseTab(tab_idx)));
+                    return Ok(self.update(Message::Tabs(TabsMessage::CloseTab(tab_idx))));
                 }
                 // Persist the closing pane's recorded output before it goes.
                 self.flush_session_logs_final();

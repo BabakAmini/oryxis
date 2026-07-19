@@ -14,7 +14,7 @@ pub(crate) use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub(crate) use oryxis_terminal::widget::TerminalState;
 
-pub(crate) use crate::app::{TerminalMessage, SshMessage, VaultMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+pub(crate) use crate::app::{TabsMessage, TerminalMessage, SshMessage, VaultMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 pub(crate) use crate::state::{TerminalTab, View};
 pub(crate) use crate::theme::AppTheme;
 pub(crate) use crate::util::sanitize_uint;
@@ -488,7 +488,7 @@ impl Oryxis {
                             let entry = self.reconnect_counters.entry(cid).or_insert(0);
                             *entry += 1;
                         }
-                        return Ok(Task::done(Message::ReconnectTab(tab_idx)));
+                        return Ok(Task::done(Message::Tabs(TabsMessage::ReconnectTab(tab_idx))));
                     }
                 }
             }

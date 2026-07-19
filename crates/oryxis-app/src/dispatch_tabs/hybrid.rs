@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{SshMessage, Message, Oryxis, SftpMessage};
+use crate::app::{TabsMessage, SshMessage, Message, Oryxis, SftpMessage};
 
 impl Oryxis {
     pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Result<Task<Message>, Message> {
@@ -25,7 +25,7 @@ impl Oryxis {
         // Clicking the glyph on a background tab also brings the
         // tab to front, whichever direction it flips.
         let select = if self.active_tab != Some(idx) {
-            self.update(Message::SelectTab(idx))
+            self.update(Message::Tabs(TabsMessage::SelectTab(idx)))
         } else {
             Task::none()
         };
@@ -340,7 +340,7 @@ impl Oryxis {
                     && p.session.as_ref().and_then(|s| s.ssh()).is_some()
             })
         }) {
-            return Ok(self.update(Message::SelectTab(t_idx)));
+            return Ok(self.update(Message::Tabs(TabsMessage::SelectTab(t_idx))));
         }
         if let Some(ci) = self.connections.iter().position(|c| {
             c.label == host

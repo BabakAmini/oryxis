@@ -12,7 +12,7 @@ use iced::Task;
 use uuid::Uuid;
 
 use crate::app::Oryxis;
-use crate::messages::{Message, SidebarFilesMessage};
+use crate::messages::{Message, SidebarFilesMessage, TabsMessage};
 use crate::state::TerminalSidebarTab;
 
 /// Dirs first, then case-insensitive by name, the sidebar's fixed sort
@@ -196,7 +196,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 };
                 self.sftp_open_at_path = (!path.is_empty()).then_some(path);
-                return Ok(self.update(Message::ToggleTabFilesMode(tab_idx)));
+                return Ok(self.update(Message::Tabs(TabsMessage::ToggleTabFilesMode(tab_idx))));
             }
             Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesRowMenu(path, is_dir)) => {
                 let anchor = self.keynav_take_menu_anchor();

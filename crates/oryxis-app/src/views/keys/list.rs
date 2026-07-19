@@ -405,8 +405,8 @@ impl Oryxis {
             // Wrap in MouseArea for right-click + hover events that
             // drive the dots-button visibility.
             let wrapped = MouseArea::new(card_element)
-                .on_enter(Message::KeyCardHovered(idx))
-                .on_exit(Message::KeyCardUnhovered)
+                .on_enter(Message::Tabs(TabsMessage::KeyCardHovered(idx)))
+                .on_exit(Message::Tabs(TabsMessage::KeyCardUnhovered))
                 .on_right_press(Message::Keys(KeysMessage::ShowKeyMenu(idx)));
 
             let card_el: Element<'_, Message> =
@@ -599,8 +599,8 @@ impl Oryxis {
                 .into();
 
             let wrapped = MouseArea::new(card_element)
-                .on_enter(Message::IdentityCardHovered(idx))
-                .on_exit(Message::IdentityCardUnhovered)
+                .on_enter(Message::Tabs(TabsMessage::IdentityCardHovered(idx)))
+                .on_exit(Message::Tabs(TabsMessage::IdentityCardUnhovered))
                 .on_right_press(Message::Keys(KeysMessage::ShowIdentityMenu(idx)));
 
             let id_card_el: Element<'_, Message> =

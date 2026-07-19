@@ -13,7 +13,7 @@
 //! (mirroring `TabJumpSelect`), never a list index, so a query change
 //! between the recording frame and the keypress can't misfire.
 
-use crate::app::{SshMessage, VaultMessage, Message, Oryxis};
+use crate::app::{TabsMessage, SshMessage, VaultMessage, Message, Oryxis};
 use crate::hotkeys::HotkeyAction;
 use crate::i18n::t;
 use crate::state::View;
@@ -226,7 +226,7 @@ impl Oryxis {
                 keywords: action.id(),
                 hotkey: Some(action),
                 category: hotkey_category(action),
-                message: Message::RunHotkeyAction(action),
+                message: Message::Tabs(TabsMessage::RunHotkeyAction(action)),
                 enabled,
             });
         }
@@ -270,7 +270,7 @@ impl Oryxis {
                 keywords: "settings_section",
                 hotkey: None,
                 category: PaletteCategory::Settings,
-                message: Message::OpenSettingsSection(section),
+                message: Message::Tabs(TabsMessage::OpenSettingsSection(section)),
                 enabled: true,
             });
         }

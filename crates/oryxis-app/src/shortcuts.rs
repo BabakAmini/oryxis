@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{TabsMessage, EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -55,7 +55,7 @@ impl Oryxis {
         use crate::state::TabRef;
         match r {
             TabRef::Terminal(id) => {
-                self.tabs.iter().position(|t| t._id == *id).map(Message::SelectTab)
+                self.tabs.iter().position(|t| t._id == *id).map(|v| Message::Tabs(TabsMessage::SelectTab(v)))
             }
             TabRef::Sftp(id) => {
                 if !self.sftp_enabled {
@@ -99,7 +99,7 @@ impl Oryxis {
 
     /// Returns the `widget::Id` of the search/filter input for the
     /// current view, or `None` when the view has no search field.
-    /// Consumed by `Message::FocusViewSearch` (Ctrl+F).
+    /// Consumed by `Message::Tabs(TabsMessage::FocusViewSearch)` (Ctrl+F).
     pub(crate) fn active_view_search_id(&self) -> Option<widget::Id> {
         match self.active_view {
             // First run builds no toolbar, so there is no search field
@@ -928,7 +928,7 @@ impl Oryxis {
             // armed by an earlier split-picker that was dismissed with Esc
             // (which would otherwise fill the old tab's split instead of
             // opening a new tab).
-            ShowNewTabPicker => Task::done(Message::ShowNewTabPicker),
+            ShowNewTabPicker => Task::done(Message::Tabs(TabsMessage::ShowNewTabPicker)),
             ShowTabJump => {
                 self.show_tab_jump = true;
                 self.tab_jump_search.clear();
@@ -939,7 +939,7 @@ impl Oryxis {
             // through the message so the query is reset + input focused.
             ShowCommandPalette => {
                 if self.vault_ui.state == crate::state::VaultState::Unlocked {
-                    Task::done(Message::ShowCommandPalette)
+                    Task::done(Message::Tabs(TabsMessage::ShowCommandPalette))
                 } else {
                     Task::none()
                 }
@@ -951,10 +951,10 @@ impl Oryxis {
             // opens a new tab and would quietly drop the split, so the
             // printed hint would lie about its own row.
             OpenLocalShell if self.show_new_tab_picker => {
-                Task::done(Message::PickLocalShell)
+                Task::done(Message::Tabs(TabsMessage::PickLocalShell))
             }
             OpenLocalShell => Task::done(Message::OpenLocalShell),
-            NewWindow => Task::done(Message::SpawnNewWindow),
+            NewWindow => Task::done(Message::Tabs(TabsMessage::SpawnNewWindow)),
             // Entity creation: the editor panels only render in their
             // owning vault section, so land there first (ShowKeyPanel
             // already navigates itself).
@@ -978,7 +978,7 @@ impl Oryxis {
                 if self.active_view == View::Terminal || self.active_tab.is_some() {
                     Task::done(Message::Terminal(TerminalMessage::ClosePane))
                 } else if let Some(idx) = self.active_tab {
-                    Task::done(Message::CloseTab(idx))
+                    Task::done(Message::Tabs(TabsMessage::CloseTab(idx)))
                 } else {
                     Task::none()
                 }
@@ -1000,7 +1000,7 @@ impl Oryxis {
                 }
             }
             OpenSettings => Task::done(Message::Navigation(NavigationMessage::ChangeView(View::Settings))),
-            FocusViewSearch => Task::done(Message::FocusViewSearch),
+            FocusViewSearch => Task::done(Message::Tabs(TabsMessage::FocusViewSearch)),
             OpenSftp => {
                 if self.sftp_enabled {
                     Task::done(Message::NewSftpTab)
@@ -1010,7 +1010,7 @@ impl Oryxis {
             }
             SwitchToTabSlot => match family {
                 FamilyMatch::Digit(d) => {
-                    Task::done(Message::ActivateStripSlot(d as usize - 1))
+                    Task::done(Message::Tabs(TabsMessage::ActivateStripSlot(d as usize - 1)))
                 }
                 _ => Task::none(),
             },
@@ -1067,7 +1067,7 @@ impl Oryxis {
                     None => Task::none(),
                 }
             }
-            ToggleFullscreen => Task::done(Message::WindowFullscreenToggle),
+            ToggleFullscreen => Task::done(Message::Tabs(TabsMessage::WindowFullscreenToggle)),
             FontZoomIn => {
                 self.terminal_font_size = (self.terminal_font_size + 1.0).min(24.0);
                 self.persist_setting(
@@ -1120,7 +1120,7 @@ impl Oryxis {
             // Hybrid tab: Terminal <-> Files for the focused tab (the
             // handler no-ops for tabs without a live SSH session).
             ToggleTabFiles => match self.active_tab {
-                Some(idx) => Task::done(Message::ToggleTabFilesMode(idx)),
+                Some(idx) => Task::done(Message::Tabs(TabsMessage::ToggleTabFilesMode(idx))),
                 None => Task::none(),
             },
             // Broadcast input: arm / disarm fan-out across the focused

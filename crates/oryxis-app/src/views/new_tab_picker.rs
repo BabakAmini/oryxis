@@ -17,7 +17,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::Group;
 
-use crate::app::{SshMessage, CloudMessage, Message, Oryxis};
+use crate::app::{TabsMessage, SshMessage, CloudMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::DynamicGroupState;
 use crate::theme::OryxisColors;
@@ -37,8 +37,8 @@ impl Oryxis {
         // affordance so the typed value never slides under the hint.
         let search = text_input(t("search_hosts_or_tabs"), &self.new_tab_picker_search)
             .id(iced::widget::Id::new(crate::state::NEW_TAB_PICKER_SEARCH_ID))
-            .on_input(Message::NewTabPickerSearchChanged)
-            .on_submit(Message::NewTabPickerSubmit)
+            .on_input(|v| Message::Tabs(TabsMessage::NewTabPickerSearchChanged(v)))
+            .on_submit(Message::Tabs(TabsMessage::NewTabPickerSubmit))
             .padding(Padding {
                 top: 14.0,
                 right: 64.0,
@@ -174,7 +174,7 @@ impl Oryxis {
         }
 
         // Local shell, always first. Routes into the pending pane (split)
-        // or a fresh tab, handled by `Message::PickLocalShell`. SFTP follows
+        // or a fresh tab, handled by `Message::Tabs(TabsMessage::PickLocalShell)`. SFTP follows
         // when enabled, but never while filling a pane (split panes are
         // SSH-only; SFTP is its own tab, not a pane), routed through
         // `Message::NewSftpTab`.
@@ -185,7 +185,7 @@ impl Oryxis {
             && (needle.is_empty() || t("sftp").to_lowercase().contains(needle));
         if want_local {
             rows.push(self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::PickLocalShell),
+                crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::PickLocalShell)),
                 6.0,
                 false,
                 // Hints resolve from the live bindings, so a rebind flows
@@ -282,7 +282,7 @@ impl Oryxis {
         filling_pane: bool,
     ) -> Vec<Element<'a, Message>> {
         let mut rows: Vec<Element<'a, Message>> = vec![self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::NewTabPickerBack),
+            crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::NewTabPickerBack)),
             6.0,
             false,
             back_header(&group.label),
@@ -545,12 +545,12 @@ impl Oryxis {
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
                 .width(Length::Fill),
         )
-        .on_press(Message::NewTabPickerOpenGroup(group.id))
+        .on_press(Message::Tabs(TabsMessage::NewTabPickerOpenGroup(group.id)))
         .width(Length::Fill)
         .style(hover_row_style)
         .into();
         self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::NewTabPickerOpenGroup(group.id)),
+            crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::NewTabPickerOpenGroup(group.id))),
             6.0,
             false,
             row,
@@ -646,7 +646,7 @@ fn local_shell_row<'a>(shortcut: Option<String>) -> Element<'a, Message> {
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
             .width(Length::Fill),
     )
-    .on_press(Message::PickLocalShell)
+    .on_press(Message::Tabs(TabsMessage::PickLocalShell))
     .width(Length::Fill)
     .style(hover_row_style)
     .into()
@@ -725,7 +725,7 @@ fn back_header<'a>(label: &str) -> Element<'a, Message> {
             .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 4.0 })
             .width(Length::Fill),
     )
-    .on_press(Message::NewTabPickerBack)
+    .on_press(Message::Tabs(TabsMessage::NewTabPickerBack))
     .width(Length::Fill)
     .style(hover_row_style)
     .into()

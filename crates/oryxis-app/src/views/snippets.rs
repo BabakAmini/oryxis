@@ -7,7 +7,7 @@ use iced::widget::{
 use iced::widget::button::Status as BtnStatus;
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SnippetMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{TabsMessage, SnippetMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
@@ -576,8 +576,8 @@ impl Oryxis {
             // cards use; right-click opens the kebab menu (app-wide
             // card convention).
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
-                .on_enter(Message::SnippetCardHovered(idx))
-                .on_exit(Message::SnippetCardUnhovered)
+                .on_enter(Message::Tabs(TabsMessage::SnippetCardHovered(idx)))
+                .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered))
                 .on_right_press(Message::Snippet(SnippetMessage::ShowSnippetMenu(idx)))
                 .into();
             let card_el: Element<'_, Message> =

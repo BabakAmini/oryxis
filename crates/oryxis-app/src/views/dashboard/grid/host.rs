@@ -286,7 +286,7 @@ impl Oryxis {
             let dots_btn = crate::widgets::card_kebab_button(
                 dots_glyph_color,
                 show_dots,
-                Message::ShowCardMenu(idx),
+                Message::Tabs(TabsMessage::ShowCardMenu(idx)),
             );
             let dots_align = if rtl {
                 iced::alignment::Horizontal::Left
@@ -311,9 +311,9 @@ impl Oryxis {
 
             // Wrap in MouseArea for hover tracking and right-click
             let wrapped = MouseArea::new(card_element)
-                .on_enter(Message::CardHovered(idx))
-                .on_exit(Message::CardUnhovered)
-                .on_right_press(Message::ShowCardMenu(idx));
+                .on_enter(Message::Tabs(TabsMessage::CardHovered(idx)))
+                .on_exit(Message::Tabs(TabsMessage::CardUnhovered))
+                .on_right_press(Message::Tabs(TabsMessage::ShowCardMenu(idx)));
 
             host_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), badge_color, DashNavItem::Host(idx)));
         }

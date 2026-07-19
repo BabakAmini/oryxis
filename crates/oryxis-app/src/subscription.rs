@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
 
@@ -100,7 +100,7 @@ impl Oryxis {
                     if !MOUSE_INTEREST.load(Ordering::Relaxed) {
                         return None;
                     }
-                    Some(Message::MouseMoved(position))
+                    Some(Message::Tabs(TabsMessage::MouseMoved(position)))
                 }
                 // Global Left press, used to start a potential SFTP
                 // internal drag. Doesn't capture the event, so widget-
@@ -115,7 +115,7 @@ impl Oryxis {
                     iced::mouse::Button::Left,
                 )) => Some(Message::Ai(AiMessage::ChatSidebarResizeStop)),
                 iced::event::Event::Window(iced::window::Event::Resized(size)) => {
-                    Some(Message::WindowResized(size))
+                    Some(Message::Tabs(TabsMessage::WindowResized(size)))
                 }
                 // Outer position in logical desktop coordinates; feeds
                 // the persisted geometry so the next launch reopens on
@@ -123,13 +123,13 @@ impl Oryxis {
                 // aren't a thing there), which is fine: the handler just
                 // never records one.
                 iced::event::Event::Window(iced::window::Event::Moved(pos)) => {
-                    Some(Message::WindowMoved(pos))
+                    Some(Message::Tabs(TabsMessage::WindowMoved(pos)))
                 }
                 iced::event::Event::Window(iced::window::Event::Focused) => {
-                    Some(Message::WindowFocusChanged(true))
+                    Some(Message::Tabs(TabsMessage::WindowFocusChanged(true)))
                 }
                 iced::event::Event::Window(iced::window::Event::Unfocused) => {
-                    Some(Message::WindowFocusChanged(false))
+                    Some(Message::Tabs(TabsMessage::WindowFocusChanged(false)))
                 }
                 // OS-level file drag-and-drop. iced fires one event per
                 // file, so multi-file drops produce a sequence of
@@ -222,7 +222,7 @@ impl Oryxis {
         // hands us the event instead of acting on it. Keep this
         // subscription unconditional, a gated one would make the
         // window unclosable from the OS.
-        subs.push(iced::window::close_requests().map(|_| Message::WindowClose));
+        subs.push(iced::window::close_requests().map(|_| Message::Tabs(TabsMessage::WindowClose)));
 
         // Tray icon event drain. On Windows the tray-icon crate runs
         // its own thread that pushes menu / icon events into a pair
@@ -317,7 +317,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(240))
-                    .map(|_| Message::SsmKeepaliveTick),
+                    .map(|_| Message::Tabs(TabsMessage::SsmKeepaliveTick)),
             );
         }
         // SFTP-sync auto cadence. The P2P transport runs its own timer

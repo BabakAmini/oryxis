@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SshMessage, Message, Oryxis};
+use crate::app::{TabsMessage, SshMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 use crate::widgets::{dir_align_x, dir_row};
@@ -83,7 +83,7 @@ impl Oryxis {
                 badge,
                 label,
                 is_active,
-                Message::SelectTab(idx),
+                Message::Tabs(TabsMessage::SelectTab(idx)),
             ));
         }
         // Inline "New Tab" entry, shortcut to the existing new-tab
@@ -103,7 +103,7 @@ impl Oryxis {
                 new_tab_badge,
                 new_tab_label,
                 false,
-                Message::ShowNewTabPicker,
+                Message::Tabs(TabsMessage::ShowNewTabPicker),
             ));
         }
 
@@ -160,7 +160,7 @@ impl Oryxis {
 
         // ── Search header ──────────────────────────────────────────────
         let search_input = text_input(t("search_tabs"), &self.tab_jump_search)
-            .on_input(Message::TabJumpSearchChanged)
+            .on_input(|v| Message::Tabs(TabsMessage::TabJumpSearchChanged(v)))
             .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
             .size(13)
             .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
@@ -312,7 +312,7 @@ impl Oryxis {
             // Two-step dispatch: select first, then close, keeps the
             // modal from flashing closed before the select handler runs.
             // SequencedSelect is wired in app.rs to fire both messages.
-            Message::TabJumpSelect(Box::new(on_select.clone()))
+            Message::Tabs(TabsMessage::TabJumpSelect(Box::new(on_select.clone())))
         })
         .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
         .width(Length::Fill)
@@ -331,7 +331,7 @@ impl Oryxis {
         // Keyboard row: Enter mirrors the click (same two-step
         // TabJumpSelect dispatch).
         self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::TabJumpSelect(Box::new(select))),
+            crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::TabJumpSelect(Box::new(select)))),
             6.0,
             false,
             row,

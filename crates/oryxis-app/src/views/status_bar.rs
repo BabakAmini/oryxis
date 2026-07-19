@@ -5,7 +5,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{TerminalMessage, Message, Oryxis};
+use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
 use crate::theme::OryxisColors;
 
 impl Oryxis {
@@ -143,7 +143,7 @@ fn mode_segment_btn(idx: usize, label: &str, active: bool) -> Element<'_, Messag
             }
         });
     if !active {
-        btn = btn.on_press(Message::ToggleTabFilesMode(idx));
+        btn = btn.on_press(Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)));
     }
     btn.into()
 }

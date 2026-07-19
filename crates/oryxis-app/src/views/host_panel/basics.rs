@@ -95,7 +95,7 @@ impl Oryxis {
         // static badge until the first save (and not a keyboard row).
         let icon_element: Element<'_, Message> = if let Some(id) = self.editor_form.editing_id {
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShowIconPicker(id)),
+                crate::keynav::RowAction::activate(Message::Tabs(TabsMessage::ShowIconPicker(id))),
                 8.0,
                 button(
                     container(addr_glyph.view(18.0, Color::WHITE))
@@ -104,7 +104,7 @@ impl Oryxis {
                         .center_x(Length::Fixed(32.0))
                         .center_y(Length::Fixed(32.0)),
                 )
-                .on_press(Message::ShowIconPicker(id))
+                .on_press(Message::Tabs(TabsMessage::ShowIconPicker(id)))
                 .padding(0)
                 .style(move |_, status| {
                     let ring = match status {

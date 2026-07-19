@@ -8,7 +8,7 @@ use iced::{Point, Task};
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{SshMessage, UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
+use crate::app::{TabsMessage, SshMessage, UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
 use crate::state::{ConnectionForm, SettingsSection, VaultState, View};
 
 mod load;
@@ -774,7 +774,7 @@ impl Oryxis {
                 async {
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;
                 },
-                |_| Message::WindowEnsureOnScreen,
+                |_| Message::Tabs(TabsMessage::WindowEnsureOnScreen),
             ));
         }
 
@@ -786,7 +786,7 @@ impl Oryxis {
                 async {
                     tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 },
-                |_| Message::FullscreenHintHide,
+                |_| Message::Tabs(TabsMessage::FullscreenHintHide),
             ));
         }
 

@@ -401,7 +401,7 @@ mod imp {
     /// verbs (taskbar button, Win+Down, the Alt+Space system menu)
     /// honour minimize-to-tray like our own chrome button does.
     ///
-    /// The button path routes through `Message::WindowMinimize`, but
+    /// The button path routes through `Message::Tabs(TabsMessage::WindowMinimize)`, but
     /// nothing generates that message for a native minimize: winit
     /// reports the state change after the fact and iced has no
     /// `minimize_requests()` to mirror `close_requests()`. Swallowing

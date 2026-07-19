@@ -254,8 +254,8 @@ impl Oryxis {
         // anything (worst case the next Auto import creates a
         // sibling). Surface the standard actions instead.
         column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditGroup(gid), OryxisColors::t().accent),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::StartDeleteFolder(gid), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Tabs(TabsMessage::EditGroup(gid)), OryxisColors::t().accent),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Tabs(TabsMessage::StartDeleteFolder(gid)), OryxisColors::t().error),
         ].into()
     }
 
@@ -267,7 +267,7 @@ impl Oryxis {
             // import-dedupe key never look at it, so renaming
             // is safe and the subtitle keeps surfacing the
             // original ECS path.
-            self.menu_item(iced_fonts::lucide::text_cursor_input(), crate::i18n::t("rename"), Message::StartRenameFolder(id), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::text_cursor_input(), crate::i18n::t("rename"), Message::Tabs(TabsMessage::StartRenameFolder(id)), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Cloud(CloudMessage::DeleteDynamicGroup(id)), OryxisColors::t().error),
         ].into()
     }

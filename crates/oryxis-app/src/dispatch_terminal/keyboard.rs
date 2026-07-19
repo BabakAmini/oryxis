@@ -9,7 +9,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{TerminalMessage, NavigationMessage, VaultMessage, Message, Oryxis};
+use crate::app::{TabsMessage, TerminalMessage, NavigationMessage, VaultMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Handle the `KeyboardEvent` chord resolver + PTY key routing.
@@ -392,7 +392,7 @@ impl Oryxis {
                                 .get(tab_idx)
                                 .is_some_and(|t| t.label.ends_with(" (disconnected)"))
                         {
-                            return Ok(self.update(Message::CloseTab(tab_idx)));
+                            return Ok(self.update(Message::Tabs(TabsMessage::CloseTab(tab_idx))));
                         }
                         // Everything else is the pure encoder's decision
                         // table (`key_encode::pty_bytes`): the macOS Cmd and

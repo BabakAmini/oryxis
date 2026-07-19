@@ -179,7 +179,7 @@ pub(crate) fn ghost_button<'a>(label: &'a str, msg: Message) -> Element<'a, Mess
 /// horizontal equivalent, so E/W stays drag-only).
 pub(crate) fn resize_handle<'a>(direction: Direction, width: Length, height: Length) -> Element<'a, Message> {
     let mut area = MouseArea::new(container(Space::new()).width(width).height(height))
-        .on_press(Message::WindowResizeDrag(direction))
+        .on_press(Message::Tabs(TabsMessage::WindowResizeDrag(direction)))
         .interaction(match direction {
             Direction::North | Direction::South => iced::mouse::Interaction::ResizingVertically,
             Direction::East | Direction::West => iced::mouse::Interaction::ResizingHorizontally,
@@ -187,7 +187,7 @@ pub(crate) fn resize_handle<'a>(direction: Direction, width: Length, height: Len
             Direction::NorthWest | Direction::SouthEast => iced::mouse::Interaction::ResizingDiagonallyDown,
         });
     if matches!(direction, Direction::North | Direction::South) {
-        area = area.on_double_click(Message::WindowExpandVertical);
+        area = area.on_double_click(Message::Tabs(TabsMessage::WindowExpandVertical));
     }
     area.into()
 }

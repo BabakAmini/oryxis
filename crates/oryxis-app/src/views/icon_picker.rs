@@ -11,7 +11,7 @@ use iced::widget::{
 };
 use iced::{Background, Border, Color, Element, Length, Point};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TabsMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::os_icon;
 use crate::theme::OryxisColors;
@@ -93,7 +93,7 @@ impl Oryxis {
         }
 
         let icon_search = text_input(t("icon_search"), &self.icon_picker.icon_search)
-            .on_input(Message::IconPickerIconSearchChanged)
+            .on_input(|v| Message::Tabs(TabsMessage::IconPickerIconSearchChanged(v)))
             .padding(8)
             .size(12)
             .width(Length::Fill)
@@ -128,14 +128,14 @@ impl Oryxis {
             .unwrap_or_else(|| self.icon_picker_auto_color());
 
         let hex_input = text_input("#RRGGBB", &self.icon_picker.hex_input)
-            .on_input(Message::IconPickerHexInputChanged)
+            .on_input(|v| Message::Tabs(TabsMessage::IconPickerHexInputChanged(v)))
             .padding(8)
             .size(12)
             .width(120)
             .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
 
         let swatch = button(Space::new().width(28).height(28))
-            .on_press(Message::IconPickerOpenColorPopover)
+            .on_press(Message::Tabs(TabsMessage::IconPickerOpenColorPopover))
             .padding(0)
             .style(move |_, status| {
                 let border_color = match status {
@@ -169,11 +169,11 @@ impl Oryxis {
 
         // ── Footer actions ──
         let actions = dir_row(vec![
-            styled_button(t("reset_to_auto"), Message::IconPickerResetAuto, OryxisColors::t().bg_selected),
+            styled_button(t("reset_to_auto"), Message::Tabs(TabsMessage::IconPickerResetAuto), OryxisColors::t().bg_selected),
             Space::new().width(Length::Fill).into(),
-            styled_button(t("cancel"), Message::HideIconPicker, OryxisColors::t().bg_hover),
+            styled_button(t("cancel"), Message::Tabs(TabsMessage::HideIconPicker), OryxisColors::t().bg_hover),
             Space::new().width(8).into(),
-            styled_button(t("save"), Message::IconPickerSave, OryxisColors::t().accent),
+            styled_button(t("save"), Message::Tabs(TabsMessage::IconPickerSave), OryxisColors::t().accent),
         ])
         .align_y(iced::Alignment::Center);
 
@@ -264,7 +264,7 @@ impl Oryxis {
                     ..Default::default()
                 }),
         )
-        .on_press(Message::HideIconPicker)
+        .on_press(Message::Tabs(TabsMessage::HideIconPicker))
         .into();
 
         // The HSV color picker floats on top of the modal as a popover
@@ -293,10 +293,10 @@ impl Oryxis {
         // hex field, then the preset palette below it.
         let card = container(
             column![
-                crate::color_picker::color_picker(current, Message::IconPickerSelectColor),
+                crate::color_picker::color_picker(current, |v| Message::Tabs(TabsMessage::IconPickerSelectColor(v))),
                 Space::new().height(10),
                 text_input("#RRGGBB", &self.icon_picker.hex_input)
-                    .on_input(Message::IconPickerHexInputChanged)
+                    .on_input(|v| Message::Tabs(TabsMessage::IconPickerHexInputChanged(v)))
                     .padding(7)
                     .size(12)
                     .style(crate::widgets::rounded_input_style),
@@ -332,7 +332,7 @@ impl Oryxis {
         let pop_backdrop: Element<'_, Message> = MouseArea::new(
             container(Space::new()).width(Length::Fill).height(Length::Fill),
         )
-        .on_press(Message::IconPickerCloseColorPopover)
+        .on_press(Message::Tabs(TabsMessage::IconPickerCloseColorPopover))
         .into();
 
         Stack::new()
@@ -354,7 +354,7 @@ fn preset_grid<'a>() -> Element<'a, Message> {
     for hex in os_icon::PRESET_COLORS.iter() {
         let color = parse_hex_color(hex).unwrap_or(OryxisColors::t().accent);
         let sw = button(Space::new().width(18).height(18))
-            .on_press(Message::IconPickerSelectColor((*hex).to_string()))
+            .on_press(Message::Tabs(TabsMessage::IconPickerSelectColor((*hex).to_string())))
             .padding(0)
             .style(move |_, status| {
                 let border = match status {
@@ -395,7 +395,7 @@ fn icon_cell<'a>(id: &'static str, is_selected: bool) -> Element<'a, Message> {
         .center_x(Length::Fixed(44.0))
         .center_y(Length::Fixed(44.0)),
     )
-    .on_press(Message::IconPickerSelectIcon(id.to_string()))
+    .on_press(Message::Tabs(TabsMessage::IconPickerSelectIcon(id.to_string())))
     .style(move |_, status| {
         let bg = match status {
             BtnStatus::Hovered => OryxisColors::t().bg_hover,

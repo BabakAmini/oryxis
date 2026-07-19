@@ -499,7 +499,7 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 7.0, bottom: 0.0, left: 7.0 }),
             )
             .padding(0)
-            .on_press(Message::ToggleSubnavOverflow)
+            .on_press(Message::Tabs(TabsMessage::ToggleSubnavOverflow))
             .style(move |_, status| {
                 let bg = if open {
                     Color { a: 0.15, ..OryxisColors::t().accent }

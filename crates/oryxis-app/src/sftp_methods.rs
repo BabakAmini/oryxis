@@ -4,7 +4,7 @@
 
 use iced::Task;
 
-use crate::app::{NavigationMessage, Message, Oryxis, SftpMessage};
+use crate::app::{TabsMessage, NavigationMessage, Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::sort_local_entries;
 
 /// Process-global monotonic source for `SftpPane::local_list_seq` and
@@ -966,7 +966,7 @@ impl Oryxis {
         // Back on the terminal surface; select the tab if it wasn't
         // already active (a background close leaves focus).
         if self.active_tab != Some(idx) {
-            return self.update(Message::SelectTab(idx));
+            return self.update(Message::Tabs(TabsMessage::SelectTab(idx)));
         }
         Task::none()
     }

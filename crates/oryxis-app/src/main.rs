@@ -462,7 +462,7 @@ fn main() -> iced::Result {
             // entirely: close-to-tray is skipped, and so are the
             // session-log flush and the window-geometry save. Set to
             // `false` so every close path (our chrome X, Alt+F4, the
-            // taskbar) lands on the same `Message::WindowClose`
+            // taskbar) lands on the same `Message::Tabs(TabsMessage::WindowClose)`
             // handler, which decides between hide-to-tray and a real
             // `window::close`. Not Windows-gated: the flush + geometry
             // recovery matter on every platform.

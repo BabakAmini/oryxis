@@ -14,7 +14,7 @@ use iced::widget::column;
 pub(crate) use uuid::Uuid;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{SshMessage, CloudMessage, NavigationMessage, DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
+pub(crate) use crate::app::{TabsMessage, SshMessage, CloudMessage, NavigationMessage, DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::os_icon::BrandIcon;
 pub(crate) use crate::theme::OryxisColors;

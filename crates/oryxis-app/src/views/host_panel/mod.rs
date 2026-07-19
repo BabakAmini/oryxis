@@ -8,7 +8,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 use oryxis_core::models::connection::AuthMethod;
 use oryxis_core::models::identity::Identity;
 
-use crate::app::{EditorMessage, KeysMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{TabsMessage, EditorMessage, KeysMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::ProxyKind;
 use crate::theme::OryxisColors;

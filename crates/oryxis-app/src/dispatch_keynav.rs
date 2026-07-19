@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{EditorMessage, KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{TabsMessage, EditorMessage, KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -508,7 +508,7 @@ impl Oryxis {
             self.keynav.menu_anchor = Some((x, rect.y + rect.height / 2.0));
         }
         let msg = match item {
-            NavItem::Dash(DashNavItem::Host(i)) => Message::ShowCardMenu(i),
+            NavItem::Dash(DashNavItem::Host(i)) => Message::Tabs(TabsMessage::ShowCardMenu(i)),
             NavItem::Dash(DashNavItem::Group(gid)) => {
                 // Dynamic (cloud-query) folders carry their own menu.
                 let dynamic = self
@@ -518,7 +518,7 @@ impl Oryxis {
                 if dynamic {
                     Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid))
                 } else {
-                    Message::ShowFolderActions(gid)
+                    Message::Tabs(TabsMessage::ShowFolderActions(gid))
                 }
             }
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(i)),
