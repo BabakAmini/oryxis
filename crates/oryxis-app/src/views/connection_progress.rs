@@ -10,6 +10,40 @@ use crate::app::{SshMessage, Message, Oryxis};
 use crate::state::ConnectionStep;
 use crate::theme::OryxisColors;
 
+/// Tone of a timeline step, telling the story at a glance: kickoff and
+/// network work ride the accent, the secured channel and an accepted
+/// login read as success, credentials-in-flight as warning. Errors are
+/// resolved by the caller (they override the step's own tone).
+fn step_color(step: ConnectionStep) -> Color {
+    match step {
+        ConnectionStep::Starting
+        | ConnectionStep::Connecting
+        | ConnectionStep::OpeningSession => OryxisColors::t().accent,
+        ConnectionStep::Handshake | ConnectionStep::Authenticated => OryxisColors::t().success,
+        ConnectionStep::Authenticating => OryxisColors::t().warning,
+    }
+}
+
+/// Glyph inside a timeline node disc: what this line was DOING, one
+/// icon per step so adjacent lines never repeat a symbol (kickoff,
+/// dialing, secured channel, credentials, accepted login, PTY setup).
+fn step_glyph(step: ConnectionStep, color: Color) -> Element<'static, Message> {
+    match step {
+        ConnectionStep::Starting => iced_fonts::lucide::play().size(15).color(color).into(),
+        ConnectionStep::Connecting => iced_fonts::lucide::plug().size(15).color(color).into(),
+        ConnectionStep::Handshake => {
+            iced_fonts::lucide::shield_check().size(15).color(color).into()
+        }
+        ConnectionStep::Authenticating => {
+            iced_fonts::lucide::key_round().size(15).color(color).into()
+        }
+        ConnectionStep::Authenticated => iced_fonts::lucide::check().size(15).color(color).into(),
+        ConnectionStep::OpeningSession => {
+            iced_fonts::lucide::terminal().size(15).color(color).into()
+        }
+    }
+}
+
 impl Oryxis {
     /// Resolve the `Connection` a progress screen is connecting to. Saved
     /// hosts resolve by stored index first (set at connect time), guarded
@@ -635,37 +669,15 @@ impl Oryxis {
             // The in-flight node pulses only while we're still connecting.
             let is_active = !failed && is_last;
 
-            // Step tones tell the story at a glance: network (accent) ->
-            // secured channel (success) -> credentials (warning). The old
-            // text_muted for Connecting made the enlarged discs read as
-            // disabled, so every step carries a real color now.
-            let node_color = if is_error {
-                OryxisColors::t().error
-            } else {
-                match step {
-                    ConnectionStep::Connecting => OryxisColors::t().accent,
-                    ConnectionStep::Handshake => OryxisColors::t().success,
-                    ConnectionStep::Authenticating => OryxisColors::t().warning,
-                }
-            };
-
-            // Step glyph inside the node disc: what this line was DOING,
-            // not just a dot. Errors get the alert glyph in the same disc
-            // shape so the column stays visually aligned.
+            // The old text_muted for Connecting made the enlarged discs
+            // read as disabled, so every step carries a real color now
+            // (see step_color). Errors get the alert glyph in the same
+            // disc shape so the column stays visually aligned.
+            let node_color = if is_error { OryxisColors::t().error } else { step_color(*step) };
             let glyph: Element<'_, Message> = if is_error {
                 iced_fonts::lucide::circle_alert().size(15).color(node_color).into()
             } else {
-                match step {
-                    ConnectionStep::Connecting => {
-                        iced_fonts::lucide::plug().size(15).color(node_color).into()
-                    }
-                    ConnectionStep::Handshake => {
-                        iced_fonts::lucide::shield_check().size(15).color(node_color).into()
-                    }
-                    ConnectionStep::Authenticating => {
-                        iced_fonts::lucide::key_round().size(15).color(node_color).into()
-                    }
-                }
+                step_glyph(*step, node_color)
             };
 
             // Marker: a tinted 28 px disc around the glyph. The in-flight
@@ -709,11 +721,7 @@ impl Oryxis {
                 let next_color = if next_msg.starts_with("Error") {
                     OryxisColors::t().error
                 } else {
-                    match next_step {
-                        ConnectionStep::Connecting => OryxisColors::t().accent,
-                        ConnectionStep::Handshake => OryxisColors::t().success,
-                        ConnectionStep::Authenticating => OryxisColors::t().warning,
-                    }
+                    step_color(*next_step)
                 };
                 let line_color = Color { a: 0.55, ..next_color };
                 let line: Element<'_, Message> = container(Space::new())
@@ -726,17 +734,20 @@ impl Oryxis {
                     .into();
                 if feeds_active {
                     // Spark riding the same tint, eased lap ~1.2 s on the
-                    // 100 ms anim tick.
+                    // 100 ms anim tick. Even-sized (8 px, flush with the
+                    // stack) so its center lands on the same integer x as
+                    // the 2 px rail; an odd size centers at a half pixel
+                    // and snaps visibly off the line on fractional DPI.
                     let lap = (self.connect_anim_tick % 12) as f32 / 12.0;
                     let eased = lap * lap * (3.0 - 2.0 * lap);
                     let pos = ((eased * 1000.0) as u16).clamp(1, 999);
                     let spark = container(Space::new())
-                        .width(Length::Fixed(7.0))
-                        .height(Length::Fixed(7.0))
+                        .width(Length::Fixed(8.0))
+                        .height(Length::Fixed(8.0))
                         .style(move |_| container::Style {
                             background: Some(Background::Color(next_color)),
                             border: Border {
-                                radius: Radius::from(3.5),
+                                radius: Radius::from(4.0),
                                 color: Color { a: 0.35, ..next_color },
                                 width: 2.0,
                             },
@@ -762,11 +773,17 @@ impl Oryxis {
 
             // Rail: the marker, then the fill connector. The column is
             // Fill-height so the connector stretches to the row's height
-            // (driven by the message cell).
-            let rail = column![marker, connector]
+            // (driven by the message cell) -- except on the last row,
+            // which has no connector and whose one-line message cell is
+            // SHORTER than the 28 px disc: a Fill rail would adopt that
+            // height and squash the disc into an ellipse, so it shrinks
+            // to the marker instead.
+            let mut rail = column![marker, connector]
                 .align_x(Horizontal::Center)
-                .width(Length::Fixed(32.0))
-                .height(Length::Fill);
+                .width(Length::Fixed(32.0));
+            if !is_last {
+                rail = rail.height(Length::Fill);
+            }
 
             // Selectable message, top-padded to sit centered against the
             // disc's first line. Bottom padding (except last) gives the

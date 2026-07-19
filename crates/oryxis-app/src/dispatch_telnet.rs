@@ -135,9 +135,9 @@ impl Oryxis {
         self.connecting = Some(ConnectionProgress {
             label: label.clone(),
             hostname: hostname.clone(),
-            step: ConnectionStep::Connecting,
+            step: ConnectionStep::Starting,
             logs: vec![(
-                ConnectionStep::Connecting,
+                ConnectionStep::Starting,
                 format!(
                     "Starting a new Telnet connection to \"{}\" port {}",
                     conn.hostname, conn.port

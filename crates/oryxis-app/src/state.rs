@@ -378,9 +378,12 @@ pub(crate) struct ConnectionProgress {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConnectionStep {
-    Connecting,   // step 1: TCP/proxy/jump
-    Handshake,    // step 2: SSH handshake + host key
-    Authenticating, // step 3: auth
+    Starting,       // step 0: connect initiated (the seed log line)
+    Connecting,     // step 1: TCP/proxy/jump dial + address resolution
+    Handshake,      // step 2: SSH handshake + host key
+    Authenticating, // step 3: auth in progress
+    Authenticated,  // step 3 done: auth accepted
+    OpeningSession, // step 4: PTY / port forwards / session setup
 }
 
 

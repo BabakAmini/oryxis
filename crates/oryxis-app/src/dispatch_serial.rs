@@ -88,9 +88,9 @@ impl Oryxis {
         self.connecting = Some(ConnectionProgress {
             label: label.clone(),
             hostname: hostname.clone(),
-            step: ConnectionStep::Connecting,
+            step: ConnectionStep::Starting,
             logs: vec![(
-                ConnectionStep::Connecting,
+                ConnectionStep::Starting,
                 format!("Opening {} @ {} baud...", conn.hostname, config.params.baud),
             )],
             failed: false,

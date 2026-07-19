@@ -300,9 +300,9 @@ impl Oryxis {
                 self.connecting = Some(ConnectionProgress {
                     label: label.clone(),
                     hostname: hostname.clone(),
-                    step: ConnectionStep::Connecting,
+                    step: ConnectionStep::Starting,
                     logs: vec![(
-                        ConnectionStep::Connecting,
+                        ConnectionStep::Starting,
                         format!(
                             "Starting a new connection to \"{}\" port {}",
                             conn.hostname, conn.port
@@ -761,7 +761,7 @@ impl Oryxis {
                         }
 
                         let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::Authenticating,
+                            ConnectionStep::Authenticated,
                             format!("Authenticated as \"{}\"", username),
                         )).await;
 
@@ -771,12 +771,12 @@ impl Oryxis {
                                 .map(|pf| format!("{}:{}:{}", pf.local_port, pf.remote_host, pf.remote_port))
                                 .collect();
                             let _ = sender.send(SshStreamMsg::Progress(
-                                ConnectionStep::Authenticating,
+                                ConnectionStep::OpeningSession,
                                 format!("Port forwards: {}", fwd_summary.join(", ")),
                             )).await;
                         }
                         let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::Authenticating,
+                            ConnectionStep::OpeningSession,
                             "Opening terminal session and requesting a PTY...".to_string(),
                         )).await;
                         match engine.open_session(handle, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, &conn.port_forwards).await {
