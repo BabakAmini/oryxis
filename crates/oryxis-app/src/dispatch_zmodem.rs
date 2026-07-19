@@ -44,6 +44,19 @@ impl Oryxis {
             .join("downloads")
     }
 
+    /// Open / close the Telnet inbound raw window for a ZMODEM transfer
+    /// on `pane_id`. No-op for SSH (8-bit clean) and serial (already the
+    /// raw wire); Telnet needs both halves of the raw contract, or a
+    /// non-UTF-8 host's charset decoder corrupts every inbound frame.
+    pub(crate) fn set_zmodem_binary_inbound(&self, pane_id: Uuid, on: bool) {
+        if let Some(TerminalTransport::Telnet(t)) = self
+            .pane_by_id(pane_id)
+            .and_then(|p| p.session.as_ref())
+        {
+            t.set_binary_inbound(on);
+        }
+    }
+
     /// Begin a ZMODEM transfer on `pane_id` after the detector fired.
     /// Sets up the divert (so subsequent `PtyOutput` for the pane feeds
     /// the driver) and returns a task that runs the transfer and streams
@@ -88,6 +101,9 @@ impl Oryxis {
         let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
         let abort = Arc::new(AtomicBool::new(false));
 
+        // Telnet: open the inbound raw window before any protocol frame
+        // can arrive; closed again wherever the divert is torn down.
+        self.set_zmodem_binary_inbound(pane_id, true);
         // Seed the divert with the detector's first wire bytes, then flip
         // the pane into transfer mode so every later batch follows.
         let _ = wire_tx.send(first_wire);
@@ -198,6 +214,7 @@ impl Oryxis {
                 // can interleave (the divert is cleared right here).
                 let mut toast: Option<String> = None;
                 let mut replay: Vec<u8> = Vec::new();
+                let mut divert_closed = false;
                 {
                     let Some(pane) = self.pane_by_id_mut(pane_id) else {
                         return Ok(Task::none());
@@ -224,20 +241,31 @@ impl Oryxis {
                                 replay.extend(zm.late);
                             }
                             toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                            divert_closed = true;
                         }
                         Progress::Aborted => {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay = zm.late;
                             }
                             toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                            divert_closed = true;
                         }
                         Progress::Error(e) => {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay = zm.late;
                             }
                             toast = Some(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                            divert_closed = true;
                         }
                     }
+                }
+                if divert_closed {
+                    // Close the Telnet inbound raw window with the divert.
+                    // The replayed trailing bytes skip the charset decode
+                    // (they were captured raw); a non-ASCII prompt tail may
+                    // render mojibake once, which beats corrupting the
+                    // whole transfer.
+                    self.set_zmodem_binary_inbound(pane_id, false);
                 }
                 if let Some(text) = toast {
                     self.set_toast(text);

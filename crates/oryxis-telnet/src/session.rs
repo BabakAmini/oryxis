@@ -80,6 +80,12 @@ pub struct TelnetSession {
     raw_tx: mpsc::UnboundedSender<Vec<u8>>,
     /// Viewport changes, reported to the server via NAWS when active.
     resize_tx: mpsc::UnboundedSender<(u16, u16)>,
+    /// While set, the reader forwards app bytes verbatim (post-IAC,
+    /// pre-charset): the inbound half of the ZMODEM raw contract. The
+    /// outbound half is `raw_tx`; without this flag the charset decoder
+    /// would transcode (lossily, U+FFFD) every inbound protocol frame on
+    /// non-UTF-8 hosts, corrupting the transfer.
+    binary_inbound: Arc<AtomicBool>,
     reader_task: tokio::task::JoinHandle<()>,
     writer_task: tokio::task::JoinHandle<()>,
     /// Latched by `close()` so teardown runs exactly once even when
@@ -178,11 +184,14 @@ impl TelnetSession {
             config.password.clone(),
             AUTOLOGIN_WINDOW,
         );
+        let binary_inbound = Arc::new(AtomicBool::new(false));
+        let reader_binary = Arc::clone(&binary_inbound);
         let reader_task = tokio::spawn(async move {
             let mut buf = vec![0u8; 8192];
             // Stateful decoder so a multi-byte char split across two
             // reads still decodes correctly. `None` for UTF-8.
             let mut decoder = enc.map(|e| e.new_decoder());
+            let mut was_binary = false;
             loop {
                 let n = match read_half.read(&mut buf).await {
                     Ok(0) => {
@@ -205,15 +214,30 @@ impl TelnetSession {
                 if step.app.is_empty() {
                     continue;
                 }
-                let out = match &mut decoder {
-                    Some(dec) => {
-                        let mut s = String::with_capacity(step.app.len() + 16);
-                        let _ = dec.decode_to_string(&step.app, &mut s, false);
-                        s.into_bytes()
+                // ZMODEM raw window: forward app bytes verbatim (IAC
+                // handling above still applies, it is transport framing).
+                // The decoder restarts fresh when the window closes, so a
+                // char split across the toggle can't smear stale decoder
+                // state over post-transfer text.
+                let binary = reader_binary.load(Ordering::Relaxed);
+                if !binary && was_binary {
+                    decoder = enc.map(|e| e.new_decoder());
+                }
+                was_binary = binary;
+                let out = if binary {
+                    step.app
+                } else {
+                    match &mut decoder {
+                        Some(dec) => {
+                            let mut s = String::with_capacity(step.app.len() + 16);
+                            let _ = dec.decode_to_string(&step.app, &mut s, false);
+                            s.into_bytes()
+                        }
+                        None => step.app,
                     }
-                    None => step.app,
                 };
-                if !autologin.exhausted()
+                if !binary
+                    && !autologin.exhausted()
                     && let Some(line) = autologin.observe(&out)
                 {
                     // Through the normal input path so charset + NVT
@@ -291,6 +315,7 @@ impl TelnetSession {
                 writer_tx,
                 raw_tx,
                 resize_tx,
+                binary_inbound,
                 reader_task,
                 writer_task,
                 closed: AtomicBool::new(false),
@@ -331,6 +356,15 @@ impl TelnetSession {
     /// `write_sender` applies to keystrokes.
     pub fn raw_write_sender(&self) -> mpsc::UnboundedSender<Vec<u8>> {
         self.raw_tx.clone()
+    }
+
+    /// Open / close the inbound raw window for a protocol transfer
+    /// (ZMODEM): while on, inbound app bytes skip the charset decode and
+    /// arrive verbatim, matching the outbound `raw_write_sender` path.
+    /// UTF-8 hosts are unaffected (their inbound is already verbatim).
+    /// The reader restarts its charset decoder when the window closes.
+    pub fn set_binary_inbound(&self, on: bool) {
+        self.binary_inbound.store(on, Ordering::Relaxed);
     }
 
     pub fn is_alive(&self) -> bool {

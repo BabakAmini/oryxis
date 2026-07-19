@@ -342,6 +342,14 @@ async fn run_download(
                         "download exceeded its {ceiling}-byte ceiling; aborting"
                     ));
                 }
+                // `dest == None` (data outside an open file) is absorbed,
+                // not treated as fatal: it is reachable only between files
+                // of a batch from a hostile or broken sender (the receiver
+                // ignores data before the first accepted ZFILE), and the
+                // ceiling above already bounds the absorb. Erroring here
+                // would need multi-file loopback coverage first to prove a
+                // healthy batch never trips it; `file_written` still runs
+                // so the receiver's count stays in sync either way.
                 if let Some(file) = dest.as_mut() {
                     file.write_all(&bytes)
                         .await
