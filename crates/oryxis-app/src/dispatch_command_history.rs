@@ -7,7 +7,7 @@
 #![allow(clippy::result_large_err)]
 
 use crate::app::Oryxis;
-use crate::messages::Message;
+use crate::messages::{CommandHistoryMessage, Message};
 use iced::Task;
 use uuid::Uuid;
 
@@ -17,16 +17,16 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::HistoryCardHovered(idx) => {
+            Message::CommandHistory(CommandHistoryMessage::HistoryCardHovered(idx)) => {
                 self.hovered_history_card = Some(idx);
             }
-            Message::HistoryCardUnhovered => {
+            Message::CommandHistory(CommandHistoryMessage::HistoryCardUnhovered) => {
                 self.hovered_history_card = None;
             }
-            Message::CmdHistorySearchChanged(v) => {
+            Message::CommandHistory(CommandHistoryMessage::CmdHistorySearchChanged(v)) => {
                 self.cmd_history_search = v;
             }
-            Message::ExportCommandHistory => {
+            Message::CommandHistory(CommandHistoryMessage::ExportCommandHistory) => {
                 let Some(host) = self.command_history_host else {
                     return Ok(Task::none());
                 };
@@ -55,14 +55,14 @@ impl Oryxis {
                         )
                     }),
                     |res| match res {
-                        Ok(Some(outcome)) => Message::CommandHistoryExported(outcome),
+                        Ok(Some(outcome)) => Message::CommandHistory(CommandHistoryMessage::CommandHistoryExported(outcome)),
                         // Dialog dismissed or the blocking task died:
                         // nothing to report.
                         _ => Message::NoOp,
                     },
                 ));
             }
-            Message::CommandHistoryExported(result) => {
+            Message::CommandHistory(CommandHistoryMessage::CommandHistoryExported(result)) => {
                 return Ok(match result {
                     Ok(path) => self.show_toast(
                         crate::i18n::t("history_export_done").replace("{path}", &path),
@@ -72,14 +72,14 @@ impl Oryxis {
                     ),
                 });
             }
-            Message::ToggleCommandHistoryFile => {
+            Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile) => {
                 self.setting_command_history_file = !self.setting_command_history_file;
                 self.persist_setting(
                     "command_history_file",
                     if self.setting_command_history_file { "true" } else { "false" },
                 );
             }
-            Message::PickCommandHistoryDir => {
+            Message::CommandHistory(CommandHistoryMessage::PickCommandHistoryDir) => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(|| {
                         rfd::FileDialog::new()
@@ -87,32 +87,32 @@ impl Oryxis {
                             .pick_folder()
                             .map(|p| p.display().to_string())
                     }),
-                    |res| Message::CommandHistoryDirPicked(res.ok().flatten()),
+                    |res| Message::CommandHistory(CommandHistoryMessage::CommandHistoryDirPicked(res.ok().flatten())),
                 ));
             }
-            Message::CommandHistoryDirPicked(dir) => {
+            Message::CommandHistory(CommandHistoryMessage::CommandHistoryDirPicked(dir)) => {
                 if let Some(dir) = dir {
                     self.persist_setting("command_history_file_dir", &dir);
                     self.setting_command_history_file_dir = Some(dir);
                 }
             }
-            Message::RunHistoryCommand(id) => {
+            Message::CommandHistory(CommandHistoryMessage::RunHistoryCommand(id)) => {
                 self.inject_history_command(id, true);
             }
-            Message::PasteHistoryCommand(id) => {
+            Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(id)) => {
                 self.inject_history_command(id, false);
             }
-            Message::RequestDeleteHistoryCommand(id) => {
+            Message::CommandHistory(CommandHistoryMessage::RequestDeleteHistoryCommand(id)) => {
                 // Deleting is destructive and the trash icon floats over
                 // the row on hover, one pixel from the paste click, so it
                 // goes through the shared confirm (Enter confirms via the
                 // modal keyboard layer, like every other destructive).
                 if let Some(entry) = self.command_history.iter().find(|e| e.id == id) {
                     let name: String = entry.command.lines().next().unwrap_or("").chars().take(48).collect();
-                    self.confirm_remove(name, Message::DeleteHistoryCommand(id));
+                    self.confirm_remove(name, Message::CommandHistory(CommandHistoryMessage::DeleteHistoryCommand(id)));
                 }
             }
-            Message::DeleteHistoryCommand(id) => {
+            Message::CommandHistory(CommandHistoryMessage::DeleteHistoryCommand(id)) => {
                 if let Some(ref vault) = self.vault {
                     let _ = vault.delete_command_history_entry(&id);
                 }

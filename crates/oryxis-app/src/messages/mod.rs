@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod command_history;
+pub use command_history::CommandHistoryMessage;
 mod update;
 pub use update::UpdateMessage;
 mod proxy_identity;
@@ -761,8 +763,8 @@ pub enum Message {
     IdentityCardHovered(usize),
     SnippetCardHovered(usize),
     SnippetCardUnhovered,
-    HistoryCardHovered(usize),
-    HistoryCardUnhovered,
+    // CommandHistory (handle_command_history)
+    CommandHistory(CommandHistoryMessage),
     IdentityCardUnhovered,
     ShowCardMenu(usize),
     #[allow(dead_code)]
@@ -930,33 +932,8 @@ pub enum Message {
     ClearHostTagFilter,
 
     // Command history (terminal sidebar History tab)
-    /// Re-run a captured command in the active terminal (+ Enter).
-    RunHistoryCommand(Uuid),
-    /// Insert a captured command WITHOUT the trailing newline.
-    PasteHistoryCommand(Uuid),
-    /// Ask before removing a captured command (routes through the shared
-    /// confirm dialog; a lone misclick on the hover trash silently wiped
-    /// a host's only entry once, live QA 2026-07-03).
-    RequestDeleteHistoryCommand(Uuid),
-    /// Remove one captured command from the host's history (confirmed).
-    DeleteHistoryCommand(Uuid),
-    /// Filter text for the sidebar History tab's search field (distinct
-    /// from `HistorySearchChanged`, which filters the session-logs view).
-    CmdHistorySearchChanged(String),
-    /// Save the focused host's captured commands to a plain-text file
-    /// (save dialog; offline reference / support sharing).
-    ExportCommandHistory,
-    /// Outcome of the export: `Ok(path)` shows a toast, `Err` a warning.
-    CommandHistoryExported(Result<String, String>),
     /// Settings > Terminal: enable/disable command-history capture.
     ToggleCommandHistory,
-    /// Settings > Terminal: live-append captured commands to per-host
-    /// text files.
-    ToggleCommandHistoryFile,
-    /// Pick the folder the per-host command logs are written into.
-    PickCommandHistoryDir,
-    /// Folder chosen (or dialog dismissed with `None`).
-    CommandHistoryDirPicked(Option<String>),
 
     // Split panes
     /// Focus a pane (click). Routes keyboard / snippets / paste to it.

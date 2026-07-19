@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{PluginMessage, Message, Oryxis};
+use crate::app::{CommandHistoryMessage, PluginMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_history(
@@ -631,7 +631,7 @@ fn save_text_file_task(
             )
         }),
         |res| match res {
-            Ok(Some(outcome)) => Message::CommandHistoryExported(outcome),
+            Ok(Some(outcome)) => Message::CommandHistory(CommandHistoryMessage::CommandHistoryExported(outcome)),
             _ => Message::NoOp,
         },
     )

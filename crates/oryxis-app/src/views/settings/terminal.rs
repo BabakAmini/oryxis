@@ -42,11 +42,11 @@ impl Oryxis {
         };
         let dir = self.command_history_dir().display().to_string();
         let change = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::PickCommandHistoryDir),
+            crate::keynav::RowAction::activate(Message::CommandHistory(CommandHistoryMessage::PickCommandHistoryDir)),
             8.0,
             crate::widgets::styled_button_opt(
                 crate::i18n::t("browse"),
-                Some(Message::PickCommandHistoryDir),
+                Some(Message::CommandHistory(CommandHistoryMessage::PickCommandHistoryDir)),
                 crate::theme::OryxisColors::t().accent,
             ),
         );
@@ -296,7 +296,7 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::ToggleCommandHistory),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::ToggleCommandHistoryFile),
+            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),
             Space::new().height(10),
             self.zmodem_download_dir_row(),

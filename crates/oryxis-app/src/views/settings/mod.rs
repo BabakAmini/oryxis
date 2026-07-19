@@ -9,7 +9,7 @@ use iced::widget::column;
 pub(crate) use iced::widget::button::Status as BtnStatus;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{UpdateMessage, ProxyIdentityMessage, AgentMessage, ZmodemMessage, Message, Oryxis, VaultMessage, AiMessage, ShareMessage, SyncMessage, NAV_RAIL_WIDTH_EXPANDED};
+pub(crate) use crate::app::{CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, AgentMessage, ZmodemMessage, Message, Oryxis, VaultMessage, AiMessage, ShareMessage, SyncMessage, NAV_RAIL_WIDTH_EXPANDED};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::state::SettingsSection;
 pub(crate) use crate::theme::OryxisColors;

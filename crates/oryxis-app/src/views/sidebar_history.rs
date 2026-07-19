@@ -8,7 +8,7 @@ use iced::widget::{column, container, text, MouseArea, Space};
 use iced::{Background, Border, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{Message, Oryxis};
+use crate::app::{CommandHistoryMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -36,7 +36,7 @@ impl Oryxis {
             crate::widgets::INPUT_RADIUS,
             iced::widget::text_input(t("search"), &self.cmd_history_search)
                 .id(iced::widget::Id::new("sidebar-history-search"))
-                .on_input(Message::CmdHistorySearchChanged)
+                .on_input(|v| Message::CommandHistory(CommandHistoryMessage::CmdHistorySearchChanged(v)))
                 .padding(8)
                 .size(13)
                 .style(crate::widgets::rounded_input_style)
@@ -46,12 +46,12 @@ impl Oryxis {
         // reference / support sharing). Recorded after the search,
         // matching the display order.
         let export_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::ExportCommandHistory),
+            crate::keynav::SidebarRow::button(Message::CommandHistory(CommandHistoryMessage::ExportCommandHistory)),
             crate::state::TerminalSidebarTab::History,
             6.0,
             action_btn(
                 iced_fonts::lucide::file_down(),
-                Message::ExportCommandHistory,
+                Message::CommandHistory(CommandHistoryMessage::ExportCommandHistory),
                 t("history_export_tip"),
             ),
         );
@@ -135,9 +135,9 @@ impl Oryxis {
         let row = history_row(entry, pos, self.hovered_history_card == Some(pos));
         self.sidebar_nav_slot(
             crate::keynav::SidebarRow::item(
-                Message::RunHistoryCommand(entry.id),
-                Message::PasteHistoryCommand(entry.id),
-                Message::RequestDeleteHistoryCommand(entry.id),
+                Message::CommandHistory(CommandHistoryMessage::RunHistoryCommand(entry.id)),
+                Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(entry.id)),
+                Message::CommandHistory(CommandHistoryMessage::RequestDeleteHistoryCommand(entry.id)),
             ),
             tab,
             8.0,
@@ -244,17 +244,17 @@ fn history_row<'a>(
             dir_row(vec![
                 action_btn(
                     iced_fonts::lucide::clipboard_copy(),
-                    Message::PasteHistoryCommand(entry.id),
+                    Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(entry.id)),
                     t("snippet_paste"),
                 ),
                 action_btn(
                     iced_fonts::lucide::play(),
-                    Message::RunHistoryCommand(entry.id),
+                    Message::CommandHistory(CommandHistoryMessage::RunHistoryCommand(entry.id)),
                     t("snippet_run"),
                 ),
                 action_btn(
                     iced_fonts::lucide::trash(),
-                    Message::RequestDeleteHistoryCommand(entry.id),
+                    Message::CommandHistory(CommandHistoryMessage::RequestDeleteHistoryCommand(entry.id)),
                     t("delete"),
                 ),
             ])
@@ -279,8 +279,8 @@ fn history_row<'a>(
     };
 
     MouseArea::new(row_el)
-        .on_enter(Message::HistoryCardHovered(pos))
-        .on_exit(Message::HistoryCardUnhovered)
-        .on_press(Message::PasteHistoryCommand(entry.id))
+        .on_enter(Message::CommandHistory(CommandHistoryMessage::HistoryCardHovered(pos)))
+        .on_exit(Message::CommandHistory(CommandHistoryMessage::HistoryCardUnhovered))
+        .on_press(Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(entry.id)))
         .into()
 }
