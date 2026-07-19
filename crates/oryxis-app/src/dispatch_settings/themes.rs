@@ -354,10 +354,10 @@ impl Oryxis {
     /// terminal + UI theme editors, theme import and the theme cards.
     pub(super) fn handle_settings_themes(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SettingsMessage,
+    ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            Message::Settings(SettingsMessage::TerminalThemeChanged(name)) => {
+            SettingsMessage::TerminalThemeChanged(name) => {
                 // Empty string == "follow app theme". Anything else is
                 // matched against the known theme names; an unknown
                 // string is ignored so a typo'd setting can't lock
@@ -375,7 +375,7 @@ impl Oryxis {
                 self.terminal_palette = self.resolve_global_terminal_palette();
                 self.repaint_all_terminal_palettes();
             }
-            Message::Settings(SettingsMessage::LocalConfigThemeChanged(name)) => {
+            SettingsMessage::LocalConfigThemeChanged(name) => {
                 // Session-only override for local/ephemeral panes. Empty =
                 // follow the global terminal theme. Unknown names ignored.
                 if name.is_empty() {
@@ -387,7 +387,7 @@ impl Oryxis {
                 }
                 self.apply_local_terminal_palette();
             }
-            Message::Settings(SettingsMessage::LocalConfigSaveGlobal) => {
+            SettingsMessage::LocalConfigSaveGlobal => {
                 // Promote the session override to the persisted global
                 // default, then drop it (the panes now follow global).
                 if let Some(name) = self.local_terminal_theme.take() {
@@ -397,19 +397,19 @@ impl Oryxis {
                     self.repaint_all_terminal_palettes();
                 }
             }
-            Message::Settings(SettingsMessage::ThemeEditorOpenPicker(slot)) => {
+            SettingsMessage::ThemeEditorOpenPicker(slot) => {
                 self.theme_color_popover = Some((slot, self.mouse_position));
             }
-            Message::Settings(SettingsMessage::ThemeEditorClosePicker) => {
+            SettingsMessage::ThemeEditorClosePicker => {
                 self.theme_color_popover = None;
             }
-            Message::Settings(SettingsMessage::ThemeCardHovered(idx)) => {
+            SettingsMessage::ThemeCardHovered(idx) => {
                 self.hovered_theme_card = Some(idx);
             }
-            Message::Settings(SettingsMessage::ThemeCardUnhovered) => {
+            SettingsMessage::ThemeCardUnhovered => {
                 self.hovered_theme_card = None;
             }
-            Message::Settings(SettingsMessage::ThemeEditorNew) => {
+            SettingsMessage::ThemeEditorNew => {
                 // Seed from the active terminal palette so the user starts
                 // from the currently-selected theme.
                 let p = self.terminal_palette.clone();
@@ -427,23 +427,23 @@ impl Oryxis {
                     error: None,
                 });
             }
-            Message::Settings(SettingsMessage::ThemeImportOpen) => {
+            SettingsMessage::ThemeImportOpen => {
                 self.show_theme_import = true;
                 self.theme_import_content = iced::widget::text_editor::Content::new();
                 self.theme_import_name.clear();
                 self.theme_import_error = None;
             }
-            Message::Settings(SettingsMessage::ThemeImportClose) => {
+            SettingsMessage::ThemeImportClose => {
                 self.show_theme_import = false;
             }
-            Message::Settings(SettingsMessage::ThemeImportContentAction(action)) => {
+            SettingsMessage::ThemeImportContentAction(action) => {
                 self.theme_import_content.perform(action);
                 self.theme_import_error = None;
             }
-            Message::Settings(SettingsMessage::ThemeImportNameChanged(v)) => {
+            SettingsMessage::ThemeImportNameChanged(v) => {
                 self.theme_import_name = v;
             }
-            Message::Settings(SettingsMessage::ThemeImportApply) => {
+            SettingsMessage::ThemeImportApply => {
                 let content = self.theme_import_content.text();
                 let name = if self.theme_import_name.trim().is_empty() {
                     crate::i18n::t("theme_imported_default").to_string()
@@ -463,30 +463,30 @@ impl Oryxis {
                 }
             }
             // -- Custom UI (chrome) themes --
-            Message::Settings(SettingsMessage::UiThemeEditorNew) => {
+            SettingsMessage::UiThemeEditorNew => {
                 // Seed from the currently active chrome colors so the user
                 // starts from a working theme.
                 let seed = crate::theme::theme_colors_to_hex(crate::theme::OryxisColors::t());
                 self.ui_theme_editor =
                     Some(crate::state::UiThemeEditorForm::new_from_colors(seed));
             }
-            Message::Settings(SettingsMessage::UiThemeEditorEdit(idx)) => {
+            SettingsMessage::UiThemeEditorEdit(idx) => {
                 if let Some(theme) = self.custom_ui_themes.get(idx) {
                     self.ui_theme_editor =
                         Some(crate::state::UiThemeEditorForm::from_theme(theme));
                 }
             }
-            Message::Settings(SettingsMessage::UiThemeEditorClose) => {
+            SettingsMessage::UiThemeEditorClose => {
                 self.ui_theme_editor = None;
                 self.ui_color_popover = None;
             }
-            Message::Settings(SettingsMessage::UiThemeEditorNameChanged(name)) => {
+            SettingsMessage::UiThemeEditorNameChanged(name) => {
                 if let Some(form) = &mut self.ui_theme_editor {
                     form.name = name;
                     form.error = None;
                 }
             }
-            Message::Settings(SettingsMessage::UiThemeColorChanged(idx, value)) => {
+            SettingsMessage::UiThemeColorChanged(idx, value) => {
                 if let Some(form) = &mut self.ui_theme_editor
                     && idx < 21
                 {
@@ -498,13 +498,13 @@ impl Oryxis {
                     form.colors[idx] = cleaned;
                 }
             }
-            Message::Settings(SettingsMessage::UiThemeEditorOpenPicker(idx)) => {
+            SettingsMessage::UiThemeEditorOpenPicker(idx) => {
                 self.ui_color_popover = Some((idx, self.mouse_position));
             }
-            Message::Settings(SettingsMessage::UiThemeEditorClosePicker) => {
+            SettingsMessage::UiThemeEditorClosePicker => {
                 self.ui_color_popover = None;
             }
-            Message::Settings(SettingsMessage::UiThemeEditorSave) => {
+            SettingsMessage::UiThemeEditorSave => {
                 if let Some(err) = self.save_ui_theme_editor() {
                     if let Some(form) = &mut self.ui_theme_editor {
                         form.error = Some(err);
@@ -514,7 +514,7 @@ impl Oryxis {
                     self.ui_color_popover = None;
                 }
             }
-            Message::Settings(SettingsMessage::UiThemeDelete(idx)) => {
+            SettingsMessage::UiThemeDelete(idx) => {
                 if let Some(theme) = self.custom_ui_themes.get(idx)
                     && let Some(vault) = &self.vault
                 {
@@ -534,28 +534,28 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::UiThemeCardHovered(idx)) => {
+            SettingsMessage::UiThemeCardHovered(idx) => {
                 self.hovered_ui_theme_card = Some(idx);
             }
-            Message::Settings(SettingsMessage::UiThemeCardUnhovered) => {
+            SettingsMessage::UiThemeCardUnhovered => {
                 self.hovered_ui_theme_card = None;
             }
-            Message::Settings(SettingsMessage::ThemeEditorEdit(idx)) => {
+            SettingsMessage::ThemeEditorEdit(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
                     self.theme_editor =
                         Some(crate::state::ThemeEditorForm::from_theme(theme));
                 }
             }
-            Message::Settings(SettingsMessage::ThemeEditorClose) => {
+            SettingsMessage::ThemeEditorClose => {
                 self.close_modal(crate::state::Modal::ThemeEditor);
             }
-            Message::Settings(SettingsMessage::ThemeEditorNameChanged(name)) => {
+            SettingsMessage::ThemeEditorNameChanged(name) => {
                 if let Some(form) = &mut self.theme_editor {
                     form.name = name;
                     form.error = None;
                 }
             }
-            Message::Settings(SettingsMessage::ThemeEditorColorChanged(slot, value)) => {
+            SettingsMessage::ThemeEditorColorChanged(slot, value) => {
                 if let Some(form) = &mut self.theme_editor {
                     // Keep only hex-ish characters so the live preview stays
                     // sane while typing; full validation happens on save.
@@ -567,7 +567,7 @@ impl Oryxis {
                     form.set_slot(slot, cleaned);
                 }
             }
-            Message::Settings(SettingsMessage::ThemeEditorSave) => {
+            SettingsMessage::ThemeEditorSave => {
                 if let Some(err) = self.save_theme_editor() {
                     if let Some(form) = &mut self.theme_editor {
                         form.error = Some(err);
@@ -576,7 +576,7 @@ impl Oryxis {
                     self.close_modal(crate::state::Modal::ThemeEditor);
                 }
             }
-            Message::Settings(SettingsMessage::ThemeDelete(idx)) => {
+            SettingsMessage::ThemeDelete(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx)
                     && let Some(vault) = &self.vault
                 {
@@ -589,7 +589,7 @@ impl Oryxis {
                     self.repaint_all_terminal_palettes();
                 }
             }
-            Message::Settings(SettingsMessage::AppThemeChanged(name)) => {
+            SettingsMessage::AppThemeChanged(name) => {
                 if self.apply_app_theme_name(&name) {
                     self.active_app_theme_name = name.clone();
                     self.persist_setting("app_theme", &name);

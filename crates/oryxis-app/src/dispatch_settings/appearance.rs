@@ -9,24 +9,24 @@ impl Oryxis {
     /// status bar.
     pub(super) fn handle_settings_appearance(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SettingsMessage,
+    ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            Message::Settings(SettingsMessage::FlattenHostsToggle) => {
+            SettingsMessage::FlattenHostsToggle => {
                 self.flatten_hosts = !self.flatten_hosts;
                 self.persist_setting(
                     "flatten_hosts",
                     if self.flatten_hosts { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingToggleShowStatusBar) => {
+            SettingsMessage::SettingToggleShowStatusBar => {
                 self.setting_show_status_bar = !self.setting_show_status_bar;
                 self.persist_setting(
                     "show_status_bar",
                     if self.setting_show_status_bar { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleHostListView) => {
+            SettingsMessage::ToggleHostListView => {
                 // Dismiss the `…` overflow menu when toggled from there
                 // (no-op for the inline toolbar button).
                 self.overlay = None;
@@ -36,49 +36,49 @@ impl Oryxis {
                     if self.setting_host_list_view { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleCardAccentGlass) => {
+            SettingsMessage::ToggleCardAccentGlass => {
                 self.setting_card_accent_glass = !self.setting_card_accent_glass;
                 self.persist_setting(
                     "card_accent_glass",
                     if self.setting_card_accent_glass { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleShowHostAddress) => {
+            SettingsMessage::ToggleShowHostAddress => {
                 self.setting_show_host_address = !self.setting_show_host_address;
                 self.persist_setting(
                     "show_host_address",
                     if self.setting_show_host_address { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingToggleShowTabStatusDot) => {
+            SettingsMessage::SettingToggleShowTabStatusDot => {
                 self.setting_show_tab_status_dot = !self.setting_show_tab_status_dot;
                 self.persist_setting(
                     "show_tab_status_dot",
                     if self.setting_show_tab_status_dot { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingToggleTabAccentLine) => {
+            SettingsMessage::SettingToggleTabAccentLine => {
                 self.setting_tab_accent_line = !self.setting_tab_accent_line;
                 self.persist_setting(
                     "tab_accent_line",
                     if self.setting_tab_accent_line { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingToggleTabAccentWash) => {
+            SettingsMessage::SettingToggleTabAccentWash => {
                 self.setting_tab_accent_wash = !self.setting_tab_accent_wash;
                 self.persist_setting(
                     "tab_accent_wash",
                     if self.setting_tab_accent_wash { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingToggleTabAccentText) => {
+            SettingsMessage::SettingToggleTabAccentText => {
                 self.setting_tab_accent_text = !self.setting_tab_accent_text;
                 self.persist_setting(
                     "tab_accent_text",
                     if self.setting_tab_accent_text { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingNavOrientationChanged(val)) => {
+            SettingsMessage::SettingNavOrientationChanged(val) => {
                 let normalized = match val.as_str() {
                     "vertical" => "vertical",
                     _ => "horizontal",
@@ -86,14 +86,14 @@ impl Oryxis {
                 self.setting_nav_orientation = normalized.into();
                 self.persist_setting("nav_orientation", normalized);
             }
-            Message::Settings(SettingsMessage::ToggleNavRailExpanded) => {
+            SettingsMessage::ToggleNavRailExpanded => {
                 self.setting_nav_rail_expanded = !self.setting_nav_rail_expanded;
                 self.persist_setting(
                     "nav_rail_expanded",
                     if self.setting_nav_rail_expanded { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingDefaultHostIconChanged(val)) => {
+            SettingsMessage::SettingDefaultHostIconChanged(val) => {
                 let normalized = match val.as_str() {
                     "square" => "square",
                     "rounded" => "rounded",
@@ -104,7 +104,7 @@ impl Oryxis {
                 self.setting_default_host_icon = normalized.into();
                 self.persist_setting("default_host_icon", normalized);
             }
-            Message::Settings(SettingsMessage::SettingTabCloseButtonSideChanged(val)) => {
+            SettingsMessage::SettingTabCloseButtonSideChanged(val) => {
                 // Only accept the two known values; anything else
                 // collapses to the default so an unknown pick from a
                 // future build can't wedge the tab bar.
@@ -115,7 +115,7 @@ impl Oryxis {
                 self.setting_tab_close_button_side = normalized.into();
                 self.persist_setting("tab_close_button_side", normalized);
             }
-            Message::Settings(SettingsMessage::SettingPinnedTabStyleChanged(val)) => {
+            SettingsMessage::SettingPinnedTabStyleChanged(val) => {
                 let normalized = match val.as_str() {
                     "full" => "full",
                     _ => "compact",
@@ -123,7 +123,7 @@ impl Oryxis {
                 self.setting_pinned_tab_style = normalized.into();
                 self.persist_setting("pinned_tab_style", normalized);
             }
-            Message::Settings(SettingsMessage::SettingTabFillStyleChanged(val)) => {
+            SettingsMessage::SettingTabFillStyleChanged(val) => {
                 let normalized = match val.as_str() {
                     "solid" => "solid",
                     _ => "gradient",
@@ -131,7 +131,7 @@ impl Oryxis {
                 self.setting_tab_fill_style = normalized.into();
                 self.persist_setting("tab_fill_style", normalized);
             }
-            Message::Settings(SettingsMessage::SettingTabAccentColorChanged(val)) => {
+            SettingsMessage::SettingTabAccentColorChanged(val) => {
                 let normalized = match val.as_str() {
                     "app" => "app",
                     _ => "host",
@@ -139,7 +139,7 @@ impl Oryxis {
                 self.setting_tab_accent_color = normalized.into();
                 self.persist_setting("tab_accent_color", normalized);
             }
-            Message::Settings(SettingsMessage::SettingTabBarPositionChanged(val)) => {
+            SettingsMessage::SettingTabBarPositionChanged(val) => {
                 let normalized = match val.as_str() {
                     "bottom" => "bottom",
                     _ => "top",

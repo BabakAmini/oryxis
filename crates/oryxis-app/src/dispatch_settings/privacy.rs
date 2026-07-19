@@ -130,17 +130,17 @@ impl Oryxis {
     /// always / never mask lists and the per-class gates.
     pub(super) fn handle_settings_privacy(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SettingsMessage,
+    ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            Message::Settings(SettingsMessage::TogglePrivacyMode) => {
+            SettingsMessage::TogglePrivacyMode => {
                 self.privacy.mode = !self.privacy.mode;
                 self.persist_setting(
                     "privacy_mode",
                     if self.privacy.mode { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::TogglePrivacySessionOverride) => {
+            SettingsMessage::TogglePrivacySessionOverride => {
                 // One press forces the opposite of the configured
                 // global state (per-host overrides included); the next
                 // press falls back to the settings. The toast spells
@@ -157,7 +157,7 @@ impl Oryxis {
                 };
                 return Ok(self.show_toast(crate::i18n::t(key).to_string()));
             }
-            Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskAction(action)) => {
+            SettingsMessage::SettingPrivacyAlwaysMaskAction(action) => {
                 // Textarea buffer first; the `String` mirror (what
                 // `privacy_terms()` reads per frame) and the vault row
                 // only refresh on actual edits, not cursor motion.
@@ -170,7 +170,7 @@ impl Oryxis {
                     self.persist_setting("privacy_always_mask", &v);
                 }
             }
-            Message::Settings(SettingsMessage::SettingPrivacyNeverMaskAction(action)) => {
+            SettingsMessage::SettingPrivacyNeverMaskAction(action) => {
                 let was_edit = action.is_edit();
                 self.privacy.never_mask_editor.perform(action);
                 if was_edit {
@@ -180,7 +180,7 @@ impl Oryxis {
                     self.persist_setting("privacy_never_mask", &v);
                 }
             }
-            Message::Settings(SettingsMessage::TogglePrivacyMaskClass(class)) => {
+            SettingsMessage::TogglePrivacyMaskClass(class) => {
                 use crate::messages::PrivacyMaskClass;
                 let (key, field): (&str, &mut bool) = match class {
                     PrivacyMaskClass::PublicIps => (

@@ -9,10 +9,10 @@ impl Oryxis {
     /// notification modes, font size + family and scrollback.
     pub(super) fn handle_settings_terminal_prefs(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SettingsMessage,
+    ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            Message::Settings(SettingsMessage::BellModeChanged(name)) => {
+            SettingsMessage::BellModeChanged(name) => {
                 use crate::util::BellMode;
                 if let Some(mode) = BellMode::ALL
                     .iter()
@@ -22,7 +22,7 @@ impl Oryxis {
                     self.persist_setting("terminal_bell_mode", mode.code());
                 }
             }
-            Message::Settings(SettingsMessage::ClipboardAccessChanged(name)) => {
+            SettingsMessage::ClipboardAccessChanged(name) => {
                 use crate::util::ClipboardAccess;
                 if let Some(mode) = ClipboardAccess::ALL
                     .iter()
@@ -34,7 +34,7 @@ impl Oryxis {
                     oryxis_terminal::set_clipboard_access(cw, cr);
                 }
             }
-            Message::Settings(SettingsMessage::NotificationModeChanged(name)) => {
+            SettingsMessage::NotificationModeChanged(name) => {
                 use crate::util::NotificationMode;
                 if let Some(mode) = NotificationMode::ALL
                     .iter()
@@ -44,7 +44,7 @@ impl Oryxis {
                     self.persist_setting("terminal_notification", mode.code());
                 }
             }
-            Message::Settings(SettingsMessage::SettingToggleSmartTabs) => {
+            SettingsMessage::SettingToggleSmartTabs => {
                 self.setting_smart_tabs = !self.setting_smart_tabs;
                 self.persist_setting(
                     "smart_tabs",
@@ -63,7 +63,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::SmartTabsThresholdChanged(label)) => {
+            SettingsMessage::SmartTabsThresholdChanged(label) => {
                 if let Some((secs, _)) = crate::smart_tabs::threshold_options()
                     .into_iter()
                     .find(|(_, l)| *l == label)
@@ -72,46 +72,46 @@ impl Oryxis {
                     self.persist_setting("smart_tabs_long_seconds", &secs.to_string());
                 }
             }
-            Message::Settings(SettingsMessage::TerminalFontSizeIncrease) => {
+            SettingsMessage::TerminalFontSizeIncrease => {
                 self.terminal_font_size = (self.terminal_font_size + 1.0).min(24.0);
                 self.persist_setting(
                     "terminal_font_size",
                     &format!("{}", self.terminal_font_size),
                 );
             }
-            Message::Settings(SettingsMessage::TerminalFontSizeDecrease) => {
+            SettingsMessage::TerminalFontSizeDecrease => {
                 self.terminal_font_size = (self.terminal_font_size - 1.0).max(10.0);
                 self.persist_setting(
                     "terminal_font_size",
                     &format!("{}", self.terminal_font_size),
                 );
             }
-            Message::Settings(SettingsMessage::TerminalFontChanged(name)) => {
+            SettingsMessage::TerminalFontChanged(name) => {
                 self.terminal_font_name = name;
                 self.persist_setting("terminal_font_name", &self.terminal_font_name);
             }
-            Message::Settings(SettingsMessage::ToggleCopyOnSelect) => {
+            SettingsMessage::ToggleCopyOnSelect => {
                 self.setting_copy_on_select = !self.setting_copy_on_select;
                 self.persist_setting(
                     "copy_on_select",
                     if self.setting_copy_on_select { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleRightClickCopy) => {
+            SettingsMessage::ToggleRightClickCopy => {
                 self.setting_right_click_copy = !self.setting_right_click_copy;
                 self.persist_setting(
                     "right_click_copy",
                     if self.setting_right_click_copy { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleMiddleClickPaste) => {
+            SettingsMessage::ToggleMiddleClickPaste => {
                 self.setting_middle_click_paste = !self.setting_middle_click_paste;
                 self.persist_setting(
                     "middle_click_paste",
                     if self.setting_middle_click_paste { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleSftpForceOsc7) => {
+            SettingsMessage::ToggleSftpForceOsc7 => {
                 self.setting_sftp_force_osc7 = !self.setting_sftp_force_osc7;
                 self.persist_setting(
                     "sftp_force_osc7",
@@ -140,7 +140,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::TerminalRightClickChanged(name)) => {
+            SettingsMessage::TerminalRightClickChanged(name) => {
                 use crate::util::RightClickMode;
                 if let Some(mode) = RightClickMode::ALL
                     .iter()
@@ -150,21 +150,21 @@ impl Oryxis {
                     self.persist_setting("terminal_right_click", mode.code());
                 }
             }
-            Message::Settings(SettingsMessage::ToggleScrollbackResetKeypress) => {
+            SettingsMessage::ToggleScrollbackResetKeypress => {
                 self.setting_scrollback_reset_keypress = !self.setting_scrollback_reset_keypress;
                 self.persist_setting(
                     "scrollback_reset_keypress",
                     if self.setting_scrollback_reset_keypress { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleScrollbackResetOutput) => {
+            SettingsMessage::ToggleScrollbackResetOutput => {
                 self.setting_scrollback_reset_output = !self.setting_scrollback_reset_output;
                 self.persist_setting(
                     "scrollback_reset_output",
                     if self.setting_scrollback_reset_output { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleCarefulPaste) => {
+            SettingsMessage::ToggleCarefulPaste => {
                 self.setting_careful_paste = !self.setting_careful_paste;
                 // Turning the guard off releases nothing: a parked paste
                 // (dialog open) still needs its explicit confirm/cancel.
@@ -173,40 +173,40 @@ impl Oryxis {
                     if self.setting_careful_paste { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::TogglePasteGuard) => {
+            SettingsMessage::TogglePasteGuard => {
                 self.setting_paste_guard = !self.setting_paste_guard;
                 self.persist_setting(
                     "paste_guard",
                     if self.setting_paste_guard { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleTerminalAutoTitle) => {
+            SettingsMessage::ToggleTerminalAutoTitle => {
                 let on = !crate::state::auto_title_enabled();
                 crate::state::set_auto_title(on);
                 self.persist_setting("terminal_auto_title", if on { "true" } else { "false" });
             }
-            Message::Settings(SettingsMessage::ToggleBoldIsBright) => {
+            SettingsMessage::ToggleBoldIsBright => {
                 self.setting_bold_is_bright = !self.setting_bold_is_bright;
                 self.persist_setting(
                     "bold_is_bright",
                     if self.setting_bold_is_bright { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleKeywordHighlight) => {
+            SettingsMessage::ToggleKeywordHighlight => {
                 self.setting_keyword_highlight = !self.setting_keyword_highlight;
                 self.persist_setting(
                     "keyword_highlight",
                     if self.setting_keyword_highlight { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::ToggleCommandHistory) => {
+            SettingsMessage::ToggleCommandHistory => {
                 self.setting_command_history = !self.setting_command_history;
                 self.persist_setting(
                     "command_history",
                     if self.setting_command_history { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::TerminalLinkOpened) => {
+            SettingsMessage::TerminalLinkOpened => {
                 // First successful ctrl-click on a link in this pane: the
                 // hint did its job, retire it for the pane (HintMode::Once).
                 // In-memory only, a fresh pane shows it again.
@@ -216,7 +216,7 @@ impl Oryxis {
                     tab.active_mut().link_hint_shown = true;
                 }
             }
-            Message::Settings(SettingsMessage::HintModeChanged(name)) => {
+            SettingsMessage::HintModeChanged(name) => {
                 use crate::i18n::t;
                 use crate::util::HintMode;
                 if let Some(mode) = HintMode::ALL.iter().find(|m| t(m.label_key()) == name) {
@@ -224,14 +224,14 @@ impl Oryxis {
                     self.persist_setting("terminal_hint_mode", mode.code());
                 }
             }
-            Message::Settings(SettingsMessage::ToggleSmartContrast) => {
+            SettingsMessage::ToggleSmartContrast => {
                 self.setting_smart_contrast = !self.setting_smart_contrast;
                 self.persist_setting(
                     "smart_contrast",
                     if self.setting_smart_contrast { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::SettingScrollbackChanged(val)) => {
+            SettingsMessage::SettingScrollbackChanged(val) => {
                 // Cap at 1M rows, alacritty allocates lazily but >1M is
                 // both unreasonable and a foot-gun for memory pressure.
                 self.setting_scrollback_rows = sanitize_uint(&val, 1_000_000);
@@ -242,14 +242,14 @@ impl Oryxis {
                     &self.setting_scrollback_rows,
                 ));
             }
-            Message::Settings(SettingsMessage::SettingWordDelimitersChanged(val)) => {
+            SettingsMessage::SettingWordDelimitersChanged(val) => {
                 // Free-text: any character may delimit a word. Stored as
                 // typed; the widget syncs it into the terminal backend on
                 // the next double-click. Empty is allowed (no delimiters).
                 self.setting_word_delimiters = val;
                 self.persist_setting("word_delimiters", &self.setting_word_delimiters);
             }
-            Message::Settings(SettingsMessage::SettingResetWordDelimiters) => {
+            SettingsMessage::SettingResetWordDelimiters => {
                 self.setting_word_delimiters =
                     oryxis_terminal::DEFAULT_WORD_DELIMITERS.to_string();
                 self.persist_setting("word_delimiters", &self.setting_word_delimiters);

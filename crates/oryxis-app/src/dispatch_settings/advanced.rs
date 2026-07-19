@@ -42,13 +42,13 @@ impl Oryxis {
     /// backend picker and app relaunch.
     pub(super) fn handle_settings_advanced(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SettingsMessage,
+    ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            Message::Settings(SettingsMessage::RendererInfoLoaded(backend, adapter)) => {
+            SettingsMessage::RendererInfoLoaded(backend, adapter) => {
                 self.renderer_active = Some((backend, adapter));
             }
-            Message::Settings(SettingsMessage::SettingRendererBackendChanged(mode)) => {
+            SettingsMessage::SettingRendererBackendChanged(mode) => {
                 // No-op if the pick didn't change (re-selecting the same
                 // option shouldn't nag about a restart).
                 if mode == self.setting_renderer_backend {
@@ -70,13 +70,13 @@ impl Oryxis {
                     }),
                 });
             }
-            Message::Settings(SettingsMessage::RelaunchApp) => {
+            SettingsMessage::RelaunchApp => {
                 // Spawns a fresh process and exits this one; never returns
                 // on success. If the spawn fails it falls through and the
                 // app keeps running.
                 self.relaunch_self();
             }
-            Message::Settings(SettingsMessage::SettingToggleDebugLogging) => {
+            SettingsMessage::SettingToggleDebugLogging => {
                 if self.setting_debug_logging {
                     // Emitted before the sink closes so the file records
                     // its own switch-off.
@@ -104,7 +104,7 @@ impl Oryxis {
                     if self.setting_debug_logging { "true" } else { "false" },
                 );
             }
-            Message::Settings(SettingsMessage::DownloadMirrorPicked(which)) => {
+            SettingsMessage::DownloadMirrorPicked(which) => {
                 use crate::net_mirror::MirrorChoice;
                 self.download_mirror.test_result = None;
                 match which.as_str() {
@@ -130,12 +130,12 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::DownloadMirrorUrlEdited(url)) => {
+            SettingsMessage::DownloadMirrorUrlEdited(url) => {
                 self.download_mirror.url_input = url;
                 self.download_mirror.url_error = false;
                 self.download_mirror.test_result = None;
             }
-            Message::Settings(SettingsMessage::DownloadMirrorUrlCommitted) => {
+            SettingsMessage::DownloadMirrorUrlCommitted => {
                 use crate::net_mirror::MirrorChoice;
                 match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
                     Ok(base) => {
@@ -152,7 +152,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::DownloadMirrorTest) => {
+            SettingsMessage::DownloadMirrorTest => {
                 match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
                     Ok(base) => {
                         self.download_mirror.testing = true;
@@ -167,11 +167,11 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::DownloadMirrorTestResult(result)) => {
+            SettingsMessage::DownloadMirrorTestResult(result) => {
                 self.download_mirror.testing = false;
                 self.download_mirror.test_result = Some(result);
             }
-            Message::Settings(SettingsMessage::RevealDebugLog) => {
+            SettingsMessage::RevealDebugLog => {
                 if let Some(path) = crate::logging::log_path() {
                     // Fall back to the data folder when nothing was
                     // written yet so the button never silently no-ops.
@@ -187,7 +187,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Settings(SettingsMessage::ClearDebugLog) => {
+            SettingsMessage::ClearDebugLog => {
                 match crate::logging::clear() {
                     Ok(true) => {
                         self.set_toast(crate::i18n::t("debug_log_cleared").to_string());
