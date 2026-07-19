@@ -347,7 +347,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("os_detection"),
                 self.setting_os_detection,
-                Message::SettingToggleOsDetection,
+                Message::Settings(SettingsMessage::SettingToggleOsDetection),
             ),
             Space::new().height(4),
             text(t("setting_os_detect_desc"))

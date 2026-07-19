@@ -611,7 +611,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("session_logging"),
                 session_logging_enabled,
-                Message::SettingToggleSessionLogging,
+                Message::Settings(SettingsMessage::SettingToggleSessionLogging),
             ),
             Space::new().height(4),
             text(t("setting_session_logging_desc"))
@@ -626,7 +626,7 @@ impl Oryxis {
                 .push(self.nav_toggle_row(
                     crate::i18n::t("session_log_full"),
                     self.setting_session_log_full,
-                    Message::SettingToggleSessionLogFull,
+                    Message::Settings(SettingsMessage::SettingToggleSessionLogFull),
                 ))
                 .push(Space::new().height(4))
                 .push(
@@ -637,7 +637,7 @@ impl Oryxis {
                 .push(self.nav_toggle_row(
                     crate::i18n::t("session_log_compress"),
                     self.setting_session_log_compress,
-                    Message::SettingToggleSessionLogCompress,
+                    Message::Settings(SettingsMessage::SettingToggleSessionLogCompress),
                 ))
                 .push(Space::new().height(4))
                 .push(
@@ -653,7 +653,7 @@ impl Oryxis {
             .push(self.nav_toggle_row(
                 crate::i18n::t("connection_history"),
                 self.setting_connection_history,
-                Message::SettingToggleConnectionHistory,
+                Message::Settings(SettingsMessage::SettingToggleConnectionHistory),
             ))
             .push(Space::new().height(4))
             .push(
@@ -677,7 +677,7 @@ impl Oryxis {
         let (retention_prev, retention_next) = crate::keynav::slots::cycle_pair(
             &RETENTION_CODES,
             &retention_selected,
-            Message::LogsRetentionChanged,
+            |v| Message::Settings(SettingsMessage::LogsRetentionChanged(v)),
         );
         panel_section(logging_rows.push(Space::new().height(16)).push(column![
             text(crate::i18n::t("log_retention_label"))
@@ -706,7 +706,7 @@ impl Oryxis {
                         .to_string()
                     },
                 )
-                .on_select(Message::LogsRetentionChanged)
+                .on_select(|v| Message::Settings(SettingsMessage::LogsRetentionChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)

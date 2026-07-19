@@ -31,7 +31,7 @@ use uuid::Uuid;
 
 use oryxis_ssh::SshSession;
 
-use crate::app::{EditorMessage, SshMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, EditorMessage, SshMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -307,7 +307,7 @@ impl Oryxis {
                 }
                 tracing::info!("OS detected for {}: {:?}", conn_id, os);
             }
-            Message::SettingToggleOsDetection => {
+            Message::Settings(SettingsMessage::SettingToggleOsDetection) => {
                 self.setting_os_detection = !self.setting_os_detection;
                 self.persist_setting(
                     "os_detection",

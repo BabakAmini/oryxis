@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SettingsMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_ssh_session_log(
@@ -15,35 +15,35 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SettingToggleSessionLogging => {
+            Message::Settings(SettingsMessage::SettingToggleSessionLogging) => {
                 self.setting_session_logging = !self.setting_session_logging;
                 self.persist_setting(
                     "session_logging",
                     if self.setting_session_logging { "true" } else { "false" },
                 );
             }
-            Message::SettingToggleSessionLogFull => {
+            Message::Settings(SettingsMessage::SettingToggleSessionLogFull) => {
                 self.setting_session_log_full = !self.setting_session_log_full;
                 self.persist_setting(
                     "session_log_full",
                     if self.setting_session_log_full { "true" } else { "false" },
                 );
             }
-            Message::SettingToggleSessionLogCompress => {
+            Message::Settings(SettingsMessage::SettingToggleSessionLogCompress) => {
                 self.setting_session_log_compress = !self.setting_session_log_compress;
                 self.persist_setting(
                     "session_log_compress",
                     if self.setting_session_log_compress { "true" } else { "false" },
                 );
             }
-            Message::SettingToggleConnectionHistory => {
+            Message::Settings(SettingsMessage::SettingToggleConnectionHistory) => {
                 self.setting_connection_history = !self.setting_connection_history;
                 self.persist_setting(
                     "connection_history",
                     if self.setting_connection_history { "true" } else { "false" },
                 );
             }
-            Message::LogsRetentionChanged(code) => {
+            Message::Settings(SettingsMessage::LogsRetentionChanged(code)) => {
                 self.setting_logs_retention = code.to_string();
                 self.persist_setting("logs_retention", code);
                 // Apply right away so picking a shorter window has a

@@ -245,9 +245,6 @@ pub enum Message {
     // session-logs surface without re-introducing the messages.
 
     // Settings
-    /// Retention code picked in Settings ("off" / "1d" / ... / "90d");
-    /// persists and prunes immediately.
-    LogsRetentionChanged(&'static str),
     // Update (handle_update)
     Update(UpdateMessage),
     /// Toggle the Logs view Privacy Mode reveal (show raw sensitive data
@@ -257,16 +254,6 @@ pub enum Message {
     Tray(TrayMessage),
     // RemoteDesktop (handle_remote_desktop)
     RemoteDesktop(RemoteDesktopMessage),
-    SettingToggleOsDetection,
-    /// Toggle the global "record terminal sessions" setting.
-    SettingToggleSessionLogging,
-    /// Toggle full-detail recording (timing + resizes, feeds the .cast
-    /// export) vs the plain output log.
-    SettingToggleSessionLogFull,
-    /// Toggle deflate compression of recorded chunks at flush time.
-    SettingToggleSessionLogCompress,
-    /// Toggle the global "record connection events" (history) setting.
-    SettingToggleConnectionHistory,
 
     // Auto-update
 

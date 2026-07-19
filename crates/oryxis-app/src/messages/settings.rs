@@ -289,4 +289,17 @@ pub enum SettingsMessage {
     /// `iced::font::load`. Carries the language code so the in-memory
     /// "already loaded" guard can be cleared on failure for a retry.
     CjkFontReady(String, Result<Vec<u8>, String>),
+    /// Retention code picked in Settings ("off" / "1d" / ... / "90d");
+    /// persists and prunes immediately.
+    LogsRetentionChanged(&'static str),
+    SettingToggleOsDetection,
+    /// Toggle the global "record terminal sessions" setting.
+    SettingToggleSessionLogging,
+    /// Toggle full-detail recording (timing + resizes, feeds the .cast
+    /// export) vs the plain output log.
+    SettingToggleSessionLogFull,
+    /// Toggle deflate compression of recorded chunks at flush time.
+    SettingToggleSessionLogCompress,
+    /// Toggle the global "record connection events" (history) setting.
+    SettingToggleConnectionHistory,
 }
