@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, row, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SettingsMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::ThemeColorSlot;
 use crate::theme::OryxisColors;
@@ -35,7 +35,7 @@ impl Oryxis {
         };
 
         let name_input = text_input(t("theme_name"), &form.name)
-            .on_input(Message::ThemeEditorNameChanged)
+            .on_input(|v| Message::Settings(SettingsMessage::ThemeEditorNameChanged(v)))
             .padding(10)
             .size(13)
             .style(crate::widgets::rounded_input_style);
@@ -82,9 +82,9 @@ impl Oryxis {
             crate::widgets::form_error(form.error.as_deref()),
             dir_row(vec![
                 Space::new().width(Length::Fill).into(),
-                crate::widgets::form_cancel_button(Message::ThemeEditorClose),
+                crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::ThemeEditorClose)),
                 Space::new().width(8).into(),
-                crate::widgets::form_save_button(t("save"), Some(Message::ThemeEditorSave)),
+                crate::widgets::form_save_button(t("save"), Some(Message::Settings(SettingsMessage::ThemeEditorSave))),
             ])
             .align_y(iced::Alignment::Center),
         ]
@@ -136,7 +136,7 @@ impl Oryxis {
                 }
             }),
         )
-        .on_press(Message::ThemeEditorClose)
+        .on_press(Message::Settings(SettingsMessage::ThemeEditorClose))
         .into();
 
         let mut stack = iced::widget::Stack::new()
@@ -178,11 +178,11 @@ impl Oryxis {
         let card = container(
             column![
                 crate::color_picker::color_picker(color, move |hex| {
-                    Message::ThemeEditorColorChanged(slot, hex)
+                    Message::Settings(SettingsMessage::ThemeEditorColorChanged(slot, hex))
                 }),
                 Space::new().height(10),
                 text_input("#RRGGBB", hex)
-                    .on_input(move |v| Message::ThemeEditorColorChanged(slot, v))
+                    .on_input(move |v| Message::Settings(SettingsMessage::ThemeEditorColorChanged(slot, v)))
                     .padding(7)
                     .size(12)
                     .style(crate::widgets::rounded_input_style),
@@ -222,7 +222,7 @@ impl Oryxis {
         let pop_backdrop: Element<'_, Message> = MouseArea::new(
             container(Space::new()).width(Length::Fill).height(Length::Fill),
         )
-        .on_press(Message::ThemeEditorClosePicker)
+        .on_press(Message::Settings(SettingsMessage::ThemeEditorClosePicker))
         .into();
 
         iced::widget::Stack::new()
@@ -237,14 +237,14 @@ impl Oryxis {
     /// scheme; on import the parsed colors open in the editor for review.
     pub(crate) fn view_theme_import_modal(&self) -> Element<'_, Message> {
         let name_input = text_input(t("theme_name"), &self.theme_import_name)
-            .on_input(Message::ThemeImportNameChanged)
+            .on_input(|v| Message::Settings(SettingsMessage::ThemeImportNameChanged(v)))
             .padding(10)
             .size(13)
             .style(crate::widgets::rounded_input_style);
 
         let paste = container(
             iced::widget::text_editor(&self.theme_import_content)
-                .on_action(Message::ThemeImportContentAction)
+                .on_action(|v| Message::Settings(SettingsMessage::ThemeImportContentAction(v)))
                 .padding(10)
                 .height(Length::Fixed(220.0))
                 .font(iced::Font::MONOSPACE)
@@ -271,11 +271,11 @@ impl Oryxis {
         col = col.push(
             dir_row(vec![
                 Space::new().width(Length::Fill).into(),
-                crate::widgets::form_cancel_button(Message::ThemeImportClose),
+                crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::ThemeImportClose)),
                 Space::new().width(8).into(),
                 crate::widgets::form_save_button(
                     t("theme_import"),
-                    Some(Message::ThemeImportApply),
+                    Some(Message::Settings(SettingsMessage::ThemeImportApply)),
                 ),
             ])
             .align_y(iced::Alignment::Center),
@@ -313,15 +313,15 @@ impl Oryxis {
             palette,
             name,
             is_selected,
-            Message::TerminalThemeChanged(name.to_string()),
+            Message::Settings(SettingsMessage::TerminalThemeChanged(name.to_string())),
         );
         let mut stack = iced::widget::Stack::new().push(card);
         if self.hovered_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
-                    theme_icon_btn(iced_fonts::lucide::pencil(), Message::ThemeEditorEdit(idx)),
+                    theme_icon_btn(iced_fonts::lucide::pencil(), Message::Settings(SettingsMessage::ThemeEditorEdit(idx))),
                     Space::new().width(4).into(),
-                    theme_icon_btn(iced_fonts::lucide::trash(), Message::ThemeDelete(idx)),
+                    theme_icon_btn(iced_fonts::lucide::trash(), Message::Settings(SettingsMessage::ThemeDelete(idx))),
                 ])
                 .align_y(iced::Alignment::Center),
             )
@@ -333,8 +333,8 @@ impl Oryxis {
             stack = stack.push(actions);
         }
         MouseArea::new(stack)
-            .on_enter(Message::ThemeCardHovered(idx))
-            .on_exit(Message::ThemeCardUnhovered)
+            .on_enter(Message::Settings(SettingsMessage::ThemeCardHovered(idx)))
+            .on_exit(Message::Settings(SettingsMessage::ThemeCardUnhovered))
             .into()
     }
 }
@@ -346,7 +346,7 @@ pub(crate) fn terminal_theme_add_card<'a>() -> Element<'a, Message> {
         iced_fonts::lucide::plus(),
         t("theme_new_custom"),
         OryxisColors::t().accent,
-        Message::ThemeEditorNew,
+        Message::Settings(SettingsMessage::ThemeEditorNew),
     )
 }
 
@@ -356,7 +356,7 @@ pub(crate) fn terminal_theme_import_card<'a>() -> Element<'a, Message> {
         iced_fonts::lucide::download(),
         t("theme_import"),
         OryxisColors::t().text_secondary,
-        Message::ThemeImportOpen,
+        Message::Settings(SettingsMessage::ThemeImportOpen),
     )
 }
 
@@ -399,7 +399,7 @@ fn color_row<'a>(
 ) -> Element<'a, Message> {
     let swatch_color = parse_hex_color(hex).unwrap_or(Color::TRANSPARENT);
     let swatch = button(Space::new().width(22).height(22))
-        .on_press(Message::ThemeEditorOpenPicker(slot))
+        .on_press(Message::Settings(SettingsMessage::ThemeEditorOpenPicker(slot)))
         .padding(0)
         .style(move |_, _| button::Style {
             background: Some(Background::Color(swatch_color)),
@@ -419,7 +419,7 @@ fn color_row<'a>(
         swatch.into(),
         Space::new().width(10).into(),
         text_input("#RRGGBB", hex)
-            .on_input(move |v| Message::ThemeEditorColorChanged(slot, v))
+            .on_input(move |v| Message::Settings(SettingsMessage::ThemeEditorColorChanged(slot, v)))
             .padding(7)
             .size(12)
             .width(Length::Fixed(110.0))
@@ -438,7 +438,7 @@ fn preset_grid<'a>(slot: ThemeColorSlot) -> Element<'a, Message> {
     for hex in crate::os_icon::PRESET_COLORS.iter() {
         let color = parse_hex_color(hex).unwrap_or(Color::TRANSPARENT);
         let sw = button(Space::new().width(18).height(18))
-            .on_press(Message::ThemeEditorColorChanged(slot, (*hex).to_string()))
+            .on_press(Message::Settings(SettingsMessage::ThemeEditorColorChanged(slot, (*hex).to_string())))
             .padding(0)
             .style(move |_, status| {
                 let border = match status {

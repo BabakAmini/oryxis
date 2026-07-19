@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{TabsMessage, EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -953,7 +953,7 @@ impl Oryxis {
             OpenLocalShell if self.show_new_tab_picker => {
                 Task::done(Message::Tabs(TabsMessage::PickLocalShell))
             }
-            OpenLocalShell => Task::done(Message::OpenLocalShell),
+            OpenLocalShell => Task::done(Message::Settings(SettingsMessage::OpenLocalShell)),
             NewWindow => Task::done(Message::Tabs(TabsMessage::SpawnNewWindow)),
             // Entity creation: the editor panels only render in their
             // owning vault section, so land there first (ShowKeyPanel
@@ -1132,7 +1132,7 @@ impl Oryxis {
             // Privacy Mode session override (issue #78): volatile
             // forced-on/off above the global setting and the per-host
             // overrides; global, works from any surface.
-            TogglePrivacyMode => Task::done(Message::TogglePrivacySessionOverride),
+            TogglePrivacyMode => Task::done(Message::Settings(SettingsMessage::TogglePrivacySessionOverride)),
             // Paste is the one clipboard action the dispatcher performs
             // itself: the widget can only write to a local PTY, so a
             // widget-side paste would silently do nothing over SSH.

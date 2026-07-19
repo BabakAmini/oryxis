@@ -13,7 +13,7 @@
 //! (mirroring `TabJumpSelect`), never a list index, so a query change
 //! between the recording frame and the keypress can't misfire.
 
-use crate::app::{TabsMessage, SshMessage, VaultMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, SshMessage, VaultMessage, Message, Oryxis};
 use crate::hotkeys::HotkeyAction;
 use crate::i18n::t;
 use crate::state::View;
@@ -245,7 +245,7 @@ impl Oryxis {
             keywords: "privacy_mode",
             hotkey: None,
             category: PaletteCategory::Session,
-            message: Message::TogglePrivacyMode,
+            message: Message::Settings(SettingsMessage::TogglePrivacyMode),
             enabled: true,
         });
 

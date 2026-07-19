@@ -1023,16 +1023,16 @@ impl Oryxis {
                     None,
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::SyncSignalingToken),
-                    Message::ToggleSecretVisibility(
+                    Message::Settings(SettingsMessage::ToggleSecretVisibility(
                         crate::state::SecretField::SyncSignalingToken,
-                    ),
+                    )),
                     8.0,
                     Some(iced::widget::Id::new("set-sync-signaling-token")),
                     |eye| self.settings_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::ToggleSecretVisibility(
+                            Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                 crate::state::SecretField::SyncSignalingToken,
-                            ),
+                            )),
                         ),
                         6.0,
                         eye,

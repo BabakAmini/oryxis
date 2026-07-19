@@ -7,7 +7,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, tooltip, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{NavigationMessage, Message, Oryxis, NAV_RAIL_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED};
+use crate::app::{SettingsMessage, NavigationMessage, Message, Oryxis, NAV_RAIL_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED};
 use crate::state::View;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row};
@@ -233,7 +233,7 @@ fn rail_toggle_item<'a>(expanded: bool) -> Element<'a, Message> {
                 .align_x(dir_align_x())
                 .padding(Padding { top: 0.0, right: 16.0, bottom: 0.0, left: 16.0 }),
             )
-            .on_press(Message::ToggleNavRailExpanded)
+            .on_press(Message::Settings(SettingsMessage::ToggleNavRailExpanded))
             .padding(0)
             .width(Length::Fill)
             .style(rail_btn_style(false, false)),
@@ -244,7 +244,7 @@ fn rail_toggle_item<'a>(expanded: bool) -> Element<'a, Message> {
         tooltip(
             container(
                 button(container(icon.size(16).color(muted)).center(Length::Fixed(40.0)))
-                    .on_press(Message::ToggleNavRailExpanded)
+                    .on_press(Message::Settings(SettingsMessage::ToggleNavRailExpanded))
                     .padding(0)
                     .width(Length::Fixed(40.0))
                     .style(rail_btn_style(false, false)),
@@ -439,11 +439,11 @@ impl Oryxis {
                     .width(Length::Fill)
                     .align_x(dir_align_x()),
                 )
-                .on_press(Message::OpenLocalShellWith {
+                .on_press(Message::Settings(SettingsMessage::OpenLocalShellWith {
                     program: entry.program.clone(),
                     args: entry.args.clone(),
                     label: entry.label.clone(),
-                })
+                }))
                 .padding(Padding {
                     top: 8.0,
                     right: 16.0,
@@ -511,7 +511,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .align_x(dir_align_x()),
             )
-            .on_press(Message::OpenLocalTerminalsSettings)
+            .on_press(Message::Settings(SettingsMessage::OpenLocalTerminalsSettings))
             .padding(Padding {
                 top: 8.0,
                 right: 16.0,

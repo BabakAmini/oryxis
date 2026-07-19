@@ -25,7 +25,7 @@ impl Oryxis {
                 10.0,
                 text_input("2", &self.setting_sftp_concurrency)
                     .id(iced::widget::Id::new("set-sftp-concurrency"))
-                    .on_input(Message::SettingSftpConcurrencyChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingSftpConcurrencyChanged(v)))
                     .padding(10)
                     .width(240)
                     .style(crate::widgets::rounded_input_style)
@@ -88,7 +88,7 @@ impl Oryxis {
                 self.nav_toggle_row(
                     t("setting_sftp_force_osc7_toggle"),
                     self.setting_sftp_force_osc7,
-                    Message::ToggleSftpForceOsc7,
+                    Message::Settings(SettingsMessage::ToggleSftpForceOsc7),
                 ),
             ]);
             // Parallelism + the four timeout knobs are one transfer-
@@ -102,7 +102,7 @@ impl Oryxis {
                         t("connect_timeout_desc"),
                         &self.setting_sftp_connect_timeout,
                         "set-sftp-connect-timeout",
-                        Message::SettingSftpConnectTimeoutChanged,
+                        |v| Message::Settings(SettingsMessage::SettingSftpConnectTimeoutChanged(v)),
                     ))
                     .push(Space::new().height(16))
                     .push(timeout_input(
@@ -110,7 +110,7 @@ impl Oryxis {
                         t("auth_timeout_desc"),
                         &self.setting_sftp_auth_timeout,
                         "set-sftp-auth-timeout",
-                        Message::SettingSftpAuthTimeoutChanged,
+                        |v| Message::Settings(SettingsMessage::SettingSftpAuthTimeoutChanged(v)),
                     ))
                     .push(Space::new().height(16))
                     .push(timeout_input(
@@ -118,7 +118,7 @@ impl Oryxis {
                         t("channel_open_timeout_desc"),
                         &self.setting_sftp_session_timeout,
                         "set-sftp-session-timeout",
-                        Message::SettingSftpSessionTimeoutChanged,
+                        |v| Message::Settings(SettingsMessage::SettingSftpSessionTimeoutChanged(v)),
                     ))
                     .push(Space::new().height(16))
                     .push(timeout_input(
@@ -126,7 +126,7 @@ impl Oryxis {
                         t("operation_timeout_desc"),
                         &self.setting_sftp_op_timeout,
                         "set-sftp-op-timeout",
-                        Message::SettingSftpOpTimeoutChanged,
+                        |v| Message::Settings(SettingsMessage::SettingSftpOpTimeoutChanged(v)),
                     )),
             );
             content_col = content_col

@@ -5,7 +5,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, TerminalMessage, Message, Oryxis};
 use crate::theme::OryxisColors;
 
 impl Oryxis {
@@ -158,7 +158,7 @@ fn privacy_segment_btn(masking: bool, overridden: bool) -> Element<'static, Mess
     let fg = if masking { c.accent } else { c.text_muted };
     button(text(crate::i18n::t("privacy_chip")).size(11).color(fg))
         .padding(Padding { top: 1.0, right: 8.0, bottom: 1.0, left: 8.0 })
-        .on_press(Message::TogglePrivacySessionOverride)
+        .on_press(Message::Settings(SettingsMessage::TogglePrivacySessionOverride))
         .style(move |_, status| {
             let c = OryxisColors::t();
             let bg = if masking {

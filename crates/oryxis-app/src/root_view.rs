@@ -4,7 +4,7 @@
 
 use iced::Element;
 
-use crate::app::{KeysMessage, PluginMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, KeysMessage, PluginMessage, Message, Oryxis};
 use crate::state::VaultState;
 use crate::theme::OryxisColors;
 
@@ -32,7 +32,7 @@ impl Oryxis {
             crate::widgets::modal_overlay(
                 base,
                 self.view_local_shell_picker(),
-                Some(Message::HideLocalShellPicker),
+                Some(Message::Settings(SettingsMessage::HideLocalShellPicker)),
                 40.0,
             )
         } else if self.local_terminal_add_open && !self.show_icon_picker {
@@ -42,7 +42,7 @@ impl Oryxis {
             crate::widgets::modal_overlay(
                 base,
                 self.view_local_terminal_add_modal(),
-                Some(Message::CloseLocalTerminalAddModal),
+                Some(Message::Settings(SettingsMessage::CloseLocalTerminalAddModal)),
                 40.0,
             )
         } else if self.plugin_install_modal.is_some() {

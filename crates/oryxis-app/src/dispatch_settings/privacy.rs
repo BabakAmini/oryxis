@@ -133,14 +133,14 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::TogglePrivacyMode => {
+            Message::Settings(SettingsMessage::TogglePrivacyMode) => {
                 self.privacy.mode = !self.privacy.mode;
                 self.persist_setting(
                     "privacy_mode",
                     if self.privacy.mode { "true" } else { "false" },
                 );
             }
-            Message::TogglePrivacySessionOverride => {
+            Message::Settings(SettingsMessage::TogglePrivacySessionOverride) => {
                 // One press forces the opposite of the configured
                 // global state (per-host overrides included); the next
                 // press falls back to the settings. The toast spells
@@ -157,15 +157,15 @@ impl Oryxis {
                 };
                 return Ok(self.show_toast(crate::i18n::t(key).to_string()));
             }
-            Message::SettingPrivacyAlwaysMaskChanged(v) => {
+            Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskChanged(v)) => {
                 self.persist_setting("privacy_always_mask", &v);
                 self.privacy.always_mask = v;
             }
-            Message::SettingPrivacyNeverMaskChanged(v) => {
+            Message::Settings(SettingsMessage::SettingPrivacyNeverMaskChanged(v)) => {
                 self.persist_setting("privacy_never_mask", &v);
                 self.privacy.never_mask = v;
             }
-            Message::TogglePrivacyMaskClass(class) => {
+            Message::Settings(SettingsMessage::TogglePrivacyMaskClass(class)) => {
                 use crate::messages::PrivacyMaskClass;
                 let (key, field): (&str, &mut bool) = match class {
                     PrivacyMaskClass::PublicIps => (

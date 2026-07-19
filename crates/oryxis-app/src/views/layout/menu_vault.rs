@@ -725,7 +725,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     icon,
                     label,
-                    Message::ToggleHostListView,
+                    Message::Settings(SettingsMessage::ToggleHostListView),
                     secondary,
                 ));
                 col = col.push(self.menu_item(

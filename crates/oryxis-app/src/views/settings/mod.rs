@@ -9,7 +9,7 @@ use iced::widget::column;
 pub(crate) use iced::widget::button::Status as BtnStatus;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, AgentMessage, ZmodemMessage, Message, Oryxis, VaultMessage, AiMessage, ShareMessage, SyncMessage, NAV_RAIL_WIDTH_EXPANDED};
+pub(crate) use crate::app::{SettingsMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, AgentMessage, ZmodemMessage, Message, Oryxis, VaultMessage, AiMessage, ShareMessage, SyncMessage, NAV_RAIL_WIDTH_EXPANDED};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::state::SettingsSection;
 pub(crate) use crate::theme::OryxisColors;
@@ -95,7 +95,7 @@ impl Oryxis {
                         .align_x(crate::widgets::dir_align_x())
                         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 }),
                 )
-                .on_press(Message::ChangeSettingsSection(section))
+                .on_press(Message::Settings(SettingsMessage::ChangeSettingsSection(section)))
                 // Zero the button's default padding so the container's
                 // 16/12 is the exact content inset.
                 .padding(0)

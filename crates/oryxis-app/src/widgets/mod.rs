@@ -9,7 +9,7 @@ pub(crate) use iced::widget::button::Status as BtnStatus;
 pub(crate) use iced::widget::{button, container, pick_list, text, text_editor, text_input, Row, Space, Stack};
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding, Theme};
 
-pub(crate) use crate::app::{Message, NavigationMessage};
+pub(crate) use crate::app::{SettingsMessage, Message, NavigationMessage};
 pub(crate) use crate::theme::OryxisColors;
 
 /// Corner radius used for text inputs and pick lists across the UI.

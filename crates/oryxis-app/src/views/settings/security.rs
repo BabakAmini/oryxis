@@ -61,7 +61,7 @@ impl Oryxis {
             |v| Message::Vault(VaultMessage::VaultCurrentPasswordChanged(v)),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultCurrentPassword),
-            Message::ToggleSecretVisibility(SecretField::VaultCurrentPassword),
+            Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultCurrentPassword)),
             10.0,
         ))
         .width(300);
@@ -71,7 +71,7 @@ impl Oryxis {
             |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v)),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultNewPassword),
-            Message::ToggleSecretVisibility(SecretField::VaultNewPassword),
+            Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultNewPassword)),
             10.0,
         ))
         .width(300);
@@ -81,7 +81,7 @@ impl Oryxis {
             |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v)),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultConfirmPassword),
-            Message::ToggleSecretVisibility(SecretField::VaultConfirmPassword),
+            Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultConfirmPassword)),
             10.0,
         ))
         .width(300);
@@ -164,9 +164,9 @@ impl Oryxis {
                 Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultNewPassword),
-                Message::ToggleSecretVisibility(
+                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                     crate::state::SecretField::VaultNewPassword,
-                ),
+                )),
                 10.0,
             ))
             .width(300);
@@ -181,9 +181,9 @@ impl Oryxis {
                 Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultConfirmPassword),
-                Message::ToggleSecretVisibility(
+                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                     crate::state::SecretField::VaultConfirmPassword,
-                ),
+                )),
                 10.0,
             ))
             .width(300);
@@ -454,7 +454,7 @@ impl Oryxis {
                 10.0,
                 text_input("0", &self.setting_auto_lock_minutes)
                     .id(iced::widget::Id::new("set-security-auto-lock"))
-                    .on_input(Message::SettingAutoLockChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingAutoLockChanged(v)))
                     .padding(10)
                     .width(240)
                     .style(crate::widgets::rounded_input_style)
@@ -492,7 +492,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("privacy_mode_label"),
                 self.privacy.mode,
-                Message::TogglePrivacyMode,
+                Message::Settings(SettingsMessage::TogglePrivacyMode),
             ),
             Space::new().height(4),
             text(crate::i18n::t("privacy_mode_desc"))
@@ -517,25 +517,25 @@ impl Oryxis {
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_public_ips"),
                     self.privacy.mask_public_ips,
-                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::PublicIps),
+                    Message::Settings(SettingsMessage::TogglePrivacyMaskClass(PrivacyMaskClass::PublicIps)),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_private_ips"),
                     self.privacy.mask_private_ips,
-                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::PrivateIps),
+                    Message::Settings(SettingsMessage::TogglePrivacyMaskClass(PrivacyMaskClass::PrivateIps)),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_usernames"),
                     self.privacy.mask_usernames,
-                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::Usernames),
+                    Message::Settings(SettingsMessage::TogglePrivacyMaskClass(PrivacyMaskClass::Usernames)),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_hostnames"),
                     self.privacy.mask_hostnames,
-                    Message::TogglePrivacyMaskClass(PrivacyMaskClass::Hostnames),
+                    Message::Settings(SettingsMessage::TogglePrivacyMaskClass(PrivacyMaskClass::Hostnames)),
                 ));
             privacy_rows = privacy_rows
                 .push(Space::new().height(14))
@@ -561,7 +561,7 @@ impl Oryxis {
                         &self.privacy.always_mask,
                     )
                     .id(iced::widget::Id::new("set-security-privacy-always"))
-                    .on_input(Message::SettingPrivacyAlwaysMaskChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingPrivacyAlwaysMaskChanged(v)))
                     .padding(10)
                     .width(Length::Fill)
                     .style(crate::widgets::rounded_input_style)
@@ -591,7 +591,7 @@ impl Oryxis {
                         &self.privacy.never_mask,
                     )
                     .id(iced::widget::Id::new("set-security-privacy-never"))
-                    .on_input(Message::SettingPrivacyNeverMaskChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingPrivacyNeverMaskChanged(v)))
                     .padding(10)
                     .width(Length::Fill)
                     .style(crate::widgets::rounded_input_style)
@@ -763,16 +763,16 @@ impl Oryxis {
                     None,
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::ExportPassword),
-                    Message::ToggleSecretVisibility(
+                    Message::Settings(SettingsMessage::ToggleSecretVisibility(
                         crate::state::SecretField::ExportPassword,
-                    ),
+                    )),
                     10.0,
                     Some(iced::widget::Id::new("set-export-password")),
                     |eye| self.settings_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::ToggleSecretVisibility(
+                            Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                 crate::state::SecretField::ExportPassword,
-                            ),
+                            )),
                         ),
                         6.0,
                         eye,
@@ -872,16 +872,16 @@ impl Oryxis {
                     }),
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::ImportPassword),
-                    Message::ToggleSecretVisibility(
+                    Message::Settings(SettingsMessage::ToggleSecretVisibility(
                         crate::state::SecretField::ImportPassword,
-                    ),
+                    )),
                     10.0,
                     Some(iced::widget::Id::new("set-import-password")),
                     |eye| self.settings_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::ToggleSecretVisibility(
+                            Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                 crate::state::SecretField::ImportPassword,
-                            ),
+                            )),
                         ),
                         6.0,
                         eye,
@@ -1042,16 +1042,16 @@ impl Oryxis {
                         Some(Message::Share(ShareMessage::SftpBackupConfirm)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ImportPassword),
-                        Message::ToggleSecretVisibility(
+                        Message::Settings(SettingsMessage::ToggleSecretVisibility(
                             crate::state::SecretField::ImportPassword,
-                        ),
+                        )),
                         10.0,
                         Some(iced::widget::Id::new("set-sftp-restore-password")),
                         |eye| self.settings_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::ToggleSecretVisibility(
+                                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                     crate::state::SecretField::ImportPassword,
-                                ),
+                                )),
                             ),
                             6.0,
                             eye,

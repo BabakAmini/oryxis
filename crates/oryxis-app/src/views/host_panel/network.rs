@@ -537,16 +537,16 @@ impl Oryxis {
                         Some(Message::Editor(EditorMessage::EditorSave)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ProxyPassword),
-                        Message::ToggleSecretVisibility(
+                        Message::Settings(SettingsMessage::ToggleSecretVisibility(
                             crate::state::SecretField::ProxyPassword,
-                        ),
+                        )),
                         10.0,
                         Some(iced::widget::Id::new("editor-proxy-password")),
                         |eye| self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::ToggleSecretVisibility(
+                                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                     crate::state::SecretField::ProxyPassword,
-                                ),
+                                )),
                             ),
                             6.0,
                             eye,

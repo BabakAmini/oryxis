@@ -17,11 +17,11 @@ impl Oryxis {
                 .color(OryxisColors::t().text_muted),
             Space::new().height(10),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ResetAllHotkeys),
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ResetAllHotkeys)),
                 6.0,
                 styled_button(
                     crate::i18n::t("hotkey_reset_all"),
-                    Message::ResetAllHotkeys,
+                    Message::Settings(SettingsMessage::ResetAllHotkeys),
                     OryxisColors::t().bg_selected,
                 ),
             ),
@@ -90,7 +90,7 @@ impl Oryxis {
         empty_row: bool,
     ) -> Element<'_, Message> {
         let idx = self.settings_nav_record(crate::keynav::RowAction::activate(
-            Message::StartEditingHotkey(action, slot),
+            Message::Settings(SettingsMessage::StartEditingHotkey(action, slot)),
         ));
         let inner: Element<'_, Message> = if recording {
             // Capture state: paint with the high-contrast `button_text`
@@ -167,7 +167,7 @@ impl Oryxis {
         };
 
         let btn = button(inner)
-            .on_press(Message::StartEditingHotkey(action, slot))
+            .on_press(Message::Settings(SettingsMessage::StartEditingHotkey(action, slot)))
             .style(move |_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -253,7 +253,7 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
             )
-            .on_press(Message::ResetHotkey(action))
+            .on_press(Message::Settings(SettingsMessage::ResetHotkey(action)))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => Some(Background::Color(OryxisColors::t().button_bg_hover)),
@@ -269,7 +269,7 @@ impl Oryxis {
                 }
             });
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ResetHotkey(action)),
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ResetHotkey(action))),
                 4.0,
                 btn.into(),
             )

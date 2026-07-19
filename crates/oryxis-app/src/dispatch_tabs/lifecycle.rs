@@ -7,7 +7,7 @@
 use iced::Task;
 use oryxis_core::models::cloud::TransportKind;
 
-use crate::app::{SshMessage, CloudMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, SshMessage, CloudMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -321,7 +321,7 @@ impl Oryxis {
             let is_local_shell = tab.active().session.is_none()
                 && tab.label == "Local Shell";
             if is_local_shell {
-                return Ok(Task::done(Message::OpenLocalShell));
+                return Ok(Task::done(Message::Settings(SettingsMessage::OpenLocalShell)));
             }
             // Cloud tabs with no saved connection (ECS Exec,
             // kubectl pod) carry the message that re-opens them.
@@ -369,11 +369,11 @@ impl Oryxis {
                 .position(|c| c.id == *id)
                 .map(|v| Message::Ssh(SshMessage::ConnectSsh(v))),
             PinnedTabSpec::LocalShell { program, args, label } => {
-                Some(Message::OpenLocalShellWith {
+                Some(Message::Settings(SettingsMessage::OpenLocalShellWith {
                     program: program.clone(),
                     args: args.clone(),
                     label: label.clone(),
-                })
+                }))
             }
             PinnedTabSpec::EcsExec {
                 group_id,

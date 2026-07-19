@@ -58,7 +58,7 @@ pub(crate) fn host_view_toggle_button(list_view: bool) -> Element<'static, Messa
         .center_y(Length::Fixed(24.0))
         .center_x(Length::Fixed(24.0)),
     )
-    .on_press(Message::ToggleHostListView)
+    .on_press(Message::Settings(SettingsMessage::ToggleHostListView))
     .style(|_, status| {
         let bg = match status {
             BtnStatus::Hovered => OryxisColors::t().button_bg_hover,

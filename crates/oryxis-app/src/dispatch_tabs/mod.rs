@@ -12,7 +12,7 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{TabsMessage, TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -305,7 +305,7 @@ impl Oryxis {
                     return Ok(self.local_shell_into_pane(tab_idx, target, axis));
                 }
                 // No split pending: open a local shell in a new tab.
-                return Ok(self.update(Message::OpenLocalShell));
+                return Ok(self.update(Message::Settings(SettingsMessage::OpenLocalShell)));
             }
             Message::Tabs(TabsMessage::ShowTabJump) => {
                 self.show_tab_jump = true;
@@ -376,7 +376,7 @@ impl Oryxis {
                 // Switch to Settings AND select the section:
                 // ChangeSettingsSection alone assumes the view is open.
                 let t1 = self.update(Message::Navigation(NavigationMessage::ChangeView(View::Settings)));
-                let t2 = self.update(Message::ChangeSettingsSection(section));
+                let t2 = self.update(Message::Settings(SettingsMessage::ChangeSettingsSection(section)));
                 return Ok(Task::batch([t1, t2]));
             }
             Message::NoOp => {}

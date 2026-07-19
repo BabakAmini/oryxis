@@ -21,7 +21,7 @@ impl Oryxis {
                 crate::smart_tabs::threshold_label(self.setting_smart_long_secs),
                 |s: &String| s.clone(),
                 200.0,
-                Message::SmartTabsThresholdChanged,
+                |v| Message::Settings(SettingsMessage::SmartTabsThresholdChanged(v)),
             ),
         ]
         .into()
@@ -129,7 +129,7 @@ impl Oryxis {
         // in its on-screen position.
         self.keynav_settings_reset();
         let mut toggles_col: iced::widget::Column<'_, Message> = column![
-            self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::ToggleCopyOnSelect),
+            self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::Settings(SettingsMessage::ToggleCopyOnSelect)),
         ];
         // Right-click scheme (PuTTY's Context menu / Paste / Extend). The
         // single authority for the gesture.
@@ -144,7 +144,7 @@ impl Oryxis {
             crate::i18n::t(self.setting_terminal_right_click.label_key()).to_string(),
             |s: &String| s.clone(),
             200.0,
-            Message::TerminalRightClickChanged,
+            |v| Message::Settings(SettingsMessage::TerminalRightClickChanged(v)),
         ));
         // "Copy on right-click" is a sub-option of copy-on-select, and
         // only meaningful when the right-click scheme is Paste (Menu and
@@ -161,7 +161,7 @@ impl Oryxis {
                     container(self.nav_toggle_row(
                         crate::i18n::t("copy_requires_right_click"),
                         self.setting_right_click_copy,
-                        Message::ToggleRightClickCopy,
+                        Message::Settings(SettingsMessage::ToggleRightClickCopy),
                     ))
                     .padding(indent),
                 );
@@ -175,7 +175,7 @@ impl Oryxis {
             .push(self.nav_toggle_row(
                 crate::i18n::t("middle_click_paste"),
                 self.setting_middle_click_paste,
-                Message::ToggleMiddleClickPaste,
+                Message::Settings(SettingsMessage::ToggleMiddleClickPaste),
             ));
         // Careful paste: the multi-line paste guard (line-count preview
         // before anything reaches the session). Default on; the toggle is
@@ -185,7 +185,7 @@ impl Oryxis {
             .push(self.nav_toggle_row(
                 crate::i18n::t("careful_paste_label"),
                 self.setting_careful_paste,
-                Message::ToggleCarefulPaste,
+                Message::Settings(SettingsMessage::ToggleCarefulPaste),
             ))
             .push(Space::new().height(4))
             .push(
@@ -201,7 +201,7 @@ impl Oryxis {
             .push(self.nav_toggle_row(
                 crate::i18n::t("paste_guard_label"),
                 self.setting_paste_guard,
-                Message::TogglePasteGuard,
+                Message::Settings(SettingsMessage::TogglePasteGuard),
             ))
             .push(Space::new().height(4))
             .push(
@@ -226,7 +226,7 @@ impl Oryxis {
                     10.0,
                     text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.setting_word_delimiters)
                         .id(iced::widget::Id::new("set-terminal-word-delimiters"))
-                        .on_input(Message::SettingWordDelimitersChanged)
+                        .on_input(|v| Message::Settings(SettingsMessage::SettingWordDelimitersChanged(v)))
                         .padding(10)
                         .width(240)
                         .style(crate::widgets::rounded_input_style)
@@ -235,11 +235,11 @@ impl Oryxis {
                 ),
                 Space::new().width(8).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SettingResetWordDelimiters),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingResetWordDelimiters)),
                     6.0,
                     styled_button(
                         crate::i18n::t("word_delimiters_reset"),
-                        Message::SettingResetWordDelimiters,
+                        Message::Settings(SettingsMessage::SettingResetWordDelimiters),
                         OryxisColors::t().bg_selected,
                     ),
                 ),
@@ -257,7 +257,7 @@ impl Oryxis {
                 10.0,
                 text_input("10000", &self.setting_scrollback_rows)
                     .id(iced::widget::Id::new("set-terminal-scrollback"))
-                    .on_input(Message::SettingScrollbackChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingScrollbackChanged(v)))
                     .padding(10)
                     .width(240)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -270,13 +270,13 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("scrollback_reset_keypress"),
                 self.setting_scrollback_reset_keypress,
-                Message::ToggleScrollbackResetKeypress,
+                Message::Settings(SettingsMessage::ToggleScrollbackResetKeypress),
             ),
             Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("scrollback_reset_output"),
                 self.setting_scrollback_reset_output,
-                Message::ToggleScrollbackResetOutput,
+                Message::Settings(SettingsMessage::ToggleScrollbackResetOutput),
             ),
         ];
         let behavior_section = panel_section(
@@ -290,20 +290,20 @@ impl Oryxis {
         // Appearance group header, not mixed with clipboard
         // behaviour); the font sub-blocks follow in the same card.
         let text_render_col = column![
-            self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::ToggleBoldIsBright),
+            self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
+            self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::ToggleCommandHistory),
+            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),
             Space::new().height(10),
             self.zmodem_download_dir_row(),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::ToggleSmartContrast),
+            self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::ToggleTerminalAutoTitle),
+            self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::Settings(SettingsMessage::ToggleTerminalAutoTitle)),
             Space::new().height(10),
             self.nav_pick_row(
                 crate::i18n::t("terminal_bell"),
@@ -314,7 +314,7 @@ impl Oryxis {
                 crate::i18n::t(self.setting_bell_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
-                Message::BellModeChanged,
+                |v| Message::Settings(SettingsMessage::BellModeChanged(v)),
             ),
             Space::new().height(10),
             self.nav_pick_row(
@@ -326,7 +326,7 @@ impl Oryxis {
                 crate::i18n::t(self.setting_clipboard_access.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
-                Message::ClipboardAccessChanged,
+                |v| Message::Settings(SettingsMessage::ClipboardAccessChanged(v)),
             ),
             Space::new().height(10),
             self.nav_pick_row(
@@ -338,10 +338,10 @@ impl Oryxis {
                 crate::i18n::t(self.setting_notification_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
-                Message::NotificationModeChanged,
+                |v| Message::Settings(SettingsMessage::NotificationModeChanged(v)),
             ),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::SettingToggleSmartTabs),
+            self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::Settings(SettingsMessage::SettingToggleSmartTabs)),
             self.smart_tabs_threshold_row(),
         ];
 
@@ -350,8 +350,8 @@ impl Oryxis {
         let font_size_block = column![
             self.settings_nav_slot(
                 crate::keynav::RowAction::picker(
-                    Some(Message::TerminalFontSizeDecrease),
-                    Some(Message::TerminalFontSizeIncrease),
+                    Some(Message::Settings(SettingsMessage::TerminalFontSizeDecrease)),
+                    Some(Message::Settings(SettingsMessage::TerminalFontSizeIncrease)),
                 ),
                 8.0,
                 dir_row(vec![
@@ -361,7 +361,7 @@ impl Oryxis {
                     container(text("\u{2212}").size(14).color(OryxisColors::t().text_primary))
                         .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 }),
                 )
-                .on_press(Message::TerminalFontSizeDecrease)
+                .on_press(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -380,7 +380,7 @@ impl Oryxis {
                     container(text("+").size(14).color(OryxisColors::t().text_primary))
                         .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 }),
                 )
-                .on_press(Message::TerminalFontSizeIncrease)
+                .on_press(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -466,7 +466,7 @@ impl Oryxis {
         let (font_prev, font_next) = crate::keynav::slots::cycle_pair(
             fonts,
             &self.terminal_font_name,
-            Message::TerminalFontChanged,
+            |v| Message::Settings(SettingsMessage::TerminalFontChanged(v)),
         );
         let font_picker_block = column![
             text(crate::i18n::t("terminal_font")).size(13).color(OryxisColors::t().text_primary),
@@ -482,7 +482,7 @@ impl Oryxis {
                     fonts,
                     |s: &String| s.clone(),
                 )
-                .on_select(Message::TerminalFontChanged)
+                .on_select(|v| Message::Settings(SettingsMessage::TerminalFontChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
@@ -524,13 +524,13 @@ impl Oryxis {
         let follow_label =
             format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
         theme_cards.push(self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::TerminalThemeChanged(String::new())),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(String::new()))),
             10.0,
             crate::widgets::terminal_theme_card(
                 follow_palette,
                 &follow_label,
                 self.terminal_theme_override.is_none(),
-                Message::TerminalThemeChanged(String::new()),
+                Message::Settings(SettingsMessage::TerminalThemeChanged(String::new())),
             ),
         ));
         for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
@@ -539,15 +539,15 @@ impl Oryxis {
                 .as_deref()
                 == Some(theme.name());
             theme_cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::TerminalThemeChanged(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
                     theme.name().to_string(),
-                )),
+                ))),
                 10.0,
                 crate::widgets::terminal_theme_card(
                     theme.palette(),
                     theme.name(),
                     is_selected,
-                    Message::TerminalThemeChanged(theme.name().to_string()),
+                    Message::Settings(SettingsMessage::TerminalThemeChanged(theme.name().to_string())),
                 ),
             ));
         }
@@ -562,9 +562,9 @@ impl Oryxis {
                 .terminal_palette_for_name(&ct.name)
                 .unwrap_or_default();
             theme_cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::TerminalThemeChanged(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
                     ct.name.clone(),
-                )),
+                ))),
                 10.0,
                 self.terminal_custom_theme_card(
                     idx,
@@ -576,12 +576,12 @@ impl Oryxis {
         }
         // "+ New custom theme" + "Import" cards last.
         theme_cards.push(self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ThemeEditorNew),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeEditorNew)),
             10.0,
             crate::views::settings_themes::terminal_theme_add_card(),
         ));
         theme_cards.push(self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ThemeImportOpen),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeImportOpen)),
             10.0,
             crate::views::settings_themes::terminal_theme_import_card(),
         ));

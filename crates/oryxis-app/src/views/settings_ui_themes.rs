@@ -8,7 +8,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, row, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SettingsMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::{OryxisColors, UI_COLOR_FIELDS};
 use crate::widgets::{dir_row, parse_hex_color};
@@ -30,7 +30,7 @@ impl Oryxis {
         };
 
         let name_input = text_input(t("theme_name"), &form.name)
-            .on_input(Message::UiThemeEditorNameChanged)
+            .on_input(|v| Message::Settings(SettingsMessage::UiThemeEditorNameChanged(v)))
             .padding(10)
             .size(13)
             .style(crate::widgets::rounded_input_style);
@@ -73,9 +73,9 @@ impl Oryxis {
             crate::widgets::form_error(form.error.as_deref()),
             dir_row(vec![
                 Space::new().width(Length::Fill).into(),
-                crate::widgets::form_cancel_button(Message::UiThemeEditorClose),
+                crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::UiThemeEditorClose)),
                 Space::new().width(8).into(),
-                crate::widgets::form_save_button(t("save"), Some(Message::UiThemeEditorSave)),
+                crate::widgets::form_save_button(t("save"), Some(Message::Settings(SettingsMessage::UiThemeEditorSave))),
             ])
             .align_y(iced::Alignment::Center),
         ]
@@ -121,7 +121,7 @@ impl Oryxis {
                 }
             }),
         )
-        .on_press(Message::UiThemeEditorClose)
+        .on_press(Message::Settings(SettingsMessage::UiThemeEditorClose))
         .into();
         let mut stack = iced::widget::Stack::new()
             .push(backdrop)
@@ -151,11 +151,11 @@ impl Oryxis {
         let card = container(
             column![
                 crate::color_picker::color_picker(color, move |hex| {
-                    Message::UiThemeColorChanged(idx, hex)
+                    Message::Settings(SettingsMessage::UiThemeColorChanged(idx, hex))
                 }),
                 Space::new().height(10),
                 text_input("#RRGGBB", hex)
-                    .on_input(move |v| Message::UiThemeColorChanged(idx, v))
+                    .on_input(move |v| Message::Settings(SettingsMessage::UiThemeColorChanged(idx, v)))
                     .padding(7)
                     .size(12)
                     .style(crate::widgets::rounded_input_style),
@@ -186,7 +186,7 @@ impl Oryxis {
         let pop_backdrop: Element<'_, Message> = MouseArea::new(
             container(Space::new()).width(Length::Fill).height(Length::Fill),
         )
-        .on_press(Message::UiThemeEditorClosePicker)
+        .on_press(Message::Settings(SettingsMessage::UiThemeEditorClosePicker))
         .into();
         iced::widget::Stack::new()
             .push(pop_backdrop)
@@ -201,7 +201,7 @@ impl Oryxis {
 fn ui_color_row<'a>(label: &'a str, idx: usize, hex: &'a str) -> Element<'a, Message> {
     let swatch_color = col(hex, Color::TRANSPARENT);
     let swatch = button(Space::new().width(22).height(22))
-        .on_press(Message::UiThemeEditorOpenPicker(idx))
+        .on_press(Message::Settings(SettingsMessage::UiThemeEditorOpenPicker(idx)))
         .padding(0)
         .style(move |_, _| button::Style {
             background: Some(Background::Color(swatch_color)),
@@ -221,7 +221,7 @@ fn ui_color_row<'a>(label: &'a str, idx: usize, hex: &'a str) -> Element<'a, Mes
         swatch.into(),
         Space::new().width(10).into(),
         text_input("#RRGGBB", hex)
-            .on_input(move |v| Message::UiThemeColorChanged(idx, v))
+            .on_input(move |v| Message::Settings(SettingsMessage::UiThemeColorChanged(idx, v)))
             .padding(7)
             .size(12)
             .width(Length::Fixed(100.0))
@@ -239,7 +239,7 @@ fn ui_preset_grid<'a>(idx: usize) -> Element<'a, Message> {
     for hex in crate::os_icon::PRESET_COLORS.iter() {
         let color = col(hex, Color::TRANSPARENT);
         let sw = button(Space::new().width(18).height(18))
-            .on_press(Message::UiThemeColorChanged(idx, (*hex).to_string()))
+            .on_press(Message::Settings(SettingsMessage::UiThemeColorChanged(idx, (*hex).to_string())))
             .padding(0)
             .style(move |_, status| {
                 let border = match status {
@@ -386,7 +386,7 @@ pub(crate) fn ui_theme_add_card<'a>() -> Element<'a, Message> {
         iced_fonts::lucide::plus(),
         t("theme_new_custom"),
         OryxisColors::t().accent,
-        Message::UiThemeEditorNew,
+        Message::Settings(SettingsMessage::UiThemeEditorNew),
     )
 }
 
@@ -403,15 +403,15 @@ impl Oryxis {
             name,
             colors,
             is_active,
-            Message::AppThemeChanged(name.to_string()),
+            Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
         );
         let mut stack = iced::widget::Stack::new().push(card);
         if self.hovered_ui_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
-                    ui_icon_btn(iced_fonts::lucide::pencil(), Message::UiThemeEditorEdit(idx)),
+                    ui_icon_btn(iced_fonts::lucide::pencil(), Message::Settings(SettingsMessage::UiThemeEditorEdit(idx))),
                     Space::new().width(4).into(),
-                    ui_icon_btn(iced_fonts::lucide::trash(), Message::UiThemeDelete(idx)),
+                    ui_icon_btn(iced_fonts::lucide::trash(), Message::Settings(SettingsMessage::UiThemeDelete(idx))),
                 ])
                 .align_y(iced::Alignment::Center),
             )
@@ -423,8 +423,8 @@ impl Oryxis {
             stack = stack.push(actions);
         }
         MouseArea::new(stack)
-            .on_enter(Message::UiThemeCardHovered(idx))
-            .on_exit(Message::UiThemeCardUnhovered)
+            .on_enter(Message::Settings(SettingsMessage::UiThemeCardHovered(idx)))
+            .on_exit(Message::Settings(SettingsMessage::UiThemeCardUnhovered))
             .into()
     }
 }

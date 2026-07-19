@@ -69,7 +69,7 @@ impl Oryxis {
                 self,
                 Some((only.program.clone(), only.args.clone(), only.label.clone())),
             ),
-            _ => Task::done(Message::ShowLocalShellPicker),
+            _ => Task::done(Message::Settings(SettingsMessage::ShowLocalShellPicker)),
         }
     }
 }
@@ -82,7 +82,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::OpenLocalShell => {
+            Message::Settings(SettingsMessage::OpenLocalShell) => {
                 // Burger menu is the most common entry point for
                 // this action; dismiss it so the spawned shell
                 // doesn't appear behind the still-open dropdown.
@@ -93,12 +93,12 @@ impl Oryxis {
                 if self.local_terminals.is_none() {
                     return Ok(Task::perform(
                         tokio::task::spawn_blocking(detect_local_shells),
-                        |result| Message::LocalShellsDetected(result.unwrap_or_default()),
+                        |result| Message::Settings(SettingsMessage::LocalShellsDetected(result.unwrap_or_default())),
                     ));
                 }
                 return Ok(self.decide_open_local_terminal());
             }
-            Message::ShowLocalShellPicker => {
+            Message::Settings(SettingsMessage::ShowLocalShellPicker) => {
                 self.local_shell_picker_open = true;
                 // The list is already populated by the time we get here
                 // (OpenLocalShell scans first). Guard the never-scanned
@@ -106,11 +106,11 @@ impl Oryxis {
                 if self.local_terminals.is_none() {
                     return Ok(Task::perform(
                         tokio::task::spawn_blocking(detect_local_shells),
-                        |result| Message::LocalShellsDetected(result.unwrap_or_default()),
+                        |result| Message::Settings(SettingsMessage::LocalShellsDetected(result.unwrap_or_default())),
                     ));
                 }
             }
-            Message::LocalShellsDetected(shells) => {
+            Message::Settings(SettingsMessage::LocalShellsDetected(shells)) => {
                 // One-time scan result: seed the curated list and persist.
                 let entries: Vec<crate::state::LocalTerminalEntry> =
                     shells.into_iter().map(detected_entry).collect();
@@ -124,25 +124,25 @@ impl Oryxis {
                     return Ok(self.decide_open_local_terminal());
                 }
             }
-            Message::HideLocalShellPicker => {
+            Message::Settings(SettingsMessage::HideLocalShellPicker) => {
                 self.local_shell_picker_open = false;
             }
-            Message::OpenLocalShellWith { program, args, label } => {
+            Message::Settings(SettingsMessage::OpenLocalShellWith { program, args, label }) => {
                 self.local_shell_picker_open = false;
                 return Ok(spawn_local_shell(self, Some((program, args, label))));
             }
-            Message::OpenLocalTerminalsSettings => {
+            Message::Settings(SettingsMessage::OpenLocalTerminalsSettings) => {
                 self.local_shell_picker_open = false;
                 self.active_view = View::Settings;
                 self.settings_section = crate::state::SettingsSection::Terminal;
             }
-            Message::RescanLocalTerminals => {
+            Message::Settings(SettingsMessage::RescanLocalTerminals) => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(detect_local_shells),
-                    |result| Message::LocalTerminalsRescanned(result.unwrap_or_default()),
+                    |result| Message::Settings(SettingsMessage::LocalTerminalsRescanned(result.unwrap_or_default())),
                 ));
             }
-            Message::LocalTerminalsRescanned(shells) => {
+            Message::Settings(SettingsMessage::LocalTerminalsRescanned(shells)) => {
                 // Merge: keep everything already curated (manual entries and
                 // user edits), append only detected entries whose command
                 // isn't present yet. A previously-removed-but-still-detected
@@ -159,7 +159,7 @@ impl Oryxis {
                 self.local_terminals = Some(list);
                 self.persist_local_terminals();
             }
-            Message::RemoveLocalTerminal(id) => {
+            Message::Settings(SettingsMessage::RemoveLocalTerminal(id)) => {
                 if let Some(list) = self.local_terminals.as_mut() {
                     list.retain(|e| e.id != id);
                 }
@@ -170,15 +170,15 @@ impl Oryxis {
                 }
                 self.persist_local_terminals();
             }
-            Message::SetDefaultLocalTerminal(id) => {
+            Message::Settings(SettingsMessage::SetDefaultLocalTerminal(id)) => {
                 self.local_terminal_default = id;
                 self.persist_local_terminal_default();
             }
-            Message::OpenLocalTerminalAddModal => {
+            Message::Settings(SettingsMessage::OpenLocalTerminalAddModal) => {
                 self.local_terminal_form = crate::state::LocalTerminalForm::default();
                 self.local_terminal_add_open = true;
             }
-            Message::OpenLocalTerminalEditModal(id) => {
+            Message::Settings(SettingsMessage::OpenLocalTerminalEditModal(id)) => {
                 if let Some(entry) = self
                     .local_terminals
                     .as_deref()
@@ -199,10 +199,10 @@ impl Oryxis {
                     self.local_terminal_add_open = true;
                 }
             }
-            Message::CloseLocalTerminalAddModal => {
+            Message::Settings(SettingsMessage::CloseLocalTerminalAddModal) => {
                 self.local_terminal_add_open = false;
             }
-            Message::OpenLocalTerminalIconPicker => {
+            Message::Settings(SettingsMessage::OpenLocalTerminalIconPicker) => {
                 // Seed the shared host icon picker from the form and target
                 // it back at the form (deferred save on IconPickerSave).
                 // Fall back to the label's OS hint (then a terminal glyph)
@@ -223,29 +223,29 @@ impl Oryxis {
                 self.icon_picker.for_local_terminal = true;
                 self.show_icon_picker = true;
             }
-            Message::LocalTerminalCardHovered(idx) => {
+            Message::Settings(SettingsMessage::LocalTerminalCardHovered(idx)) => {
                 self.hovered_local_terminal_card = Some(idx);
             }
-            Message::LocalTerminalCardUnhovered => {
+            Message::Settings(SettingsMessage::LocalTerminalCardUnhovered) => {
                 self.hovered_local_terminal_card = None;
             }
-            Message::LocalTerminalFormLabelChanged(v) => {
+            Message::Settings(SettingsMessage::LocalTerminalFormLabelChanged(v)) => {
                 self.local_terminal_form.label = v;
                 self.local_terminal_form.error = None;
             }
-            Message::LocalTerminalFormProgramChanged(v) => {
+            Message::Settings(SettingsMessage::LocalTerminalFormProgramChanged(v)) => {
                 self.local_terminal_form.program = v;
                 self.local_terminal_form.error = None;
             }
-            Message::LocalTerminalFormArgsChanged(v) => {
+            Message::Settings(SettingsMessage::LocalTerminalFormArgsChanged(v)) => {
                 self.local_terminal_form.args = v;
                 self.local_terminal_form.error = None;
             }
-            Message::LocalTerminalFormTagsChanged(v) => {
+            Message::Settings(SettingsMessage::LocalTerminalFormTagsChanged(v)) => {
                 self.local_terminal_form.tags = v;
                 self.local_terminal_form.error = None;
             }
-            Message::AddLocalTerminalSubmit => {
+            Message::Settings(SettingsMessage::AddLocalTerminalSubmit) => {
                 let label = self.local_terminal_form.label.trim().to_string();
                 let program = self.local_terminal_form.program.trim().to_string();
                 if label.is_empty() || program.is_empty() {

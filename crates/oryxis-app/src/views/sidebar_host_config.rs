@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Element, Length, Padding};
 
-use crate::app::{EditorMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, EditorMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -89,19 +89,19 @@ impl Oryxis {
         // Left/Right step the size, mirroring the two buttons.
         let size_row = self.sidebar_nav_slot(
             crate::keynav::SidebarRow::picker(
-                Some(Message::TerminalFontSizeDecrease),
-                Some(Message::TerminalFontSizeIncrease),
+                Some(Message::Settings(SettingsMessage::TerminalFontSizeDecrease)),
+                Some(Message::Settings(SettingsMessage::TerminalFontSizeIncrease)),
             ),
             stab,
             4.0,
             dir_row(vec![
                 text(t("terminal_font_size")).size(12).color(c.text_secondary).into(),
                 Space::new().width(Length::Fill).into(),
-                step_btn("\u{2212}", Message::TerminalFontSizeDecrease),
+                step_btn("\u{2212}", Message::Settings(SettingsMessage::TerminalFontSizeDecrease)),
                 Space::new().width(8).into(),
                 text(format!("{:.0}", self.terminal_font_size)).size(13).color(c.text_primary).into(),
                 Space::new().width(8).into(),
-                step_btn("+", Message::TerminalFontSizeIncrease),
+                step_btn("+", Message::Settings(SettingsMessage::TerminalFontSizeIncrease)),
             ])
             .align_y(iced::Alignment::Center)
             .into(),
@@ -118,7 +118,7 @@ impl Oryxis {
                 |s: &String| s.clone(),
             )
             .id(iced::widget::Id::new("sidebar-hostcfg-font"))
-            .on_select(Message::TerminalFontChanged)
+            .on_select(|v| Message::Settings(SettingsMessage::TerminalFontChanged(v)))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .width(Length::Fill)
@@ -147,11 +147,11 @@ impl Oryxis {
             Space::new().height(4),
             font_pick,
             Space::new().height(12),
-            toggle("bold_bright", self.setting_bold_is_bright, Message::ToggleBoldIsBright),
+            toggle("bold_bright", self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(8),
-            toggle("keyword_highlight", self.setting_keyword_highlight, Message::ToggleKeywordHighlight),
+            toggle("keyword_highlight", self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(8),
-            toggle("smart_contrast", self.setting_smart_contrast, Message::ToggleSmartContrast),
+            toggle("smart_contrast", self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
         ]
         .width(Length::Fill)
         .into()
@@ -323,7 +323,7 @@ impl Oryxis {
         // Theme: swatch cards (applied to the open local panes on pick).
         let mut theme_col = column![].spacing(8).width(Length::Fill);
         for card in
-            self.sidebar_theme_cards(self.local_terminal_theme.as_deref(), Message::LocalConfigThemeChanged)
+            self.sidebar_theme_cards(self.local_terminal_theme.as_deref(), |v| Message::Settings(SettingsMessage::LocalConfigThemeChanged(v)))
         {
             theme_col = theme_col.push(card);
         }
@@ -333,12 +333,12 @@ impl Oryxis {
         let save_btn: Element<'_, Message> = if self.local_terminal_theme.is_some() {
             // Contrast ring: accent-filled button.
             self.sidebar_nav_slot_contrast(
-                crate::keynav::SidebarRow::button(Message::LocalConfigSaveGlobal),
+                crate::keynav::SidebarRow::button(Message::Settings(SettingsMessage::LocalConfigSaveGlobal)),
                 crate::state::TerminalSidebarTab::HostConfig,
                 8.0,
                 crate::widgets::styled_button_opt(
                     t("local_terminal_save_global"),
-                    Some(Message::LocalConfigSaveGlobal),
+                    Some(Message::Settings(SettingsMessage::LocalConfigSaveGlobal)),
                     c.accent,
                 ),
             )

@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{CloudMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{SettingsMessage, CloudMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
@@ -145,9 +145,9 @@ impl Oryxis {
                     Space::new().height(24),
                     crate::widgets::cta_button(
                         t("cloud_no_provider_btn").to_string(),
-                        Message::ChangeSettingsSection(
+                        Message::Settings(SettingsMessage::ChangeSettingsSection(
                             crate::state::SettingsSection::Plugins,
-                        ),
+                        )),
                     ),
                 ]
                 .align_x(iced::Alignment::Center),
@@ -394,7 +394,7 @@ impl Oryxis {
             &self.setting_cloud_auto_refresh_interval_minutes,
         )
         .id(iced::widget::Id::new("set-cloud-refresh-interval"))
-        .on_input(Message::SettingCloudAutoRefreshIntervalChanged)
+        .on_input(|v| Message::Settings(SettingsMessage::SettingCloudAutoRefreshIntervalChanged(v)))
         .padding(8)
         .width(120)
         .style(rounded_input_style)
@@ -404,7 +404,7 @@ impl Oryxis {
             &self.setting_cloud_orphan_archive_days,
         )
         .id(iced::widget::Id::new("set-cloud-orphan-days"))
-        .on_input(Message::SettingCloudOrphanArchiveDaysChanged)
+        .on_input(|v| Message::Settings(SettingsMessage::SettingCloudOrphanArchiveDaysChanged(v)))
         .padding(8)
         .width(120)
         .style(rounded_input_style)
@@ -414,7 +414,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 t("settings_cloud_auto_refresh"),
                 self.setting_cloud_auto_refresh_enabled,
-                Message::SettingCloudAutoRefreshToggle,
+                Message::Settings(SettingsMessage::SettingCloudAutoRefreshToggle),
             ),
             Space::new().height(8),
             dir_row(vec![
@@ -436,7 +436,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 t("settings_cloud_auto_archive"),
                 self.setting_cloud_auto_archive_orphans,
-                Message::SettingCloudAutoArchiveToggle,
+                Message::Settings(SettingsMessage::SettingCloudAutoArchiveToggle),
             ),
             Space::new().height(8),
             dir_row(vec![

@@ -133,7 +133,7 @@ impl Oryxis {
             ])
             .align_y(iced::Alignment::Center),
         )
-        .on_press(Message::ToggleDefaultsCollapsed)
+        .on_press(Message::Settings(SettingsMessage::ToggleDefaultsCollapsed))
         .padding(4)
         .width(Length::Fill)
         .style(|_, status| button::Style {
@@ -151,7 +151,7 @@ impl Oryxis {
         // Enter toggles the collapse from the keyboard, same as clicking
         // the header.
         let defaults_header = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ToggleDefaultsCollapsed),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ToggleDefaultsCollapsed)),
             6.0,
             defaults_header.into(),
         );
@@ -160,7 +160,7 @@ impl Oryxis {
         if !collapsed {
             new_conn_defaults_col = new_conn_defaults_col
                 .push(Space::new().height(10))
-                .push(self.nav_toggle_row(crate::i18n::t("forward_ssh_agent"), self.setting_default_agent_forwarding, Message::ToggleDefaultAgentForwarding))
+                .push(self.nav_toggle_row(crate::i18n::t("forward_ssh_agent"), self.setting_default_agent_forwarding, Message::Settings(SettingsMessage::ToggleDefaultAgentForwarding)))
                 .push(Space::new().height(10))
                 .push(dir_row(vec![
                     text(crate::i18n::t("port")).size(13).color(OryxisColors::t().text_secondary).into(),
@@ -170,7 +170,7 @@ impl Oryxis {
                         10.0,
                         text_input("22", &self.setting_default_port)
                             .id(iced::widget::Id::new("set-connection-default-port"))
-                            .on_input(Message::DefaultPortChanged)
+                            .on_input(|v| Message::Settings(SettingsMessage::DefaultPortChanged(v)))
                             .padding(10).width(120)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
                     ),
@@ -184,7 +184,7 @@ impl Oryxis {
                         10.0,
                         text_input(&self.setting_keepalive_interval, &self.setting_default_keepalive)
                             .id(iced::widget::Id::new("set-connection-default-keepalive"))
-                            .on_input(Message::DefaultKeepaliveChanged)
+                            .on_input(|v| Message::Settings(SettingsMessage::DefaultKeepaliveChanged(v)))
                             .padding(10).width(120)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
                     ),
@@ -196,7 +196,7 @@ impl Oryxis {
                     self.setting_default_terminal_type.clone(),
                     |s: &String| s.clone(),
                     200.0,
-                    Message::DefaultTerminalTypeChanged,
+                    |v| Message::Settings(SettingsMessage::DefaultTerminalTypeChanged(v)),
                 ))
                 .push(Space::new().height(10))
                 .push(dir_row(vec![
@@ -207,25 +207,25 @@ impl Oryxis {
                         10.0,
                         text_input("", &self.setting_default_username)
                             .id(iced::widget::Id::new("set-connection-default-username"))
-                            .on_input(Message::DefaultUsernameChanged)
+                            .on_input(|v| Message::Settings(SettingsMessage::DefaultUsernameChanged(v)))
                             .padding(10).width(220)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
                     ),
                 ]).align_y(iced::Alignment::Center))
                 .push(Space::new().height(10))
-                .push(pick_row("auth_method", auth_options, auth_selected, Message::DefaultAuthMethodChanged))
+                .push(pick_row("auth_method", auth_options, auth_selected, |v| Message::Settings(SettingsMessage::DefaultAuthMethodChanged(v))))
                 .push(Space::new().height(10))
-                .push(pick_row("identity", identity_options, identity_selected, Message::DefaultIdentityChanged))
+                .push(pick_row("identity", identity_options, identity_selected, |v| Message::Settings(SettingsMessage::DefaultIdentityChanged(v))))
                 .push(Space::new().height(10))
-                .push(pick_row("ssh_key", key_options, key_selected, Message::DefaultKeyChanged))
+                .push(pick_row("ssh_key", key_options, key_selected, |v| Message::Settings(SettingsMessage::DefaultKeyChanged(v))))
                 .push(Space::new().height(10))
-                .push(pick_row("parent_group", group_options, group_selected, Message::DefaultGroupChanged))
+                .push(pick_row("parent_group", group_options, group_selected, |v| Message::Settings(SettingsMessage::DefaultGroupChanged(v))))
                 .push(Space::new().height(10))
-                .push(pick_row("default_proxy", proxy_options, proxy_selected, Message::DefaultProxyChanged))
+                .push(pick_row("default_proxy", proxy_options, proxy_selected, |v| Message::Settings(SettingsMessage::DefaultProxyChanged(v))))
                 .push(Space::new().height(10))
-                .push(self.nav_toggle_row(t("expose_to_mcp"), self.setting_default_mcp_enabled, Message::ToggleDefaultMcpEnabled))
+                .push(self.nav_toggle_row(t("expose_to_mcp"), self.setting_default_mcp_enabled, Message::Settings(SettingsMessage::ToggleDefaultMcpEnabled)))
                 .push(Space::new().height(10))
-                .push(pick_row("host_encoding", encoding_options, encoding_selected, Message::DefaultEncodingChanged));
+                .push(pick_row("host_encoding", encoding_options, encoding_selected, |v| Message::Settings(SettingsMessage::DefaultEncodingChanged(v))));
 
             // Environment-variables list editor, same add/remove/edit-row
             // shape as the host editor's env-vars block. Built here (it
@@ -243,10 +243,10 @@ impl Oryxis {
                 .into(),
                 Space::new().width(8).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::DefaultAddEnvVar),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DefaultAddEnvVar)),
                     4.0,
                     button(text("+").size(14).color(OryxisColors::t().text_primary))
-                        .on_press(Message::DefaultAddEnvVar)
+                        .on_press(Message::Settings(SettingsMessage::DefaultAddEnvVar))
                         .style(|_, _| button::Style {
                             background: Some(Background::Color(OryxisColors::t().bg_hover)),
                             border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -264,7 +264,7 @@ impl Oryxis {
                 env_block = env_block.push(
                     dir_row(vec![
                         text_input("LC_EXAMPLE", &e.key)
-                            .on_input(move |v| Message::DefaultEnvVarKeyChanged(idx, v))
+                            .on_input(move |v| Message::Settings(SettingsMessage::DefaultEnvVarKeyChanged(idx, v)))
                             .padding(6)
                             .width(Length::FillPortion(2))
                             .style(crate::widgets::rounded_input_style)
@@ -272,14 +272,14 @@ impl Oryxis {
                             .into(),
                         text("=").size(12).color(OryxisColors::t().text_muted).into(),
                         text_input("value", &e.value)
-                            .on_input(move |v| Message::DefaultEnvVarValueChanged(idx, v))
+                            .on_input(move |v| Message::Settings(SettingsMessage::DefaultEnvVarValueChanged(idx, v)))
                             .padding(6)
                             .width(Length::FillPortion(3))
                             .style(crate::widgets::rounded_input_style)
                             .align_x(dir_align_x())
                             .into(),
                         button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
-                            .on_press(Message::DefaultRemoveEnvVar(idx))
+                            .on_press(Message::Settings(SettingsMessage::DefaultRemoveEnvVar(idx)))
                             .style(|_, _| button::Style {
                                 background: None,
                                 border: Border::default(),
@@ -314,7 +314,7 @@ impl Oryxis {
                 10.0,
                 text_input("30", &self.setting_keepalive_interval)
                     .id(iced::widget::Id::new("set-connection-keepalive"))
-                    .on_input(Message::SettingKeepaliveChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingKeepaliveChanged(v)))
                     .padding(10)
                     .width(240)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -324,7 +324,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("auto_reconnect"),
                 self.setting_auto_reconnect,
-                Message::SettingToggleAutoReconnect,
+                Message::Settings(SettingsMessage::SettingToggleAutoReconnect),
             ),
             Space::new().height(4),
             text(t("setting_reconnect_desc"))
@@ -337,7 +337,7 @@ impl Oryxis {
                 10.0,
                 text_input("5", &self.setting_max_reconnect_attempts)
                     .id(iced::widget::Id::new("set-connection-max-reconnect"))
-                    .on_input(Message::SettingMaxReconnectChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingMaxReconnectChanged(v)))
                     .padding(10)
                     .width(240)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())

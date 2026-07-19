@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
 
@@ -156,7 +156,7 @@ impl Oryxis {
         if self.vault_ui.state == crate::state::VaultState::Unlocked {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(30))
-                    .map(|_| Message::AutoReconnectTick),
+                    .map(|_| Message::Settings(SettingsMessage::AutoReconnectTick)),
             );
         }
 
@@ -171,7 +171,7 @@ impl Oryxis {
         if is_connecting {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(100))
-                    .map(|_| Message::ConnectAnimTick),
+                    .map(|_| Message::Settings(SettingsMessage::ConnectAnimTick)),
             );
         }
         // Auto-dismiss the transient toast chip. Only ticks while a toast
@@ -370,7 +370,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(30))
-                    .map(|_| Message::AutoLockTick),
+                    .map(|_| Message::Settings(SettingsMessage::AutoLockTick)),
             );
         }
 

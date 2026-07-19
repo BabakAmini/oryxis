@@ -28,15 +28,15 @@ impl Oryxis {
             .into(),
             dir_row(vec![
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::RescanLocalTerminals),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::RescanLocalTerminals)),
                     6.0,
-                    styled_button(t("rescan_terminals"), Message::RescanLocalTerminals, c.bg_selected),
+                    styled_button(t("rescan_terminals"), Message::Settings(SettingsMessage::RescanLocalTerminals), c.bg_selected),
                 ),
                 Space::new().width(8).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::OpenLocalTerminalAddModal),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::OpenLocalTerminalAddModal)),
                     6.0,
-                    styled_button(t("add_terminal"), Message::OpenLocalTerminalAddModal, c.accent),
+                    styled_button(t("add_terminal"), Message::Settings(SettingsMessage::OpenLocalTerminalAddModal), c.accent),
                 ),
             ])
             .align_y(iced::Alignment::Center)
@@ -59,7 +59,7 @@ impl Oryxis {
         let (def_prev, def_next) = crate::keynav::slots::cycle_pair(
             &options.clone(),
             &self.local_terminal_default,
-            Message::SetDefaultLocalTerminal,
+            |v| Message::Settings(SettingsMessage::SetDefaultLocalTerminal(v)),
         );
         let default_picker = pick_list(selected, options, move |o: &Option<uuid::Uuid>| match o {
             None => picker_label.clone(),
@@ -69,7 +69,7 @@ impl Oryxis {
                 .map(|(_, l)| l.clone())
                 .unwrap_or_else(|| id.to_string()),
         })
-        .on_select(Message::SetDefaultLocalTerminal)
+        .on_select(|v| Message::Settings(SettingsMessage::SetDefaultLocalTerminal(v)))
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .width(280)
@@ -91,7 +91,7 @@ impl Oryxis {
         }
         for (idx, entry) in entries.iter().enumerate() {
             cards = cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::OpenLocalTerminalEditModal(entry.id)),
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::OpenLocalTerminalEditModal(entry.id))),
                 8.0,
                 self.local_terminal_item_card(idx, entry),
             ));
@@ -188,13 +188,13 @@ impl Oryxis {
                 local_terminal_card_btn(
                     iced_fonts::lucide::pencil(),
                     c.text_secondary,
-                    Message::OpenLocalTerminalEditModal(entry.id),
+                    Message::Settings(SettingsMessage::OpenLocalTerminalEditModal(entry.id)),
                 ),
                 Space::new().width(4).into(),
                 local_terminal_card_btn(
                     iced_fonts::lucide::trash(),
                     c.error,
-                    Message::RemoveLocalTerminal(entry.id),
+                    Message::Settings(SettingsMessage::RemoveLocalTerminal(entry.id)),
                 ),
             ])
             .align_y(iced::Alignment::Center);
@@ -208,8 +208,8 @@ impl Oryxis {
             );
         }
         iced::widget::MouseArea::new(stack)
-            .on_enter(Message::LocalTerminalCardHovered(idx))
-            .on_exit(Message::LocalTerminalCardUnhovered)
+            .on_enter(Message::Settings(SettingsMessage::LocalTerminalCardHovered(idx)))
+            .on_exit(Message::Settings(SettingsMessage::LocalTerminalCardUnhovered))
             .into()
     }
 
@@ -250,7 +250,7 @@ impl Oryxis {
             ])
             .align_y(iced::Alignment::Center),
         )
-        .on_press(Message::OpenLocalTerminalIconPicker)
+        .on_press(Message::Settings(SettingsMessage::OpenLocalTerminalIconPicker))
         .padding(10)
         .width(Length::Fill)
         .style(|_, status| {
@@ -282,7 +282,7 @@ impl Oryxis {
             panel_field(
                 t("terminal_label"),
                 text_input("PowerShell", &self.local_terminal_form.label)
-                    .on_input(Message::LocalTerminalFormLabelChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::LocalTerminalFormLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -292,7 +292,7 @@ impl Oryxis {
             panel_field(
                 t("terminal_program"),
                 text_input("/usr/bin/zsh", &self.local_terminal_form.program)
-                    .on_input(Message::LocalTerminalFormProgramChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::LocalTerminalFormProgramChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -302,7 +302,7 @@ impl Oryxis {
             panel_field(
                 t("terminal_args"),
                 text_input("-l", &self.local_terminal_form.args)
-                    .on_input(Message::LocalTerminalFormArgsChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::LocalTerminalFormArgsChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -312,7 +312,7 @@ impl Oryxis {
             panel_field(
                 t("tags"),
                 text_input(t("tags_placeholder"), &self.local_terminal_form.tags)
-                    .on_input(Message::LocalTerminalFormTagsChanged)
+                    .on_input(|v| Message::Settings(SettingsMessage::LocalTerminalFormTagsChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -330,9 +330,9 @@ impl Oryxis {
         }
         body = body.push(Space::new().height(18)).push(dir_row(vec![
             Space::new().width(Length::Fill).into(),
-            styled_button(t("cancel"), Message::CloseLocalTerminalAddModal, c.bg_selected),
+            styled_button(t("cancel"), Message::Settings(SettingsMessage::CloseLocalTerminalAddModal), c.bg_selected),
             Space::new().width(8).into(),
-            styled_button(submit_label, Message::AddLocalTerminalSubmit, c.accent),
+            styled_button(submit_label, Message::Settings(SettingsMessage::AddLocalTerminalSubmit), c.accent),
         ]));
 
         let dialog = iced::widget::MouseArea::new(

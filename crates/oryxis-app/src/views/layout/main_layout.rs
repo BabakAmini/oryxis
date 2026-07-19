@@ -509,7 +509,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.view_theme_import_modal(),
-                    Some(Message::ThemeImportClose),
+                    Some(Message::Settings(SettingsMessage::ThemeImportClose)),
                     0.0,
                 ),
                 resize_overlay,

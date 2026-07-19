@@ -42,7 +42,7 @@ impl Oryxis {
                 }
             },
             200.0,
-            Message::LanguageChanged,
+            |v| Message::Settings(SettingsMessage::LanguageChanged(v)),
         );
 
         // Layout direction picker, Auto (follow language) by
@@ -63,7 +63,7 @@ impl Oryxis {
             active_dir_name,
             |s: &String| s.clone(),
             240.0,
-            Message::LayoutDirectionChanged,
+            |v| Message::Settings(SettingsMessage::LayoutDirectionChanged(v)),
         );
 
         // Layout mode picker: same token-as-value pattern as
@@ -94,7 +94,7 @@ impl Oryxis {
                     .to_string()
                 },
                 200.0,
-                Message::SettingNavOrientationChanged,
+                |v| Message::Settings(SettingsMessage::SettingNavOrientationChanged(v)),
             ),
             Space::new().height(4),
             text(crate::i18n::t("nav_orientation_desc"))
@@ -118,7 +118,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("flatten_hosts_label"),
                 self.flatten_hosts,
-                Message::FlattenHostsToggle,
+                Message::Settings(SettingsMessage::FlattenHostsToggle),
             ),
             Space::new().height(4),
             text(crate::i18n::t("flatten_hosts_desc"))
@@ -128,7 +128,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("show_host_address_label"),
                 self.setting_show_host_address,
-                Message::ToggleShowHostAddress,
+                Message::Settings(SettingsMessage::ToggleShowHostAddress),
             ),
             Space::new().height(4),
             text(crate::i18n::t("show_host_address_desc"))
@@ -138,7 +138,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("card_accent_glass_label"),
                 self.setting_card_accent_glass,
-                Message::ToggleCardAccentGlass,
+                Message::Settings(SettingsMessage::ToggleCardAccentGlass),
             ),
             Space::new().height(4),
             text(crate::i18n::t("card_accent_glass_desc"))
@@ -162,7 +162,7 @@ impl Oryxis {
                     crate::i18n::t(key).to_string()
                 },
                 200.0,
-                Message::SettingDefaultHostIconChanged,
+                |v| Message::Settings(SettingsMessage::SettingDefaultHostIconChanged(v)),
             ),
             Space::new().height(12),
             self.card_appearance_preview(),
@@ -201,7 +201,7 @@ impl Oryxis {
                     .to_string()
                 },
                 160.0,
-                Message::SettingTabCloseButtonSideChanged,
+                |v| Message::Settings(SettingsMessage::SettingTabCloseButtonSideChanged(v)),
             ),
             Space::new().height(8),
             self.nav_pick_row(
@@ -217,19 +217,19 @@ impl Oryxis {
                     .to_string()
                 },
                 180.0,
-                Message::SettingPinnedTabStyleChanged,
+                |v| Message::Settings(SettingsMessage::SettingPinnedTabStyleChanged(v)),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("show_tab_status_dot"),
                 self.setting_show_tab_status_dot,
-                Message::SettingToggleShowTabStatusDot,
+                Message::Settings(SettingsMessage::SettingToggleShowTabStatusDot),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_text"),
                 self.setting_tab_accent_text,
-                Message::SettingToggleTabAccentText,
+                Message::Settings(SettingsMessage::SettingToggleTabAccentText),
             ),
             Space::new().height(8),
             self.nav_pick_row(
@@ -245,7 +245,7 @@ impl Oryxis {
                     .to_string()
                 },
                 180.0,
-                Message::SettingTabAccentColorChanged,
+                |v| Message::Settings(SettingsMessage::SettingTabAccentColorChanged(v)),
             ),
             Space::new().height(8),
             self.nav_pick_row(
@@ -261,7 +261,7 @@ impl Oryxis {
                     .to_string()
                 },
                 180.0,
-                Message::SettingTabFillStyleChanged,
+                |v| Message::Settings(SettingsMessage::SettingTabFillStyleChanged(v)),
             ),
         ]);
 
@@ -281,7 +281,7 @@ impl Oryxis {
                     .to_string()
                 },
                 180.0,
-                Message::SettingTabBarPositionChanged,
+                |v| Message::Settings(SettingsMessage::SettingTabBarPositionChanged(v)),
             ),
             Space::new().height(4),
             text(crate::i18n::t("tab_bar_position_desc"))
@@ -291,19 +291,19 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("show_status_bar"),
                 self.setting_show_status_bar,
-                Message::SettingToggleShowStatusBar,
+                Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_line"),
                 self.setting_tab_accent_line,
-                Message::SettingToggleTabAccentLine,
+                Message::Settings(SettingsMessage::SettingToggleTabAccentLine),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_wash"),
                 self.setting_tab_accent_wash,
-                Message::SettingToggleTabAccentWash,
+                Message::Settings(SettingsMessage::SettingToggleTabAccentWash),
             ),
         ]);
 
@@ -317,13 +317,13 @@ impl Oryxis {
         for theme in AppTheme::ALL.iter() {
             let name = theme.name();
             cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::AppThemeChanged(name.to_string())),
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(name.to_string()))),
                 10.0,
                 crate::views::settings_ui_themes::app_theme_card(
                     name,
                     theme.colors_ref(),
                     name == active_name,
-                    Message::AppThemeChanged(name.to_string()),
+                    Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
                 ),
             ));
         }
@@ -336,9 +336,9 @@ impl Oryxis {
             .collect();
         for (idx, theme) in self.custom_ui_themes.iter().enumerate() {
             cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::AppThemeChanged(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(
                     theme.name.clone(),
-                )),
+                ))),
                 10.0,
                 self.ui_theme_custom_card(
                     idx,
@@ -349,7 +349,7 @@ impl Oryxis {
             ));
         }
         cards.push(self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::UiThemeEditorNew),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeEditorNew)),
             10.0,
             crate::views::settings_ui_themes::ui_theme_add_card(),
         ));
@@ -412,7 +412,7 @@ impl Oryxis {
                     crate::i18n::t(key).to_string()
                 },
                 200.0,
-                Message::SettingRendererBackendChanged,
+                |v| Message::Settings(SettingsMessage::SettingRendererBackendChanged(v)),
             ),
             Space::new().height(4),
             text(crate::i18n::t("renderer_backend_desc"))
@@ -427,7 +427,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("performance_mode"),
                 self.setting_performance_mode,
-                Message::SettingTogglePerformanceMode,
+                Message::Settings(SettingsMessage::SettingTogglePerformanceMode),
             ),
             Space::new().height(4),
             text(crate::i18n::t("performance_mode_desc"))
@@ -447,7 +447,7 @@ impl Oryxis {
                 crate::i18n::t(self.setting_hint_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
-                Message::HintModeChanged,
+                |v| Message::Settings(SettingsMessage::HintModeChanged(v)),
             ),
             Space::new().height(4),
             text(crate::i18n::t("terminal_hints_desc"))
@@ -469,7 +469,7 @@ impl Oryxis {
                 self.nav_toggle_row(
                     crate::i18n::t("close_to_tray"),
                     self.setting_close_to_tray,
-                    Message::SettingToggleCloseToTray,
+                    Message::Settings(SettingsMessage::SettingToggleCloseToTray),
                 ),
                 Space::new().height(4),
                 text(crate::i18n::t("close_to_tray_desc"))
@@ -479,7 +479,7 @@ impl Oryxis {
                 self.nav_toggle_row(
                     crate::i18n::t("minimize_to_tray"),
                     self.setting_minimize_to_tray,
-                    Message::SettingToggleMinimizeToTray,
+                    Message::Settings(SettingsMessage::SettingToggleMinimizeToTray),
                 ),
                 Space::new().height(4),
                 text(crate::i18n::t("minimize_to_tray_desc"))

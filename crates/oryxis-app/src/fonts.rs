@@ -19,7 +19,7 @@ use futures_util::StreamExt;
 use sha2::{Digest, Sha256};
 
 use crate::i18n::Language;
-use crate::messages::Message;
+use crate::messages::{Message, SettingsMessage};
 
 /// Every font baked into the binary, in load order. `main.rs` feeds
 /// these to the iced application builder one `.font()` call at a
@@ -285,7 +285,7 @@ pub fn ensure_task(lang: Language) -> iced::Task<Message> {
     };
     let code = asset.code.to_string();
     iced::Task::perform(ensure_and_read(asset), move |res| {
-        Message::CjkFontReady(code.clone(), res)
+        Message::Settings(SettingsMessage::CjkFontReady(code.clone(), res))
     })
 }
 

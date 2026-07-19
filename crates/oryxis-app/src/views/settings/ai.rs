@@ -112,16 +112,16 @@ impl Oryxis {
                         Some(Message::Ai(AiMessage::SaveAiApiKey)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::AiApiKey),
-                        Message::ToggleSecretVisibility(
+                        Message::Settings(SettingsMessage::ToggleSecretVisibility(
                             crate::state::SecretField::AiApiKey,
-                        ),
+                        )),
                         10.0,
                         Some(iced::widget::Id::new("set-ai-key")),
                         |eye| self.settings_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::ToggleSecretVisibility(
+                                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                                     crate::state::SecretField::AiApiKey,
-                                ),
+                                )),
                             ),
                             6.0,
                             eye,

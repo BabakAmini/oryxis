@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{TerminalMessage, ZmodemMessage, AiMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TerminalMessage, ZmodemMessage, AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -384,11 +384,11 @@ impl Oryxis {
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)
             .with_word_delimiters(&self.setting_word_delimiters)
-            .on_font_size_increase(Message::TerminalFontSizeIncrease)
-            .on_font_size_decrease(Message::TerminalFontSizeDecrease)
+            .on_font_size_increase(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
+            .on_font_size_decrease(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
             .on_paste_request(Message::Terminal(TerminalMessage::TerminalPasteFromClipboard))
             .on_terminal_input(|v| Message::Terminal(TerminalMessage::TerminalInput(v)))
-            .on_link_opened(Message::TerminalLinkOpened);
+            .on_link_opened(Message::Settings(SettingsMessage::TerminalLinkOpened));
         // The perf HUD's `net` row: link quality from the SSH session's
         // RTT probe window. Only sampled while the HUD can render it, so
         // the per-frame snapshot lock costs nothing when it's off. The

@@ -30,7 +30,7 @@ impl Oryxis {
         ) && self.renderer_active.is_none()
         {
             iced::system::graphics_information()
-                .map(|info| Message::RendererInfoLoaded(info.backend, info.adapter))
+                .map(|info| Message::Settings(SettingsMessage::RendererInfoLoaded(info.backend, info.adapter)))
         } else {
             Task::none()
         }
@@ -45,10 +45,10 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::RendererInfoLoaded(backend, adapter) => {
+            Message::Settings(SettingsMessage::RendererInfoLoaded(backend, adapter)) => {
                 self.renderer_active = Some((backend, adapter));
             }
-            Message::SettingRendererBackendChanged(mode) => {
+            Message::Settings(SettingsMessage::SettingRendererBackendChanged(mode)) => {
                 // No-op if the pick didn't change (re-selecting the same
                 // option shouldn't nag about a restart).
                 if mode == self.setting_renderer_backend {
@@ -65,18 +65,18 @@ impl Oryxis {
                     link: None,
                     action: Some(crate::state::ErrorDialogAction {
                         label: crate::i18n::t("renderer_restart_now").to_string(),
-                        message: Box::new(Message::RelaunchApp),
+                        message: Box::new(Message::Settings(SettingsMessage::RelaunchApp)),
                         danger: false,
                     }),
                 });
             }
-            Message::RelaunchApp => {
+            Message::Settings(SettingsMessage::RelaunchApp) => {
                 // Spawns a fresh process and exits this one; never returns
                 // on success. If the spawn fails it falls through and the
                 // app keeps running.
                 self.relaunch_self();
             }
-            Message::SettingToggleDebugLogging => {
+            Message::Settings(SettingsMessage::SettingToggleDebugLogging) => {
                 if self.setting_debug_logging {
                     // Emitted before the sink closes so the file records
                     // its own switch-off.
@@ -104,7 +104,7 @@ impl Oryxis {
                     if self.setting_debug_logging { "true" } else { "false" },
                 );
             }
-            Message::DownloadMirrorPicked(which) => {
+            Message::Settings(SettingsMessage::DownloadMirrorPicked(which)) => {
                 use crate::net_mirror::MirrorChoice;
                 self.download_mirror.test_result = None;
                 match which.as_str() {
@@ -130,12 +130,12 @@ impl Oryxis {
                     }
                 }
             }
-            Message::DownloadMirrorUrlEdited(url) => {
+            Message::Settings(SettingsMessage::DownloadMirrorUrlEdited(url)) => {
                 self.download_mirror.url_input = url;
                 self.download_mirror.url_error = false;
                 self.download_mirror.test_result = None;
             }
-            Message::DownloadMirrorUrlCommitted => {
+            Message::Settings(SettingsMessage::DownloadMirrorUrlCommitted) => {
                 use crate::net_mirror::MirrorChoice;
                 match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
                     Ok(base) => {
@@ -152,14 +152,14 @@ impl Oryxis {
                     }
                 }
             }
-            Message::DownloadMirrorTest => {
+            Message::Settings(SettingsMessage::DownloadMirrorTest) => {
                 match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
                     Ok(base) => {
                         self.download_mirror.testing = true;
                         self.download_mirror.test_result = None;
                         return Ok(iced::Task::perform(
                             crate::net_mirror::probe(base),
-                            Message::DownloadMirrorTestResult,
+                            |v| Message::Settings(SettingsMessage::DownloadMirrorTestResult(v)),
                         ));
                     }
                     Err(()) => {
@@ -167,11 +167,11 @@ impl Oryxis {
                     }
                 }
             }
-            Message::DownloadMirrorTestResult(result) => {
+            Message::Settings(SettingsMessage::DownloadMirrorTestResult(result)) => {
                 self.download_mirror.testing = false;
                 self.download_mirror.test_result = Some(result);
             }
-            Message::RevealDebugLog => {
+            Message::Settings(SettingsMessage::RevealDebugLog) => {
                 if let Some(path) = crate::logging::log_path() {
                     // Fall back to the data folder when nothing was
                     // written yet so the button never silently no-ops.
@@ -187,7 +187,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ClearDebugLog => {
+            Message::Settings(SettingsMessage::ClearDebugLog) => {
                 match crate::logging::clear() {
                     Ok(true) => {
                         self.set_toast(crate::i18n::t("debug_log_cleared").to_string());

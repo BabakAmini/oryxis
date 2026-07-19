@@ -30,16 +30,16 @@ impl Oryxis {
                 None,
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::SharePassword),
-                Message::ToggleSecretVisibility(
+                Message::Settings(SettingsMessage::ToggleSecretVisibility(
                     crate::state::SecretField::SharePassword,
-                ),
+                )),
                 10.0,
                 Some(iced::widget::Id::new("share-password")),
                 |eye| self.modal_nav_slot(
                     crate::keynav::RowAction::activate(
-                        Message::ToggleSecretVisibility(
+                        Message::Settings(SettingsMessage::ToggleSecretVisibility(
                             crate::state::SecretField::SharePassword,
-                        ),
+                        )),
                     ),
                     6.0,
                     false,

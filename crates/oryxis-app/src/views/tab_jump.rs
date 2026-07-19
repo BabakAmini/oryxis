@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{TabsMessage, SshMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, SshMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 use crate::widgets::{dir_align_x, dir_row};
@@ -129,7 +129,7 @@ impl Oryxis {
             quick_local,
             t("local_terminal").to_string(),
             false,
-            Message::OpenLocalShell,
+            Message::Settings(SettingsMessage::OpenLocalShell),
         )];
         // Search text parsing as `user@host[:port]` offers an immediate
         // ad-hoc connect, mirroring the new-tab picker's top row.

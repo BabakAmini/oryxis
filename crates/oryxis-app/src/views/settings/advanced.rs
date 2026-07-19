@@ -18,7 +18,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 t("debug_logging"),
                 self.setting_debug_logging,
-                Message::SettingToggleDebugLogging,
+                Message::Settings(SettingsMessage::SettingToggleDebugLogging),
             ),
             Space::new().height(4),
             text(t("debug_logging_desc")).size(11).color(OryxisColors::t().text_muted),
@@ -27,21 +27,21 @@ impl Oryxis {
             Space::new().height(8),
             dir_row(vec![
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::RevealDebugLog),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::RevealDebugLog)),
                     6.0,
                     styled_button(
                         crate::i18n::open_in_file_manager_label(),
-                        Message::RevealDebugLog,
+                        Message::Settings(SettingsMessage::RevealDebugLog),
                         OryxisColors::t().bg_selected,
                     ),
                 ),
                 Space::new().width(10).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ClearDebugLog),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ClearDebugLog)),
                     6.0,
                     styled_button(
                         t("debug_log_clear"),
-                        Message::ClearDebugLog,
+                        Message::Settings(SettingsMessage::ClearDebugLog),
                         OryxisColors::t().bg_selected,
                     ),
                 ),
@@ -51,7 +51,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 t("perf_overlay"),
                 self.setting_perf_overlay,
-                Message::SettingTogglePerfOverlay,
+                Message::Settings(SettingsMessage::SettingTogglePerfOverlay),
             ),
             Space::new().height(4),
             text(t("perf_overlay_desc")).size(11).color(OryxisColors::t().text_muted),
@@ -157,7 +157,7 @@ impl Oryxis {
             selected_token.to_string(),
             display,
             220.0,
-            Message::DownloadMirrorPicked,
+            |v| Message::Settings(SettingsMessage::DownloadMirrorPicked(v)),
         );
 
         let mut rows = column![
@@ -176,8 +176,8 @@ impl Oryxis {
                 10.0,
                 text_input(t("download_mirror_url_placeholder"), &ui.url_input)
                     .id(iced::widget::Id::new("set-download-mirror-url"))
-                    .on_input(Message::DownloadMirrorUrlEdited)
-                    .on_submit(Message::DownloadMirrorUrlCommitted)
+                    .on_input(|v| Message::Settings(SettingsMessage::DownloadMirrorUrlEdited(v)))
+                    .on_submit(Message::Settings(SettingsMessage::DownloadMirrorUrlCommitted))
                     .padding(10)
                     .width(360)
                     .style(crate::widgets::rounded_input_style)
@@ -187,21 +187,21 @@ impl Oryxis {
                 styled_button_opt(t("download_mirror_test_running"), None, OryxisColors::t().bg_selected)
             } else {
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::DownloadMirrorTest),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DownloadMirrorTest)),
                     6.0,
                     styled_button(
                         t("download_mirror_test"),
-                        Message::DownloadMirrorTest,
+                        Message::Settings(SettingsMessage::DownloadMirrorTest),
                         OryxisColors::t().bg_selected,
                     ),
                 )
             };
             let save_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::DownloadMirrorUrlCommitted),
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DownloadMirrorUrlCommitted)),
                 6.0,
                 styled_button(
                     t("save"),
-                    Message::DownloadMirrorUrlCommitted,
+                    Message::Settings(SettingsMessage::DownloadMirrorUrlCommitted),
                     OryxisColors::t().accent,
                 ),
             );

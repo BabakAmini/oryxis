@@ -12,7 +12,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{PluginMessage, AgentMessage, AiMessage, SyncMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, PluginMessage, AgentMessage, AiMessage, SyncMessage, Message, Oryxis};
 use crate::state::{PluginUiEntry, PluginUiStatus};
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_section, toggle_row_desc};
@@ -47,13 +47,13 @@ impl Oryxis {
                 // managed there, and its server on/off lives in the MCP
                 // settings section that appears once the plugin is present.
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SettingToggleSftpEnabled),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleSftpEnabled)),
                     8.0,
                     toggle_row_desc(
                         "SFTP",
                         crate::i18n::t("feature_sftp_desc"),
                         self.sftp_enabled,
-                        Message::SettingToggleSftpEnabled,
+                        Message::Settings(SettingsMessage::SettingToggleSftpEnabled),
                     ),
                 ),
                 Space::new().height(12),
@@ -69,13 +69,13 @@ impl Oryxis {
                 ),
                 Space::new().height(12),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SettingToggleRemoteDesktop),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleRemoteDesktop)),
                     8.0,
                     toggle_row_desc(
                         crate::i18n::t("remote_desktop"),
                         crate::i18n::t("feature_remote_desktop_desc"),
                         self.remote_desktop_enabled,
-                        Message::SettingToggleRemoteDesktop,
+                        Message::Settings(SettingsMessage::SettingToggleRemoteDesktop),
                     ),
                 ),
                 Space::new().height(12),

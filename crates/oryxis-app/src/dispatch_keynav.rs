@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{TabsMessage, EditorMessage, KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -468,7 +468,7 @@ impl Oryxis {
             Some((FocusZone::SubNav, NavItem::SettingsSection(section))) => {
                 // Same keep-focus contract for the Settings sidebar.
                 self.keynav.keep_focus_through_change_view = true;
-                Some(self.update(Message::ChangeSettingsSection(section)))
+                Some(self.update(Message::Settings(SettingsMessage::ChangeSettingsSection(section))))
             }
             Some((FocusZone::Toolbar, NavItem::Toolbar(item))) => {
                 let msg = self.toolbar_item_message(item)?;
@@ -632,7 +632,7 @@ impl Oryxis {
     fn toolbar_item_message(&self, item: ToolbarItem) -> Option<Message> {
         use crate::state::SortMenuKind;
         Some(match (self.active_view, item) {
-            (View::Dashboard, ToolbarItem::ViewToggle) => Message::ToggleHostListView,
+            (View::Dashboard, ToolbarItem::ViewToggle) => Message::Settings(SettingsMessage::ToggleHostListView),
             (View::Dashboard, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
             (View::Dashboard, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Hosts)),
