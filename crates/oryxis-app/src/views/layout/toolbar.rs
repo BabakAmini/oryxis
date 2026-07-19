@@ -254,7 +254,7 @@ impl Oryxis {
                 View::Proxies => (
                     "search_proxies",
                     self.proxy_search.as_str(),
-                    Message::ProxySearchChanged,
+                    |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxySearchChanged(v)),
                 ),
                 _ => return Space::new().width(0).height(0).into(),
             };

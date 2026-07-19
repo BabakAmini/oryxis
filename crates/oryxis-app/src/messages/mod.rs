@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod proxy_identity;
+pub use proxy_identity::ProxyIdentityMessage;
 mod plugin;
 pub use plugin::PluginMessage;
 mod agent;
@@ -1035,7 +1037,8 @@ pub enum Message {
     /// Periodic flush of buffered session-log output to the vault.
     SessionLogFlushTick,
     CloudSearchChanged(String),
-    ProxySearchChanged(String),
+    // ProxyIdentity (handle_proxy_identity)
+    ProxyIdentity(ProxyIdentityMessage),
 
     // Terminal side panel (Chat / Snippets / Host config tabs)
     // AI settings + chat sidebar (handle_ai)
@@ -1541,17 +1544,6 @@ pub enum Message {
     PickOpenChanged(bool),
 
     // Proxy Identities (Settings → Proxies)
-    ShowProxyIdentityForm(Option<Uuid>),
-    HideProxyIdentityForm,
-    ProxyIdentityFormLabelChanged(String),
-    ProxyIdentityFormKindChanged(crate::state::ProxyKind),
-    ProxyIdentityFormHostChanged(String),
-    ProxyIdentityFormPortChanged(String),
-    ProxyIdentityFormUsernameChanged(String),
-    ProxyIdentityFormPasswordChanged(String),
-    ProxyIdentityFormPasswordToggleVisibility,
-    SaveProxyIdentity,
-    DeleteProxyIdentity(Uuid),
 
     // Cloud Accounts
     ShowCloudForm(Option<Uuid>),

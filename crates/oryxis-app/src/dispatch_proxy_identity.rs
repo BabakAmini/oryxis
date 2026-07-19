@@ -10,7 +10,7 @@ use iced::Task;
 use oryxis_core::models::connection::ProxyType;
 use oryxis_core::models::proxy_identity::ProxyIdentity;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{ProxyIdentityMessage, Message, Oryxis};
 use crate::state::ProxyKind;
 
 impl Oryxis {
@@ -19,7 +19,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::ShowProxyIdentityForm(maybe_id) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(maybe_id)) => {
                 self.overlay = None;
                 self.proxy_identity_form.visible = true;
                 self.proxy_identity_form.error = None;
@@ -65,14 +65,14 @@ impl Oryxis {
                 }
                 self.proxy_identity_form.password_visible = false;
             }
-            Message::HideProxyIdentityForm => {
+            Message::ProxyIdentity(ProxyIdentityMessage::HideProxyIdentityForm) => {
                 self.proxy_identity_form.visible = false;
                 self.proxy_identity_form.error = None;
             }
-            Message::ProxyIdentityFormLabelChanged(v) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormLabelChanged(v)) => {
                 self.proxy_identity_form.label = v;
             }
-            Message::ProxyIdentityFormKindChanged(kind) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormKindChanged(kind)) => {
                 // The picker only ever feeds back the four wire types
                 // (SOCKS5/SOCKS4/HTTP/Command); guarding here keeps the
                 // form coherent if a future caller passes None/Identity.
@@ -88,23 +88,23 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ProxyIdentityFormHostChanged(v) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormHostChanged(v)) => {
                 self.proxy_identity_form.host = v;
             }
-            Message::ProxyIdentityFormPortChanged(v) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPortChanged(v)) => {
                 self.proxy_identity_form.port = v;
             }
-            Message::ProxyIdentityFormUsernameChanged(v) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormUsernameChanged(v)) => {
                 self.proxy_identity_form.username = v;
             }
-            Message::ProxyIdentityFormPasswordChanged(v) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v)) => {
                 self.proxy_identity_form.password.set(v);
             }
-            Message::ProxyIdentityFormPasswordToggleVisibility => {
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility) => {
                 self.proxy_identity_form.password_visible =
                     !self.proxy_identity_form.password_visible;
             }
-            Message::SaveProxyIdentity => {
+            Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity) => {
                 let label = self.proxy_identity_form.label.trim().to_string();
                 if label.is_empty() {
                     self.proxy_identity_form.error =
@@ -189,13 +189,13 @@ impl Oryxis {
                     }
                 }
             }
-            Message::DeleteProxyIdentity(id) => {
+            Message::ProxyIdentity(ProxyIdentityMessage::DeleteProxyIdentity(id)) => {
                 if let Some(vault) = &self.vault {
                     let _ = vault.delete_proxy_identity(&id);
                     self.load_data_from_vault();
                 }
             }
-            Message::ProxySearchChanged(v) => self.proxy_search = v,
+            Message::ProxyIdentity(ProxyIdentityMessage::ProxySearchChanged(v)) => self.proxy_search = v,
             m => return Err(m),
         }
         Ok(Task::none())

@@ -801,7 +801,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::plus(),
                     crate::i18n::t("new_proxy_identity"),
-                    Message::ShowProxyIdentityForm(None),
+                    Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)),
                     secondary,
                 ));
             }

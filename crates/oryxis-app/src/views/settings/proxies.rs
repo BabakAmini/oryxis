@@ -37,7 +37,7 @@ impl Oryxis {
             let kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
                 == Some(crate::keynav::NavItem::Proxy(id));
             let edit_btn = button(text(crate::i18n::t("edit")).size(12))
-                .on_press(Message::ShowProxyIdentityForm(Some(id)))
+                .on_press(Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(Some(id))))
                 .padding(Padding {
                     top: 4.0,
                     right: 10.0,
@@ -61,7 +61,7 @@ impl Oryxis {
                     }
                 });
             let delete_btn = button(text(crate::i18n::t("delete")).size(12))
-                .on_press(Message::DeleteProxyIdentity(id))
+                .on_press(Message::ProxyIdentity(ProxyIdentityMessage::DeleteProxyIdentity(id)))
                 .padding(Padding {
                     top: 4.0,
                     right: 10.0,
@@ -180,7 +180,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .padding(Padding { top: 0.0, right: 14.0, bottom: 0.0, left: 14.0 }),
             )
-            .on_press(Message::ShowProxyIdentityForm(None))
+            .on_press(Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -208,7 +208,7 @@ impl Oryxis {
                 crate::i18n::t("proxy_identities_empty").to_string(),
                 Some((
                     crate::i18n::t("new_proxy_identity").to_string(),
-                    Message::ShowProxyIdentityForm(None),
+                    Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)),
                 )),
             );
             // No toolbar / rows on this path; drop anything recorded
@@ -306,7 +306,7 @@ impl Oryxis {
             wire_kinds,
             |k: &ProxyKind| k.to_string(),
         )
-        .on_select(Message::ProxyIdentityFormKindChanged)
+        .on_select(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormKindChanged(v)))
         .id(iced::widget::Id::new("panel-proxy-identity-kind"))
         .on_open(Message::PickOpenChanged(true))
         .on_close(Message::PickOpenChanged(false))
@@ -327,8 +327,8 @@ impl Oryxis {
         };
         // Shared form chrome: accent Save, muted Cancel.
         let save_btn =
-            crate::widgets::form_save_button(save_label, Some(Message::SaveProxyIdentity));
-        let cancel_btn = crate::widgets::form_cancel_button(Message::HideProxyIdentityForm);
+            crate::widgets::form_save_button(save_label, Some(Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity)));
+        let cancel_btn = crate::widgets::form_cancel_button(Message::ProxyIdentity(ProxyIdentityMessage::HideProxyIdentityForm));
 
         // Use the shared `panel_field` helper for label/input pairs
         // gives the same 4-px gap between label and control as every
@@ -344,7 +344,7 @@ impl Oryxis {
                     10.0,
                     text_input("home-bastion", &self.proxy_identity_form.label)
                         .id(iced::widget::Id::new("panel-proxy-identity-label"))
-                        .on_input(Message::ProxyIdentityFormLabelChanged)
+                        .on_input(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormLabelChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -374,7 +374,7 @@ impl Oryxis {
                         &self.proxy_identity_form.host,
                     )
                     .id(iced::widget::Id::new("panel-proxy-identity-host"))
-                    .on_input(Message::ProxyIdentityFormHostChanged)
+                    .on_input(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormHostChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -390,7 +390,7 @@ impl Oryxis {
                     10.0,
                     text_input("1080", &self.proxy_identity_form.port)
                         .id(iced::widget::Id::new("panel-proxy-identity-port"))
-                        .on_input(Message::ProxyIdentityFormPortChanged)
+                        .on_input(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPortChanged(v)))
                         .padding(6)
                         .width(70)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -410,7 +410,7 @@ impl Oryxis {
                         &self.proxy_identity_form.username,
                     )
                     .id(iced::widget::Id::new("panel-proxy-identity-username"))
-                    .on_input(Message::ProxyIdentityFormUsernameChanged)
+                    .on_input(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormUsernameChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -427,16 +427,16 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     pw_placeholder,
                     self.proxy_identity_form.password.as_str(),
-                    Message::ProxyIdentityFormPasswordChanged,
-                    Some(Message::SaveProxyIdentity),
+                    |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v)),
+                    Some(Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity)),
                     self.proxy_identity_form.password_visible,
-                    Message::ProxyIdentityFormPasswordToggleVisibility,
+                    Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility),
                     10.0,
                     Some(iced::widget::Id::new("panel-proxy-identity-password")),
                     |eye| {
                         self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::ProxyIdentityFormPasswordToggleVisibility,
+                                Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility),
                             ),
                             6.0,
                             eye,
@@ -462,7 +462,7 @@ impl Oryxis {
                     .into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideProxyIdentityForm)
+                    .on_press(Message::ProxyIdentity(ProxyIdentityMessage::HideProxyIdentityForm))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -495,12 +495,12 @@ impl Oryxis {
         // built above) so they land after the form fields.
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideProxyIdentityForm),
+                crate::keynav::RowAction::activate(Message::ProxyIdentity(ProxyIdentityMessage::HideProxyIdentityForm)),
                 6.0,
                 cancel_btn,
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SaveProxyIdentity),
+                crate::keynav::RowAction::activate(Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity)),
                 6.0,
                 save_btn,
             ),
