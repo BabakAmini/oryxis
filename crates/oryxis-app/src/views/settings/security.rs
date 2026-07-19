@@ -723,21 +723,21 @@ impl Oryxis {
     fn security_export_import_card(&self) -> iced::widget::Column<'_, Message> {
         // Export/Import section
         let export_btn = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ExportVault),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportVault)),
             6.0,
-            styled_button(crate::i18n::t("export_vault"), Message::ExportVault, OryxisColors::t().accent),
+            styled_button(crate::i18n::t("export_vault"), Message::Share(ShareMessage::ExportVault), OryxisColors::t().accent),
         );
         let import_btn = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ImportVault),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportVault)),
             6.0,
-            styled_button(crate::i18n::t("import_vault"), Message::ImportVault, OryxisColors::t().text_muted),
+            styled_button(crate::i18n::t("import_vault"), Message::Share(ShareMessage::ImportVault), OryxisColors::t().text_muted),
         );
         // Restore from a remote host. Export-to-SFTP is reached from
         // inside the export dialog (it needs the password first).
         let import_sftp_btn = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ImportFromSftp),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportFromSftp)),
             6.0,
-            styled_button(crate::i18n::t("import_from_sftp"), Message::ImportFromSftp, OryxisColors::t().text_muted),
+            styled_button(crate::i18n::t("import_from_sftp"), Message::Share(ShareMessage::ImportFromSftp), OryxisColors::t().text_muted),
         );
 
         let mut export_import_section: iced::widget::Column<'_, Message> = column![
@@ -759,7 +759,7 @@ impl Oryxis {
                 container(crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("export_password"),
                     &self.export_password,
-                    Message::ExportPasswordChanged,
+                    |v| Message::Share(ShareMessage::ExportPasswordChanged(v)),
                     None,
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::ExportPassword),
@@ -791,11 +791,11 @@ impl Oryxis {
                 // Enter/Space flips the checkbox from the keyboard,
                 // same message the mouse toggle produces.
                 categories = categories.push(self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ExportToggleCategory(cat)),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportToggleCategory(cat))),
                     4.0,
                     checkbox(self.export_selection.get(cat))
                         .label(crate::i18n::t(category_label_key(cat)))
-                        .on_toggle(move |_| Message::ExportToggleCategory(cat))
+                        .on_toggle(move |_| Message::Share(ShareMessage::ExportToggleCategory(cat)))
                         .size(16)
                         .text_size(13)
                         .into(),
@@ -805,14 +805,14 @@ impl Oryxis {
             // category, only meaningful when Keys is being exported.
             let keys_toggle: Element<'_, Message> = if self.export_selection.keys {
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ExportToggleKeys),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportToggleKeys)),
                     8.0,
                     dir_row(vec![
                         text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary).into(),
                         Space::new().width(Length::Fill).into(),
                         button(
                             text(if self.export_include_keys { "ON" } else { "OFF" }).size(12)
-                        ).on_press(Message::ExportToggleKeys).style(move |_theme, _status| {
+                        ).on_press(Message::Share(ShareMessage::ExportToggleKeys)).style(move |_theme, _status| {
                             button::Style {
                                 background: Some(Background::Color(if self.export_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
                                 border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -826,19 +826,19 @@ impl Oryxis {
                 Space::new().height(0).into()
             };
             let confirm_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ExportConfirm),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportConfirm)),
                 6.0,
-                styled_button(crate::i18n::t("export_confirm"), Message::ExportConfirm, OryxisColors::t().success),
+                styled_button(crate::i18n::t("export_confirm"), Message::Share(ShareMessage::ExportConfirm), OryxisColors::t().success),
             );
             let sftp_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ExportToSftp),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportToSftp)),
                 6.0,
-                styled_button(crate::i18n::t("export_to_sftp"), Message::ExportToSftp, OryxisColors::t().accent),
+                styled_button(crate::i18n::t("export_to_sftp"), Message::Share(ShareMessage::ExportToSftp), OryxisColors::t().accent),
             );
             let cancel_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportImportDismiss)),
                 6.0,
-                styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+                styled_button(crate::i18n::t("cancel"), Message::Share(ShareMessage::ExportImportDismiss), OryxisColors::t().text_muted),
             );
             export_import_section = export_import_section
                 .push(Space::new().height(12))
@@ -863,12 +863,12 @@ impl Oryxis {
                 container(crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("import_password"),
                     &self.import_password,
-                    Message::ImportPasswordChanged,
+                    |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
                     // Enter inspects in phase 1, imports in phase 2.
                     Some(if self.import_summary.is_some() {
-                        Message::ImportConfirm
+                        Message::Share(ShareMessage::ImportConfirm)
                     } else {
-                        Message::ImportInspect
+                        Message::Share(ShareMessage::ImportInspect)
                     }),
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::ImportPassword),
@@ -913,11 +913,11 @@ impl Oryxis {
                         // keyboard, same message the mouse toggle
                         // produces. Absent categories stay read-only.
                         categories = categories.push(self.settings_nav_slot(
-                            crate::keynav::RowAction::activate(Message::ImportToggleCategory(cat)),
+                            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportToggleCategory(cat))),
                             4.0,
                             checkbox(self.import_selection.get(cat))
                                 .label(format!("{label} ({count})"))
-                                .on_toggle(move |_| Message::ImportToggleCategory(cat))
+                                .on_toggle(move |_| Message::Share(ShareMessage::ImportToggleCategory(cat)))
                                 .size(16)
                                 .text_size(13)
                                 .into(),
@@ -934,14 +934,14 @@ impl Oryxis {
                 // above) so the recording order follows the on-screen
                 // order: checkboxes first, then Confirm, then Cancel.
                 let confirm_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ImportConfirm),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportConfirm)),
                     6.0,
-                    styled_button(crate::i18n::t("import_confirm"), Message::ImportConfirm, OryxisColors::t().success),
+                    styled_button(crate::i18n::t("import_confirm"), Message::Share(ShareMessage::ImportConfirm), OryxisColors::t().success),
                 );
                 let cancel_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportImportDismiss)),
                     6.0,
-                    styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+                    styled_button(crate::i18n::t("cancel"), Message::Share(ShareMessage::ExportImportDismiss), OryxisColors::t().text_muted),
                 );
                 export_import_section = export_import_section
                     .push(Space::new().height(10))
@@ -951,14 +951,14 @@ impl Oryxis {
             } else {
                 // Phase 1: enter the password, then inspect.
                 let inspect_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ImportInspect),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportInspect)),
                     6.0,
-                    styled_button(crate::i18n::t("import_inspect"), Message::ImportInspect, OryxisColors::t().accent),
+                    styled_button(crate::i18n::t("import_inspect"), Message::Share(ShareMessage::ImportInspect), OryxisColors::t().accent),
                 );
                 let cancel_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ExportImportDismiss),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportImportDismiss)),
                     6.0,
-                    styled_button(crate::i18n::t("cancel"), Message::ExportImportDismiss, OryxisColors::t().text_muted),
+                    styled_button(crate::i18n::t("cancel"), Message::Share(ShareMessage::ExportImportDismiss), OryxisColors::t().text_muted),
                 );
                 export_import_section = export_import_section
                     .push(Space::new().height(8))
@@ -991,9 +991,9 @@ impl Oryxis {
                 &host_options,
                 &current_host_label,
                 move |label: String| {
-                    Message::SftpBackupHostSelected(
+                    Message::Share(ShareMessage::SftpBackupHostSelected(
                         cycle_lookup.get(&label).copied().unwrap_or(0),
-                    )
+                    ))
                 },
             );
             let host_picker = self.settings_nav_slot(
@@ -1001,9 +1001,9 @@ impl Oryxis {
                 8.0,
                 pick_list(selected_host, host_options, |s: &String| s.clone())
                     .on_select(move |label: String| {
-                        Message::SftpBackupHostSelected(
+                        Message::Share(ShareMessage::SftpBackupHostSelected(
                             host_lookup.get(&label).copied().unwrap_or(0),
-                        )
+                        ))
                     })
                     .on_open(Message::PickOpenChanged(true))
                     .on_close(Message::PickOpenChanged(false))
@@ -1017,8 +1017,8 @@ impl Oryxis {
                 10.0,
                 text_input("vault.oryxis", &self.sftp_backup.path)
                     .id(iced::widget::Id::new("set-security-sftp-path"))
-                    .on_input(Message::SftpBackupPathChanged)
-                    .on_submit(Message::SftpBackupConfirm)
+                    .on_input(|v| Message::Share(ShareMessage::SftpBackupPathChanged(v)))
+                    .on_submit(Message::Share(ShareMessage::SftpBackupConfirm))
                     .width(300)
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
@@ -1038,8 +1038,8 @@ impl Oryxis {
                     container(crate::widgets::password_input_with_eye_nav(
                         crate::i18n::t("import_password"),
                         &self.import_password,
-                        Message::ImportPasswordChanged,
-                        Some(Message::SftpBackupConfirm),
+                        |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
+                        Some(Message::Share(ShareMessage::SftpBackupConfirm)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ImportPassword),
                         Message::ToggleSecretVisibility(
@@ -1067,7 +1067,7 @@ impl Oryxis {
             let confirm_msg = if self.sftp_backup.busy {
                 None
             } else {
-                Some(Message::SftpBackupConfirm)
+                Some(Message::Share(ShareMessage::SftpBackupConfirm))
             };
             let confirm_label = if self.sftp_backup.busy {
                 crate::i18n::t("sftp_backup_working")
@@ -1090,11 +1090,11 @@ impl Oryxis {
                 confirm_btn
             };
             let cancel_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::SftpBackupCancel),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::SftpBackupCancel)),
                 6.0,
                 styled_button(
                     crate::i18n::t("cancel"),
-                    Message::SftpBackupCancel,
+                    Message::Share(ShareMessage::SftpBackupCancel),
                     OryxisColors::t().text_muted,
                 ),
             );
@@ -1161,11 +1161,11 @@ impl Oryxis {
     /// yet.
     fn security_ssh_import_card(&self) -> iced::widget::Column<'_, Message> {
         let ssh_config_btn = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ImportSshConfig),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportSshConfig)),
             6.0,
             styled_button(
                 t("import_ssh_config_btn"),
-                Message::ImportSshConfig,
+                Message::Share(ShareMessage::ImportSshConfig),
                 OryxisColors::t().accent,
             ),
         );

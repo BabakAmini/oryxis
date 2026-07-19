@@ -115,7 +115,7 @@ impl Oryxis {
         ];
         if is_ssh_host {
             items = items
-                .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::ShareConnection(idx), OryxisColors::t().text_secondary));
+                .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::Share(ShareMessage::ShareConnection(idx)), OryxisColors::t().text_secondary));
             // SFTP is an optional feature: its entry hides with the
             // toggle, like every other SFTP surface.
             if self.sftp_enabled {

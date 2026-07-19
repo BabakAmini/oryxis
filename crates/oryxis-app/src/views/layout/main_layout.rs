@@ -240,7 +240,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_share_dialog(),
-                    Some(Message::ShareDismiss),
+                    Some(Message::Share(ShareMessage::ShareDismiss)),
                     0.0,
                 ),
                 resize_overlay,
@@ -255,7 +255,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_ssh_import_dialog(),
-                    Some(Message::SshImportDismiss),
+                    Some(Message::Share(ShareMessage::SshImportDismiss)),
                     0.0,
                 ),
                 resize_overlay,

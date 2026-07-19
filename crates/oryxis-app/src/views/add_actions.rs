@@ -6,7 +6,7 @@
 
 use iced::Color;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{ShareMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 
@@ -37,13 +37,13 @@ impl Oryxis {
             AddHostAction {
                 icon: iced_fonts::lucide::download().into(),
                 label: crate::i18n::t("import_from_file"),
-                msg: Message::ImportVault,
+                msg: Message::Share(ShareMessage::ImportVault),
                 color: secondary,
             },
             AddHostAction {
                 icon: iced_fonts::lucide::file_code().into(),
                 label: crate::i18n::t("import_ssh_config_btn"),
-                msg: Message::ImportSshConfig,
+                msg: Message::Share(ShareMessage::ImportSshConfig),
                 color: secondary,
             },
         ];
@@ -66,7 +66,7 @@ impl Oryxis {
             actions.push(AddHostAction {
                 icon: iced_fonts::lucide::upload().into(),
                 label: crate::i18n::t("export_hosts"),
-                msg: Message::ShowExportHosts(self.active_group),
+                msg: Message::Share(ShareMessage::ShowExportHosts(self.active_group)),
                 color: secondary,
             });
         }

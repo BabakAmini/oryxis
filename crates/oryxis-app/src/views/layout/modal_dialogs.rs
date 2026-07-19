@@ -26,7 +26,7 @@ impl Oryxis {
             container(crate::widgets::password_input_with_eye_nav(
                 crate::i18n::t("export_password"),
                 &self.share.password,
-                Message::SharePasswordChanged,
+                |v| Message::Share(ShareMessage::SharePasswordChanged(v)),
                 None,
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::SharePassword),
@@ -60,24 +60,24 @@ impl Oryxis {
             for g in &self.groups {
                 let id = g.id;
                 list = list.push(self.modal_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ShareToggleGroup(id)),
+                    crate::keynav::RowAction::activate(Message::Share(ShareMessage::ShareToggleGroup(id))),
                     4.0,
                     false,
                     iced::widget::checkbox(self.share.groups.contains(&id))
                         .label(g.label.as_str())
-                        .on_toggle(move |_| Message::ShareToggleGroup(id))
+                        .on_toggle(move |_| Message::Share(ShareMessage::ShareToggleGroup(id)))
                         .size(16)
                         .text_size(13)
                         .into(),
                 ));
             }
             list = list.push(self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShareToggleUngrouped),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::ShareToggleUngrouped)),
                 4.0,
                 false,
                 iced::widget::checkbox(self.share.include_ungrouped)
                     .label(crate::i18n::t("export_ungrouped"))
-                    .on_toggle(|_| Message::ShareToggleUngrouped)
+                    .on_toggle(|_| Message::Share(ShareMessage::ShareToggleUngrouped))
                     .size(16)
                     .text_size(13)
                     .into(),
@@ -110,12 +110,12 @@ impl Oryxis {
                     text(crate::i18n::t("include_private_keys")).size(13).color(OryxisColors::t().text_secondary),
                     Space::new().width(Length::Fill),
                     self.modal_nav_slot(
-                        crate::keynav::RowAction::activate(Message::ShareToggleKeys),
+                        crate::keynav::RowAction::activate(Message::Share(ShareMessage::ShareToggleKeys)),
                         4.0,
                         false,
                         button(
                             text(if share_include_keys { "ON" } else { "OFF" }).size(12)
-                        ).on_press(Message::ShareToggleKeys).style(move |_theme, _status| {
+                        ).on_press(Message::Share(ShareMessage::ShareToggleKeys)).style(move |_theme, _status| {
                             button::Style {
                                 background: Some(Background::Color(if share_include_keys { OryxisColors::t().success } else { OryxisColors::t().bg_hover })),
                                 border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -128,17 +128,17 @@ impl Oryxis {
                 Space::new().height(12),
                 row![
                     self.modal_nav_slot_default(
-                        crate::keynav::RowAction::activate(Message::ShareConfirm),
+                        crate::keynav::RowAction::activate(Message::Share(ShareMessage::ShareConfirm)),
                         6.0,
                         true,
-                        styled_button(crate::i18n::t("share"), Message::ShareConfirm, OryxisColors::t().accent),
+                        styled_button(crate::i18n::t("share"), Message::Share(ShareMessage::ShareConfirm), OryxisColors::t().accent),
                     ),
                     Space::new().width(8),
                     self.modal_nav_slot(
-                        crate::keynav::RowAction::activate(Message::ShareDismiss),
+                        crate::keynav::RowAction::activate(Message::Share(ShareMessage::ShareDismiss)),
                         6.0,
                         false,
-                        styled_button(crate::i18n::t("cancel"), Message::ShareDismiss, OryxisColors::t().text_muted),
+                        styled_button(crate::i18n::t("cancel"), Message::Share(ShareMessage::ShareDismiss), OryxisColors::t().text_muted),
                     ),
                 ],
                 if let Some(status) = &self.share.status {
@@ -285,22 +285,22 @@ impl Oryxis {
         // the screen (the checkbox list is constructed next).
         self.modal_nav_reset();
         let select_all_btn = self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::SshImportSelectAll(true)),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::SshImportSelectAll(true))),
             6.0,
             false,
             styled_button(
                 crate::i18n::t("select_all"),
-                Message::SshImportSelectAll(true),
+                Message::Share(ShareMessage::SshImportSelectAll(true)),
                 OryxisColors::t().accent,
             ),
         );
         let deselect_all_btn = self.modal_nav_slot(
-            crate::keynav::RowAction::activate(Message::SshImportSelectAll(false)),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::SshImportSelectAll(false))),
             6.0,
             false,
             styled_button(
                 crate::i18n::t("deselect_all"),
-                Message::SshImportSelectAll(false),
+                Message::Share(ShareMessage::SshImportSelectAll(false)),
                 OryxisColors::t().text_muted,
             ),
         );
@@ -328,12 +328,12 @@ impl Oryxis {
                 label.push_str(crate::i18n::t("ssh_import_exists"));
             }
             list = list.push(self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::SshImportToggle(i)),
+                crate::keynav::RowAction::activate(Message::Share(ShareMessage::SshImportToggle(i))),
                 4.0,
                 false,
                 iced::widget::checkbox(checked)
                     .label(label)
-                    .on_toggle(move |_| Message::SshImportToggle(i))
+                    .on_toggle(move |_| Message::Share(ShareMessage::SshImportToggle(i)))
                     .size(16)
                     .text_size(13)
                     .into(),
@@ -364,17 +364,17 @@ impl Oryxis {
                 Space::new().height(12),
                 row![
                     self.modal_nav_slot_default(
-                        crate::keynav::RowAction::activate(Message::SshImportConfirm),
+                        crate::keynav::RowAction::activate(Message::Share(ShareMessage::SshImportConfirm)),
                         6.0,
                         true,
-                        styled_button(crate::i18n::t("import_from_file"), Message::SshImportConfirm, OryxisColors::t().success),
+                        styled_button(crate::i18n::t("import_from_file"), Message::Share(ShareMessage::SshImportConfirm), OryxisColors::t().success),
                     ),
                     Space::new().width(8),
                     self.modal_nav_slot(
-                        crate::keynav::RowAction::activate(Message::SshImportDismiss),
+                        crate::keynav::RowAction::activate(Message::Share(ShareMessage::SshImportDismiss)),
                         6.0,
                         false,
-                        styled_button(crate::i18n::t("cancel"), Message::SshImportDismiss, OryxisColors::t().text_muted),
+                        styled_button(crate::i18n::t("cancel"), Message::Share(ShareMessage::SshImportDismiss), OryxisColors::t().text_muted),
                     ),
                 ],
             ]
