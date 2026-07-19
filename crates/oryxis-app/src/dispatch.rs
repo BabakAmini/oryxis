@@ -196,6 +196,7 @@ impl Oryxis {
             Message::Keys(m) => return self.handle_keys(m),
             Message::Cloud(m) => return self.handle_cloud(m),
             Message::Terminal(m) => return self.handle_terminal(m),
+            Message::Ssh(m) => return self.handle_ssh(m),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -205,7 +206,6 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_sftp_files);
         let message = try_handler!(self, message, handle_sftp_archive);
         let message = try_handler!(self, message, handle_sftp);
-        let message = try_handler!(self, message, handle_ssh);
         let message = try_handler!(self, message, handle_tabs);
 
         // Every Message variant is now claimed by one of the domain handlers

@@ -61,19 +61,19 @@ impl Oryxis {
     /// (or the inline match) get their turn.
     pub(crate) fn handle_ssh(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SshMessage,
+    ) -> Task<Message> {
         let message = match self.handle_ssh_hostkey(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         let message = match self.handle_ssh_kbi(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         match message {
             // -- SSH connection --
-            Message::Ssh(SshMessage::ConnectSsh(idx)) => {
+            SshMessage::ConnectSsh(idx) => {
                 self.card_context_menu = None;
                 self.overlay = None;
                 // Close the new-tab picker if the connection was picked there.
@@ -81,15 +81,15 @@ impl Oryxis {
                 // If this pick is filling a split pane (not a new tab),
                 // route to the per-pane connect path instead.
                 if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
-                    return Ok(self.connect_ssh_into_pane(idx, tab_idx, target, axis));
+                    return self.connect_ssh_into_pane(idx, tab_idx, target, axis);
                 }
                 if let Some(conn) = self.connections.get(idx).cloned() {
-                    return Ok(
+                    return 
                         self.start_ssh_tab(conn, crate::state::ProgressOrigin::Saved(idx))
-                    );
+                    ;
                 }
             }
-            Message::Ssh(SshMessage::QuickConnect(entry)) => {
+            SshMessage::QuickConnect(entry) => {
                 self.card_context_menu = None;
                 self.overlay = None;
                 self.show_new_tab_picker = false;
@@ -104,17 +104,17 @@ impl Oryxis {
                     .conn
                     .clone();
                 if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
-                    return Ok(self.quick_connect_into_pane(id, tab_idx, target, axis));
+                    return self.quick_connect_into_pane(id, tab_idx, target, axis);
                 }
-                return Ok(self.start_ssh_tab(conn, crate::state::ProgressOrigin::Quick(id)));
+                return self.start_ssh_tab(conn, crate::state::ProgressOrigin::Quick(id));
             }
-            Message::Ssh(SshMessage::SshProgress(step, log)) => {
+            SshMessage::SshProgress(step, log) => {
                 if let Some(ref mut progress) = self.connecting {
                     progress.step = step;
                     progress.logs.push((step, log));
                 }
             }
-            Message::Ssh(SshMessage::SshConnected(pane_id, session)) => {
+            SshMessage::SshConnected(pane_id, session) => {
                 let mut detect_for: Option<(Uuid, Arc<SshSession>)> = None;
                 if let Some(tab_idx) = self.pane_tab_index(pane_id) {
                     let label = self.tabs[tab_idx].label.clone();
@@ -277,18 +277,18 @@ impl Oryxis {
                     _ => Task::none(),
                 };
                 if let Some((conn_id, sess)) = detect_for {
-                    return Ok(Task::batch([
+                    return Task::batch([
                         files_sync,
                         hybrid_sftp,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::Ssh(SshMessage::OsDetected(id, os)),
                         ),
-                    ]));
+                    ]);
                 }
-                return Ok(Task::batch([files_sync, hybrid_sftp]));
+                return Task::batch([files_sync, hybrid_sftp]);
             }
-            Message::Ssh(SshMessage::OsDetected(conn_id, os)) => {
+            SshMessage::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.
                 // Quick-connect hosts update in memory only (tab badge,
                 // save-host prefill); nothing is written to the vault.
@@ -302,7 +302,7 @@ impl Oryxis {
                 }
                 tracing::info!("OS detected for {}: {:?}", conn_id, os);
             }
-            Message::Ssh(SshMessage::SshDisconnected(pane_id)) => {
+            SshMessage::SshDisconnected(pane_id) => {
                 // Persist whatever this pane recorded before we mark the
                 // log ended; otherwise the tail of the session is lost.
                 self.flush_session_logs_final();
@@ -373,7 +373,7 @@ impl Oryxis {
                         {
                             state.process(b"\r\n[disconnected]\r\n");
                         }
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                     self.tabs[tab_idx].label = format!("{} (disconnected)", label);
                     // Surface the disconnect to the user. Without this the
@@ -383,15 +383,15 @@ impl Oryxis {
                     // when the actual reconnect attempt starts, so the
                     // wording here is intentionally past-tense only.
                     self.set_toast(crate::i18n::t("disconnected_idle").to_string());
-                    return Ok(Task::perform(
+                    return Task::perform(
                         async {
                             tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
                         },
                         |_| Message::ToastClear,
-                    ));
+                    );
                 }
             }
-            Message::Ssh(SshMessage::SshCloseProgress) => {
+            SshMessage::SshCloseProgress => {
                 // Close connection progress, remove the tab
                 if let Some(ref progress) = self.connecting {
                     let tab_idx = progress.tab_idx;
@@ -406,7 +406,7 @@ impl Oryxis {
                 self.active_tab = None;
                 self.active_view = View::Dashboard;
             }
-            Message::Ssh(SshMessage::SshEditFromProgress) => {
+            SshMessage::SshEditFromProgress => {
                 if let Some(ref progress) = self.connecting {
                     let origin = progress.origin;
                     let tab_idx = progress.tab_idx;
@@ -442,7 +442,7 @@ impl Oryxis {
                     }
                     self.active_tab = None;
                     self.active_view = View::Dashboard;
-                    return Ok(match origin {
+                    return match origin {
                         crate::state::ProgressOrigin::Saved(idx) => {
                             self.update(Message::Editor(EditorMessage::EditConnection(idx)))
                         }
@@ -452,10 +452,10 @@ impl Oryxis {
                         crate::state::ProgressOrigin::Quick(id) => {
                             self.update(Message::Editor(EditorMessage::EditQuickHost(id)))
                         }
-                    });
+                    };
                 }
             }
-            Message::Ssh(SshMessage::SshRetry) => {
+            SshMessage::SshRetry => {
                 if let Some(ref progress) = self.connecting {
                     let origin = progress.origin;
                     let tab_idx = progress.tab_idx;
@@ -465,7 +465,7 @@ impl Oryxis {
                         self.adjust_last_terminal_tab_after_remove(tab_idx);
                     }
                     self.active_tab = None;
-                    return Ok(match origin {
+                    return match origin {
                         crate::state::ProgressOrigin::Saved(idx) => {
                             self.update(Message::Ssh(SshMessage::ConnectSsh(idx)))
                         }
@@ -476,10 +476,10 @@ impl Oryxis {
                                 None => Task::none(),
                             }
                         }
-                    });
+                    };
                 }
             }
-            Message::Ssh(SshMessage::PaneConnectError(pane_id, msg)) => {
+            SshMessage::PaneConnectError(pane_id, msg) => {
                 // Identity / key switch on a split-pane quick connect: the
                 // error is the cancel we provoked, reconnect the same pane
                 // in place with the mutated entry.
@@ -500,7 +500,7 @@ impl Oryxis {
                             b"\r\nRetrying with the selected identity...\r\n",
                         );
                     }
-                    return Ok(self.spawn_ssh_for_pane_quick(qid, tab_idx, pane_id));
+                    return self.spawn_ssh_for_pane_quick(qid, tab_idx, pane_id);
                 }
                 // Surface the failure inside the pane that was connecting.
                 if let Some(pane) = self
@@ -532,7 +532,7 @@ impl Oryxis {
                 }
                 tracing::error!("pane SSH connect failed: {msg}");
             }
-            Message::Ssh(SshMessage::SshBanner(text)) => {
+            SshMessage::SshBanner(text) => {
                 // Progress-card copy, so legal notices / MFA instructions
                 // are readable while the auth prompts are up. Multiple
                 // banners concatenate, but CAPPED: banners are
@@ -544,7 +544,7 @@ impl Oryxis {
                 // A whitespace-only banner must not materialize an empty
                 // card block (or an empty scrollback write below).
                 if text.trim().is_empty() {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let Some(p) = &mut self.connecting {
                     let slot = p.banner.get_or_insert_with(String::new);
@@ -574,11 +574,11 @@ impl Oryxis {
                     state.process(normalized.as_bytes());
                 }
             }
-            Message::Ssh(SshMessage::SshPaneBanner(pane_id, text)) => {
+            SshMessage::SshPaneBanner(pane_id, text) => {
                 // Split-pane connect: no progress card, straight to the
                 // pane's terminal.
                 if text.trim().is_empty() {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let Some(pane) = self.pane_by_id_mut(pane_id)
                     && let Ok(mut state) = pane.terminal.lock()
@@ -587,7 +587,7 @@ impl Oryxis {
                     state.process(normalized.as_bytes());
                 }
             }
-            Message::Ssh(SshMessage::SshError(err)) => {
+            SshMessage::SshError(err) => {
                 // A cancel provoked by the identity / key switch: retry with
                 // the mutated entry instead of surfacing the failure. The
                 // guard on the progress origin keeps an (unlikely) stale flag
@@ -598,7 +598,7 @@ impl Oryxis {
                     })
                 {
                     self.pending_auth_switch = None;
-                    return Ok(self.update(Message::Ssh(SshMessage::SshRetry)));
+                    return self.update(Message::Ssh(SshMessage::SshRetry));
                 }
                 // A cancel provoked by "Edit host" mid-connect: the card is
                 // already gone and the editor is open, so this error is
@@ -607,7 +607,7 @@ impl Oryxis {
                 if self.pending_edit_cancel && self.connecting.is_none() {
                     self.pending_edit_cancel = false;
                     tracing::debug!("swallowing edit-host-provoked connect error: {err}");
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 tracing::error!("SSH error: {}", err);
                 if self.should_record_history()
@@ -655,8 +655,8 @@ impl Oryxis {
                 }
             }
 
-            m => return Err(m),
+            _ => {}
         }
-        Ok(Task::none())
+        Task::none()
     }
 }

@@ -12,10 +12,10 @@ use crate::app::{SshMessage, Message, Oryxis};
 impl Oryxis {
     pub(super) fn handle_ssh_kbi(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SshMessage,
+    ) -> Result<Task<Message>, SshMessage> {
         match message {
-            Message::Ssh(SshMessage::SshKbiPrompt(quick, query)) => {
+            SshMessage::SshKbiPrompt(quick, query) => {
                 // One empty answer buffer per prompt, parallel to query.prompts.
                 self.kbi_inputs = vec![String::new(); query.prompts.len()];
                 self.pending_kbi_prompt = Some(query);
@@ -28,12 +28,12 @@ impl Oryxis {
                     crate::state::KBI_FIRST_INPUT_ID,
                 )));
             }
-            Message::Ssh(SshMessage::SshKbiInput(idx, value)) => {
+            SshMessage::SshKbiInput(idx, value) => {
                 if let Some(slot) = self.kbi_inputs.get_mut(idx) {
                     *slot = value;
                 }
             }
-            Message::Ssh(SshMessage::SshKbiSubmit) => {
+            SshMessage::SshKbiSubmit => {
                 let answers = std::mem::take(&mut self.kbi_inputs);
                 self.pending_kbi_prompt = None;
                 self.pending_kbi_quick = None;
@@ -41,7 +41,7 @@ impl Oryxis {
                     let _ = tx.try_send(Some(answers));
                 }
             }
-            Message::Ssh(SshMessage::SshKbiCancel) => {
+            SshMessage::SshKbiCancel => {
                 self.pending_kbi_prompt = None;
                 self.pending_kbi_quick = None;
                 self.kbi_inputs.clear();
@@ -49,7 +49,7 @@ impl Oryxis {
                     let _ = tx.try_send(None);
                 }
             }
-            Message::Ssh(SshMessage::QuickAuthSwitch(quick_id, choice)) => {
+            SshMessage::QuickAuthSwitch(quick_id, choice) => {
                 // Mutate the ephemeral entry so this retry and every later
                 // reconnect of the tab carry the picked identity / key. The
                 // auth method stays Auto: the ladder tries the new material
