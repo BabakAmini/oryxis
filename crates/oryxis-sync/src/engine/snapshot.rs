@@ -33,8 +33,17 @@ use crate::protocol::{DeltaRef, SyncRecord};
 /// rather than fed to the wider-nonce cipher: the reject is
 /// non-destructive (the caller refuses to push after a failed merge),
 /// which matches the coordinated re-sync a v6 bump expects.
+///
+/// v3 (protocol v7) is a schema gate: the record payloads gained enum
+/// variants a protocol-v6 client cannot deserialize (certificate auth,
+/// sk- key algorithms). The crypto is identical to v2, so reads accept
+/// BOTH versions (a v7 client understands every v2 payload) and writes
+/// stamp v3; an old client rejects a v3 blob loudly at this header
+/// instead of silently warn-skipping records it cannot parse.
 const SNAPSHOT_MAGIC: &[u8; 6] = b"ORXSNP";
-const SNAPSHOT_VERSION: u16 = 2;
+const SNAPSHOT_VERSION: u16 = 3;
+/// Oldest snapshot version this build still reads (same AEAD layout).
+const SNAPSHOT_MIN_READ_VERSION: u16 = 2;
 const HEADER_LEN: usize = SNAPSHOT_MAGIC.len() + 2;
 
 /// Serialize the entire vault into one encrypted snapshot blob.
@@ -104,7 +113,7 @@ fn parse_header(blob: &[u8]) -> Result<&[u8], SyncError> {
         return Err(SyncError::Protocol("snapshot bad magic".into()));
     }
     let version = u16::from_le_bytes([blob[6], blob[7]]);
-    if version != SNAPSHOT_VERSION {
+    if !(SNAPSHOT_MIN_READ_VERSION..=SNAPSHOT_VERSION).contains(&version) {
         return Err(SyncError::Protocol(format!(
             "snapshot version {version} unsupported"
         )));

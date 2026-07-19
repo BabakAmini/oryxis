@@ -53,7 +53,21 @@ use uuid::Uuid;
 /// re-pair / re-sync this bump expects. The reject is non-destructive:
 /// a failed snapshot merge leaves both the local vault and the remote
 /// blob untouched (`dispatch_sftp_sync.rs` refuses to push after it).
-pub const PROTOCOL_VERSION: u32 = 6;
+///
+/// v7 is a SCHEMA gate, not a crypto change: the payloads gained enum
+/// variants a v6 peer cannot deserialize (`AuthMethod::Certificate`,
+/// `KeyAlgorithm::SkEd25519` / `SkEcdsaP256`). Unknown VARIANTS are a
+/// hard serde error, unlike unknown fields, so a v6 peer receiving such
+/// a record would warn-skip it on every cycle: permanent, silent
+/// divergence, with round-trip corruption as the only "tolerant"
+/// alternative (a downgraded record could LWW its way back). The bump
+/// turns that into the same loud, non-destructive version reject as
+/// every prior break. `SNAPSHOT_VERSION` moved 2 -> 3 in lockstep, but
+/// asymmetrically: the crypto is unchanged, so a v7 device still READS
+/// v2 snapshots (payload superset) and writes v3, while a v6 device
+/// rejects a v3 blob at the header instead of skipping records inside
+/// it. Future variant additions to synced enums need the same audit.
+pub const PROTOCOL_VERSION: u32 = 7;
 
 /// Entity types that can be synced.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
