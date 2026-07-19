@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, pick_list, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row};
@@ -78,8 +78,8 @@ impl Oryxis {
             },
         )
         .on_select(Message::DynamicGroupFormTransportChanged)
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -99,8 +99,8 @@ impl Oryxis {
             |s: &String| s.clone(),
         )
         .on_select(Message::DynamicGroupFormKeyChanged)
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -120,8 +120,8 @@ impl Oryxis {
             |s: &String| s.clone(),
         )
         .on_select(Message::DynamicGroupFormIdentityChanged)
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 
@@ -193,9 +193,9 @@ impl Oryxis {
             .center_x(Length::Fixed(32.0))
             .center_y(Length::Fixed(PARENT_COMBO_HEIGHT)),
         )
-        .on_press(Message::ToggleGroupPicker(
+        .on_press(Message::Navigation(NavigationMessage::ToggleGroupPicker(
             crate::state::GroupPickerTarget::DynamicFormParent,
-        ))
+        )))
         .padding(0)
         .style(|_, status| {
             let bg = match status {
@@ -273,8 +273,8 @@ impl Oryxis {
                 |k| k.to_string(),
             )
             .on_select(Message::DynamicGroupFormK8sSelectorKindChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
             // The value field's placeholder + hint adapt to the kind: a

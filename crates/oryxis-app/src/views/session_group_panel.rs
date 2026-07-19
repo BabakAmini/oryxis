@@ -12,7 +12,7 @@ use iced::border::Radius;
 use iced::widget::{column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SessionGroupMessage, Message, Oryxis};
+use crate::app::{NavigationMessage, SessionGroupMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
@@ -110,7 +110,7 @@ impl Oryxis {
                 },
                 ..Default::default()
             }),
-            Message::ToggleGroupPicker(crate::state::GroupPickerTarget::SessionGroupFolder),
+            Message::Navigation(NavigationMessage::ToggleGroupPicker(crate::state::GroupPickerTarget::SessionGroupFolder)),
         );
         let folder_combo: Element<'_, Message> = bounds_reporter(
             dir_row(vec![
@@ -128,9 +128,9 @@ impl Oryxis {
                 // The chevron is its own keyboard row: Enter opens the
                 // group-picker popover, same as a click.
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ToggleGroupPicker(
+                    crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ToggleGroupPicker(
                         crate::state::GroupPickerTarget::SessionGroupFolder,
-                    )),
+                    ))),
                     6.0,
                     container(folder_chevron)
                         .height(Length::Fixed(COMBO_HEIGHT))

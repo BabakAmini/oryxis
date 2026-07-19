@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -202,7 +202,7 @@ impl Oryxis {
                 Some(crate::state::OverlayContent::ToolbarSearch)
             );
             if search_collapsed && !floating_open {
-                return self.update(Message::ToggleToolbarSearch);
+                return self.update(Message::Navigation(NavigationMessage::ToggleToolbarSearch));
             }
             return iced::widget::operation::focus(id);
         };
@@ -463,7 +463,7 @@ impl Oryxis {
                 // (mouse, hotkeys); this flag keeps the pill focused
                 // so repeated Enter / arrows keep working.
                 self.keynav.keep_focus_through_change_view = true;
-                Some(self.update(Message::ChangeView(view)))
+                Some(self.update(Message::Navigation(NavigationMessage::ChangeView(view))))
             }
             Some((FocusZone::SubNav, NavItem::SettingsSection(section))) => {
                 // Same keep-focus contract for the Settings sidebar.
@@ -578,7 +578,7 @@ impl Oryxis {
             return Task::none();
         }
         let msg = match item {
-            NavItem::Dash(DashNavItem::Group(gid)) => Message::OpenGroup(gid),
+            NavItem::Dash(DashNavItem::Group(gid)) => Message::Navigation(NavigationMessage::OpenGroup(gid)),
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(i)),
             NavItem::Dash(DashNavItem::Host(i)) => Message::ConnectSsh(i),
             NavItem::Key(i) => Message::EditKey(i),
@@ -633,15 +633,15 @@ impl Oryxis {
         use crate::state::SortMenuKind;
         Some(match (self.active_view, item) {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::ToggleHostListView,
-            (View::Dashboard, ToolbarItem::TagFilter) => Message::ShowHostTagFilterMenu,
+            (View::Dashboard, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
-            (View::Dashboard, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Hosts),
+            (View::Dashboard, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Hosts)),
             (View::Dashboard, ToolbarItem::Primary) => Message::ShowNewConnection,
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::ShowCloudProviderPicker,
             (View::Dashboard, ToolbarItem::CloudDiscover(pid)) => Message::ShowCloudDiscover(pid),
-            (View::Keys, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Keys),
+            (View::Keys, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Keys)),
             (View::Keys, ToolbarItem::Primary) => Message::ToggleKeychainAddMenu,
-            (View::Snippets, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Snippets),
+            (View::Snippets, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Snippets)),
             (View::Snippets, ToolbarItem::Primary) => Message::Snippet(SnippetMessage::ShowSnippetPanel),
             (View::PortForwarding, ToolbarItem::Primary) => Message::PortForward(PortForwardMessage::ShowPortForwardPanel),
             (View::History, ToolbarItem::Primary) => Message::RequestClearHistory,
@@ -651,8 +651,8 @@ impl Oryxis {
             (View::Proxies, ToolbarItem::Primary) => Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)),
             (View::KnownHosts, ToolbarItem::Primary) => Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts),
             (_, ToolbarItem::PrivacyReveal) => Message::TogglePrivacyReveal,
-            (_, ToolbarItem::Overflow) => Message::ToggleToolbarOverflow,
-            (_, ToolbarItem::SearchIcon) => Message::ToggleToolbarSearch,
+            (_, ToolbarItem::Overflow) => Message::Navigation(NavigationMessage::ToggleToolbarOverflow),
+            (_, ToolbarItem::SearchIcon) => Message::Navigation(NavigationMessage::ToggleToolbarSearch),
             _ => return None,
         })
     }

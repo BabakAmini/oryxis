@@ -38,8 +38,8 @@ impl Oryxis {
                     |s: &String| s.clone(),
                 )
                 .on_select(|v| Message::Ai(AiMessage::AiProviderChanged(v)))
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(220)
                 .padding(10)
                 .style(crate::widgets::rounded_pick_list_style)

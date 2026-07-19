@@ -26,7 +26,7 @@ pub(crate) fn sort_toolbar_button(
         .center_y(Length::Fixed(24.0))
         .center_x(Length::Fixed(24.0)),
     )
-    .on_press(Message::ToggleSortMenu(kind))
+    .on_press(Message::Navigation(NavigationMessage::ToggleSortMenu(kind)))
     .style(|_, status| {
         let bg = match status {
             BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -125,7 +125,7 @@ fn toolbar_icon_button(
 pub(crate) fn toolbar_search_icon(active: bool) -> Element<'static, Message> {
     toolbar_icon_button(
         iced_fonts::lucide::search(),
-        Message::ToggleToolbarSearch,
+        Message::Navigation(NavigationMessage::ToggleToolbarSearch),
         active,
         crate::i18n::t("search"),
     )
@@ -137,7 +137,7 @@ pub(crate) fn toolbar_search_icon(active: bool) -> Element<'static, Message> {
 pub(crate) fn toolbar_overflow_icon(active: bool) -> Element<'static, Message> {
     toolbar_icon_button(
         iced_fonts::lucide::ellipsis(),
-        Message::ToggleToolbarOverflow,
+        Message::Navigation(NavigationMessage::ToggleToolbarOverflow),
         active,
         crate::i18n::t("toolbar_more"),
     )
@@ -216,7 +216,7 @@ pub(crate) fn sort_menu_row(
         .width(Length::Fill)
         .align_x(dir_align_x()),
     )
-    .on_press(Message::SetListSort(kind, sort))
+    .on_press(Message::Navigation(NavigationMessage::SetListSort(kind, sort)))
     .width(Length::Fill)
     .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
     .style(|_, status| {

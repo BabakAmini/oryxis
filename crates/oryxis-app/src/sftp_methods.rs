@@ -4,7 +4,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis, SftpMessage};
+use crate::app::{NavigationMessage, Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::sort_local_entries;
 
 /// Process-global monotonic source for `SftpPane::local_list_seq` and
@@ -1104,7 +1104,7 @@ impl Oryxis {
         }
         if was_focused_surface {
             if self.sftp_tabs.is_empty() {
-                return Task::done(Message::ChangeView(crate::state::View::Dashboard));
+                return Task::done(Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Dashboard)));
             }
             self.refresh_sftp_local(crate::state::SftpPaneSide::Left);
             self.refresh_sftp_local(crate::state::SftpPaneSide::Right);

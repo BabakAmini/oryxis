@@ -9,7 +9,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::port_forward_rule::{ForwardKind, PortForwardRule};
 
-use crate::app::{PortForwardMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{NavigationMessage, PortForwardMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
@@ -369,8 +369,8 @@ impl Oryxis {
         let kind_picker = pick_list(Some(self.port_forward_form.kind), kind_options, |k: &ForwardKind| k.to_string())
             .on_select(|v| Message::PortForward(PortForwardMessage::PfKindChanged(v)))
             .id(iced::widget::Id::new("panel-pf-kind"))
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
 
@@ -391,8 +391,8 @@ impl Oryxis {
                 Message::PortForward(PortForwardMessage::PfHostChanged(host_lookup.get(&label).copied().unwrap_or_default()))
             })
             .id(iced::widget::Id::new("panel-pf-host"))
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
 

@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -119,8 +119,8 @@ impl Oryxis {
             )
             .id(iced::widget::Id::new("sidebar-hostcfg-font"))
             .on_select(Message::TerminalFontChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .width(Length::Fill)
             .padding(8)
             .style(crate::widgets::rounded_pick_list_style)
@@ -197,8 +197,8 @@ impl Oryxis {
             pick_list(Some(encoding_selected), encoding_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-encoding"))
                 .on_select(Message::HostConfigEncodingChanged)
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
                 .padding(8)
                 .style(pl_style)
@@ -223,8 +223,8 @@ impl Oryxis {
             pick_list(Some(term_selected), term_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-term"))
                 .on_select(Message::HostConfigTerminalTypeChanged)
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
                 .padding(8)
                 .style(pl_style)
@@ -249,8 +249,8 @@ impl Oryxis {
             pick_list(Some(title_selected), title_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-title"))
                 .on_select(Message::HostConfigAutoTitleChanged)
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
                 .padding(8)
                 .style(pl_style)

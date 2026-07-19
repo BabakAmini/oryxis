@@ -4,7 +4,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_cloud_transports(
@@ -91,7 +91,7 @@ impl Oryxis {
                             crate::i18n::t("ecs_exec_start_failed_title").to_string(),
                             crate::i18n::t("ecs_exec_no_running_tasks").to_string(),
                         );
-                        Ok(self.update(Message::OpenGroup(group_id)))
+                        Ok(self.update(Message::Navigation(NavigationMessage::OpenGroup(group_id))))
                     }
                     _ => {
                         // Listing missing, stale, or still resolving: arm the
@@ -482,7 +482,7 @@ impl Oryxis {
                         // Land on the group's task listing behind the dialog
                         // (so the live tasks are visible either way) and
                         // re-resolve it so the dead row is replaced.
-                        let nav = self.update(Message::OpenGroup(group_id));
+                        let nav = self.update(Message::Navigation(NavigationMessage::OpenGroup(group_id)));
                         let resolve = self
                             .handle_cloud(Message::DynamicGroupResolve(group_id))
                             .unwrap_or_else(|_| Task::none());

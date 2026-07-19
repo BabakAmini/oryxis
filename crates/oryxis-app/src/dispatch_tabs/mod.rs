@@ -12,7 +12,7 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -375,7 +375,7 @@ impl Oryxis {
             Message::OpenSettingsSection(section) => {
                 // Switch to Settings AND select the section:
                 // ChangeSettingsSection alone assumes the view is open.
-                let t1 = self.update(Message::ChangeView(View::Settings));
+                let t1 = self.update(Message::Navigation(NavigationMessage::ChangeView(View::Settings)));
                 let t2 = self.update(Message::ChangeSettingsSection(section));
                 return Ok(Task::batch([t1, t2]));
             }

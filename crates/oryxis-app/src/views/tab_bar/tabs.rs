@@ -50,7 +50,7 @@ pub(crate) fn area_tab<'a>(
                 .center_y(Length::Fixed(SQUARE)),
         )
         .padding(0)
-        .on_press(Message::ChangeView(view))
+        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
         .style(style)
         .into()
     } else {
@@ -75,7 +75,7 @@ pub(crate) fn area_tab<'a>(
             .center_y(Length::Fixed(TAB_HEIGHT))
             .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 6.0 }),
         )
-        .on_press(Message::ChangeView(view))
+        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
         .style(style)
         .into()
     };

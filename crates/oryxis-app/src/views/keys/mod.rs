@@ -14,7 +14,7 @@ pub(crate) use oryxis_core::models::connection::Connection;
 pub(crate) use oryxis_core::models::identity::Identity;
 pub(crate) use oryxis_core::models::key::SshKey;
 
-pub(crate) use crate::app::{Message, Oryxis, CARD_WIDTH};
+pub(crate) use crate::app::{NavigationMessage, Message, Oryxis, CARD_WIDTH};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::theme::OryxisColors;
 pub(crate) use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};

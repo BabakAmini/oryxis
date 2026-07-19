@@ -308,8 +308,8 @@ impl Oryxis {
         )
         .on_select(|v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormKindChanged(v)))
         .id(iced::widget::Id::new("panel-proxy-identity-kind"))
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
 

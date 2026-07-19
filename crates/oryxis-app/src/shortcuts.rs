@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -21,7 +21,7 @@ impl Oryxis {
         // strip order (terminal + SFTP tabs, pinned-first), exactly as
         // `views/tab_bar.rs` renders it, so Ctrl+N lands on the Nth visible
         // chip. SFTP is a tab now, not a fixed Ctrl+2 area tab.
-        let mut slots: Vec<Message> = vec![Message::ChangeView(View::Dashboard)];
+        let mut slots: Vec<Message> = vec![Message::Navigation(NavigationMessage::ChangeView(View::Dashboard))];
         slots.extend(self.ordered_tab_refs().iter().filter_map(|r| self.tab_ref_select_msg(r)));
         slots.into_iter().nth(slot)
     }
@@ -999,7 +999,7 @@ impl Oryxis {
                     Task::none()
                 }
             }
-            OpenSettings => Task::done(Message::ChangeView(View::Settings)),
+            OpenSettings => Task::done(Message::Navigation(NavigationMessage::ChangeView(View::Settings))),
             FocusViewSearch => Task::done(Message::FocusViewSearch),
             OpenSftp => {
                 if self.sftp_enabled {
@@ -1033,7 +1033,7 @@ impl Oryxis {
                         _ => None,
                     };
                     match view {
-                        Some(v) => Task::done(Message::ChangeView(v)),
+                        Some(v) => Task::done(Message::Navigation(NavigationMessage::ChangeView(v))),
                         None => Task::none(),
                     }
                 }
@@ -1182,7 +1182,7 @@ impl Oryxis {
                     ));
                     self.keynav.keep_focus_through_change_view = true;
                 }
-                Task::done(Message::ChangeView(next))
+                Task::done(Message::Navigation(NavigationMessage::ChangeView(next)))
             }
         }
     }

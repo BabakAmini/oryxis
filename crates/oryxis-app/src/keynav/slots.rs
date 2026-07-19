@@ -11,7 +11,7 @@
 
 use std::cell::RefCell;
 
-use crate::app::Message;
+use crate::app::{Message, NavigationMessage};
 
 /// One keyboard-actionable row/button recorded during view().
 ///
@@ -206,7 +206,7 @@ impl crate::app::Oryxis {
     ) -> iced::Element<'a, Message> {
         // Hover converges the ring with the mouse position.
         let el: iced::Element<'a, Message> = iced::widget::MouseArea::new(el)
-            .on_enter(Message::ModalNavHover(idx))
+            .on_enter(Message::Navigation(NavigationMessage::ModalNavHover(idx)))
             .into();
         // RAW index comparison, no clamping: this runs mid-recording,
         // when the list is still partial, and clamping a selection of
@@ -572,8 +572,8 @@ impl crate::app::Oryxis {
                 // Mouse-opened dropdowns arm the same key guard the
                 // focusable panel pickers use, so Esc closes the menu
                 // instead of falling through to the app routers.
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(width)
                 .padding(10)
                 .style(crate::widgets::rounded_pick_list_style)
@@ -601,7 +601,7 @@ impl crate::app::Oryxis {
         is_active: bool,
     ) -> iced::Element<'static, Message> {
         self.modal_nav_slot(
-            RowAction::activate(Message::SetListSort(kind, sort)),
+            RowAction::activate(Message::Navigation(NavigationMessage::SetListSort(kind, sort))),
             4.0,
             false,
             crate::widgets::sort_menu_row(kind, sort, icon, label_key, is_active),

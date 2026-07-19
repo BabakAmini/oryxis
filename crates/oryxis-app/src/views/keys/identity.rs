@@ -132,8 +132,8 @@ impl Oryxis {
                     )
                     .on_select(Message::IdentityKeyChanged)
                     .id(iced::widget::Id::new("identity-pick-key"))
-                    .on_open(Message::PickOpenChanged(true))
-                    .on_close(Message::PickOpenChanged(false))
+                    .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                    .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                     .padding(10).style(crate::widgets::rounded_pick_list_style)
                     .into(),
                 ),

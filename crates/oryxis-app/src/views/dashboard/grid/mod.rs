@@ -14,7 +14,7 @@ use iced::widget::column;
 pub(crate) use uuid::Uuid;
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
+pub(crate) use crate::app::{NavigationMessage, DashNavItem, Message, Oryxis, SessionGroupMessage, CARD_WIDTH};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::os_icon::BrandIcon;
 pub(crate) use crate::theme::OryxisColors;
@@ -538,7 +538,7 @@ impl Oryxis {
                             .size(13)
                             .color(OryxisColors::t().text_muted),
                     )
-                    .on_press(Message::HostFilterByCloudProfile(None))
+                    .on_press(Message::Navigation(NavigationMessage::HostFilterByCloudProfile(None)))
                     .padding(Padding {
                         top: 0.0,
                         right: 6.0,

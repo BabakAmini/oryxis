@@ -109,8 +109,8 @@ impl Oryxis {
                 },
             )
             .on_select(Message::CloudDiscoverDefaultTransportChanged)
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
             // Row 1: Left/Right cycle the transport without

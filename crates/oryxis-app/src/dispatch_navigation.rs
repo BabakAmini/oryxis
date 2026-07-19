@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -17,7 +17,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::ModalNavHover(idx) => {
+            Message::Navigation(NavigationMessage::ModalNavHover(idx)) => {
                 // Pointer hover converges the modal-layer SELECTION
                 // with the mouse (Enter activates the hovered row,
                 // arrows continue from it), tagged with the live
@@ -30,14 +30,14 @@ impl Oryxis {
                     self.keynav.modal.kbd.set(false);
                 }
             }
-            Message::PickOpenChanged(open) => {
+            Message::Navigation(NavigationMessage::PickOpenChanged(open)) => {
                 self.keynav.pick_open = open;
             }
-            Message::PanelNavTabResolved { forward, focused } => {
+            Message::Navigation(NavigationMessage::PanelNavTabResolved { forward, focused }) => {
                 return Ok(self.panel_nav_tab_resolved(forward, focused));
             }
             // -- Navigation --
-            Message::ChangeView(view) => {
+            Message::Navigation(NavigationMessage::ChangeView(view)) => {
                 // Navigating away from the Shortcuts editor cancels
                 // any pending capture so the next keystroke doesn't
                 // silently rebind an action from another screen.
@@ -146,10 +146,10 @@ impl Oryxis {
                     return Ok(self.renderer_info_task());
                 }
             }
-            Message::QuickHostInput(v) => {
+            Message::Navigation(NavigationMessage::QuickHostInput(v)) => {
                 self.quick_host_input = v;
             }
-            Message::OpenGroup(gid) => {
+            Message::Navigation(NavigationMessage::OpenGroup(gid)) => {
                 self.active_group = Some(gid);
                 self.host_search.clear();
                 // Auto-trigger resolve when the user opens a dynamic
@@ -166,21 +166,21 @@ impl Oryxis {
                         .unwrap_or_else(|_| Task::none()));
                 }
             }
-            Message::HostSearchChanged(v) => {
+            Message::Navigation(NavigationMessage::HostSearchChanged(v)) => {
                 self.host_search = v;
                 // The filtered set just changed; drop the keyboard
                 // selection so it can't point at a now-hidden host. Enter
                 // still connects the top result while a search is active.
                 self.keynav.focus = None;
             }
-            Message::HostFilterByCloudProfile(maybe_pid) => {
+            Message::Navigation(NavigationMessage::HostFilterByCloudProfile(maybe_pid)) => {
                 self.host_filter_cloud_profile = maybe_pid;
                 // Filter changed the visible set; drop the keyboard
                 // selection so Enter can't connect a now-hidden host.
                 self.keynav.focus = None;
             }
             // (helpers for the tag filter live below the handler impl)
-            Message::ShowHostTagFilterMenu => {
+            Message::Navigation(NavigationMessage::ShowHostTagFilterMenu) => {
                 use crate::state::{OverlayContent, OverlayState};
                 let already_open = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -215,7 +215,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::ToggleHostTagFilterTag(tag) => {
+            Message::Navigation(NavigationMessage::ToggleHostTagFilterTag(tag)) => {
                 // Multi-select: the dropdown stays open so several tags
                 // can be picked in one visit; the backdrop closes it.
                 match self
@@ -231,12 +231,12 @@ impl Oryxis {
                 // Same reasoning as the cloud-profile filter above.
                 self.keynav.focus = None;
             }
-            Message::ClearHostTagFilter => {
+            Message::Navigation(NavigationMessage::ClearHostTagFilter) => {
                 self.host_filter_tags.clear();
                 self.overlay = None;
                 self.keynav.focus = None;
             }
-            Message::ToggleGroupPicker(target) => {
+            Message::Navigation(NavigationMessage::ToggleGroupPicker(target)) => {
                 use crate::state::{GroupPickerTarget, OverlayContent, OverlayState};
                 let already_open = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -272,10 +272,10 @@ impl Oryxis {
                     });
                 }
             }
-            Message::GroupPickerSearchChanged(v) => {
+            Message::Navigation(NavigationMessage::GroupPickerSearchChanged(v)) => {
                 self.group_picker_search = v;
             }
-            Message::GroupPickerPick(target, label) => {
+            Message::Navigation(NavigationMessage::GroupPickerPick(target, label)) => {
                 use crate::state::{GroupPickerTarget, OverlayContent};
                 match target {
                     GroupPickerTarget::DynamicFormParent => {
@@ -292,7 +292,7 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::ToggleSortMenu(kind) => {
+            Message::Navigation(NavigationMessage::ToggleSortMenu(kind)) => {
                 use crate::state::{OverlayContent, OverlayState, SortMenuKind};
                 let already_open = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -342,7 +342,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::SetListSort(kind, sort) => {
+            Message::Navigation(NavigationMessage::SetListSort(kind, sort)) => {
                 use crate::state::SortMenuKind;
                 // Selecting from the sidebar's own sort popover dismisses it
                 // (harmless for the workspace overlay, which closes itself).
@@ -368,7 +368,7 @@ impl Oryxis {
                 }
                 self.overlay = None;
             }
-            Message::ToggleToolbarSearch => {
+            Message::Navigation(NavigationMessage::ToggleToolbarSearch) => {
                 use crate::state::{OverlayContent, OverlayState};
                 let already_open = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -406,7 +406,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ToggleToolbarOverflow => {
+            Message::Navigation(NavigationMessage::ToggleToolbarOverflow) => {
                 use crate::state::{OverlayContent, OverlayState};
                 let already_open = matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -440,7 +440,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::QuickHostContinue => {
+            Message::Navigation(NavigationMessage::QuickHostContinue) => {
                 // Same editor the toolbar's "+ Host" opens (shared
                 // setup: default port, editor combos, group
                 // pre-fill). An empty field still opens it: on the

@@ -53,8 +53,8 @@ impl Oryxis {
                 8.0,
                 text_input(t("type_ip_or_hostname"), &self.quick_host_input)
                     .id(QUICK_HOST_INPUT_ID)
-                    .on_input(Message::QuickHostInput)
-                    .on_submit(Message::QuickHostContinue)
+                    .on_input(|v| Message::Navigation(NavigationMessage::QuickHostInput(v)))
+                    .on_submit(Message::Navigation(NavigationMessage::QuickHostContinue))
                     .padding(14)
                     .width(BLOCK_WIDTH)
                     .style(crate::widgets::rounded_input_style)
@@ -64,7 +64,7 @@ impl Oryxis {
             Space::new().height(12).into(),
             // Continue button
             self.content_action_slot(
-                crate::keynav::RowAction::activate(Message::QuickHostContinue),
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::QuickHostContinue)),
                 8.0,
                 button(
                     container(
@@ -76,7 +76,7 @@ impl Oryxis {
                     .width(BLOCK_WIDTH)
                     .center_x(BLOCK_WIDTH),
                 )
-                .on_press(Message::QuickHostContinue)
+                .on_press(Message::Navigation(NavigationMessage::QuickHostContinue))
                 .width(BLOCK_WIDTH)
                 .style(move |_, status| {
                     // Hover / press lift the fill a step in both states

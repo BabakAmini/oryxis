@@ -228,8 +228,8 @@ impl Oryxis {
             };
             Message::Sync(SyncMessage::TransportChanged(tr.to_string()))
         })
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .text_size(13)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
@@ -299,8 +299,8 @@ impl Oryxis {
             };
             Message::Sync(SyncMessage::ModeChanged(mode.to_string()))
         })
-        .on_open(Message::PickOpenChanged(true))
-        .on_close(Message::PickOpenChanged(false))
+        .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+        .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .text_size(13)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);

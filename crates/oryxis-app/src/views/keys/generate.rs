@@ -199,8 +199,8 @@ impl Oryxis {
                     )
                     .on_select(Message::KeyGenAlgoSelected)
                     .id(iced::widget::Id::new("keygen-algo"))
-                    .on_open(Message::PickOpenChanged(true))
-                    .on_close(Message::PickOpenChanged(false))
+                    .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                    .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                     .padding(10)
                     .style(crate::widgets::rounded_pick_list_style)
                     .into(),
@@ -228,8 +228,8 @@ impl Oryxis {
                             )
                             .on_select(Message::KeyGenBitsSelected)
                             .id(iced::widget::Id::new("keygen-bits"))
-                            .on_open(Message::PickOpenChanged(true))
-                            .on_close(Message::PickOpenChanged(false))
+                            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                             .padding(10)
                             .style(crate::widgets::rounded_pick_list_style)
                             .into(),
@@ -255,8 +255,8 @@ impl Oryxis {
                             )
                             .on_select(Message::KeyGenCurveSelected)
                             .id(iced::widget::Id::new("keygen-curve"))
-                            .on_open(Message::PickOpenChanged(true))
-                            .on_close(Message::PickOpenChanged(false))
+                            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                             .padding(10)
                             .style(crate::widgets::rounded_pick_list_style)
                             .into(),

@@ -707,8 +707,8 @@ impl Oryxis {
                     },
                 )
                 .on_select(Message::LogsRetentionChanged)
-                .on_open(Message::PickOpenChanged(true))
-                .on_close(Message::PickOpenChanged(false))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
                 .into(),
             ),
@@ -1005,8 +1005,8 @@ impl Oryxis {
                             host_lookup.get(&label).copied().unwrap_or(0),
                         ))
                     })
-                    .on_open(Message::PickOpenChanged(true))
-                    .on_close(Message::PickOpenChanged(false))
+                    .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                    .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                     .width(300)
                     .padding(10)
                     .style(crate::widgets::rounded_pick_list_style)

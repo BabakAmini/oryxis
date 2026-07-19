@@ -97,8 +97,8 @@ impl Oryxis {
                 },
             )
             .on_select(|v| Message::Update(UpdateMessage::SettingUpdateChannelChanged(v)))
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .width(260)
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style)
@@ -195,62 +195,62 @@ impl Oryxis {
             text(crate::i18n::t("vault_stats")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(8),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ChangeView(
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ChangeView(
                     crate::state::View::Dashboard,
-                )),
+                ))),
                 8.0,
                 crate::widgets::settings_row_nav(
                     crate::i18n::t("hosts"),
                     self.connections.len().to_string(),
-                    Message::ChangeView(crate::state::View::Dashboard),
+                    Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Dashboard)),
                 ),
             ),
             Space::new().height(6),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ChangeView(
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ChangeView(
                     crate::state::View::Keys,
-                )),
+                ))),
                 8.0,
                 crate::widgets::settings_row_nav(
                     crate::i18n::t("keychain"),
                     self.keys.len().to_string(),
-                    Message::ChangeView(crate::state::View::Keys),
+                    Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Keys)),
                 ),
             ),
             Space::new().height(6),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ChangeView(
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ChangeView(
                     crate::state::View::Snippets,
-                )),
+                ))),
                 8.0,
                 crate::widgets::settings_row_nav(
                     crate::i18n::t("snippets"),
                     self.snippets.len().to_string(),
-                    Message::ChangeView(crate::state::View::Snippets),
+                    Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Snippets)),
                 ),
             ),
             Space::new().height(6),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ChangeView(
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ChangeView(
                     crate::state::View::Dashboard,
-                )),
+                ))),
                 8.0,
                 crate::widgets::settings_row_nav(
                     t("groups"),
                     self.groups.len().to_string(),
-                    Message::ChangeView(crate::state::View::Dashboard),
+                    Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Dashboard)),
                 ),
             ),
             Space::new().height(6),
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ChangeView(
+                crate::keynav::RowAction::activate(Message::Navigation(NavigationMessage::ChangeView(
                     crate::state::View::History,
-                )),
+                ))),
                 8.0,
                 crate::widgets::settings_row_nav(
                     t("logs"),
                     (self.logs_total + self.session_logs_total).to_string(),
-                    Message::ChangeView(crate::state::View::History),
+                    Message::Navigation(NavigationMessage::ChangeView(crate::state::View::History)),
                 ),
             ),
         ]);

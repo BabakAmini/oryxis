@@ -28,8 +28,8 @@ impl Oryxis {
                 pick_list(Some(auth_selected), auth_options, |s: &String| s.clone())
                     .on_select(Message::EditorAuthMethodChanged)
                     .id(iced::widget::Id::new("editor-pick-auth-method"))
-                    .on_open(Message::PickOpenChanged(true))
-                    .on_close(Message::PickOpenChanged(false))
+                    .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                    .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                     // Wider than the usual 120px so the longest option
                     // ("Password (ask...)" and its translations) is not truncated.
                     .width(200)

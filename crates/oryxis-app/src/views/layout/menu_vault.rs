@@ -546,7 +546,7 @@ impl Oryxis {
             crate::i18n::t("search_groups"),
             &self.group_picker_search,
         )
-        .on_input(Message::GroupPickerSearchChanged)
+        .on_input(|v| Message::Navigation(NavigationMessage::GroupPickerSearchChanged(v)))
         .padding(8)
         .width(Length::Fixed(menu_content_width))
         .style(|_theme: &iced::Theme, status| {
@@ -604,7 +604,7 @@ impl Oryxis {
                     })
                     .width(Length::Fill),
                 )
-                .on_press(Message::GroupPickerPick(target, label.clone()))
+                .on_press(Message::Navigation(NavigationMessage::GroupPickerPick(target, label.clone())))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let bg = match status {
@@ -624,7 +624,7 @@ impl Oryxis {
                 });
                 items = items.push(self.modal_nav_slot(
                     crate::keynav::RowAction::activate(
-                        Message::GroupPickerPick(target, label),
+                        Message::Navigation(NavigationMessage::GroupPickerPick(target, label)),
                     ),
                     4.0,
                     false,
@@ -731,14 +731,14 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::arrow_down_a_z(),
                     crate::i18n::t("toolbar_sort"),
-                    Message::ToggleSortMenu(SortMenuKind::Hosts),
+                    Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Hosts)),
                     secondary,
                 ));
                 if self.host_tag_filter_available() {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::tag(),
                         crate::i18n::t("host_tag_filter"),
-                        Message::ShowHostTagFilterMenu,
+                        Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
                         secondary,
                     ));
                 }
@@ -753,7 +753,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::arrow_down_a_z(),
                     crate::i18n::t("toolbar_sort"),
-                    Message::ToggleSortMenu(SortMenuKind::Keys),
+                    Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Keys)),
                     secondary,
                 ));
             }
@@ -777,7 +777,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::arrow_down_a_z(),
                     crate::i18n::t("toolbar_sort"),
-                    Message::ToggleSortMenu(SortMenuKind::Snippets),
+                    Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Snippets)),
                     secondary,
                 ));
             }

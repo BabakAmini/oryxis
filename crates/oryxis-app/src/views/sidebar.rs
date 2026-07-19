@@ -7,7 +7,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, tooltip, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, NAV_RAIL_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED};
+use crate::app::{NavigationMessage, Message, Oryxis, NAV_RAIL_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED};
 use crate::state::View;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row};
@@ -318,7 +318,7 @@ fn collapsed_nav_btn<'a>(
         button(
             container(icon.size(16).color(fg)).center(Length::Fixed(40.0)),
         )
-        .on_press(Message::ChangeView(view))
+        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
         .padding(0)
         .width(Length::Fixed(40.0))
         .style(rail_btn_style(is_active, kb_selected)),
@@ -362,7 +362,7 @@ fn expanded_nav_btn<'a>(
             .align_x(dir_align_x())
             .padding(Padding { top: 0.0, right: 16.0, bottom: 0.0, left: 16.0 }),
         )
-        .on_press(Message::ChangeView(view))
+        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
         // Zero the button's default padding so the inner container's
         // inset is exact (matches collapsed_nav_btn, which also zeroes it).
         .padding(0)

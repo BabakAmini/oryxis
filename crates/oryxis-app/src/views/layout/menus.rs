@@ -203,8 +203,8 @@ impl Oryxis {
             OverlayContent::HostTagFilter => self.tag_filter_menu(
                 self.host_filter_tags.clone(),
                 self.distinct_host_tags(),
-                Message::ToggleHostTagFilterTag,
-                Message::ClearHostTagFilter,
+                |v| Message::Navigation(NavigationMessage::ToggleHostTagFilterTag(v)),
+                Message::Navigation(NavigationMessage::ClearHostTagFilter),
             ),
             OverlayContent::SnippetTagFilter => self.tag_filter_menu(
                 self.snippet_filter_tags.clone(),
@@ -312,7 +312,7 @@ impl Oryxis {
                     .padding(Padding { top: 7.0, right: 12.0, bottom: 7.0, left: 12.0 }),
             )
             .width(Length::Fill)
-            .on_press(Message::ChangeView(v))
+            .on_press(Message::Navigation(NavigationMessage::ChangeView(v)))
             .style(move |_, status| {
                 let bg = if kb || matches!(status, iced::widget::button::Status::Hovered) {
                     OryxisColors::t().bg_hover
@@ -541,28 +541,28 @@ impl Oryxis {
             section("vault", hk_hosts),
             indent(item(
                 "hosts",
-                Message::ChangeView(View::Dashboard),
+                Message::Navigation(NavigationMessage::ChangeView(View::Dashboard)),
                 self.hotkey_label_for_vault_slot(1)
             )),
             indent(item(
                 "keychain",
-                Message::ChangeView(View::Keys),
+                Message::Navigation(NavigationMessage::ChangeView(View::Keys)),
                 self.hotkey_label_for_vault_slot(2)
             )),
             indent(item(
                 "snippets",
-                Message::ChangeView(View::Snippets),
+                Message::Navigation(NavigationMessage::ChangeView(View::Snippets)),
                 self.hotkey_label_for_vault_slot(3)
             )),
             indent(item(
                 "port_forwards",
-                Message::ChangeView(View::PortForwarding),
+                Message::Navigation(NavigationMessage::ChangeView(View::PortForwarding)),
                 self.hotkey_label_for_vault_slot(4)
             )),
             if self.logs_surface_visible() {
                 indent(item(
                     "logs",
-                    Message::ChangeView(View::History),
+                    Message::Navigation(NavigationMessage::ChangeView(View::History)),
                     self.hotkey_label_for_vault_slot(5)
                 ))
             } else {
@@ -570,22 +570,22 @@ impl Oryxis {
             },
             indent(item(
                 "cloud_accounts",
-                Message::ChangeView(View::Cloud),
+                Message::Navigation(NavigationMessage::ChangeView(View::Cloud)),
                 self.hotkey_label_for_vault_slot(6)
             )),
             indent(item(
                 "proxies",
-                Message::ChangeView(View::Proxies),
+                Message::Navigation(NavigationMessage::ChangeView(View::Proxies)),
                 self.hotkey_label_for_vault_slot(7)
             )),
             indent(item(
                 "known_hosts",
-                Message::ChangeView(View::KnownHosts),
+                Message::Navigation(NavigationMessage::ChangeView(View::KnownHosts)),
                 self.hotkey_label_for_vault_slot(8)
             )),
             Space::new().height(4),
             sftp_item,
-            item("settings", Message::ChangeView(View::Settings), hk_settings),
+            item("settings", Message::Navigation(NavigationMessage::ChangeView(View::Settings)), hk_settings),
             sep,
             item("local_shell", Message::OpenLocalShell, hk_local_shell),
             item("new_window", Message::SpawnNewWindow, hk_new_window),

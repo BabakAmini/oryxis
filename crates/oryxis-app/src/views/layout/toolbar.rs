@@ -224,7 +224,7 @@ impl Oryxis {
                     // user@host target connects it).
                     "search_hosts_quick_connect",
                     self.host_search.as_str(),
-                    Message::HostSearchChanged,
+                    |v| Message::Navigation(NavigationMessage::HostSearchChanged(v)),
                 ),
                 View::Keys => (
                     "search_keys_identities",
@@ -372,7 +372,7 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 8.0, bottom: 0.0, left: 8.0 }),
             )
             .padding(0)
-            .on_press(Message::ChangeView(view))
+            .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
             .style(move |_, status| {
                 let hover_bg = match status {
                     iced::widget::button::Status::Hovered if !is_active => {
@@ -460,7 +460,7 @@ impl Oryxis {
             .padding(Padding { top: 0.0, right: 8.0, bottom: 0.0, left: 8.0 }),
         )
         .padding(0)
-        .on_press(Message::ChangeView(View::Settings))
+        .on_press(Message::Navigation(NavigationMessage::ChangeView(View::Settings)))
         .style(move |_, status| {
             let bg = if settings_active {
                 Color { a: 0.15, ..OryxisColors::t().accent }

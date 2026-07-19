@@ -9,7 +9,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{VaultMessage, Message, Oryxis};
+use crate::app::{NavigationMessage, VaultMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Handle the `KeyboardEvent` chord resolver + PTY key routing.
@@ -236,7 +236,7 @@ impl Oryxis {
                     let forward = !modifiers.shift();
                     if !self.keynav.panel_items.borrow().is_empty() {
                         return Ok(iced::widget::operation::find_focused().map(
-                            move |focused| Message::PanelNavTabResolved { forward, focused },
+                            move |focused| Message::Navigation(NavigationMessage::PanelNavTabResolved { forward, focused }),
                         ));
                     }
                     return Ok(if forward {

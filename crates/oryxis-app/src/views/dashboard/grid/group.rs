@@ -315,7 +315,7 @@ impl Oryxis {
                                 )
                                 .padding(folder_padding),
                             )
-                            .on_press(Message::OpenGroup(gid))
+                            .on_press(Message::Navigation(NavigationMessage::OpenGroup(gid)))
                             .width(Length::Fill)
                             .style(|_, status| {
                                 let (bg, bc, bw) = match status {
@@ -542,7 +542,7 @@ impl Oryxis {
                         left: 8.0,
                     }),
                 )
-                .on_press(Message::OpenGroup(gid))
+                .on_press(Message::Navigation(NavigationMessage::OpenGroup(gid)))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let (bg, bc, bw) = match status {
@@ -703,7 +703,7 @@ impl Oryxis {
                     // beside hosts in the same grid row.
                     .padding(Padding { top: 8.0, right: 6.0, bottom: 8.0, left: 2.0 }),
                 )
-                .on_press(Message::OpenGroup(gid))
+                .on_press(Message::Navigation(NavigationMessage::OpenGroup(gid)))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let (bg, bc, bw) = match status {

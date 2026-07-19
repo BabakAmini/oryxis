@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Row, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{PluginMessage, Message, Oryxis};
+use crate::app::{NavigationMessage, PluginMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::{CloudAuthChoice, CloudProviderChoice, CloudTestState};
 use crate::theme::OryxisColors;
@@ -207,8 +207,8 @@ impl Oryxis {
             )
             .on_select(Message::CloudFormProviderChanged)
             .id(iced::widget::Id::new("cloud-pick-provider"))
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style)
             .into(),
@@ -242,8 +242,8 @@ impl Oryxis {
             )
             .on_select(Message::CloudFormAuthKindChanged)
             .id(iced::widget::Id::new("cloud-pick-auth"))
-            .on_open(Message::PickOpenChanged(true))
-            .on_close(Message::PickOpenChanged(false))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style)
             .into(),

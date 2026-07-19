@@ -7,7 +7,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, container, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -84,7 +84,7 @@ impl Oryxis {
                                 .wrapping(iced::widget::text::Wrapping::None)
                                 .color(OryxisColors::t().accent),
                         )
-                        .on_press(Message::OpenGroup(parent_id))
+                        .on_press(Message::Navigation(NavigationMessage::OpenGroup(parent_id)))
                         .padding(Padding::ZERO)
                         .style(|_, _| button::Style {
                             background: Some(Background::Color(Color::TRANSPARENT)),
@@ -348,7 +348,7 @@ impl Oryxis {
                     crate::widgets::bounds_reporter(
                         crate::widgets::tag_filter_toolbar_button(
                             self.host_filter_tags.len(),
-                            Message::ShowHostTagFilterMenu,
+                            Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
                         ),
                         self.host_tag_filter_btn_bounds.clone(),
                     ),

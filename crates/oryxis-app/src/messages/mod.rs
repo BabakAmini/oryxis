@@ -12,12 +12,14 @@ use uuid::Uuid;
 
 use oryxis_ssh::SshSession;
 
-use crate::state::{ConnectionStep, SettingsSection, View};
+use crate::state::{ConnectionStep, SettingsSection};
 
 mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod navigation;
+pub use navigation::NavigationMessage;
 mod command_history;
 pub use command_history::CommandHistoryMessage;
 mod update;
@@ -118,11 +120,8 @@ pub enum Message {
     Onboarding(OnboardingMessage),
 
     // Navigation
-    ChangeView(View),
-    QuickHostInput(String),
-    QuickHostContinue,
-    OpenGroup(Uuid),
-    HostSearchChanged(String),
+    // Navigation (handle_navigation)
+    Navigation(NavigationMessage),
 
     // Tabs
     SelectTab(usize),
@@ -771,14 +770,6 @@ pub enum Message {
     HideCardMenu,
 
     // Connection editor
-    /// Continuation of a side-panel Tab press: `focused` is the widget
-    /// iced actually has focused (resolved via `find_focused`), so the
-    /// ring index can sync to a mouse-clicked field before walking to the
-    /// next row. `None` = nothing focused (ring authoritative).
-    PanelNavTabResolved {
-        forward: bool,
-        focused: Option<iced::widget::Id>,
-    },
     ShowNewConnection,
     /// Open the host editor seeded as a RemoteDesktop host ("Add remote
     /// desktop" in the + Host menu; only shown when the feature toggle is on).
@@ -923,13 +914,6 @@ pub enum Message {
     Snippet(SnippetMessage),
     /// Settings > Terminal: toggle the paste content heuristics.
     TogglePasteGuard,
-    /// Dashboard: open/close the host tag-filter dropdown.
-    ShowHostTagFilterMenu,
-    /// Dashboard: toggle one tag in the multi-select filter (the
-    /// dropdown stays open so several can be picked in one visit).
-    ToggleHostTagFilterTag(String),
-    /// Dashboard: clear the tag filter entirely.
-    ClearHostTagFilter,
 
     // Command history (terminal sidebar History tab)
     /// Settings > Terminal: enable/disable command-history capture.
@@ -1490,24 +1474,18 @@ pub enum Message {
     // The Toggle* messages open/close the dropdown anchored to the
     // toolbar sort button; the Set* messages pick a sort mode and
     // persist it via the matching `*_sort` settings key.
-    ToggleSortMenu(crate::state::SortMenuKind),
-    SetListSort(crate::state::SortMenuKind, crate::state::ListSort),
 
     // Responsive toolbar collapse (narrow windows). `ToggleToolbarSearch`
     // pops/dismisses the floating search field when the inline box has
     // collapsed to an icon; `ToggleToolbarOverflow` pops/dismisses the
     // `…` menu folding the view's secondary toolbar actions.
-    ToggleToolbarSearch,
-    ToggleToolbarOverflow,
 
     // Keyboard navigation, modal layer: pointer hover moved onto a
     // recorded row, so the keyboard ring follows it (index into the
     // per-frame `keynav.modal.items` recording).
-    ModalNavHover(usize),
     // A pick_list dropdown opened (true) or closed (false); keeps
     // `keynav.pick_open` in sync so app-side key routing yields to
     // the widget while its menu is up.
-    PickOpenChanged(bool),
 
     // Proxy Identities (Settings → Proxies)
 
@@ -1602,17 +1580,6 @@ pub enum Message {
     CloudDiscoverDefaultTransportChanged(oryxis_core::models::cloud::TransportKind),
     CloudDiscoverDefaultGroupNameChanged(String),
     CloudDiscoverDefaultGroupPick(String),
-    /// Open / close the shared group picker for a side-panel parent
-    /// group input. Anchors the popover at the matching combo's
-    /// measured bounds (`dynamic_form_parent_combo_bounds` or
-    /// `session_group_folder_combo_bounds`).
-    ToggleGroupPicker(crate::state::GroupPickerTarget),
-    /// Live filter for the shared group-picker popover.
-    GroupPickerSearchChanged(String),
-    /// Route a pick into the matching form field and close the
-    /// popover. Existing field-change messages (`EditorGroupChanged`,
-    /// `DynamicGroupFormParentChanged`) still drive the write.
-    GroupPickerPick(crate::state::GroupPickerTarget, String),
     /// Toggle the floating group-picker overlay rendered at the top
     /// of the Discover import modal. Independent of the global
     /// OverlayState so it can sit on top of the modal scrim.
@@ -1620,10 +1587,6 @@ pub enum Message {
     /// Live filter typed inside the group-picker overlay's own
     /// search field. Doesn't affect the main "Import into" input.
     CloudDiscoverDefaultGroupPickerSearchChanged(String),
-    /// Apply / clear the dashboard cloud-profile filter. Passing None
-    /// clears it; passing Some(pid) restricts the grid to items whose
-    /// cloud origin matches that profile.
-    HostFilterByCloudProfile(Option<Uuid>),
     /// Manual sync of a cloud profile, re-runs discovery and updates
     /// every already-imported host whose `cloud_ref.profile_id` matches.
     /// Fields the user has flagged in `customized_fields` are preserved.

@@ -142,7 +142,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::funnel(),
                 crate::i18n::t("host_filter_by_profile"),
-                Message::HostFilterByCloudProfile(Some(pid)),
+                Message::Navigation(NavigationMessage::HostFilterByCloudProfile(Some(pid))),
                 OryxisColors::t().text_secondary,
             ));
         }
