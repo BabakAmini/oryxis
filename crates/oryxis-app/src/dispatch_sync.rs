@@ -97,10 +97,15 @@ impl Oryxis {
             Message::SyncWizardDomainChanged(v) => {
                 self.sync.relay_wizard.domain = v;
                 self.sync.relay_wizard.result = None;
+                // Editing the endpoint invalidates any in-flight probe:
+                // with the snapshot gone, its result is discarded on
+                // arrival instead of persisting a never-tested value.
+                self.sync.relay_wizard.testing_snapshot = None;
             }
             Message::SyncWizardPortChanged(v) => {
                 self.sync.relay_wizard.port = v;
                 self.sync.relay_wizard.result = None;
+                self.sync.relay_wizard.testing_snapshot = None;
             }
             Message::SyncWizardFormatChanged(f) => {
                 self.sync.relay_wizard.format = f;
@@ -108,6 +113,7 @@ impl Oryxis {
             Message::SyncWizardRegenToken => {
                 self.sync.relay_wizard.token = fresh_relay_token();
                 self.sync.relay_wizard.result = None;
+                self.sync.relay_wizard.testing_snapshot = None;
             }
             Message::SyncWizardTest => {
                 let Some(base) = self.sync.relay_wizard.base_url() else {
@@ -118,6 +124,12 @@ impl Oryxis {
                 }
                 self.sync.relay_wizard.testing = true;
                 self.sync.relay_wizard.result = None;
+                // Snapshot what this probe actually tests. The result
+                // handler adopts these values, never the live form, so
+                // whatever the user types during the 8s probe window is
+                // never persisted untested.
+                self.sync.relay_wizard.testing_snapshot =
+                    Some((base.clone(), self.sync.relay_wizard.token.clone()));
                 return Ok(Task::perform(
                     async move {
                         // The wizard sets up a self-hosted `oryxis-relay`
@@ -173,27 +185,37 @@ impl Oryxis {
             }
             Message::SyncWizardTestResult(r) => {
                 self.sync.relay_wizard.testing = false;
+                // The probe tested the SNAPSHOT taken when it started,
+                // not whatever the form says now. A domain / port /
+                // token edit during the probe clears the snapshot; in
+                // that case the result describes a stale endpoint, so
+                // drop it entirely (no success or failure line) and
+                // let the user re-test the edited values.
+                let Some((base, token)) =
+                    self.sync.relay_wizard.testing_snapshot.take()
+                else {
+                    self.sync.relay_wizard.result = None;
+                    return Ok(Task::none());
+                };
                 let ok = r.is_ok();
                 self.sync.relay_wizard.result = Some(r);
                 if ok {
                     // Reachable: adopt the relay as this device's
                     // signaling endpoint, exactly as if the user had
-                    // filled the Advanced fields by hand.
-                    if let Some(base) = self.sync.relay_wizard.base_url() {
-                        let token = self.sync.relay_wizard.token.clone();
-                        self.sync.signaling_url = base.clone();
-                        self.sync.signaling_token = token.clone();
-                        if let Some(vault) = &self.vault {
-                            let _ = vault.set_setting("sync_signaling_url", &base);
-                            let _ =
-                                vault.set_setting("sync_signaling_token", &token);
-                        }
-                        // A running engine keeps its old config; bounce
-                        // it so the new endpoint takes effect now.
-                        if self.sync.engine_running {
-                            self.stop_sync_engine();
-                            return Ok(self.start_sync_engine());
-                        }
+                    // filled the Advanced fields by hand. Adopt the
+                    // probed snapshot, never the live form.
+                    self.sync.signaling_url = base.clone();
+                    self.sync.signaling_token = token.clone();
+                    if let Some(vault) = &self.vault {
+                        let _ = vault.set_setting("sync_signaling_url", &base);
+                        let _ =
+                            vault.set_setting("sync_signaling_token", &token);
+                    }
+                    // A running engine keeps its old config; bounce
+                    // it so the new endpoint takes effect now.
+                    if self.sync.engine_running {
+                        self.stop_sync_engine();
+                        return Ok(self.start_sync_engine());
                     }
                 }
             }

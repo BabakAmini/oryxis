@@ -101,6 +101,14 @@ pub(crate) struct RelayWizardForm {
     pub testing: bool,
     /// Last test outcome; `Err` carries the reason line.
     pub result: Option<Result<(), String>>,
+    /// The `(base_url, token)` pair the in-flight probe is actually
+    /// testing, captured when the Test starts. The result handler
+    /// adopts these values, never the live form, so edits made during
+    /// the probe can't be persisted untested. Any domain / port /
+    /// token change clears it, which also invalidates the in-flight
+    /// probe: a missing snapshot when the result arrives discards the
+    /// result entirely and the user re-tests.
+    pub testing_snapshot: Option<(String, String)>,
 }
 
 impl RelayWizardForm {
