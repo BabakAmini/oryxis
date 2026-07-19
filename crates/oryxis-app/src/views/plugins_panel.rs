@@ -12,7 +12,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SyncMessage, Message, Oryxis};
+use crate::app::{AiMessage, SyncMessage, Message, Oryxis};
 use crate::state::{PluginUiEntry, PluginUiStatus};
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_section, toggle_row_desc};
@@ -32,13 +32,13 @@ impl Oryxis {
             Space::new().height(8).into(),
             panel_section(column![
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ToggleAiEnabled),
+                    crate::keynav::RowAction::activate(Message::Ai(AiMessage::ToggleAiEnabled)),
                     8.0,
                     toggle_row_desc(
                         crate::i18n::t("ai_assistant"),
                         crate::i18n::t("feature_ai_desc"),
                         self.ai.enabled,
-                        Message::ToggleAiEnabled,
+                        Message::Ai(AiMessage::ToggleAiEnabled),
                     ),
                 ),
                 Space::new().height(12),

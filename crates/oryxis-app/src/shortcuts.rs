@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -1116,7 +1116,7 @@ impl Oryxis {
             // Open/close the focused tab's sidebar (owner ask: a
             // keyboard path to close it; the handler already drops
             // the ring + dropdown gate on close).
-            ToggleSidebar => Task::done(Message::ToggleChatSidebar),
+            ToggleSidebar => Task::done(Message::Ai(AiMessage::ToggleChatSidebar)),
             // Hybrid tab: Terminal <-> Files for the focused tab (the
             // handler no-ops for tabs without a live SSH session).
             ToggleTabFiles => match self.active_tab {

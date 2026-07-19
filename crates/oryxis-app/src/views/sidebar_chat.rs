@@ -8,7 +8,7 @@ use iced::border::Radius;
 use iced::widget::{container, text};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::{ChatMessage, ChatRole};
 use crate::theme::OryxisColors;
@@ -272,19 +272,19 @@ impl Oryxis {
                         iced::widget::row![
                             pending_tool_btn(
                                 t("ai_tool_run"),
-                                Message::ChatToolApprove(cmd_for_run),
+                                Message::Ai(AiMessage::ChatToolApprove(cmd_for_run)),
                                 OryxisColors::t().accent,
                                 OryxisColors::t().button_text,
                             ),
                             pending_tool_btn(
                                 t("ai_tool_always"),
-                                Message::ChatToolApproveAlways(cmd_for_always),
+                                Message::Ai(AiMessage::ChatToolApproveAlways(cmd_for_always)),
                                 OryxisColors::t().success,
                                 OryxisColors::t().button_text,
                             ),
                             pending_tool_btn(
                                 t("ai_tool_deny"),
-                                Message::ChatToolDeny(cmd_for_deny),
+                                Message::Ai(AiMessage::ChatToolDeny(cmd_for_deny)),
                                 OryxisColors::t().bg_hover,
                                 OryxisColors::t().text_primary,
                             ),
@@ -339,7 +339,7 @@ impl Oryxis {
                         iced::widget::Space::new().height(8),
                         crate::widgets::styled_button(
                             t("retry"),
-                            Message::ChatRetry,
+                            Message::Ai(AiMessage::ChatRetry),
                             OryxisColors::t().accent,
                         ),
                     ],
@@ -463,7 +463,7 @@ impl<'a>
         // we route it through `ChatToolApprove` (run once) and skip
         // the risk gate, re-prompting after a deliberate Play would
         // be redundant.
-        .on_press(Message::ChatToolApprove(code.to_string()))
+        .on_press(Message::Ai(AiMessage::ChatToolApprove(code.to_string())))
         .interaction(iced::mouse::Interaction::Pointer);
         let toolbar = container(
             iced::widget::row![copy, iced::widget::Space::new().width(4), play]
@@ -507,7 +507,7 @@ pub(crate) fn chat_mode_picker<'a>(current: crate::state::ChatMode) -> Element<'
             });
         let btn = iced::widget::button(label)
             .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
-            .on_press(Message::ChatModeChanged(mode))
+            .on_press(Message::Ai(AiMessage::ChatModeChanged(mode)))
             .style(move |_, status| {
                 let c = OryxisColors::t();
                 let bg = if selected {

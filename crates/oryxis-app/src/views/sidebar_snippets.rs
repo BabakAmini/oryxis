@@ -9,7 +9,7 @@ use iced::widget::{button, column, container, scrollable, text, MouseArea, Space
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -73,7 +73,7 @@ impl Oryxis {
                     crate::widgets::INPUT_RADIUS,
                     iced::widget::text_input(t("search"), &self.sidebar_snippet_search)
                         .id(iced::widget::Id::new("sidebar-snippet-search"))
-                        .on_input(Message::SidebarSnippetSearchChanged)
+                        .on_input(|v| Message::Ai(AiMessage::SidebarSnippetSearchChanged(v)))
                         .padding(8)
                         .size(13)
                         .style(crate::widgets::rounded_input_style)
@@ -81,10 +81,10 @@ impl Oryxis {
                 ),
                 Space::new().width(6).into(),
                 self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSearch),
+                    crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarSearch)),
                     stab,
                     6.0,
-                    chat_header_btn(iced_fonts::lucide::x(), Message::ToggleSidebarSearch),
+                    chat_header_btn(iced_fonts::lucide::x(), Message::Ai(AiMessage::ToggleSidebarSearch)),
                 ),
             ])
         } else {
@@ -141,17 +141,17 @@ impl Oryxis {
                 ),
                 Space::new().width(2).into(),
                 self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSort),
+                    crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarSort)),
                     stab,
                     6.0,
-                    chat_header_btn(sort_glyph(self.snippets_sort), Message::ToggleSidebarSort),
+                    chat_header_btn(sort_glyph(self.snippets_sort), Message::Ai(AiMessage::ToggleSidebarSort)),
                 ),
                 Space::new().width(2).into(),
                 self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::button(Message::ToggleSidebarSearch),
+                    crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarSearch)),
                     stab,
                     6.0,
-                    chat_header_btn(iced_fonts::lucide::search(), Message::ToggleSidebarSearch),
+                    chat_header_btn(iced_fonts::lucide::search(), Message::Ai(AiMessage::ToggleSidebarSearch)),
                 ),
             ])
         };
@@ -481,7 +481,7 @@ impl Oryxis {
             let backdrop: Element<'_, Message> = MouseArea::new(
                 container(Space::new()).width(Length::Fill).height(Length::Fill),
             )
-            .on_press(Message::ToggleSidebarSort)
+            .on_press(Message::Ai(AiMessage::ToggleSidebarSort))
             .into();
             iced::widget::Stack::new()
                 .push(base)

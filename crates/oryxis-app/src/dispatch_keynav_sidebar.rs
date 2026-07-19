@@ -30,7 +30,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::keynav::movement::index_move;
 use crate::keynav::SidebarRow;
 use crate::state::TerminalSidebarTab;
@@ -171,7 +171,7 @@ impl Oryxis {
                         )));
                     }
                     // Opens the field and focuses it (the handler does).
-                    return Some(self.update(Message::ToggleSidebarSearch));
+                    return Some(self.update(Message::Ai(AiMessage::ToggleSidebarSearch)));
                 }
                 TerminalSidebarTab::History => {
                     self.keynav.sidebar_selected = None;

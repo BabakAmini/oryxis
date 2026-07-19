@@ -27,7 +27,7 @@ impl Oryxis {
             let (prov_prev, prov_next) = crate::keynav::slots::cycle_pair(
                 &provider_options,
                 &current_info.display.to_string(),
-                Message::AiProviderChanged,
+                |v| Message::Ai(AiMessage::AiProviderChanged(v)),
             );
             let provider_pick: Element<'_, Message> = self.settings_nav_slot(
                 crate::keynav::RowAction::picker(prov_prev, prov_next),
@@ -37,7 +37,7 @@ impl Oryxis {
                     provider_options,
                     |s: &String| s.clone(),
                 )
-                .on_select(Message::AiProviderChanged)
+                .on_select(|v| Message::Ai(AiMessage::AiProviderChanged(v)))
                 .on_open(Message::PickOpenChanged(true))
                 .on_close(Message::PickOpenChanged(false))
                 .width(220)
@@ -51,7 +51,7 @@ impl Oryxis {
                 10.0,
                 text_input(t("ai_model_placeholder"), &self.ai.model)
                     .id(iced::widget::Id::new("set-ai-model"))
-                    .on_input(Message::AiModelChanged)
+                    .on_input(|v| Message::Ai(AiMessage::AiModelChanged(v)))
                     .padding(10)
                     .width(300)
                     .style(crate::widgets::rounded_input_style)
@@ -71,7 +71,7 @@ impl Oryxis {
                     10.0,
                     text_input("https://api.example.com/v1/chat/completions", &self.ai.api_url)
                         .id(iced::widget::Id::new("set-ai-url"))
-                        .on_input(Message::AiApiUrlChanged)
+                        .on_input(|v| Message::Ai(AiMessage::AiApiUrlChanged(v)))
                         .padding(10)
                         .width(300)
                         .style(crate::widgets::rounded_input_style)
@@ -108,8 +108,8 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         key_placeholder,
                         &self.ai.api_key,
-                        Message::AiApiKeyChanged,
-                        Some(Message::SaveAiApiKey),
+                        |v| Message::Ai(AiMessage::AiApiKeyChanged(v)),
+                        Some(Message::Ai(AiMessage::SaveAiApiKey)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::AiApiKey),
                         Message::ToggleSecretVisibility(
@@ -132,9 +132,9 @@ impl Oryxis {
                 .into(),
             );
             let save_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::SaveAiApiKey),
+                crate::keynav::RowAction::activate(Message::Ai(AiMessage::SaveAiApiKey)),
                 6.0,
-                styled_button(crate::i18n::t("save"), Message::SaveAiApiKey, OryxisColors::t().accent),
+                styled_button(crate::i18n::t("save"), Message::Ai(AiMessage::SaveAiApiKey), OryxisColors::t().accent),
             );
             let key_status: Element<'_, Message> = if self.ai.api_key_set {
                 dir_row(vec![
@@ -174,7 +174,7 @@ impl Oryxis {
             // to fit its text, capped by the panel's scroll area.
             let prompt_editor: Element<'_, Message> = iced::widget::text_editor(&self.ai.system_prompt)
                 .placeholder(t("ai_system_prompt_placeholder"))
-                .on_action(Message::AiSystemPromptAction)
+                .on_action(|v| Message::Ai(AiMessage::AiSystemPromptAction(v)))
                 .padding(10)
                 .height(Length::Shrink)
                 .style(|_theme, status| {

@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -663,34 +663,34 @@ impl Oryxis {
             strip.push(sidebar_tab_btn(
                 iced_fonts::lucide::sparkles(),
                 active == STab::Chat,
-                Message::SelectTerminalSidebarTab(STab::Chat),
+                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Chat)),
                 t("tab_tip_chat"),
             ));
         }
         strip.push(sidebar_tab_btn(
             iced_fonts::lucide::code(),
             active == STab::Snippets,
-            Message::SelectTerminalSidebarTab(STab::Snippets),
+            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Snippets)),
             t("snippets"),
         ));
         strip.push(sidebar_tab_btn(
             iced_fonts::lucide::history(),
             active == STab::History,
-            Message::SelectTerminalSidebarTab(STab::History),
+            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::History)),
             t("tab_tip_history"),
         ));
         if files_available {
             strip.push(sidebar_tab_btn(
                 iced_fonts::lucide::folder(),
                 active == STab::Files,
-                Message::SelectTerminalSidebarTab(STab::Files),
+                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Files)),
                 t("tab_tip_files"),
             ));
         }
         strip.push(sidebar_tab_btn(
             iced_fonts::lucide::cog(),
             active == STab::HostConfig,
-            Message::SelectTerminalSidebarTab(STab::HostConfig),
+            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::HostConfig)),
             t("tab_tip_host_config"),
         ));
         strip.push(Space::new().width(Length::Fill).into());
@@ -700,13 +700,13 @@ impl Oryxis {
         // the walk: the FocusSidebarList hotkey already cycles them.
         if active == STab::Chat {
             strip.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::ChatResetConversation),
+                crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ChatResetConversation)),
                 active,
                 6.0,
                 icon_tooltip(
                     chat_header_btn(
                         iced_fonts::lucide::rotate_ccw(),
-                        Message::ChatResetConversation,
+                        Message::Ai(AiMessage::ChatResetConversation),
                     ),
                     t("chat_reset_tip"),
                 ),
@@ -714,11 +714,11 @@ impl Oryxis {
             strip.push(Space::new().width(4).into());
         }
         strip.push(self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::ToggleChatSidebar),
+            crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleChatSidebar)),
             active,
             6.0,
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::ToggleChatSidebar),
+                chat_header_btn(iced_fonts::lucide::x(), Message::Ai(AiMessage::ToggleChatSidebar)),
                 t("close"),
             ),
         ));
@@ -750,7 +750,7 @@ impl Oryxis {
                     ..Default::default()
                 }),
         )
-        .on_press(Message::ChatSidebarResizeStart)
+        .on_press(Message::Ai(AiMessage::ChatSidebarResizeStart))
         .interaction(iced::mouse::Interaction::ResizingHorizontally)
         .into();
 
@@ -857,7 +857,7 @@ impl Oryxis {
 
         let messages_scroll = scrollable(messages_col)
             .id(iced::widget::Id::new("chat-scroll"))
-            .on_scroll(|viewport| Message::ChatScrolled(viewport.relative_offset().y))
+            .on_scroll(|viewport| Message::Ai(AiMessage::ChatScrolled(viewport.relative_offset().y)))
             .width(Length::Fill)
             .height(Length::Fill);
 
@@ -878,7 +878,7 @@ impl Oryxis {
             // Chat stop (the fork's text_editor is operation::Focusable).
             .id(iced::widget::Id::new("chat-input"))
             .placeholder(t("ask_ai"))
-            .on_action(Message::ChatInputAction)
+            .on_action(|v| Message::Ai(AiMessage::ChatInputAction(v)))
             .padding(10)
             .height(Length::Shrink)
             .key_binding(|key_press| {
@@ -886,7 +886,7 @@ impl Oryxis {
                 use iced::widget::text_editor::{Binding, KeyPress};
                 let KeyPress { key, modifiers, .. } = &key_press;
                 if matches!(key, Key::Named(Named::Enter)) && !modifiers.shift() {
-                    return Some(Binding::Custom(Message::SendChat));
+                    return Some(Binding::Custom(Message::Ai(AiMessage::SendChat)));
                 }
                 Binding::from_key_press(key_press)
             })
@@ -918,7 +918,7 @@ impl Oryxis {
             let (prev, next) = crate::keynav::slots::cycle_pair(
                 &[ChatMode::Plan, ChatMode::Ask, ChatMode::Auto],
                 &tab.chat_mode,
-                Message::ChatModeChanged,
+                |v| Message::Ai(AiMessage::ChatModeChanged(v)),
             );
             container(
                 dir_row(vec![self.sidebar_nav_slot(
@@ -982,7 +982,7 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center),
             )
             .padding(Padding { top: 5.0, right: 14.0, bottom: 5.0, left: 14.0 })
-            .on_press(Message::ChatStop)
+            .on_press(Message::Ai(AiMessage::ChatStop))
             .style(|_, status| {
                 let c = OryxisColors::t();
                 let bg = match status {

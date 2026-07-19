@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis};
 use crate::state::{ChatMessage, ChatRole};
 use crate::util::chat_scroll_to_end;
 
@@ -357,12 +357,12 @@ impl Oryxis {
 
         let stream_task = Task::stream(crate::ai::send_chat_stream(config, messages)).map(
             move |chunk| match chunk {
-                crate::ai::StreamChunk::Text(delta) => Message::ChatStreamChunk { tab_id, delta },
+                crate::ai::StreamChunk::Text(delta) => Message::Ai(AiMessage::ChatStreamChunk { tab_id, delta }),
                 crate::ai::StreamChunk::ToolUse { command, risk } => {
-                    Message::ChatToolProposed { tab_id, command, risk }
+                    Message::Ai(AiMessage::ChatToolProposed { tab_id, command, risk })
                 }
-                crate::ai::StreamChunk::Done => Message::ChatStreamDone { tab_id },
-                crate::ai::StreamChunk::Error(error) => Message::ChatError { tab_id, error },
+                crate::ai::StreamChunk::Done => Message::Ai(AiMessage::ChatStreamDone { tab_id }),
+                crate::ai::StreamChunk::Error(error) => Message::Ai(AiMessage::ChatError { tab_id, error }),
             },
         );
         // Track the stream so Stop / close / reset can abort it.
@@ -375,13 +375,13 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // ── AI settings ──
-            Message::ToggleAiEnabled => {
+            Message::Ai(AiMessage::ToggleAiEnabled) => {
                 self.ai.enabled = !self.ai.enabled;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("ai_enabled", if self.ai.enabled { "true" } else { "false" });
                 }
             }
-            Message::AiProviderChanged(provider) => {
+            Message::Ai(AiMessage::AiProviderChanged(provider)) => {
                 // Accept either a display name (from the dropdown) or the
                 // internal id. Fall back to keeping the current provider if
                 // the value can't be resolved.
@@ -408,22 +408,22 @@ impl Oryxis {
                     }
                 }
             }
-            Message::AiModelChanged(model) => {
+            Message::Ai(AiMessage::AiModelChanged(model)) => {
                 self.ai.model = model;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("ai_model", &self.ai.model);
                 }
             }
-            Message::AiApiKeyChanged(key) => {
+            Message::Ai(AiMessage::AiApiKeyChanged(key)) => {
                 self.ai.api_key = key;
             }
-            Message::AiApiUrlChanged(url) => {
+            Message::Ai(AiMessage::AiApiUrlChanged(url)) => {
                 self.ai.api_url = url;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("ai_api_url", &self.ai.api_url);
                 }
             }
-            Message::AiSystemPromptAction(action) => {
+            Message::Ai(AiMessage::AiSystemPromptAction(action)) => {
                 let was_edit = action.is_edit();
                 self.ai.system_prompt.perform(action);
                 if was_edit
@@ -432,7 +432,7 @@ impl Oryxis {
                     let _ = vault.set_setting("ai_system_prompt", &self.ai.system_prompt.text());
                 }
             }
-            Message::SaveAiApiKey => {
+            Message::Ai(AiMessage::SaveAiApiKey) => {
                 if !self.ai.api_key.is_empty()
                     && let Some(vault) = &self.vault
                     && vault.set_ai_api_key(&self.ai.api_key).is_ok() {
@@ -442,7 +442,7 @@ impl Oryxis {
             }
 
             // ── AI chat sidebar ──
-            Message::ToggleChatSidebar => {
+            Message::Ai(AiMessage::ToggleChatSidebar) => {
                 let ai_enabled = self.ai.enabled;
                 let mut closing = false;
                 if let Some(idx) = self.active_tab
@@ -476,7 +476,7 @@ impl Oryxis {
                     return Ok(self.sidebar_files_sync());
                 }
             }
-            Message::SelectTerminalSidebarTab(tab) => {
+            Message::Ai(AiMessage::SelectTerminalSidebarTab(tab)) => {
                 // A HostConfig dropdown open when the sidebar tab swaps
                 // unmounts without on_close; drop the gate with it.
                 self.keynav.pick_open = false;
@@ -496,16 +496,16 @@ impl Oryxis {
                     return Ok(self.sidebar_files_sync());
                 }
             }
-            Message::SidebarSnippetSearchChanged(v) => {
+            Message::Ai(AiMessage::SidebarSnippetSearchChanged(v)) => {
                 self.sidebar_snippet_search = v;
             }
-            Message::ToggleSidebarSort => {
+            Message::Ai(AiMessage::ToggleSidebarSort) => {
                 self.sidebar_sort_open = !self.sidebar_sort_open;
                 if self.sidebar_sort_open {
                     self.sidebar_search_open = false;
                 }
             }
-            Message::ToggleSidebarSearch => {
+            Message::Ai(AiMessage::ToggleSidebarSearch) => {
                 self.sidebar_search_open = !self.sidebar_search_open;
                 self.sidebar_sort_open = false;
                 if self.sidebar_search_open {
@@ -516,16 +516,16 @@ impl Oryxis {
                 // Collapsing clears the needle so the list shows everything.
                 self.sidebar_snippet_search.clear();
             }
-            Message::ChatInputAction(action) => {
+            Message::Ai(AiMessage::ChatInputAction(action)) => {
                 self.chat_input.perform(action);
             }
-            Message::ChatScrolled(relative_y) => {
+            Message::Ai(AiMessage::ChatScrolled(relative_y)) => {
                 // Strict end check (not "near end"), relative_offset.y
                 // becomes 1.0 when the user is exactly at the bottom.
                 // Tiny epsilon covers f32 rounding from the layout pass.
                 self.chat_scroll_at_bottom = relative_y >= 0.999;
             }
-            Message::ChatResetConversation => {
+            Message::Ai(AiMessage::ChatResetConversation) => {
                 // Cancel any in-flight stream first, otherwise the detached
                 // tool-followup task would keep running and re-populate the
                 // history we're about to clear. Acts on the active tab (the
@@ -539,7 +539,7 @@ impl Oryxis {
                 }
                 self.chat_scroll_at_bottom = true;
             }
-            Message::ChatModeChanged(mode) => {
+            Message::Ai(AiMessage::ChatModeChanged(mode)) => {
                 // Apply to the active tab's conversation and remember it as
                 // the default for new tabs (process-wide default + setting).
                 if let Some(idx) = self.active_tab
@@ -552,12 +552,12 @@ impl Oryxis {
                     let _ = vault.set_setting("ai_default_mode", mode.as_setting());
                 }
             }
-            Message::ChatSidebarResizeStart => {
+            Message::Ai(AiMessage::ChatSidebarResizeStart) => {
                 // Capture cursor x and current width, the MouseMoved
                 // handler computes the delta against these.
                 self.chat_sidebar_drag = Some((self.mouse_position.x, self.chat_sidebar_width));
             }
-            Message::ChatSidebarResizeStop => {
+            Message::Ai(AiMessage::ChatSidebarResizeStop) => {
                 self.chat_sidebar_drag = None;
                 // The same global Left-release ends an SFTP divider drag;
                 // persist the final ratio so it survives a relaunch.
@@ -648,7 +648,7 @@ impl Oryxis {
                     return Ok(Task::done(Message::SftpStartRename(side, path)));
                 }
             }
-            Message::SendChat => {
+            Message::Ai(AiMessage::SendChat) => {
                 let input = self.chat_input.text().trim().to_string();
                 if input.is_empty() || !self.ai.enabled {
                     return Ok(Task::none());
@@ -677,7 +677,7 @@ impl Oryxis {
                 let stream_task = self.spawn_chat_stream_for(idx);
                 return Ok(Task::batch(vec![chat_scroll_to_end(), stream_task]));
             }
-            Message::ChatStreamChunk { tab_id, delta } => {
+            Message::Ai(AiMessage::ChatStreamChunk { tab_id, delta }) => {
                 // Route to the origin tab by id (not `active_tab`): the user
                 // may have switched tabs while this stream keeps running.
                 let is_active = self.chat_tab_index(tab_id) == self.active_tab;
@@ -711,7 +711,7 @@ impl Oryxis {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatStreamDone { tab_id } => {
+            Message::Ai(AiMessage::ChatStreamDone { tab_id }) => {
                 let is_active = self.chat_tab_index(tab_id) == self.active_tab;
                 if let Some(idx) = self.chat_tab_index(tab_id) {
                     // Final parse so the rendered markdown can't lag behind
@@ -737,14 +737,14 @@ impl Oryxis {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatStop => {
+            Message::Ai(AiMessage::ChatStop) => {
                 // User asked to stop. Abort the active tab's live stream (and
                 // the detached tool-followup pipeline it feeds) and freeze
                 // the auto-exec guard where it is, so nothing else runs until
                 // the user sends the next message.
                 self.abort_active_chat_task();
             }
-            Message::ChatError { tab_id, error } => {
+            Message::Ai(AiMessage::ChatError { tab_id, error }) => {
                 // Provider/network failures get their own role so the
                 // bubble can render with an error treatment + Retry,
                 // instead of being indistinguishable from a real reply.
@@ -769,7 +769,7 @@ impl Oryxis {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatRetry => {
+            Message::Ai(AiMessage::ChatRetry) => {
                 // Strip the trailing error bubble plus any partial-stream
                 // assistant remnants (empty placeholders, or text that
                 // arrived before the error), then resume a fresh assistant
@@ -804,7 +804,7 @@ impl Oryxis {
                 let stream_task = self.spawn_chat_stream_for(idx);
                 return Ok(Task::batch(vec![chat_scroll_to_end(), stream_task]));
             }
-            Message::ChatToolProposed { tab_id, command, risk } => {
+            Message::Ai(AiMessage::ChatToolProposed { tab_id, command, risk }) => {
                 // Gate the tool call against the ORIGIN tab (routed by id, so
                 // switching tabs mid-stream can't run a command on the wrong
                 // host). Mode + allow-list + loop guards all read from that
@@ -847,14 +847,14 @@ impl Oryxis {
                 match gate {
                     // Allow-listed simple command under the streak cap: run now.
                     ToolGate::AutoExec => {
-                        return Ok(Task::done(Message::ChatToolExec { tab_id, command, risk }));
+                        return Ok(Task::done(Message::Ai(AiMessage::ChatToolExec { tab_id, command, risk })));
                     }
                     // Loop guard tripped, or the deterministic destructive
                     // floor fired: surface it for explicit approval instead of
                     // running it unattended. This is what stops the reported
                     // runaway loop on its own.
                     ToolGate::Confirm => {
-                        return Ok(Task::done(Message::ChatToolGuardBlocked { tab_id, command }));
+                        return Ok(Task::done(Message::Ai(AiMessage::ChatToolGuardBlocked { tab_id, command })));
                     }
                     // Model-claimed `safe` and nothing above objected: hand to
                     // the independent auto-exec judge, which can only escalate
@@ -883,16 +883,16 @@ impl Oryxis {
                             crate::ai::judge_auto_exec(config, cmd_for_judge),
                             move |allow| {
                                 if allow {
-                                    Message::ChatToolExec {
+                                    Message::Ai(AiMessage::ChatToolExec {
                                         tab_id,
                                         command: command.clone(),
                                         risk: risk_for_exec.clone(),
-                                    }
+                                    })
                                 } else {
-                                    Message::ChatToolGuardBlocked {
+                                    Message::Ai(AiMessage::ChatToolGuardBlocked {
                                         tab_id,
                                         command: command.clone(),
-                                    }
+                                    })
                                 }
                             },
                         );
@@ -920,7 +920,7 @@ impl Oryxis {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatToolGuardBlocked { tab_id, command } => {
+            Message::Ai(AiMessage::ChatToolGuardBlocked { tab_id, command }) => {
                 // A mode / loop guard or the independent judge declined to
                 // auto-run this command, so surface it on the origin tab for
                 // explicit approval exactly like a risky one.
@@ -941,7 +941,7 @@ impl Oryxis {
                     return Ok(chat_scroll_to_end());
                 }
             }
-            Message::ChatToolApprove(command) => {
+            Message::Ai(AiMessage::ChatToolApprove(command)) => {
                 // RUN on a pending prompt in the active tab. Only pop the
                 // trailing bubble when it's the pending prompt for THIS exact
                 // command: a Play click on an older code block must not
@@ -965,14 +965,14 @@ impl Oryxis {
                 if let Some(tab_id) = tab_id {
                     // User-approved (was surfaced as needing confirmation), so
                     // record it as `risky` in the reconstructed tool_use.
-                    return Ok(Task::done(Message::ChatToolExec {
+                    return Ok(Task::done(Message::Ai(AiMessage::ChatToolExec {
                         tab_id,
                         command,
                         risk: "risky".into(),
-                    }));
+                    })));
                 }
             }
-            Message::ChatToolApproveAlways(command) => {
+            Message::Ai(AiMessage::ChatToolApproveAlways(command)) => {
                 let Some(idx) = self.active_tab else {
                     return Ok(Task::none());
                 };
@@ -1002,14 +1002,14 @@ impl Oryxis {
                     tab.chat_auto_run_streak = 0;
                 }
                 if let Some(tab_id) = tab_id {
-                    return Ok(Task::done(Message::ChatToolExec {
+                    return Ok(Task::done(Message::Ai(AiMessage::ChatToolExec {
                         tab_id,
                         command,
                         risk: "risky".into(),
-                    }));
+                    })));
                 }
             }
-            Message::ChatToolDeny(command) => {
+            Message::Ai(AiMessage::ChatToolDeny(command)) => {
                 // User said no. Drop the pending bubble and record the
                 // refusal so the next user turn tells the model the command
                 // was declined (otherwise it tends to re-propose the same
@@ -1030,7 +1030,7 @@ impl Oryxis {
                     tab.chat_loading = false;
                 }
             }
-            Message::ChatToolExec { tab_id, command, risk } => {
+            Message::Ai(AiMessage::ChatToolExec { tab_id, command, risk }) => {
                 // Run a command in the ORIGIN tab's terminal (routed by id so
                 // a tool call can never land in another session). We record a
                 // *running* Tool exchange now; the poll delivers `ChatToolResult`
@@ -1162,13 +1162,13 @@ impl Oryxis {
                         }
                         last_snapshot
                     },
-                    move |output| Message::ChatToolResult { tab_id, tool_id, output },
+                    move |output| Message::Ai(AiMessage::ChatToolResult { tab_id, tool_id, output }),
                 );
                 // Track the poll so Stop / close / reset can cancel a command
                 // whose output hasn't come back yet.
                 return Ok(self.track_chat_task_for(tab_id, poll));
             }
-            Message::ChatToolResult { tab_id, tool_id, output } => {
+            Message::Ai(AiMessage::ChatToolResult { tab_id, tool_id, output }) => {
                 // Persist the captured output onto its running Tool exchange
                 // (pairing it with the tool_use), then fire the analysis
                 // followup from the now-complete history.

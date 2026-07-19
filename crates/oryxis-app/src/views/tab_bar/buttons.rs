@@ -90,7 +90,7 @@ pub(crate) fn sidebar_btn<'a>() -> Element<'a, Message> {
         .center(Length::Fixed(SIDEBAR_BUTTON_WIDTH))
         .height(Length::Fixed(BAR_HEIGHT)),
     )
-    .on_press(Message::ToggleChatSidebar)
+    .on_press(Message::Ai(AiMessage::ToggleChatSidebar))
     .padding(0)
     .style(move |_, status| {
         let bg = match status {

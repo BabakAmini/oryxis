@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 
 // Coarse-grained record of the last cursor position forwarded to the
 // message loop. The subscription closure quantises to a 4 px grid and
@@ -111,7 +111,7 @@ impl Oryxis {
                 // Same handler also closes any active SFTP internal drag.
                 iced::event::Event::Mouse(iced::mouse::Event::ButtonReleased(
                     iced::mouse::Button::Left,
-                )) => Some(Message::ChatSidebarResizeStop),
+                )) => Some(Message::Ai(AiMessage::ChatSidebarResizeStop)),
                 iced::event::Event::Window(iced::window::Event::Resized(size)) => {
                     Some(Message::WindowResized(size))
                 }
