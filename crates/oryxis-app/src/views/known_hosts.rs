@@ -5,7 +5,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{KnownHostMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -33,7 +33,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .padding(Padding { top: 0.0, right: 14.0, bottom: 0.0, left: 14.0 }),
             )
-            .on_press(Message::RequestClearAllKnownHosts)
+            .on_press(Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts))
             .style(|_, status| {
                 let base = OryxisColors::t().error;
                 let bg = match status {
@@ -136,7 +136,7 @@ impl Oryxis {
                 )
                 .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 }),
             )
-            .on_press(Message::RequestDeleteKnownHost(idx))
+            .on_press(Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(idx)))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().error },

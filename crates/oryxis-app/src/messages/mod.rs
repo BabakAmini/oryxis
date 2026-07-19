@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod known_host;
+pub use known_host::KnownHostMessage;
 mod remote_desktop;
 pub use remote_desktop::RemoteDesktopMessage;
 mod tray;
@@ -1055,12 +1057,8 @@ pub enum Message {
     LocalConfigSaveGlobal,
 
     // Known hosts
-    /// Open the confirm dialog before deleting a single known host.
-    RequestDeleteKnownHost(usize),
-    DeleteKnownHost(usize),
-    /// Open the confirm dialog before clearing every known host.
-    RequestClearAllKnownHosts,
-    ClearAllKnownHosts,
+    // KnownHost (handle_known_host)
+    KnownHost(KnownHostMessage),
 
     // History
     RequestClearHistory,

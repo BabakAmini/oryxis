@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{KnownHostMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_known_hosts(
@@ -14,7 +14,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Known hosts --
-            Message::RequestDeleteKnownHost(idx) => {
+            Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(idx)) => {
                 let label = self
                     .known_hosts
                     .get(idx)
@@ -29,12 +29,12 @@ impl Oryxis {
                     link: None,
                     action: Some(crate::state::ErrorDialogAction {
                         label: crate::i18n::t("remove").to_string(),
-                        message: Box::new(Message::DeleteKnownHost(idx)),
+                        message: Box::new(Message::KnownHost(KnownHostMessage::DeleteKnownHost(idx))),
                         danger: true,
                     }),
                 });
             }
-            Message::DeleteKnownHost(idx) => {
+            Message::KnownHost(KnownHostMessage::DeleteKnownHost(idx)) => {
                 if let Some(kh) = self.known_hosts.get(idx) {
                     let id = kh.id;
                     if let Some(vault) = &self.vault {
@@ -43,19 +43,19 @@ impl Oryxis {
                     }
                 }
             }
-            Message::RequestClearAllKnownHosts => {
+            Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts) => {
                 self.error_dialog = Some(crate::state::ErrorDialog {
                     title: crate::i18n::t("known_hosts_clear_confirm_title").to_string(),
                     body: crate::i18n::t("known_hosts_clear_confirm_body").to_string(),
                     link: None,
                     action: Some(crate::state::ErrorDialogAction {
                         label: crate::i18n::t("re_verify_all").to_string(),
-                        message: Box::new(Message::ClearAllKnownHosts),
+                        message: Box::new(Message::KnownHost(KnownHostMessage::ClearAllKnownHosts)),
                         danger: true,
                     }),
                 });
             }
-            Message::ClearAllKnownHosts => {
+            Message::KnownHost(KnownHostMessage::ClearAllKnownHosts) => {
                 if let Some(vault) = &self.vault {
                     for kh in self.known_hosts.clone() {
                         let _ = vault.delete_known_host(&kh.id);

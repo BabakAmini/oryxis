@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -594,7 +594,7 @@ impl Oryxis {
             NavItem::HistoryLog(id) => Message::ViewSessionLog(id),
             NavItem::CloudAccount(id) => Message::ShowCloudForm(Some(id)),
             NavItem::Proxy(id) => Message::ShowProxyIdentityForm(Some(id)),
-            NavItem::KnownHost(i) => Message::RequestDeleteKnownHost(i),
+            NavItem::KnownHost(i) => Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(i)),
             NavItem::ContentAction(i) => {
                 // Generic action rows (dynamic cloud-group task list,
                 // the empty dashboard's create/import block) carry
@@ -649,7 +649,7 @@ impl Oryxis {
             (View::History, ToolbarItem::PagerNext) => Message::LogsPageNext,
             (View::Cloud, ToolbarItem::Primary) => Message::ShowCloudForm(None),
             (View::Proxies, ToolbarItem::Primary) => Message::ShowProxyIdentityForm(None),
-            (View::KnownHosts, ToolbarItem::Primary) => Message::RequestClearAllKnownHosts,
+            (View::KnownHosts, ToolbarItem::Primary) => Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts),
             (_, ToolbarItem::PrivacyReveal) => Message::TogglePrivacyReveal,
             (_, ToolbarItem::Overflow) => Message::ToggleToolbarOverflow,
             (_, ToolbarItem::SearchIcon) => Message::ToggleToolbarSearch,
