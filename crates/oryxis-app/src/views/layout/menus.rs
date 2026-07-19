@@ -589,7 +589,7 @@ impl Oryxis {
             sep,
             item("local_shell", Message::OpenLocalShell, hk_local_shell),
             item("new_window", Message::SpawnNewWindow, hk_new_window),
-            item("check_for_updates_now", Message::CheckForUpdateManual, None),
+            item("check_for_updates_now", Message::Update(UpdateMessage::CheckForUpdateManual), None),
             lock_item,
         ]
         .width(Length::Fill);

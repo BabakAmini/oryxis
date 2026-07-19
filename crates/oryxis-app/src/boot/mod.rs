@@ -8,7 +8,7 @@ use iced::{Point, Task};
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
+use crate::app::{UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
 use crate::state::{ConnectionForm, SettingsSection, VaultState, View};
 
 mod load;
@@ -685,7 +685,7 @@ impl Oryxis {
         // already open (no master password), kick off the connect right
         // after boot. When the vault is locked, we defer until VaultUnlock
         // succeeds (handled in that branch).
-        let mut tasks = vec![task, Task::done(Message::CheckForUpdate)];
+        let mut tasks = vec![task, Task::done(Message::Update(UpdateMessage::CheckForUpdate))];
         // A Windows nightly self-replace that fails after the app has
         // exited has no UI left to report to; the helper leaves a marker
         // in TEMP instead. Surface it here so a failed swap is never

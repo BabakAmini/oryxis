@@ -75,7 +75,7 @@ impl Oryxis {
         let auto_update_toggle = self.nav_toggle_row(
             crate::i18n::t("auto_check_updates"),
             auto_update_enabled,
-            Message::SettingToggleAutoCheckUpdates,
+            Message::Update(UpdateMessage::SettingToggleAutoCheckUpdates),
         );
         // Non-standard picker layout (label line above the control),
         // so it takes the cycle_pair + slot treatment instead of
@@ -83,7 +83,7 @@ impl Oryxis {
         let (channel_prev, channel_next) = crate::keynav::slots::cycle_pair(
             &crate::update::UPDATE_CHANNELS,
             &self.setting_update_channel,
-            Message::SettingUpdateChannelChanged,
+            |v| Message::Update(UpdateMessage::SettingUpdateChannelChanged(v)),
         );
         let channel_picker = self.settings_nav_slot(
             crate::keynav::RowAction::picker(channel_prev, channel_next),
@@ -96,7 +96,7 @@ impl Oryxis {
                     crate::update::UpdateChannel::Nightly => t("update_channel_nightly").to_string(),
                 },
             )
-            .on_select(Message::SettingUpdateChannelChanged)
+            .on_select(|v| Message::Update(UpdateMessage::SettingUpdateChannelChanged(v)))
             .on_open(Message::PickOpenChanged(true))
             .on_close(Message::PickOpenChanged(false))
             .width(260)
@@ -105,11 +105,11 @@ impl Oryxis {
             .into(),
         );
         let check_now_btn = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::CheckForUpdateManual),
+            crate::keynav::RowAction::activate(Message::Update(UpdateMessage::CheckForUpdateManual)),
             6.0,
             styled_button(
                 t("check_for_updates_now"),
-                Message::CheckForUpdateManual,
+                Message::Update(UpdateMessage::CheckForUpdateManual),
                 OryxisColors::t().accent,
             ),
         );
@@ -141,11 +141,11 @@ impl Oryxis {
                 if matches!(status, UpdateStatus::Failed(_)) {
                     line_items.push(Space::new().width(10).into());
                     line_items.push(self.settings_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CheckForUpdateManual),
+                        crate::keynav::RowAction::activate(Message::Update(UpdateMessage::CheckForUpdateManual)),
                         6.0,
                         styled_button(
                             t("retry"),
-                            Message::CheckForUpdateManual,
+                            Message::Update(UpdateMessage::CheckForUpdateManual),
                             OryxisColors::t().text_muted,
                         ),
                     ));

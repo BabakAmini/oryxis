@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod update;
+pub use update::UpdateMessage;
 mod proxy_identity;
 pub use proxy_identity::ProxyIdentityMessage;
 mod plugin;
@@ -1151,8 +1153,8 @@ pub enum Message {
     HintModeChanged(String),
     /// Flip the reveal/eye state of a secret input field.
     ToggleSecretVisibility(crate::state::SecretField),
-    /// Settings: switch the auto-update release channel (stable/nightly).
-    SettingUpdateChannelChanged(crate::update::UpdateChannel),
+    // Update (handle_update)
+    Update(UpdateMessage),
     ChangeSettingsSection(SettingsSection),
     /// Pick the renderer backend ("auto" / "opengl" / "software").
     /// Persisted to the vault; takes effect on the next launch (the
@@ -1352,21 +1354,8 @@ pub enum Message {
     /// Toggle the global "record connection events" (history) setting.
     SettingToggleConnectionHistory,
     OsDetected(Uuid, Option<String>),
-    SettingToggleAutoCheckUpdates,
 
     // Auto-update
-    CheckForUpdate,
-    CheckForUpdateManual,
-    UpdateCheckResult(Option<crate::update::UpdateInfo>),
-    /// Manual update check failed (network / HTTP / parse); carries the
-    /// concise cause for the Settings > About status line + toast.
-    UpdateCheckFailed(String),
-    UpdateSkipVersion,
-    UpdateLater,
-    UpdateStartDownload,
-    UpdateDownloadProgress(f32),
-    UpdateDownloadComplete(Result<std::path::PathBuf, String>),
-    UpdateOpenRelease,
     AutoReconnectTick,
     ConnectAnimTick,
 

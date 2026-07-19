@@ -11,7 +11,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{UpdateMessage, Message, Oryxis};
 use crate::util::open_in_browser;
 
 impl Oryxis {
@@ -20,14 +20,14 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SettingToggleAutoCheckUpdates => {
+            Message::Update(UpdateMessage::SettingToggleAutoCheckUpdates) => {
                 self.setting_auto_check_updates = !self.setting_auto_check_updates;
                 self.persist_setting(
                     "auto_check_updates",
                     if self.setting_auto_check_updates { "true" } else { "false" },
                 );
             }
-            Message::SettingUpdateChannelChanged(channel) => {
+            Message::Update(UpdateMessage::SettingUpdateChannelChanged(channel)) => {
                 self.setting_update_channel = channel;
                 self.persist_setting("update_channel", channel.as_setting());
                 // A channel switch invalidates any "skip this version" so
@@ -45,12 +45,12 @@ impl Oryxis {
                 return Ok(Task::perform(
                     crate::update::check_latest_release(channel),
                     |res| match res {
-                        Ok(info) => Message::UpdateCheckResult(info),
-                        Err(e) => Message::UpdateCheckFailed(e.to_string()),
+                        Ok(info) => Message::Update(UpdateMessage::UpdateCheckResult(info)),
+                        Err(e) => Message::Update(UpdateMessage::UpdateCheckFailed(e.to_string())),
                     },
                 ));
             }
-            Message::CheckForUpdate => {
+            Message::Update(UpdateMessage::CheckForUpdate) => {
                 if !self.setting_auto_check_updates {
                     return Ok(Task::none());
                 }
@@ -65,20 +65,20 @@ impl Oryxis {
                     move |res| {
                         match res {
                             Ok(Some(info)) if Some(&info.version) != skipped.as_ref() => {
-                                Message::UpdateCheckResult(Some(info))
+                                Message::Update(UpdateMessage::UpdateCheckResult(Some(info)))
                             }
                             // Boot check is best-effort: log the failure
                             // but never surface it in the UI.
                             Err(e) => {
                                 tracing::warn!("update check failed: {e}");
-                                Message::UpdateCheckResult(None)
+                                Message::Update(UpdateMessage::UpdateCheckResult(None))
                             }
-                            _ => Message::UpdateCheckResult(None),
+                            _ => Message::Update(UpdateMessage::UpdateCheckResult(None)),
                         }
                     },
                 ));
             }
-            Message::CheckForUpdateManual => {
+            Message::Update(UpdateMessage::CheckForUpdateManual) => {
                 // Manual trigger from the settings button OR the burger
                 // menu. Navigate to Settings > About so the result
                 // (up-to-date / error + retry) is on screen regardless
@@ -98,12 +98,12 @@ impl Oryxis {
                 return Ok(Task::perform(
                     crate::update::check_latest_release(self.setting_update_channel),
                     |res| match res {
-                        Ok(info) => Message::UpdateCheckResult(info),
-                        Err(e) => Message::UpdateCheckFailed(e.to_string()),
+                        Ok(info) => Message::Update(UpdateMessage::UpdateCheckResult(info)),
+                        Err(e) => Message::Update(UpdateMessage::UpdateCheckFailed(e.to_string())),
                     },
                 ));
             }
-            Message::UpdateCheckResult(info) => {
+            Message::Update(UpdateMessage::UpdateCheckResult(info)) => {
                 match info {
                     Some(i) => {
                         // Surface the new version as a toast too so a
@@ -143,7 +143,7 @@ impl Oryxis {
                     |_| Message::ToastClear,
                 ));
             }
-            Message::UpdateCheckFailed(cause) => {
+            Message::Update(UpdateMessage::UpdateCheckFailed(cause)) => {
                 // Same gating as the up-to-date arm: only a manual check
                 // (status in flight) reports; boot checks already logged.
                 if self.update_check_status.is_some() {
@@ -162,21 +162,21 @@ impl Oryxis {
                     |_| Message::ToastClear,
                 ));
             }
-            Message::UpdateSkipVersion => {
+            Message::Update(UpdateMessage::UpdateSkipVersion) => {
                 if let Some(info) = self.pending_update.take()
                     && let Some(vault) = &self.vault {
                     let _ = vault.set_setting("skipped_update_version", &info.version);
                 }
             }
-            Message::UpdateLater => {
+            Message::Update(UpdateMessage::UpdateLater) => {
                 self.pending_update = None;
             }
-            Message::UpdateOpenRelease => {
+            Message::Update(UpdateMessage::UpdateOpenRelease) => {
                 if let Some(info) = &self.pending_update {
                     let _ = open_in_browser(&info.html_url);
                 }
             }
-            Message::UpdateStartDownload => {
+            Message::Update(UpdateMessage::UpdateStartDownload) => {
                 let Some(info) = self.pending_update.clone() else {
                     return Ok(Task::none());
                 };
@@ -210,14 +210,14 @@ impl Oryxis {
                             tokio::select! {
                                 Some(p) = prx.recv() => {
                                     let _ = sender
-                                        .send(Message::UpdateDownloadProgress(p))
+                                        .send(Message::Update(UpdateMessage::UpdateDownloadProgress(p)))
                                         .await;
                                 }
                                 res = &mut dl => {
                                     let result =
                                         res.unwrap_or_else(|e| Err(e.to_string()));
                                     let _ = sender
-                                        .send(Message::UpdateDownloadComplete(result))
+                                        .send(Message::Update(UpdateMessage::UpdateDownloadComplete(result)))
                                         .await;
                                     break;
                                 }
@@ -227,10 +227,10 @@ impl Oryxis {
                 );
                 return Ok(Task::stream(stream));
             }
-            Message::UpdateDownloadProgress(p) => {
+            Message::Update(UpdateMessage::UpdateDownloadProgress(p)) => {
                 self.update_progress = p;
             }
-            Message::UpdateDownloadComplete(result) => {
+            Message::Update(UpdateMessage::UpdateDownloadComplete(result)) => {
                 self.update_downloading = false;
                 match result {
                     Ok(path) => {

@@ -6,7 +6,7 @@ use iced::border::Radius;
 use iced::widget::{column, container, scrollable, text, MouseArea, Space};
 use iced::{Background, Border, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{UpdateMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_row, styled_button};
@@ -84,7 +84,7 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().accent),
         )
-        .on_press(Message::UpdateOpenRelease);
+        .on_press(Message::Update(UpdateMessage::UpdateOpenRelease));
 
         // Action row OR progress bar depending on state.
         let action_area: Element<'_, Message> = if self.update_downloading {
@@ -132,19 +132,19 @@ impl Oryxis {
             dir_row(vec![
                 styled_button(
                     t("update_skip_version"),
-                    Message::UpdateSkipVersion,
+                    Message::Update(UpdateMessage::UpdateSkipVersion),
                     OryxisColors::t().bg_selected,
                 ),
                 Space::new().width(Length::Fill).into(),
                 styled_button(
                     t("update_later"),
-                    Message::UpdateLater,
+                    Message::Update(UpdateMessage::UpdateLater),
                     OryxisColors::t().bg_hover,
                 ),
                 Space::new().width(8).into(),
                 styled_button(
                     t("update_now"),
-                    Message::UpdateStartDownload,
+                    Message::Update(UpdateMessage::UpdateStartDownload),
                     OryxisColors::t().accent,
                 ),
             ])
