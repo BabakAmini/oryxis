@@ -95,7 +95,7 @@ pub(crate) struct PaneState {
     /// Mount generation of this pane. Stamped from the process-global
     /// listing counter (`sftp_methods::next_list_seq`) by
     /// [`PaneState::note_mounted`], which the mount pipeline reaches
-    /// through `spawn_archive_probe` on every `SftpHostMounted`. Async
+    /// through `spawn_archive_probe` on every `SftpMessage::HostMounted`. Async
     /// archive completions capture it (inside an [`ArchiveOpToken`]) at
     /// spawn time and drop their result when it no longer matches, so a
     /// slow zip index / extract / compress / copy-out / tool probe
@@ -108,7 +108,7 @@ pub(crate) struct PaneState {
 
 impl PaneState {
     /// Stamp a fresh mount generation. Called (via
-    /// `spawn_archive_probe`) right after `SftpHostMounted` reset the
+    /// `spawn_archive_probe`) right after `SftpMessage::HostMounted` reset the
     /// pane for a new host: every archive completion still in flight
     /// for the previous mount now carries a stale token.
     pub(crate) fn note_mounted(&mut self) {
@@ -155,7 +155,7 @@ pub(crate) struct ArchiveOpToken {
     pub is_remote: bool,
 }
 
-/// Payload of `Message::SftpArchiveDone`. `side` is the pane whose
+/// Payload of `Message::Sftp(SftpMessage::ArchiveDone)`. `side` is the pane whose
 /// contents the operation changed (refresh target on success, error
 /// surface on failure); `busy_side` is the pane the op marked
 /// `archive_busy` at start. They differ only for copy-out, which marks
@@ -217,7 +217,7 @@ impl ZipBrowse {
     }
 }
 
-/// Payload of `Message::SftpZipIndexed`: the parsed index plus, for
+/// Payload of `Message::Sftp(SftpMessage::ZipIndexed)`: the parsed index plus, for
 /// remote archives, the live ranged-read handle to keep for the browse.
 #[derive(Clone)]
 pub(crate) struct ZipIndexedPayload {

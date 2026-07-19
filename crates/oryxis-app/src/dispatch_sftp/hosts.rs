@@ -14,7 +14,7 @@ use std::time::Duration;
 use oryxis_ssh::SshEngine;
 
 use super::initial_remote_listing;
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::sort_remote_entries;
 use crate::state::SftpPaneSide;
 
@@ -125,7 +125,7 @@ impl Oryxis {
                         move |result| match result {
                             Ok((client, path, entries)) => Message::sftp_owned(
                                 owner,
-                                Message::SftpHostMounted(
+                                SftpMessage::HostMounted(
                                     target,
                                     label.clone(),
                                     session.clone(),
@@ -136,7 +136,7 @@ impl Oryxis {
                             ),
                             Err(e) => Message::sftp_owned(
                                 owner,
-                                Message::SftpRemoteError(target, e),
+                                SftpMessage::RemoteError(target, e),
                             ),
                         },
                     ));
@@ -258,7 +258,7 @@ impl Oryxis {
                     SftpConnectMsg::Done(Ok((session, client, path, entries))) => {
                         Message::sftp_owned(
                             owner,
-                            Message::SftpHostMounted(
+                            SftpMessage::HostMounted(
                                 target,
                                 label.clone(),
                                 session,
@@ -269,7 +269,7 @@ impl Oryxis {
                         )
                     }
                     SftpConnectMsg::Done(Err(e)) => {
-                        Message::sftp_owned(owner, Message::SftpRemoteError(target, e))
+                        Message::sftp_owned(owner, SftpMessage::RemoteError(target, e))
                     }
                     SftpConnectMsg::NoCommonAlgo { category, server_offers } => {
                         Message::SshNoCommonAlgo {
@@ -310,7 +310,7 @@ impl Oryxis {
                 }
                 self.refresh_sftp_local(target);
             }
-            Message::SftpHostMounted(side, label, session, client, path, entries) => {
+            Message::Sftp(SftpMessage::HostMounted(side, label, session, client, path, entries)) => {
                 // Apply the user-configured op timeout to this fresh
                 // client so list_dir/read/write calls respect it.
                 client.set_op_timeout(self.sftp_op_timeout());
@@ -367,7 +367,7 @@ impl Oryxis {
                 // round per mount.
                 return Ok(self.spawn_archive_probe(side));
             }
-            Message::SftpRemoteError(side, msg) => {
+            Message::Sftp(SftpMessage::RemoteError(side, msg)) => {
                 // A failed navigation has no new listing to land the cursor on.
                 if matches!(&self.sftp.pending_focus, Some((s, _)) if *s == side) {
                     self.sftp.pending_focus = None;
@@ -406,7 +406,7 @@ impl Oryxis {
             Message::SftpCancelRemoteLoad(side) => {
                 // Drop the loading visual. The underlying Task::perform
                 // can't be aborted (russh-sftp has no cancel token), so
-                // a late success will still flow through SftpHostMounted
+                // a late success will still flow through SftpMessage::HostMounted
                 // / SftpRemoteLoaded, but at least the user gets the
                 // UI back and can retry/pick another host.
                 let pane = self.sftp.pane_mut(side);

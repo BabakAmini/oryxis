@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::{parent_path, sort_local_entries, sort_remote_entries};
 
 impl Oryxis {
@@ -56,7 +56,7 @@ impl Oryxis {
                     async move { client.list_dir(&target).await.map_err(|e| e.to_string()) },
                     move |result| match result {
                         Ok(entries) => Message::SftpRemoteLoaded(side, seq, path.clone(), entries),
-                        Err(e) => Message::SftpRemoteError(side, e),
+                        Err(e) => Message::Sftp(SftpMessage::RemoteError(side, e)),
                     },
                 ));
             }

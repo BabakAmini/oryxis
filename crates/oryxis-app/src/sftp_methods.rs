@@ -4,7 +4,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::sort_local_entries;
 
 /// Process-global monotonic source for `SftpPane::local_list_seq` and
@@ -1047,7 +1047,7 @@ impl Oryxis {
                 move |result| match result {
                     Ok((client, path, entries)) => Message::sftp_owned(
                         Some(tab_id),
-                        Message::SftpHostMounted(
+                        SftpMessage::HostMounted(
                             side,
                             host.clone(),
                             session.clone(),
@@ -1058,7 +1058,7 @@ impl Oryxis {
                     ),
                     Err(e) => Message::sftp_owned(
                         Some(tab_id),
-                        Message::SftpRemoteError(side, e),
+                        SftpMessage::RemoteError(side, e),
                     ),
                 },
             ));
@@ -1163,7 +1163,7 @@ impl Oryxis {
         // it by `sftp_async_owner`); the inner message is what the handler
         // chain understands.
         let message = match message {
-            Message::SftpFor(_, inner) => *inner,
+            Message::SftpFor(_, inner) => Message::Sftp(*inner),
             m => m,
         };
         if let Some(idx) = self.sftp_tabs.iter().position(|t| t.id == id) {

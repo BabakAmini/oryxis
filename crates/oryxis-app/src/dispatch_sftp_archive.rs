@@ -24,7 +24,7 @@ use std::sync::Arc;
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::{exec_checked, ExecTolerance};
 use crate::state::{
     ArchiveDone, PaneState, SftpLogLevel, SftpPaneSide, ZipBrowse, ZipIndexedPayload,
@@ -99,7 +99,7 @@ impl Oryxis {
                         move |r| {
                             Message::sftp_owned(
                                 owner,
-                                Message::SftpZipIndexed(side, path.clone(), token, r),
+                                SftpMessage::ZipIndexed(side, path.clone(), token, r),
                             )
                         },
                     )
@@ -121,7 +121,7 @@ impl Oryxis {
                         move |r| {
                             Message::sftp_owned(
                                 owner,
-                                Message::SftpZipIndexed(side, path.clone(), token, r),
+                                SftpMessage::ZipIndexed(side, path.clone(), token, r),
                             )
                         },
                     )
@@ -130,7 +130,7 @@ impl Oryxis {
                     Some(crate::i18n::t("archive_reading").to_string());
                 return Ok(task);
             }
-            Message::SftpZipIndexed(side, archive_path, token, result) => {
+            Message::Sftp(SftpMessage::ZipIndexed(side, archive_path, token, result)) => {
                 {
                     let pane = self.sftp.pane_mut(side);
                     // Only the op that set the busy flag may clear it:
@@ -241,7 +241,7 @@ impl Oryxis {
                 self.sftp.row_menu = None;
                 return self.start_archive_compress(side, kind, target);
             }
-            Message::SftpArchiveDone(done) => {
+            Message::Sftp(SftpMessage::ArchiveDone(done)) => {
                 let ArchiveDone {
                     side,
                     token,
@@ -317,7 +317,7 @@ impl Oryxis {
     /// chrooted `internal-sftp`) simply yields an empty toolset, which
     /// keeps the remote archive actions hidden.
     pub(crate) fn spawn_archive_probe(&mut self, side: SftpPaneSide) -> Task<Message> {
-        // Every mount funnels through here (`SftpHostMounted` calls it
+        // Every mount funnels through here (`SftpMessage::HostMounted` calls it
         // right after resetting the pane for the new host), so this is
         // where the pane's mount generation is stamped: any archive
         // completion still in flight for the previous mount (zip
@@ -422,7 +422,7 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(ArchiveDone {
+                        SftpMessage::ArchiveDone(ArchiveDone {
                             side,
                             token,
                             busy_side: side,
@@ -447,7 +447,7 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(ArchiveDone {
+                        SftpMessage::ArchiveDone(ArchiveDone {
                             side,
                             token,
                             busy_side: side,
@@ -557,7 +557,7 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(ArchiveDone {
+                        SftpMessage::ArchiveDone(ArchiveDone {
                             side,
                             token,
                             busy_side: side,
@@ -582,7 +582,7 @@ impl Oryxis {
                 move |r| {
                     Message::sftp_owned(
                         owner,
-                        Message::SftpArchiveDone(ArchiveDone {
+                        SftpMessage::ArchiveDone(ArchiveDone {
                             side,
                             token,
                             busy_side: side,
@@ -687,7 +687,7 @@ impl Oryxis {
             move |r| {
                 Message::sftp_owned(
                     owner,
-                    Message::SftpArchiveDone(ArchiveDone {
+                    SftpMessage::ArchiveDone(ArchiveDone {
                         side: other,
                         token: dest_token,
                         busy_side: side,

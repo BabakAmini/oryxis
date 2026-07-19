@@ -40,7 +40,7 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::Message;
+pub use crate::messages::{Message, SftpMessage};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;

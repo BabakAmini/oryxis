@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage};
 
 impl Oryxis {
     pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Result<Task<Message>, Message> {
@@ -177,7 +177,7 @@ impl Oryxis {
             move |result| match result {
                 Ok((client, path, entries)) => Message::sftp_owned(
                     Some(tab_id),
-                    Message::SftpHostMounted(
+                    SftpMessage::HostMounted(
                         target,
                         label.clone(),
                         session.clone(),
@@ -188,7 +188,7 @@ impl Oryxis {
                 ),
                 Err(e) => Message::sftp_owned(
                     Some(tab_id),
-                    Message::SftpRemoteError(target, e),
+                    SftpMessage::RemoteError(target, e),
                 ),
             },
         );

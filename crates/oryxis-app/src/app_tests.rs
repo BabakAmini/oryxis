@@ -241,14 +241,14 @@ fn sftp_owned_envelope_carries_owner_for_routing() {
     let id = uuid::Uuid::new_v4();
     let wrapped = Message::sftp_owned(
         Some(id),
-        Message::SftpRemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
+        SftpMessage::RemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
     );
     assert_eq!(wrapped.sftp_async_owner(), Some(id));
     // No owner at kickoff: the bare message falls back to the live buffer
     // and must not enter the routing path.
     let bare = Message::sftp_owned(
         None,
-        Message::SftpRemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
+        SftpMessage::RemoteError(crate::state::SftpPaneSide::Right, "boom".into()),
     );
     assert_eq!(bare.sftp_async_owner(), None);
 }

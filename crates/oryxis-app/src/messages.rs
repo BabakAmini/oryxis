@@ -27,6 +27,50 @@ pub enum PrivacyMaskClass {
     Hostnames,
 }
 
+/// SFTP async-completion messages that ride the `SftpFor` owner-routing
+/// envelope (`route_sftp_async`). Grouped into their own enum so
+/// `SftpFor` can carry `Box<SftpMessage>` instead of `Box<Message>`,
+/// making it a compile error to route a non-SFTP message through the
+/// buffer-owner swap path. This is the first `Message` sub-enum (the
+/// pilot for splitting the god-enum); new message-heavy areas should be
+/// born as their own sub-enum rather than flat `Message` variants.
+///
+/// Reached through [`Message::Sftp`]: the dispatcher unwraps the
+/// envelope in `route_sftp_async` and re-dispatches as `Message::Sftp`,
+/// which the SFTP handler chain matches.
+#[derive(Debug, Clone)]
+pub enum SftpMessage {
+    /// Initial mount finished: the live session + SFTP channel, the
+    /// session home and the first listing for the picked pane.
+    HostMounted(
+        crate::state::SftpPaneSide,
+        String,
+        Arc<SshSession>,
+        oryxis_ssh::SftpClient,
+        String,
+        Vec<oryxis_ssh::SftpEntry>,
+    ),
+    /// A remote pane operation (mount / listing) failed; `SftpPaneSide`
+    /// names the pane whose error banner shows the message.
+    RemoteError(crate::state::SftpPaneSide, String),
+    /// Central directory parsed (archive real path, mount token
+    /// captured at spawn, payload or error). A token that no longer
+    /// matches the pane means the pane was remounted (or switched back
+    /// to Local) while the index was read: the result is dropped.
+    ZipIndexed(
+        crate::state::SftpPaneSide,
+        String,
+        crate::state::ArchiveOpToken,
+        Result<crate::state::ZipIndexedPayload, String>,
+    ),
+    /// Archive operation finished: log label or error. The payload
+    /// carries which pane the op changed (refresh / error target) and
+    /// which pane it marked busy, each with the mount token captured at
+    /// spawn, so completions clear / apply exactly what this op touched
+    /// and stale (post-remount) results are dropped.
+    ArchiveDone(crate::state::ArchiveDone),
+}
+
 #[derive(Debug, Clone)]
 pub enum Message {
     // Vault
@@ -210,19 +254,21 @@ pub enum Message {
     // `SftpPaneSide` says *which* pane (Left / Right), and the handler
     // branches on that pane's `is_remote` flag to pick filesystem vs
     // SFTP behaviour.
+    /// Wrapper for the SFTP async-completion sub-enum ([`SftpMessage`]).
+    /// The owner-routing envelope (`SftpFor`) carries these, and
+    /// `route_sftp_async` re-dispatches unowned ones through here.
+    Sftp(SftpMessage),
     SftpPickHost(usize),
-    SftpHostMounted(crate::state::SftpPaneSide, String, Arc<SshSession>, oryxis_ssh::SftpClient, String, Vec<oryxis_ssh::SftpEntry>),
     SftpRemoteLoaded(crate::state::SftpPaneSide, u64, String, Vec<oryxis_ssh::SftpEntry>),
-    SftpRemoteError(crate::state::SftpPaneSide, String),
     /// Owner-routing envelope for SFTP async completions whose payload has no
-    /// owner stamp of its own (the mount pipeline: `SftpHostMounted` /
-    /// `SftpRemoteError`). Carries the id of the tab (standalone SFTP tab or
+    /// owner stamp of its own (the mount pipeline: `SftpMessage::HostMounted` /
+    /// `SftpMessage::RemoteError`). Carries the id of the tab (standalone SFTP tab or
     /// hybrid terminal tab) that owned the live buffer at kickoff time, so
     /// `route_sftp_async` swaps that owner's state in before the inner
     /// message runs, or drops it when the owner is gone. Without it, a
     /// park/hoist swap between kickoff and completion would land the result
     /// in whichever buffer happens to be live. Built via `Message::sftp_owned`.
-    SftpFor(Uuid, Box<Message>),
+    SftpFor(Uuid, Box<SftpMessage>),
     /// Navigate a *remote* pane to a POSIX path.
     SftpNavigateRemote(crate::state::SftpPaneSide, String),
     /// Navigate a *local* pane to a filesystem path.
@@ -524,16 +570,6 @@ pub enum Message {
     // transfer queue does.
     /// Open a zip archive (real full path) for virtual browsing.
     SftpZipOpen(crate::state::SftpPaneSide, String),
-    /// Central directory parsed (archive real path, mount token
-    /// captured at spawn, payload or error). A token that no longer
-    /// matches the pane means the pane was remounted (or switched back
-    /// to Local) while the index was read: the result is dropped.
-    SftpZipIndexed(
-        crate::state::SftpPaneSide,
-        String,
-        crate::state::ArchiveOpToken,
-        Result<crate::state::ZipIndexedPayload, String>,
-    ),
     /// Navigate to a directory INSIDE the browsed archive ("" = root).
     SftpZipNavigate(crate::state::SftpPaneSide, String),
     /// Leave virtual browsing, restoring the pane's real directory.
@@ -551,11 +587,6 @@ pub enum Message {
         String,
     ),
     /// Archive operation finished: log label or error. The payload
-    /// carries which pane the op changed (refresh / error target) and
-    /// which pane it marked busy, each with the mount token captured at
-    /// spawn, so completions clear / apply exactly what this op touched
-    /// and stale (post-remount) results are dropped.
-    SftpArchiveDone(crate::state::ArchiveDone),
     /// Once-per-mount remote tool probe result. The token is the mount
     /// generation the probe was spawned for; a stale one is dropped.
     SftpToolsProbed(
@@ -2323,13 +2354,13 @@ impl Message {
 
     /// Wrap an SFTP async completion in the `SftpFor` owner-routing
     /// envelope when a buffer owner existed at kickoff time. `None`
-    /// falls back to the bare message (pre-envelope behavior: applied
+    /// falls back to the unowned message (pre-envelope behavior: applied
     /// to whichever buffer is live on arrival), which only happens when
     /// no SFTP surface owned the buffer at all.
-    pub(crate) fn sftp_owned(owner: Option<Uuid>, message: Message) -> Message {
+    pub(crate) fn sftp_owned(owner: Option<Uuid>, message: SftpMessage) -> Message {
         match owner {
             Some(id) => Message::SftpFor(id, Box::new(message)),
-            None => message,
+            None => Message::Sftp(message),
         }
     }
 }
