@@ -11,7 +11,6 @@ pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
 pub(crate) use crate::app::{Message, Oryxis, NAV_RAIL_WIDTH_EXPANDED};
 pub(crate) use crate::i18n::t;
-pub(crate) use crate::mcp::mcp_info_panel;
 pub(crate) use crate::state::SettingsSection;
 pub(crate) use crate::theme::OryxisColors;
 pub(crate) use crate::widgets::{
@@ -26,6 +25,7 @@ mod agent;
 mod ai;
 mod connection;
 mod interface;
+mod mcp;
 mod security;
 mod sftp;
 mod shortcuts;
@@ -974,79 +974,6 @@ impl Oryxis {
             .into()
     }
 
-    /// Standalone MCP Server settings section. Was nested inside the
-    /// Security panel in 0.6 when MCP shipped with the installer; in
-    /// 0.7 it lives in its own Settings sidebar entry because the
-    /// plugin distribution + setup-guide affordances deserve room
-    /// without competing with the Security toggles.
-    fn view_settings_mcp(&self) -> Element<'_, Message> {
-        // Keyboard rows are recorded in visual order: the guide button
-        // is defined here but only recorded (slot-wrapped) at its use
-        // site below, after the server toggle.
-        self.keynav_settings_reset();
-        // The MCP plugin is managed (installed / updated) from the
-        // Plugins screen; the server's own on/off lives here.
-        let mcp_guide_btn = button(
-            container(text(crate::i18n::t("mcp_setup_guide")).size(12).color(OryxisColors::t().accent))
-                .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 16.0 }),
-        )
-        .on_press(if self.mcp.show_info { Message::HideMcpInfo } else { Message::ShowMcpInfo })
-        .style(|_, status| {
-            let bg = match status {
-                BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
-                _ => Color::TRANSPARENT,
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(6.0), color: OryxisColors::t().accent, width: 1.0 },
-                ..Default::default()
-            }
-        });
-        let mut mcp_col = column![
-            self.nav_toggle_row(
-                crate::i18n::t("mcp_server"),
-                self.mcp.server_enabled,
-                Message::ToggleMcpServer,
-            ),
-            Space::new().height(12),
-            dir_row(vec![
-                text(crate::i18n::t("mcp_server_desc")).size(11).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(Length::Fill).into(),
-                self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(if self.mcp.show_info {
-                        Message::HideMcpInfo
-                    } else {
-                        Message::ShowMcpInfo
-                    }),
-                    6.0,
-                    mcp_guide_btn.into(),
-                ),
-            ]).align_y(iced::Alignment::Center),
-        ];
-        if self.mcp.show_info {
-            mcp_col = mcp_col
-                .push(Space::new().height(12))
-                .push(mcp_info_panel(self));
-        }
-
-        scrollable(
-            container(
-                column![
-                    panel_section(mcp_col),
-                    Space::new().height(24),
-                ]
-                .width(Length::Fill)
-                .align_x(dir_align_x()),
-            )
-            .padding(Padding { top: 24.0, right: 24.0, bottom: 24.0, left: 24.0 }),
-        )
-        // Stable id so the keyboard router can keep the selected row
-        // in view.
-        .id(iced::widget::Id::new("settings-mcp-scroll"))
-        .height(Length::Fill)
-        .into()
-    }
-
     /// The inline create / edit form for a proxy identity. Used inside
     /// `view_settings_proxies` when `proxy_identity_form.visible` is on.
     pub(crate) fn view_proxy_identity_form(&self) -> Element<'_, Message> {
@@ -1080,7 +1007,7 @@ impl Oryxis {
 
         let pw_placeholder: &str = crate::widgets::password_placeholder(
             self.proxy_identity_form.has_existing_password,
-            self.proxy_identity_form.password_touched,
+            self.proxy_identity_form.password.touched(),
             crate::i18n::t("proxy_password_placeholder"),
         );
 
@@ -1191,7 +1118,7 @@ impl Oryxis {
                 ));
                 crate::widgets::password_input_with_eye_nav(
                     pw_placeholder,
-                    &self.proxy_identity_form.password,
+                    self.proxy_identity_form.password.as_str(),
                     Message::ProxyIdentityFormPasswordChanged,
                     Some(Message::SaveProxyIdentity),
                     self.proxy_identity_form.password_visible,
