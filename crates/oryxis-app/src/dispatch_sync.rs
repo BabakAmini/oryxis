@@ -420,15 +420,15 @@ impl Oryxis {
                     let _ = vault.set_setting("sync_sftp_host_id", &id.to_string());
                 }
             }
-            SyncMessage::SftpOpenPicker => {
+            SyncMessage::SftpHostPickerOpen => {
                 self.sync.sftp.picker_open = true;
                 self.sync.sftp.picker_search.clear();
             }
-            SyncMessage::SftpClosePicker => {
+            SyncMessage::SftpHostPickerClose => {
                 self.sync.sftp.picker_open = false;
                 self.sync.sftp.picker_search.clear();
             }
-            SyncMessage::SftpPickerSearch(v) => {
+            SyncMessage::SftpHostPickerSearch(v) => {
                 self.sync.sftp.picker_search = v;
             }
             SyncMessage::SftpPathChanged(v) => {

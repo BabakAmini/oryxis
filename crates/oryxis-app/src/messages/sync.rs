@@ -68,11 +68,11 @@ pub enum SyncMessage {
     /// the picker modal).
     SftpHostChanged(uuid::Uuid),
     /// Open the "Select a host" modal for the SFTP-sync backup host.
-    SftpOpenPicker,
+    SftpHostPickerOpen,
     /// Close that modal without changing the selection.
-    SftpClosePicker,
+    SftpHostPickerClose,
     /// Search-filter text change inside the host picker modal.
-    SftpPickerSearch(String),
+    SftpHostPickerSearch(String),
     /// Text-input change for the SFTP-sync remote path.
     SftpPathChanged(String),
     /// Text-input change for the SFTP-sync passphrase (persisted

@@ -88,10 +88,10 @@ impl Oryxis {
             .into()
         };
         let host_pick = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::Sync(SyncMessage::SftpOpenPicker)),
+            crate::keynav::RowAction::activate(Message::Sync(SyncMessage::SftpHostPickerOpen)),
             8.0,
             button(host_trigger_inner)
-                .on_press(Message::Sync(SyncMessage::SftpOpenPicker))
+                .on_press(Message::Sync(SyncMessage::SftpHostPickerOpen))
                 .padding(10)
                 .width(300)
                 .style(|_, status| {

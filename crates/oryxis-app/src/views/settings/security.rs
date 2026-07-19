@@ -560,6 +560,11 @@ impl Oryxis {
                     // scrolling out of a one-line input; newlines
                     // separate entries like commas (parse_privacy_list
                     // splits on both). Auto-grows with the content.
+                    // No `dir_align_x()` counterpart: the fork's
+                    // text_editor exposes no alignment builder and uses
+                    // text::Alignment::Default internally, which already
+                    // right-aligns genuinely-RTL lines; forcing layout
+                    // alignment would need a fork change (off-limits).
                     iced::widget::text_editor(&self.privacy.always_mask_editor)
                         .placeholder("internal.example.com, acme-corp")
                         .id(iced::widget::Id::new("set-security-privacy-always"))
