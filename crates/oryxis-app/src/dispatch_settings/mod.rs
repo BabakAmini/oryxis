@@ -61,45 +61,160 @@ impl Oryxis {
 }
 
 impl Oryxis {
-    /// Dispatch a Settings `Message` to the matching family handler.
-    /// Each sub-handler returns `Err(message)` for variants it
-    /// doesn't claim so the chain falls through to the next; the
-    /// misc arms that fit no family live in the match below, and the
-    /// final `Err` propagates back to `dispatch::update` so the
-    /// other handlers get their turn.
+    /// Dispatch a Settings message: family-owned variants route
+    /// straight to their sub-handler (themes / local terminals /
+    /// appearance / terminal prefs / defaults / advanced / privacy),
+    /// the misc arms that fit no family match inline. Exhaustive on
+    /// purpose: a new `SettingsMessage` variant fails to compile until
+    /// it gets an arm, so it can never be silently dropped.
     pub(crate) fn handle_settings(
         &mut self,
         message: SettingsMessage,
     ) -> Task<Message> {
-        let message = match self.handle_settings_themes(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_local_terminals(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_appearance(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_terminal_prefs(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_defaults(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_advanced(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_settings_privacy(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
         match message {
+            m @ (SettingsMessage::ThemeEditorNew
+            | SettingsMessage::ThemeEditorEdit(..)
+            | SettingsMessage::ThemeEditorClose
+            | SettingsMessage::ThemeEditorNameChanged(..)
+            | SettingsMessage::ThemeEditorColorChanged(..)
+            | SettingsMessage::ThemeEditorSave
+            | SettingsMessage::ThemeDelete(..)
+            | SettingsMessage::ThemeImportOpen
+            | SettingsMessage::ThemeImportClose
+            | SettingsMessage::ThemeImportContentAction(..)
+            | SettingsMessage::ThemeImportNameChanged(..)
+            | SettingsMessage::ThemeImportApply
+            | SettingsMessage::UiThemeEditorNew
+            | SettingsMessage::UiThemeEditorEdit(..)
+            | SettingsMessage::UiThemeEditorClose
+            | SettingsMessage::UiThemeEditorNameChanged(..)
+            | SettingsMessage::UiThemeColorChanged(..)
+            | SettingsMessage::UiThemeEditorOpenPicker(..)
+            | SettingsMessage::UiThemeEditorClosePicker
+            | SettingsMessage::UiThemeEditorSave
+            | SettingsMessage::UiThemeDelete(..)
+            | SettingsMessage::UiThemeCardHovered(..)
+            | SettingsMessage::UiThemeCardUnhovered
+            | SettingsMessage::ThemeCardHovered(..)
+            | SettingsMessage::ThemeCardUnhovered
+            | SettingsMessage::ThemeEditorOpenPicker(..)
+            | SettingsMessage::ThemeEditorClosePicker
+            | SettingsMessage::LocalConfigThemeChanged(..)
+            | SettingsMessage::LocalConfigSaveGlobal
+            | SettingsMessage::TerminalThemeChanged(..)
+            | SettingsMessage::AppThemeChanged(..)) => {
+                return self.handle_settings_themes(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::OpenLocalShell
+            | SettingsMessage::ShowLocalShellPicker
+            | SettingsMessage::LocalShellsDetected(..)
+            | SettingsMessage::HideLocalShellPicker
+            | SettingsMessage::OpenLocalShellWith{ .. }
+            | SettingsMessage::OpenLocalTerminalsSettings
+            | SettingsMessage::RescanLocalTerminals
+            | SettingsMessage::LocalTerminalsRescanned(..)
+            | SettingsMessage::RemoveLocalTerminal(..)
+            | SettingsMessage::SetDefaultLocalTerminal(..)
+            | SettingsMessage::OpenLocalTerminalAddModal
+            | SettingsMessage::OpenLocalTerminalEditModal(..)
+            | SettingsMessage::CloseLocalTerminalAddModal
+            | SettingsMessage::OpenLocalTerminalIconPicker
+            | SettingsMessage::LocalTerminalFormLabelChanged(..)
+            | SettingsMessage::LocalTerminalFormProgramChanged(..)
+            | SettingsMessage::LocalTerminalFormArgsChanged(..)
+            | SettingsMessage::LocalTerminalFormTagsChanged(..)
+            | SettingsMessage::AddLocalTerminalSubmit
+            | SettingsMessage::LocalTerminalCardHovered(..)
+            | SettingsMessage::LocalTerminalCardUnhovered) => {
+                return self.handle_settings_local_terminals(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::SettingToggleShowStatusBar
+            | SettingsMessage::ToggleHostListView
+            | SettingsMessage::ToggleCardAccentGlass
+            | SettingsMessage::ToggleShowHostAddress
+            | SettingsMessage::SettingToggleTabAccentLine
+            | SettingsMessage::SettingToggleTabAccentWash
+            | SettingsMessage::SettingToggleTabAccentText
+            | SettingsMessage::SettingTabCloseButtonSideChanged(..)
+            | SettingsMessage::SettingPinnedTabStyleChanged(..)
+            | SettingsMessage::SettingTabFillStyleChanged(..)
+            | SettingsMessage::SettingTabAccentColorChanged(..)
+            | SettingsMessage::SettingTabBarPositionChanged(..)
+            | SettingsMessage::SettingToggleShowTabStatusDot
+            | SettingsMessage::SettingNavOrientationChanged(..)
+            | SettingsMessage::ToggleNavRailExpanded
+            | SettingsMessage::SettingDefaultHostIconChanged(..)
+            | SettingsMessage::FlattenHostsToggle) => {
+                return self.handle_settings_appearance(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::TogglePasteGuard
+            | SettingsMessage::ToggleCommandHistory
+            | SettingsMessage::TerminalFontSizeIncrease
+            | SettingsMessage::TerminalFontSizeDecrease
+            | SettingsMessage::TerminalFontChanged(..)
+            | SettingsMessage::TerminalLinkOpened
+            | SettingsMessage::HintModeChanged(..)
+            | SettingsMessage::ToggleCopyOnSelect
+            | SettingsMessage::ToggleRightClickCopy
+            | SettingsMessage::ToggleMiddleClickPaste
+            | SettingsMessage::ToggleSftpForceOsc7
+            | SettingsMessage::ToggleScrollbackResetKeypress
+            | SettingsMessage::ToggleScrollbackResetOutput
+            | SettingsMessage::TerminalRightClickChanged(..)
+            | SettingsMessage::ToggleCarefulPaste
+            | SettingsMessage::ToggleBoldIsBright
+            | SettingsMessage::ToggleTerminalAutoTitle
+            | SettingsMessage::BellModeChanged(..)
+            | SettingsMessage::ClipboardAccessChanged(..)
+            | SettingsMessage::NotificationModeChanged(..)
+            | SettingsMessage::SettingToggleSmartTabs
+            | SettingsMessage::SmartTabsThresholdChanged(..)
+            | SettingsMessage::ToggleKeywordHighlight
+            | SettingsMessage::ToggleSmartContrast
+            | SettingsMessage::SettingScrollbackChanged(..)
+            | SettingsMessage::SettingWordDelimitersChanged(..)
+            | SettingsMessage::SettingResetWordDelimiters) => {
+                return self.handle_settings_terminal_prefs(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::ToggleDefaultAgentForwarding
+            | SettingsMessage::DefaultPortChanged(..)
+            | SettingsMessage::DefaultKeepaliveChanged(..)
+            | SettingsMessage::DefaultTerminalTypeChanged(..)
+            | SettingsMessage::DefaultUsernameChanged(..)
+            | SettingsMessage::DefaultAuthMethodChanged(..)
+            | SettingsMessage::DefaultIdentityChanged(..)
+            | SettingsMessage::DefaultKeyChanged(..)
+            | SettingsMessage::DefaultGroupChanged(..)
+            | SettingsMessage::DefaultProxyChanged(..)
+            | SettingsMessage::ToggleDefaultMcpEnabled
+            | SettingsMessage::DefaultEncodingChanged(..)
+            | SettingsMessage::DefaultAddEnvVar
+            | SettingsMessage::DefaultRemoveEnvVar(..)
+            | SettingsMessage::DefaultEnvVarKeyChanged(..)
+            | SettingsMessage::DefaultEnvVarValueChanged(..)
+            | SettingsMessage::ToggleDefaultsCollapsed) => {
+                return self.handle_settings_defaults(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::SettingRendererBackendChanged(..)
+            | SettingsMessage::RendererInfoLoaded(..)
+            | SettingsMessage::SettingToggleDebugLogging
+            | SettingsMessage::DownloadMirrorPicked(..)
+            | SettingsMessage::DownloadMirrorUrlEdited(..)
+            | SettingsMessage::DownloadMirrorUrlCommitted
+            | SettingsMessage::DownloadMirrorTest
+            | SettingsMessage::DownloadMirrorTestResult(..)
+            | SettingsMessage::RevealDebugLog
+            | SettingsMessage::ClearDebugLog
+            | SettingsMessage::RelaunchApp) => {
+                return self.handle_settings_advanced(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SettingsMessage::TogglePrivacyMode
+            | SettingsMessage::TogglePrivacySessionOverride
+            | SettingsMessage::SettingPrivacyAlwaysMaskAction(..)
+            | SettingsMessage::SettingPrivacyNeverMaskAction(..)
+            | SettingsMessage::TogglePrivacyMaskClass(..)) => {
+                return self.handle_settings_privacy(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
             // Session-logging / OS-detect toggles (handled here; the
             // recording + probe logic lives in dispatch_ssh).
             SettingsMessage::SettingToggleSessionLogging => {
@@ -554,7 +669,6 @@ impl Oryxis {
                     }
                 }
             }
-            _ => {}
         }
         Task::none()
     }

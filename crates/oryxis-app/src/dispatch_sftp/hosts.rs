@@ -286,7 +286,7 @@ impl Oryxis {
                 // pipeline. Dispatched once per side, so each runs in its own
                 // update cycle with the correct target (no shared-field race).
                 self.sftp.picker_target = side;
-                return self.handle_sftp(SftpMessage::SftpPickHost(idx));
+                return self.handle_sftp_hosts(SftpMessage::SftpPickHost(idx));
             }
             SftpMessage::SftpPickLocal => {
                 // "Local" is only offered for the left pane. Switch the
@@ -492,7 +492,7 @@ impl Oryxis {
                 // Fresh SFTP tab, then mount the host into its remote (right)
                 // pane via the shared mount pipeline (reuse-or-connect).
                 self.open_new_sftp_tab();
-                return self.handle_sftp(SftpMessage::SftpRemountPane(SftpPaneSide::Right, idx));
+                return self.handle_sftp_hosts(SftpMessage::SftpRemountPane(SftpPaneSide::Right, idx));
             }
             m => return Err(m),
         }

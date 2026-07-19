@@ -20,30 +20,77 @@ use iced::Task;
 use crate::app::{Message, KeysMessage, Oryxis};
 
 impl Oryxis {
-    /// Dispatch a keys/identities `Message` to the matching submodule
-    /// handler. Each submodule returns `Err(message)` for variants it
-    /// doesn't handle so the chain falls through to the next; the
-    /// final `Err` propagates back to `dispatch::update` so the other
-    /// handlers (or the inline match) get their turn.
-    pub(crate) fn handle_keys(
-        &mut self,
-        message: KeysMessage,
-    ) -> Task<Message> {
-        let message = match self.handle_keys_import(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_keys_generate(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_keys_certs(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        if let Ok(task) = self.handle_keys_identities(message) {
-            return task;
+    /// Route a keys/identities message straight to the submodule that
+    /// owns its variant. Exhaustive on purpose: a new `KeysMessage`
+    /// variant fails to compile until it is listed in its owner's
+    /// group, so it can never be silently dropped.
+    pub(crate) fn handle_keys(&mut self, message: KeysMessage) -> Task<Message> {
+        match message {
+            m @ (KeysMessage::ShowKeyPanel
+            | KeysMessage::HideKeyPanel
+            | KeysMessage::KeyImportLabelChanged(..)
+            | KeysMessage::KeyContentAction(..)
+            | KeysMessage::BrowseKeyFile
+            | KeysMessage::KeyFileLoaded(..)
+            | KeysMessage::KeyFileBrowseError(..)
+            | KeysMessage::KeyImportPassphraseChanged(..)
+            | KeysMessage::KeyImportPassphraseToggleVisibility
+            | KeysMessage::KeyImportPublicAction(..)
+            | KeysMessage::ShowKeyPanelCertFocus
+            | KeysMessage::ShowKeyPanelPublicFocus
+            | KeysMessage::ImportKey
+            | KeysMessage::RequestDeleteKey(..)
+            | KeysMessage::DeleteKey(..)
+            | KeysMessage::ShowKeyMenu(..)
+            | KeysMessage::HideKeyMenu
+            | KeysMessage::EditKey(..)
+            | KeysMessage::KeySearchChanged(..)
+            | KeysMessage::SnippetSearchChanged(..)
+            | KeysMessage::HistorySearchChanged(..)) => self
+                .handle_keys_import(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (KeysMessage::ShowKeyGeneratePanel
+            | KeysMessage::HideKeyGeneratePanel
+            | KeysMessage::KeyGenLabelChanged(..)
+            | KeysMessage::KeyGenCommentChanged(..)
+            | KeysMessage::KeyGenAlgoSelected(..)
+            | KeysMessage::KeyGenBitsSelected(..)
+            | KeysMessage::KeyGenCurveSelected(..)
+            | KeysMessage::GenerateKey
+            | KeysMessage::KeyGenerated(..)
+            | KeysMessage::CopyGeneratedPublicKey
+            | KeysMessage::SaveGeneratedPublicKeyFile
+            | KeysMessage::KeyGenExportPassphraseChanged(..)
+            | KeysMessage::KeyGenExportPassphraseConfirmChanged(..)
+            | KeysMessage::KeyGenExportPassphraseToggleVisibility
+            | KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility
+            | KeysMessage::ExportGeneratedPrivateKey) => self
+                .handle_keys_generate(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (KeysMessage::KeyImportCertAction(..)
+            | KeysMessage::BrowseCertFile
+            | KeysMessage::CertFileLoaded(..)
+            | KeysMessage::ViewKeyCertificate(..)
+            | KeysMessage::CloseCertViewer
+            | KeysMessage::RequestRemoveKeyCertificate(..)
+            | KeysMessage::RemoveKeyCertificate(..)) => self
+                .handle_keys_certs(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (KeysMessage::ShowIdentityPanel
+            | KeysMessage::HideIdentityPanel
+            | KeysMessage::IdentityLabelChanged(..)
+            | KeysMessage::IdentityUsernameChanged(..)
+            | KeysMessage::IdentityPasswordChanged(..)
+            | KeysMessage::IdentityKeyChanged(..)
+            | KeysMessage::IdentityTogglePasswordVisibility
+            | KeysMessage::SaveIdentity
+            | KeysMessage::EditIdentity(..)
+            | KeysMessage::RequestDeleteIdentity(..)
+            | KeysMessage::DeleteIdentity(..)
+            | KeysMessage::ShowIdentityMenu(..)
+            | KeysMessage::ToggleKeychainAddMenu) => self
+                .handle_keys_identities(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
         }
-        Task::none()
     }
 }

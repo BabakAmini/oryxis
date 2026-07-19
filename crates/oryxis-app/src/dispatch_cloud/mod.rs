@@ -27,31 +27,107 @@ use crate::app::{TerminalMessage, CloudMessage, Message, Oryxis};
 use crate::state::{CloudAuthChoice, CloudDiscoverState, CloudProviderChoice};
 
 impl Oryxis {
-    /// Dispatch a cloud-related `Message` to the matching submodule
-    /// handler. Each submodule returns `Err(message)` for variants it
-    /// doesn't handle so the chain falls through to the next; the
-    /// final `Err` propagates back to `dispatch::update` so non-cloud
-    /// handlers (or the inline match) get their turn.
-    pub(crate) fn handle_cloud(
-        &mut self,
-        message: CloudMessage,
-    ) -> Task<Message> {
-        let message = match self.handle_cloud_form(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_cloud_discovery(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_cloud_dynamic_group(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        if let Ok(task) = self.handle_cloud_transports(message) {
-            return task;
+    /// Route a cloud message straight to the submodule that owns its
+    /// variant. Exhaustive on purpose: a new `CloudMessage` variant
+    /// fails to compile until it is listed in its owner's group, so it
+    /// can never be silently dropped.
+    pub(crate) fn handle_cloud(&mut self, message: CloudMessage) -> Task<Message> {
+        match message {
+            m @ (CloudMessage::CloudSearchChanged(..)
+            | CloudMessage::ShowCloudForm(..)
+            | CloudMessage::HideCloudForm
+            | CloudMessage::CloudFormLabelChanged(..)
+            | CloudMessage::CloudFormProviderChanged(..)
+            | CloudMessage::CloudFormAuthKindChanged(..)
+            | CloudMessage::CloudFormAwsProfileNameChanged(..)
+            | CloudMessage::CloudFormAwsRegionDraftChanged(..)
+            | CloudMessage::CloudFormAwsRegionAdd
+            | CloudMessage::CloudFormAwsRegionRemove(..)
+            | CloudMessage::CloudFormAwsAccessKeyIdChanged(..)
+            | CloudMessage::CloudFormAwsAccessKeySecretChanged(..)
+            | CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(..)
+            | CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility
+            | CloudMessage::CloudFormAwsSsoStartUrlChanged(..)
+            | CloudMessage::CloudFormAwsSsoRegionChanged(..)
+            | CloudMessage::CloudFormAwsSsoAccountIdChanged(..)
+            | CloudMessage::CloudFormAwsSsoRoleNameChanged(..)
+            | CloudMessage::CloudFormKubeconfigPathChanged(..)
+            | CloudMessage::CloudFormContextChanged(..)
+            | CloudMessage::CloudFormGcpProjectChanged(..)
+            | CloudMessage::CloudFormAzureSubscriptionChanged(..)
+            | CloudMessage::CloudFormTestCredentials
+            | CloudMessage::CloudFormTestResult(..)
+            | CloudMessage::SaveCloudProfile
+            | CloudMessage::DeleteCloudProfile(..)
+            | CloudMessage::ShowCloudCardMenu(..)
+            | CloudMessage::CloudCardHovered(..)
+            | CloudMessage::CloudCardUnhovered
+            | CloudMessage::ShowCloudProviderPicker) => self
+                .handle_cloud_form(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (CloudMessage::ShowCloudDiscover(..)
+            | CloudMessage::HideCloudDiscover
+            | CloudMessage::CloudDiscoverRefresh
+            | CloudMessage::CloudDiscoverResult(..)
+            | CloudMessage::CloudDiscoverToggleEc2(..)
+            | CloudMessage::CloudDiscoverToggleEcs(..)
+            | CloudMessage::CloudDiscoverToggleK8s(..)
+            | CloudMessage::CloudDiscoverImport
+            | CloudMessage::CloudDiscoverImportConfirmed
+            | CloudMessage::CloudDiscoverImportCancelled
+            | CloudMessage::CloudDiscoverFilterChanged(..)
+            | CloudMessage::CloudDiscoverToggleSection(..)
+            | CloudMessage::CloudDiscoverAddGke{ .. }
+            | CloudMessage::CloudDiscoverGkeCredentials(..)
+            | CloudMessage::CloudDiscoverGkeAdded(..)
+            | CloudMessage::CloudDiscoverAddAks{ .. }
+            | CloudMessage::CloudDiscoverAksCredentials(..)
+            | CloudMessage::CloudDiscoverAksAdded(..)
+            | CloudMessage::CloudDiscoverDefaultTransportChanged(..)
+            | CloudMessage::CloudDiscoverDefaultGroupNameChanged(..)
+            | CloudMessage::CloudDiscoverDefaultGroupPick(..)
+            | CloudMessage::ToggleCloudDiscoverGroupPicker
+            | CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(..)
+            | CloudMessage::CloudProfileSync(..)
+            | CloudMessage::CloudProfileSyncResult(..)
+            | CloudMessage::CloudAutoRefreshTick) => self
+                .handle_cloud_discovery(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (CloudMessage::DynamicGroupFormLabelChanged(..)
+            | CloudMessage::DynamicGroupFormParentChanged(..)
+            | CloudMessage::DynamicGroupFormClusterChanged(..)
+            | CloudMessage::DynamicGroupFormServiceChanged(..)
+            | CloudMessage::DynamicGroupFormContainerChanged(..)
+            | CloudMessage::DynamicGroupFormK8sContextChanged(..)
+            | CloudMessage::DynamicGroupFormNamespaceChanged(..)
+            | CloudMessage::DynamicGroupFormK8sSelectorKindChanged(..)
+            | CloudMessage::DynamicGroupFormK8sSelectorValueChanged(..)
+            | CloudMessage::ShowIconPickerForDynamicGroupForm
+            | CloudMessage::DynamicGroupResolve(..)
+            | CloudMessage::DynamicGroupResolved(..)
+            | CloudMessage::EditDynamicGroup(..)
+            | CloudMessage::HideDynamicGroupForm
+            | CloudMessage::DynamicGroupFormUsernameChanged(..)
+            | CloudMessage::DynamicGroupFormInitialCommandChanged(..)
+            | CloudMessage::DynamicGroupFormTransportChanged(..)
+            | CloudMessage::DynamicGroupFormKeyChanged(..)
+            | CloudMessage::DynamicGroupFormIdentityChanged(..)
+            | CloudMessage::SaveDynamicGroup
+            | CloudMessage::DeleteDynamicGroup(..)
+            | CloudMessage::ShowDynamicGroupCardMenu(..)
+            | CloudMessage::DynamicGroupCardHovered(..)
+            | CloudMessage::DynamicGroupCardUnhovered) => self
+                .handle_cloud_dynamic_group(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (CloudMessage::PluginSessionEnded(..)
+            | CloudMessage::EcsExecConnectFreshTask{ .. }
+            | CloudMessage::ConnectEcsExecTask{ .. }
+            | CloudMessage::ConnectKubectlExecPod{ .. }
+            | CloudMessage::EcsExecSessionReady{ .. }
+            | CloudMessage::SsmSessionReady{ .. }) => self
+                .handle_cloud_transports(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
         }
-        Task::none()
     }
 
     /// Kick off an SSM Session for a cloud-imported EC2 connection.
@@ -114,9 +190,10 @@ impl Oryxis {
 
     /// Spawn `session-manager-plugin` inside a PTY-backed tab,
     /// mirroring the local-shell flow. The plugin's stdout flows into
-    /// the terminal, the user's keystrokes flow back via the standard
-    /// `Message::PtyInput` path. Tab title is fully formatted by the
-    /// caller so SSM and ECS sessions render with their own prefix.
+    /// the terminal, the user's keystrokes flow back through the
+    /// terminal widget's PTY write channel like any local shell. Tab
+    /// title is fully formatted by the caller so SSM and ECS sessions
+    /// render with their own prefix.
     pub(super) fn spawn_plugin_tab(
         &mut self,
         tab_label: &str,

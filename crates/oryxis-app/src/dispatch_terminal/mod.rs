@@ -93,25 +93,26 @@ impl Oryxis {
         }
     }
 
-    /// Dispatch a terminal `Message`: try the `output` and `keyboard`
-    /// submodule handlers first (each returns `Err(message)` for
-    /// variants it doesn't handle so the chain falls through), then
-    /// match the remaining small arms inline. The final `Err`
-    /// propagates back to `dispatch::update` so the other handlers
-    /// get their turn.
+    /// Dispatch a terminal message: `PtyOutput` and `KeyboardEvent`
+    /// route straight to the `output` / `keyboard` submodule handlers,
+    /// the remaining small arms match inline. Exhaustive on purpose: a
+    /// new `TerminalMessage` variant fails to compile until it gets an
+    /// arm, so it can never be silently dropped.
     pub(crate) fn handle_terminal(
         &mut self,
         message: TerminalMessage,
     ) -> Task<Message> {
-        let message = match self.handle_terminal_output(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_terminal_keyboard(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
         match message {
+            TerminalMessage::PtyOutput(..) => {
+                return self
+                    .handle_terminal_output(message)
+                    .unwrap_or_else(crate::dispatch::unrouted);
+            }
+            TerminalMessage::KeyboardEvent(..) => {
+                return self
+                    .handle_terminal_keyboard(message)
+                    .unwrap_or_else(crate::dispatch::unrouted);
+            }
             // -- Split panes --
             TerminalMessage::FocusPane(pane) => {
                 if let Some(tab_idx) = self.active_tab
@@ -509,7 +510,6 @@ impl Oryxis {
                     self.write_input_to_tab(tab_idx, &bytes);
                 }
             }
-            _ => {}
         }
         Task::none()
     }

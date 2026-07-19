@@ -63,15 +63,26 @@ impl Oryxis {
         &mut self,
         message: SshMessage,
     ) -> Task<Message> {
-        let message = match self.handle_ssh_hostkey(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_ssh_kbi(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
         match message {
+            // Host-key prompt / legacy-algorithm dialog -> hostkey sub;
+            // keyboard-interactive auth + quick-auth switch -> kbi sub.
+            // Exhaustive: a new variant fails to compile until listed.
+            m @ (SshMessage::SshNoCommonAlgo{ .. }
+            | SshMessage::LegacyAlgoAccept{ .. }
+            | SshMessage::LegacyAlgoCancel
+            | SshMessage::SshHostKeyVerify(..)
+            | SshMessage::SshHostKeyReject
+            | SshMessage::SshHostKeyContinue
+            | SshMessage::SshHostKeyAcceptAndSave) => {
+                return self.handle_ssh_hostkey(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
+            m @ (SshMessage::SshKbiPrompt(..)
+            | SshMessage::SshKbiInput(..)
+            | SshMessage::SshKbiSubmit
+            | SshMessage::SshKbiCancel
+            | SshMessage::QuickAuthSwitch(..)) => {
+                return self.handle_ssh_kbi(m).unwrap_or_else(crate::dispatch::unrouted);
+            }
             // -- SSH connection --
             SshMessage::ConnectSsh(idx) => {
                 self.card_context_menu = None;
@@ -654,8 +665,6 @@ impl Oryxis {
                     self.host_panel_error = Some(format!("SSH: {}", err));
                 }
             }
-
-            _ => {}
         }
         Task::none()
     }

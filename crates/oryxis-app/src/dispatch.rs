@@ -20,6 +20,18 @@ use crate::app::{SftpMessage, TabsMessage, TerminalMessage, Message, Oryxis};
 /// freshness against hammering the cloud API on every navigation.
 pub(crate) const DYNAMIC_GROUP_CACHE_TTL_SECS: i64 = 60;
 
+/// A message routed to the sub-handler that owns its variant came back
+/// declined: the router's group list and the sub's match went out of
+/// sync (the variant was listed under the wrong group). Loud so the
+/// drift is caught in development instead of silently dropping the
+/// message, which is the exact bug class the exhaustive routers exist
+/// to eliminate.
+pub(crate) fn unrouted<M: std::fmt::Debug>(message: M) -> Task<Message> {
+    debug_assert!(false, "message declined by its owning sub-handler: {message:?}");
+    tracing::error!("message declined by its owning sub-handler: {message:?}");
+    Task::none()
+}
+
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         // Sync the cursor position from the event listener's atomics.
@@ -143,30 +155,6 @@ impl Oryxis {
         });
     }
 
-    /// Entry point for the SFTP domain: chains the four SFTP handler slices
-    /// (transfers / files / archive / core) which each return `Err(message)`
-    /// for variants they don't claim. Kept as an internal Result sub-chain
-    /// (rather than one giant exhaustive match) so the slices stay in their
-    /// own files. `route_sftp_async` re-dispatches through `dispatch_message`,
-    /// which lands here.
-    pub(crate) fn handle_sftp_domain(&mut self, message: SftpMessage) -> Task<Message> {
-        let message = match self.handle_sftp_transfers(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_files(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_archive(message) {
-            Ok(task) => return task,
-            Err(m) => m,
-        };
-        if let Ok(task) = self.handle_sftp(message) {
-            return task;
-        }
-        Task::none()
-    }
 
     pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         // Exhaustive routing table: every domain's sub-enum goes straight to
@@ -205,10 +193,20 @@ impl Oryxis {
             Message::Ssh(m) => self.handle_ssh(m),
             Message::Tabs(m) => self.handle_tabs(m),
             Message::Sftp(m) => self.handle_sftp_domain(m),
-            // `SftpFor` is normally unwrapped to `Sftp` by `route_sftp_async`
-            // (in `update`) before dispatch; handle it defensively if it ever
-            // arrives here directly.
-            Message::SftpFor(_, inner) => self.handle_sftp_domain(*inner),
+            // `SftpFor` is always unwrapped by `route_sftp_async` (in
+            // `update`), which hoists the OWNING tab's state before
+            // re-dispatching the inner message. One reaching this match
+            // skipped that hoist, so executing it here would mutate
+            // whatever tab's state happens to be in the `self.sftp`
+            // buffer -- the wrong tab. Drop it loudly instead.
+            Message::SftpFor(owner, inner) => {
+                debug_assert!(false, "SftpFor({owner}) reached dispatch_message: {inner:?}");
+                tracing::error!(
+                    "SftpFor({owner}) reached dispatch_message without the \
+                     route_sftp_async owner hoist; dropping: {inner:?}"
+                );
+                Task::none()
+            }
             // SFTP type-ahead / list-nav peek runs before the terminal owns
             // the key (preserves the old try-chain ordering).
             Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {

@@ -1,14 +1,16 @@
-//! `Oryxis::handle_sftp`, match arms for the SFTP pane: navigation,
-//! filtering, transfers (upload/download/duplicate), property edits,
-//! row interactions, drag-and-drop, edit-in-place. The single biggest
-//! domain in the dispatch table.
+//! Core SFTP-pane handler slices: navigation, filtering, property
+//! edits, row interactions, drag-and-drop, edit-in-place. The single
+//! biggest domain in the dispatch table.
 //!
 //! Pane operations are side-addressed: a `SftpPaneSide` (Left / Right)
 //! names which pane, and the handler branches on `pane(side).is_remote`
 //! to choose filesystem vs SFTP behaviour, so either pane can be Local
 //! or a remote host.
 //!
-//! The router fans `Message` variants out to per-area submodules:
+//! Routing lives in `handle_sftp_domain` below, an exhaustive
+//! per-variant match that sends every `SftpMessage` straight to the
+//! slice that owns it (the `dispatch_sftp_transfers` / `_files` /
+//! `_archive` sibling files, plus this module's submodules):
 //!
 //! - `hosts`    : mount / connect / session-reuse / remount / retry,
 //!   plus the host picker.
@@ -125,39 +127,158 @@ impl Oryxis {
         }
     }
 
-    /// Dispatch an SFTP `Message` to the matching submodule handler.
-    /// Each submodule returns `Err(message)` for variants it doesn't
-    /// handle so the chain falls through to the next; the final `Err`
-    /// propagates back to `dispatch::update` so the other handlers
-    /// (or the inline match) get their turn.
-    pub(crate) fn handle_sftp(
-        &mut self,
-        message: SftpMessage,
-    ) -> Result<Task<Message>, SftpMessage> {
-        let message = match self.handle_sftp_hosts(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_tabs(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_listing(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_layout(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_entries(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_sftp_selection(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        Err(message)
+    /// Entry point for the SFTP domain: routes every variant straight to
+    /// the sub-handler slice that owns it (transfers / files / archive /
+    /// hosts / tabs / listing / layout / entries / selection). Exhaustive
+    /// on purpose: a new `SftpMessage` variant fails to compile until it
+    /// is listed in its owner's group, so it can never be silently
+    /// dropped. `route_sftp_async` re-dispatches through
+    /// `dispatch_message`, which lands here.
+    pub(crate) fn handle_sftp_domain(&mut self, message: SftpMessage) -> Task<Message> {
+        match message {
+            // Transfers legitimately decline every message when no SFTP tab
+            // owns the continuation (tab closed mid-transfer): quiet drop,
+            // matching the old chain's fall-through.
+            m @ (SftpMessage::SftpToggleTransferPanel
+            | SftpMessage::SftpTransferTick
+            | SftpMessage::SftpUpload(..)
+            | SftpMessage::SftpDownload(..)
+            | SftpMessage::SftpDuplicate(..)
+            | SftpMessage::SftpFileHovered
+            | SftpMessage::SftpFilesHoveredLeft
+            | SftpMessage::SftpFileDropped(..)
+            | SftpMessage::SftpDropFlush
+            | SftpMessage::SftpUploadFolder(..)
+            | SftpMessage::SftpDownloadFolder(..)
+            | SftpMessage::SftpDuplicateFolder(..)
+            | SftpMessage::SftpAskOverwrite(..)
+            | SftpMessage::SftpResolveOverwrite(..)
+            | SftpMessage::SftpToggleApplyToAll
+            | SftpMessage::SftpUploadBatch(..)
+            | SftpMessage::SftpUploadSelection
+            | SftpMessage::SftpDownloadSelection
+            | SftpMessage::SftpDuplicateSelection
+            | SftpMessage::SftpTransferConflict(..)
+            | SftpMessage::SftpTransferQueueReady(..)
+            | SftpMessage::SftpTransferNext(..)
+            | SftpMessage::SftpTransferItemDone(..)
+            | SftpMessage::SftpTransferError(..)
+            | SftpMessage::SftpCancelTransfer
+            | SftpMessage::SftpRelay(..)
+            | SftpMessage::SftpRelayFolder(..)) => self
+                .handle_sftp_transfers(m)
+                .unwrap_or_else(|_| Task::none()),
+            m @ (SftpMessage::SftpStartEdit(..)
+            | SftpMessage::SftpOpenLocal(..)
+            | SftpMessage::SftpRevealInExplorer(..)
+            | SftpMessage::SftpEditReady(..)
+            | SftpMessage::SftpEditSave
+            | SftpMessage::SftpEditDiscard
+            | SftpMessage::SftpEditWatchTick
+            | SftpMessage::SftpShowProperties(..)
+            | SftpMessage::SftpPropertiesLoaded(..)
+            | SftpMessage::SftpPropertiesToggleBit(..)
+            | SftpMessage::SftpPropertiesModeInput(..)
+            | SftpMessage::SftpPropertiesApply
+            | SftpMessage::SftpPropertiesDone(..)
+            | SftpMessage::SftpPropertiesClose) => self
+                .handle_sftp_files(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::ZipIndexed(..)
+            | SftpMessage::ArchiveDone(..)
+            | SftpMessage::SftpZipOpen(..)
+            | SftpMessage::SftpZipNavigate(..)
+            | SftpMessage::SftpZipClose(..)
+            | SftpMessage::SftpZipCopyOut(..)
+            | SftpMessage::SftpArchiveExtract(..)
+            | SftpMessage::SftpArchiveCompress(..)
+            | SftpMessage::SftpToolsProbed(..)) => self
+                .handle_sftp_archive(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::HostMounted(..)
+            | SftpMessage::RemoteError(..)
+            | SftpMessage::SftpPickHost(..)
+            | SftpMessage::SftpOpenPicker(..)
+            | SftpMessage::SftpPickLocal
+            | SftpMessage::SftpClosePicker
+            | SftpMessage::SftpRemountPane(..)
+            | SftpMessage::SftpPickerSearch(..)
+            | SftpMessage::OpenSftpForConnection(..)
+            | SftpMessage::SftpCancelRemoteLoad(..)
+            | SftpMessage::SftpRetryRemote(..)) => self
+                .handle_sftp_hosts(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::SelectSftpTab(..)
+            | SftpMessage::CloseSftpTab(..)
+            | SftpMessage::NewSftpTab
+            | SftpMessage::ConfirmCloseSftpTab
+            | SftpMessage::CancelCloseSftpTab
+            | SftpMessage::ToggleSftpTabPin(..)
+            | SftpMessage::ShowSftpTabMenu(..)
+            | SftpMessage::CloseOtherSftpTabs(..)
+            | SftpMessage::SftpTabHovered(..)
+            | SftpMessage::SftpTabUnhovered) => self
+                .handle_sftp_tabs(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::SftpRemoteLoaded(..)
+            | SftpMessage::SftpNavigateRemote(..)
+            | SftpMessage::SftpNavigateLocal(..)
+            | SftpMessage::SftpUp(..)
+            | SftpMessage::SftpRefreshLocal(..)
+            | SftpMessage::SftpToggleHidden(..)
+            | SftpMessage::SftpFilter(..)
+            | SftpMessage::SftpStartEditPath(..)
+            | SftpMessage::SftpEditPath(..)
+            | SftpMessage::SftpCommitPath(..)
+            | SftpMessage::SftpCancelEditPath
+            | SftpMessage::SftpSort(..)
+            | SftpMessage::SftpListScrolled(..)
+            | SftpMessage::SftpLocalListed(..)) => self
+                .handle_sftp_listing(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::SftpToggleActions(..)
+            | SftpMessage::SftpToggleDrives(..)
+            | SftpMessage::SftpCloseMenus
+            | SftpMessage::SftpToggleColumn(..)
+            | SftpMessage::SftpColResizeStart(..)
+            | SftpMessage::SftpColAutoFit(..)
+            | SftpMessage::SftpColDragStart(..)
+            | SftpMessage::SftpColHovered(..)
+            | SftpMessage::SftpColUnhovered
+            | SftpMessage::SftpToggleFilterSearch(..)
+            | SftpMessage::SftpToggleLog
+            | SftpMessage::SftpLogResizeStart
+            | SftpMessage::SftpSplitResizeStart) => self
+                .handle_sftp_layout(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::SftpStartRename(..)
+            | SftpMessage::SftpRenameInput(..)
+            | SftpMessage::SftpRenameCommit
+            | SftpMessage::SftpRenamed(..)
+            | SftpMessage::SftpAskDelete(..)
+            | SftpMessage::SftpAskDeleteSelection
+            | SftpMessage::SftpConfirmDelete
+            | SftpMessage::SftpCancelDelete
+            | SftpMessage::SftpEntriesRemoved(..)
+            | SftpMessage::SftpStartNewEntry(..)
+            | SftpMessage::SftpNewEntryInput(..)
+            | SftpMessage::SftpNewEntryCommit
+            | SftpMessage::SftpNewEntryCancel
+            | SftpMessage::SftpOpResult(..)) => self
+                .handle_sftp_entries(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+            m @ (SftpMessage::SftpRowRightClick(..)
+            | SftpMessage::SftpBackgroundRightClick(..)
+            | SftpMessage::SftpRowMenuClose
+            | SftpMessage::SftpCopyPath(..)
+            | SftpMessage::SftpCopySelectionPaths(..)
+            | SftpMessage::SftpTypeAheadFire(..)
+            | SftpMessage::SftpRowEnter(..)
+            | SftpMessage::SftpRowExit
+            | SftpMessage::SftpMouseLeftPressed
+            | SftpMessage::SftpSelectRow(..)) => self
+                .handle_sftp_selection(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
+        }
     }
 }
