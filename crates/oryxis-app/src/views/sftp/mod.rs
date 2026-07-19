@@ -151,7 +151,19 @@ impl Oryxis {
         } else {
             None
         };
-        let Some((side, kind)) = open else { return base };
+        // Always wrap `base` in a Stack, whether or not a popover is open, so
+        // the panes keep a stable tree position. Conditionally returning `base`
+        // bare (popover closed) vs `Stack[base, ...]` (popover open) re-parents
+        // the panes on every toggle, which makes iced drop the file-list
+        // scrollables' internal offset — the "opening a menu resets the other
+        // pane's scroll" bug. Base stays at Stack index 0 either way.
+        let Some((side, kind)) = open else {
+            return iced::widget::Stack::new()
+                .push(base)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        };
         let pane = self.sftp.pane(side);
 
         // Pane geometry in view-local coordinates (x = 0 at the view's left
@@ -171,7 +183,11 @@ impl Oryxis {
                 SftpPaneSide::Right => content_w - left_w,
             };
             if (pane_w - 6.0).max(1.0) >= 430.0 {
-                return base;
+                return iced::widget::Stack::new()
+                    .push(base)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into();
             }
         }
 
@@ -219,8 +235,16 @@ impl Oryxis {
         &'a self,
         base: Element<'a, Message>,
     ) -> Element<'a, Message> {
+        // Always wrap in a Stack (see `layer_sftp_pane_popover`): toggling the
+        // ghost must not re-parent the panes, or iced resets the file lists'
+        // scroll offset. Base stays at Stack index 0 whether or not a drag is
+        // live.
         let Some(drag) = self.sftp_col_drag.filter(|d| d.active) else {
-            return base;
+            return iced::widget::Stack::new()
+                .push(base)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
         };
         let ghost = col_drag_ghost(data_col_label(drag.col));
         // Cursor → view-local coordinates: x is offset by the nav rail (0 on
