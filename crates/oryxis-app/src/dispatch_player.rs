@@ -7,7 +7,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, Oryxis, PlayerMessage};
 
 /// Arrow-key seek step, in playback milliseconds (the asciinema
 /// player's default step).
@@ -25,8 +25,11 @@ impl Oryxis {
         &mut self,
         message: Message,
     ) -> Result<Task<Message>, Message> {
-        match message {
-            Message::PlaySessionLog(log_id) => {
+        let Message::Player(m) = message else {
+            return Err(message);
+        };
+        match m {
+            PlayerMessage::Open(log_id) => {
                 // Any open kebab menu should drop before the surface
                 // swaps; flush first so an in-progress session plays
                 // everything recorded up to this moment.
@@ -86,40 +89,40 @@ impl Oryxis {
                     }
                 }
             }
-            Message::SessionPlayerClose => {
+            PlayerMessage::Close => {
                 self.session_player = None;
             }
-            Message::SessionPlayerTogglePlay => {
+            PlayerMessage::TogglePlay => {
                 if let Some(p) = &mut self.session_player {
                     p.toggle_play();
                 }
             }
-            Message::SessionPlayerRestart => {
+            PlayerMessage::Restart => {
                 if let Some(p) = &mut self.session_player {
                     p.restart();
                 }
             }
-            Message::SessionPlayerSpeedCycle => {
+            PlayerMessage::SpeedCycle => {
                 if let Some(p) = &mut self.session_player {
                     p.cycle_speed();
                 }
             }
-            Message::SessionPlayerSeek(target_ms) => {
+            PlayerMessage::Seek(target_ms) => {
                 if let Some(p) = &mut self.session_player {
                     p.seek(target_ms);
                 }
             }
-            Message::SessionPlayerScrub(target_ms) => {
+            PlayerMessage::Scrub(target_ms) => {
                 if let Some(p) = &mut self.session_player {
                     p.scrub_to(target_ms);
                 }
             }
-            Message::SessionPlayerScrubCommit => {
+            PlayerMessage::ScrubCommit => {
                 if let Some(p) = &mut self.session_player {
                     p.commit_scrub();
                 }
             }
-            Message::SessionPlayerTick => {
+            PlayerMessage::Tick => {
                 if let Some(p) = &mut self.session_player
                     && p.playing
                 {
@@ -133,7 +136,6 @@ impl Oryxis {
                     p.advance(dt_ms);
                 }
             }
-            m => return Err(m),
         }
         Ok(Task::none())
     }
@@ -181,28 +183,28 @@ impl Oryxis {
             .unwrap_or_else(|| self.privacy_global_active());
         let msg = match key {
             keyboard::Key::Named(keyboard::key::Named::Space) => {
-                Message::SessionPlayerTogglePlay
+                Message::Player(PlayerMessage::TogglePlay)
             }
             keyboard::Key::Character(c) if c.as_str() == " " => {
-                Message::SessionPlayerTogglePlay
+                Message::Player(PlayerMessage::TogglePlay)
             }
             keyboard::Key::Named(keyboard::key::Named::Escape) => {
-                Message::SessionPlayerClose
+                Message::Player(PlayerMessage::Close)
             }
             keyboard::Key::Named(keyboard::key::Named::ArrowLeft) => {
-                Message::SessionPlayerSeek(clock - SEEK_STEP_MS)
+                Message::Player(PlayerMessage::Seek(clock - SEEK_STEP_MS))
             }
             keyboard::Key::Named(keyboard::key::Named::ArrowRight) => {
-                Message::SessionPlayerSeek(clock + SEEK_STEP_MS)
+                Message::Player(PlayerMessage::Seek(clock + SEEK_STEP_MS))
             }
             keyboard::Key::Named(keyboard::key::Named::Home) => {
-                Message::SessionPlayerRestart
+                Message::Player(PlayerMessage::Restart)
             }
             // Speed cycle ('s') and Reveal toggle ('m'), the two header
             // chips that were mouse-only. `m` is inert unless masking is
             // in play, mirroring the button being hidden then.
             keyboard::Key::Character(c) if c.as_str().eq_ignore_ascii_case("s") => {
-                Message::SessionPlayerSpeedCycle
+                Message::Player(PlayerMessage::SpeedCycle)
             }
             keyboard::Key::Character(c)
                 if c.as_str().eq_ignore_ascii_case("m") && privacy_applies =>

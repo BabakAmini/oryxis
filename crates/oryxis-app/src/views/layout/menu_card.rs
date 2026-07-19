@@ -37,7 +37,7 @@ impl Oryxis {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::play(),
                         crate::i18n::t("session_play"),
-                        Message::PlaySessionLog(log_id),
+                        Message::Player(PlayerMessage::Open(log_id)),
                         OryxisColors::t().success,
                     ));
                 }

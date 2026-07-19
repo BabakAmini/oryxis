@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use chrono::{DateTime, Utc};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PlayerMessage, Message, Oryxis};
 use crate::theme::OryxisColors;
 use crate::util::format_data_size;
 
@@ -399,7 +399,7 @@ impl Oryxis {
                             .color(OryxisColors::t().success)
                             .into(),
                         Some(crate::i18n::t("session_play")),
-                        Message::PlaySessionLog(log_id),
+                        Message::Player(PlayerMessage::Open(log_id)),
                     ));
                     header_items.push(Space::new().width(8).into());
                 }

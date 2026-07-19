@@ -17,6 +17,8 @@ use crate::state::{ConnectionStep, SettingsSection, View};
 
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod player;
+pub use player::PlayerMessage;
 
 /// The four per-class Privacy Mode gates (issue #78 block 1), each
 /// mirroring a `privacy_mask_*` setting. The usernames class covers
@@ -1193,26 +1195,9 @@ pub enum Message {
     /// Toggle the viewer-header `...` menu (session-log actions minus
     /// Play, which the viewer offers as its own header button).
     ShowSessionLogViewerMenu(usize),
-    /// Open the in-app session player for a recording (issue #71):
-    /// replays the timed chunks through a read-only terminal backend.
-    PlaySessionLog(Uuid),
-    SessionPlayerClose,
-    /// Play/pause toggle; playing again after the end restarts.
-    SessionPlayerTogglePlay,
-    SessionPlayerRestart,
-    /// Cycle the playback speed through the preset steps.
-    SessionPlayerSpeedCycle,
-    /// Arrow-key jump to a playback position (milliseconds); applies
-    /// immediately (a single discrete step).
-    SessionPlayerSeek(f64),
-    /// Scrubber drag in progress: record the target so the knob/label
-    /// follow live, but defer the emulator rebuild to release.
-    SessionPlayerScrub(f64),
-    /// Scrubber released: apply the pending scrub target once.
-    SessionPlayerScrubCommit,
-    /// Playback clock tick (subscription mounted while playing on the
-    /// History view).
-    SessionPlayerTick,
+    /// In-app session player (issue #71): a read-only playback surface
+    /// on the History view.
+    Player(PlayerMessage),
     /// Ask for confirmation before deleting one recording; the
     /// dialog's action carries `DeleteSessionLog`.
     RequestDeleteSessionLog(usize),

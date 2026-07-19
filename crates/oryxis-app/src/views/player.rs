@@ -14,7 +14,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PlayerMessage, Message, Oryxis};
 use crate::state::SessionPlayer;
 use crate::theme::OryxisColors;
 
@@ -103,7 +103,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .padding(Padding { top: 0.0, right: 14.0, bottom: 0.0, left: 14.0 }),
             )
-            .on_press(Message::SessionPlayerClose)
+            .on_press(Message::Player(PlayerMessage::Close))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().error },
@@ -191,11 +191,11 @@ impl Oryxis {
         } else {
             (iced_fonts::lucide::play(), crate::i18n::t("player_play_tip"))
         };
-        let play_btn = transport_btn(play_icon, play_tip, Message::SessionPlayerTogglePlay);
+        let play_btn = transport_btn(play_icon, play_tip, Message::Player(PlayerMessage::TogglePlay));
         let restart_btn = transport_btn(
             iced_fonts::lucide::rotate_ccw(),
             crate::i18n::t("player_restart_tip"),
-            Message::SessionPlayerRestart,
+            Message::Player(PlayerMessage::Restart),
         );
         // The knob and label follow the live scrub target while dragging,
         // the playback clock otherwise.
@@ -211,9 +211,9 @@ impl Oryxis {
         let scrubber = iced::widget::slider(
             0.0..=(p.duration_ms.max(1) as f64),
             display_ms.clamp(0.0, p.duration_ms as f64),
-            Message::SessionPlayerScrub,
+            |v| Message::Player(PlayerMessage::Scrub(v)),
         )
-        .on_release(Message::SessionPlayerScrubCommit)
+        .on_release(Message::Player(PlayerMessage::ScrubCommit))
         .step(1.0)
         .width(Length::Fill);
         // Speed chip: cycles the preset steps; trailing x reads the
@@ -237,7 +237,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .center_x(Length::Fixed(40.0)),
             )
-            .on_press(Message::SessionPlayerSpeedCycle)
+            .on_press(Message::Player(PlayerMessage::SpeedCycle))
             .style(|_, status| transport_style(status))
             .into(),
             crate::i18n::t("player_speed_tip"),
