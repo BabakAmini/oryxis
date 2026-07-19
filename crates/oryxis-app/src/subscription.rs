@@ -251,7 +251,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(500))
-                    .map(|_| Message::Tray(TrayMessage::TrayPoll)),
+                    .map(|_| Message::Tray(TrayMessage::Poll)),
             );
             subs.push(Subscription::run(tray_event_stream));
         }
@@ -391,7 +391,7 @@ fn tray_event_stream() -> impl iced::futures::Stream<Item = Message> {
         loop {
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
             if let Some(id) = crate::tray::poll_menu_event() {
-                return Some((Message::Tray(TrayMessage::TrayMenuEvent(id)), ()));
+                return Some((Message::Tray(TrayMessage::MenuEvent(id)), ()));
             }
             // Left-click / double-click on the icon body restores the
             // window; other icon events (move, right-click, which
@@ -400,7 +400,7 @@ fn tray_event_stream() -> impl iced::futures::Stream<Item = Message> {
             if let Some(ev) = crate::tray::poll_icon_event()
                 && matches!(ev, tray_icon::TrayIconEvent::DoubleClick { .. })
             {
-                return Some((Message::Tray(TrayMessage::TrayIconDoubleClick), ()));
+                return Some((Message::Tray(TrayMessage::IconDoubleClick), ()));
             }
         }
     })

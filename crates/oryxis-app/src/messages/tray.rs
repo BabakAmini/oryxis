@@ -9,11 +9,11 @@ pub enum TrayMessage {
     /// re-rendered the whole app 10x/s on Windows. Only constructed on
     /// Windows (the subscription is only mounted there).
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    TrayMenuEvent(String),
+    MenuEvent(String),
     /// The tray icon was double-clicked (restore the window). Same
     /// event-driven delivery as [`TrayMenuEvent`].
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    TrayIconDoubleClick,
+    IconDoubleClick,
     /// 100 ms ticker emitted by the iced subscription. The handler
     /// drains the tray-icon crate's crossbeam event channels and
     /// re-emits real `TrayShow / TrayHide / TrayQuit` messages.
@@ -23,25 +23,25 @@ pub enum TrayMessage {
     /// The ticker only mounts on Windows (the tray lives there),
     /// hence the cfg'd allow.
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    TrayPoll,
+    Poll,
     /// User clicked "Show Oryxis" in the tray menu, or left-clicked
     /// the tray icon. Bring the main window back from hidden state
     /// and pull it to the foreground.
-    TrayShow,
+    Show,
     /// User clicked "Hide to tray". Hide the main window (true
     /// hide via Win32 ShowWindow, not just minimize) and leave
     /// only the tray icon present.
-    TrayHide,
+    Hide,
     /// User clicked "Quit" in the tray menu. Tear down the tray
     /// icon and exit the process.
-    TrayQuit,
+    Quit,
     /// User clicked an entry in the tray menu's "Active sessions"
     /// section. Payload is the tab index from `Oryxis::tabs`. The
     /// handler shows the window (in case it was hidden) and selects
     /// the tab.
-    TrayActivateSession(usize),
+    ActivateSession(usize),
     /// User clicked an entry in the tray menu's "Recent hosts"
     /// section. Payload is the connection UUID. The handler shows
     /// the window and opens a new tab against that connection.
-    TrayOpenHost(uuid::Uuid),
+    OpenHost(uuid::Uuid),
 }
