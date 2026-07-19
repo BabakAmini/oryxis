@@ -10,7 +10,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, OnboardingMessage, Oryxis};
 use crate::dispatch_onboarding::ONBOARDING_LAST_SLIDE;
 use crate::i18n::t;
 use crate::theme::OryxisColors;
@@ -259,18 +259,18 @@ impl Oryxis {
         let mut items: Vec<Element<'_, Message>> = Vec::new();
 
         if slide > 0 {
-            items.push(onboarding_text_button(t("onboarding_back"), Message::OnboardingBack));
+            items.push(onboarding_text_button(t("onboarding_back"), Message::Onboarding(OnboardingMessage::Back)));
         }
         items.push(Space::new().width(Length::Fill).into());
         items.push(onboarding_dots(slide));
         items.push(Space::new().width(Length::Fill).into());
 
         if slide < ONBOARDING_LAST_SLIDE {
-            items.push(onboarding_text_button(t("onboarding_skip"), Message::OnboardingSkipToEnd));
+            items.push(onboarding_text_button(t("onboarding_skip"), Message::Onboarding(OnboardingMessage::SkipToEnd)));
             items.push(Space::new().width(10).into());
             items.push(styled_button(
                 t("onboarding_next"),
-                Message::OnboardingNext,
+                Message::Onboarding(OnboardingMessage::Next),
                 OryxisColors::t().accent,
             ));
         }

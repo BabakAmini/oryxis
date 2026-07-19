@@ -15,6 +15,9 @@ use oryxis_core::models::port_forward_rule::ForwardKind;
 
 use crate::state::{ConnectionStep, SettingsSection, View};
 
+mod onboarding;
+pub use onboarding::OnboardingMessage;
+
 /// The four per-class Privacy Mode gates (issue #78 block 1), each
 /// mirroring a `privacy_mask_*` setting. The usernames class covers
 /// both the shape heuristics (`user@host`, home dirs) and the
@@ -99,11 +102,8 @@ pub enum Message {
     ToggleSetupBiometric,
 
     // First-run welcome / onboarding carousel (rendered off
-    // `VaultState::NeedSetup`). These drive the slide index; the final
-    // slide creates the vault via the existing Vault* messages.
-    OnboardingNext,
-    OnboardingBack,
-    OnboardingSkipToEnd,
+    // `VaultState::NeedSetup`).
+    Onboarding(OnboardingMessage),
 
     // Navigation
     ChangeView(View),

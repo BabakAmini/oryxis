@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{Message, OnboardingMessage, Oryxis};
 
 /// Last slide index. The carousel has five slides (0..=4); the final one
 /// carries the master-password setup. Kept here as the single source of
@@ -17,21 +17,23 @@ impl Oryxis {
         &mut self,
         message: Message,
     ) -> Result<Task<Message>, Message> {
-        match message {
-            Message::OnboardingNext => {
+        let Message::Onboarding(m) = message else {
+            return Err(message);
+        };
+        match m {
+            OnboardingMessage::Next => {
                 if self.onboarding_slide < ONBOARDING_LAST_SLIDE {
                     self.onboarding_slide += 1;
                 }
             }
-            Message::OnboardingBack => {
+            OnboardingMessage::Back => {
                 if self.onboarding_slide > 0 {
                     self.onboarding_slide -= 1;
                 }
             }
-            Message::OnboardingSkipToEnd => {
+            OnboardingMessage::SkipToEnd => {
                 self.onboarding_slide = ONBOARDING_LAST_SLIDE;
             }
-            m => return Err(m),
         }
         Ok(Task::none())
     }
