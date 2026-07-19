@@ -286,6 +286,27 @@ pub(crate) fn detect_highlights(
         let bytes = row_str.as_bytes();
         let len = bytes.len();
 
+        // The scanners below all walk `bytes` and record BYTE offsets in
+        // `start_col`/`end_col`. The row string holds exactly one char per
+        // column, so a char's index IS its column; on a pure-ASCII row the
+        // two units coincide, but one multi-byte char shifts every later
+        // byte offset past its column, which slid highlight and privacy
+        // spans to the right (a masked IP after a CJK char leaked its
+        // leading cells). Internal span math stays in bytes (the
+        // `dominated` overlap checks compare spans of the same row), and
+        // the finished row's spans are remapped to columns at the end of
+        // this loop body via `byte_col`.
+        let byte_col: Option<Vec<u16>> = (!row_str.is_ascii()).then(|| {
+            let mut map = vec![0u16; len];
+            for (col, (b, ch)) in row_str.char_indices().enumerate() {
+                for off in 0..ch.len_utf8() {
+                    map[b + off] = col as u16;
+                }
+            }
+            map
+        });
+        let row_first_span = highlights.len();
+
         // --- URLs: "http://" or "https://" followed by non-whitespace ---
         {
             let mut i = 0;
@@ -682,6 +703,15 @@ pub(crate) fn detect_highlights(
                 i = j;
             }
         }
+
+        // Remap this row's spans from byte offsets to columns (see the
+        // `byte_col` comment above). ASCII rows skip this: byte == column.
+        if let Some(map) = &byte_col {
+            for h in &mut highlights[row_first_span..] {
+                h.start_col = map[h.start_col as usize];
+                h.end_col = map[h.end_col as usize];
+            }
+        }
     }
 
     highlights
@@ -912,6 +942,25 @@ pub(crate) fn url_at_cell(
     let bytes = row_str.as_bytes();
     let len = bytes.len();
 
+    // Same byte-vs-column split as `detect_highlights`: `target_col` is a
+    // CELL column, the scan below walks bytes. Map a byte offset to its
+    // char's column before comparing (identity on pure-ASCII rows).
+    let byte_col: Option<Vec<u16>> = (!row_str.is_ascii()).then(|| {
+        let mut map = vec![0u16; len];
+        for (col, (b, ch)) in row_str.char_indices().enumerate() {
+            for off in 0..ch.len_utf8() {
+                map[b + off] = col as u16;
+            }
+        }
+        map
+    });
+    let col_of = |byte: usize| -> u16 {
+        match &byte_col {
+            Some(map) => map[byte],
+            None => byte as u16,
+        }
+    };
+
     let mut i = 0;
     while i < len {
         if bytes[i] != b'h' {
@@ -939,7 +988,7 @@ pub(crate) fn url_at_cell(
                         break;
                     }
                 }
-                if (start as u16) <= target_col && target_col <= (end - 1) as u16 {
+                if col_of(start) <= target_col && target_col <= col_of(end - 1) {
                     return Some(row_str[start..end].to_string());
                 }
                 i = end;
@@ -1217,7 +1266,7 @@ mod tests {
         )]
     }
 
-    /// `(start, end)` byte spans of the UserDir highlights detected in `s`.
+    /// `(start, end)` column spans of the UserDir highlights detected in `s`.
     fn user_dir_spans(s: &str, privacy: bool) -> Vec<(usize, usize)> {
         let rows = rows_from(s);
         detect_highlights(&rows, &TerminalPalette::default(), privacy, &[], PrivacyClasses::default())
@@ -1350,6 +1399,56 @@ mod tests {
 
     fn ip_texts(s: &str) -> Vec<String> {
         ip_spans(s).into_iter().map(|(a, b)| s[a..=b].to_string()).collect()
+    }
+
+    #[test]
+    fn multibyte_prefix_keeps_ip_mask_on_its_cells() {
+        // Two CJK chars (3 UTF-8 bytes each, one column each in the test
+        // row model) precede the address: byte offsets and columns
+        // diverge, and the mask must land on the address CELLS. Before
+        // the byte->column remap the span sat 4 cells to the right,
+        // leaking the leading half of the address on screen.
+        let s = "网速 8.8.8.8 ok";
+        let rows = rows_from(s);
+        let hs = detect_highlights(
+            &rows,
+            &TerminalPalette::default(),
+            true,
+            &[],
+            PrivacyClasses::default(),
+        );
+        let ip_cols: Vec<(u16, u16, u16)> = privacy_extents(&hs);
+        // Columns: 网=0, 速=1, space=2, address=3..=9.
+        assert_eq!(ip_cols, vec![(0, 3, 9)]);
+        assert!(is_privacy_cell(&hs, 0, 3));
+        assert!(is_privacy_cell(&hs, 0, 9));
+        assert!(!is_privacy_cell(&hs, 0, 2));
+        assert!(!is_privacy_cell(&hs, 0, 10));
+        // The span text extraction (column-keyed) agrees.
+        let texts = privacy_spans_with_text(&hs, &rows);
+        assert_eq!(texts[0].1, "8.8.8.8");
+    }
+
+    #[test]
+    fn multibyte_prefix_keeps_url_span_on_its_cells() {
+        // Same unit split for the scraped-URL pass: the span must cover
+        // the URL's columns, not its byte offsets.
+        let s = "ü http://ex.com x";
+        let rows = rows_from(s);
+        let hs = detect_highlights(
+            &rows,
+            &TerminalPalette::default(),
+            false,
+            &[],
+            PrivacyClasses::default(),
+        );
+        let url: Vec<(u16, u16)> = hs
+            .iter()
+            .filter(|h| h.kind == HighlightKind::Url)
+            .map(|h| (h.start_col, h.end_col))
+            .collect();
+        // Columns: ü=0, space=1, url=2..=14 ("http://ex.com" is 13 chars).
+        assert_eq!(url, vec![(2, 14)]);
     }
 
     #[test]
@@ -1662,7 +1761,7 @@ mod tests {
 
     #[test]
     fn osc8_run_covers_the_whole_label() {
-        // `\e]8;;URI\e\\LABEL\e]8;;\e\\` — the label is 10 cells ("click here").
+        // `\e]8;;URI\e\\LABEL\e]8;;\e\\`; the label is 10 cells ("click here").
         let b = osc8_term(b"\x1b]8;;https://example.com\x1b\\click here\x1b]8;;\x1b\\");
         let hit = osc8_link_at_cell(&b.term, 0, 3).expect("cell inside the label is a link");
         assert_eq!(hit, ("https://example.com".to_string(), 0, 9));
