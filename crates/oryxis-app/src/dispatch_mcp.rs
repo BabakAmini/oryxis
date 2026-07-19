@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{PluginMessage, Message, Oryxis};
+use crate::app::{McpMessage, PluginMessage, Message, Oryxis};
 use crate::mcp::{install_mcp_config_to_file, install_mcp_config_to_wsl, mcp_config_json, mcp_config_json_wsl};
 use crate::state::{EnvVarForm, PortForwardForm};
 
@@ -75,7 +75,7 @@ impl Oryxis {
                     e.value = v;
                 }
             }
-            Message::ToggleMcpServer => {
+            Message::Mcp(McpMessage::ToggleMcpServer) => {
                 self.mcp.server_enabled = !self.mcp.server_enabled;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("mcp_server_enabled", if self.mcp.server_enabled { "true" } else { "false" });
@@ -93,15 +93,15 @@ impl Oryxis {
                     ))));
                 }
             }
-            Message::ShowMcpInfo => {
+            Message::Mcp(McpMessage::ShowMcpInfo) => {
                 self.mcp.show_info = true;
                 self.mcp.config_copied = false;
             }
-            Message::HideMcpInfo => {
+            Message::Mcp(McpMessage::HideMcpInfo) => {
                 self.mcp.show_info = false;
                 self.mcp.config_copied = false;
             }
-            Message::CopyMcpConfig => {
+            Message::Mcp(McpMessage::CopyMcpConfig) => {
                 self.mcp.config_copied = true;
                 let vault_pw = self.mcp_vault_pw();
                 let json = if self.mcp.target_wsl {
@@ -111,7 +111,7 @@ impl Oryxis {
                 };
                 return Ok(iced::clipboard::write(json).discard());
             }
-            Message::InstallMcpConfig => {
+            Message::Mcp(McpMessage::InstallMcpConfig) => {
                 self.mcp.install_status = None;
                 let token = self.mcp.server_token.clone();
                 let vault_pw = self.mcp_vault_pw();
@@ -124,20 +124,20 @@ impl Oryxis {
                             install_mcp_config_to_file(&token, vault_pw.as_deref())
                         }
                     },
-                    Message::InstallMcpConfigResult,
+                    |v| Message::Mcp(McpMessage::InstallMcpConfigResult(v)),
                 ));
             }
-            Message::SetMcpTarget(is_wsl) => {
+            Message::Mcp(McpMessage::SetMcpTarget(is_wsl)) => {
                 self.mcp.target_wsl = is_wsl;
                 // The Copy / Install feedback from the previous target no
                 // longer reflects what's on screen.
                 self.mcp.config_copied = false;
                 self.mcp.install_status = None;
             }
-            Message::InstallMcpConfigResult(result) => {
+            Message::Mcp(McpMessage::InstallMcpConfigResult(result)) => {
                 self.mcp.install_status = Some(result);
             }
-            Message::RegenerateMcpToken => {
+            Message::Mcp(McpMessage::RegenerateMcpToken) => {
                 use rand::RngCore;
                 let mut bytes = [0u8; 32];
                 rand::thread_rng().fill_bytes(&mut bytes);
@@ -156,26 +156,26 @@ impl Oryxis {
                 // token, prompt the user to re-install.
                 self.mcp.install_status = None;
             }
-            Message::ToggleMcpTokenVisibility => {
+            Message::Mcp(McpMessage::ToggleMcpTokenVisibility) => {
                 self.mcp.token_visible = !self.mcp.token_visible;
             }
-            Message::CopyMcpToken => {
+            Message::Mcp(McpMessage::CopyMcpToken) => {
                 return Ok(iced::clipboard::write(self.mcp.server_token.clone()).discard());
             }
-            Message::McpVaultPwPromptOpen => {
+            Message::Mcp(McpMessage::McpVaultPwPromptOpen) => {
                 self.mcp.vault_pw_prompt = Some(String::new());
                 self.mcp.vault_pw_error = false;
             }
-            Message::McpVaultPwPromptCancel => {
+            Message::Mcp(McpMessage::McpVaultPwPromptCancel) => {
                 self.mcp.vault_pw_prompt = None;
                 self.mcp.vault_pw_error = false;
             }
-            Message::McpVaultPwInput(v) => {
+            Message::Mcp(McpMessage::McpVaultPwInput(v)) => {
                 if let Some(buf) = &mut self.mcp.vault_pw_prompt {
                     *buf = v;
                 }
             }
-            Message::McpVaultPwConfirm => {
+            Message::Mcp(McpMessage::McpVaultPwConfirm) => {
                 let Some(typed) = self.mcp.vault_pw_prompt.clone() else {
                     return Ok(Task::none());
                 };
@@ -206,7 +206,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::McpVaultPwRemove => {
+            Message::Mcp(McpMessage::McpVaultPwRemove) => {
                 self.mcp.include_vault_password = false;
                 self.persist_setting("mcp_config_vault_pw", "false");
                 self.mcp.config_copied = false;
@@ -222,10 +222,10 @@ impl Oryxis {
                 let token = self.mcp.server_token.clone();
                 return Ok(Task::perform(
                     async move { crate::mcp::strip_vault_password_everywhere(&token) },
-                    Message::McpVaultPwStripResult,
+                    |v| Message::Mcp(McpMessage::McpVaultPwStripResult(v)),
                 ));
             }
-            Message::McpVaultPwStripResult(res) => {
+            Message::Mcp(McpMessage::McpVaultPwStripResult(res)) => {
                 self.mcp.vault_pw_strip_status = Some(res);
             }
 

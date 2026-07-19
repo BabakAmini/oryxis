@@ -18,6 +18,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod mcp;
+pub use mcp::McpMessage;
 mod navigation;
 pub use navigation::NavigationMessage;
 mod command_history;
@@ -1739,48 +1741,8 @@ pub enum Message {
     EditorToggleMcpEnabled,
     /// Cycle the per-host session-recording override: Default -> On -> Off.
     EditorCycleSessionLogging,
-    ToggleMcpServer,
-    ShowMcpInfo,
-    HideMcpInfo,
-    CopyMcpConfig,
-    InstallMcpConfig,
-    InstallMcpConfigResult(Result<String, String>),
-    /// Pick which client the snippet, Copy, and Install target: the
-    /// native client (`false`) or one running inside WSL (`true`).
-    /// Only the Windows build renders the toggle that emits this, so
-    /// elsewhere the variant is constructed nowhere.
-    #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-    SetMcpTarget(bool),
-    /// Generate a fresh random MCP server token and persist it. Wipes
-    /// the previous value, every existing MCP config will need to be
-    /// reissued (re-copy / re-install) with the new token.
-    RegenerateMcpToken,
-    /// Show / hide the MCP token in plain text on the settings panel.
-    /// Default masked.
-    ToggleMcpTokenVisibility,
-    /// Put the active MCP token on the clipboard. Logs nothing, the
-    /// toast tells the user it was copied.
-    CopyMcpToken,
-    /// Open the master-password confirm row in the MCP setup panel
-    /// (consent gate for embedding `ORYXIS_VAULT_PASSWORD` in the
-    /// client config).
-    McpVaultPwPromptOpen,
-    /// Close the confirm row, discarding whatever was typed.
-    McpVaultPwPromptCancel,
-    /// Keystrokes into the master-password confirm input.
-    McpVaultPwInput(String),
-    /// Verify the typed master password; on success persist the
-    /// consent flag so the snippet / Copy / Install embed the vault
-    /// password from then on.
-    McpVaultPwConfirm,
-    /// Withdraw the consent: the snippet / Copy / Install stop
-    /// embedding the vault password; the config(s) on disk are scrubbed
-    /// in place in the background.
-    McpVaultPwRemove,
-    /// Outcome of that background scrub: `Ok(())` when every config that
-    /// carried the password was rewritten without it, `Err(msg)` on a
-    /// rewrite failure.
-    McpVaultPwStripResult(Result<(), String>),
+    // Mcp (handle_mcp)
+    Mcp(McpMessage),
 
     // Sync
     Sync(SyncMessage),

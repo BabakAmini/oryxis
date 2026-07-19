@@ -24,7 +24,7 @@ impl Oryxis {
             container(text(crate::i18n::t("mcp_setup_guide")).size(12).color(OryxisColors::t().accent))
                 .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 16.0 }),
         )
-        .on_press(if self.mcp.show_info { Message::HideMcpInfo } else { Message::ShowMcpInfo })
+        .on_press(if self.mcp.show_info { Message::Mcp(McpMessage::HideMcpInfo) } else { Message::Mcp(McpMessage::ShowMcpInfo) })
         .style(|_, status| {
             let bg = match status {
                 BtnStatus::Hovered => Color { a: 0.1, ..OryxisColors::t().accent },
@@ -40,7 +40,7 @@ impl Oryxis {
             self.nav_toggle_row(
                 crate::i18n::t("mcp_server"),
                 self.mcp.server_enabled,
-                Message::ToggleMcpServer,
+                Message::Mcp(McpMessage::ToggleMcpServer),
             ),
             Space::new().height(12),
             dir_row(vec![
@@ -48,9 +48,9 @@ impl Oryxis {
                 Space::new().width(Length::Fill).into(),
                 self.settings_nav_slot(
                     crate::keynav::RowAction::activate(if self.mcp.show_info {
-                        Message::HideMcpInfo
+                        Message::Mcp(McpMessage::HideMcpInfo)
                     } else {
-                        Message::ShowMcpInfo
+                        Message::Mcp(McpMessage::ShowMcpInfo)
                     }),
                     6.0,
                     mcp_guide_btn.into(),
@@ -154,7 +154,7 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
         container(text(copy_label).size(12).color(copy_color))
             .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 16.0 }),
     )
-    .on_press(Message::CopyMcpConfig)
+    .on_press(Message::Mcp(McpMessage::CopyMcpConfig))
     .style(move |_, status| {
         let bg = match status {
             BtnStatus::Hovered => Color { a: 0.1, ..copy_color },
@@ -176,7 +176,7 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
         container(text(install_label).size(12).color(install_color))
             .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 16.0 }),
     )
-    .on_press(Message::InstallMcpConfig)
+    .on_press(Message::Mcp(McpMessage::InstallMcpConfig))
     .style(move |_, status| {
         let bg = match status {
             BtnStatus::Hovered => Color { a: 0.1, ..install_color },
@@ -193,7 +193,7 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
         container(text(crate::i18n::t("mcp_info_close")).size(12).color(OryxisColors::t().text_muted))
             .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 16.0 }),
     )
-    .on_press(Message::HideMcpInfo)
+    .on_press(Message::Mcp(McpMessage::HideMcpInfo))
     .style(|_, status| {
         let bg = match status {
             BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -300,15 +300,15 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
                 .into(),
             Space::new().width(8).into(),
             app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::SetMcpTarget(false)),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::SetMcpTarget(false))),
                 6.0,
-                target_btn(crate::i18n::t("mcp_target_native"), !target_wsl, Message::SetMcpTarget(false)),
+                target_btn(crate::i18n::t("mcp_target_native"), !target_wsl, Message::Mcp(McpMessage::SetMcpTarget(false))),
             ),
             Space::new().width(6).into(),
             app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::SetMcpTarget(true)),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::SetMcpTarget(true))),
                 6.0,
-                target_btn(crate::i18n::t("mcp_target_wsl"), target_wsl, Message::SetMcpTarget(true)),
+                target_btn(crate::i18n::t("mcp_target_wsl"), target_wsl, Message::Mcp(McpMessage::SetMcpTarget(true))),
             ),
         ])
         .align_y(iced::Alignment::Center);
@@ -342,33 +342,33 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
     if !token.is_empty() {
         token_items.push(Space::new().width(8).into());
         token_items.push(app.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ToggleMcpTokenVisibility),
+            crate::keynav::RowAction::activate(Message::Mcp(McpMessage::ToggleMcpTokenVisibility)),
             6.0,
             token_action_btn(
                 toggle_label,
                 OryxisColors::t().text_secondary,
-                Message::ToggleMcpTokenVisibility,
+                Message::Mcp(McpMessage::ToggleMcpTokenVisibility),
             ),
         ));
         token_items.push(Space::new().width(6).into());
         token_items.push(app.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::CopyMcpToken),
+            crate::keynav::RowAction::activate(Message::Mcp(McpMessage::CopyMcpToken)),
             6.0,
             token_action_btn(
                 crate::i18n::t("mcp_token_copy"),
                 OryxisColors::t().accent,
-                Message::CopyMcpToken,
+                Message::Mcp(McpMessage::CopyMcpToken),
             ),
         ));
     }
     token_items.push(Space::new().width(6).into());
     token_items.push(app.settings_nav_slot(
-        crate::keynav::RowAction::activate(Message::RegenerateMcpToken),
+        crate::keynav::RowAction::activate(Message::Mcp(McpMessage::RegenerateMcpToken)),
         6.0,
         token_action_btn(
             crate::i18n::t("mcp_token_regenerate"),
             OryxisColors::t().warning,
-            Message::RegenerateMcpToken,
+            Message::Mcp(McpMessage::RegenerateMcpToken),
         ),
     ));
     let token_row = crate::widgets::dir_row(token_items)
@@ -439,12 +439,12 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
                         .into(),
                     Space::new().width(8).into(),
                     app.settings_nav_slot(
-                        crate::keynav::RowAction::activate(Message::McpVaultPwRemove),
+                        crate::keynav::RowAction::activate(Message::Mcp(McpMessage::McpVaultPwRemove)),
                         6.0,
                         token_action_btn(
                             crate::i18n::t("remove"),
                             OryxisColors::t().warning,
-                            Message::McpVaultPwRemove,
+                            Message::Mcp(McpMessage::McpVaultPwRemove),
                         ),
                     ),
                 ])
@@ -467,8 +467,8 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
             iced::widget::text_input(crate::i18n::t("mcp_vault_pw_placeholder"), typed)
                 .id(input_id)
                 .secure(true)
-                .on_input(Message::McpVaultPwInput)
-                .on_submit(Message::McpVaultPwConfirm)
+                .on_input(|v| Message::Mcp(McpMessage::McpVaultPwInput(v)))
+                .on_submit(Message::Mcp(McpMessage::McpVaultPwConfirm))
                 .padding(8)
                 .size(12)
                 .width(240)
@@ -487,22 +487,22 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
                     pw_input,
                     Space::new().width(6).into(),
                     app.settings_nav_slot(
-                        crate::keynav::RowAction::activate(Message::McpVaultPwConfirm),
+                        crate::keynav::RowAction::activate(Message::Mcp(McpMessage::McpVaultPwConfirm)),
                         6.0,
                         token_action_btn(
                             crate::i18n::t("mcp_vault_pw_confirm"),
                             OryxisColors::t().success,
-                            Message::McpVaultPwConfirm,
+                            Message::Mcp(McpMessage::McpVaultPwConfirm),
                         ),
                     ),
                     Space::new().width(6).into(),
                     app.settings_nav_slot(
-                        crate::keynav::RowAction::activate(Message::McpVaultPwPromptCancel),
+                        crate::keynav::RowAction::activate(Message::Mcp(McpMessage::McpVaultPwPromptCancel)),
                         6.0,
                         token_action_btn(
                             crate::i18n::t("cancel"),
                             OryxisColors::t().text_secondary,
-                            Message::McpVaultPwPromptCancel,
+                            Message::Mcp(McpMessage::McpVaultPwPromptCancel),
                         ),
                     ),
                 ])
@@ -529,12 +529,12 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
             )
             .push(Space::new().height(6))
             .push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::McpVaultPwPromptOpen),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::McpVaultPwPromptOpen)),
                 6.0,
                 token_action_btn(
                     crate::i18n::t("mcp_vault_pw_include"),
                     OryxisColors::t().accent,
-                    Message::McpVaultPwPromptOpen,
+                    Message::Mcp(McpMessage::McpVaultPwPromptOpen),
                 ),
             ));
         // Outcome of the last Remove: confirm the scrub, or surface a
@@ -566,19 +566,19 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
         .push(Space::new().height(12))
         .push(crate::widgets::dir_row(vec![
             app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::InstallMcpConfig),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::InstallMcpConfig)),
                 6.0,
                 install_btn.into(),
             ),
             Space::new().width(8).into(),
             app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::CopyMcpConfig),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::CopyMcpConfig)),
                 6.0,
                 copy_btn.into(),
             ),
             Space::new().width(8).into(),
             app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideMcpInfo),
+                crate::keynav::RowAction::activate(Message::Mcp(McpMessage::HideMcpInfo)),
                 6.0,
                 close_btn.into(),
             ),
