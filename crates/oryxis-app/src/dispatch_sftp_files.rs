@@ -13,8 +13,8 @@ use crate::app::{SftpMessage, SidebarFilesMessage, Message, Oryxis};
 impl Oryxis {
     pub(crate) fn handle_sftp_files(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SftpMessage,
+    ) -> Result<Task<Message>, SftpMessage> {
         use crate::state::SftpPaneSide;
         // Edit-in-place is a remote-pane operation; resolve the remote
         // side for error reporting / reload. Defaults to Right when no
@@ -22,7 +22,7 @@ impl Oryxis {
         let remote_side = self.sftp.remote_side().unwrap_or(SftpPaneSide::Right);
         let local_side = self.sftp.local_side().unwrap_or(SftpPaneSide::Left);
         match message {
-            Message::Sftp(SftpMessage::SftpShowProperties(side, path, is_dir)) => {
+            SftpMessage::SftpShowProperties(side, path, is_dir) => {
                 self.sftp.row_menu = None;
                 if !self.sftp.pane(side).is_remote {
                         // Local stat is sync, populate the modal in
@@ -112,10 +112,10 @@ impl Oryxis {
                         ));
                 }
             }
-            Message::Sftp(SftpMessage::SftpPropertiesLoaded(view)) => {
+            SftpMessage::SftpPropertiesLoaded(view) => {
                 self.sftp.properties = Some(view);
             }
-            Message::Sftp(SftpMessage::SftpPropertiesToggleBit(bit)) => {
+            SftpMessage::SftpPropertiesToggleBit(bit) => {
                 if let Some(p) = self.sftp.properties.as_mut() {
                     let b = &mut p.bits;
                     let f = match bit {
@@ -134,7 +134,7 @@ impl Oryxis {
                     p.mode_input = format!("{:03o}", p.bits.to_mode());
                 }
             }
-            Message::Sftp(SftpMessage::SftpPropertiesModeInput(s)) => {
+            SftpMessage::SftpPropertiesModeInput(s) => {
                 if let Some(p) = self.sftp.properties.as_mut() {
                     // Accept only octal digits, at most 4 (a leading special-bit
                     // digit is tolerated but ignored: the dialog edits rwx only
@@ -149,7 +149,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Sftp(SftpMessage::SftpPropertiesApply) => {
+            SftpMessage::SftpPropertiesApply => {
                 let Some(p) = self.sftp.properties.as_mut() else {
                     return Ok(Task::none());
                 };
@@ -209,7 +209,7 @@ impl Oryxis {
                         ));
                 }
             }
-            Message::Sftp(SftpMessage::SftpPropertiesDone(result)) => {
+            SftpMessage::SftpPropertiesDone(result) => {
                 match result {
                     Ok(()) => {
                         let side = self.sftp.properties.as_ref().map(|p| p.side);
@@ -248,10 +248,10 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Sftp(SftpMessage::SftpPropertiesClose) => {
+            SftpMessage::SftpPropertiesClose => {
                 self.sftp.properties = None;
             }
-            Message::Sftp(SftpMessage::SftpOpenLocal(path)) => {
+            SftpMessage::SftpOpenLocal(path) => {
                 self.sftp.row_menu = None;
                 if let Err(e) = open::that(&path) {
                     self.sftp.pane_mut(local_side).error = Some(format!(
@@ -260,7 +260,7 @@ impl Oryxis {
                     ));
                 }
             }
-            Message::Sftp(SftpMessage::SftpRevealInExplorer(path, is_dir)) => {
+            SftpMessage::SftpRevealInExplorer(path, is_dir) => {
                 // Reachable from both the row menu and the `⋮` menu.
                 self.sftp.close_menus();
                 if let Err(e) = crate::util::reveal_in_file_manager(&path, is_dir) {
@@ -270,7 +270,7 @@ impl Oryxis {
                     ));
                 }
             }
-            Message::Sftp(SftpMessage::SftpStartEdit(remote_path)) => {
+            SftpMessage::SftpStartEdit(remote_path) => {
                 self.sftp.row_menu = None;
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
@@ -338,10 +338,10 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Sftp(SftpMessage::SftpEditReady(session)) => {
+            SftpMessage::SftpEditReady(session) => {
                 self.sftp.edit_session = Some(session);
             }
-            Message::Sftp(SftpMessage::SftpEditSave) => {
+            SftpMessage::SftpEditSave => {
                 let Some(session) = self.sftp.edit_session.take() else {
                     return Ok(Task::none());
                 };
@@ -390,12 +390,12 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Sftp(SftpMessage::SftpEditDiscard) => {
+            SftpMessage::SftpEditDiscard => {
                 if let Some(session) = self.sftp.edit_session.take() {
                     let _ = std::fs::remove_file(&session.temp_path);
                 }
             }
-            Message::Sftp(SftpMessage::SftpEditWatchTick) => {
+            SftpMessage::SftpEditWatchTick => {
                 // Cheap mtime poll on the temp file, once we see a
                 // newer timestamp than the initial download, flag the
                 // session dirty and the modal copy adapts to surface

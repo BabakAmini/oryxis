@@ -9,7 +9,7 @@ use iced::Task;
 
 use std::time::Duration;
 
-use crate::app::{SftpMessage, TerminalMessage, Message, Oryxis};
+use crate::app::{SftpMessage, Message, Oryxis};
 use crate::state::SftpPaneSide;
 
 /// Max gap between two clicks on the same folder to count as a double-click.
@@ -85,10 +85,10 @@ impl Oryxis {
 
     pub(super) fn handle_sftp_selection(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SftpMessage,
+    ) -> Result<Task<Message>, SftpMessage> {
         match message {
-            Message::Sftp(SftpMessage::SftpRowRightClick(side, path, is_dir)) => {
+            SftpMessage::SftpRowRightClick(side, path, is_dir) => {
                 // If the user right-clicks a row that wasn't part of the
                 // current selection, treat the right-click as a fresh
                 // single-select, matches Finder/Explorer behaviour and
@@ -109,7 +109,7 @@ impl Oryxis {
                     y: self.mouse_position.y,
                 });
             }
-            Message::Sftp(SftpMessage::SftpBackgroundRightClick(side)) => {
+            SftpMessage::SftpBackgroundRightClick(side) => {
                 // Empty-area right-click: `path` carries the pane's current
                 // directory so the directory-level actions act on it.
                 let pane = self.sftp.pane(side);
@@ -127,10 +127,10 @@ impl Oryxis {
                     y: self.mouse_position.y,
                 });
             }
-            Message::Sftp(SftpMessage::SftpRowMenuClose) => {
+            SftpMessage::SftpRowMenuClose => {
                 self.sftp.row_menu = None;
             }
-            Message::Sftp(SftpMessage::SftpCopyPath(path)) => {
+            SftpMessage::SftpCopyPath(path) => {
                 // The string arrives already side-formatted (POSIX for a
                 // remote entry, OS-native for a local one), so this is a
                 // straight clipboard write via the shared toast path.
@@ -141,7 +141,7 @@ impl Oryxis {
                 self.overlay = None;
                 return Ok(self.update(Message::CopyToClipboard(path)));
             }
-            Message::Sftp(SftpMessage::SftpCopySelectionPaths(side)) => {
+            SftpMessage::SftpCopySelectionPaths(side) => {
                 // Bulk variant: every selected path in the menu's pane,
                 // one per line. Selection is left intact, copying is
                 // not an action "on" the rows the way duplicate is.
@@ -158,7 +158,7 @@ impl Oryxis {
                 }
                 return Ok(self.update(Message::CopyToClipboard(paths.join("\n"))));
             }
-            Message::Sftp(SftpMessage::SftpRowEnter(side, path, is_dir)) => {
+            SftpMessage::SftpRowEnter(side, path, is_dir) => {
                 // With the right-click menu open, the pixels in the gaps
                 // between its items still sit over the list rows behind it,
                 // so a bare on_enter would light up a row under the menu.
@@ -182,10 +182,10 @@ impl Oryxis {
                     drag.active = true;
                 }
             }
-            Message::Sftp(SftpMessage::SftpRowExit) => {
+            SftpMessage::SftpRowExit => {
                 self.sftp.hovered_row = None;
             }
-            Message::Sftp(SftpMessage::SftpMouseLeftPressed) => {
+            SftpMessage::SftpMouseLeftPressed => {
                 // Any physical click leaves keyboard-selection mode: the
                 // mouse took over, a lingering ring would just be noise.
                 // Also drops the modal-layer selection so a menu closed
@@ -276,7 +276,7 @@ impl Oryxis {
                     self.arm_sftp_row_drag(side, path, is_dir);
                 }
             }
-            Message::Sftp(SftpMessage::SftpSelectRow(side, path, is_dir)) => {
+            SftpMessage::SftpSelectRow(side, path, is_dir) => {
                 // Arm a potential drag from the button's own press, before the
                 // selection below collapses, using the exact pressed row. A
                 // second arm path alongside the global left-press; no-op if
@@ -400,7 +400,134 @@ impl Oryxis {
                     self.sftp.selection_anchor = Some(target);
                 }
             }
-            Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {
+
+            SftpMessage::SftpTypeAheadFire(generation) => {
+                // A newer keystroke superseded this fire: skip it.
+                if generation != self.sftp.type_ahead_gen {
+                    return Ok(Task::none());
+                }
+                // On the ".." row there's no selected row, so fall back to
+                // the focused pane (type-ahead works from the parent cursor).
+                let side = self
+                    .sftp
+                    .selected_rows
+                    .last()
+                    .map(|(s, _)| *s)
+                    .unwrap_or(self.sftp.focused_side);
+                let prefix = self.sftp.type_ahead.clone();
+                if prefix.is_empty() {
+                    return Ok(Task::none());
+                }
+                // Cycle when the sequence matches the previous one (the user
+                // re-typed the same search): advance past the current
+                // selection instead of restarting at the top.
+                let cycle = prefix == self.sftp.type_ahead_committed;
+
+                // Snapshot the displayed entries as (name, full_path) in
+                // display order (same hidden + filter rules as the view).
+                let (visible, cur_path) = {
+                    let pane = self.sftp.pane(side);
+                    let filter = pane.filter.to_lowercase();
+                    let show_hidden = pane.show_hidden;
+                    let cur_path = if pane.is_remote {
+                        pane.remote_path.clone()
+                    } else {
+                        pane.local_path.to_string_lossy().into_owned()
+                    };
+                    let base_remote = cur_path.trim_end_matches('/').to_string();
+                    let raw: Vec<String> = if pane.is_remote {
+                        pane.remote_entries.iter().map(|e| e.name.clone()).collect()
+                    } else {
+                        pane.local_entries.iter().map(|e| e.name.clone()).collect()
+                    };
+                    let mut visible: Vec<(String, String)> = Vec::new();
+                    for n in raw {
+                        if !show_hidden && n.starts_with('.') {
+                            continue;
+                        }
+                        if !filter.is_empty() && !n.to_lowercase().contains(&filter) {
+                            continue;
+                        }
+                        let full = if pane.is_remote {
+                            if base_remote.is_empty() {
+                                format!("/{n}")
+                            } else {
+                                format!("{base_remote}/{n}")
+                            }
+                        } else {
+                            std::path::Path::new(&cur_path)
+                                .join(&n)
+                                .to_string_lossy()
+                                .into_owned()
+                        };
+                        visible.push((n, full));
+                    }
+                    (visible, cur_path)
+                };
+                let total = visible.len();
+                if total == 0 {
+                    return Ok(Task::none());
+                }
+                // Cycling starts just after the current selection; otherwise
+                // from the top.
+                let start = if cycle {
+                    let cur = self.sftp.selected_rows.last().map(|(_, p)| p.clone());
+                    cur.and_then(|c| visible.iter().position(|(_, f)| *f == c))
+                        .map(|i| i + 1)
+                        .unwrap_or(0)
+                } else {
+                    0
+                };
+                let Some(idx) = (0..total)
+                    .map(|off| (start + off) % total)
+                    .find(|&i| visible[i].0.to_lowercase().starts_with(&prefix))
+                else {
+                    // No match; keep the buffer so the next key extends it.
+                    return Ok(Task::none());
+                };
+                let full = visible[idx].1.clone();
+                self.sftp.selected_rows = vec![(side, full.clone())];
+                self.sftp.selection_anchor = Some((side, full));
+                self.sftp.focused_side = side;
+                self.sftp.parent_cursor = false;
+                // Scroll the match into view via the pane's per-directory
+                // scroll id (must match the one the view builds).
+                let side_key = match side {
+                    crate::state::SftpPaneSide::Left => "left",
+                    crate::state::SftpPaneSide::Right => "right",
+                };
+                let scroll_id = format!("sftp-list-{side_key}-{cur_path}");
+                let ratio = if total > 1 {
+                    idx as f32 / (total - 1) as f32
+                } else {
+                    0.0
+                };
+                return Ok(iced::widget::operation::snap_to(
+                    iced::widget::Id::from(scroll_id),
+                    iced::widget::scrollable::RelativeOffset {
+                        x: None,
+                        y: Some(ratio),
+                    },
+                ));
+            }
+            m => return Err(m),
+        }
+        Ok(Task::none())
+    }
+}
+
+impl Oryxis {
+    /// SFTP type-ahead / list-nav peek for keyboard events, lifted out of
+    /// `handle_sftp_selection` when the SFTP handlers became type-safe over
+    /// `SftpMessage` (a `TerminalMessage::KeyboardEvent` can no longer be a
+    /// match arm there). `dispatch_message` calls this before routing a
+    /// keyboard event to the terminal: `Ok(task)` consumes it (type-ahead,
+    /// list nav, inline-edit Esc); `Err(ke)` declines and the event falls
+    /// through to `handle_terminal`. Preserves the old chain ordering.
+    pub(crate) fn sftp_type_ahead(
+        &mut self,
+        ke: iced::keyboard::Event,
+    ) -> Result<Task<Message>, iced::keyboard::Event> {
                 // Type-ahead: while a row is selected in the SFTP view,
                 // typing letters jumps the selection to the first entry whose
                 // name starts with what's been typed. Only plain printable
@@ -410,7 +537,7 @@ impl Oryxis {
                 // visible surface (standalone view OR a hybrid tab's Files
                 // mode), where the PTY byte routing is disabled.
                 if !self.sftp_surface_visible() {
-                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
+                    return Err(ke);
                 }
                 // While the right-click row context menu is open it owns the
                 // keyboard through the modal keynav router (arrows move its
@@ -418,7 +545,7 @@ impl Oryxis {
                 // list nav / type-ahead / Ctrl+A don't steal them; this
                 // handler runs before the modal router in the chain.
                 if self.sftp.row_menu.is_some() {
-                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
+                    return Err(ke);
                 }
                 // Consume the activation-swallow flag on the first keyboard
                 // event after an inline-input commit: the trailing Enter from
@@ -557,7 +684,7 @@ impl Oryxis {
                     None
                 };
                 let Some(ch) = ch else {
-                    return Err(Message::Terminal(TerminalMessage::KeyboardEvent(ke)));
+                    return Err(ke);
                 };
                 // Type-ahead works from any keyboard cursor: a selected row
                 // (the selection's pane is the focus) or the ".." parent row
@@ -588,124 +715,11 @@ impl Oryxis {
                 // buffer instead of jumping on every key (c -> cl -> cla).
                 self.sftp.type_ahead_gen = self.sftp.type_ahead_gen.wrapping_add(1);
                 let generation = self.sftp.type_ahead_gen;
-                return Ok(Task::perform(
+                Ok(Task::perform(
                     async move {
                         tokio::time::sleep(TYPE_AHEAD_DEBOUNCE).await;
                     },
                     move |_| Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)),
-                ));
-            }
-            Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)) => {
-                // A newer keystroke superseded this fire: skip it.
-                if generation != self.sftp.type_ahead_gen {
-                    return Ok(Task::none());
-                }
-                // On the ".." row there's no selected row, so fall back to
-                // the focused pane (type-ahead works from the parent cursor).
-                let side = self
-                    .sftp
-                    .selected_rows
-                    .last()
-                    .map(|(s, _)| *s)
-                    .unwrap_or(self.sftp.focused_side);
-                let prefix = self.sftp.type_ahead.clone();
-                if prefix.is_empty() {
-                    return Ok(Task::none());
-                }
-                // Cycle when the sequence matches the previous one (the user
-                // re-typed the same search): advance past the current
-                // selection instead of restarting at the top.
-                let cycle = prefix == self.sftp.type_ahead_committed;
-
-                // Snapshot the displayed entries as (name, full_path) in
-                // display order (same hidden + filter rules as the view).
-                let (visible, cur_path) = {
-                    let pane = self.sftp.pane(side);
-                    let filter = pane.filter.to_lowercase();
-                    let show_hidden = pane.show_hidden;
-                    let cur_path = if pane.is_remote {
-                        pane.remote_path.clone()
-                    } else {
-                        pane.local_path.to_string_lossy().into_owned()
-                    };
-                    let base_remote = cur_path.trim_end_matches('/').to_string();
-                    let raw: Vec<String> = if pane.is_remote {
-                        pane.remote_entries.iter().map(|e| e.name.clone()).collect()
-                    } else {
-                        pane.local_entries.iter().map(|e| e.name.clone()).collect()
-                    };
-                    let mut visible: Vec<(String, String)> = Vec::new();
-                    for n in raw {
-                        if !show_hidden && n.starts_with('.') {
-                            continue;
-                        }
-                        if !filter.is_empty() && !n.to_lowercase().contains(&filter) {
-                            continue;
-                        }
-                        let full = if pane.is_remote {
-                            if base_remote.is_empty() {
-                                format!("/{n}")
-                            } else {
-                                format!("{base_remote}/{n}")
-                            }
-                        } else {
-                            std::path::Path::new(&cur_path)
-                                .join(&n)
-                                .to_string_lossy()
-                                .into_owned()
-                        };
-                        visible.push((n, full));
-                    }
-                    (visible, cur_path)
-                };
-                let total = visible.len();
-                if total == 0 {
-                    return Ok(Task::none());
-                }
-                // Cycling starts just after the current selection; otherwise
-                // from the top.
-                let start = if cycle {
-                    let cur = self.sftp.selected_rows.last().map(|(_, p)| p.clone());
-                    cur.and_then(|c| visible.iter().position(|(_, f)| *f == c))
-                        .map(|i| i + 1)
-                        .unwrap_or(0)
-                } else {
-                    0
-                };
-                let Some(idx) = (0..total)
-                    .map(|off| (start + off) % total)
-                    .find(|&i| visible[i].0.to_lowercase().starts_with(&prefix))
-                else {
-                    // No match; keep the buffer so the next key extends it.
-                    return Ok(Task::none());
-                };
-                let full = visible[idx].1.clone();
-                self.sftp.selected_rows = vec![(side, full.clone())];
-                self.sftp.selection_anchor = Some((side, full));
-                self.sftp.focused_side = side;
-                self.sftp.parent_cursor = false;
-                // Scroll the match into view via the pane's per-directory
-                // scroll id (must match the one the view builds).
-                let side_key = match side {
-                    crate::state::SftpPaneSide::Left => "left",
-                    crate::state::SftpPaneSide::Right => "right",
-                };
-                let scroll_id = format!("sftp-list-{side_key}-{cur_path}");
-                let ratio = if total > 1 {
-                    idx as f32 / (total - 1) as f32
-                } else {
-                    0.0
-                };
-                return Ok(iced::widget::operation::snap_to(
-                    iced::widget::Id::from(scroll_id),
-                    iced::widget::scrollable::RelativeOffset {
-                        x: None,
-                        y: Some(ratio),
-                    },
-                ));
-            }
-            m => return Err(m),
-        }
-        Ok(Task::none())
+                ))
     }
 }

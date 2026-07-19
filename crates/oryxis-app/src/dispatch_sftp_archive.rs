@@ -37,10 +37,10 @@ use oryxis_ssh::{RemoteRangedFile, SftpClient};
 impl Oryxis {
     pub(crate) fn handle_sftp_archive(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SftpMessage,
+    ) -> Result<Task<Message>, SftpMessage> {
         match message {
-            Message::Sftp(SftpMessage::SftpToolsProbed(side, token, shell, tools)) => {
+            SftpMessage::SftpToolsProbed(side, token, shell, tools) => {
                 let pane = self.sftp.pane_mut(side);
                 // A probe outliving its mount (the pane was remounted
                 // to another host, or switched back to Local, while it
@@ -54,7 +54,7 @@ impl Oryxis {
                 // extract/compress menu items instead of re-probing.
                 pane.archive_tools = Some((shell, tools));
             }
-            Message::Sftp(SftpMessage::SftpZipOpen(side, path)) => {
+            SftpMessage::SftpZipOpen(side, path) => {
                 self.sftp.row_menu = None;
                 self.sftp.pane_mut(side).actions_open = false;
                 {
@@ -130,7 +130,7 @@ impl Oryxis {
                     Some(crate::i18n::t("archive_reading").to_string());
                 return Ok(task);
             }
-            Message::Sftp(SftpMessage::ZipIndexed(side, archive_path, token, result)) => {
+            SftpMessage::ZipIndexed(side, archive_path, token, result) => {
                 {
                     let pane = self.sftp.pane_mut(side);
                     // Only the op that set the busy flag may clear it:
@@ -197,7 +197,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Sftp(SftpMessage::SftpZipNavigate(side, inner)) => {
+            SftpMessage::SftpZipNavigate(side, inner) => {
                 let pane = self.sftp.pane_mut(side);
                 if let Some(zip) = &mut pane.zip {
                     zip.inner = inner;
@@ -206,7 +206,7 @@ impl Oryxis {
                     self.sftp.selection_anchor = None;
                 }
             }
-            Message::Sftp(SftpMessage::SftpZipClose(side)) => {
+            SftpMessage::SftpZipClose(side) => {
                 let pane = self.sftp.pane_mut(side);
                 let Some(zip) = pane.zip.take() else {
                     return Ok(Task::none());
@@ -229,19 +229,19 @@ impl Oryxis {
                 };
                 return Ok(Task::batch([close_task, nav]));
             }
-            Message::Sftp(SftpMessage::SftpZipCopyOut(side, inner, is_dir)) => {
+            SftpMessage::SftpZipCopyOut(side, inner, is_dir) => {
                 self.sftp.row_menu = None;
-                return self.start_zip_copy_out(side, inner, is_dir);
+                return Ok(self.start_zip_copy_out(side, inner, is_dir));
             }
-            Message::Sftp(SftpMessage::SftpArchiveExtract(side, path)) => {
+            SftpMessage::SftpArchiveExtract(side, path) => {
                 self.sftp.row_menu = None;
-                return self.start_archive_extract(side, path);
+                return Ok(self.start_archive_extract(side, path));
             }
-            Message::Sftp(SftpMessage::SftpArchiveCompress(side, kind, target)) => {
+            SftpMessage::SftpArchiveCompress(side, kind, target) => {
                 self.sftp.row_menu = None;
-                return self.start_archive_compress(side, kind, target);
+                return Ok(self.start_archive_compress(side, kind, target));
             }
-            Message::Sftp(SftpMessage::ArchiveDone(done)) => {
+            SftpMessage::ArchiveDone(done) => {
                 let ArchiveDone {
                     side,
                     token,
@@ -365,14 +365,14 @@ impl Oryxis {
         &mut self,
         side: SftpPaneSide,
         path: String,
-    ) -> Result<Task<Message>, Message> {
+    ) -> Task<Message> {
         let name = base_name(&path);
         let Some(kind) = ArchiveKind::from_name(&name) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         let pane = self.sftp.pane(side);
         if pane.archive_busy.is_some() || pane.zip.is_some() {
-            return Ok(Task::none());
+            return Task::none();
         }
         let existing = existing_names(pane);
         let dest_name = names::unique_name(
@@ -392,20 +392,20 @@ impl Oryxis {
         let token = pane.archive_op_token();
         let task = if pane.is_remote {
             let Some((shell, tools)) = pane.archive_tools else {
-                return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(
+                return Task::done(Message::Sftp(SftpMessage::SftpOpResult(
                     side,
                     crate::i18n::t("archive_no_tools").to_string(),
                     true,
-                ))));
+                )));
             };
             let Some(client) = pane.client.clone() else {
-                return Ok(Task::none());
+                return Task::none();
             };
             let dest_abs = join_remote(&pane.remote_path, &dest_name);
             let cmd = match remote_cmd::extract_command(shell, tools, kind, &path, &dest_abs) {
                 Ok(c) => c,
                 Err(e) => {
-                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e.to_string(), true))));
+                    return Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e.to_string(), true)));
                 }
             };
             // Only unzip's benign exit 1 is tolerated; tar failures stay
@@ -460,7 +460,7 @@ impl Oryxis {
         };
         self.sftp.pane_mut(side).archive_busy =
             Some(crate::i18n::t("archive_extracting").to_string());
-        Ok(task)
+        task
     }
 
     /// Kick off "Compress to ..." for the clicked row (or the whole
@@ -472,10 +472,10 @@ impl Oryxis {
         side: SftpPaneSide,
         kind: ArchiveKind,
         target: String,
-    ) -> Result<Task<Message>, Message> {
+    ) -> Task<Message> {
         let pane = self.sftp.pane(side);
         if pane.archive_busy.is_some() || pane.zip.is_some() {
-            return Ok(Task::none());
+            return Task::none();
         }
         // Same-pane selection containing the clicked row -> compress
         // the selection; otherwise just the clicked row.
@@ -492,7 +492,7 @@ impl Oryxis {
             vec![base_name(&target)]
         };
         if items.is_empty() {
-            return Ok(Task::none());
+            return Task::none();
         }
         let existing = existing_names(pane);
         let base = if items.len() == 1 {
@@ -528,14 +528,14 @@ impl Oryxis {
         let token = pane.archive_op_token();
         let task = if pane.is_remote {
             let Some((shell, tools)) = pane.archive_tools else {
-                return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(
+                return Task::done(Message::Sftp(SftpMessage::SftpOpResult(
                     side,
                     crate::i18n::t("archive_no_tools").to_string(),
                     true,
-                ))));
+                )));
             };
             let Some(client) = pane.client.clone() else {
-                return Ok(Task::none());
+                return Task::none();
             };
             let cmd = match remote_cmd::compress_command(
                 shell,
@@ -547,7 +547,7 @@ impl Oryxis {
             ) {
                 Ok(c) => c,
                 Err(e) => {
-                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e.to_string(), true))));
+                    return Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e.to_string(), true)));
                 }
             };
             // Compression (zip/tar) reports real failure as any nonzero
@@ -595,7 +595,7 @@ impl Oryxis {
         };
         self.sftp.pane_mut(side).archive_busy =
             Some(crate::i18n::t("archive_compressing").to_string());
-        Ok(task)
+        task
     }
 
     /// Copy an entry (or folder) out of the browsed archive into the
@@ -606,7 +606,7 @@ impl Oryxis {
         side: SftpPaneSide,
         inner: String,
         is_dir: bool,
-    ) -> Result<Task<Message>, Message> {
+    ) -> Task<Message> {
         let other = other_side(side);
         {
             let src_pane = self.sftp.pane(side);
@@ -616,7 +616,7 @@ impl Oryxis {
                 || dst_pane.zip.is_some()
                 || (dst_pane.is_remote && dst_pane.client.is_none())
             {
-                return Ok(Task::none());
+                return Task::none();
             }
         }
         // Plan the job: entry indices + destination-relative paths.
@@ -648,7 +648,7 @@ impl Oryxis {
                     .iter()
                     .find(|e| e.name == inner && !e.is_dir)
                 else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 (vec![(entry.index, base.clone())], Vec::new(), base)
             }
@@ -682,7 +682,7 @@ impl Oryxis {
         let dest_token = self.sftp.pane(other).archive_op_token();
         self.sftp.pane_mut(side).archive_busy =
             Some(crate::i18n::t("archive_copying").to_string());
-        Ok(Task::perform(
+        Task::perform(
             async move { zip_copy_out_job(source, files, dirs, dest).await },
             move |r| {
                 Message::sftp_owned(
@@ -696,7 +696,7 @@ impl Oryxis {
                     }),
                 )
             },
-        ))
+        )
     }
 }
 

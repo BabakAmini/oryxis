@@ -20,18 +20,6 @@ use crate::app::{SftpMessage, TabsMessage, TerminalMessage, Message, Oryxis};
 /// freshness against hammering the cloud API on every navigation.
 pub(crate) const DYNAMIC_GROUP_CACHE_TTL_SECS: i64 = 60;
 
-/// Chain `message` through a domain handler. If the handler claims it
-/// (returns `Ok`), short-circuit and return the resulting task.
-/// Otherwise, the message is handed back unchanged for the next link.
-macro_rules! try_handler {
-    ($self:ident, $msg:ident, $handler:ident) => {
-        match $self.$handler($msg) {
-            Ok(task) => return task,
-            Err(m) => m,
-        }
-    };
-}
-
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         // Sync the cursor position from the event listener's atomics.
@@ -155,6 +143,31 @@ impl Oryxis {
         });
     }
 
+    /// Entry point for the SFTP domain: chains the four SFTP handler slices
+    /// (transfers / files / archive / core) which each return `Err(message)`
+    /// for variants they don't claim. Kept as an internal Result sub-chain
+    /// (rather than one giant exhaustive match) so the slices stay in their
+    /// own files. `route_sftp_async` re-dispatches through `dispatch_message`,
+    /// which lands here.
+    pub(crate) fn handle_sftp_domain(&mut self, message: SftpMessage) -> Task<Message> {
+        let message = match self.handle_sftp_transfers(message) {
+            Ok(task) => return task,
+            Err(m) => m,
+        };
+        let message = match self.handle_sftp_files(message) {
+            Ok(task) => return task,
+            Err(m) => m,
+        };
+        let message = match self.handle_sftp_archive(message) {
+            Ok(task) => return task,
+            Err(m) => m,
+        };
+        if let Ok(task) = self.handle_sftp(message) {
+            return task;
+        }
+        Task::none()
+    }
+
     pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
         // Converted domains (Step C): each sub-enum routes straight to its
         // type-safe handler; everything else falls through to the shrinking
@@ -195,6 +208,18 @@ impl Oryxis {
             Message::Settings(m) => return self.handle_settings(m),
             Message::Keys(m) => return self.handle_keys(m),
             Message::Cloud(m) => return self.handle_cloud(m),
+            Message::Sftp(m) => return self.handle_sftp_domain(m),
+            // SFTP type-ahead / list-nav peek runs before the terminal owns
+            // the key (preserves the old try-chain ordering).
+            Message::Terminal(TerminalMessage::KeyboardEvent(ke)) => {
+                match self.sftp_type_ahead(ke) {
+                    Ok(task) => return task,
+                    Err(ke) => {
+                        return self
+                            .handle_terminal(TerminalMessage::KeyboardEvent(ke))
+                    }
+                }
+            }
             Message::Terminal(m) => return self.handle_terminal(m),
             Message::Ssh(m) => return self.handle_ssh(m),
             Message::Tabs(m) => return self.handle_tabs(m),
@@ -203,15 +228,9 @@ impl Oryxis {
         // Domain-specific handlers each claim a slice of `Message`
         // variants and return `Err(message)` for everything else, so
         // the chain naturally falls through to the inline match below.
-        let message = try_handler!(self, message, handle_sftp_transfers);
-        let message = try_handler!(self, message, handle_sftp_files);
-        let message = try_handler!(self, message, handle_sftp_archive);
-        let message = try_handler!(self, message, handle_sftp);
 
-        // Every Message variant is now claimed by one of the domain handlers
-        // in the `try_handler!` chain above. Anything reaching here is an
-        // unclaimed variant we forgot to wire up; treat as a no-op so we don't
-        // crash on it (the handlers each fall through with `Err(message)`).
+        // The match above is exhaustive over every wrapper + global, so this
+        // is unreachable in practice; kept as a defensive no-op.
         let _ = message;
         Task::none()
     }

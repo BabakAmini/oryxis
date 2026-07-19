@@ -132,8 +132,8 @@ impl Oryxis {
     /// (or the inline match) get their turn.
     pub(crate) fn handle_sftp(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SftpMessage,
+    ) -> Result<Task<Message>, SftpMessage> {
         let message = match self.handle_sftp_hosts(message) {
             Ok(task) => return Ok(task),
             Err(m) => m,

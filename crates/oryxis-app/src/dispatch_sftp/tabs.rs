@@ -12,10 +12,10 @@ use crate::app::{SftpMessage, Message, Oryxis};
 impl Oryxis {
     pub(super) fn handle_sftp_tabs(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: SftpMessage,
+    ) -> Result<Task<Message>, SftpMessage> {
         match message {
-            Message::Sftp(SftpMessage::SelectSftpTab(idx)) => {
+            SftpMessage::SelectSftpTab(idx) => {
                 if idx < self.sftp_tabs.len() {
                     self.focus_sftp_tab(idx);
                     self.active_tab = None;
@@ -51,7 +51,7 @@ impl Oryxis {
                     self.refresh_sftp_local(crate::state::SftpPaneSide::Right);
                 }
             }
-            Message::Sftp(SftpMessage::CloseSftpTab(idx)) => {
+            SftpMessage::CloseSftpTab(idx) => {
                 self.overlay = None;
                 // Guard: an in-flight transfer or unsaved edit-session opens a
                 // confirmation modal instead of closing outright.
@@ -61,7 +61,7 @@ impl Oryxis {
                     return Ok(self.close_sftp_tab(idx));
                 }
             }
-            Message::Sftp(SftpMessage::ConfirmCloseSftpTab) => {
+            SftpMessage::ConfirmCloseSftpTab => {
                 match self.pending_sftp_close.take() {
                     Some(crate::state::PendingSftpClose::One(idx)) => {
                         return Ok(self.close_sftp_tab(idx));
@@ -75,10 +75,10 @@ impl Oryxis {
                     None => {}
                 }
             }
-            Message::Sftp(SftpMessage::CancelCloseSftpTab) => {
+            SftpMessage::CancelCloseSftpTab => {
                 self.pending_sftp_close = None;
             }
-            Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)) => {
+            SftpMessage::ToggleSftpTabPin(idx) => {
                 if let Some(t) = self.sftp_tabs.get_mut(idx) {
                     t.pinned = !t.pinned;
                 }
@@ -86,7 +86,7 @@ impl Oryxis {
                 // Persist so the pin (and its arranged order) survives a relaunch.
                 self.persist_pinned_tabs();
             }
-            Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)) => {
+            SftpMessage::CloseOtherSftpTabs(idx) => {
                 self.overlay = None;
                 if idx >= self.sftp_tabs.len() {
                     return Ok(Task::none());
@@ -100,14 +100,14 @@ impl Oryxis {
                     return Ok(self.close_other_sftp_tabs(idx));
                 }
             }
-            Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)) => {
+            SftpMessage::ShowSftpTabMenu(idx) => {
                 self.overlay = Some(crate::state::OverlayState {
                     content: crate::state::OverlayContent::SftpTabActions(idx),
                     x: self.mouse_position.x,
                     y: self.mouse_position.y,
                 });
             }
-            Message::Sftp(SftpMessage::SftpTabHovered(idx)) => {
+            SftpMessage::SftpTabHovered(idx) => {
                 self.hovered_sftp_tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).
                 self.hovered_tab = None;
@@ -121,10 +121,10 @@ impl Oryxis {
                     self.slide_tab_in_order(drag.from_id, target);
                 }
             }
-            Message::Sftp(SftpMessage::SftpTabUnhovered) => {
+            SftpMessage::SftpTabUnhovered => {
                 self.hovered_sftp_tab = None;
             }
-            Message::Sftp(SftpMessage::NewSftpTab) => {
+            SftpMessage::NewSftpTab => {
                 self.overlay = None;
                 // Dismiss the new-tab picker too: SFTP is selectable from it.
                 self.show_new_tab_picker = false;
