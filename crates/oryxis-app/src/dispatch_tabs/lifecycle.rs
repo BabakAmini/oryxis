@@ -11,12 +11,12 @@ use crate::app::{SettingsMessage, SshMessage, CloudMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
-    pub(super) fn handle_select_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_select_tab(&mut self, idx: usize) -> Task<Message> {
         if idx < self.tabs.len() {
             // Lazy reopen: a dormant pinned tab (restored at boot) has
             // no live session; entering it the first time connects.
             if self.tabs[idx].pending_reopen.is_some() {
-                return Ok(self.reopen_dormant_tab(idx));
+                return self.reopen_dormant_tab(idx);
             }
             // Switching tabs dismisses the session-group editor (it's
             // tied to the tab it was opened from).
@@ -44,15 +44,15 @@ impl Oryxis {
             }
             // The Files browser is per-pane; the landed tab's pane
             // may need a mount or a cwd catch-up (no-op otherwise).
-            return Ok(Task::batch([
+            return Task::batch([
                 self.tab_scroll_to_active(),
                 self.sidebar_files_sync(),
-            ]));
+            ]);
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_close_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_close_tab(&mut self, idx: usize) -> Task<Message> {
         // Also dismiss any open context menu so the menu doesn't linger
         // after the user clicks Close from it.
         self.overlay = None;
@@ -131,10 +131,10 @@ impl Oryxis {
                 }
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_reconnect_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_reconnect_tab(&mut self, idx: usize) -> Task<Message> {
         self.overlay = None;
         // Prefer an in-place reconnect that REUSES the pane's existing
         // terminal, so the scrollback the user was looking at survives
@@ -243,7 +243,7 @@ impl Oryxis {
                     self.spawn_ssh_for_pane_quick(qid, idx, new_pane_id)
                 }
             };
-            return Ok(Task::batch(vec![
+            return Task::batch(vec![
                 spawn,
                 Task::perform(
                     async {
@@ -252,7 +252,7 @@ impl Oryxis {
                     },
                     |_| Message::ToastClear,
                 ),
-            ]));
+            ]);
         }
         // Legacy fallback (multi-pane, cloud transport, or a dead tab
         // with no matching connection): remove the tab and rebuild via
@@ -295,7 +295,7 @@ impl Oryxis {
                 // moment the attempt actually starts (not when the
                 // disconnect was first detected, up to 30s earlier).
                 self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
-                return Ok(Task::batch(vec![
+                return Task::batch(vec![
                     Task::done(msg),
                     Task::perform(
                         async {
@@ -303,13 +303,13 @@ impl Oryxis {
                         },
                         |_| Message::ToastClear,
                     ),
-                ]));
+                ]);
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_duplicate_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_duplicate_tab(&mut self, idx: usize) -> Task<Message> {
         self.overlay = None;
         // Local shell tabs aren't backed by a saved connection; for
         // those we just open a fresh shell tab. SSH tabs find their
@@ -321,12 +321,12 @@ impl Oryxis {
             let is_local_shell = tab.active().session.is_none()
                 && tab.label == "Local Shell";
             if is_local_shell {
-                return Ok(Task::done(Message::Settings(SettingsMessage::OpenLocalShell)));
+                return Task::done(Message::Settings(SettingsMessage::OpenLocalShell));
             }
             // Cloud tabs with no saved connection (ECS Exec,
             // kubectl pod) carry the message that re-opens them.
             if let Some(relaunch) = tab.relaunch.as_deref() {
-                return Ok(Task::done(relaunch.clone()));
+                return Task::done(relaunch.clone());
             }
             // Connection-backed tabs (SSH, InstanceConnect, and
             // SSM-into-EC2) duplicate by re-finding the host by
@@ -339,10 +339,10 @@ impl Oryxis {
                 .trim_start_matches(crate::app::SSM_TAB_PREFIX)
                 .to_string();
             if let Some(ci) = self.connections.iter().position(|c| c.label == base_label) {
-                return Ok(Task::done(Message::Ssh(SshMessage::ConnectSsh(ci))));
+                return Task::done(Message::Ssh(SshMessage::ConnectSsh(ci)));
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// First select of a dormant pinned tab: drop the placeholder and fire

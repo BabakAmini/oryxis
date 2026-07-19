@@ -11,7 +11,7 @@ use crate::app::{TabsMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
-    pub(super) fn handle_mouse_moved(&mut self, pos: iced::Point) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_mouse_moved(&mut self, pos: iced::Point) -> Task<Message> {
         // Spatial debounce: mouse-move events fire 60+ times per
         // second. Re-stating `mouse_position` on every event forces
         // a view() pass each time, which on dense pages (keychain
@@ -49,7 +49,7 @@ impl Oryxis {
         let changed = (snapped.x - self.mouse_position.x).abs() > 0.5
             || (snapped.y - self.mouse_position.y).abs() > 0.5;
         if !changed && !needs_drag_update {
-            return Ok(Task::none());
+            return Task::none();
         }
         self.mouse_position = if needs_drag_update { pos } else { snapped };
         // A real mouse move restores the hover highlight that keyboard
@@ -133,10 +133,10 @@ impl Oryxis {
                 drag.active = true;
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_window_resized(&mut self, size: iced::Size) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_resized(&mut self, size: iced::Size) -> Task<Message> {
         // Spatial debounce: drag-resize emits one event per pixel.
         // Quantising to an 8 px grid means most consecutive events
         // resolve to the same `window_size` so we don't re-state
@@ -176,10 +176,10 @@ impl Oryxis {
                 self.overlay = None;
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_window_ensure_on_screen(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_ensure_on_screen(&mut self) -> Task<Message> {
         // Runs once shortly after boot when a saved position was
         // restored. If that position is on a monitor that no
         // longer exists (undocked laptop, unplugged display),
@@ -190,7 +190,7 @@ impl Oryxis {
         // platform can't say (Wayland), in which case the WM
         // already placed us somewhere visible and we skip.
         let win_size = self.window_size;
-        Ok(iced::window::latest().then(move |id_opt| {
+        iced::window::latest().then(move |id_opt| {
             let Some(id) = id_opt else { return Task::none(); };
             iced::window::position(id).then(move |pos_opt| {
                 let Some(pos) = pos_opt else { return Task::none(); };
@@ -232,10 +232,10 @@ impl Oryxis {
                     })
                 })
             })
-        }))
+        })
     }
 
-    pub(super) fn handle_window_focus_changed(&mut self, focused: bool) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_focus_changed(&mut self, focused: bool) -> Task<Message> {
         self.window_focused = focused;
         if !focused {
             // A mouse release OUTSIDE the window never reaches us, so a
@@ -283,12 +283,12 @@ impl Oryxis {
             // is left up (no auto-dismiss timer) so it isn't gone before
             // you look; clear it a few seconds after you return.
             if self.toast.is_some() {
-                return Ok(iced::Task::perform(
+                return iced::Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_secs(4)).await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
         } else {
             // Crash-safe geometry checkpoint: the exit paths all
@@ -319,15 +319,15 @@ impl Oryxis {
                     })
                 });
         }
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_window_expand_vertical(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_expand_vertical(&mut self) -> Task<Message> {
         if self.window_maximized {
-            return Ok(Task::none());
+            return Task::none();
         }
         let current_width = self.window_size.width;
-        Ok(iced::window::latest().then(move |id_opt| {
+        iced::window::latest().then(move |id_opt| {
             let Some(id) = id_opt else { return Task::none(); };
             iced::window::position(id).then(move |pos_opt| {
                 let Some(pos) = pos_opt else { return Task::none(); };
@@ -352,10 +352,10 @@ impl Oryxis {
                     })
                 })
             })
-        }))
+        })
     }
 
-    pub(super) fn handle_window_minimize(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_minimize(&mut self) -> Task<Message> {
         // Custom title bar minimize. Honours
         // setting_minimize_to_tray on Windows by hiding the
         // window outright instead of minimizing (which would
@@ -371,21 +371,21 @@ impl Oryxis {
             // process (no tray of its own) and off Windows.
             crate::tray::set_visible(true);
             self.broadcast_ipc_state_if_child();
-            return Ok(iced::window::oldest()
+            return iced::window::oldest()
                 .and_then(|id| {
                     iced::window::run(id, |window| {
                         crate::tray::hide_window(window);
                     })
                 })
-                .discard());
+                .discard();
         }
-        Ok(iced::window::latest().then(|id_opt| match id_opt {
+        iced::window::latest().then(|id_opt| match id_opt {
             Some(id) => iced::window::minimize(id, true),
             None => Task::none(),
-        }))
+        })
     }
 
-    pub(super) fn handle_window_close(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_close(&mut self) -> Task<Message> {
         // Persist any buffered session-log output before the
         // window goes away (real close or hide-to-tray both).
         self.flush_session_logs_final();
@@ -407,13 +407,13 @@ impl Oryxis {
             // only way back once the window is hidden.
             crate::tray::set_visible(true);
             self.broadcast_ipc_state_if_child();
-            return Ok(iced::window::oldest()
+            return iced::window::oldest()
                 .and_then(|id| {
                     iced::window::run(id, |window| {
                         crate::tray::hide_window(window);
                     })
                 })
-                .discard());
+                .discard();
         }
         // Real close (not tray-hide): gracefully drain the plugin
         // subprocesses (flush logs / close SDK clients on stdin EOF)
@@ -422,7 +422,7 @@ impl Oryxis {
         // wedged plugin can't hold the app open.
         let providers: Vec<std::sync::Arc<crate::plugins::PluginProvider>> =
             self.plugin_providers.values().cloned().collect();
-        Ok(Task::perform(
+        Task::perform(
             async move {
                 let drain = futures_util::future::join_all(
                     providers.iter().map(|p| p.shutdown()),
@@ -440,10 +440,10 @@ impl Oryxis {
                 Some(id) => iced::window::close(id),
                 None => Task::none(),
             })
-        }))
+        })
     }
 
-    pub(super) fn handle_window_fullscreen_toggle(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_window_fullscreen_toggle(&mut self) -> Task<Message> {
         // Optimistic local flip mirrors `WindowMaximizeToggle`,
         // the only way fullscreen changes today is through this
         // handler so the cached bool stays in sync.
@@ -472,10 +472,10 @@ impl Oryxis {
                 },
                 |_| Message::Tabs(TabsMessage::FullscreenHintHide),
             );
-            return Ok(Task::batch([mode_task, hide_task]));
+            return Task::batch([mode_task, hide_task]);
         }
         self.fullscreen_hint_visible = false;
-        Ok(mode_task)
+        mode_task
     }
 
 }

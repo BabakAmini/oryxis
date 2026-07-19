@@ -10,7 +10,7 @@ use iced::Task;
 use crate::app::{TabsMessage, SshMessage, Message, Oryxis, SftpMessage};
 
 impl Oryxis {
-    pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Task<Message> {
         // Fired from the tab context menu (among others):
         // dismiss it so it doesn't linger over the new surface.
         self.overlay = None;
@@ -19,7 +19,7 @@ impl Oryxis {
         // surface). The PTY keeps running underneath; the SFTP
         // state parks in `TerminalTab::files_state` when hidden.
         let Some(tab) = self.tabs.get(idx) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         let tab_id = tab._id;
         // Clicking the glyph on a background tab also brings the
@@ -35,14 +35,14 @@ impl Oryxis {
             self.sftp_open_at_path = None;
             self.tabs[idx].files_mode = false;
             self.park_hybrid_sftp();
-            return Ok(select);
+            return select;
         }
         // Turning ON requires the SFTP feature (optional, hidden
         // when off; this guards the hotkey path which bypasses
         // the gated UI). Turning OFF above is always allowed.
         if !self.sftp_enabled {
             self.sftp_open_at_path = None;
-            return Ok(select);
+            return select;
         }
         // Files mode needs a live SSH session (SFTP is an SSH
         // subsystem; local / Telnet / serial tabs never show the
@@ -55,7 +55,7 @@ impl Oryxis {
             .cloned()
         else {
             self.sftp_open_at_path = None;
-            return Ok(select);
+            return select;
         };
         // Resolve by the FOCUSED pane (a split tab can host two
         // different servers; the tab label only names the first):
@@ -92,9 +92,9 @@ impl Oryxis {
                         crate::state::SftpPaneSide::Right,
                         p,
                     )));
-                    return Ok(Task::batch([select, nav]));
+                    return Task::batch([select, nav]);
                 }
-                return Ok(select);
+                return select;
             }
             // Land the remount at the previous directory (home
             // fallback); an explicit pending hint keeps priority.
@@ -138,7 +138,7 @@ impl Oryxis {
                 crate::state::SftpPaneSide::Right,
                 ci,
             )));
-            return Ok(Task::batch([select, mount]));
+            return Task::batch([select, mount]);
         }
         // Ad-hoc host (quick connect / cloud): mount the live
         // session directly, mirroring OpenSftpForTab's fallback.
@@ -192,10 +192,10 @@ impl Oryxis {
                 ),
             },
         );
-        Ok(Task::batch([select, mount]))
+        Task::batch([select, mount])
     }
 
-    pub(super) fn handle_detach_tab_sftp(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_detach_tab_sftp(&mut self, idx: usize) -> Task<Message> {
         // Promote the tab's SFTP session to a standalone SFTP tab
         // (the dual-remote / server-to-server surface). The hybrid
         // state moves out wholesale: live channel, panes, log,
@@ -203,11 +203,11 @@ impl Oryxis {
         // owner id via route_sftp_async.
         self.overlay = None;
         let Some(tab) = self.tabs.get(idx) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         let tab_id = tab._id;
         if !self.tab_has_sftp_session(tab) {
-            return Ok(Task::none());
+            return Task::none();
         }
         // An in-flight transfer's continuations are stamped with
         // THIS tab's id; moving the state under a new SftpTab id
@@ -223,7 +223,7 @@ impl Oryxis {
                 self.set_toast(
                     crate::i18n::t("tab_detach_sftp_busy").to_string(),
                 );
-                return Ok(Task::perform(
+                return Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(
                             2500,
@@ -231,7 +231,7 @@ impl Oryxis {
                         .await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
         }
         // The state must be home (parked) before it can move.
@@ -239,7 +239,7 @@ impl Oryxis {
             self.park_hybrid_sftp();
         }
         let Some(tab) = self.tabs.get_mut(idx) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         tab.files_mode = false;
         let state = std::mem::take(&mut *tab.files_state);
@@ -258,21 +258,21 @@ impl Oryxis {
         self.focus_sftp_tab(new_idx);
         self.active_tab = None;
         self.active_view = crate::state::View::Sftp;
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_close_tab_sftp_session(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_close_tab_sftp_session(&mut self, idx: usize) -> Task<Message> {
         // Close ONLY the hybrid tab's SFTP session: drop the
         // browsing state + channel, back to a plain terminal
         // tab (the mode glyph disappears with the session). The
         // terminal keeps running untouched.
         self.overlay = None;
         let Some(tab) = self.tabs.get(idx) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         let tab_id = tab._id;
         if !self.tab_has_sftp_session(tab) {
-            return Ok(Task::none());
+            return Task::none();
         }
         // An in-flight transfer would be killed by dropping the
         // state mid-run, and its continuations are stamped with
@@ -288,7 +288,7 @@ impl Oryxis {
                 };
             if st.transfer.is_some() {
                 self.set_toast(crate::i18n::t("tab_detach_sftp_busy").to_string());
-                return Ok(Task::perform(
+                return Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(
                             2500,
@@ -296,7 +296,7 @@ impl Oryxis {
                         .await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
             // Unsaved work beyond the transfer (a dirty external
             // edit whose upload hasn't landed): route through the
@@ -306,19 +306,19 @@ impl Oryxis {
                 self.pending_sftp_close = Some(
                     crate::state::PendingSftpClose::HybridSession(tab_id),
                 );
-                return Ok(Task::none());
+                return Task::none();
             }
         }
-        Ok(self.close_tab_sftp_session(tab_id))
+        self.close_tab_sftp_session(tab_id)
     }
 
-    pub(super) fn handle_open_terminal_for_sftp_tab(&mut self, idx: usize) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_open_terminal_for_sftp_tab(&mut self, idx: usize) -> Task<Message> {
         // From an SFTP tab's menu: the way back to a shell on the
         // mounted host. Focus a live terminal pane on that host,
         // else connect a new tab (the saved-host pipeline).
         self.overlay = None;
         let Some(stab) = self.sftp_tabs.get(idx) else {
-            return Ok(Task::none());
+            return Task::none();
         };
         let st: &crate::state::SftpState = if self.active_sftp == Some(idx) {
             &self.sftp
@@ -331,7 +331,7 @@ impl Oryxis {
             .clone()
             .or_else(|| st.left.host_label.clone())
         else {
-            return Ok(Task::none());
+            return Task::none();
         };
         // Live pane on that host wins (any pane, split included).
         if let Some(t_idx) = self.tabs.iter().position(|t| {
@@ -340,16 +340,16 @@ impl Oryxis {
                     && p.session.as_ref().and_then(|s| s.ssh()).is_some()
             })
         }) {
-            return Ok(self.update(Message::Tabs(TabsMessage::SelectTab(t_idx))));
+            return self.update(Message::Tabs(TabsMessage::SelectTab(t_idx)));
         }
         if let Some(ci) = self.connections.iter().position(|c| {
             c.label == host
                 && c.protocol
                     == oryxis_core::models::connection::ConnectionProtocol::Ssh
         }) {
-            return Ok(self.update(Message::Ssh(SshMessage::ConnectSsh(ci))));
+            return self.update(Message::Ssh(SshMessage::ConnectSsh(ci)));
         }
-        Ok(Task::none())
+        Task::none()
     }
 
 }

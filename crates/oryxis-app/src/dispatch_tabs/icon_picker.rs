@@ -8,7 +8,7 @@ use iced::Task;
 use crate::app::{Message, Oryxis};
 
 impl Oryxis {
-    pub(super) fn handle_icon_picker_save(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_icon_picker_save(&mut self) -> Task<Message> {
         if self.icon_picker.for_local_terminal {
             // Deferred save: flow the choice into the local-terminal
             // add / edit form; the modal's own Add / Save persists it.
@@ -54,10 +54,10 @@ impl Oryxis {
         self.icon_picker.for_local_terminal = false;
         self.icon_picker.icon_search.clear();
         self.icon_color_popover = None;
-        Ok(Task::none())
+        Task::none()
     }
 
-    pub(super) fn handle_icon_picker_reset_auto(&mut self) -> Result<Task<Message>, Message> {
+    pub(super) fn handle_icon_picker_reset_auto(&mut self) -> Task<Message> {
         // Clears the icon/color override, letting OS detection
         // drive the icon again on the next successful connect.
         // (Terminal-theme override is edited separately in the
@@ -89,7 +89,7 @@ impl Oryxis {
         self.icon_picker.for_group_edit = false;
         self.icon_picker.for_local_terminal = false;
         self.icon_color_popover = None;
-        Ok(Task::none())
+        Task::none()
     }
 
 }
