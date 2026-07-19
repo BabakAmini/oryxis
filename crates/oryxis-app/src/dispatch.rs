@@ -181,6 +181,17 @@ impl Oryxis {
             Message::Tray(m) => return self.handle_tray(m),
             Message::Onboarding(m) => return self.handle_onboarding(m),
             Message::Player(m) => return self.handle_player(m),
+            Message::SidebarFiles(m) => return self.handle_sidebar_files(m),
+            Message::History(m) => return self.handle_history(m),
+            // Cross-cutting globals (handled outside any single domain).
+            Message::OpenUrl(_)
+            | Message::CopyToClipboard(_)
+            | Message::ToastClear
+            | Message::ToastDismiss
+            | Message::ErrorDialogDismiss
+            | Message::ErrorDialogRunAction
+            | Message::TogglePrivacyReveal
+            | Message::NoOp => return self.handle_global(message),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -196,8 +207,6 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_cloud);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
-        let message = try_handler!(self, message, handle_sidebar_files);
-        let message = try_handler!(self, message, handle_history);
 
         // Every Message variant is now claimed by one of the domain handlers
         // in the `try_handler!` chain above. Anything reaching here is an

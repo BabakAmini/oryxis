@@ -379,7 +379,7 @@ impl Oryxis {
                 let t2 = self.update(Message::Settings(SettingsMessage::ChangeSettingsSection(section)));
                 return Ok(Task::batch([t1, t2]));
             }
-            Message::NoOp => {}
+
             Message::Tabs(TabsMessage::NewTabPickerSearchChanged(v)) => {
                 self.new_tab_picker_search = v;
             }
