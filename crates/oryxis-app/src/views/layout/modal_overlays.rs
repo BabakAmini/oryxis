@@ -498,7 +498,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill),
         )
-        .on_press(Message::SftpRowMenuClose)
+        .on_press(Message::Sftp(SftpMessage::SftpRowMenuClose))
         .into();
         // Nudge the menu a few px down/right so it doesn't sit
         // directly under the cursor, feels like the OS-native menu

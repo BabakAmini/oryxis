@@ -85,7 +85,7 @@ pub(crate) fn local_breadcrumb<'a>(side: SftpPaneSide, path: &std::path::Path) -
                     ]
                     .align_y(iced::Alignment::Center),
                 )
-                .on_press(Message::SftpToggleDrives(side))
+                .on_press(Message::Sftp(SftpMessage::SftpToggleDrives(side)))
                 .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
                 .style(|_, status| {
                     let bg = match status {
@@ -110,7 +110,7 @@ pub(crate) fn crumb_remote<'a>(side: SftpPaneSide, label: &str, full: &str) -> E
     let label = label.to_string();
     let full = full.to_string();
     button(text(label).size(11).color(OryxisColors::t().text_secondary))
-        .on_press(Message::SftpNavigateRemote(side, full))
+        .on_press(Message::Sftp(SftpMessage::SftpNavigateRemote(side, full)))
         .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
         .style(|_, status| {
             let bg = match status {
@@ -128,7 +128,7 @@ pub(crate) fn crumb_remote<'a>(side: SftpPaneSide, label: &str, full: &str) -> E
 
 pub(crate) fn local_crumb<'a>(side: SftpPaneSide, label: String, full: std::path::PathBuf) -> Element<'a, Message> {
     button(text(label).size(11).color(OryxisColors::t().text_secondary))
-        .on_press(Message::SftpNavigateLocal(side, full))
+        .on_press(Message::Sftp(SftpMessage::SftpNavigateLocal(side, full)))
         .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
         .style(|_, status| {
             let bg = match status {
@@ -206,7 +206,7 @@ fn zip_crumb<'a>(
         text(label).size(11).color(color).into()
     };
     button(content)
-        .on_press(Message::SftpZipNavigate(side, inner))
+        .on_press(Message::Sftp(SftpMessage::SftpZipNavigate(side, inner)))
         .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
         .style(|_, status| {
             let bg = match status {

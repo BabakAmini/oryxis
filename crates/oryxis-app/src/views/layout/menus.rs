@@ -487,7 +487,7 @@ impl Oryxis {
         // same rule the sidebar applies.
         let sftp_item: Element<'_, Message> = if self.sftp_enabled {
             // SFTP is a tab now: the menu opens a fresh SFTP browser tab.
-            item("sftp", Message::NewSftpTab, hk_sftp)
+            item("sftp", Message::Sftp(SftpMessage::NewSftpTab), hk_sftp)
         } else {
             Space::new().height(0).into()
         };

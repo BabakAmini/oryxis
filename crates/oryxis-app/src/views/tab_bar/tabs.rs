@@ -176,7 +176,7 @@ pub(crate) fn sftp_session_tab<'a>(
                 ..Default::default()
             }),
         )
-        .on_press(Message::CloseSftpTab(idx))
+        .on_press(Message::Sftp(SftpMessage::CloseSftpTab(idx)))
         .into()
     } else {
         Space::new().width(TAB_ICON_SLOT).height(TAB_ICON_SLOT).into()
@@ -195,7 +195,7 @@ pub(crate) fn sftp_session_tab<'a>(
             .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 6.0 }),
     )
     .width(Length::Fixed(width))
-    .on_press(Message::SelectSftpTab(idx))
+    .on_press(Message::Sftp(SftpMessage::SelectSftpTab(idx)))
     .style(move |_, status| {
         let hover_bg: Background = match status {
             BtnStatus::Hovered if !is_active => {
@@ -211,9 +211,9 @@ pub(crate) fn sftp_session_tab<'a>(
         button::Style { background: Some(hover_bg), border, ..Default::default() }
     });
     MouseArea::new(tab_btn)
-        .on_enter(Message::SftpTabHovered(idx))
-        .on_exit(Message::SftpTabUnhovered)
-        .on_right_press(Message::ShowSftpTabMenu(idx))
+        .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
+        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered))
+        .on_right_press(Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)))
         .into()
 }
 
@@ -252,7 +252,7 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
             .center_y(Length::Fixed(TAB_HEIGHT)),
     )
     .width(Length::Fixed(CHIP_W))
-    .on_press(Message::SelectSftpTab(idx))
+    .on_press(Message::Sftp(SftpMessage::SelectSftpTab(idx)))
     .style(move |_, status| {
         let hover_bg: Background = match status {
             _ if is_active => bg,
@@ -266,9 +266,9 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
         }
     });
     MouseArea::new(tab_btn)
-        .on_enter(Message::SftpTabHovered(idx))
-        .on_exit(Message::SftpTabUnhovered)
-        .on_right_press(Message::ShowSftpTabMenu(idx))
+        .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
+        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered))
+        .on_right_press(Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)))
         .into()
 }
 

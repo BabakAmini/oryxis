@@ -17,7 +17,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::Group;
 
-use crate::app::{TabsMessage, SshMessage, CloudMessage, Message, Oryxis};
+use crate::app::{SftpMessage, TabsMessage, SshMessage, CloudMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::DynamicGroupState;
 use crate::theme::OryxisColors;
@@ -177,7 +177,7 @@ impl Oryxis {
         // or a fresh tab, handled by `Message::Tabs(TabsMessage::PickLocalShell)`. SFTP follows
         // when enabled, but never while filling a pane (split panes are
         // SSH-only; SFTP is its own tab, not a pane), routed through
-        // `Message::NewSftpTab`.
+        // `Message::Sftp(SftpMessage::NewSftpTab)`.
         let want_local =
             needle.is_empty() || t("local_shell").to_lowercase().contains(needle);
         let want_sftp = self.sftp_enabled
@@ -200,7 +200,7 @@ impl Oryxis {
         }
         if want_sftp {
             rows.push(self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::NewSftpTab),
+                crate::keynav::RowAction::activate(Message::Sftp(SftpMessage::NewSftpTab)),
                 6.0,
                 false,
                 sftp_row(self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::OpenSftp)),
@@ -677,7 +677,7 @@ fn sftp_row<'a>(shortcut: Option<String>) -> Element<'a, Message> {
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
             .width(Length::Fill),
     )
-    .on_press(Message::NewSftpTab)
+    .on_press(Message::Sftp(SftpMessage::NewSftpTab))
     .width(Length::Fill)
     .style(hover_row_style)
     .into()

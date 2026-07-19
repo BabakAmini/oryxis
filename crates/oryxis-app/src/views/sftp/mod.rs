@@ -6,7 +6,7 @@ pub(crate) use iced::widget::{button, container, scrollable, text, text_input, M
 use iced::widget::{column, row};
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{Message, Oryxis};
+pub(crate) use crate::app::{SftpMessage, Message, Oryxis};
 pub(crate) use crate::i18n::t;
 pub(crate) use crate::state::{SftpEntryKind, SftpPaneSide};
 pub(crate) use crate::theme::OryxisColors;
@@ -55,7 +55,7 @@ impl Oryxis {
                     ..Default::default()
                 }),
         )
-        .on_press(Message::SftpSplitResizeStart)
+        .on_press(Message::Sftp(SftpMessage::SftpSplitResizeStart))
         .interaction(iced::mouse::Interaction::ResizingHorizontally)
         .into();
         let left_portion = (self.sftp_split_ratio * 1000.0).round().clamp(1.0, 999.0) as u16;
@@ -87,7 +87,7 @@ impl Oryxis {
                     .load(std::sync::atomic::Ordering::Relaxed),
                 self.sftp.transfer_bytes_total,
             ))
-            .on_press(Message::SftpToggleTransferPanel);
+            .on_press(Message::Sftp(SftpMessage::SftpToggleTransferPanel));
             let mut col = column![panes].width(Length::Fill).height(Length::Fill);
             if self.sftp.transfer_panel_open {
                 col = col.push(transfer_file_panel(transfer, &self.sftp.transfer_done_log));
@@ -195,7 +195,7 @@ impl Oryxis {
         let scrim: Element<'a, Message> = MouseArea::new(
             container(Space::new()).width(Length::Fill).height(Length::Fill),
         )
-        .on_press(Message::SftpCloseMenus)
+        .on_press(Message::Sftp(SftpMessage::SftpCloseMenus))
         .into();
         let positioned: Element<'a, Message> = column![
             Space::new().height(Length::Fixed(y)),
@@ -420,7 +420,7 @@ impl Oryxis {
         let header_title: Element<'_, Message> = button(chip_row)
             .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 4.0 })
             .width(chip_len)
-            .on_press(Message::SftpOpenPicker(side))
+            .on_press(Message::Sftp(SftpMessage::SftpOpenPicker(side)))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -434,7 +434,7 @@ impl Oryxis {
             })
             .into();
 
-        let actions_btn: Element<'_, Message> = pane_actions_btn(Message::SftpToggleActions(side));
+        let actions_btn: Element<'_, Message> = pane_actions_btn(Message::Sftp(SftpMessage::SftpToggleActions(side)));
 
         // Narrow panes collapse the inline filter to a search icon (the
         // floating input opens on click), so the kebab is never pushed off
@@ -448,7 +448,7 @@ impl Oryxis {
                     OryxisColors::t().text_muted
                 }),
             )
-            .on_press(Message::SftpToggleFilterSearch(side))
+            .on_press(Message::Sftp(SftpMessage::SftpToggleFilterSearch(side)))
             .padding(Padding { top: 7.0, right: 8.0, bottom: 7.0, left: 8.0 })
             .style(|_, status| {
                 let bg = match status {
@@ -466,7 +466,7 @@ impl Oryxis {
             // Sized to match the system-standard search field (size 13 +
             // 9/12 padding, see `layout.rs` sub-nav search).
             let mut filter_input = text_input(t("filter_placeholder"), &pane.filter)
-                .on_input(move |s| Message::SftpFilter(side, s))
+                .on_input(move |s| Message::Sftp(SftpMessage::SftpFilter(side, s)))
                 .padding(Padding { top: 9.0, right: 12.0, bottom: 9.0, left: 12.0 })
                 .size(13)
                 .width(200)
@@ -506,8 +506,8 @@ impl Oryxis {
                 pane.local_path.display().to_string()
             };
             text_input(&placeholder, input)
-                .on_input(move |s| Message::SftpEditPath(side, s))
-                .on_submit(Message::SftpCommitPath(side))
+                .on_input(move |s| Message::Sftp(SftpMessage::SftpEditPath(side, s)))
+                .on_submit(Message::Sftp(SftpMessage::SftpCommitPath(side)))
                 .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                 .size(11)
                 .style(crate::widgets::rounded_input_style)
@@ -524,7 +524,7 @@ impl Oryxis {
                 local_breadcrumb(side, &pane.local_path)
             };
             MouseArea::new(container(crumbs).width(Length::Fill))
-                .on_press(Message::SftpStartEditPath(side))
+                .on_press(Message::Sftp(SftpMessage::SftpStartEditPath(side)))
                 .into()
         };
 
@@ -716,13 +716,13 @@ impl Oryxis {
                     row![
                         crate::widgets::styled_button(
                             t("retry"),
-                            Message::SftpRetryRemote(side),
+                            Message::Sftp(SftpMessage::SftpRetryRemote(side)),
                             OryxisColors::t().accent,
                         ),
                         Space::new().width(8),
                         crate::widgets::styled_button(
                             t("pick_another_host"),
-                            Message::SftpOpenPicker(side),
+                            Message::Sftp(SftpMessage::SftpOpenPicker(side)),
                             OryxisColors::t().text_muted,
                         ),
                     ],
@@ -741,7 +741,7 @@ impl Oryxis {
                     Space::new().height(10),
                     crate::widgets::styled_button(
                         t("cancel"),
-                        Message::SftpCancelRemoteLoad(side),
+                        Message::Sftp(SftpMessage::SftpCancelRemoteLoad(side)),
                         OryxisColors::t().text_muted,
                     ),
                 ]
@@ -765,7 +765,7 @@ impl Oryxis {
                     Space::new().height(16),
                     crate::widgets::styled_button(
                         t("pick_a_host"),
-                        Message::SftpOpenPicker(side),
+                        Message::Sftp(SftpMessage::SftpOpenPicker(side)),
                         OryxisColors::t().accent,
                     ),
                 ]
@@ -895,7 +895,7 @@ impl Oryxis {
         let browsable = !is_remote || pane.host_label.is_some();
         let body: Element<'_, Message> = if browsable {
             MouseArea::new(body)
-                .on_right_press(Message::SftpBackgroundRightClick(side))
+                .on_right_press(Message::Sftp(SftpMessage::SftpBackgroundRightClick(side)))
                 .into()
         } else {
             body
@@ -999,7 +999,7 @@ impl Oryxis {
                     ])
                     .align_y(iced::Alignment::Center),
                 )
-                .on_press(Message::SftpPickLocal)
+                .on_press(Message::Sftp(SftpMessage::SftpPickLocal))
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
                 .width(Length::Fill)
                 .style(|_, status| {
@@ -1067,7 +1067,7 @@ impl Oryxis {
                 ])
                 .align_y(iced::Alignment::Center),
             )
-            .on_press(Message::SftpPickHost(ci))
+            .on_press(Message::Sftp(SftpMessage::SftpPickHost(ci)))
             .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
             .width(Length::Fill)
             .style(|_, status| {
@@ -1094,7 +1094,7 @@ impl Oryxis {
                             .size(13)
                             .color(OryxisColors::t().text_muted),
                     )
-                    .on_press(Message::SftpClosePicker)
+                    .on_press(Message::Sftp(SftpMessage::SftpClosePicker))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, status| {
                         let bg = match status {
@@ -1113,7 +1113,7 @@ impl Oryxis {
                 .width(Length::Fill),
                 Space::new().height(8),
                 text_input(t("search_hosts"), &self.sftp.picker_search)
-                    .on_input(Message::SftpPickerSearch)
+                    .on_input(|v| Message::Sftp(SftpMessage::SftpPickerSearch(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
                 Space::new().height(8),
@@ -1148,7 +1148,7 @@ impl Oryxis {
                         ..Default::default()
                     }),
             )
-            .on_press(Message::SftpClosePicker),
+            .on_press(Message::Sftp(SftpMessage::SftpClosePicker)),
         );
 
         // Wrap the dialog in a MouseArea that swallows clicks via

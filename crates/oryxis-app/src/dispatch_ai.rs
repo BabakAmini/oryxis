@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::app::{AiMessage, Message, Oryxis};
+use crate::app::{SftpMessage, AiMessage, Message, Oryxis};
 use crate::state::{ChatMessage, ChatRole};
 use crate::util::chat_scroll_to_end;
 
@@ -631,7 +631,7 @@ impl Oryxis {
                             self.persist_sftp_columns();
                         }
                     } else if let Some(sort_col) = drag.col.sort_column() {
-                        return Ok(Task::done(Message::SftpSort(drag.side, sort_col)));
+                        return Ok(Task::done(Message::Sftp(SftpMessage::SftpSort(drag.side, sort_col))));
                     }
                 }
                 // Same global Left-release event also ends an internal
@@ -645,7 +645,7 @@ impl Oryxis {
                     return Ok(self.handle_internal_drag_drop(drag));
                 }
                 if let Some((side, path)) = self.sftp.pending_rename.take() {
-                    return Ok(Task::done(Message::SftpStartRename(side, path)));
+                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpStartRename(side, path))));
                 }
             }
             Message::Ai(AiMessage::SendChat) => {

@@ -13,7 +13,7 @@ pub(crate) use iced::widget::button::Status as BtnStatus;
 pub(crate) use iced::widget::{button, container, row, scrollable, text, MouseArea, Space};
 pub(crate) use iced::{Background, Border, Color, Element, Length, Padding};
 
-pub(crate) use crate::app::{TabsMessage, NavigationMessage, Message, Oryxis, AiMessage};
+pub(crate) use crate::app::{SftpMessage, TabsMessage, NavigationMessage, Message, Oryxis, AiMessage};
 pub(crate) use crate::state::View;
 pub(crate) use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 

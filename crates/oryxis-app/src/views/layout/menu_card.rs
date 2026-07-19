@@ -119,7 +119,7 @@ impl Oryxis {
             // SFTP is an optional feature: its entry hides with the
             // toggle, like every other SFTP surface.
             if self.sftp_enabled {
-                items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::OpenSftpForConnection(idx), OryxisColors::t().text_secondary));
+                items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::Sftp(SftpMessage::OpenSftpForConnection(idx)), OryxisColors::t().text_secondary));
             }
         }
         if has_url {

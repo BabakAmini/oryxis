@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{SettingsMessage, TabsMessage, EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{SftpMessage, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -61,7 +61,7 @@ impl Oryxis {
                 if !self.sftp_enabled {
                     return None;
                 }
-                self.sftp_tabs.iter().position(|t| t.id == *id).map(Message::SelectSftpTab)
+                self.sftp_tabs.iter().position(|t| t.id == *id).map(|v| Message::Sftp(SftpMessage::SelectSftpTab(v)))
             }
         }
     }
@@ -1003,7 +1003,7 @@ impl Oryxis {
             FocusViewSearch => Task::done(Message::Tabs(TabsMessage::FocusViewSearch)),
             OpenSftp => {
                 if self.sftp_enabled {
-                    Task::done(Message::NewSftpTab)
+                    Task::done(Message::Sftp(SftpMessage::NewSftpTab))
                 } else {
                     Task::none()
                 }

@@ -50,7 +50,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SftpPickHost(idx) => {
+            Message::Sftp(SftpMessage::SftpPickHost(idx)) => {
                 let conn = match self.connections.get(idx).cloned() {
                     Some(c) => c,
                     None => {
@@ -276,19 +276,19 @@ impl Oryxis {
                             conn_id: sftp_conn_id,
                             category,
                             server_offers,
-                            retry: Box::new(Message::SftpPickHost(idx)),
+                            retry: Box::new(Message::Sftp(SftpMessage::SftpPickHost(idx))),
                         })
                     }
                 }));
             }
-            Message::SftpRemountPane(side, idx) => {
+            Message::Sftp(SftpMessage::SftpRemountPane(side, idx)) => {
                 // Point the picker at this side, then reuse the full mount
                 // pipeline. Dispatched once per side, so each runs in its own
                 // update cycle with the correct target (no shared-field race).
                 self.sftp.picker_target = side;
-                return self.handle_sftp(Message::SftpPickHost(idx));
+                return self.handle_sftp(Message::Sftp(SftpMessage::SftpPickHost(idx)));
             }
-            Message::SftpPickLocal => {
+            Message::Sftp(SftpMessage::SftpPickLocal) => {
                 // "Local" is only offered for the left pane. Switch the
                 // target pane back to local browsing and refresh.
                 let target = self.sftp.picker_target;
@@ -403,7 +403,7 @@ impl Oryxis {
                     ));
                 }
             }
-            Message::SftpCancelRemoteLoad(side) => {
+            Message::Sftp(SftpMessage::SftpCancelRemoteLoad(side)) => {
                 // Drop the loading visual. The underlying Task::perform
                 // can't be aborted (russh-sftp has no cancel token), so
                 // a late success will still flow through SftpMessage::HostMounted
@@ -413,7 +413,7 @@ impl Oryxis {
                 pane.remote_loading = false;
                 pane.error = Some("Cancelled by user".into());
             }
-            Message::SftpRetryRemote(side) => {
+            Message::Sftp(SftpMessage::SftpRetryRemote(side)) => {
                 // Three cases the retry button has to cover:
                 // 1. Session is mounted (client is Some) AND still
                 //    alive, just re-list the current path. Network
@@ -433,10 +433,10 @@ impl Oryxis {
                     .as_ref()
                     .is_some_and(|s| s.is_alive());
                 if self.sftp.pane(side).client.is_some() && session_alive {
-                    return Ok(Task::done(Message::SftpNavigateRemote(
+                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(
                         side,
                         self.sftp.pane(side).remote_path.clone(),
-                    )));
+                    ))));
                 }
                 if !session_alive {
                     // Drop the dead channel so the remount below (or a
@@ -462,23 +462,23 @@ impl Oryxis {
                                 .filter(|p| !p.is_empty());
                     }
                     self.sftp.picker_target = side;
-                    return Ok(Task::done(Message::SftpPickHost(idx)));
+                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpPickHost(idx))));
                 }
                 self.sftp.picker_target = side;
                 self.sftp.picker_open = true;
             }
-            Message::SftpOpenPicker(side) => {
+            Message::Sftp(SftpMessage::SftpOpenPicker(side)) => {
                 self.sftp.picker_target = side;
                 self.sftp.picker_open = true;
                 self.sftp.picker_search.clear();
             }
-            Message::SftpClosePicker => {
+            Message::Sftp(SftpMessage::SftpClosePicker) => {
                 self.sftp.picker_open = false;
             }
-            Message::SftpPickerSearch(s) => {
+            Message::Sftp(SftpMessage::SftpPickerSearch(s)) => {
                 self.sftp.picker_search = s;
             }
-            Message::OpenSftpForConnection(idx) => {
+            Message::Sftp(SftpMessage::OpenSftpForConnection(idx)) => {
                 // Dismiss the host-card context menu this was launched from so
                 // it doesn't linger over the SFTP surface (mirrors ConnectSsh).
                 self.card_context_menu = None;
@@ -492,7 +492,7 @@ impl Oryxis {
                 // Fresh SFTP tab, then mount the host into its remote (right)
                 // pane via the shared mount pipeline (reuse-or-connect).
                 self.open_new_sftp_tab();
-                return self.handle_sftp(Message::SftpRemountPane(SftpPaneSide::Right, idx));
+                return self.handle_sftp(Message::Sftp(SftpMessage::SftpRemountPane(SftpPaneSide::Right, idx)));
             }
             m => return Err(m),
         }

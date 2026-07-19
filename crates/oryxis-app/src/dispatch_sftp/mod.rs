@@ -32,7 +32,7 @@ mod tabs;
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::parent_path;
 
 /// First listing of a freshly mounted SFTP client: try the caller's
@@ -118,8 +118,8 @@ impl Oryxis {
             Task::perform(
                 async move { client.rename(&from, &dest).await.map_err(|e| e.to_string()) },
                 move |result| match result {
-                    Ok(()) => Message::SftpRenamed(side, reload_path.clone(), new_name.clone()),
-                    Err(e) => Message::SftpOpResult(side, e, true),
+                    Ok(()) => Message::Sftp(SftpMessage::SftpRenamed(side, reload_path.clone(), new_name.clone())),
+                    Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                 },
             )
         }

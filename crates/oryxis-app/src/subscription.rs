@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{SettingsMessage, TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{SftpMessage, SettingsMessage, TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
 
@@ -107,7 +107,7 @@ impl Oryxis {
                 // level handlers (button click, etc.) still fire.
                 iced::event::Event::Mouse(iced::mouse::Event::ButtonPressed(
                     iced::mouse::Button::Left,
-                )) => Some(Message::SftpMouseLeftPressed),
+                )) => Some(Message::Sftp(SftpMessage::SftpMouseLeftPressed)),
                 // Global mouse-up so the sidebar resize stops even when the
                 // cursor leaves the resize handle while the user is dragging.
                 // Same handler also closes any active SFTP internal drag.
@@ -136,13 +136,13 @@ impl Oryxis {
                 // `FileDropped` messages, they're just queued through
                 // the SFTP upload handler.
                 iced::event::Event::Window(iced::window::Event::FileHovered(_)) => {
-                    Some(Message::SftpFileHovered)
+                    Some(Message::Sftp(SftpMessage::SftpFileHovered))
                 }
                 iced::event::Event::Window(iced::window::Event::FilesHoveredLeft) => {
-                    Some(Message::SftpFilesHoveredLeft)
+                    Some(Message::Sftp(SftpMessage::SftpFilesHoveredLeft))
                 }
                 iced::event::Event::Window(iced::window::Event::FileDropped(path)) => {
-                    Some(Message::SftpFileDropped(path))
+                    Some(Message::Sftp(SftpMessage::SftpFileDropped(path)))
                 }
                 _ => None,
             }
@@ -196,7 +196,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
-                    .map(|_| Message::SftpEditWatchTick),
+                    .map(|_| Message::Sftp(SftpMessage::SftpEditWatchTick)),
             );
         }
         // Live transfer bar: poll the shared byte counter a few times a
@@ -210,7 +210,7 @@ impl Oryxis {
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(120))
-                    .map(|_| Message::SftpTransferTick),
+                    .map(|_| Message::Sftp(SftpMessage::SftpTransferTick)),
             );
         }
         // Intercept the user's close verb (Alt+F4, OS taskbar Close,

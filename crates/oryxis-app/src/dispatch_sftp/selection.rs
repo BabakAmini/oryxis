@@ -9,7 +9,7 @@ use iced::Task;
 
 use std::time::Duration;
 
-use crate::app::{TerminalMessage, Message, Oryxis};
+use crate::app::{SftpMessage, TerminalMessage, Message, Oryxis};
 use crate::state::SftpPaneSide;
 
 /// Max gap between two clicks on the same folder to count as a double-click.
@@ -88,7 +88,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SftpRowRightClick(side, path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpRowRightClick(side, path, is_dir)) => {
                 // If the user right-clicks a row that wasn't part of the
                 // current selection, treat the right-click as a fresh
                 // single-select, matches Finder/Explorer behaviour and
@@ -109,7 +109,7 @@ impl Oryxis {
                     y: self.mouse_position.y,
                 });
             }
-            Message::SftpBackgroundRightClick(side) => {
+            Message::Sftp(SftpMessage::SftpBackgroundRightClick(side)) => {
                 // Empty-area right-click: `path` carries the pane's current
                 // directory so the directory-level actions act on it.
                 let pane = self.sftp.pane(side);
@@ -127,10 +127,10 @@ impl Oryxis {
                     y: self.mouse_position.y,
                 });
             }
-            Message::SftpRowMenuClose => {
+            Message::Sftp(SftpMessage::SftpRowMenuClose) => {
                 self.sftp.row_menu = None;
             }
-            Message::SftpCopyPath(path) => {
+            Message::Sftp(SftpMessage::SftpCopyPath(path)) => {
                 // The string arrives already side-formatted (POSIX for a
                 // remote entry, OS-native for a local one), so this is a
                 // straight clipboard write via the shared toast path.
@@ -141,7 +141,7 @@ impl Oryxis {
                 self.overlay = None;
                 return Ok(self.update(Message::CopyToClipboard(path)));
             }
-            Message::SftpCopySelectionPaths(side) => {
+            Message::Sftp(SftpMessage::SftpCopySelectionPaths(side)) => {
                 // Bulk variant: every selected path in the menu's pane,
                 // one per line. Selection is left intact, copying is
                 // not an action "on" the rows the way duplicate is.
@@ -158,7 +158,7 @@ impl Oryxis {
                 }
                 return Ok(self.update(Message::CopyToClipboard(paths.join("\n"))));
             }
-            Message::SftpRowEnter(side, path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpRowEnter(side, path, is_dir)) => {
                 // With the right-click menu open, the pixels in the gaps
                 // between its items still sit over the list rows behind it,
                 // so a bare on_enter would light up a row under the menu.
@@ -182,10 +182,10 @@ impl Oryxis {
                     drag.active = true;
                 }
             }
-            Message::SftpRowExit => {
+            Message::Sftp(SftpMessage::SftpRowExit) => {
                 self.sftp.hovered_row = None;
             }
-            Message::SftpMouseLeftPressed => {
+            Message::Sftp(SftpMessage::SftpMouseLeftPressed) => {
                 // Any physical click leaves keyboard-selection mode: the
                 // mouse took over, a lingering ring would just be noise.
                 // Also drops the modal-layer selection so a menu closed
@@ -276,7 +276,7 @@ impl Oryxis {
                     self.arm_sftp_row_drag(side, path, is_dir);
                 }
             }
-            Message::SftpSelectRow(side, path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpSelectRow(side, path, is_dir)) => {
                 // Arm a potential drag from the button's own press, before the
                 // selection below collapses, using the exact pressed row. A
                 // second arm path alongside the global left-press; no-op if
@@ -358,12 +358,12 @@ impl Oryxis {
                         self.sftp.selected_rows.clear();
                         self.sftp.selection_anchor = None;
                         return Ok(if self.sftp.pane(side).is_remote {
-                            Task::done(Message::SftpNavigateRemote(side, path))
+                            Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(side, path)))
                         } else {
-                            Task::done(Message::SftpNavigateLocal(
+                            Task::done(Message::Sftp(SftpMessage::SftpNavigateLocal(
                                 side,
                                 std::path::PathBuf::from(path),
-                            ))
+                            )))
                         });
                     }
                     self.sftp.last_click = Some((side, path, now));
@@ -393,7 +393,7 @@ impl Oryxis {
                         self.sftp.last_click = None;
                         self.sftp.selected_rows.clear();
                         self.sftp.selection_anchor = None;
-                        return Ok(Task::done(Message::SftpZipOpen(side, path)));
+                        return Ok(Task::done(Message::Sftp(SftpMessage::SftpZipOpen(side, path))));
                     }
                     self.sftp.last_click = Some((side, path, now));
                     self.sftp.selected_rows = vec![target.clone()];
@@ -592,10 +592,10 @@ impl Oryxis {
                     async move {
                         tokio::time::sleep(TYPE_AHEAD_DEBOUNCE).await;
                     },
-                    move |_| Message::SftpTypeAheadFire(generation),
+                    move |_| Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)),
                 ));
             }
-            Message::SftpTypeAheadFire(generation) => {
+            Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)) => {
                 // A newer keystroke superseded this fire: skip it.
                 if generation != self.sftp.type_ahead_gen {
                     return Ok(Task::none());

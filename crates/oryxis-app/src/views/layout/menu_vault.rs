@@ -77,7 +77,7 @@ impl Oryxis {
         items = items.push(self.menu_item(
             iced_fonts::lucide::clipboard_copy(),
             crate::i18n::t("copy_path"),
-            Message::SftpCopyPath(path.clone()),
+            Message::Sftp(SftpMessage::SftpCopyPath(path.clone())),
             secondary,
         ));
         if !is_dir {
@@ -86,7 +86,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::text_cursor_input(),
                 crate::i18n::t("copy_name"),
-                Message::SftpCopyPath(name),
+                Message::Sftp(SftpMessage::SftpCopyPath(name)),
                 secondary,
             ));
         }
@@ -129,7 +129,7 @@ impl Oryxis {
             self.menu_item(
                 iced_fonts::lucide::clipboard_copy(),
                 crate::i18n::t("copy_path"),
-                Message::SftpCopyPath(dir),
+                Message::Sftp(SftpMessage::SftpCopyPath(dir)),
                 secondary,
             ),
         ];
@@ -276,17 +276,17 @@ impl Oryxis {
             (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
         };
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::NewSftpTab, OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::Sftp(SftpMessage::NewSftpTab), OryxisColors::t().text_secondary),
             // Terminal for the mounted host (owner QA 2026-07-05:
             // the SFTP tab had no path back to a shell). Focuses
             // a live terminal tab on that host, else connects.
             self.menu_item(iced_fonts::lucide::terminal(), crate::i18n::t("open_terminal"), Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameSftpTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(pin_icon, pin_label, Message::ToggleSftpTabPin(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::CloseSftpTab(idx), OryxisColors::t().text_secondary),
+            self.menu_item(pin_icon, pin_label, Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Sftp(SftpMessage::CloseSftpTab(idx)), OryxisColors::t().text_secondary),
         ];
         if self.sftp_tabs.len() > 1 {
-            items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::CloseOtherSftpTabs(idx), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)), OryxisColors::t().text_secondary));
         }
         items.into()
     }

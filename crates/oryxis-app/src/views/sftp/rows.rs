@@ -10,7 +10,7 @@ pub(crate) fn parent_row<'a>(
     widths: crate::state::SftpColWidths,
     layout: ColLayout,
 ) -> Element<'a, Message> {
-    let msg = Message::SftpUp(side);
+    let msg = Message::Sftp(SftpMessage::SftpUp(side));
     // Same fixed slot as the file rows so the name column aligns; no
     // one-click affordance needed, the whole ".." row is single-click.
     let icon = icon_slot(
@@ -129,8 +129,8 @@ pub(crate) fn name_label_widget<'a>(
     if let Some(input) = rename_input {
         let w = text_input(name, input)
             .id(iced::widget::Id::new(RENAME_INPUT_ID))
-            .on_input(Message::SftpRenameInput)
-            .on_submit(Message::SftpRenameCommit)
+            .on_input(|v| Message::Sftp(SftpMessage::SftpRenameInput(v)))
+            .on_submit(Message::Sftp(SftpMessage::SftpRenameCommit))
             .padding(Padding { top: 2.0, right: 6.0, bottom: 2.0, left: 6.0 })
             .size(11)
             .style(crate::widgets::rounded_input_style)
@@ -231,7 +231,7 @@ pub(crate) fn sftp_list_scrollable<'a>(
     // Report scroll position + viewport height so keyboard navigation can
     // scroll only when the cursor reaches a viewport edge (not on every step).
     let on_scroll = move |vp: scrollable::Viewport| {
-        Message::SftpListScrolled(side, vp.absolute_offset().y, vp.bounds().height)
+        Message::Sftp(SftpMessage::SftpListScrolled(side, vp.absolute_offset().y, vp.bounds().height))
     };
     if layout.overflow {
         // Sticky header + horizontal scroll (FileZilla-style): the rows get
@@ -289,7 +289,7 @@ pub(crate) fn file_row_local<'a>(
     let icon = icon_slot(
         icon,
         (is_dir && rename_input.is_none())
-            .then(|| Message::SftpNavigateLocal(side, path.clone())),
+            .then(|| Message::Sftp(SftpMessage::SftpNavigateLocal(side, path.clone()))),
     );
     let kind = format_kind(&name, is_dir, false);
     let modified_s = format_modified_local(modified);
@@ -327,7 +327,7 @@ pub(crate) fn file_row_local<'a>(
     let on_click = if rename_input.is_some() {
         None
     } else {
-        Some(Message::SftpSelectRow(side, path_str.clone(), is_dir))
+        Some(Message::Sftp(SftpMessage::SftpSelectRow(side, path_str.clone(), is_dir)))
     };
     let path_for_enter = path_str.clone();
     let mut btn = button(inner)
@@ -361,9 +361,9 @@ pub(crate) fn file_row_local<'a>(
     // internal drag-drop press handler, needed even on file rows since
     // a file is a valid drag *source* (just not a drop *target*).
     MouseArea::new(btn)
-        .on_right_press(Message::SftpRowRightClick(side, path_str, is_dir))
-        .on_enter(Message::SftpRowEnter(side, path_for_enter, is_dir))
-        .on_exit(Message::SftpRowExit)
+        .on_right_press(Message::Sftp(SftpMessage::SftpRowRightClick(side, path_str, is_dir)))
+        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, path_for_enter, is_dir)))
+        .on_exit(Message::Sftp(SftpMessage::SftpRowExit))
         .into()
 }
 
@@ -394,7 +394,7 @@ pub(crate) fn file_row_remote<'a>(
     let icon = icon_slot(
         icon,
         ((is_dir || is_symlink) && rename_input.is_none())
-            .then(|| Message::SftpNavigateRemote(side, full_path.clone())),
+            .then(|| Message::Sftp(SftpMessage::SftpNavigateRemote(side, full_path.clone()))),
     );
     let kind = format_kind(&name, is_dir, is_symlink);
     let modified_s = format_modified_remote(mtime);
@@ -410,11 +410,11 @@ pub(crate) fn file_row_remote<'a>(
     let nav_target = if rename_input.is_some() {
         None
     } else {
-        Some(Message::SftpSelectRow(
+        Some(Message::Sftp(SftpMessage::SftpSelectRow(
             side,
             full_path.clone(),
             is_dir || is_symlink,
-        ))
+        )))
     };
     let children = row_cells(visible, widths, icon, label_widget, tooltip_name, |c| {
         match c {
@@ -462,9 +462,9 @@ pub(crate) fn file_row_remote<'a>(
     // serves the OS drop target picker, the internal drag-drop press
     // handler, and the cross-pane folder drop highlight.
     MouseArea::new(btn)
-        .on_right_press(Message::SftpRowRightClick(side, full_path.clone(), is_dir))
-        .on_enter(Message::SftpRowEnter(side, full_path, is_dir))
-        .on_exit(Message::SftpRowExit)
+        .on_right_press(Message::Sftp(SftpMessage::SftpRowRightClick(side, full_path.clone(), is_dir)))
+        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, full_path, is_dir)))
+        .on_exit(Message::Sftp(SftpMessage::SftpRowExit))
         .into()
 }
 

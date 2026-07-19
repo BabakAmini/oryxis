@@ -20,8 +20,8 @@ pub(crate) fn filter_card<'a>(side: SftpPaneSide, filter: &str) -> Element<'a, M
     };
     let input = text_input(t("filter_placeholder"), filter)
         .id(iced::widget::Id::new(id))
-        .on_input(move |s| Message::SftpFilter(side, s))
-        .on_submit(Message::SftpToggleFilterSearch(side))
+        .on_input(move |s| Message::Sftp(SftpMessage::SftpFilter(side, s)))
+        .on_submit(Message::Sftp(SftpMessage::SftpToggleFilterSearch(side)))
         .padding(Padding { top: 9.0, right: 12.0, bottom: 9.0, left: 12.0 })
         .size(13)
         .width(Length::Fixed(220.0))
@@ -154,7 +154,7 @@ pub(crate) fn column_toggle_item<'a>(
         ]
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::SftpToggleColumn(side, col))
+    .on_press(Message::Sftp(SftpMessage::SftpToggleColumn(side, col)))
     .padding(Padding { top: 6.0, right: 14.0, bottom: 6.0, left: 10.0 })
     .width(Length::Fixed(220.0))
     .style(|_, status| {
@@ -237,14 +237,14 @@ pub(crate) fn row_context_menu_box<'a>(
     // the whole menu collapses to copy-out (rows) + leave (both).
     if archive.in_zip {
         if !menu.is_background && archive.copy_out_ready {
-            let msg = Message::SftpZipCopyOut(menu.side, menu.path.clone(), menu.is_dir);
+            let msg = Message::Sftp(SftpMessage::SftpZipCopyOut(menu.side, menu.path.clone(), menu.is_dir));
             items = items.push(sftp_menu_slot(
                 app,
                 msg.clone(),
                 menu_item_tinted(iced_fonts::lucide::download(), t("archive_copy_out"), msg, accent),
             ));
         }
-        let msg = Message::SftpZipClose(menu.side);
+        let msg = Message::Sftp(SftpMessage::SftpZipClose(menu.side));
         items = items.push(sftp_menu_slot(
             app,
             msg.clone(),
@@ -274,18 +274,18 @@ pub(crate) fn row_context_menu_box<'a>(
                 items = items.push(slot(
                     iced_fonts::lucide::upload(),
                     t("upload_n_items").replacen("{n}", &selection_count_same_pane.to_string(), 1),
-                    Message::SftpUploadSelection,
+                    Message::Sftp(SftpMessage::SftpUploadSelection),
                     accent,
                 ));
             } else {
                 let upload_msg = if menu.is_dir {
-                    Message::SftpUploadFolder(std::path::PathBuf::from(&menu.path))
+                    Message::Sftp(SftpMessage::SftpUploadFolder(std::path::PathBuf::from(&menu.path)))
                 } else {
                     // Route even a single file through the batch queue so the
                     // transfer shows the progress strip + per-file panel
                     // (SftpUpload alone creates no TransferState, hence no
                     // on-screen indicator).
-                    Message::SftpUploadBatch(vec![std::path::PathBuf::from(&menu.path)])
+                    Message::Sftp(SftpMessage::SftpUploadBatch(vec![std::path::PathBuf::from(&menu.path)]))
                 };
                 let upload_label = match &other_label {
                     Some(h) => t("upload_to_host").replacen("{host}", h, 1),
@@ -304,7 +304,7 @@ pub(crate) fn row_context_menu_box<'a>(
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
-                Message::SftpOpenLocal(std::path::PathBuf::from(&menu.path)),
+                Message::Sftp(SftpMessage::SftpOpenLocal(std::path::PathBuf::from(&menu.path))),
                 secondary,
             ));
         }
@@ -315,14 +315,14 @@ pub(crate) fn row_context_menu_box<'a>(
                 items = items.push(slot(
                     iced_fonts::lucide::download(),
                     t("download_n_items").replacen("{n}", &selection_count_same_pane.to_string(), 1),
-                    Message::SftpDownloadSelection,
+                    Message::Sftp(SftpMessage::SftpDownloadSelection),
                     accent,
                 ));
             } else {
                 let download_msg = if menu.is_dir {
-                    Message::SftpDownloadFolder(menu.path.clone())
+                    Message::Sftp(SftpMessage::SftpDownloadFolder(menu.path.clone()))
                 } else {
-                    Message::SftpDownload(menu.path.clone())
+                    Message::Sftp(SftpMessage::SftpDownload(menu.path.clone()))
                 };
                 items = items.push(slot(
                     iced_fonts::lucide::download(),
@@ -337,7 +337,7 @@ pub(crate) fn row_context_menu_box<'a>(
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
-                Message::SftpStartEdit(menu.path.clone()),
+                Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
                 secondary,
             ));
         }
@@ -350,9 +350,9 @@ pub(crate) fn row_context_menu_box<'a>(
                 None => t("relay_to_remote").replacen("{host}", t("the_other_host"), 1),
             };
             let relay_msg = if menu.is_dir {
-                Message::SftpRelayFolder(menu.side, menu.path.clone())
+                Message::Sftp(SftpMessage::SftpRelayFolder(menu.side, menu.path.clone()))
             } else {
-                Message::SftpRelay(menu.side, menu.path.clone())
+                Message::Sftp(SftpMessage::SftpRelay(menu.side, menu.path.clone()))
             };
             items = items.push(slot(
                 iced_fonts::lucide::arrow_right_left(),
@@ -366,7 +366,7 @@ pub(crate) fn row_context_menu_box<'a>(
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
-                Message::SftpStartEdit(menu.path.clone()),
+                Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
                 secondary,
             ));
         }
@@ -380,7 +380,7 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::folder_search(),
             t("archive_browse").to_string(),
-            Message::SftpZipOpen(menu.side, menu.path.clone()),
+            Message::Sftp(SftpMessage::SftpZipOpen(menu.side, menu.path.clone())),
             accent,
         ));
     }
@@ -388,7 +388,7 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::package_open(),
             t("archive_extract_here").to_string(),
-            Message::SftpArchiveExtract(menu.side, menu.path.clone()),
+            Message::Sftp(SftpMessage::SftpArchiveExtract(menu.side, menu.path.clone())),
             secondary,
         ));
     }
@@ -396,11 +396,11 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::archive(),
             t("archive_compress_zip").to_string(),
-            Message::SftpArchiveCompress(
+            Message::Sftp(SftpMessage::SftpArchiveCompress(
                 menu.side,
                 oryxis_archive::names::ArchiveKind::Zip,
                 menu.path.clone(),
-            ),
+            )),
             secondary,
         ));
     }
@@ -408,11 +408,11 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::archive(),
             t("archive_compress_tgz").to_string(),
-            Message::SftpArchiveCompress(
+            Message::Sftp(SftpMessage::SftpArchiveCompress(
                 menu.side,
                 oryxis_archive::names::ArchiveKind::TarGz,
                 menu.path.clone(),
-            ),
+            )),
             secondary,
         ));
     }
@@ -423,7 +423,7 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::folder_open(),
             crate::i18n::open_in_file_manager_label().to_string(),
-            Message::SftpRevealInExplorer(std::path::PathBuf::from(&menu.path), menu.is_dir),
+            Message::Sftp(SftpMessage::SftpRevealInExplorer(std::path::PathBuf::from(&menu.path), menu.is_dir)),
             secondary,
         ));
     }
@@ -434,14 +434,14 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::clipboard_copy(),
             t("copy_n_paths").replacen("{n}", &selection_count_same_pane.to_string(), 1),
-            Message::SftpCopySelectionPaths(menu.side),
+            Message::Sftp(SftpMessage::SftpCopySelectionPaths(menu.side)),
             secondary,
         ));
     } else {
         items = items.push(slot(
             iced_fonts::lucide::clipboard_copy(),
             t("copy_path").to_string(),
-            Message::SftpCopyPath(menu.path.clone()),
+            Message::Sftp(SftpMessage::SftpCopyPath(menu.path.clone())),
             secondary,
         ));
     }
@@ -449,14 +449,14 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::copy(),
             t("duplicate_n_items").replacen("{n}", &selection_count_same_pane.to_string(), 1),
-            Message::SftpDuplicateSelection,
+            Message::Sftp(SftpMessage::SftpDuplicateSelection),
             secondary,
         ));
     } else {
         let duplicate_msg = if menu.is_dir {
-            Message::SftpDuplicateFolder(menu.side, menu.path.clone())
+            Message::Sftp(SftpMessage::SftpDuplicateFolder(menu.side, menu.path.clone()))
         } else {
-            Message::SftpDuplicate(menu.side, menu.path.clone())
+            Message::Sftp(SftpMessage::SftpDuplicate(menu.side, menu.path.clone()))
         };
         items = items.push(slot(
             iced_fonts::lucide::copy(),
@@ -467,13 +467,13 @@ pub(crate) fn row_context_menu_box<'a>(
         items = items.push(slot(
             iced_fonts::lucide::pencil(),
             t("rename").to_string(),
-            Message::SftpStartRename(menu.side, menu.path.clone()),
+            Message::Sftp(SftpMessage::SftpStartRename(menu.side, menu.path.clone())),
             secondary,
         ));
         items = items.push(slot(
             iced_fonts::lucide::cog(),
             t("properties").to_string(),
-            Message::SftpShowProperties(menu.side, menu.path.clone(), menu.is_dir),
+            Message::Sftp(SftpMessage::SftpShowProperties(menu.side, menu.path.clone(), menu.is_dir)),
             secondary,
         ));
     }
@@ -483,9 +483,9 @@ pub(crate) fn row_context_menu_box<'a>(
         t("delete").to_string()
     };
     let delete_msg = if multi {
-        Message::SftpAskDeleteSelection
+        Message::Sftp(SftpMessage::SftpAskDeleteSelection)
     } else {
-        Message::SftpAskDelete(menu.side, menu.path.clone(), menu.is_dir)
+        Message::Sftp(SftpMessage::SftpAskDelete(menu.side, menu.path.clone(), menu.is_dir))
     };
     items = items.push(slot(
         iced_fonts::lucide::trash(),
@@ -538,12 +538,12 @@ pub(crate) fn dir_action_items<'a>(
     full: bool,
 ) -> Vec<(Option<Message>, Element<'a, Message>)> {
     let refresh_msg = if is_remote {
-        Message::SftpNavigateRemote(side, ctx.pane_dir.to_string())
+        Message::Sftp(SftpMessage::SftpNavigateRemote(side, ctx.pane_dir.to_string()))
     } else {
-        Message::SftpRefreshLocal(side)
+        Message::Sftp(SftpMessage::SftpRefreshLocal(side))
     };
-    let new_folder = Message::SftpStartNewEntry(side, SftpEntryKind::Folder);
-    let new_file = Message::SftpStartNewEntry(side, SftpEntryKind::File);
+    let new_folder = Message::Sftp(SftpMessage::SftpStartNewEntry(side, SftpEntryKind::Folder));
+    let new_file = Message::Sftp(SftpMessage::SftpStartNewEntry(side, SftpEntryKind::File));
     let mut items: Vec<(Option<Message>, Element<'a, Message>)> = vec![
         (
             Some(new_folder.clone()),
@@ -564,14 +564,14 @@ pub(crate) fn dir_action_items<'a>(
     if full {
         // Copy the pane's current directory path. `pane_dir` is already
         // side-formatted by the caller (remote path or local display).
-        let copy_msg = Message::SftpCopyPath(ctx.pane_dir.to_string());
+        let copy_msg = Message::Sftp(SftpMessage::SftpCopyPath(ctx.pane_dir.to_string()));
         items.push((
             Some(copy_msg.clone()),
             menu_item(iced_fonts::lucide::clipboard_copy(), t("copy_path"), copy_msg),
         ));
         let hidden_label =
             if ctx.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") };
-        let hidden_msg = Message::SftpToggleHidden(side);
+        let hidden_msg = Message::Sftp(SftpMessage::SftpToggleHidden(side));
         items.push((
             Some(hidden_msg.clone()),
             menu_item(iced_fonts::lucide::eye(), hidden_label, hidden_msg),
@@ -579,7 +579,7 @@ pub(crate) fn dir_action_items<'a>(
         if !is_remote {
             items.push((None, menu_separator()));
             let reveal_msg =
-                Message::SftpRevealInExplorer(ctx.local_dir.to_path_buf(), true);
+                Message::Sftp(SftpMessage::SftpRevealInExplorer(ctx.local_dir.to_path_buf(), true));
             items.push((
                 Some(reveal_msg.clone()),
                 menu_item(
@@ -794,7 +794,7 @@ pub(crate) fn drives_menu_overlay<'a>(side: SftpPaneSide) -> Element<'a, Message
                     ]
                     .align_y(iced::Alignment::Center),
                 )
-                .on_press(Message::SftpNavigateLocal(side, drive_path))
+                .on_press(Message::Sftp(SftpMessage::SftpNavigateLocal(side, drive_path)))
                 .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 10.0 })
                 .width(Length::Fixed(160.0))
                 .style(|_, status| {
@@ -828,7 +828,7 @@ pub(crate) fn drives_menu_overlay<'a>(side: SftpPaneSide) -> Element<'a, Message
     let scrim: Element<'_, Message> = MouseArea::new(
         container(Space::new()).width(Length::Fill).height(Length::Fill),
     )
-    .on_press(Message::SftpCloseMenus)
+    .on_press(Message::Sftp(SftpMessage::SftpCloseMenus))
     .into();
     let positioned = container(menu)
         .width(Length::Fill)

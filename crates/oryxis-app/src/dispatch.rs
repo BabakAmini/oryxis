@@ -11,7 +11,7 @@
 use iced::Task;
 
 
-use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
+use crate::app::{SftpMessage, TabsMessage, TerminalMessage, Message, Oryxis};
 
 /// How long a dynamic group's resolved host list stays "fresh" before
 /// re-opening the group triggers a background re-resolve. Cloud
@@ -59,7 +59,7 @@ impl Oryxis {
             message,
             Message::Terminal(TerminalMessage::KeyboardEvent(_))
                 | Message::Tabs(TabsMessage::MouseMoved(_))
-                | Message::SftpMouseLeftPressed
+                | Message::Sftp(SftpMessage::SftpMouseLeftPressed)
                 | Message::Terminal(TerminalMessage::TerminalImeCommit(_))
         ) {
             self.last_user_activity = std::time::Instant::now();

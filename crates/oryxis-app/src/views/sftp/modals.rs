@@ -44,9 +44,9 @@ pub(crate) fn delete_confirm_modal<'a>(
             Space::new().height(16),
             modal_footer(
                 t("cancel"),
-                Message::SftpCancelDelete,
+                Message::Sftp(SftpMessage::SftpCancelDelete),
                 t("delete"),
-                Some(Message::SftpConfirmDelete),
+                Some(Message::Sftp(SftpMessage::SftpConfirmDelete)),
                 OryxisColors::t().error,
             ),
         ]
@@ -72,7 +72,7 @@ pub(crate) fn delete_confirm_modal<'a>(
                 ..Default::default()
             }),
     )
-    .on_press(Message::SftpCancelDelete)
+    .on_press(Message::Sftp(SftpMessage::SftpCancelDelete))
     .into();
 
     // Wrap the dialog in a MouseArea that swallows clicks via `NoOp`,
@@ -105,13 +105,13 @@ pub(crate) fn close_guard_modal<'a>() -> Element<'a, Message> {
             row![
                 crate::widgets::styled_button(
                     t("close_anyway"),
-                    Message::ConfirmCloseSftpTab,
+                    Message::Sftp(SftpMessage::ConfirmCloseSftpTab),
                     OryxisColors::t().error,
                 ),
                 Space::new().width(8),
                 crate::widgets::styled_button(
                     t("cancel"),
-                    Message::CancelCloseSftpTab,
+                    Message::Sftp(SftpMessage::CancelCloseSftpTab),
                     OryxisColors::t().text_muted,
                 ),
             ],
@@ -137,7 +137,7 @@ pub(crate) fn close_guard_modal<'a>() -> Element<'a, Message> {
                 ..Default::default()
             }),
     )
-    .on_press(Message::CancelCloseSftpTab)
+    .on_press(Message::Sftp(SftpMessage::CancelCloseSftpTab))
     .into();
     let centered = container(MouseArea::new(dialog).on_press(Message::NoOp))
         .width(Length::Fill)
@@ -168,8 +168,8 @@ pub(crate) fn new_entry_modal<'a>(entry: &crate::state::SftpNewEntry) -> Element
             text(title).size(16).color(OryxisColors::t().text_primary),
             Space::new().height(12),
             text_input(placeholder, &entry.input)
-                .on_input(Message::SftpNewEntryInput)
-                .on_submit(Message::SftpNewEntryCommit)
+                .on_input(|v| Message::Sftp(SftpMessage::SftpNewEntryInput(v)))
+                .on_submit(Message::Sftp(SftpMessage::SftpNewEntryCommit))
                 .padding(10)
                 .size(13)
                 .style(crate::widgets::rounded_input_style).align_x(dir_align_x()),
@@ -177,13 +177,13 @@ pub(crate) fn new_entry_modal<'a>(entry: &crate::state::SftpNewEntry) -> Element
             row![
                 crate::widgets::styled_button(
                     t("create"),
-                    Message::SftpNewEntryCommit,
+                    Message::Sftp(SftpMessage::SftpNewEntryCommit),
                     OryxisColors::t().accent,
                 ),
                 Space::new().width(8),
                 crate::widgets::styled_button(
                     t("cancel"),
-                    Message::SftpNewEntryCancel,
+                    Message::Sftp(SftpMessage::SftpNewEntryCancel),
                     OryxisColors::t().text_muted,
                 ),
             ],
@@ -210,7 +210,7 @@ pub(crate) fn new_entry_modal<'a>(entry: &crate::state::SftpNewEntry) -> Element
                 ..Default::default()
             }),
     )
-    .on_press(Message::SftpNewEntryCancel)
+    .on_press(Message::Sftp(SftpMessage::SftpNewEntryCancel))
     .into();
 
     // Wrap the dialog in a MouseArea that swallows clicks via `NoOp`,
@@ -275,13 +275,13 @@ pub(crate) fn edit_in_place_modal<'a>(
             row![
                 crate::widgets::styled_button(
                     t("save_to_remote"),
-                    Message::SftpEditSave,
+                    Message::Sftp(SftpMessage::SftpEditSave),
                     OryxisColors::t().accent,
                 ),
                 Space::new().width(8),
                 crate::widgets::styled_button(
                     t("discard"),
-                    Message::SftpEditDiscard,
+                    Message::Sftp(SftpMessage::SftpEditDiscard),
                     OryxisColors::t().text_muted,
                 ),
             ],
@@ -421,7 +421,7 @@ pub(crate) fn properties_modal<'a>(
                 .color(OryxisColors::t().text_muted)
         };
         button(mark)
-            .on_press(Message::SftpPropertiesToggleBit(bit))
+            .on_press(Message::Sftp(SftpMessage::SftpPropertiesToggleBit(bit)))
             .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 6.0 })
             .style(|_, status| {
                 let bg = match status {
@@ -531,8 +531,8 @@ pub(crate) fn properties_modal<'a>(
                 .color(OryxisColors::t().text_muted)
                 .width(Length::Fixed(80.0)),
             text_input("644", &props.mode_input)
-                .on_input(Message::SftpPropertiesModeInput)
-                .on_submit(Message::SftpPropertiesApply)
+                .on_input(|v| Message::Sftp(SftpMessage::SftpPropertiesModeInput(v)))
+                .on_submit(Message::Sftp(SftpMessage::SftpPropertiesApply))
                 .size(12)
                 .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 8.0 })
                 .width(Length::Fixed(90.0))
@@ -554,10 +554,10 @@ pub(crate) fn properties_modal<'a>(
     let apply_label = if props.applying { t("applying") } else { t("apply") };
     // While the chmod is in flight the action is disabled (None) so the user
     // can't double-fire; the handler also guards on `applying`.
-    let apply_msg = (!props.applying).then_some(Message::SftpPropertiesApply);
+    let apply_msg = (!props.applying).then_some(Message::Sftp(SftpMessage::SftpPropertiesApply));
     content = content.push(modal_footer(
         t("close"),
-        Message::SftpPropertiesClose,
+        Message::Sftp(SftpMessage::SftpPropertiesClose),
         apply_label,
         apply_msg,
         OryxisColors::t().accent,
@@ -588,7 +588,7 @@ pub(crate) fn properties_modal<'a>(
                 ..Default::default()
             }),
     )
-    .on_press(Message::SftpPropertiesClose)
+    .on_press(Message::Sftp(SftpMessage::SftpPropertiesClose))
     .into();
 
     // Wrap the dialog in a MouseArea that swallows clicks via `NoOp`,
@@ -655,22 +655,22 @@ pub(crate) fn overwrite_modal<'a>(
         row![
             ghost_button(
                 t("cancel"),
-                Message::SftpResolveOverwrite(crate::state::OverwriteAction::Cancel),
+                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Cancel)),
             ),
             Space::new().width(Length::Fill),
             outlined_button(
                 t("replace_if_different"),
-                Message::SftpResolveOverwrite(crate::state::OverwriteAction::ReplaceIfDifferent),
+                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::ReplaceIfDifferent)),
             ),
             Space::new().width(8),
             outlined_button(
                 t("duplicate"),
-                Message::SftpResolveOverwrite(crate::state::OverwriteAction::Duplicate),
+                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Duplicate)),
             ),
             Space::new().width(8),
             primary_button(
                 t("replace"),
-                Message::SftpResolveOverwrite(crate::state::OverwriteAction::Replace),
+                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Replace)),
                 OryxisColors::t().error,
             ),
         ]
@@ -925,7 +925,7 @@ pub(crate) fn overwrite_apply_to_all_checkbox<'a>(checked: bool) -> Element<'a, 
         ]
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::SftpToggleApplyToAll)
+    .on_press(Message::Sftp(SftpMessage::SftpToggleApplyToAll))
     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 4.0 })
     .style(|_, status| {
         let bg = match status {

@@ -85,7 +85,7 @@ impl Oryxis {
                 .await
                 .unwrap_or_else(|e| Err(e.to_string()))
             },
-            move |result| Message::SftpLocalListed(side, seq, path.clone(), result),
+            move |result| Message::Sftp(SftpMessage::SftpLocalListed(side, seq, path.clone(), result)),
         )
     }
 
@@ -409,7 +409,7 @@ impl Oryxis {
         use crate::state::SftpPendingFocus;
         let side = self.sftp.focused_side;
         if self.sftp.parent_cursor {
-            return Task::done(Message::SftpUp(side));
+            return Task::done(Message::Sftp(SftpMessage::SftpUp(side)));
         }
         let Some((side, path)) = self
             .sftp
@@ -430,27 +430,27 @@ impl Oryxis {
             // its listing loads (same for Enter and Right).
             self.sftp.pending_focus = Some((side, SftpPendingFocus::Parent));
             if is_remote {
-                Task::done(Message::SftpNavigateRemote(side, path))
+                Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(side, path)))
             } else {
-                Task::done(Message::SftpNavigateLocal(
+                Task::done(Message::Sftp(SftpMessage::SftpNavigateLocal(
                     side,
                     std::path::PathBuf::from(path),
-                ))
+                )))
             }
         } else if !open_files {
             // Right arrow on a file: nothing to descend into.
             Task::none()
         } else if is_remote {
-            Task::done(Message::SftpStartEdit(path))
+            Task::done(Message::Sftp(SftpMessage::SftpStartEdit(path)))
         } else {
-            Task::done(Message::SftpOpenLocal(std::path::PathBuf::from(path)))
+            Task::done(Message::Sftp(SftpMessage::SftpOpenLocal(std::path::PathBuf::from(path))))
         }
     }
 
     /// Move keyboard focus to the parent directory of the focused pane
     /// (Left arrow). Just dispatches the existing up-navigation.
     pub(crate) fn sftp_focus_parent(&mut self) -> Task<Message> {
-        Task::done(Message::SftpUp(self.sftp.focused_side))
+        Task::done(Message::Sftp(SftpMessage::SftpUp(self.sftp.focused_side)))
     }
 
     /// Toggle keyboard focus between the two panes (Tab). Lands the cursor
@@ -708,7 +708,7 @@ impl Oryxis {
                     .into_iter()
                     .map(|(p, _)| std::path::PathBuf::from(p))
                     .collect();
-                Task::done(Message::SftpUploadBatch(paths))
+                Task::done(Message::Sftp(SftpMessage::SftpUploadBatch(paths)))
             }
             // Remote -> Local: download.
             (true, false) => {
@@ -718,9 +718,9 @@ impl Oryxis {
                 let mut tasks = Vec::with_capacity(drag.items.len());
                 for (path, is_dir) in drag.items {
                     tasks.push(if is_dir {
-                        Task::done(Message::SftpDownloadFolder(path))
+                        Task::done(Message::Sftp(SftpMessage::SftpDownloadFolder(path)))
                     } else {
-                        Task::done(Message::SftpDownload(path))
+                        Task::done(Message::Sftp(SftpMessage::SftpDownload(path)))
                     });
                 }
                 Task::batch(tasks)
@@ -734,9 +734,9 @@ impl Oryxis {
                 let mut tasks = Vec::with_capacity(drag.items.len());
                 for (path, is_dir) in drag.items {
                     tasks.push(if is_dir {
-                        Task::done(Message::SftpRelayFolder(from, path))
+                        Task::done(Message::Sftp(SftpMessage::SftpRelayFolder(from, path)))
                     } else {
-                        Task::done(Message::SftpRelay(from, path))
+                        Task::done(Message::Sftp(SftpMessage::SftpRelay(from, path)))
                     });
                 }
                 Task::batch(tasks)

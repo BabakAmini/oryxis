@@ -12,7 +12,7 @@ use iced::Task;
 use uuid::Uuid;
 
 use crate::app::Oryxis;
-use crate::messages::{Message, SidebarFilesMessage, TabsMessage};
+use crate::messages::{Message, SidebarFilesMessage, TabsMessage, SftpMessage};
 use crate::state::TerminalSidebarTab;
 
 /// Dirs first, then case-insensitive by name, the sidebar's fixed sort
@@ -523,7 +523,7 @@ impl Oryxis {
                     move |result| match result {
                         Ok(stat) => {
                             let mode = stat.permissions.unwrap_or(0o644);
-                            Message::SftpPropertiesLoaded(crate::state::PropertiesView {
+                            Message::Sftp(SftpMessage::SftpPropertiesLoaded(crate::state::PropertiesView {
                                 // `side` is unused when a client override
                                 // is present; Right is a stable filler.
                                 side: crate::state::SftpPaneSide::Right,
@@ -540,7 +540,7 @@ impl Oryxis {
                                 mode_input: format!("{:03o}", mode & 0o777),
                                 applying: false,
                                 error: None,
-                            })
+                            }))
                         }
                         // One-shot op, not a listing: its failure surfaces
                         // as a toast (like download/upload) instead of a
@@ -606,7 +606,7 @@ impl Oryxis {
                         })
                     },
                     move |result| match result {
-                        Ok(session) => Message::SftpEditReady(session),
+                        Ok(session) => Message::Sftp(SftpMessage::SftpEditReady(session)),
                         // Toast, not SidebarFilesError: see the properties
                         // handler above for the stamp-aliasing rationale.
                         Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),

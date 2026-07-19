@@ -88,10 +88,10 @@ impl Oryxis {
                 .is_some_and(|s| s.is_alive())
             {
                 if let Some(p) = self.sftp_open_at_path.take() {
-                    let nav = self.update(Message::SftpNavigateRemote(
+                    let nav = self.update(Message::Sftp(SftpMessage::SftpNavigateRemote(
                         crate::state::SftpPaneSide::Right,
                         p,
-                    ));
+                    )));
                     return Ok(Task::batch([select, nav]));
                 }
                 return Ok(select);
@@ -134,10 +134,10 @@ impl Oryxis {
                 })
             })
         {
-            let mount = self.update(Message::SftpRemountPane(
+            let mount = self.update(Message::Sftp(SftpMessage::SftpRemountPane(
                 crate::state::SftpPaneSide::Right,
                 ci,
-            ));
+            )));
             return Ok(Task::batch([select, mount]));
         }
         // Ad-hoc host (quick connect / cloud): mount the live

@@ -139,7 +139,7 @@ pub(crate) fn transfer_progress_strip<'a>(
     let cancel_btn = button(
         text(t("cancel")).size(11).color(OryxisColors::t().text_secondary),
     )
-    .on_press(Message::SftpCancelTransfer)
+    .on_press(Message::Sftp(SftpMessage::SftpCancelTransfer))
     .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
     .style(|_, status| {
         let bg = match status {
@@ -205,7 +205,7 @@ pub(crate) fn sftp_log_bar<'a>(open: bool, count: usize) -> Element<'a, Message>
         ]
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::SftpToggleLog)
+    .on_press(Message::Sftp(SftpMessage::SftpToggleLog))
     .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
     .style(|_, status| {
         let bg = match status {
@@ -248,7 +248,7 @@ pub(crate) fn sftp_log_divider<'a>() -> Element<'a, Message> {
                 ..Default::default()
             }),
     )
-    .on_press(Message::SftpLogResizeStart)
+    .on_press(Message::Sftp(SftpMessage::SftpLogResizeStart))
     .interaction(iced::mouse::Interaction::ResizingVertically)
     .into()
 }

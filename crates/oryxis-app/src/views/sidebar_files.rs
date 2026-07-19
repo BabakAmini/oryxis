@@ -11,7 +11,7 @@ use iced::widget::{column, container, text, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{SidebarFilesMessage, Message, Oryxis};
+use crate::app::{SftpMessage, SidebarFilesMessage, Message, Oryxis};
 use crate::dispatch_sidebar_files::{files_join, files_parent_dir};
 use crate::i18n::t;
 use crate::state::TerminalSidebarTab;
@@ -271,7 +271,7 @@ impl Oryxis {
                     // Files: the row's primary is Copy path (toast
                     // feedback); heavier actions live in the context
                     // menu (right-click) and the full SFTP session.
-                    Message::SftpCopyPath(full.clone())
+                    Message::Sftp(SftpMessage::SftpCopyPath(full.clone()))
                 };
                 list = list.push(self.files_row(
                     &entry.name,
@@ -359,7 +359,7 @@ impl Oryxis {
             (Some(full), true) => {
                 let actions = container(action_btn(
                     iced_fonts::lucide::clipboard_copy(),
-                    Message::SftpCopyPath(full.clone()),
+                    Message::Sftp(SftpMessage::SftpCopyPath(full.clone())),
                     t("copy_path"),
                 ))
                 .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })

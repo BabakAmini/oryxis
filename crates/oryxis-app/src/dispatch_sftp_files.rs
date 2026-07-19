@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{SidebarFilesMessage, Message, Oryxis};
+use crate::app::{SftpMessage, SidebarFilesMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_sftp_files(
@@ -22,7 +22,7 @@ impl Oryxis {
         let remote_side = self.sftp.remote_side().unwrap_or(SftpPaneSide::Right);
         let local_side = self.sftp.local_side().unwrap_or(SftpPaneSide::Left);
         match message {
-            Message::SftpShowProperties(side, path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpShowProperties(side, path, is_dir)) => {
                 self.sftp.row_menu = None;
                 if !self.sftp.pane(side).is_remote {
                         // Local stat is sync, populate the modal in
@@ -90,7 +90,7 @@ impl Oryxis {
                             move |result| match result {
                                 Ok(stat) => {
                                     let mode = stat.permissions.unwrap_or(0o644);
-                                    Message::SftpPropertiesLoaded(crate::state::PropertiesView {
+                                    Message::Sftp(SftpMessage::SftpPropertiesLoaded(crate::state::PropertiesView {
                                         side,
                                         client_override: None,
                                         from_sidebar: false,
@@ -105,17 +105,17 @@ impl Oryxis {
                                         mode_input: format!("{:03o}", mode & 0o777),
                                         applying: false,
                                         error: None,
-                                    })
+                                    }))
                                 }
-                                Err(e) => Message::SftpOpResult(side, e, true),
+                                Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                             },
                         ));
                 }
             }
-            Message::SftpPropertiesLoaded(view) => {
+            Message::Sftp(SftpMessage::SftpPropertiesLoaded(view)) => {
                 self.sftp.properties = Some(view);
             }
-            Message::SftpPropertiesToggleBit(bit) => {
+            Message::Sftp(SftpMessage::SftpPropertiesToggleBit(bit)) => {
                 if let Some(p) = self.sftp.properties.as_mut() {
                     let b = &mut p.bits;
                     let f = match bit {
@@ -134,7 +134,7 @@ impl Oryxis {
                     p.mode_input = format!("{:03o}", p.bits.to_mode());
                 }
             }
-            Message::SftpPropertiesModeInput(s) => {
+            Message::Sftp(SftpMessage::SftpPropertiesModeInput(s)) => {
                 if let Some(p) = self.sftp.properties.as_mut() {
                     // Accept only octal digits, at most 4 (a leading special-bit
                     // digit is tolerated but ignored: the dialog edits rwx only
@@ -149,7 +149,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::SftpPropertiesApply => {
+            Message::Sftp(SftpMessage::SftpPropertiesApply) => {
                 let Some(p) = self.sftp.properties.as_mut() else {
                     return Ok(Task::none());
                 };
@@ -175,7 +175,7 @@ impl Oryxis {
                         async move {
                             client.chmod(&path, new_mode).await.map_err(|e| e.to_string())
                         },
-                        Message::SftpPropertiesDone,
+                        |v| Message::Sftp(SftpMessage::SftpPropertiesDone(v)),
                     ));
                 }
                 if !self.sftp.pane(side).is_remote {
@@ -187,29 +187,29 @@ impl Oryxis {
                                 std::fs::Permissions::from_mode(new_mode),
                             )
                             .map_err(|e| e.to_string());
-                            return Ok(Task::done(Message::SftpPropertiesDone(result)));
+                            return Ok(Task::done(Message::Sftp(SftpMessage::SftpPropertiesDone(result))));
                         }
                         #[cfg(not(unix))]
                         {
-                            return Ok(Task::done(Message::SftpPropertiesDone(Err(
+                            return Ok(Task::done(Message::Sftp(SftpMessage::SftpPropertiesDone(Err(
                                 "chmod not supported on this platform".into(),
-                            ))));
+                            )))));
                         }
                 } else {
                         let Some(client) = self.sftp.pane(side).client.clone() else {
-                            return Ok(Task::done(Message::SftpPropertiesDone(Err(
+                            return Ok(Task::done(Message::Sftp(SftpMessage::SftpPropertiesDone(Err(
                                 "Not connected".into(),
-                            ))));
+                            )))));
                         };
                         return Ok(Task::perform(
                             async move {
                                 client.chmod(&path, new_mode).await.map_err(|e| e.to_string())
                             },
-                            Message::SftpPropertiesDone,
+                            |v| Message::Sftp(SftpMessage::SftpPropertiesDone(v)),
                         ));
                 }
             }
-            Message::SftpPropertiesDone(result) => {
+            Message::Sftp(SftpMessage::SftpPropertiesDone(result)) => {
                 match result {
                     Ok(()) => {
                         let side = self.sftp.properties.as_ref().map(|p| p.side);
@@ -233,10 +233,10 @@ impl Oryxis {
                                 self.refresh_sftp_local(side);
                                 Task::none()
                             }
-                            Some(side) => Task::done(Message::SftpNavigateRemote(
+                            Some(side) => Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(
                                 side,
                                 self.sftp.pane(side).remote_path.clone(),
-                            )),
+                            ))),
                             None => Task::none(),
                         });
                     }
@@ -248,10 +248,10 @@ impl Oryxis {
                     }
                 }
             }
-            Message::SftpPropertiesClose => {
+            Message::Sftp(SftpMessage::SftpPropertiesClose) => {
                 self.sftp.properties = None;
             }
-            Message::SftpOpenLocal(path) => {
+            Message::Sftp(SftpMessage::SftpOpenLocal(path)) => {
                 self.sftp.row_menu = None;
                 if let Err(e) = open::that(&path) {
                     self.sftp.pane_mut(local_side).error = Some(format!(
@@ -260,7 +260,7 @@ impl Oryxis {
                     ));
                 }
             }
-            Message::SftpRevealInExplorer(path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpRevealInExplorer(path, is_dir)) => {
                 // Reachable from both the row menu and the `⋮` menu.
                 self.sftp.close_menus();
                 if let Err(e) = crate::util::reveal_in_file_manager(&path, is_dir) {
@@ -270,7 +270,7 @@ impl Oryxis {
                     ));
                 }
             }
-            Message::SftpStartEdit(remote_path) => {
+            Message::Sftp(SftpMessage::SftpStartEdit(remote_path)) => {
                 self.sftp.row_menu = None;
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
                     self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
@@ -333,15 +333,15 @@ impl Oryxis {
                         })
                     },
                     move |result| match result {
-                        Ok(session) => Message::SftpEditReady(session),
-                        Err(e) => Message::SftpOpResult(remote_side, e, true),
+                        Ok(session) => Message::Sftp(SftpMessage::SftpEditReady(session)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
                     },
                 ));
             }
-            Message::SftpEditReady(session) => {
+            Message::Sftp(SftpMessage::SftpEditReady(session)) => {
                 self.sftp.edit_session = Some(session);
             }
-            Message::SftpEditSave => {
+            Message::Sftp(SftpMessage::SftpEditSave) => {
                 let Some(session) = self.sftp.edit_session.take() else {
                     return Ok(Task::none());
                 };
@@ -385,17 +385,17 @@ impl Oryxis {
                         Ok::<String, String>(reload)
                     },
                     move |result| match result {
-                        Ok(reload) => Message::SftpNavigateRemote(remote_side, reload),
-                        Err(e) => Message::SftpOpResult(remote_side, e, true),
+                        Ok(reload) => Message::Sftp(SftpMessage::SftpNavigateRemote(remote_side, reload)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
                     },
                 ));
             }
-            Message::SftpEditDiscard => {
+            Message::Sftp(SftpMessage::SftpEditDiscard) => {
                 if let Some(session) = self.sftp.edit_session.take() {
                     let _ = std::fs::remove_file(&session.temp_path);
                 }
             }
-            Message::SftpEditWatchTick => {
+            Message::Sftp(SftpMessage::SftpEditWatchTick) => {
                 // Cheap mtime poll on the temp file, once we see a
                 // newer timestamp than the initial download, flag the
                 // session dirty and the modal copy adapts to surface

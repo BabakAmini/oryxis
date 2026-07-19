@@ -6,7 +6,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::file_basename;
 use crate::state::SftpPaneSide;
 
@@ -16,7 +16,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SftpStartRename(side, path) => {
+            Message::Sftp(SftpMessage::SftpStartRename(side, path)) => {
                 // Rows inside a browsed archive are read-only.
                 if self.sftp.pane(side).zip.is_some() {
                     return Ok(Task::none());
@@ -35,12 +35,12 @@ impl Oryxis {
                     crate::views::sftp::RENAME_INPUT_ID,
                 )));
             }
-            Message::SftpRenameInput(s) => {
+            Message::Sftp(SftpMessage::SftpRenameInput(s)) => {
                 if let Some(ref mut r) = self.sftp.rename {
                     r.input = s;
                 }
             }
-            Message::SftpRenameCommit => {
+            Message::Sftp(SftpMessage::SftpRenameCommit) => {
                 // The Enter that submits this rename also reaches the global
                 // keyboard subscription; swallow the row-activation it would
                 // otherwise trigger (which re-opens the just-renamed file).
@@ -48,14 +48,14 @@ impl Oryxis {
                 self.sftp.swallow_next_activate = true;
                 return Ok(self.commit_rename());
             }
-            Message::SftpRenamed(side, reload_path, new_name) => {
+            Message::Sftp(SftpMessage::SftpRenamed(side, reload_path, new_name)) => {
                 self.push_sftp_log(
                     crate::state::SftpLogLevel::Ok,
                     format!("{} {}", crate::i18n::t("sftp_log_renamed"), new_name),
                 );
-                return Ok(Task::done(Message::SftpNavigateRemote(side, reload_path)));
+                return Ok(Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(side, reload_path))));
             }
-            Message::SftpAskDelete(side, path, is_dir) => {
+            Message::Sftp(SftpMessage::SftpAskDelete(side, path, is_dir)) => {
                 // Rows inside a browsed archive are read-only.
                 if self.sftp.pane(side).zip.is_some() {
                     return Ok(Task::none());
@@ -67,7 +67,7 @@ impl Oryxis {
                     is_dir,
                 }];
             }
-            Message::SftpAskDeleteSelection => {
+            Message::Sftp(SftpMessage::SftpAskDeleteSelection) => {
                 self.sftp.row_menu = None;
                 let targets: Vec<crate::state::SftpDeleteTarget> = self
                     .sftp
@@ -83,7 +83,7 @@ impl Oryxis {
                     self.sftp.delete_confirm = targets;
                 }
             }
-            Message::SftpConfirmDelete => {
+            Message::Sftp(SftpMessage::SftpConfirmDelete) => {
                 let targets = std::mem::take(&mut self.sftp.delete_confirm);
                 if targets.is_empty() {
                     return Ok(Task::none());
@@ -162,16 +162,16 @@ impl Oryxis {
                             Ok::<(), String>(())
                         },
                         move |r| match r {
-                            Ok(()) => Message::SftpEntriesRemoved(side, removed_paths.clone()),
-                            Err(e) => Message::SftpOpResult(side, e, true),
+                            Ok(()) => Message::Sftp(SftpMessage::SftpEntriesRemoved(side, removed_paths.clone())),
+                            Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                         },
                     ));
                 }
             }
-            Message::SftpCancelDelete => {
+            Message::Sftp(SftpMessage::SftpCancelDelete) => {
                 self.sftp.delete_confirm.clear();
             }
-            Message::SftpEntriesRemoved(side, paths) => {
+            Message::Sftp(SftpMessage::SftpEntriesRemoved(side, paths)) => {
                 // Drop the just-deleted entries from the listing in place,
                 // keeping scroll position and skipping a re-list round trip.
                 if !paths.is_empty() {
@@ -197,7 +197,7 @@ impl Oryxis {
                     !removed.contains(&full)
                 });
             }
-            Message::SftpStartNewEntry(side, kind) => {
+            Message::Sftp(SftpMessage::SftpStartNewEntry(side, kind)) => {
                 // No creating entries inside a browsed archive.
                 if self.sftp.pane(side).zip.is_some() {
                     return Ok(Task::none());
@@ -209,12 +209,12 @@ impl Oryxis {
                     input: String::new(),
                 });
             }
-            Message::SftpNewEntryInput(s) => {
+            Message::Sftp(SftpMessage::SftpNewEntryInput(s)) => {
                 if let Some(ref mut e) = self.sftp.new_entry {
                     e.input = s;
                 }
             }
-            Message::SftpNewEntryCommit => {
+            Message::Sftp(SftpMessage::SftpNewEntryCommit) => {
                 let Some(ne) = self.sftp.new_entry.take() else {
                     return Ok(Task::none());
                 };
@@ -289,16 +289,16 @@ impl Oryxis {
                             }
                         },
                         move |result| match result {
-                            Ok(()) => Message::SftpNavigateRemote(side, reload_path.clone()),
-                            Err(e) => Message::SftpOpResult(side, e, true),
+                            Ok(()) => Message::Sftp(SftpMessage::SftpNavigateRemote(side, reload_path.clone())),
+                            Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                         },
                     ));
                 }
             }
-            Message::SftpNewEntryCancel => {
+            Message::Sftp(SftpMessage::SftpNewEntryCancel) => {
                 self.sftp.new_entry = None;
             }
-            Message::SftpOpResult(side, msg, is_error) => {
+            Message::Sftp(SftpMessage::SftpOpResult(side, msg, is_error)) => {
                 if is_error {
                     self.push_sftp_log(
                         crate::state::SftpLogLevel::Error,

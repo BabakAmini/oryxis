@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SftpMessage, Message, Oryxis};
 use crate::state::SftpPaneSide;
 
 impl Oryxis {
@@ -34,7 +34,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SftpToggleActions(side) => {
+            Message::Sftp(SftpMessage::SftpToggleActions(side)) => {
                 let now = !self.sftp.pane(side).actions_open;
                 self.sftp.left.actions_open = false;
                 self.sftp.right.actions_open = false;
@@ -43,7 +43,7 @@ impl Oryxis {
                 self.sftp.right.filter_open = false;
                 self.sftp.pane_mut(side).actions_open = now;
             }
-            Message::SftpToggleDrives(side) => {
+            Message::Sftp(SftpMessage::SftpToggleDrives(side)) => {
                 let now = !self.sftp.pane(side).drives_open;
                 self.sftp.left.actions_open = false;
                 self.sftp.right.actions_open = false;
@@ -51,10 +51,10 @@ impl Oryxis {
                 self.sftp.right.drives_open = false;
                 self.sftp.pane_mut(side).drives_open = now;
             }
-            Message::SftpCloseMenus => {
+            Message::Sftp(SftpMessage::SftpCloseMenus) => {
                 self.sftp.close_menus();
             }
-            Message::SftpToggleColumn(side, col) => {
+            Message::Sftp(SftpMessage::SftpToggleColumn(side, col)) => {
                 // Per-pane toggle; the actions menu stays open so the user can
                 // flip several columns in one pass. The edited pane becomes the
                 // new persisted template seed.
@@ -62,15 +62,15 @@ impl Oryxis {
                 self.sftp_columns_template = self.sftp.pane(side).columns.clone();
                 self.persist_sftp_columns();
             }
-            Message::SftpColResizeStart(side, col) => {
+            Message::Sftp(SftpMessage::SftpColResizeStart(side, col)) => {
                 let start_w = self.sftp.pane(side).columns.width.get(col);
                 self.sftp_col_resize = Some((side, col, self.mouse_position.x, start_w));
                 self.sftp.close_menus();
             }
-            Message::SftpColAutoFit(side, col) => {
+            Message::Sftp(SftpMessage::SftpColAutoFit(side, col)) => {
                 self.autofit_sftp_column(side, col);
             }
-            Message::SftpColDragStart(side, col) => {
+            Message::Sftp(SftpMessage::SftpColDragStart(side, col)) => {
                 self.sftp_col_drag = Some(crate::state::SftpColDrag {
                     side,
                     col,
@@ -78,13 +78,13 @@ impl Oryxis {
                     active: false,
                 });
             }
-            Message::SftpColHovered(side, col) => {
+            Message::Sftp(SftpMessage::SftpColHovered(side, col)) => {
                 self.sftp_hovered_col = Some((side, col));
             }
-            Message::SftpColUnhovered => {
+            Message::Sftp(SftpMessage::SftpColUnhovered) => {
                 self.sftp_hovered_col = None;
             }
-            Message::SftpToggleFilterSearch(side) => {
+            Message::Sftp(SftpMessage::SftpToggleFilterSearch(side)) => {
                 let now = !self.sftp.pane(side).filter_open;
                 self.sftp.close_menus();
                 self.sftp.pane_mut(side).filter_open = now;
@@ -97,15 +97,15 @@ impl Oryxis {
                     return Ok(iced::widget::operation::focus(iced::widget::Id::new(id)));
                 }
             }
-            Message::SftpToggleLog => {
+            Message::Sftp(SftpMessage::SftpToggleLog) => {
                 self.sftp.log_open = !self.sftp.log_open;
             }
-            Message::SftpSplitResizeStart => {
+            Message::Sftp(SftpMessage::SftpSplitResizeStart) => {
                 // Capture the cursor x and current ratio; the MouseMoved
                 // handler computes the delta against these.
                 self.sftp_split_drag = Some((self.mouse_position.x, self.sftp_split_ratio));
             }
-            Message::SftpLogResizeStart => {
+            Message::Sftp(SftpMessage::SftpLogResizeStart) => {
                 // Capture the cursor y and current log height; the MouseMoved
                 // handler computes the delta against these.
                 self.sftp_log_drag = Some((self.mouse_position.y, self.sftp.log_height));

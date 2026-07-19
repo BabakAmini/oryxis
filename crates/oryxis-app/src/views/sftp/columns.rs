@@ -197,8 +197,8 @@ pub(crate) fn col_resize_handle<'a>(
         .height(Length::Fill)
         .center_x(Length::Fixed(COL_RESIZE_HANDLE_W)),
     )
-    .on_press(Message::SftpColResizeStart(side, target))
-    .on_double_click(Message::SftpColAutoFit(side, target))
+    .on_press(Message::Sftp(SftpMessage::SftpColResizeStart(side, target)))
+    .on_double_click(Message::Sftp(SftpMessage::SftpColAutoFit(side, target)))
     .interaction(iced::mouse::Interaction::ResizingHorizontally)
     .into()
 }
@@ -307,9 +307,9 @@ pub(crate) fn header_cell<'a>(
             .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 6.0 })
             .align_y(iced::alignment::Vertical::Center),
     )
-    .on_press(Message::SftpColDragStart(side, col))
-    .on_enter(Message::SftpColHovered(side, col))
-    .on_exit(Message::SftpColUnhovered)
+    .on_press(Message::Sftp(SftpMessage::SftpColDragStart(side, col)))
+    .on_enter(Message::Sftp(SftpMessage::SftpColHovered(side, col)))
+    .on_exit(Message::Sftp(SftpMessage::SftpColUnhovered))
     // Grab hint normally; grabbing while a reorder drag is active so the
     // user gets cursor feedback that the drag took.
     .interaction(if dragging {
