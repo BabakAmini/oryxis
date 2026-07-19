@@ -231,7 +231,7 @@ impl Oryxis {
             } else {
                 crate::i18n::t("save_session_group")
             };
-            items = items.push(self.menu_item(iced_fonts::lucide::boxes(), sg_label, Message::ShowSaveSessionGroup(idx), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(iced_fonts::lucide::boxes(), sg_label, Message::SessionGroup(SessionGroupMessage::ShowSaveSessionGroup(idx)), OryxisColors::t().text_secondary));
         }
         // Pin / unpin: pinned tabs render first and restore on launch.
         // The restore spec captures only a single pane's origin, so

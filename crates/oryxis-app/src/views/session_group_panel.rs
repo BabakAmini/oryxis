@@ -12,7 +12,7 @@ use iced::border::Radius;
 use iced::widget::{column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SessionGroupMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
@@ -50,7 +50,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted),
             )
             .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 }),
-            Message::SessionGroupFormCancel,
+            Message::SessionGroup(SessionGroupMessage::SessionGroupFormCancel),
         );
         let panel_header = container(
             dir_row(vec![
@@ -73,8 +73,8 @@ impl Oryxis {
             10.0,
             text_input(t("session_group_label_placeholder"), &form.label)
                 .id(iced::widget::Id::new("session-group-name"))
-                .on_input(Message::SessionGroupFormLabelChanged)
-                .on_submit(Message::SessionGroupFormSave)
+                .on_input(|v| Message::SessionGroup(SessionGroupMessage::SessionGroupFormLabelChanged(v)))
+                .on_submit(Message::SessionGroup(SessionGroupMessage::SessionGroupFormSave))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x())
@@ -87,8 +87,8 @@ impl Oryxis {
         const COMBO_HEIGHT: f32 = 36.0;
         let folder_input = text_input(t("group_placeholder"), &form.group_name)
             .id(iced::widget::Id::new("panel-session-group-folder"))
-            .on_input(Message::SessionGroupFormGroupChanged)
-            .on_submit(Message::SessionGroupFormSave)
+            .on_input(|v| Message::SessionGroup(SessionGroupMessage::SessionGroupFormGroupChanged(v)))
+            .on_submit(Message::SessionGroup(SessionGroupMessage::SessionGroupFormSave))
             .padding(10)
             .width(Length::Fill)
             .style(crate::widgets::rounded_input_style)
@@ -155,7 +155,7 @@ impl Oryxis {
             .map(crate::os_icon::custom_icon_glyph)
             .unwrap_or(BrandIcon::Glyph(iced_fonts::lucide::boxes()));
         let icon_badge = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::ShowSessionGroupIconPicker),
+            crate::keynav::RowAction::activate(Message::SessionGroup(SessionGroupMessage::ShowSessionGroupIconPicker)),
             8.0,
             press(
                 container(badge_glyph.view(18.0, Color::WHITE))
@@ -168,7 +168,7 @@ impl Oryxis {
                         border: Border { radius: Radius::from(8.0), ..Default::default() },
                         ..Default::default()
                     }),
-                Message::ShowSessionGroupIconPicker,
+                Message::SessionGroup(SessionGroupMessage::ShowSessionGroupIconPicker),
             ),
         );
 
@@ -233,13 +233,13 @@ impl Oryxis {
                 nav(
                     iced_fonts::lucide::chevron_left(),
                     cur > 0,
-                    Message::SessionGroupPaneNav(false),
+                    Message::SessionGroup(SessionGroupMessage::SessionGroupPaneNav(false)),
                 ),
                 counter.into(),
                 nav(
                     iced_fonts::lucide::chevron_right(),
                     cur + 1 < total,
-                    Message::SessionGroupPaneNav(true),
+                    Message::SessionGroup(SessionGroupMessage::SessionGroupPaneNav(true)),
                 ),
             ])
             .align_y(iced::Alignment::Center)
@@ -254,7 +254,7 @@ impl Oryxis {
                     iced::widget::text_editor(&self.session_group_script_editor)
                         .id(iced::widget::Id::new("panel-session-group-script"))
                         .placeholder(t("session_group_pane_script_placeholder"))
-                        .on_action(Message::SessionGroupScriptAction)
+                        .on_action(|v| Message::SessionGroup(SessionGroupMessage::SessionGroupScriptAction(v)))
                         .padding(10)
                         .height(Length::Shrink)
                         .style(crate::widgets::rounded_editor_style),
@@ -300,7 +300,7 @@ impl Oryxis {
             OryxisColors::t().accent
         };
         let save_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::SessionGroupFormSave),
+            crate::keynav::RowAction::activate(Message::SessionGroup(SessionGroupMessage::SessionGroupFormSave)),
             8.0,
             press(
                 container(
@@ -316,7 +316,7 @@ impl Oryxis {
                     border: Border { radius: Radius::from(8.0), ..Default::default() },
                     ..Default::default()
                 }),
-                Message::SessionGroupFormSave,
+                Message::SessionGroup(SessionGroupMessage::SessionGroupFormSave),
             ),
         );
 

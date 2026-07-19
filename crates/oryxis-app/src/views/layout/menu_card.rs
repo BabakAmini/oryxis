@@ -162,10 +162,10 @@ impl Oryxis {
 
     pub(crate) fn build_menu_session_group_actions(&self, idx: usize) -> Element<'_, Message> {
         column![
-            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("open_session_group"), Message::OpenSessionGroup(idx), OryxisColors::t().success),
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSessionGroup(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateSessionGroup(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteSessionGroup(idx), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("open_session_group"), Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx)), OryxisColors::t().success),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::SessionGroup(SessionGroupMessage::EditSessionGroup(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::SessionGroup(SessionGroupMessage::DuplicateSessionGroup(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::SessionGroup(SessionGroupMessage::RequestDeleteSessionGroup(idx)), OryxisColors::t().error),
         ]
         .into()
     }

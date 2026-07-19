@@ -68,7 +68,7 @@ impl Oryxis {
             )
             .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 }),
         )
-        .on_press(Message::OpenSessionGroup(idx))
+        .on_press(Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx)))
         .width(Length::Fill)
         .style(move |_, status| {
             let (bg, bc, bw) = match status {
@@ -98,7 +98,7 @@ impl Oryxis {
         let dots_btn = crate::widgets::card_kebab_button(
             dots_glyph_color,
             show_dots,
-            Message::ShowSessionGroupMenu(idx),
+            Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)),
         );
         let dots_align = if rtl {
             iced::alignment::Horizontal::Left
@@ -138,9 +138,9 @@ impl Oryxis {
             .into();
 
         let wrapped = MouseArea::new(card_element)
-            .on_enter(Message::SessionGroupCardHovered(idx))
-            .on_exit(Message::SessionGroupCardUnhovered)
-            .on_right_press(Message::ShowSessionGroupMenu(idx));
+            .on_enter(Message::SessionGroup(SessionGroupMessage::SessionGroupCardHovered(idx)))
+            .on_exit(Message::SessionGroup(SessionGroupMessage::SessionGroupCardUnhovered))
+            .on_right_press(Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)));
 
         (
             Element::from(container(wrapped).width(Length::Fill).clip(true)),

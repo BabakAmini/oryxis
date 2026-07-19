@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -521,7 +521,7 @@ impl Oryxis {
                     Message::ShowFolderActions(gid)
                 }
             }
-            NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::ShowSessionGroupMenu(i),
+            NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(i)),
             NavItem::Key(i) => Message::ShowKeyMenu(i),
             NavItem::Identity(i) => Message::ShowIdentityMenu(i),
             NavItem::Snippet(i) => Message::Snippet(SnippetMessage::ShowSnippetMenu(i)),
@@ -579,7 +579,7 @@ impl Oryxis {
         }
         let msg = match item {
             NavItem::Dash(DashNavItem::Group(gid)) => Message::OpenGroup(gid),
-            NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::OpenSessionGroup(i),
+            NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(i)),
             NavItem::Dash(DashNavItem::Host(i)) => Message::ConnectSsh(i),
             NavItem::Key(i) => Message::EditKey(i),
             NavItem::Identity(i) => Message::EditIdentity(i),

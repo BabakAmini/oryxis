@@ -17,7 +17,7 @@ use oryxis_core::models::group::Group;
 use oryxis_core::models::{PaneLayout, PaneSource, SessionGroup};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+use crate::app::{SessionGroupMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 use crate::session_group_helpers::{
     apply_scripts, from_split_axis, prune_layout, rows_from_layout, snapshot_tab_layout,
 };
@@ -52,7 +52,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::ShowSaveSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::ShowSaveSessionGroup(idx)) => {
                 self.overlay = None;
                 let Some(tab) = self.tabs.get(idx) else {
                     return Ok(Task::none());
@@ -97,7 +97,7 @@ impl Oryxis {
                 Ok(self.open_session_group_editor(form))
             }
 
-            Message::EditSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::EditSessionGroup(idx)) => {
                 self.overlay = None;
                 let Some(group) = self.session_groups.get(idx) else {
                     return Ok(Task::none());
@@ -123,15 +123,15 @@ impl Oryxis {
                 Ok(self.open_session_group_editor(form))
             }
 
-            Message::SessionGroupFormLabelChanged(v) => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupFormLabelChanged(v)) => {
                 self.editor_session_group.label = v;
                 Ok(Task::none())
             }
-            Message::SessionGroupFormGroupChanged(v) => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupFormGroupChanged(v)) => {
                 self.editor_session_group.group_name = v;
                 Ok(Task::none())
             }
-            Message::SessionGroupScriptAction(action) => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupScriptAction(action)) => {
                 self.session_group_script_editor.perform(action);
                 // text_editor always reports a trailing newline; drop the one
                 // it appends so a single-line script doesn't gain a blank
@@ -144,7 +144,7 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
-            Message::SessionGroupPaneNav(next) => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupPaneNav(next)) => {
                 let len = self.editor_session_group.pane_rows.len();
                 if len > 0 {
                     let cur = self.editor_session_group.current_pane;
@@ -168,17 +168,17 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::SessionGroupFormSave => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupFormSave) => {
                 Ok(self.save_session_group_form())
             }
 
-            Message::SessionGroupFormCancel => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupFormCancel) => {
                 self.show_session_group_panel = false;
                 self.session_group_panel_error = None;
                 Ok(Task::none())
             }
 
-            Message::ShowSessionGroupIconPicker => {
+            Message::SessionGroup(SessionGroupMessage::ShowSessionGroupIconPicker) => {
                 // Reuse the host icon/color picker, seeded from the form. The
                 // choice flows back into `editor_session_group` on the
                 // picker's Save (deferred, like the dynamic-group form).
@@ -195,7 +195,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::DuplicateSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::DuplicateSessionGroup(idx)) => {
                 self.overlay = None;
                 if let Some(src) = self.session_groups.get(idx).cloned() {
                     let mut dup = oryxis_core::models::SessionGroup::new(
@@ -213,14 +213,14 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::RequestDeleteSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::RequestDeleteSessionGroup(idx)) => {
                 if let Some(group) = self.session_groups.get(idx) {
                     let name = group.label.clone();
-                    self.confirm_remove(name, Message::DeleteSessionGroup(idx));
+                    self.confirm_remove(name, Message::SessionGroup(SessionGroupMessage::DeleteSessionGroup(idx)));
                 }
                 Ok(Task::none())
             }
-            Message::DeleteSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::DeleteSessionGroup(idx)) => {
                 self.overlay = None;
                 if let Some(group) = self.session_groups.get(idx)
                     && let Some(vault) = &self.vault
@@ -231,7 +231,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::ShowSessionGroupMenu(idx) => {
+            Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)) => {
                 use crate::state::{OverlayContent, OverlayState};
                 if matches!(
                     self.overlay.as_ref().map(|o| &o.content),
@@ -249,16 +249,16 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::SessionGroupCardHovered(idx) => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupCardHovered(idx)) => {
                 self.hovered_session_group_card = Some(idx);
                 Ok(Task::none())
             }
-            Message::SessionGroupCardUnhovered => {
+            Message::SessionGroup(SessionGroupMessage::SessionGroupCardUnhovered) => {
                 self.hovered_session_group_card = None;
                 Ok(Task::none())
             }
 
-            Message::OpenSessionGroup(idx) => {
+            Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx)) => {
                 self.overlay = None;
                 Ok(self.open_session_group(idx))
             }
