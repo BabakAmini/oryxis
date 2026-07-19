@@ -11,7 +11,7 @@ use iced::widget::{column, container, text, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{Message, Oryxis};
+use crate::app::{SidebarFilesMessage, Message, Oryxis};
 use crate::dispatch_sidebar_files::{files_join, files_parent_dir};
 use crate::i18n::t;
 use crate::state::TerminalSidebarTab;
@@ -48,8 +48,8 @@ impl Oryxis {
                 crate::widgets::INPUT_RADIUS,
                 iced::widget::text_input("/", editing)
                     .id(iced::widget::Id::new("sidebar-files-path"))
-                    .on_input(Message::SidebarFilesEditPath)
-                    .on_submit(Message::SidebarFilesCommitPath)
+                    .on_input(|v| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEditPath(v)))
+                    .on_submit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesCommitPath))
                     .padding(4)
                     .size(12)
                     .font(iced::Font::MONOSPACE)
@@ -70,17 +70,17 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary)
                     .width(Length::Fill),
             )
-            .on_press(Message::SidebarFilesStartEditPath)
+            .on_press(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartEditPath))
             .interaction(iced::mouse::Interaction::Text);
             self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::SidebarFilesStartEditPath),
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartEditPath)),
                 stab,
                 6.0,
                 label.into(),
             )
         };
         let pin_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFilesToggleFollow),
+            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow)),
             stab,
             6.0,
             // The pin fills with an accent wash when following (a clear
@@ -92,12 +92,12 @@ impl Oryxis {
                     iced_fonts::lucide::pin_off()
                 },
                 follow,
-                Message::SidebarFilesToggleFollow,
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow),
                 if follow { t("files_follow_on_tip") } else { t("files_follow_off_tip") },
             ),
         );
         let hidden_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFilesToggleHidden),
+            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden)),
             stab,
             6.0,
             toggle_action_btn(
@@ -107,27 +107,27 @@ impl Oryxis {
                     iced_fonts::lucide::eye_off()
                 },
                 files.show_hidden,
-                Message::SidebarFilesToggleHidden,
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden),
                 if files.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") },
             ),
         );
         let refresh_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFilesRefresh),
+            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh)),
             stab,
             6.0,
             action_btn(
                 iced_fonts::lucide::rotate_cw(),
-                Message::SidebarFilesRefresh,
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
                 t("refresh"),
             ),
         );
         let expand_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFilesExpand),
+            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand)),
             stab,
             6.0,
             action_btn(
                 iced_fonts::lucide::folder_tree(),
-                Message::SidebarFilesExpand,
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand),
                 t("open_sftp_session_here"),
             ),
         );
@@ -151,12 +151,12 @@ impl Oryxis {
                 sidebar_placeholder(err),
                 container(
                     self.sidebar_nav_slot(
-                        crate::keynav::SidebarRow::button(Message::SidebarFilesRefresh),
+                        crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh)),
                         stab,
                         6.0,
                         action_btn(
                             iced_fonts::lucide::rotate_cw(),
-                            Message::SidebarFilesRefresh,
+                            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
                             t("retry"),
                         ),
                     )
@@ -181,8 +181,8 @@ impl Oryxis {
                 };
                 let field = iced::widget::text_input(t("name"), input)
                     .id(iced::widget::Id::new("sidebar-files-new"))
-                    .on_input(Message::SidebarFilesNewEntryInput)
-                    .on_submit(Message::SidebarFilesNewEntryCommit)
+                    .on_input(|v| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNewEntryInput(v)))
+                    .on_submit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNewEntryCommit))
                     .padding(6)
                     .size(12)
                     .style(crate::widgets::rounded_input_style);
@@ -211,7 +211,7 @@ impl Oryxis {
                     true,
                     false,
                     0,
-                    Message::SidebarFilesNavigate(parent),
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(parent)),
                     None,
                     pos,
                 ));
@@ -231,8 +231,8 @@ impl Oryxis {
                 {
                     let field = iced::widget::text_input("", rinput)
                         .id(iced::widget::Id::new("sidebar-files-rename"))
-                        .on_input(Message::SidebarFilesRenameInput)
-                        .on_submit(Message::SidebarFilesRenameCommit)
+                        .on_input(|v| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRenameInput(v)))
+                        .on_submit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRenameCommit))
                         .padding(6)
                         .size(12)
                         .style(crate::widgets::rounded_input_style);
@@ -266,7 +266,7 @@ impl Oryxis {
                     continue;
                 }
                 let primary = if entry.is_dir {
-                    Message::SidebarFilesNavigate(full.clone())
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(full.clone()))
                 } else {
                     // Files: the row's primary is Copy path (toast
                     // feedback); heavier actions live in the context
@@ -297,7 +297,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .height(Length::Fill);
             MouseArea::new(scroll)
-                .on_right_press(Message::ShowSidebarFilesBackgroundMenu)
+                .on_right_press(Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesBackgroundMenu))
                 .into()
         };
 
@@ -380,15 +380,15 @@ impl Oryxis {
         };
 
         let mut area = MouseArea::new(row_el)
-            .on_enter(Message::SidebarFilesRowHovered(pos))
-            .on_exit(Message::SidebarFilesRowUnhovered)
+            .on_enter(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowHovered(pos)))
+            .on_exit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowUnhovered))
             .on_press(primary.clone())
             .interaction(iced::mouse::Interaction::Pointer);
         // Right-click opens the row's context menu (Open / Open SFTP
         // session here / Copy path / Copy name); the ".." row has none.
         if let Some(full) = &full_path {
             area = area
-                .on_right_press(Message::ShowSidebarFilesRowMenu(full.clone(), is_dir));
+                .on_right_press(Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesRowMenu(full.clone(), is_dir)));
         }
 
         self.sidebar_nav_slot(

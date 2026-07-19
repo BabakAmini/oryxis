@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SidebarFilesMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_sftp_files(
@@ -224,7 +224,7 @@ impl Oryxis {
                         // browser (the modal blocked interaction, so the
                         // active pane is still the one that opened it).
                         if from_sidebar {
-                            return Ok(self.update(Message::SidebarFilesRefresh));
+                            return Ok(self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh)));
                         }
                         // Refresh whichever pane we just touched so
                         // the new permissions show up immediately.
@@ -361,8 +361,8 @@ impl Oryxis {
                             Ok::<(), String>(())
                         },
                         |result| match result {
-                            Ok(()) => Message::SidebarFilesRefresh,
-                            Err(e) => Message::SidebarFilesOpToast(e),
+                            Ok(()) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
+                            Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),
                         },
                     ));
                 }

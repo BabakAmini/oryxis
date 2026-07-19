@@ -17,6 +17,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod sidebar_files;
+pub use sidebar_files::SidebarFilesMessage;
 mod terminal;
 pub use terminal::TerminalMessage;
 mod ssh;
@@ -384,83 +386,8 @@ pub enum Message {
     // Snippets / History). Navigation targets the ACTIVE pane; async
     // results carry the pane's stable `Uuid` so a pane/tab switch
     // mid-flight can't land a listing on the wrong browser.
-    SidebarFilesNavigate(String),
-    SidebarFilesRefresh,
-    SidebarFilesToggleFollow,
-    SidebarFilesToggleHidden,
-    /// Promote the sidebar browser to a full SFTP tab at its current
-    /// directory.
-    SidebarFilesExpand,
-    /// Initial mount finished: the SFTP channel, the session home (for
-    /// `~`-relative cwd expansion) plus the first listing. The `u64` is
-    /// the request stamp (`PaneFiles::req_seq`) captured at dispatch; a
-    /// mismatch on arrival means a newer request (or a disconnect
-    /// reset) superseded this one and it is dropped.
-    SidebarFilesMounted(
-        Uuid,
-        u64,
-        oryxis_ssh::SftpClient,
-        Option<String>,
-        String,
-        Vec<oryxis_ssh::SftpEntry>,
-    ),
-    /// A navigation / follow / refresh listing landed (same stamp rule).
-    SidebarFilesListed(Uuid, u64, String, Vec<oryxis_ssh::SftpEntry>),
-    SidebarFilesError(Uuid, u64, String),
-    SidebarFilesRowHovered(usize),
-    SidebarFilesRowUnhovered,
-    /// Right-click on a sidebar Files row: open its context menu
-    /// (full path + is_dir), anchored at the cursor.
-    ShowSidebarFilesRowMenu(String, bool),
-    /// The header path is clickable (mirrors the SFTP pane's path
-    /// editing): start / live-edit / commit typing a directory.
-    SidebarFilesStartEditPath,
-    SidebarFilesEditPath(String),
-    SidebarFilesCommitPath,
-    /// Open (or reveal) this tab's SFTP session at the given remote
-    /// directory: the sidebar ⛶, the row context menu and the expand
-    /// affordances all funnel here.
-    SidebarFilesOpenSftpAt(String),
-    /// Right-click on the list's empty area: directory-level menu
-    /// (New file / New folder / Upload here / Refresh / Copy path).
-    ShowSidebarFilesBackgroundMenu,
-    /// Inline rename of a sidebar row: start (full path) / live input /
-    /// commit. Esc via the sidebar router cancels.
-    SidebarFilesStartRename(String),
-    SidebarFilesRenameInput(String),
-    SidebarFilesRenameCommit,
-    /// Inline create (file or folder) at the top of the list.
-    SidebarFilesStartNewEntry(crate::state::SftpEntryKind),
-    SidebarFilesNewEntryInput(String),
-    SidebarFilesNewEntryCommit,
-    /// Delete an entry: ask (routes through the shared confirm dialog),
-    /// then the confirmed op (recursive for directories).
-    SidebarFilesDelete(String, bool),
-    SidebarFilesDeleteConfirmed(String, bool),
-    /// Download a file to a local destination picked via the OS dialog.
-    SidebarFilesDownload(String),
-    /// One-shot op finished (download / upload): toast the outcome.
-    SidebarFilesOpToast(String),
-    /// Upload local file(s) picked via the OS dialog into a directory.
-    /// Only opens the dialog; a cancelled dialog ends the flow with no
-    /// state touched (in particular no request-stamp bump, which would
-    /// strand an in-flight listing's completion).
-    SidebarFilesUploadInto(String),
-    /// The upload dialog returned actual picks: run the uploads on the
-    /// pane's channel. Payload: pane id, destination directory, local
-    /// paths.
-    SidebarFilesUploadPicked(Uuid, String, Vec<std::path::PathBuf>),
-    /// Open the shared Properties (permissions) modal for a sidebar
-    /// entry, chmod-ing through the sidebar's own client.
-    SidebarFilesShowProperties(String, bool),
-    /// Edit-in-place for a sidebar file (temp download + OS editor +
-    /// auto-upload), through the sidebar's own client.
-    SidebarFilesEdit(String),
-    /// Uploads finished: toast the outcome, then refresh the pane's
-    /// current listing through the normal stamped pipeline (the handler
-    /// bumps the request stamp synchronously, so the refresh always
-    /// resolves `loading` no matter how it completes).
-    SidebarFilesUploadFinished(Uuid, String),
+    // SidebarFiles (handle_sidebar_files)
+    SidebarFiles(SidebarFilesMessage),
     /// Hybrid tab (issue #61): flip the terminal tab at this index
     /// between its Terminal and Files-full (dual-pane SFTP) states.
     /// Fired by the tab's mode glyph, the status-bar segment, the tab

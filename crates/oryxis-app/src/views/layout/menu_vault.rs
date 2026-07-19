@@ -28,7 +28,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::folder_open(),
                 crate::i18n::t("open"),
-                Message::SidebarFilesNavigate(path.clone()),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(path.clone())),
                 secondary,
             ));
         } else {
@@ -38,40 +38,40 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit"),
-                Message::SidebarFilesEdit(path.clone()),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEdit(path.clone())),
                 secondary,
             ));
             items = items.push(self.menu_item(
                 iced_fonts::lucide::download(),
                 crate::i18n::t("download"),
-                Message::SidebarFilesDownload(path.clone()),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDownload(path.clone())),
                 OryxisColors::t().accent,
             ));
         }
         items = items.push(self.menu_item(
             iced_fonts::lucide::folder_tree(),
             crate::i18n::t("open_sftp_session_here"),
-            Message::SidebarFilesOpenSftpAt(sftp_dir),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(sftp_dir)),
             OryxisColors::t().accent,
         ));
         if is_dir {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::upload(),
                 crate::i18n::t("upload_here"),
-                Message::SidebarFilesUploadInto(path.clone()),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadInto(path.clone())),
                 secondary,
             ));
         }
         items = items.push(self.menu_item(
             iced_fonts::lucide::pen_line(),
             crate::i18n::t("rename"),
-            Message::SidebarFilesStartRename(path.clone()),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartRename(path.clone())),
             secondary,
         ));
         items = items.push(self.menu_item(
             iced_fonts::lucide::cog(),
             crate::i18n::t("properties"),
-            Message::SidebarFilesShowProperties(path.clone(), is_dir),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(path.clone(), is_dir)),
             secondary,
         ));
         items = items.push(self.menu_item(
@@ -93,7 +93,7 @@ impl Oryxis {
         items = items.push(self.menu_item(
             iced_fonts::lucide::trash(),
             crate::i18n::t("delete"),
-            Message::SidebarFilesDelete(path.clone(), is_dir),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDelete(path.clone(), is_dir)),
             OryxisColors::t().error,
         ));
         items.into()
@@ -105,25 +105,25 @@ impl Oryxis {
             self.menu_item(
                 iced_fonts::lucide::folder_plus(),
                 crate::i18n::t("new_folder"),
-                Message::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::Folder),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::Folder)),
                 secondary,
             ),
             self.menu_item(
                 iced_fonts::lucide::file_plus(),
                 crate::i18n::t("new_file"),
-                Message::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::File),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::File)),
                 secondary,
             ),
             self.menu_item(
                 iced_fonts::lucide::upload(),
                 crate::i18n::t("upload_here"),
-                Message::SidebarFilesUploadInto(dir.clone()),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadInto(dir.clone())),
                 OryxisColors::t().accent,
             ),
             self.menu_item(
                 iced_fonts::lucide::rotate_cw(),
                 crate::i18n::t("refresh"),
-                Message::SidebarFilesRefresh,
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
                 secondary,
             ),
             self.menu_item(

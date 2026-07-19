@@ -12,7 +12,7 @@ use iced::Task;
 use uuid::Uuid;
 
 use crate::app::Oryxis;
-use crate::messages::Message;
+use crate::messages::{Message, SidebarFilesMessage};
 use crate::state::TerminalSidebarTab;
 
 /// Dirs first, then case-insensitive by name, the sidebar's fixed sort
@@ -87,13 +87,13 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::SidebarFilesRowHovered(idx) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowHovered(idx)) => {
                 self.hovered_files_row = Some(idx);
             }
-            Message::SidebarFilesRowUnhovered => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowUnhovered) => {
                 self.hovered_files_row = None;
             }
-            Message::SidebarFilesToggleFollow => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow) => {
                 if let Some(pane) = self.active_pane_mut() {
                     pane.files.follow_disabled = !pane.files.follow_disabled;
                 }
@@ -101,12 +101,12 @@ impl Oryxis {
                 // shell's directory right away.
                 return Ok(self.sidebar_files_sync());
             }
-            Message::SidebarFilesToggleHidden => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden) => {
                 if let Some(pane) = self.active_pane_mut() {
                     pane.files.show_hidden = !pane.files.show_hidden;
                 }
             }
-            Message::SidebarFilesRefresh => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh) => {
                 // Also fired from the background context menu.
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
@@ -127,7 +127,7 @@ impl Oryxis {
                     _ => return Ok(self.sidebar_files_sync()),
                 }
             }
-            Message::SidebarFilesNavigate(path) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(path)) => {
                 // Also fired from the row context menu; dismiss it.
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
@@ -176,7 +176,7 @@ impl Oryxis {
                 }
                 return Ok(list);
             }
-            Message::SidebarFilesExpand => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand) => {
                 // Expand = this tab's SFTP session (the hybrid Files
                 // mode) at the browser's current directory. Owner QA
                 // 2026-07-05: expanding must NOT open a standalone tab.
@@ -184,9 +184,9 @@ impl Oryxis {
                     .active_pane_mut()
                     .map(|p| p.files.path.clone())
                     .unwrap_or_default();
-                return Ok(self.update(Message::SidebarFilesOpenSftpAt(path)));
+                return Ok(self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(path))));
             }
-            Message::SidebarFilesOpenSftpAt(path) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(path)) => {
                 // Flip the active tab into its SFTP session at `path`.
                 // The one-shot hint is consumed by the toggle's mount
                 // (or by a navigate when the session already exists),
@@ -198,7 +198,7 @@ impl Oryxis {
                 self.sftp_open_at_path = (!path.is_empty()).then_some(path);
                 return Ok(self.update(Message::ToggleTabFilesMode(tab_idx)));
             }
-            Message::ShowSidebarFilesRowMenu(path, is_dir) => {
+            Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesRowMenu(path, is_dir)) => {
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(crate::state::OverlayState {
                     content: crate::state::OverlayContent::SidebarFilesRow { path, is_dir },
@@ -206,7 +206,7 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::ShowSidebarFilesBackgroundMenu => {
+            Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesBackgroundMenu) => {
                 // Directory-level menu for the current folder; only once
                 // mounted (an unmounted browser has nothing to act on).
                 let Some(dir) = self
@@ -223,7 +223,7 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::SidebarFilesStartRename(path) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartRename(path)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -239,14 +239,14 @@ impl Oryxis {
                     "sidebar-files-rename",
                 )));
             }
-            Message::SidebarFilesRenameInput(s) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRenameInput(s)) => {
                 if let Some(pane) = self.active_pane_mut()
                     && let Some((_, input)) = pane.files.rename.as_mut()
                 {
                     *input = s;
                 }
             }
-            Message::SidebarFilesRenameCommit => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRenameCommit) => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -280,7 +280,7 @@ impl Oryxis {
                     async move { client.rename(&original, &target).await },
                 ));
             }
-            Message::SidebarFilesStartNewEntry(kind) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(kind)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -294,14 +294,14 @@ impl Oryxis {
                     "sidebar-files-new",
                 )));
             }
-            Message::SidebarFilesNewEntryInput(s) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNewEntryInput(s)) => {
                 if let Some(pane) = self.active_pane_mut()
                     && let Some((_, input)) = pane.files.new_entry.as_mut()
                 {
                     *input = s;
                 }
             }
-            Message::SidebarFilesNewEntryCommit => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNewEntryCommit) => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -343,7 +343,7 @@ impl Oryxis {
                     }
                 }));
             }
-            Message::SidebarFilesDelete(path, is_dir) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDelete(path, is_dir)) => {
                 self.overlay = None;
                 let name = path
                     .rsplit('/')
@@ -354,10 +354,10 @@ impl Oryxis {
                 // the modal keynav router).
                 self.confirm_remove(
                     name,
-                    Message::SidebarFilesDeleteConfirmed(path, is_dir),
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDeleteConfirmed(path, is_dir)),
                 );
             }
-            Message::SidebarFilesDeleteConfirmed(path, is_dir) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDeleteConfirmed(path, is_dir)) => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -377,7 +377,7 @@ impl Oryxis {
                     }
                 }));
             }
-            Message::SidebarFilesDownload(path) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDownload(path)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -408,12 +408,12 @@ impl Oryxis {
                         })
                     },
                     |msg| match msg {
-                        Some(m) => Message::SidebarFilesOpToast(m),
+                        Some(m) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(m)),
                         None => Message::NoOp,
                     },
                 ));
             }
-            Message::SidebarFilesUploadInto(dir) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadInto(dir)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -438,13 +438,13 @@ impl Oryxis {
                     },
                     move |picked| match picked {
                         Some(paths) if !paths.is_empty() => {
-                            Message::SidebarFilesUploadPicked(pane_id, dir.clone(), paths)
+                            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadPicked(pane_id, dir.clone(), paths))
                         }
                         _ => Message::NoOp,
                     },
                 ));
             }
-            Message::SidebarFilesUploadPicked(pane_id, dir, paths) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadPicked(pane_id, dir, paths)) => {
                 // The dialog returned real picks; the pane may have changed
                 // hands meanwhile, so resolve it by id like any completion.
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
@@ -475,11 +475,11 @@ impl Oryxis {
                             failed.join(" · ")
                         }
                     },
-                    move |toast| Message::SidebarFilesUploadFinished(pane_id, toast),
+                    move |toast| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast)),
                 ));
             }
-            Message::SidebarFilesUploadFinished(pane_id, toast) => {
-                let toast_task = self.update(Message::SidebarFilesOpToast(toast));
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast)) => {
+                let toast_task = self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(toast)));
                 // Refresh the pane's CURRENT listing through the normal
                 // stamped pipeline: the bump happens synchronously with
                 // `loading = true`, and the completion (listed or error)
@@ -499,7 +499,7 @@ impl Oryxis {
                     list_dir_task(client, path, pane_id, seq),
                 ]));
             }
-            Message::SidebarFilesOpToast(text) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(text)) => {
                 self.set_toast(text);
                 return Ok(Task::perform(
                     async {
@@ -508,7 +508,7 @@ impl Oryxis {
                     |_| Message::ToastClear,
                 ));
             }
-            Message::SidebarFilesShowProperties(path, is_dir) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(path, is_dir)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -547,11 +547,11 @@ impl Oryxis {
                         // SidebarFilesError, whose un-bumped stamp would
                         // alias an in-flight listing's and paint an error
                         // over it / clear its loading flag.
-                        Err(e) => Message::SidebarFilesOpToast(e),
+                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),
                     },
                 ));
             }
-            Message::SidebarFilesEdit(path) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEdit(path)) => {
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
@@ -609,11 +609,11 @@ impl Oryxis {
                         Ok(session) => Message::SftpEditReady(session),
                         // Toast, not SidebarFilesError: see the properties
                         // handler above for the stamp-aliasing rationale.
-                        Err(e) => Message::SidebarFilesOpToast(e),
+                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),
                     },
                 ));
             }
-            Message::SidebarFilesStartEditPath => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartEditPath) => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -627,14 +627,14 @@ impl Oryxis {
                     "sidebar-files-path",
                 )));
             }
-            Message::SidebarFilesEditPath(s) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEditPath(s)) => {
                 if let Some(pane) = self.active_pane_mut()
                     && pane.files.path_editing.is_some()
                 {
                     pane.files.path_editing = Some(s);
                 }
             }
-            Message::SidebarFilesCommitPath => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesCommitPath) => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Ok(Task::none());
                 };
@@ -674,13 +674,13 @@ impl Oryxis {
                     },
                     move |result| match result {
                         Ok((path, entries)) => {
-                            Message::SidebarFilesListed(pane_id, seq, path, entries)
+                            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, entries))
                         }
-                        Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
                     },
                 ));
             }
-            Message::SidebarFilesMounted(pane_id, seq, client, home, path, mut entries) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesMounted(pane_id, seq, client, home, path, mut entries)) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
@@ -707,7 +707,7 @@ impl Oryxis {
                 // expandable now that the home is known; chase it.
                 return Ok(self.sidebar_files_sync());
             }
-            Message::SidebarFilesListed(pane_id, seq, path, mut entries) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, mut entries)) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
@@ -726,7 +726,7 @@ impl Oryxis {
                 // behind a fast `cd a && cd b`.
                 return Ok(self.sidebar_files_sync());
             }
-            Message::SidebarFilesError(pane_id, seq, e) => {
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)) => {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Ok(Task::none());
                 };
@@ -812,9 +812,9 @@ impl Oryxis {
                 },
                 move |result| match result {
                     Ok((client, home, path, entries)) => {
-                        Message::SidebarFilesMounted(pane_id, seq, client, home, path, entries)
+                        Message::SidebarFiles(SidebarFilesMessage::SidebarFilesMounted(pane_id, seq, client, home, path, entries))
                     }
-                    Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+                    Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
                 },
             );
         }
@@ -857,8 +857,8 @@ fn op_then_list(
             Ok::<_, String>((list_path, entries))
         },
         move |result| match result {
-            Ok((path, entries)) => Message::SidebarFilesListed(pane_id, seq, path, entries),
-            Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+            Ok((path, entries)) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, entries)),
+            Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
         },
     )
 }
@@ -877,8 +877,8 @@ fn list_dir_task(
             Ok::<_, String>((path, entries))
         },
         move |result| match result {
-            Ok((path, entries)) => Message::SidebarFilesListed(pane_id, seq, path, entries),
-            Err(e) => Message::SidebarFilesError(pane_id, seq, e),
+            Ok((path, entries)) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, entries)),
+            Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
         },
     )
 }
