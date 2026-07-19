@@ -1185,6 +1185,16 @@ where
                 "sftp {op_name} unexpected empty read at offset {off}"
             )));
         }
+        // A reply larger than the request is a protocol violation
+        // (russh-sftp does not cap reply payloads); positioning sinks
+        // slice fixed buffers by `off + data.len()`, so an over-long
+        // reply from a hostile server must error here, not panic there.
+        if data.len() as u64 > reqlen as u64 {
+            return Err(SshError::Channel(format!(
+                "sftp {op_name} read at offset {off} returned {} bytes for a {reqlen}-byte request",
+                data.len()
+            )));
+        }
         let got = data.len() as u32;
         write_at(off, data)?;
         if got < reqlen {
@@ -1297,6 +1307,16 @@ where
                         return Err(SshError::Channel(format!(
                             "sftp {op} relay: source shrank at offset {}",
                             this_off + buf.len() as u64
+                        )));
+                    }
+                    // Same protocol-violation guard as the download path:
+                    // an over-long reply would spill past this chunk and
+                    // silently corrupt the destination layout.
+                    if part.len() as u64 > want as u64 {
+                        return Err(SshError::Channel(format!(
+                            "sftp {op} relay read at offset {} returned {} bytes for a {want}-byte request",
+                            this_off + buf.len() as u64,
+                            part.len()
                         )));
                     }
                     buf.extend_from_slice(&part);
@@ -1431,6 +1451,37 @@ mod tests {
         .await
         .expect("download short");
         assert_eq!(dst, src, "short-read reassembly mismatch size={size}");
+    }
+
+    /// A reply longer than the request is a protocol violation from a
+    /// hostile / non-conforming server: the pump must surface an error
+    /// instead of letting a positioning sink slice out of bounds.
+    #[tokio::test]
+    async fn download_overlong_reply_errors() {
+        let mut dst = vec![0u8; 1024];
+        let result = windowed_download_copy(
+            1024,
+            1024,
+            2,
+            Duration::from_secs(5),
+            "test",
+            move |_off, len| {
+                // Return double the requested bytes.
+                let data = vec![0xAAu8; len as usize * 2];
+                async move { Ok(data) }
+            },
+            |off, data| {
+                let o = off as usize;
+                dst[o..o + data.len()].copy_from_slice(&data);
+                Ok(())
+            },
+        )
+        .await;
+        let err = result.expect_err("over-long reply must error");
+        assert!(
+            err.to_string().contains("bytes for a"),
+            "unexpected error: {err}"
+        );
     }
 
     /// Drive `windowed_upload_copy`: serial source reads + concurrent
