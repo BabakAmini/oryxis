@@ -52,10 +52,10 @@ fn detect_default_aws_region() -> Option<String> {
 impl Oryxis {
     pub(super) fn handle_cloud_form(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: CloudMessage,
+    ) -> Result<Task<Message>, CloudMessage> {
         match message {
-            Message::Cloud(CloudMessage::ShowCloudForm(maybe_id)) => {
+            CloudMessage::ShowCloudForm(maybe_id) => {
                 // Close any open context menu (this message is fired
                 // both from the "+ Account" toolbar button and from
                 // the per-card "Edit" item). Without this the kebab
@@ -161,15 +161,15 @@ impl Oryxis {
                 }
                 self.cloud_form.aws_access_key_secret_visible = false;
             }
-            Message::Cloud(CloudMessage::HideCloudForm) => {
+            CloudMessage::HideCloudForm => {
                 self.cloud_form.visible = false;
                 self.cloud_form.error = None;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormLabelChanged(v)) => {
+            CloudMessage::CloudFormLabelChanged(v) => {
                 self.cloud_form.label = v;
             }
-            Message::Cloud(CloudMessage::CloudFormProviderChanged(p)) => {
+            CloudMessage::CloudFormProviderChanged(p) => {
                 self.cloud_form.provider = p;
                 // Reset auth choice when provider switches, Profile is
                 // AWS-only, Kubeconfig is K8s-only. Keep them coherent
@@ -182,35 +182,35 @@ impl Oryxis {
                 };
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAuthKindChanged(a)) => {
+            CloudMessage::CloudFormAuthKindChanged(a) => {
                 self.cloud_form.auth_kind = a;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormKubeconfigPathChanged(v)) => {
+            CloudMessage::CloudFormKubeconfigPathChanged(v) => {
                 self.cloud_form.kubeconfig_path = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormGcpProjectChanged(v)) => {
+            CloudMessage::CloudFormGcpProjectChanged(v) => {
                 self.cloud_form.gcp_project = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAzureSubscriptionChanged(v)) => {
+            CloudMessage::CloudFormAzureSubscriptionChanged(v) => {
                 self.cloud_form.azure_subscription = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormContextChanged(v)) => {
+            CloudMessage::CloudFormContextChanged(v) => {
                 self.cloud_form.context = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsProfileNameChanged(v)) => {
+            CloudMessage::CloudFormAwsProfileNameChanged(v) => {
                 self.cloud_form.aws_profile_name = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsRegionDraftChanged(v)) => {
+            CloudMessage::CloudFormAwsRegionDraftChanged(v) => {
                 self.cloud_form.aws_region_draft = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsRegionAdd) => {
+            CloudMessage::CloudFormAwsRegionAdd => {
                 // Split on comma or whitespace so pasting
                 // "us-east-1, us-west-2" lands as two chips.
                 let parts: Vec<String> = self
@@ -227,46 +227,46 @@ impl Oryxis {
                 self.cloud_form.aws_region_draft.clear();
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsRegionRemove(idx)) => {
+            CloudMessage::CloudFormAwsRegionRemove(idx) => {
                 if idx < self.cloud_form.aws_regions.len() {
                     self.cloud_form.aws_regions.remove(idx);
                 }
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsAccessKeyIdChanged(v)) => {
+            CloudMessage::CloudFormAwsAccessKeyIdChanged(v) => {
                 self.cloud_form.aws_access_key_id = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretChanged(v)) => {
+            CloudMessage::CloudFormAwsAccessKeySecretChanged(v) => {
                 self.cloud_form.aws_access_key_secret = v;
                 self.cloud_form.aws_access_key_secret_touched = true;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v)) => {
+            CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v) => {
                 self.cloud_form.aws_access_key_session_token = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility) => {
+            CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility => {
                 self.cloud_form.aws_access_key_secret_visible =
                     !self.cloud_form.aws_access_key_secret_visible;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsSsoStartUrlChanged(v)) => {
+            CloudMessage::CloudFormAwsSsoStartUrlChanged(v) => {
                 self.cloud_form.aws_sso_start_url = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsSsoRegionChanged(v)) => {
+            CloudMessage::CloudFormAwsSsoRegionChanged(v) => {
                 self.cloud_form.aws_sso_region = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsSsoAccountIdChanged(v)) => {
+            CloudMessage::CloudFormAwsSsoAccountIdChanged(v) => {
                 self.cloud_form.aws_sso_account_id = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormAwsSsoRoleNameChanged(v)) => {
+            CloudMessage::CloudFormAwsSsoRoleNameChanged(v) => {
                 self.cloud_form.aws_sso_role_name = v;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
-            Message::Cloud(CloudMessage::CloudFormTestCredentials) => {
+            CloudMessage::CloudFormTestCredentials => {
                 let provider_id = self.cloud_form.provider.id();
                 let registry: Arc<CloudProviderRegistry> =
                     self.cloud_provider_registry.clone();
@@ -289,13 +289,13 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Cloud(CloudMessage::CloudFormTestResult(result)) => {
+            CloudMessage::CloudFormTestResult(result) => {
                 self.cloud_form.test_state = match result {
                     Ok(()) => CloudTestState::Ok,
                     Err(msg) => CloudTestState::Failed(msg),
                 };
             }
-            Message::Cloud(CloudMessage::SaveCloudProfile) => {
+            CloudMessage::SaveCloudProfile => {
                 let label = self.cloud_form.label.trim().to_string();
                 if label.is_empty() {
                     self.cloud_form.error =
@@ -384,14 +384,14 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Cloud(CloudMessage::DeleteCloudProfile(id)) => {
+            CloudMessage::DeleteCloudProfile(id) => {
                 self.overlay = None;
                 if let Some(vault) = &self.vault {
                     let _ = vault.delete_cloud_profile(&id);
                     self.load_data_from_vault();
                 }
             }
-            Message::Cloud(CloudMessage::ShowCloudCardMenu(id)) => {
+            CloudMessage::ShowCloudCardMenu(id) => {
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::CloudProfileActions(id),
@@ -399,14 +399,14 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::Cloud(CloudMessage::CloudCardHovered(id)) => {
+            CloudMessage::CloudCardHovered(id) => {
                 self.hovered_cloud_card = Some(id);
             }
-            Message::Cloud(CloudMessage::CloudCardUnhovered) => {
+            CloudMessage::CloudCardUnhovered => {
                 self.hovered_cloud_card = None;
             }
-            Message::Cloud(CloudMessage::CloudSearchChanged(v)) => self.cloud_search = v,
-            Message::Cloud(CloudMessage::ShowCloudProviderPicker) => {
+            CloudMessage::CloudSearchChanged(v) => self.cloud_search = v,
+            CloudMessage::ShowCloudProviderPicker => {
                 // Anchor below the "+ Host [▾]" split button, on its
                 // real drawn bounds (2 px gap, trailing edges aligned;
                 // the earlier constant estimate broke in the vertical

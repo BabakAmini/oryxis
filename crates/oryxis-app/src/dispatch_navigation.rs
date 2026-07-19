@@ -161,9 +161,7 @@ impl Oryxis {
                 // `Failed` cache is left alone (don't restart in-flight
                 // resolves; let the user retry a failure explicitly).
                 if self.dynamic_group_needs_resolve(gid) {
-                    return self
-                        .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
-                        .unwrap_or_else(|_| Task::none());
+                    return self.handle_cloud(CloudMessage::DynamicGroupResolve(gid));
                 }
             }
             NavigationMessage::HostSearchChanged(v) => {

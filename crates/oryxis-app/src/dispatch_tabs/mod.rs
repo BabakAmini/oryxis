@@ -290,9 +290,7 @@ impl Oryxis {
                 // the ECS tasks / K8s pods load. Reuses the same TTL gate
                 // as the dashboard's OpenGroup so we don't hammer the API.
                 if self.dynamic_group_needs_resolve(gid) {
-                    return Ok(self
-                        .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
-                        .unwrap_or_else(|_| Task::none()));
+                    return Ok(self.handle_cloud(CloudMessage::DynamicGroupResolve(gid)));
                 }
             }
             Message::Tabs(TabsMessage::NewTabPickerBack) => {

@@ -9,10 +9,10 @@ use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
 impl Oryxis {
     pub(super) fn handle_cloud_transports(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: CloudMessage,
+    ) -> Result<Task<Message>, CloudMessage> {
         match message {
-            Message::Cloud(CloudMessage::PluginSessionEnded(pane_id)) => {
+            CloudMessage::PluginSessionEnded(pane_id) => {
                 // The plugin process (session-manager-plugin / kubectl)
                 // exited: stale task, idle timeout, remote close. The
                 // pane used to just go silently dead; now the tab marks
@@ -53,11 +53,11 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
-            Message::Cloud(CloudMessage::EcsExecConnectFreshTask {
+            CloudMessage::EcsExecConnectFreshTask {
                 group_id,
                 container,
                 fallback_task_id,
-            }) => {
+            } => {
                 self.error_dialog = None;
                 match self.cloud_dynamic_group_state.get(&group_id) {
                     Some(crate::state::DynamicGroupState::Loaded { hosts, .. }) => {
@@ -103,18 +103,16 @@ impl Oryxis {
                                 container,
                                 fallback_task_id,
                             });
-                        Ok(self
-                            .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(group_id)))
-                            .unwrap_or_else(|_| Task::none()))
+                        Ok(self.handle_cloud(CloudMessage::DynamicGroupResolve(group_id)))
                     }
                 }
             }
-            Message::Cloud(CloudMessage::ConnectEcsExecTask {
+            CloudMessage::ConnectEcsExecTask {
                 group_id,
                 task_id,
                 task_label,
                 container,
-            }) => {
+            } => {
                 // When launched from the new-tab picker, close it and drop
                 // any pending split-pane target. ECS Exec opens a full tab
                 // via the session plugin, it can't fill an SSH-only split
@@ -233,12 +231,12 @@ impl Oryxis {
                     }),
                 ))
             }
-            Message::Cloud(CloudMessage::ConnectKubectlExecPod {
+            CloudMessage::ConnectKubectlExecPod {
                 group_id,
                 namespace,
                 pod,
                 container,
-            }) => {
+            } => {
                 // See ConnectEcsExecTask: close the picker and drop any
                 // pending split-pane target, kubectl exec opens a full tab.
                 self.show_new_tab_picker = false;
@@ -325,7 +323,7 @@ impl Oryxis {
                 });
                 Ok(self.spawn_plugin_tab(&label, "kubectl".into(), args, Some(relaunch)))
             }
-            Message::Cloud(CloudMessage::SsmSessionReady { host_label, result }) => {
+            CloudMessage::SsmSessionReady { host_label, result } => {
                 // Same payload + plugin pipeline as ECS Exec, so the
                 // spawn helper is shared. Different label prefix on
                 // the tab so the user can tell SSM-into-EC2 from
@@ -397,13 +395,13 @@ impl Oryxis {
                     None,
                 ))
             }
-            Message::Cloud(CloudMessage::EcsExecSessionReady {
+            CloudMessage::EcsExecSessionReady {
                 group_id,
                 task_label,
                 task_id,
                 container,
                 result,
-            }) => {
+            } => {
                 let session = match result {
                     Ok(s) => *s,
                     Err(msg) => {
@@ -483,9 +481,7 @@ impl Oryxis {
                         // (so the live tasks are visible either way) and
                         // re-resolve it so the dead row is replaced.
                         let nav = self.update(Message::Navigation(NavigationMessage::OpenGroup(group_id)));
-                        let resolve = self
-                            .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(group_id)))
-                            .unwrap_or_else(|_| Task::none());
+                        let resolve = self.handle_cloud(CloudMessage::DynamicGroupResolve(group_id));
                         return Ok(Task::batch([nav, resolve]));
                     }
                 };

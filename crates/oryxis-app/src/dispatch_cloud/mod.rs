@@ -34,25 +34,24 @@ impl Oryxis {
     /// handlers (or the inline match) get their turn.
     pub(crate) fn handle_cloud(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: CloudMessage,
+    ) -> Task<Message> {
         let message = match self.handle_cloud_form(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         let message = match self.handle_cloud_discovery(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
         let message = match self.handle_cloud_dynamic_group(message) {
-            Ok(task) => return Ok(task),
+            Ok(task) => return task,
             Err(m) => m,
         };
-        let message = match self.handle_cloud_transports(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        Err(message)
+        if let Ok(task) = self.handle_cloud_transports(message) {
+            return task;
+        }
+        Task::none()
     }
 
     /// Kick off an SSM Session for a cloud-imported EC2 connection.
@@ -256,7 +255,7 @@ impl Oryxis {
     pub(super) fn spawn_discover(
         &mut self,
         profile_id: Uuid,
-    ) -> Result<Task<Message>, Message> {
+    ) -> Task<Message> {
         let Some(profile) = self
             .cloud_profiles
             .iter()
@@ -265,7 +264,7 @@ impl Oryxis {
         else {
             self.cloud_discover_state =
                 CloudDiscoverState::Failed("profile not found".into());
-            return Ok(Task::none());
+            return Task::none();
         };
         let registry: Arc<CloudProviderRegistry> = self.cloud_provider_registry.clone();
         let Some(provider) = registry.get(&profile.provider) else {
@@ -273,10 +272,10 @@ impl Oryxis {
                 "provider \"{}\" not registered",
                 profile.provider
             ));
-            return Ok(Task::none());
+            return Task::none();
         };
         self.cloud_discover_state = CloudDiscoverState::Running;
-        Ok(Task::perform(
+        Task::perform(
             async move { provider.discover(&profile).await },
             |result| {
                 Message::Cloud(CloudMessage::CloudDiscoverResult(
@@ -285,7 +284,7 @@ impl Oryxis {
                         .map_err(|e| e.to_string()),
                 ))
             },
-        ))
+        )
     }
 
     /// Build an in-memory `CloudProfile` from the current wizard form

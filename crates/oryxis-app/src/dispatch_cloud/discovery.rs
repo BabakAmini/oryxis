@@ -19,10 +19,10 @@ use crate::state::CloudDiscoverState;
 impl Oryxis {
     pub(super) fn handle_cloud_discovery(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: CloudMessage,
+    ) -> Result<Task<Message>, CloudMessage> {
         match message {
-            Message::Cloud(CloudMessage::ShowCloudDiscover(profile_id)) => {
+            CloudMessage::ShowCloudDiscover(profile_id) => {
                 // Dismiss the "+ Host [▾]" provider picker that
                 // dispatched this message, without it the dropdown
                 // hangs on top of the freshly-opened discovery panel.
@@ -49,9 +49,9 @@ impl Oryxis {
                     .find(|p| p.id == profile_id)
                     .map(|p| p.label.clone())
                     .unwrap_or_default();
-                return self.spawn_discover(profile_id);
+                return Ok(self.spawn_discover(profile_id));
             }
-            Message::Cloud(CloudMessage::HideCloudDiscover) => {
+            CloudMessage::HideCloudDiscover => {
                 self.cloud_discover_visible = false;
                 self.cloud_discover_profile_id = None;
                 self.cloud_discover_state = CloudDiscoverState::Idle;
@@ -60,12 +60,12 @@ impl Oryxis {
                 self.cloud_discover_selected_k8s.clear();
                 self.cloud_discover_filter.clear();
             }
-            Message::Cloud(CloudMessage::CloudDiscoverRefresh) => {
+            CloudMessage::CloudDiscoverRefresh => {
                 if let Some(id) = self.cloud_discover_profile_id {
-                    return self.spawn_discover(id);
+                    return Ok(self.spawn_discover(id));
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverResult(result)) => {
+            CloudMessage::CloudDiscoverResult(result) => {
                 self.cloud_discover_state = match result {
                     Ok(boxed) => CloudDiscoverState::Loaded(*boxed),
                     Err(msg) => CloudDiscoverState::Failed(msg),
@@ -93,36 +93,36 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverToggleEc2(instance_id)) => {
+            CloudMessage::CloudDiscoverToggleEc2(instance_id) => {
                 if !self.cloud_discover_selected_ec2.remove(&instance_id) {
                     self.cloud_discover_selected_ec2.insert(instance_id);
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverToggleEcs(key)) => {
+            CloudMessage::CloudDiscoverToggleEcs(key) => {
                 if !self.cloud_discover_selected_ecs.remove(&key) {
                     self.cloud_discover_selected_ecs.insert(key);
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverToggleK8s(key)) => {
+            CloudMessage::CloudDiscoverToggleK8s(key) => {
                 if !self.cloud_discover_selected_k8s.remove(&key) {
                     self.cloud_discover_selected_k8s.insert(key);
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverFilterChanged(s)) => {
+            CloudMessage::CloudDiscoverFilterChanged(s) => {
                 self.cloud_discover_filter = s;
             }
-            Message::Cloud(CloudMessage::CloudDiscoverToggleSection(key)) => {
+            CloudMessage::CloudDiscoverToggleSection(key) => {
                 if !self.cloud_discover_collapsed.remove(&key) {
                     self.cloud_discover_collapsed.insert(key);
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverDefaultTransportChanged(t)) => {
+            CloudMessage::CloudDiscoverDefaultTransportChanged(t) => {
                 self.cloud_discover_default_transport = t;
             }
-            Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupNameChanged(v)) => {
+            CloudMessage::CloudDiscoverDefaultGroupNameChanged(v) => {
                 self.cloud_discover_default_group_name = v;
             }
-            Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(label)) => {
+            CloudMessage::CloudDiscoverDefaultGroupPick(label) => {
                 self.cloud_discover_default_group_name = label;
                 self.cloud_discover_default_group_picker_open = false;
                 // The modal-stack injection at `view_main` only
@@ -137,7 +137,7 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::Cloud(CloudMessage::ToggleCloudDiscoverGroupPicker) => {
+            CloudMessage::ToggleCloudDiscoverGroupPicker => {
                 self.cloud_discover_default_group_picker_open =
                     !self.cloud_discover_default_group_picker_open;
                 if self.cloud_discover_default_group_picker_open {
@@ -166,10 +166,10 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v)) => {
+            CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v) => {
                 self.cloud_discover_default_group_picker_search = v;
             }
-            Message::Cloud(CloudMessage::CloudAutoRefreshTick) => {
+            CloudMessage::CloudAutoRefreshTick => {
                 // Fan out a sync for every configured profile. Each
                 // sync is independent (own Task::perform), so a slow /
                 // failing profile doesn't hold up the others. Empty
@@ -178,13 +178,11 @@ impl Oryxis {
                     self.cloud_profiles.iter().map(|p| p.id).collect();
                 let mut tasks: Vec<Task<Message>> = Vec::new();
                 for pid in profile_ids {
-                    if let Ok(task) = self.handle_cloud(Message::Cloud(CloudMessage::CloudProfileSync(pid))) {
-                        tasks.push(task);
-                    }
+                    tasks.push(self.handle_cloud(CloudMessage::CloudProfileSync(pid)));
                 }
                 return Ok(Task::batch(tasks));
             }
-            Message::Cloud(CloudMessage::CloudProfileSync(profile_id)) => {
+            CloudMessage::CloudProfileSync(profile_id) => {
                 // Background refresh, runs the provider's `discover`
                 // and routes the result to `CloudProfileSyncResult`
                 // where the sticky-fields merge happens. Independent
@@ -217,7 +215,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Cloud(CloudMessage::CloudDiscoverAddGke { cluster, location }) => {
+            CloudMessage::CloudDiscoverAddGke { cluster, location } => {
                 // Add a GKE cluster: run get-credentials through the GCP
                 // provider (writes the kubeconfig), then create a K8s
                 // account pointed at the resulting context. Discovering
@@ -260,7 +258,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Cloud(CloudMessage::CloudDiscoverGkeCredentials(label, context)) => {
+            CloudMessage::CloudDiscoverGkeCredentials(label, context) => {
                 // Credentials fetched: create + save the K8s profile
                 // (auth = kubeconfig, default file, the GKE context) unless
                 // one already points at this context (idempotent re-add).
@@ -292,7 +290,7 @@ impl Oryxis {
                 }
                 return Ok(self.show_toast(crate::i18n::t("cloud_gke_added").to_string()));
             }
-            Message::Cloud(CloudMessage::CloudDiscoverGkeAdded(result)) => {
+            CloudMessage::CloudDiscoverGkeAdded(result) => {
                 if let Err(e) = result {
                     return Ok(self.show_toast(format!(
                         "{}: {e}",
@@ -300,10 +298,10 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverAddAks {
+            CloudMessage::CloudDiscoverAddAks {
                 cluster,
                 resource_group,
-            }) => {
+            } => {
                 // Add an AKS cluster: run get-credentials through the Azure
                 // provider (writes the kubeconfig), then create a K8s
                 // account pointed at the resulting context. Discovering
@@ -371,7 +369,7 @@ impl Oryxis {
                     },
                 ));
             }
-            Message::Cloud(CloudMessage::CloudDiscoverAksCredentials(label, context)) => {
+            CloudMessage::CloudDiscoverAksCredentials(label, context) => {
                 // Credentials fetched: create + save the K8s profile
                 // (auth = kubeconfig, default file, the AKS context) unless
                 // one already points at this context (idempotent re-add).
@@ -402,7 +400,7 @@ impl Oryxis {
                 }
                 return Ok(self.show_toast(crate::i18n::t("cloud_aks_added").to_string()));
             }
-            Message::Cloud(CloudMessage::CloudDiscoverAksAdded(result)) => {
+            CloudMessage::CloudDiscoverAksAdded(result) => {
                 if let Err(e) = result {
                     return Ok(self.show_toast(format!(
                         "{}: {e}",
@@ -410,7 +408,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::Cloud(CloudMessage::CloudProfileSyncResult(profile_id, result)) => {
+            CloudMessage::CloudProfileSyncResult(profile_id, result) => {
                 if self.vault.is_none() {
                     return Ok(Task::none());
                 }
@@ -567,7 +565,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Cloud(CloudMessage::CloudDiscoverImport) => {
+            CloudMessage::CloudDiscoverImport => {
                 // Always route through the confirmation modal so the
                 // user gets a chance to set the target group (and the
                 // transport, when EC2 hosts are part of the batch).
@@ -579,11 +577,11 @@ impl Oryxis {
                 }
                 self.cloud_import_confirm_visible = true;
             }
-            Message::Cloud(CloudMessage::CloudDiscoverImportCancelled) => {
+            CloudMessage::CloudDiscoverImportCancelled => {
                 self.cloud_import_confirm_visible = false;
                 self.cloud_discover_default_group_picker_open = false;
             }
-            Message::Cloud(CloudMessage::CloudDiscoverImportConfirmed) => {
+            CloudMessage::CloudDiscoverImportConfirmed => {
                 self.cloud_import_confirm_visible = false;
                 let Some(profile_id) = self.cloud_discover_profile_id else {
                     return Ok(Task::none());
