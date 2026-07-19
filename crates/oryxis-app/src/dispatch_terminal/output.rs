@@ -1,0 +1,764 @@
+//! `PtyOutput` handling + session-log recording, split out of
+//! `dispatch_terminal`: the per-batch PTY firehose (zmodem
+//! interception, OSC title/cwd/notification sniffing, command
+//! capture, smart-tab activity, bell), the batched vault flush of
+//! recorded output with replay timing marks, and its segment /
+//! UTF-8 alignment helpers. Called from `handle_terminal`.
+
+#![allow(clippy::result_large_err)]
+
+use iced::Task;
+
+use crate::app::{Message, Oryxis};
+
+/// Flush a pane's recorded-output buffer to the vault once it reaches
+/// this size, so a burst (e.g. an `apt upgrade` dump) doesn't sit in
+/// RAM unbounded between the periodic flush ticks.
+const SESSION_LOG_FLUSH_BYTES: usize = 64 * 1024;
+
+/// Minimum gap between arrival marks for the flush to cut a separate
+/// timed chunk (asciicast replay step). Bursty output (a compile, a
+/// `find /`) coalesces into a few chunks per second instead of one
+/// vault row per PTY read; interactive pauses stay visible.
+const SESSION_LOG_SEGMENT_MS: i64 = 250;
+
+/// Split a flushed buffer into timed replay segments: `(byte offset,
+/// offset_ms)` per chunk, driven by the arrival marks. Cuts happen
+/// ONLY at line boundaries, either the byte before the mark is `\n` /
+/// `\r`, or the mark itself sits on a `\r` (a CR-prefixed progress-bar
+/// redraw, wget style). Secret runs never contain `\n` or `\r`, so a
+/// cut there can't split one across redaction chunks. And only marks
+/// whose arrival gap is worth a replay step cut; bursty output
+/// coalesces instead of producing one vault row per PTY read.
+fn session_log_segments(head: &[u8], marks: &[(usize, i64)]) -> Vec<(usize, i64)> {
+    let mut segs: Vec<(usize, i64)> = Vec::new();
+    for &(pos, ms) in marks {
+        match segs.last() {
+            None => segs.push((0, ms)),
+            Some(&(_, prev_ms)) => {
+                let line_bounded = pos > 0
+                    && pos < head.len()
+                    && (matches!(head[pos - 1], b'\n' | b'\r') || head[pos] == b'\r');
+                if line_bounded && ms - prev_ms >= SESSION_LOG_SEGMENT_MS {
+                    segs.push((pos, ms));
+                }
+            }
+        }
+    }
+    if segs.is_empty() {
+        segs.push((0, 0));
+    }
+    segs
+}
+
+/// Largest cut `<= take` that doesn't split a trailing multi-byte
+/// UTF-8 sequence (its continuation bytes may not have arrived yet).
+/// Walks back over at most 3 continuation bytes; anything that doesn't
+/// parse as UTF-8 (raw binary output) keeps the original cut, this is
+/// a best-effort alignment, not a validator.
+fn utf8_aligned(buf: &[u8], take: usize) -> usize {
+    let mut cut = take;
+    let floor = take.saturating_sub(3);
+    while cut > floor && buf[cut - 1] & 0xC0 == 0x80 {
+        cut -= 1;
+    }
+    if cut == 0 {
+        return take;
+    }
+    let lead = buf[cut - 1];
+    let need = match lead {
+        b if b & 0x80 == 0x00 => 1,
+        b if b & 0xE0 == 0xC0 => 2,
+        b if b & 0xF0 == 0xE0 => 3,
+        b if b & 0xF8 == 0xF0 => 4,
+        // Stray continuation or invalid lead: not UTF-8, cut as-is.
+        _ => return take,
+    };
+    if need > take - (cut - 1) {
+        // The sequence is incomplete at the cut: flush up to its start.
+        cut - 1
+    } else {
+        take
+    }
+}
+
+impl Oryxis {
+    /// Drain every pane's recorded-output buffer into the vault, one
+    /// append per pane. Driven by the size threshold, the flush tick,
+    /// disconnect, and window close, so the vault sees batched writes
+    /// instead of one per SSH chunk (the old per-chunk path rewrote the
+    /// whole growing blob and hammered the disk).
+    ///
+    /// Secrets/PII are scrubbed per flushed chunk (`session_redact`).
+    /// Patterns can't match across chunk boundaries, so the periodic
+    /// (non-final) flush holds back everything after the buffer's last
+    /// line boundary (`\n` or `\r`; secret runs contain neither, so a
+    /// cut there can't split one); the partial line rides along to the
+    /// next flush unless the buffer is oversized anyway.
+    pub(crate) fn flush_session_logs(&mut self) {
+        self.flush_session_logs_inner(false);
+    }
+
+    /// Flush including trailing partial lines. Use when the pane, tab,
+    /// session, or window is going away (or the log is about to be
+    /// read), so the recorded tail isn't lost.
+    pub(crate) fn flush_session_logs_final(&mut self) {
+        self.flush_session_logs_inner(true);
+    }
+
+    fn flush_session_logs_inner(&mut self, final_flush: bool) {
+        // Full detail = timed segments + resize events (.cast export);
+        // simple = one untimed chunk per flush, the plain log of old.
+        let full = self.setting_session_log_full;
+        let compress = self.setting_session_log_compress;
+        // (log id, offset_ms, bytes) output chunks + pending resizes.
+        let mut pending: Vec<(uuid::Uuid, Option<i64>, Vec<u8>)> = Vec::new();
+        let mut resizes: Vec<(uuid::Uuid, i64, u16, u16)> = Vec::new();
+        for tab in &mut self.tabs {
+            for pane in tab.pane_grid.panes.values_mut() {
+                if let Some(log_id) = pane.session_log_id
+                    && !pane.session_log_buf.is_empty()
+                {
+                    let buf = &mut pane.session_log_buf;
+                    let take = if final_flush {
+                        buf.len()
+                    } else if buf.len() >= SESSION_LOG_FLUSH_BYTES {
+                        // Oversized burst: flush everything, but never
+                        // split a multi-byte UTF-8 sequence across chunks
+                        // (the .cast export decodes per chunk, so both
+                        // halves of a split char would render as U+FFFD).
+                        utf8_aligned(buf, buf.len())
+                    } else {
+                        // Hold back the partial trailing line so a secret
+                        // mid-echo isn't split across redaction chunks.
+                        // `\r` ends a line here too: progress-bar redraws
+                        // are CR-delimited and would otherwise sit in RAM
+                        // until a newline or the size threshold.
+                        match buf.iter().rposition(|&b| b == b'\n' || b == b'\r') {
+                            Some(pos) => pos + 1,
+                            None => 0,
+                        }
+                    };
+                    if take == 0 {
+                        continue;
+                    }
+                    let tail = buf.split_off(take);
+                    let head = std::mem::replace(buf, tail);
+                    // Partition the arrival marks: the head's marks
+                    // drive the timed segments below; the tail's are
+                    // rebased, keeping a mark at 0 so carried-over
+                    // bytes don't lose their arrival time.
+                    let mut head_marks: Vec<(usize, i64)> = Vec::new();
+                    let mut tail_marks: Vec<(usize, i64)> = Vec::new();
+                    for (pos, ms) in pane.session_log_marks.drain(..) {
+                        if pos < take {
+                            head_marks.push((pos, ms));
+                        } else {
+                            tail_marks.push((pos - take, ms));
+                        }
+                    }
+                    if !pane.session_log_buf.is_empty()
+                        && tail_marks.first().is_none_or(|m| m.0 > 0)
+                    {
+                        let carry_ms = head_marks.last().map(|m| m.1).unwrap_or(0);
+                        tail_marks.insert(0, (0, carry_ms));
+                    }
+                    pane.session_log_marks = tail_marks;
+                    if full {
+                        let segs = session_log_segments(&head, &head_marks);
+                        for (i, &(start, ms)) in segs.iter().enumerate() {
+                            let end = segs.get(i + 1).map(|s| s.0).unwrap_or(head.len());
+                            pending.push((log_id, Some(ms), head[start..end].to_vec()));
+                        }
+                    } else {
+                        // Simple mode: one untimed chunk, no replay
+                        // metadata (NULL offset = the legacy shape).
+                        pending.push((log_id, None, head));
+                    }
+                    // Geometry check rides the flush cadence: cheap, and
+                    // a resize between flushes still lands close enough
+                    // for replay. The first flush records the initial
+                    // size (the asciicast header reads it back). Replay
+                    // metadata, so full-detail mode only.
+                    let size = full
+                        .then(|| pane.terminal.lock().ok())
+                        .flatten()
+                        .map(|s| (s.cols(), s.rows()))
+                        .filter(|&(c, r)| c > 0 && r > 0);
+                    if let Some((cols, rows)) = size
+                        && pane.session_log_last_size != Some((cols, rows))
+                    {
+                        pane.session_log_last_size = Some((cols, rows));
+                        let now_ms = pane
+                            .session_log_t0
+                            .map(|t| t.elapsed().as_millis() as i64)
+                            .unwrap_or(0);
+                        resizes.push((log_id, now_ms, cols, rows));
+                    }
+                }
+            }
+        }
+        if pending.is_empty() && resizes.is_empty() {
+            return;
+        }
+        if let Some(vault) = &self.vault {
+            for (log_id, offset_ms, bytes) in pending {
+                let scrubbed = crate::session_redact::redact_secrets(&bytes);
+                if let Err(e) =
+                    vault.append_session_data(&log_id, &scrubbed, offset_ms, compress)
+                {
+                    tracing::warn!("session log append failed for {log_id}: {e}");
+                }
+            }
+            for (log_id, offset_ms, cols, rows) in resizes {
+                if let Err(e) = vault.append_session_resize(&log_id, offset_ms, cols, rows) {
+                    tracing::warn!("session resize append failed for {log_id}: {e}");
+                }
+            }
+        }
+    }
+
+    /// Handle the `PtyOutput` firehose. Returns `Err(message)` for
+    /// every other variant so `handle_terminal`'s chain falls through.
+    pub(super) fn handle_terminal_output(
+        &mut self,
+        message: Message,
+    ) -> Result<Task<Message>, Message> {
+        match message {
+            // -- Terminal I/O --
+            Message::PtyOutput(pane_id, mut bytes) => {
+                // ── ZMODEM interception (before any emulator processing) ──
+                // While a transfer owns the pane, output is protocol wire:
+                // hand it to the driver and stop. Otherwise the initiation
+                // detector runs; a detected `sz`/`rz` starts a transfer and
+                // the clean prefix still flows to the emulator below.
+                let mut zmodem_start: Option<(oryxis_zmodem::Direction, Vec<u8>)> = None;
+                if let Some(pane) = self.pane_by_id_mut(pane_id) {
+                    if let Some(zm) = pane.zmodem.as_mut() {
+                        if let Err(unsent) = zm.wire_tx.send(std::mem::take(&mut bytes)) {
+                            // The driver already ended; its terminal
+                            // Progress is still in flight. Hold the
+                            // bytes for the teardown to replay in order
+                            // instead of dropping a fast prompt.
+                            zm.late.extend_from_slice(&unsent.0);
+                        }
+                        return Ok(Task::none());
+                    }
+                    let scan = pane.zmodem_detector.feed(&bytes);
+                    // Only divert when the pane has a transport to run the
+                    // protocol on; a local shell keeps the bytes on screen.
+                    if let Some(direction) = scan.detection
+                        && pane.session.is_some()
+                    {
+                        zmodem_start = Some((direction, scan.wire));
+                        bytes = scan.clean;
+                    } else if scan.detection.is_some() {
+                        bytes = scan.clean;
+                        bytes.extend(scan.wire);
+                    } else {
+                        bytes = scan.clean;
+                    }
+                }
+                // Route to the specific pane (a tab may have several, each
+                // with its own PTY). Scan is trivial at these counts.
+                let mut over_threshold = false;
+                let mut schedule_flush: Option<std::time::Duration> = None;
+                // Snapshot the (Copy) bell mode before borrowing self.tabs; the
+                // bell action runs while the pane is borrowed.
+                let bell_mode = self.setting_bell_mode;
+                // Notification policy + focus snapshot before the tabs borrow.
+                let notif_mode = self.setting_notification_mode;
+                let win_focused = self.window_focused;
+                let mut flash_pane: Option<uuid::Uuid> = None;
+                // (pane label, OSC 9 body). The label rides along so the
+                // body can be redacted under Privacy Mode at delivery time
+                // (resolved after the tabs borrow ends, like smart tabs).
+                let mut pending_notification: Option<(String, String)> = None;
+                let capture_enabled = self.setting_command_history;
+                let log_full = self.setting_session_log_full;
+                // Smart tabs: policy snapshots taken before the tabs borrow.
+                let smart_enabled = self.setting_smart_tabs;
+                let smart_long = self.setting_smart_long_secs;
+                let active_tab = self.active_tab;
+                // "Watched" needs the terminal view on screen: an active
+                // tab is invisible while the user sits in the Dashboard /
+                // Settings, so it must still collect attention there.
+                let in_terminal_view =
+                    self.active_view == crate::state::View::Terminal;
+                // (pane label, full body, redacted body) triples raised by
+                // smart tabs this batch, delivered after the borrow ends
+                // (Privacy Mode is resolved per pane at delivery).
+                let mut smart_notifications: Vec<(String, String, String)> = Vec::new();
+                let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
+                // (log id, offset_ms, command) rows for the session
+                // recording's 'c' chunks, written after the borrow ends.
+                let mut session_cmds: Vec<(uuid::Uuid, Option<i64>, String)> = Vec::new();
+                // Set when this batch carried an OSC 7 cwd; feeds the
+                // sidebar Files follow after the pane borrow ends.
+                let mut cwd_changed = false;
+                if let Some((tab_idx, pane)) = self
+                    .tabs
+                    .iter_mut()
+                    .enumerate()
+                    .flat_map(|(ti, t)| {
+                        t.pane_grid.panes.values_mut().map(move |p| (ti, p))
+                    })
+                    .find(|(_, p)| p.id == pane_id)
+                {
+                    let mut sync_deadline = None;
+                    let mut new_title = None;
+                    let mut bell_rang = false;
+                    let mut new_cwd = None;
+                    let mut new_notification = None;
+                    let mut new_progress = None;
+                    if let Ok(mut state) = pane.terminal.lock() {
+                        state.process(&bytes);
+                        // A buffering DEC ?2026 update reports its abort
+                        // deadline here; read it while still locked.
+                        sync_deadline = state.sync_timeout();
+                        // OSC 0/2 title set by the shell this batch (or an
+                        // empty string for ResetTitle). Captured unconditionally;
+                        // the auto-title setting only gates display.
+                        new_title = state.take_title();
+                        bell_rang = state.take_bell();
+                        // OSC 7 working directory.
+                        new_cwd = state.take_cwd();
+                        // OSC 133 shell-integration marks drive the pane's
+                        // prompt state (the command-history capture gate) and
+                        // resolve captures deferred until the echo arrived.
+                        // Applied inside the lock: the marks' grid positions
+                        // refer to rows this very batch drew.
+                        let new_marks = state.take_shell_marks();
+                        if !new_marks.is_empty() {
+                            let cmds = crate::command_capture::observe_output_marks(
+                                &mut pane.prompt,
+                                &mut pane.pending_capture,
+                                &state,
+                                &new_marks,
+                            );
+                            // A capture resolved at this batch's OutputStart
+                            // (paste with trailing newline) is the command
+                            // that just started: label its run with it.
+                            if smart_enabled && let Some(cmd) = cmds.last() {
+                                pane.last_submitted = Some(cmd.clone());
+                            }
+                            // A recording session stores the resolved
+                            // captures as 'c' chunks too (input-only
+                            // export), regardless of the history setting.
+                            if let Some(log_id) = pane.session_log_id {
+                                let off = pane
+                                    .session_log_t0
+                                    .map(|t| t.elapsed().as_millis() as i64);
+                                session_cmds.extend(
+                                    cmds.iter().map(|c| (log_id, off, c.clone())),
+                                );
+                            }
+                            if capture_enabled
+                                && let crate::state::PaneOrigin::Host(hid) = &pane.origin
+                            {
+                                captured_cmds.extend(cmds.into_iter().map(|c| (*hid, c)));
+                            }
+                            // Smart tabs: the same marks drive command
+                            // start/end timing. A command that ran past the
+                            // threshold and finished on a tab the user was
+                            // not watching earns an attention dot + a
+                            // notification.
+                            if smart_enabled {
+                                let now = std::time::Instant::now();
+                                let watched = win_focused
+                                    && in_terminal_view
+                                    && active_tab == Some(tab_idx);
+                                for f in crate::smart_tabs::observe_marks(
+                                    &mut pane.running_cmd,
+                                    &mut pane.last_submitted,
+                                    &new_marks,
+                                    now,
+                                ) {
+                                    if smart_long > 0
+                                        && f.elapsed.as_secs() >= u64::from(smart_long)
+                                        && !watched
+                                    {
+                                        crate::smart_tabs::raise_attention(
+                                            &mut pane.attention,
+                                            if f.failed() {
+                                                crate::smart_tabs::TabAttention::FinishedFail
+                                            } else {
+                                                crate::smart_tabs::TabAttention::FinishedOk
+                                            },
+                                        );
+                                        smart_notifications.push((
+                                            pane.label.clone(),
+                                            crate::smart_tabs::finished_body(&f, true),
+                                            crate::smart_tabs::finished_body(&f, false),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                        // OSC 9 notification text + OSC 9;4 progress.
+                        new_notification = state.take_notification();
+                        new_progress = state.progress();
+                    }
+                    // OSC 9;4 progress (state 0 = clear) drives the tab border.
+                    pane.progress = new_progress.filter(|p| p.state != 0 && p.value > 0);
+                    // Smart tabs, quiet-period half: runs on EVERY batch
+                    // (marks or not) so the silence clock stays honest, and
+                    // covers hosts without shell integration. Output after
+                    // [`QUIET_PERIOD`] on an unwatched pane is "activity";
+                    // the notification fires only on the dot's rising edge
+                    // so a chatty background pane can't spam.
+                    if smart_enabled {
+                        let now = std::time::Instant::now();
+                        let watched = win_focused
+                            && in_terminal_view
+                            && active_tab == Some(tab_idx);
+                        let was_quiet =
+                            crate::smart_tabs::quiet_activity(&mut pane.last_output, now);
+                        if watched {
+                            // Viewing the tab consumes its attention; this
+                            // lazy clear backs up the explicit ones on
+                            // SelectTab / window refocus, catching every
+                            // other activation path as soon as bytes flow.
+                            pane.attention = None;
+                        } else if was_quiet
+                            && crate::smart_tabs::raise_attention(
+                                &mut pane.attention,
+                                crate::smart_tabs::TabAttention::Activity,
+                            )
+                        {
+                            // Activity carries no command text; only the
+                            // pane label differs under Privacy Mode.
+                            let body = crate::i18n::t("smart_activity").to_string();
+                            smart_notifications.push((
+                                pane.label.clone(),
+                                body.clone(),
+                                body,
+                            ));
+                        }
+                    }
+                    pending_notification =
+                        new_notification.map(|body| (pane.label.clone(), body));
+                    if let Some(cwd) = new_cwd {
+                        cwd_changed = pane.cwd.as_deref() != Some(cwd.as_str());
+                        pane.cwd = Some(cwd);
+                        pane.cwd_from_osc7 = true;
+                    }
+                    // C5: a host with `disable_title_change` ignores remote
+                    // OSC 0/2 title updates entirely (the tab keeps its
+                    // connection label / manual rename), and the OSC-title cwd
+                    // fallback is suppressed with it.
+                    if let Some(title) = new_title.filter(|_| !pane.quirks.disable_title_change) {
+                        // Stored raw: when auto-title is on it's opt-in emulator
+                        // behavior, so the tab shows exactly what the shell set
+                        // (`user@host: ~`, `vim file`, …), like gnome-terminal /
+                        // iTerm / Windows Terminal do.
+                        let trimmed = title.trim();
+                        // Cwd fallback for shells WITHOUT OSC 7 integration:
+                        // the stock Debian/Ubuntu/Fedora PS1 titles the
+                        // window `\u@\h: \w`, so the title carries the cwd
+                        // (possibly `~`-relative; the sidebar Files browser
+                        // expands it against the session home). Only for
+                        // remote panes, and only until a real OSC 7 shows
+                        // up, which is exact and takes over for good.
+                        if !pane.cwd_from_osc7
+                            && pane.session.as_ref().and_then(|s| s.ssh()).is_some()
+                            && let Some(dir) = crate::dispatch_sidebar_files::title_cwd(trimmed)
+                            && pane.cwd.as_deref() != Some(dir)
+                        {
+                            pane.cwd = Some(dir.to_string());
+                            cwd_changed = true;
+                        }
+                        pane.osc_title = (!trimmed.is_empty()).then(|| trimmed.to_string());
+                    }
+                    if bell_rang {
+                        match bell_mode {
+                            crate::util::BellMode::Off => {}
+                            crate::util::BellMode::Beep => crate::util::play_system_beep(),
+                            crate::util::BellMode::Flash => {
+                                pane.bell_flash = true;
+                                flash_pane = Some(pane_id);
+                            }
+                        }
+                    }
+                    // Rising edge only: arm one flush timer per update, not
+                    // one per coalesced output batch. The flag clears when the
+                    // update closes normally (deadline gone) or when the
+                    // `TerminalSyncFlush` handler fires.
+                    match sync_deadline {
+                        Some(deadline) if !pane.sync_flush_scheduled => {
+                            pane.sync_flush_scheduled = true;
+                            schedule_flush = Some(deadline.saturating_duration_since(
+                                std::time::Instant::now(),
+                            ));
+                        }
+                        None => pane.sync_flush_scheduled = false,
+                        _ => {}
+                    }
+                    // Buffer the bytes; the vault write is batched (see
+                    // `flush_session_logs`). Flush early once the buffer
+                    // grows large so a burst doesn't balloon in RAM.
+                    // Each batch leaves an arrival mark so the flush can
+                    // stamp real replay timing onto the stored chunks.
+                    if pane.session_log_id.is_some() {
+                        // Arrival marks are replay metadata: full-detail
+                        // recording only. Simple mode just buffers bytes
+                        // (the flush stores one untimed chunk).
+                        if log_full {
+                            let t0 = *pane
+                                .session_log_t0
+                                .get_or_insert_with(std::time::Instant::now);
+                            pane.session_log_marks.push((
+                                pane.session_log_buf.len(),
+                                t0.elapsed().as_millis() as i64,
+                            ));
+                        }
+                        pane.session_log_buf.extend_from_slice(&bytes);
+                        over_threshold =
+                            pane.session_log_buf.len() >= SESSION_LOG_FLUSH_BYTES;
+                    }
+                }
+                for (host, cmd) in captured_cmds {
+                    self.record_command_history(host, cmd);
+                }
+                for (log_id, off, cmd) in session_cmds {
+                    self.record_session_command(&log_id, off, &cmd);
+                }
+                if over_threshold {
+                    self.flush_session_logs();
+                }
+                // OSC 9 notification. The in-app toast is a gentle cue and
+                // fires regardless of focus (also useful for a background tab);
+                // the OS notification only fires while the window is unfocused
+                // (a native popup for the thing you're already watching is just
+                // noise) and falls back to a toast if the native call fails (no
+                // daemon / no AppUserModelID on a non-installed Windows build).
+                let mut toast_shown = false;
+                if let Some((label, text)) = pending_notification {
+                    let trimmed = text.trim();
+                    // The OSC 9 body is server-supplied. Under Privacy Mode
+                    // the OS notification center keeps plaintext around and
+                    // the terminal's masking is render-only, so redact it
+                    // here before it leaves, exactly like the smart-tab
+                    // bodies below. The title stays the generic "Oryxis"
+                    // (no host identity), so only the body needs it.
+                    let body_owned = if self.privacy_active_for_label(&label) {
+                        crate::widgets::redact_for_display(
+                            trimmed,
+                            &self.privacy_terms(),
+                            self.privacy_classes(),
+                        )
+                    } else {
+                        trimmed.to_string()
+                    };
+                    let body = body_owned.as_str();
+                    if !body.is_empty() {
+                        let show_toast = match notif_mode {
+                            crate::util::NotificationMode::Off => false,
+                            crate::util::NotificationMode::Toast => true,
+                            crate::util::NotificationMode::Os => {
+                                !win_focused
+                                    && !crate::util::show_os_notification("Oryxis", body)
+                            }
+                        };
+                        if show_toast {
+                            self.set_toast(body.to_string());
+                            // Auto-dismiss on a timer only when the window is
+                            // focused (you see it now). A toast raised while
+                            // unfocused is left up and cleared shortly after you
+                            // return (WindowFocusChanged), so it isn't gone
+                            // before you look.
+                            toast_shown = win_focused;
+                        }
+                    }
+                }
+                // Smart-tab notifications ride the same delivery policy, with
+                // one twist: they only ever fire for a tab the user was NOT
+                // watching, so in OS mode a focused window (background tab)
+                // still gets the in-app toast; the native popup is reserved
+                // for an unfocused window, exactly like OSC 9 above.
+                // Privacy Mode (per pane) surfaces the redacted body and
+                // drops the pane identity: the OS notification center keeps
+                // plaintext around, and the terminal's masking is
+                // render-only, so it must not be sidestepped here.
+                for (label, body, redacted) in smart_notifications {
+                    let private = self.privacy_active_for_label(&label);
+                    let (title, text) = if private {
+                        ("Oryxis".to_string(), redacted)
+                    } else {
+                        (label, body)
+                    };
+                    let show_toast = match notif_mode {
+                        crate::util::NotificationMode::Off => false,
+                        crate::util::NotificationMode::Toast => true,
+                        crate::util::NotificationMode::Os => {
+                            win_focused
+                                || !crate::util::show_os_notification(&title, &text)
+                        }
+                    };
+                    if show_toast {
+                        self.set_toast(if private {
+                            text
+                        } else {
+                            format!("{title} \u{b7} {text}")
+                        });
+                        toast_shown = win_focused;
+                    }
+                }
+                // Session-group per-pane startup script for LOCAL panes. SSH
+                // panes inject on `SshConnected`, but a local shell has no
+                // such ready event, so we gate on its first output (the
+                // prompt) to be sure the shell is reading stdin.
+                if self.pane_script_overrides.contains_key(&pane_id) {
+                    let is_local = self
+                        .tabs
+                        .iter()
+                        .flat_map(|t| t.pane_grid.panes.values())
+                        .find(|p| p.id == pane_id)
+                        .map(|p| matches!(p.origin, crate::state::PaneOrigin::Local(_)))
+                        .unwrap_or(false);
+                    if is_local
+                        && let Some(script) = self.pane_script_overrides.remove(&pane_id)
+                        && let Some(pane) = self
+                            .tabs
+                            .iter()
+                            .flat_map(|t| t.pane_grid.panes.values())
+                            .find(|p| p.id == pane_id)
+                        && let Ok(mut state) = pane.terminal.lock()
+                    {
+                        state.write(format!("{script}\n").as_bytes());
+                    }
+                }
+                // Arm the one-shot flush for a synchronized update that
+                // stalled with output buffered. Fires `flush_sync` at the
+                // 150 ms deadline so a never-closed `?2026` can't leave the
+                // screen frozen (see `TerminalSyncFlush`).
+                let mut tasks: Vec<iced::Task<Message>> = Vec::new();
+                // A detected ZMODEM transfer starts after the clean prefix
+                // has been drawn: it seizes the pane and streams progress.
+                if let Some((direction, wire)) = zmodem_start {
+                    tasks.push(self.begin_zmodem_transfer(pane_id, direction, wire));
+                }
+                if let Some(remaining) = schedule_flush {
+                    tasks.push(Task::perform(
+                        async move {
+                            tokio::time::sleep(remaining).await;
+                        },
+                        move |_| Message::TerminalSyncFlush(pane_id),
+                    ));
+                }
+                if let Some(fp) = flash_pane {
+                    // Clear the visual-bell flash after a brief window.
+                    tasks.push(Task::perform(
+                        async move {
+                            tokio::time::sleep(std::time::Duration::from_millis(120)).await;
+                        },
+                        move |_| Message::TerminalBellFlashEnd(fp),
+                    ));
+                }
+                if toast_shown {
+                    // Auto-dismiss the fallback notification toast.
+                    tasks.push(Task::perform(
+                        async {
+                            tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
+                        },
+                        |_| Message::ToastClear,
+                    ));
+                }
+                if cwd_changed {
+                    // Follow-cwd for the sidebar Files browser. The sync
+                    // no-ops unless the browser is visible, following,
+                    // and this pane is the focused one.
+                    tasks.push(self.sidebar_files_sync());
+                }
+                if !tasks.is_empty() {
+                    return Ok(Task::batch(tasks));
+                }
+            }
+            m => return Err(m),
+        }
+        Ok(Task::none())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{session_log_segments, utf8_aligned, SESSION_LOG_SEGMENT_MS};
+
+    /// Arrival marks for consecutive batches: each batch starts where
+    /// the previous one ended, mirroring how the PTY handler records.
+    fn marks_for(batches: &[(&[u8], i64)]) -> (Vec<u8>, Vec<(usize, i64)>) {
+        let mut head = Vec::new();
+        let mut marks = Vec::new();
+        for &(bytes, ms) in batches {
+            marks.push((head.len(), ms));
+            head.extend_from_slice(bytes);
+        }
+        (head, marks)
+    }
+
+    #[test]
+    fn cr_prefixed_progress_updates_get_their_own_timed_segments() {
+        // wget style: every redraw starts with `\r`. Before the CR fix
+        // these coalesced into one untimed lump.
+        let gap = SESSION_LOG_SEGMENT_MS;
+        let (head, marks) = marks_for(&[
+            (b"GET file HTTP/1.1\n", 0),
+            (b"\r 10% [==>      ]", gap),
+            (b"\r 55% [=====>   ]", gap * 2),
+            (b"\r100% [=========]", gap * 3),
+        ]);
+        let segs = session_log_segments(&head, &marks);
+        assert_eq!(segs.len(), 4, "each CR redraw is a replay step: {segs:?}");
+        assert_eq!(segs[1], (18, gap));
+        assert!(segs.iter().skip(1).all(|&(p, _)| head[p] == b'\r'));
+    }
+
+    #[test]
+    fn cr_terminated_progress_updates_cut_after_the_cr() {
+        // apt style: every redraw ends with `\r`, the next batch starts
+        // with printable text right after it.
+        let gap = SESSION_LOG_SEGMENT_MS;
+        let (head, marks) = marks_for(&[
+            (b"Reading... 10%\r", 0),
+            (b"Reading... 55%\r", gap),
+            (b"Done\n", gap * 2),
+        ]);
+        let segs = session_log_segments(&head, &marks);
+        assert_eq!(segs.len(), 3, "{segs:?}");
+        assert!(segs.iter().skip(1).all(|&(p, _)| head[p - 1] == b'\r'));
+    }
+
+    #[test]
+    fn bursty_marks_coalesce_and_mid_line_marks_never_cut() {
+        let gap = SESSION_LOG_SEGMENT_MS;
+        // Marks inside one replay step (gap measured from the last CUT,
+        // not the last mark) coalesce even at line boundaries.
+        let (head, marks) =
+            marks_for(&[(b"a\n", 0), (b"b\n", gap / 3), (b"c\n", gap - 1)]);
+        assert_eq!(session_log_segments(&head, &marks).len(), 1);
+        // A big gap mid-line (no `\n`/`\r` anywhere near) still can't
+        // cut: chunk boundaries must stay line-bounded for redaction.
+        let (head, marks) = marks_for(&[(b"export TOKEN=abc", 0), (b"def123\n", gap * 4)]);
+        assert_eq!(session_log_segments(&head, &marks).len(), 1);
+        // No marks at all: a single segment at t=0.
+        assert_eq!(session_log_segments(b"x", &[]), vec![(0, 0)]);
+    }
+
+    #[test]
+    fn utf8_aligned_backs_off_split_sequences_only() {
+        // "é" = C3 A9. A cut between the bytes moves before the lead.
+        let buf = b"abc\xC3\xA9";
+        assert_eq!(utf8_aligned(buf, 4), 3);
+        assert_eq!(utf8_aligned(buf, 5), 5);
+        // 4-byte emoji (F0 9F 92 96) split at every interior position.
+        let buf = b"ok\xF0\x9F\x92\x96";
+        for cut in 3..6 {
+            assert_eq!(utf8_aligned(buf, cut), 2, "cut at {cut}");
+        }
+        assert_eq!(utf8_aligned(buf, 6), 6);
+        // Pure ASCII and raw binary keep the requested cut.
+        assert_eq!(utf8_aligned(b"hello", 5), 5);
+        assert_eq!(utf8_aligned(&[0xFF; 8], 8), 8);
+        assert_eq!(utf8_aligned(&[0x80; 8], 8), 8);
+    }
+}
