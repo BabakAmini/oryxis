@@ -37,10 +37,10 @@ use crate::remote_desktop::{program_on_path, resolve_command};
 impl Oryxis {
     pub(crate) fn handle_remote_desktop(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: RemoteDesktopMessage,
+    ) -> Task<Message> {
         match message {
-            Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopReady(conn_id, seq, res)) => {
+            RemoteDesktopMessage::RemoteDesktopReady(conn_id, seq, res) => {
                 match res {
                     Ok((session, port)) => {
                         // Replace any prior tunnel for this host. The old
@@ -56,9 +56,9 @@ impl Oryxis {
                     }
                     Err(e) => self.set_toast(e),
                 }
-                Ok(Task::none())
+                Task::none()
             }
-            Message::RemoteDesktop(RemoteDesktopMessage::RemoteDesktopClientClosed(conn_id, seq)) => {
+            RemoteDesktopMessage::RemoteDesktopClientClosed(conn_id, seq) => {
                 // The tunnel closed on its own. Drop the entry only if it is
                 // still the one this stream owns: a superseded launch (Stop +
                 // relaunch) must not evict the newer tunnel.
@@ -69,18 +69,17 @@ impl Oryxis {
                 {
                     self.remote_desktop_forwards.remove(&conn_id);
                 }
-                Ok(Task::none())
+                Task::none()
             }
-            Message::RemoteDesktop(RemoteDesktopMessage::StopRemoteDesktop(conn_id)) => {
+            RemoteDesktopMessage::StopRemoteDesktop(conn_id) => {
                 if let Some((_, session)) = self.remote_desktop_forwards.remove(&conn_id) {
-                    return Ok(Task::perform(
+                    return Task::perform(
                         async move { session.cancel().await },
                         |_| Message::NoOp,
-                    ));
+                    );
                 }
-                Ok(Task::none())
+                Task::none()
             }
-            m => Err(m),
         }
     }
 

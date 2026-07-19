@@ -200,9 +200,9 @@ impl Oryxis {
     /// Handle a streamed transfer event: update the overlay state and,
     /// on a terminal event, tear the divert down (resuming the terminal)
     /// and toast the outcome.
-    pub(crate) fn handle_zmodem(&mut self, message: Message) -> Result<Task<Message>, Message> {
+    pub(crate) fn handle_zmodem(&mut self, message: ZmodemMessage) -> Task<Message> {
         match message {
-            Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, progress)) => {
+            ZmodemMessage::ZmodemProgress(pane_id, progress) => {
                 // Terminal events tear the divert down and replay any
                 // output the transfer no longer owns: the driver's
                 // `trailing` (bytes past the peer's "OO" sign-off),
@@ -217,7 +217,7 @@ impl Oryxis {
                 let mut divert_closed = false;
                 {
                     let Some(pane) = self.pane_by_id_mut(pane_id) else {
-                        return Ok(Task::none());
+                        return Task::none();
                     };
                     match progress {
                         Progress::Started { name, size, batch } => {
@@ -271,12 +271,12 @@ impl Oryxis {
                     self.set_toast(text);
                 }
                 if replay.is_empty() {
-                    Ok(Task::none())
+                    Task::none()
                 } else {
-                    Ok(self.update(Message::Terminal(TerminalMessage::PtyOutput(pane_id, replay))))
+                    self.update(Message::Terminal(TerminalMessage::PtyOutput(pane_id, replay)))
                 }
             }
-            Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir) => Ok(Task::perform(
+            ZmodemMessage::PickZmodemDownloadDir => Task::perform(
                 tokio::task::spawn_blocking(|| {
                     rfd::FileDialog::new()
                         .set_title(crate::i18n::t("zmodem_download_dir"))
@@ -284,20 +284,20 @@ impl Oryxis {
                         .map(|p| p.display().to_string())
                 }),
                 |res| Message::Zmodem(ZmodemMessage::ZmodemDownloadDirPicked(res.ok().flatten())),
-            )),
-            Message::Zmodem(ZmodemMessage::ZmodemDownloadDirPicked(dir)) => {
+            ),
+            ZmodemMessage::ZmodemDownloadDirPicked(dir) => {
                 if let Some(dir) = dir {
                     self.persist_setting("zmodem_download_dir", &dir);
                     self.setting_zmodem_download_dir = dir;
                 }
-                Ok(Task::none())
+                Task::none()
             }
-            Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir) => {
+            ZmodemMessage::ClearZmodemDownloadDir => {
                 self.persist_setting("zmodem_download_dir", "");
                 self.setting_zmodem_download_dir = String::new();
-                Ok(Task::none())
+                Task::none()
             }
-            Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)) => {
+            ZmodemMessage::ZmodemCancel(pane_id) => {
                 if let Some(pane) = self.pane_by_id_mut(pane_id)
                     && let Some(zm) = pane.zmodem.as_ref()
                 {
@@ -310,9 +310,8 @@ impl Oryxis {
                     zm.abort.store(true, Ordering::Relaxed);
                     let _ = zm.wire_tx.send(Vec::new());
                 }
-                Ok(Task::none())
+                Task::none()
             }
-            m => Err(m),
         }
     }
 }

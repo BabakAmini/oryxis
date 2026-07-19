@@ -156,6 +156,16 @@ impl Oryxis {
     }
 
     pub(crate) fn dispatch_message(&mut self, message: Message) -> Task<Message> {
+        // Converted domains (Step C): each sub-enum routes straight to its
+        // type-safe handler; everything else falls through to the shrinking
+        // `try_handler!` chain below. New domains land in this match.
+        let message = match message {
+            Message::KnownHost(m) => return self.handle_known_hosts(m),
+            Message::RemoteDesktop(m) => return self.handle_remote_desktop(m),
+            Message::SessionGroup(m) => return self.handle_session_group(m),
+            Message::Zmodem(m) => return self.handle_zmodem(m),
+            other => other,
+        };
         // Domain-specific handlers each claim a slice of `Message`
         // variants and return `Err(message)` for everything else, so
         // the chain naturally falls through to the inline match below.
@@ -174,15 +184,11 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_cloud);
         let message = try_handler!(self, message, handle_ai);
         let message = try_handler!(self, message, handle_editor);
-        let message = try_handler!(self, message, handle_session_group);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
-        let message = try_handler!(self, message, handle_zmodem);
-        let message = try_handler!(self, message, handle_remote_desktop);
         let message = try_handler!(self, message, handle_command_history);
         let message = try_handler!(self, message, handle_sidebar_files);
         let message = try_handler!(self, message, handle_share);
-        let message = try_handler!(self, message, handle_known_hosts);
         let message = try_handler!(self, message, handle_tray);
         let message = try_handler!(self, message, handle_vault);
         let message = try_handler!(self, message, handle_onboarding);

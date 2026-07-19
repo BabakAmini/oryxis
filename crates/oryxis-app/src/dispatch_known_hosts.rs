@@ -10,11 +10,11 @@ use crate::app::{KnownHostMessage, Message, Oryxis};
 impl Oryxis {
     pub(crate) fn handle_known_hosts(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: KnownHostMessage,
+    ) -> Task<Message> {
         match message {
             // -- Known hosts --
-            Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(idx)) => {
+            KnownHostMessage::RequestDeleteKnownHost(idx) => {
                 let label = self
                     .known_hosts
                     .get(idx)
@@ -34,7 +34,7 @@ impl Oryxis {
                     }),
                 });
             }
-            Message::KnownHost(KnownHostMessage::DeleteKnownHost(idx)) => {
+            KnownHostMessage::DeleteKnownHost(idx) => {
                 if let Some(kh) = self.known_hosts.get(idx) {
                     let id = kh.id;
                     if let Some(vault) = &self.vault {
@@ -43,7 +43,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts) => {
+            KnownHostMessage::RequestClearAllKnownHosts => {
                 self.error_dialog = Some(crate::state::ErrorDialog {
                     title: crate::i18n::t("known_hosts_clear_confirm_title").to_string(),
                     body: crate::i18n::t("known_hosts_clear_confirm_body").to_string(),
@@ -55,7 +55,7 @@ impl Oryxis {
                     }),
                 });
             }
-            Message::KnownHost(KnownHostMessage::ClearAllKnownHosts) => {
+            KnownHostMessage::ClearAllKnownHosts => {
                 if let Some(vault) = &self.vault {
                     for kh in self.known_hosts.clone() {
                         let _ = vault.delete_known_host(&kh.id);
@@ -63,8 +63,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
