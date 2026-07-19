@@ -50,107 +50,113 @@ impl Oryxis {
                     use std::collections::hash_map::DefaultHasher;
                     use std::hash::{Hash, Hasher};
 
-                    let mut h = DefaultHasher::new();
-                    // Our OWN hidden state drives both the "Windows"
+                    // Labels handed to the OS menu go through the same
+                    // Privacy Mode redactor as the tab strip / status
+                    // bar (issue #78): the tray outlives the app's own
+                    // chrome, so raw host labels must never leave the
+                    // process while privacy is on (a no-op when it's
+                    // off). The menu lists are built every tick and
+                    // the signature is taken over what actually
+                    // renders, so a privacy toggle or per-host
+                    // override flip refreshes the menu like any label
+                    // change. One terms pass per tick, never per row.
+                    let privacy_terms = self.privacy_terms();
+                    // `&` is the Windows menu accelerator prefix:
+                    // a host named "R&D" would render as "RD" with
+                    // D underlined. Doubling the `&` escapes it.
+                    // Capped at 20: a user with 50+ open tabs gets
+                    // an unwieldy submenu otherwise; recent-hosts
+                    // submenu already had a `.take(10)` for the
+                    // same reason. Redaction keys on the automatic
+                    // label (volatile OSC titles stay out on purpose:
+                    // hashing them would churn the menu rebuild) so a
+                    // custom rename keeps the per-host override.
+                    let active: Vec<(String, String)> = self
+                        .tabs
+                        .iter()
+                        .enumerate()
+                        .take(20)
+                        .map(|(i, t)| {
+                            let shown = t.custom_name.as_deref().unwrap_or(&t.label);
+                            let shown =
+                                self.privacy_display_label(&t.label, shown, &privacy_terms);
+                            (shown.replace('&', "&&"), i.to_string())
+                        })
+                        .collect();
+                    // Recent hosts: top 10 by last_used desc.
+                    // Hosts that were never connected drop to
+                    // the bottom and get sliced off, so the
+                    // menu only lists hosts the user actually
+                    // touched.
+                    let mut recent_pairs: Vec<&oryxis_core::models::connection::Connection> =
+                        self.connections.iter().filter(|c| c.last_used.is_some()).collect();
+                    recent_pairs.sort_by_key(|c| std::cmp::Reverse(c.last_used));
+                    let recent: Vec<(String, String)> = recent_pairs
+                        .iter()
+                        .take(10)
+                        .map(|c| {
+                            let shown =
+                                self.privacy_display_label(&c.label, &c.label, &privacy_terms);
+                            (shown.replace('&', "&&"), c.id.to_string())
+                        })
+                        .collect();
+                    // Unified "Windows" list: every window the
+                    // user owns that's currently hidden, primary
+                    // first (when the primary itself is hidden)
+                    // then each hidden child via the IPC registry.
+                    // The id-suffix is the owning process's PID;
+                    // the menu click dispatcher checks self_pid
+                    // to decide between local TrayShow and an
+                    // IPC send_command. Cheap: list_instances does
+                    // one dir scan + PID liveness check per entry,
+                    // which on a typical setup means <5 file reads.
+                    let mut hidden: Vec<(String, String)> = Vec::new();
+                    if self.is_window_hidden {
+                        let primary_label = self
+                            .active_tab
+                            .and_then(|i| self.tabs.get(i))
+                            .map(|t| {
+                                let shown = t.custom_name.as_deref().unwrap_or(&t.label);
+                                self.privacy_display_label(&t.label, shown, &privacy_terms)
+                            })
+                            .unwrap_or_else(|| crate::i18n::t("tray_main_window").to_string());
+                        hidden.push((
+                            primary_label.replace('&', "&&"),
+                            std::process::id().to_string(),
+                        ));
+                    }
+                    for inst in crate::tray_ipc::Primary::list_instances() {
+                        if !inst.is_hidden {
+                            continue;
+                        }
+                        // A child's title is a host label from another
+                        // window over the same vault; redact it with
+                        // this process's terms like our own labels
+                        // (per-host overrides resolve by label lookup,
+                        // global setting is the fallback).
+                        let label = if inst.title.is_empty() || inst.title == "Oryxis" {
+                            format!("{} (PID {})", crate::i18n::t("tray_main_window"), inst.pid)
+                        } else {
+                            self.privacy_display_label(&inst.title, &inst.title, &privacy_terms)
+                        };
+                        hidden.push((label.replace('&', "&&"), inst.pid.to_string()));
+                    }
+                    // Signature over the rendered lists plus our OWN
+                    // hidden state, which drives both the "Windows"
                     // section and `set_visible` below, so it has to be
                     // part of the signature. Leaving it out meant a
                     // primary that hid itself produced an unchanged
                     // signature, skipped the whole block, and never
                     // called `set_visible(true)`: the window was gone
                     // and no tray icon ever appeared to bring it back.
-                    // A child's hide was covered only by accident, via
-                    // `inst.is_hidden` in the IPC registry below.
+                    let mut h = DefaultHasher::new();
                     self.is_window_hidden.hash(&mut h);
-                    self.tabs.len().hash(&mut h);
-                    for t in &self.tabs {
-                        t.label.hash(&mut h);
-                        // A transient rename must retitle the tray entries
-                        // too (volatile OSC titles stay out on purpose:
-                        // hashing them would churn the menu rebuild).
-                        t.custom_name.hash(&mut h);
-                    }
-                    self.connections.len().hash(&mut h);
-                    for c in &self.connections {
-                        c.id.hash(&mut h);
-                        c.last_used.map(|d| d.timestamp_millis()).hash(&mut h);
-                    }
-                    // Fold the IPC registry into the signature so a
-                    // child going hidden / changing title triggers
-                    // a primary menu rebuild on the next tick. Cheap:
-                    // list_instances does one dir scan + PID liveness
-                    // check per entry, which on a typical setup means
-                    // <5 file reads.
-                    let ipc_instances = crate::tray_ipc::Primary::list_instances();
-                    ipc_instances.len().hash(&mut h);
-                    for inst in &ipc_instances {
-                        inst.pid.hash(&mut h);
-                        inst.is_hidden.hash(&mut h);
-                        inst.title.hash(&mut h);
-                    }
+                    active.hash(&mut h);
+                    recent.hash(&mut h);
+                    hidden.hash(&mut h);
                     let sig = h.finish();
                     if sig != self.tray_menu_signature {
                         self.tray_menu_signature = sig;
-                        // `&` is the Windows menu accelerator prefix:
-                        // a host named "R&D" would render as "RD" with
-                        // D underlined. Doubling the `&` escapes it.
-                        // Capped at 20: a user with 50+ open tabs gets
-                        // an unwieldy submenu otherwise; recent-hosts
-                        // submenu already had a `.take(10)` for the
-                        // same reason.
-                        let active: Vec<(String, String)> = self
-                            .tabs
-                            .iter()
-                            .enumerate()
-                            .take(20)
-                            .map(|(i, t)| {
-                                let shown = t.custom_name.as_deref().unwrap_or(&t.label);
-                                (shown.replace('&', "&&"), i.to_string())
-                            })
-                            .collect();
-                        // Recent hosts: top 10 by last_used desc.
-                        // Hosts that were never connected drop to
-                        // the bottom and get sliced off, so the
-                        // menu only lists hosts the user actually
-                        // touched.
-                        let mut recent_pairs: Vec<&oryxis_core::models::connection::Connection> =
-                            self.connections.iter().filter(|c| c.last_used.is_some()).collect();
-                        recent_pairs.sort_by_key(|c| std::cmp::Reverse(c.last_used));
-                        let recent: Vec<(String, String)> = recent_pairs
-                            .iter()
-                            .take(10)
-                            .map(|c| (c.label.replace('&', "&&"), c.id.to_string()))
-                            .collect();
-                        // Unified "Windows" list: every window the
-                        // user owns that's currently hidden, primary
-                        // first (when the primary itself is hidden)
-                        // then each hidden child via the IPC registry.
-                        // The id-suffix is the owning process's PID;
-                        // the menu click dispatcher checks self_pid
-                        // to decide between local TrayShow and an
-                        // IPC send_command.
-                        let mut hidden: Vec<(String, String)> = Vec::new();
-                        if self.is_window_hidden {
-                            let primary_label = self
-                                .active_tab
-                                .and_then(|i| self.tabs.get(i))
-                                .map(|t| t.custom_name.clone().unwrap_or_else(|| t.label.clone()))
-                                .unwrap_or_else(|| crate::i18n::t("tray_main_window").to_string());
-                            hidden.push((
-                                primary_label.replace('&', "&&"),
-                                std::process::id().to_string(),
-                            ));
-                        }
-                        for inst in crate::tray_ipc::Primary::list_instances() {
-                            if !inst.is_hidden {
-                                continue;
-                            }
-                            let label = if inst.title.is_empty() || inst.title == "Oryxis" {
-                                format!("{} (PID {})", crate::i18n::t("tray_main_window"), inst.pid)
-                            } else {
-                                inst.title.clone()
-                            };
-                            hidden.push((label.replace('&', "&&"), inst.pid.to_string()));
-                        }
                         if let Err(e) = crate::tray::rebuild_menu(&active, &recent, &hidden) {
                             tracing::warn!("tray menu rebuild failed: {e}");
                         }
@@ -404,13 +410,26 @@ impl Oryxis {
             .filter(|c| c.last_used.is_some())
             .collect();
         recent.sort_by_key(|c| std::cmp::Reverse(c.last_used));
+        // JumpList titles are persisted by the shell, so they go
+        // through the same Privacy Mode redactor as the tab strip
+        // (issue #78); the entry still launches by uuid, so a
+        // redacted title stays clickable. A no-op when privacy is
+        // off. One terms pass per refresh, never per row.
+        let privacy_terms = self.privacy_terms();
         let entries: Vec<(String, uuid::Uuid)> = recent
             .iter()
             .take(10)
-            .map(|c| (c.label.clone(), c.id))
+            .map(|c| {
+                (
+                    self.privacy_display_label(&c.label, &c.label, &privacy_terms),
+                    c.id,
+                )
+            })
             .collect();
 
-        // Signature covers label + id so a rename or reorder refreshes.
+        // Signature covers label + id so a rename or reorder refreshes;
+        // it hashes the redacted label, so a privacy toggle refreshes
+        // the list too instead of leaving raw titles behind.
         let mut h = DefaultHasher::new();
         for (label, id) in &entries {
             label.hash(&mut h);
