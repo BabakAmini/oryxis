@@ -10,7 +10,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, OnboardingMessage, Oryxis};
+use crate::app::{VaultMessage, Message, OnboardingMessage, Oryxis};
 use crate::dispatch_onboarding::ONBOARDING_LAST_SLIDE;
 use crate::i18n::t;
 use crate::theme::OryxisColors;
@@ -188,10 +188,10 @@ impl Oryxis {
         let fields = container(password_input_with_eye(
             t("master_password_optional"),
             &self.vault_ui.password_input,
-            Message::VaultPasswordChanged,
-            Some(Message::VaultSetup),
+            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v)),
+            Some(Message::Vault(VaultMessage::VaultSetup)),
             self.vault_ui.password_visible,
-            Message::VaultTogglePasswordVisibility,
+            Message::Vault(VaultMessage::VaultTogglePasswordVisibility),
             12.0,
         ))
         .width(300);
@@ -215,7 +215,7 @@ impl Oryxis {
                 container(crate::widgets::toggle_row(
                     crate::biometric::bio_setup_label(),
                     self.vault_ui.setup_enable_biometric,
-                    Message::ToggleSetupBiometric,
+                    Message::Vault(VaultMessage::ToggleSetupBiometric),
                 ))
                 .width(300),
             ]
@@ -241,10 +241,10 @@ impl Oryxis {
             if self.vault_ui.calibrating {
                 crate::widgets::styled_button_opt(t("kdf_calibrating"), None, accent)
             } else {
-                styled_button(t("create_vault"), Message::VaultSetup, accent)
+                styled_button(t("create_vault"), Message::Vault(VaultMessage::VaultSetup), accent)
             },
             Space::new().height(6),
-            onboarding_text_button(t("continue_without_password"), Message::VaultSkipPassword),
+            onboarding_text_button(t("continue_without_password"), Message::Vault(VaultMessage::VaultSkipPassword)),
             error,
         ]
         .align_x(iced::Alignment::Center)

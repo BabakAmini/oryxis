@@ -9,7 +9,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{VaultMessage, Message, Oryxis};
 
 impl Oryxis {
     /// Handle the `KeyboardEvent` chord resolver + PTY key routing.
@@ -129,7 +129,7 @@ impl Oryxis {
                         }
                     )
                 {
-                    return Ok(Task::done(Message::BiometricUnlockRequested));
+                    return Ok(Task::done(Message::Vault(VaultMessage::BiometricUnlockRequested)));
                 }
                 // Lock / setup / onboarding screens own the keyboard
                 // exclusively: their inputs receive keys through the

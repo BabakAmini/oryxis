@@ -14,7 +14,7 @@ pub(crate) use tokio_stream::wrappers::UnboundedReceiverStream;
 
 pub(crate) use oryxis_terminal::widget::TerminalState;
 
-pub(crate) use crate::app::{Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+pub(crate) use crate::app::{VaultMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
 pub(crate) use crate::state::{TerminalTab, View};
 pub(crate) use crate::theme::AppTheme;
 pub(crate) use crate::util::sanitize_uint;
@@ -417,7 +417,7 @@ impl Oryxis {
                     && self.last_user_activity.elapsed().as_secs() >= minutes * 60
                 {
                     tracing::info!("vault auto-lock after {minutes} min idle");
-                    return Ok(Task::done(Message::AutoLockVault));
+                    return Ok(Task::done(Message::Vault(VaultMessage::AutoLockVault)));
                 }
             }
             Message::ConnectAnimTick => {

@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{VaultMessage, Message, Oryxis};
 use crate::state::{VaultState, View};
 use oryxis_vault::VaultError;
 
@@ -16,13 +16,13 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Vault --
-            Message::VaultPasswordChanged(pw) => {
+            Message::Vault(VaultMessage::VaultPasswordChanged(pw)) => {
                 self.vault_ui.password_input = pw;
             }
-            Message::VaultTogglePasswordVisibility => {
+            Message::Vault(VaultMessage::VaultTogglePasswordVisibility) => {
                 self.vault_ui.password_visible = !self.vault_ui.password_visible;
             }
-            Message::VaultSetup => {
+            Message::Vault(VaultMessage::VaultSetup) => {
                 if self.vault_ui.password_input.len() < 4 {
                     self.vault_ui.error =
                         Some(crate::i18n::t("password_too_short").to_string());
@@ -42,7 +42,7 @@ impl Oryxis {
                 self.vault_ui.pending_kdf_pw = Some(self.vault_ui.password_input.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::FirstSetup));
             }
-            Message::VaultSkipPassword => {
+            Message::Vault(VaultMessage::VaultSkipPassword) => {
                 if let Some(vault) = &mut self.vault {
                     match vault.open_without_password() {
                         Ok(()) => {
@@ -68,10 +68,10 @@ impl Oryxis {
                     }
                 }
             }
-            Message::VaultDestroyConfirm => {
+            Message::Vault(VaultMessage::VaultDestroyConfirm) => {
                 self.vault_ui.destroy_confirm = !self.vault_ui.destroy_confirm;
             }
-            Message::VaultDestroy => {
+            Message::Vault(VaultMessage::VaultDestroy) => {
                 if let Some(vault) = &mut self.vault {
                     match vault.destroy_and_recreate() {
                         Ok(()) => {
@@ -87,7 +87,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::VaultUnlock => {
+            Message::Vault(VaultMessage::VaultUnlock) => {
                 // Ignore the submit when no password was typed (pressing
                 // Enter on an empty field or clicking Unlock with it blank
                 // shouldn't run a doomed unlock attempt or surface an error).
@@ -170,7 +170,7 @@ impl Oryxis {
             }
 
             // ── Vault lock (manual + idle auto-lock) ──
-            Message::AutoLockVault => {
+            Message::Vault(VaultMessage::AutoLockVault) => {
                 // Soft lock: the user walked away, not "I'm done". Zeroize
                 // the master key and drop to the lock screen, but keep
                 // live SSH sessions and tabs so long-running remote work
@@ -298,7 +298,7 @@ impl Oryxis {
                     )));
                 }
             }
-            Message::LockVault => {
+            Message::Vault(VaultMessage::LockVault) => {
                 if let Some(vault) = &mut self.vault {
                     vault.lock();
                     if self.vault_ui.has_user_password {
@@ -409,7 +409,7 @@ impl Oryxis {
             }
 
             // ── Biometric (OS-keystore) unlock ──
-            Message::ToggleBiometricUnlock => {
+            Message::Vault(VaultMessage::ToggleBiometricUnlock) => {
                 if self.setting_biometric_unlock_enabled {
                     // Opt out: forget the stored secret unconditionally, then
                     // flip the setting off and persist.
@@ -443,7 +443,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::BiometricUnlockRequested => {
+            Message::Vault(VaultMessage::BiometricUnlockRequested) => {
                 let Some(bv) = self.biometric_vault() else {
                     return Ok(Task::none());
                 };
@@ -460,15 +460,15 @@ impl Oryxis {
                         .await
                         .unwrap_or_else(|e| Err(e.to_string()))
                     },
-                    Message::BiometricUnlockResult,
+                    |v| Message::Vault(VaultMessage::BiometricUnlockResult(v)),
                 ));
             }
-            Message::BiometricUnlockResult(res) => match res {
+            Message::Vault(VaultMessage::BiometricUnlockResult(res)) => match res {
                 Ok(password) => {
                     // Feed the released password into the ordinary unlock
                     // path (which sets `master_password`, boots sync, etc).
                     self.vault_ui.password_input = password;
-                    return Ok(Task::done(Message::VaultUnlock));
+                    return Ok(Task::done(Message::Vault(VaultMessage::VaultUnlock)));
                 }
                 Err(e) => {
                     tracing::warn!("biometric unlock failed: {e}");
@@ -483,7 +483,7 @@ impl Oryxis {
                     )));
                 }
             },
-            Message::VaultShowPasswordFallback => {
+            Message::Vault(VaultMessage::VaultShowPasswordFallback) => {
                 // Biometric-first lock screen: reveal the typed-password
                 // form. The biometric button stays available below it, so
                 // this is a per-lock choice, not a mode switch.
@@ -493,12 +493,12 @@ impl Oryxis {
                     "vault-unlock-password",
                 )));
             }
-            Message::ToggleSetupBiometric => {
+            Message::Vault(VaultMessage::ToggleSetupBiometric) => {
                 self.vault_ui.setup_enable_biometric = !self.vault_ui.setup_enable_biometric;
             }
 
             // ── Vault password management ──
-            Message::ToggleVaultPassword => {
+            Message::Vault(VaultMessage::ToggleVaultPassword) => {
                 if self.vault_ui.has_user_password {
                     // Removing encryption is destructive: arm the confirm
                     // prompt instead of dropping the password on a single
@@ -524,7 +524,7 @@ impl Oryxis {
                     self.vault_ui.pending_kdf_pw = None;
                 }
             }
-            Message::ConfirmRemoveVaultPassword => {
+            Message::Vault(VaultMessage::ConfirmRemoveVaultPassword) => {
                 if let Some(vault) = &mut self.vault {
                     match vault.remove_user_password() {
                         Ok(()) => {
@@ -549,17 +549,17 @@ impl Oryxis {
                     }
                 }
             }
-            Message::CancelRemoveVaultPassword => {
+            Message::Vault(VaultMessage::CancelRemoveVaultPassword) => {
                 self.vault_ui.confirm_remove_password = false;
                 self.vault_ui.password_error = None;
             }
-            Message::VaultNewPasswordChanged(pw) => {
+            Message::Vault(VaultMessage::VaultNewPasswordChanged(pw)) => {
                 self.vault_ui.new_password = pw;
             }
-            Message::VaultConfirmPasswordChanged(pw) => {
+            Message::Vault(VaultMessage::VaultConfirmPasswordChanged(pw)) => {
                 self.vault_ui.confirm_password = pw;
             }
-            Message::SetVaultPassword => {
+            Message::Vault(VaultMessage::SetVaultPassword) => {
                 if self.vault_ui.new_password.len() < 4 {
                     self.vault_ui.password_error =
                         Some(crate::i18n::t("password_too_short").to_string());
@@ -581,7 +581,7 @@ impl Oryxis {
                 self.vault_ui.pending_kdf_pw = Some(self.vault_ui.new_password.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::SetUser));
             }
-            Message::OpenChangeVaultPassword => {
+            Message::Vault(VaultMessage::OpenChangeVaultPassword) => {
                 // Reveal the change form; start from a clean slate so a
                 // stale value from a previous open can't leak in. Dismiss
                 // any armed remove-confirm so the two can't stack.
@@ -592,7 +592,7 @@ impl Oryxis {
                 self.vault_ui.confirm_password.clear();
                 self.vault_ui.password_error = None;
             }
-            Message::CancelChangeVaultPassword => {
+            Message::Vault(VaultMessage::CancelChangeVaultPassword) => {
                 self.vault_ui.change_password_open = false;
                 self.vault_ui.current_password.clear();
                 self.vault_ui.new_password.clear();
@@ -603,10 +603,10 @@ impl Oryxis {
                 // the user backed out.
                 self.vault_ui.pending_kdf_pw = None;
             }
-            Message::VaultCurrentPasswordChanged(pw) => {
+            Message::Vault(VaultMessage::VaultCurrentPasswordChanged(pw)) => {
                 self.vault_ui.current_password = pw;
             }
-            Message::ConfirmChangeVaultPassword => {
+            Message::Vault(VaultMessage::ConfirmChangeVaultPassword) => {
                 if self.vault_ui.new_password.len() < 4 {
                     self.vault_ui.password_error =
                         Some(crate::i18n::t("password_too_short").to_string());
@@ -646,7 +646,7 @@ impl Oryxis {
                 self.vault_ui.pending_kdf_pw = Some(self.vault_ui.new_password.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::Change));
             }
-            Message::VaultKdfCalibrated(op, params) => {
+            Message::Vault(VaultMessage::VaultKdfCalibrated(op, params)) => {
                 // Phase 2 (E1): apply the pending set / change-password with
                 // the tuned KDF params. The ~1s derive here runs on the UI
                 // thread, same cost as an unlock (the plan accepts that);
@@ -744,6 +744,6 @@ fn calibrate_kdf_task(op: crate::state::VaultPwOp) -> Task<Message> {
                 .await
                 .unwrap_or(oryxis_vault::KdfParams::DEFAULT)
         },
-        move |params| Message::VaultKdfCalibrated(op, params),
+        move |params| Message::Vault(VaultMessage::VaultKdfCalibrated(op, params)),
     )
 }

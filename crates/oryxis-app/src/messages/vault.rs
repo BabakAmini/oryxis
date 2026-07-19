@@ -1,0 +1,52 @@
+//! Vault lock / unlock / setup, master-password management, biometric
+//! unlock and KDF calibration, wrapped by [`crate::messages::Message::Vault`].
+
+#[derive(Debug, Clone)]
+pub enum VaultMessage {
+    VaultPasswordChanged(String),
+    VaultTogglePasswordVisibility,
+    VaultUnlock,
+    VaultSetup,
+    VaultSkipPassword,
+    VaultDestroyConfirm,
+    VaultDestroy,
+    /// Settings toggle: opt in / out of biometric (OS-keystore) unlock.
+    /// Enrolling stores the current master password; disabling forgets it.
+    ToggleBiometricUnlock,
+    /// Lock-screen button: raise the OS presence prompt and, on success,
+    /// unlock with the released master password. The retrieval runs off
+    /// the UI thread (it blocks on the OS prompt) and returns via
+    /// `BiometricUnlockResult`.
+    BiometricUnlockRequested,
+    /// Result of the off-thread biometric retrieval: `Ok(master_password)`
+    /// to feed into the normal unlock, or `Err(message)` to surface.
+    BiometricUnlockResult(Result<String, String>),
+    /// Lock-screen link on the biometric-first layout: reveal the typed
+    /// master-password form (biometrics stay one click away).
+    VaultShowPasswordFallback,
+    /// Set-password forms: flip the "also enable biometric unlock" opt-in.
+    ToggleSetupBiometric,
+    LockVault,
+    /// Idle-triggered soft lock: zeroize the vault key and show the lock
+    /// screen but keep live SSH sessions and tabs (unlike the manual
+    /// `LockVault`, which tears sessions down).
+    AutoLockVault,
+    ToggleVaultPassword,
+    /// Commit the master-password removal after the confirm prompt.
+    ConfirmRemoveVaultPassword,
+    /// Dismiss the remove-password confirm prompt without removing.
+    CancelRemoveVaultPassword,
+    VaultNewPasswordChanged(String),
+    VaultConfirmPasswordChanged(String),
+    SetVaultPassword,
+    /// Open / close the change-master-password form.
+    OpenChangeVaultPassword,
+    CancelChangeVaultPassword,
+    /// Current-password field of the change-password form.
+    VaultCurrentPasswordChanged(String),
+    /// Verify the current password and rotate to the new one.
+    ConfirmChangeVaultPassword,
+    /// E1: Argon2id calibration finished off-thread; apply the pending
+    /// set / change-password operation with the tuned parameters.
+    VaultKdfCalibrated(crate::state::VaultPwOp, oryxis_vault::KdfParams),
+}

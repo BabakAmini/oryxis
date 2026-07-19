@@ -4,7 +4,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{VaultMessage, Message, Oryxis};
 use crate::theme::{mix, OryxisColors};
 use crate::views::chrome::window_chrome_bar;
 use crate::widgets::{accent_gradient, styled_button, styled_icon_button};
@@ -45,10 +45,10 @@ impl Oryxis {
         container(crate::widgets::password_input_with_eye_id(
             placeholder,
             &self.vault_ui.password_input,
-            Message::VaultPasswordChanged,
+            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v)),
             Some(on_submit),
             self.vault_ui.password_visible,
-            Message::VaultTogglePasswordVisibility,
+            Message::Vault(VaultMessage::VaultTogglePasswordVisibility),
             12.0,
             Some(iced::widget::Id::new("vault-unlock-password")),
         ))
@@ -89,7 +89,7 @@ impl Oryxis {
                     .color(OryxisColors::t().button_text)
                     .into(),
                 crate::biometric::bio_unlock_label(),
-                Message::BiometricUnlockRequested,
+                Message::Vault(VaultMessage::BiometricUnlockRequested),
                 OryxisColors::t().accent,
             );
             // Muted text link to the typed-password form; background tint
@@ -99,7 +99,7 @@ impl Oryxis {
                     .size(12)
                     .color(OryxisColors::t().text_muted),
             )
-            .on_press(Message::VaultShowPasswordFallback)
+            .on_press(Message::Vault(VaultMessage::VaultShowPasswordFallback))
             .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
             .style(|_, status| {
                 let bg = match status {
@@ -120,11 +120,11 @@ impl Oryxis {
         } else {
             let input = self.vault_master_password_field(
                 crate::i18n::t("master_password_placeholder"),
-                Message::VaultUnlock,
+                Message::Vault(VaultMessage::VaultUnlock),
             );
             let btn = styled_button(
                 crate::i18n::t("unlock"),
-                Message::VaultUnlock,
+                Message::Vault(VaultMessage::VaultUnlock),
                 OryxisColors::t().accent,
             );
             // On the fallback layout biometrics stay one click away as the
@@ -139,7 +139,7 @@ impl Oryxis {
                             .color(crate::theme::contrast_text_for(OryxisColors::t().bg_hover))
                             .into(),
                         crate::biometric::bio_unlock_label(),
-                        Message::BiometricUnlockRequested,
+                        Message::Vault(VaultMessage::BiometricUnlockRequested),
                         OryxisColors::t().bg_hover,
                     ),
                 ]
@@ -163,13 +163,13 @@ impl Oryxis {
             column![
                 text(crate::i18n::t("vault_destroy_confirm")).size(12).color(OryxisColors::t().error),
                 Space::new().height(6),
-                styled_button(crate::i18n::t("destroy_vault"), Message::VaultDestroy, OryxisColors::t().error),
+                styled_button(crate::i18n::t("destroy_vault"), Message::Vault(VaultMessage::VaultDestroy), OryxisColors::t().error),
             ].align_x(iced::Alignment::Center).into()
         } else {
             button(
                 text(crate::i18n::t("forgot_password")).size(12).color(OryxisColors::t().text_muted),
             )
-            .on_press(Message::VaultDestroyConfirm)
+            .on_press(Message::Vault(VaultMessage::VaultDestroyConfirm))
             .padding(Padding { top: 6.0, right: 12.0, bottom: 6.0, left: 12.0 })
             .style(|_, _| button::Style::default())
             .into()

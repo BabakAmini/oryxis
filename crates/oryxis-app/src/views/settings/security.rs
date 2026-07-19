@@ -58,8 +58,8 @@ impl Oryxis {
         let current = container(crate::widgets::password_input_with_eye(
             t("current_master_password_placeholder"),
             &self.vault_ui.current_password,
-            Message::VaultCurrentPasswordChanged,
-            Some(Message::ConfirmChangeVaultPassword),
+            |v| Message::Vault(VaultMessage::VaultCurrentPasswordChanged(v)),
+            Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultCurrentPassword),
             Message::ToggleSecretVisibility(SecretField::VaultCurrentPassword),
             10.0,
@@ -68,8 +68,8 @@ impl Oryxis {
         let new = container(crate::widgets::password_input_with_eye(
             t("new_master_password_placeholder"),
             &self.vault_ui.new_password,
-            Message::VaultNewPasswordChanged,
-            Some(Message::ConfirmChangeVaultPassword),
+            |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v)),
+            Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultNewPassword),
             Message::ToggleSecretVisibility(SecretField::VaultNewPassword),
             10.0,
@@ -78,8 +78,8 @@ impl Oryxis {
         let confirm = container(crate::widgets::password_input_with_eye(
             t("confirm_master_password_placeholder"),
             &self.vault_ui.confirm_password,
-            Message::VaultConfirmPasswordChanged,
-            Some(Message::ConfirmChangeVaultPassword),
+            |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v)),
+            Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultConfirmPassword),
             Message::ToggleSecretVisibility(SecretField::VaultConfirmPassword),
             10.0,
@@ -100,13 +100,13 @@ impl Oryxis {
         } else {
             styled_button(
                 crate::i18n::t("update_password"),
-                Message::ConfirmChangeVaultPassword,
+                Message::Vault(VaultMessage::ConfirmChangeVaultPassword),
                 OryxisColors::t().accent,
             )
         };
         let cancel_btn = styled_button(
             crate::i18n::t("cancel"),
-            Message::CancelChangeVaultPassword,
+            Message::Vault(VaultMessage::CancelChangeVaultPassword),
             OryxisColors::t().text_muted,
         );
         panel_section(column![
@@ -135,7 +135,7 @@ impl Oryxis {
         let password_toggle = self.nav_toggle_row(
             crate::i18n::t("vault_password"),
             self.vault_ui.has_user_password || self.vault_ui.show_password_form,
-            Message::ToggleVaultPassword,
+            Message::Vault(VaultMessage::ToggleVaultPassword),
         );
 
         let password_section: Element<'_, Message> = if !self.vault_ui.has_user_password {
@@ -160,8 +160,8 @@ impl Oryxis {
             let input = container(crate::widgets::password_input_with_eye(
                 t("new_master_password_placeholder"),
                 &self.vault_ui.new_password,
-                Message::VaultNewPasswordChanged,
-                Some(Message::SetVaultPassword),
+                |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v)),
+                Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultNewPassword),
                 Message::ToggleSecretVisibility(
@@ -177,8 +177,8 @@ impl Oryxis {
             let confirm = container(crate::widgets::password_input_with_eye(
                 t("confirm_master_password_placeholder"),
                 &self.vault_ui.confirm_password,
-                Message::VaultConfirmPasswordChanged,
-                Some(Message::SetVaultPassword),
+                |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v)),
+                Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultConfirmPassword),
                 Message::ToggleSecretVisibility(
@@ -190,7 +190,7 @@ impl Oryxis {
             let btn = if self.vault_ui.calibrating {
                 crate::widgets::styled_button_opt(crate::i18n::t("kdf_calibrating"), None, OryxisColors::t().accent)
             } else {
-                styled_button(crate::i18n::t("set_password"), Message::SetVaultPassword, OryxisColors::t().accent)
+                styled_button(crate::i18n::t("set_password"), Message::Vault(VaultMessage::SetVaultPassword), OryxisColors::t().accent)
             };
             // Offer the biometric convenience layer at password-creation
             // time (the market-standard moment: 1Password / Bitwarden ask
@@ -202,7 +202,7 @@ impl Oryxis {
                     container(crate::widgets::toggle_row(
                         crate::biometric::bio_setup_label(),
                         self.vault_ui.setup_enable_biometric,
-                        Message::ToggleSetupBiometric,
+                        Message::Vault(VaultMessage::ToggleSetupBiometric),
                     ))
                     .width(300),
                 ]
@@ -252,20 +252,20 @@ impl Oryxis {
                     OryxisColors::t().warning,
                 );
                 let remove_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::ConfirmRemoveVaultPassword),
+                    crate::keynav::RowAction::activate(Message::Vault(VaultMessage::ConfirmRemoveVaultPassword)),
                     6.0,
                     styled_button(
                         crate::i18n::t("remove_password"),
-                        Message::ConfirmRemoveVaultPassword,
+                        Message::Vault(VaultMessage::ConfirmRemoveVaultPassword),
                         OryxisColors::t().error,
                     ),
                 );
                 let cancel_btn = self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::CancelRemoveVaultPassword),
+                    crate::keynav::RowAction::activate(Message::Vault(VaultMessage::CancelRemoveVaultPassword)),
                     6.0,
                     styled_button(
                         crate::i18n::t("cancel"),
-                        Message::CancelRemoveVaultPassword,
+                        Message::Vault(VaultMessage::CancelRemoveVaultPassword),
                         OryxisColors::t().text_muted,
                     ),
                 );
@@ -320,7 +320,7 @@ impl Oryxis {
                         self.nav_toggle_row(
                             crate::biometric::bio_setting_label(),
                             self.setting_biometric_unlock_enabled,
-                            Message::ToggleBiometricUnlock,
+                            Message::Vault(VaultMessage::ToggleBiometricUnlock),
                         ),
                         Space::new().height(4),
                         text(t("biometric_unlock_desc"))
@@ -363,7 +363,7 @@ impl Oryxis {
         // a muted note telling the user how to enable locking.
         let lock_btn: Element<'_, Message> = if self.vault_ui.has_user_password {
             self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::LockVault),
+                crate::keynav::RowAction::activate(Message::Vault(VaultMessage::LockVault)),
                 8.0,
                 button(
                     container(
@@ -375,7 +375,7 @@ impl Oryxis {
                     )
                     .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
                 )
-                .on_press(Message::LockVault)
+                .on_press(Message::Vault(VaultMessage::LockVault))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().warning },
@@ -402,7 +402,7 @@ impl Oryxis {
         // change form drops in below the button row when opened.
         let lock_row: Element<'_, Message> = if self.vault_ui.has_user_password {
             let update_btn = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::OpenChangeVaultPassword),
+                crate::keynav::RowAction::activate(Message::Vault(VaultMessage::OpenChangeVaultPassword)),
                 8.0,
                 button(
                     container(
@@ -414,7 +414,7 @@ impl Oryxis {
                     )
                     .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
                 )
-                .on_press(Message::OpenChangeVaultPassword)
+                .on_press(Message::Vault(VaultMessage::OpenChangeVaultPassword))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().accent },

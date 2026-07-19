@@ -13,7 +13,7 @@
 //! (mirroring `TabJumpSelect`), never a list index, so a query change
 //! between the recording frame and the keypress can't misfire.
 
-use crate::app::{Message, Oryxis};
+use crate::app::{VaultMessage, Message, Oryxis};
 use crate::hotkeys::HotkeyAction;
 use crate::i18n::t;
 use crate::state::View;
@@ -237,7 +237,7 @@ impl Oryxis {
             keywords: "lock_vault",
             hotkey: None,
             category: PaletteCategory::Session,
-            message: Message::LockVault,
+            message: Message::Vault(VaultMessage::LockVault),
             enabled: self.vault_ui.has_user_password,
         });
         candidates.push(Candidate {
