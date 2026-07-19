@@ -164,6 +164,12 @@ impl Oryxis {
             Message::RemoteDesktop(m) => return self.handle_remote_desktop(m),
             Message::SessionGroup(m) => return self.handle_session_group(m),
             Message::Zmodem(m) => return self.handle_zmodem(m),
+            Message::Update(m) => return self.handle_update(m),
+            Message::PortForward(m) => return self.handle_port_forwards(m),
+            Message::Agent(m) => return self.handle_agent(m),
+            Message::ProxyIdentity(m) => return self.handle_proxy_identity(m),
+            Message::CommandHistory(m) => return self.handle_command_history(m),
+            Message::Navigation(m) => return self.handle_navigation(m),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -174,26 +180,20 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_sftp_archive);
         let message = try_handler!(self, message, handle_sftp);
         let message = try_handler!(self, message, handle_ssh);
-        let message = try_handler!(self, message, handle_update);
-        let message = try_handler!(self, message, handle_port_forwards);
         let message = try_handler!(self, message, handle_settings);
         let message = try_handler!(self, message, handle_keys);
-        let message = try_handler!(self, message, handle_agent);
-        let message = try_handler!(self, message, handle_proxy_identity);
         let message = try_handler!(self, message, handle_plugins);
         let message = try_handler!(self, message, handle_cloud);
         let message = try_handler!(self, message, handle_ai);
         let message = try_handler!(self, message, handle_editor);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
-        let message = try_handler!(self, message, handle_command_history);
         let message = try_handler!(self, message, handle_sidebar_files);
         let message = try_handler!(self, message, handle_share);
         let message = try_handler!(self, message, handle_tray);
         let message = try_handler!(self, message, handle_vault);
         let message = try_handler!(self, message, handle_onboarding);
         let message = try_handler!(self, message, handle_snippets);
-        let message = try_handler!(self, message, handle_navigation);
         let message = try_handler!(self, message, handle_history);
         let message = try_handler!(self, message, handle_player);
         let message = try_handler!(self, message, handle_mcp);

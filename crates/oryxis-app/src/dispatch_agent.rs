@@ -11,18 +11,18 @@ use crate::app::{AgentMessage, Message, Oryxis};
 use crate::state::AgentSnippetKind;
 
 impl Oryxis {
-    pub(crate) fn handle_agent(&mut self, message: Message) -> Result<Task<Message>, Message> {
+    pub(crate) fn handle_agent(&mut self, message: AgentMessage) -> Task<Message> {
         match message {
-            Message::Agent(AgentMessage::AgentServerToggled(on)) => {
+            AgentMessage::AgentServerToggled(on) => {
                 self.agent.error = None;
                 if on {
-                    return Ok(self.start_agent_server());
+                    return self.start_agent_server();
                 }
                 self.stop_agent_server();
                 self.agent.enabled = false;
                 self.persist_setting("agent_server_enabled", "false");
             }
-            Message::Agent(AgentMessage::AgentConfirmToggled(on)) => {
+            AgentMessage::AgentConfirmToggled(on) => {
                 self.agent.confirm = on;
                 self.persist_setting(
                     "agent_server_confirm",
@@ -32,10 +32,10 @@ impl Oryxis {
                 // the runtime so the change takes effect immediately.
                 if self.agent.enabled {
                     self.stop_agent_server();
-                    return Ok(self.start_agent_server());
+                    return self.start_agent_server();
                 }
             }
-            Message::Agent(AgentMessage::AgentAllowAddToggled(on)) => {
+            AgentMessage::AgentAllowAddToggled(on) => {
                 self.agent.allow_add = on;
                 self.persist_setting(
                     "agent_server_allow_add",
@@ -44,10 +44,10 @@ impl Oryxis {
                 // Baked into the source at spawn, same as confirm.
                 if self.agent.enabled {
                     self.stop_agent_server();
-                    return Ok(self.start_agent_server());
+                    return self.start_agent_server();
                 }
             }
-            Message::Agent(AgentMessage::AgentOpensshPipeToggled(on)) => {
+            AgentMessage::AgentOpensshPipeToggled(on) => {
                 self.agent.openssh_pipe = on;
                 self.persist_setting(
                     "agent_server_openssh_pipe",
@@ -55,10 +55,10 @@ impl Oryxis {
                 );
                 if self.agent.enabled {
                     self.stop_agent_server();
-                    return Ok(self.start_agent_server());
+                    return self.start_agent_server();
                 }
             }
-            Message::Agent(AgentMessage::KeyExposeViaAgentToggled(id)) => {
+            AgentMessage::KeyExposeViaAgentToggled(id) => {
                 if let Some(vault) = &self.vault
                     && let Some(key) = self.keys.iter_mut().find(|k| k.id == id)
                 {
@@ -69,40 +69,39 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Agent(AgentMessage::AgentConfirmAsk(card)) => {
+            AgentMessage::AgentConfirmAsk(card) => {
                 // The state machine auto-approves a granted key, queues
                 // behind a live prompt, or shows it (returning the seq to
                 // arm the auto-dismiss timer for).
-                return Ok(match self.agent.on_confirm_ask(card) {
+                return match self.agent.on_confirm_ask(card) {
                     Some(seq) => confirm_timeout_task(seq),
                     None => Task::none(),
-                });
+                };
             }
-            Message::Agent(AgentMessage::AgentConfirmToggleAlways) => {
+            AgentMessage::AgentConfirmToggleAlways => {
                 self.agent.confirm_always = !self.agent.confirm_always;
             }
-            Message::Agent(AgentMessage::AgentConfirmDecision { allow, always }) => {
+            AgentMessage::AgentConfirmDecision { allow, always } => {
                 self.agent.decide_confirm(allow, always);
-                return Ok(self.advance_confirm_queue());
+                return self.advance_confirm_queue();
             }
-            Message::Agent(AgentMessage::AgentConfirmTimedOut(seq)) => {
+            AgentMessage::AgentConfirmTimedOut(seq) => {
                 if self.agent.confirm_timed_out(seq) {
-                    return Ok(self.advance_confirm_queue());
+                    return self.advance_confirm_queue();
                 }
             }
-            Message::Agent(AgentMessage::CopyAgentPath) => {
+            AgentMessage::CopyAgentPath => {
                 if let Some(path) = crate::agent_server::listener_socket_display() {
-                    return Ok(iced::clipboard::write(path).discard());
+                    return iced::clipboard::write(path).discard();
                 }
             }
-            Message::Agent(AgentMessage::CopyAgentSnippet(kind)) => {
+            AgentMessage::CopyAgentSnippet(kind) => {
                 if let Some(snippet) = self.agent_snippet(kind) {
-                    return Ok(iced::clipboard::write(snippet).discard());
+                    return iced::clipboard::write(snippet).discard();
                 }
             }
-            other => return Err(other),
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Start the agent runtime, wiring its confirm receiver into the

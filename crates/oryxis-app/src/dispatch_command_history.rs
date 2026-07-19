@@ -14,24 +14,24 @@ use uuid::Uuid;
 impl Oryxis {
     pub(crate) fn handle_command_history(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: CommandHistoryMessage,
+    ) -> Task<Message> {
         match message {
-            Message::CommandHistory(CommandHistoryMessage::HistoryCardHovered(idx)) => {
+            CommandHistoryMessage::HistoryCardHovered(idx) => {
                 self.hovered_history_card = Some(idx);
             }
-            Message::CommandHistory(CommandHistoryMessage::HistoryCardUnhovered) => {
+            CommandHistoryMessage::HistoryCardUnhovered => {
                 self.hovered_history_card = None;
             }
-            Message::CommandHistory(CommandHistoryMessage::CmdHistorySearchChanged(v)) => {
+            CommandHistoryMessage::CmdHistorySearchChanged(v) => {
                 self.cmd_history_search = v;
             }
-            Message::CommandHistory(CommandHistoryMessage::ExportCommandHistory) => {
+            CommandHistoryMessage::ExportCommandHistory => {
                 let Some(host) = self.command_history_host else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 if self.command_history.is_empty() {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let label = self
                     .connections
@@ -41,7 +41,7 @@ impl Oryxis {
                     .unwrap_or_else(|| host.to_string());
                 let body = render_history_txt(&label, &self.command_history);
                 let default_name = format!("oryxis-history-{}.txt", crate::util::sanitize_file_stem(&label));
-                return Ok(Task::perform(
+                return Task::perform(
                     tokio::task::spawn_blocking(move || {
                         let path = rfd::FileDialog::new()
                             .set_title("Export command history")
@@ -60,27 +60,27 @@ impl Oryxis {
                         // nothing to report.
                         _ => Message::NoOp,
                     },
-                ));
+                );
             }
-            Message::CommandHistory(CommandHistoryMessage::CommandHistoryExported(result)) => {
-                return Ok(match result {
+            CommandHistoryMessage::CommandHistoryExported(result) => {
+                return match result {
                     Ok(path) => self.show_toast(
                         crate::i18n::t("history_export_done").replace("{path}", &path),
                     ),
                     Err(e) => self.show_toast(
                         crate::i18n::t("history_export_failed").replace("{error}", &e),
                     ),
-                });
+                };
             }
-            Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile) => {
+            CommandHistoryMessage::ToggleCommandHistoryFile => {
                 self.setting_command_history_file = !self.setting_command_history_file;
                 self.persist_setting(
                     "command_history_file",
                     if self.setting_command_history_file { "true" } else { "false" },
                 );
             }
-            Message::CommandHistory(CommandHistoryMessage::PickCommandHistoryDir) => {
-                return Ok(Task::perform(
+            CommandHistoryMessage::PickCommandHistoryDir => {
+                return Task::perform(
                     tokio::task::spawn_blocking(|| {
                         rfd::FileDialog::new()
                             .set_title("Command log folder")
@@ -88,21 +88,21 @@ impl Oryxis {
                             .map(|p| p.display().to_string())
                     }),
                     |res| Message::CommandHistory(CommandHistoryMessage::CommandHistoryDirPicked(res.ok().flatten())),
-                ));
+                );
             }
-            Message::CommandHistory(CommandHistoryMessage::CommandHistoryDirPicked(dir)) => {
+            CommandHistoryMessage::CommandHistoryDirPicked(dir) => {
                 if let Some(dir) = dir {
                     self.persist_setting("command_history_file_dir", &dir);
                     self.setting_command_history_file_dir = Some(dir);
                 }
             }
-            Message::CommandHistory(CommandHistoryMessage::RunHistoryCommand(id)) => {
+            CommandHistoryMessage::RunHistoryCommand(id) => {
                 self.inject_history_command(id, true);
             }
-            Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(id)) => {
+            CommandHistoryMessage::PasteHistoryCommand(id) => {
                 self.inject_history_command(id, false);
             }
-            Message::CommandHistory(CommandHistoryMessage::RequestDeleteHistoryCommand(id)) => {
+            CommandHistoryMessage::RequestDeleteHistoryCommand(id) => {
                 // Deleting is destructive and the trash icon floats over
                 // the row on hover, one pixel from the paste click, so it
                 // goes through the shared confirm (Enter confirms via the
@@ -112,7 +112,7 @@ impl Oryxis {
                     self.confirm_remove(name, Message::CommandHistory(CommandHistoryMessage::DeleteHistoryCommand(id)));
                 }
             }
-            Message::CommandHistory(CommandHistoryMessage::DeleteHistoryCommand(id)) => {
+            CommandHistoryMessage::DeleteHistoryCommand(id) => {
                 if let Some(ref vault) = self.vault {
                     let _ = vault.delete_command_history_entry(&id);
                 }
@@ -123,9 +123,8 @@ impl Oryxis {
                 tracing::info!(%id, "command-history: entry deleted by user");
                 self.command_history.retain(|e| e.id != id);
             }
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Write user-originated `bytes` to the tab's focused pane (SSH session

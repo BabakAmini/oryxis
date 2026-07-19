@@ -16,10 +16,10 @@ use crate::state::ProxyKind;
 impl Oryxis {
     pub(crate) fn handle_proxy_identity(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: ProxyIdentityMessage,
+    ) -> Task<Message> {
         match message {
-            Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(maybe_id)) => {
+            ProxyIdentityMessage::ShowProxyIdentityForm(maybe_id) => {
                 self.overlay = None;
                 self.proxy_identity_form.visible = true;
                 self.proxy_identity_form.error = None;
@@ -65,14 +65,14 @@ impl Oryxis {
                 }
                 self.proxy_identity_form.password_visible = false;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::HideProxyIdentityForm) => {
+            ProxyIdentityMessage::HideProxyIdentityForm => {
                 self.proxy_identity_form.visible = false;
                 self.proxy_identity_form.error = None;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormLabelChanged(v)) => {
+            ProxyIdentityMessage::ProxyIdentityFormLabelChanged(v) => {
                 self.proxy_identity_form.label = v;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormKindChanged(kind)) => {
+            ProxyIdentityMessage::ProxyIdentityFormKindChanged(kind) => {
                 // The picker only ever feeds back the four wire types
                 // (SOCKS5/SOCKS4/HTTP/Command); guarding here keeps the
                 // form coherent if a future caller passes None/Identity.
@@ -88,28 +88,28 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormHostChanged(v)) => {
+            ProxyIdentityMessage::ProxyIdentityFormHostChanged(v) => {
                 self.proxy_identity_form.host = v;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPortChanged(v)) => {
+            ProxyIdentityMessage::ProxyIdentityFormPortChanged(v) => {
                 self.proxy_identity_form.port = v;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormUsernameChanged(v)) => {
+            ProxyIdentityMessage::ProxyIdentityFormUsernameChanged(v) => {
                 self.proxy_identity_form.username = v;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v)) => {
+            ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v) => {
                 self.proxy_identity_form.password.set(v);
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility) => {
+            ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility => {
                 self.proxy_identity_form.password_visible =
                     !self.proxy_identity_form.password_visible;
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity) => {
+            ProxyIdentityMessage::SaveProxyIdentity => {
                 let label = self.proxy_identity_form.label.trim().to_string();
                 if label.is_empty() {
                     self.proxy_identity_form.error =
                         Some(crate::i18n::t("proxy_identity_err_label_required").into());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
 
                 // Build the ProxyType based on the chosen kind.
@@ -124,13 +124,13 @@ impl Oryxis {
                         // silently storing an empty command.
                         self.proxy_identity_form.error =
                             Some(crate::i18n::t("proxy_identity_err_command_unsupported").into());
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                     ProxyKind::None | ProxyKind::Identity(_) => {
                         // These can't be the kind of a saved identity itself.
                         self.proxy_identity_form.error =
                             Some(crate::i18n::t("proxy_identity_err_invalid_kind").into());
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 };
 
@@ -139,14 +139,14 @@ impl Oryxis {
                     _ => {
                         self.proxy_identity_form.error =
                             Some(crate::i18n::t("proxy_err_port_invalid").into());
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 };
 
                 if self.proxy_identity_form.host.trim().is_empty() {
                     self.proxy_identity_form.error =
                         Some(crate::i18n::t("proxy_err_host_required").into());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
 
                 let now = chrono::Utc::now();
@@ -189,15 +189,14 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::DeleteProxyIdentity(id)) => {
+            ProxyIdentityMessage::DeleteProxyIdentity(id) => {
                 if let Some(vault) = &self.vault {
                     let _ = vault.delete_proxy_identity(&id);
                     self.load_data_from_vault();
                 }
             }
-            Message::ProxyIdentity(ProxyIdentityMessage::ProxySearchChanged(v)) => self.proxy_search = v,
-            m => return Err(m),
+            ProxyIdentityMessage::ProxySearchChanged(v) => self.proxy_search = v,
         }
-        Ok(Task::none())
+        Task::none()
     }
 }

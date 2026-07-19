@@ -17,17 +17,17 @@ use crate::util::open_in_browser;
 impl Oryxis {
     pub(crate) fn handle_update(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: UpdateMessage,
+    ) -> Task<Message> {
         match message {
-            Message::Update(UpdateMessage::SettingToggleAutoCheckUpdates) => {
+            UpdateMessage::SettingToggleAutoCheckUpdates => {
                 self.setting_auto_check_updates = !self.setting_auto_check_updates;
                 self.persist_setting(
                     "auto_check_updates",
                     if self.setting_auto_check_updates { "true" } else { "false" },
                 );
             }
-            Message::Update(UpdateMessage::SettingUpdateChannelChanged(channel)) => {
+            UpdateMessage::SettingUpdateChannelChanged(channel) => {
                 self.setting_update_channel = channel;
                 self.persist_setting("update_channel", channel.as_setting());
                 // A channel switch invalidates any "skip this version" so
@@ -42,17 +42,17 @@ impl Oryxis {
                 self.update_error = None;
                 self.update_check_status = Some(crate::update::UpdateStatus::Checking);
                 self.set_toast(crate::i18n::t("update_check_checking").to_string());
-                return Ok(Task::perform(
+                return Task::perform(
                     crate::update::check_latest_release(channel),
                     |res| match res {
                         Ok(info) => Message::Update(UpdateMessage::UpdateCheckResult(info)),
                         Err(e) => Message::Update(UpdateMessage::UpdateCheckFailed(e.to_string())),
                     },
-                ));
+                );
             }
-            Message::Update(UpdateMessage::CheckForUpdate) => {
+            UpdateMessage::CheckForUpdate => {
                 if !self.setting_auto_check_updates {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 // Also respect a persisted "skip this version" so we never
                 // nag about the same tag twice.
@@ -60,7 +60,7 @@ impl Oryxis {
                     .vault
                     .as_ref()
                     .and_then(|v| v.get_setting("skipped_update_version").ok().flatten());
-                return Ok(Task::perform(
+                return Task::perform(
                     crate::update::check_latest_release(self.setting_update_channel),
                     move |res| {
                         match res {
@@ -76,9 +76,9 @@ impl Oryxis {
                             _ => Message::Update(UpdateMessage::UpdateCheckResult(None)),
                         }
                     },
-                ));
+                );
             }
-            Message::Update(UpdateMessage::CheckForUpdateManual) => {
+            UpdateMessage::CheckForUpdateManual => {
                 // Manual trigger from the settings button OR the burger
                 // menu. Navigate to Settings > About so the result
                 // (up-to-date / error + retry) is on screen regardless
@@ -95,15 +95,15 @@ impl Oryxis {
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("skipped_update_version", "");
                 }
-                return Ok(Task::perform(
+                return Task::perform(
                     crate::update::check_latest_release(self.setting_update_channel),
                     |res| match res {
                         Ok(info) => Message::Update(UpdateMessage::UpdateCheckResult(info)),
                         Err(e) => Message::Update(UpdateMessage::UpdateCheckFailed(e.to_string())),
                     },
-                ));
+                );
             }
-            Message::Update(UpdateMessage::UpdateCheckResult(info)) => {
+            UpdateMessage::UpdateCheckResult(info) => {
                 match info {
                     Some(i) => {
                         // Surface the new version as a toast too so a
@@ -136,14 +136,14 @@ impl Oryxis {
                 // Auto-dismiss the toast after the standard 1.8 s
                 // window matches the existing "copied to clipboard"
                 // toast cadence so users get consistent feedback timing.
-                return Ok(Task::perform(
+                return Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(2_500)).await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
-            Message::Update(UpdateMessage::UpdateCheckFailed(cause)) => {
+            UpdateMessage::UpdateCheckFailed(cause) => {
                 // Same gating as the up-to-date arm: only a manual check
                 // (status in flight) reports; boot checks already logged.
                 if self.update_check_status.is_some() {
@@ -155,34 +155,34 @@ impl Oryxis {
                         cause,
                     ));
                 }
-                return Ok(Task::perform(
+                return Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(2_500)).await;
                     },
                     |_| Message::ToastClear,
-                ));
+                );
             }
-            Message::Update(UpdateMessage::UpdateSkipVersion) => {
+            UpdateMessage::UpdateSkipVersion => {
                 if let Some(info) = self.pending_update.take()
                     && let Some(vault) = &self.vault {
                     let _ = vault.set_setting("skipped_update_version", &info.version);
                 }
             }
-            Message::Update(UpdateMessage::UpdateLater) => {
+            UpdateMessage::UpdateLater => {
                 self.pending_update = None;
             }
-            Message::Update(UpdateMessage::UpdateOpenRelease) => {
+            UpdateMessage::UpdateOpenRelease => {
                 if let Some(info) = &self.pending_update {
                     let _ = open_in_browser(&info.html_url);
                 }
             }
-            Message::Update(UpdateMessage::UpdateStartDownload) => {
+            UpdateMessage::UpdateStartDownload => {
                 let Some(info) = self.pending_update.clone() else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let Some(url) = info.installer_url.clone() else {
                     self.update_error = Some("No installer asset for this platform".into());
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let name = info
                     .installer_name
@@ -225,12 +225,12 @@ impl Oryxis {
                         }
                     },
                 );
-                return Ok(Task::stream(stream));
+                return Task::stream(stream);
             }
-            Message::Update(UpdateMessage::UpdateDownloadProgress(p)) => {
+            UpdateMessage::UpdateDownloadProgress(p) => {
                 self.update_progress = p;
             }
-            Message::Update(UpdateMessage::UpdateDownloadComplete(result)) => {
+            UpdateMessage::UpdateDownloadComplete(result) => {
                 self.update_downloading = false;
                 match result {
                     Ok(path) => {
@@ -252,18 +252,16 @@ impl Oryxis {
                             // The updated binary should reopen with
                             // today's geometry.
                             self.persist_window_geometry();
-                            return Ok(iced::window::latest().then(|id_opt| match id_opt {
+                            return iced::window::latest().then(|id_opt| match id_opt {
                                 Some(id) => iced::window::close(id),
                                 None => Task::none(),
-                            }));
+                            });
                         }
                     }
                     Err(e) => self.update_error = Some(e),
                 }
             }
-
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }

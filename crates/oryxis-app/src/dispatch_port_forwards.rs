@@ -37,11 +37,11 @@ enum PfStreamMsg {
 impl Oryxis {
     pub(crate) fn handle_port_forwards(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: PortForwardMessage,
+    ) -> Task<Message> {
         match message {
             // -- Editor panel --
-            Message::PortForward(PortForwardMessage::ShowPortForwardPanel) => {
+            PortForwardMessage::ShowPortForwardPanel => {
                 self.overlay = None;
                 self.show_port_forward_panel = true;
                 self.port_forward_form.editing_id = None;
@@ -57,22 +57,22 @@ impl Oryxis {
                 self.port_forward_form.auto_start = false;
                 self.port_forward_form.error = None;
             }
-            Message::PortForward(PortForwardMessage::HidePortForwardPanel) => {
+            PortForwardMessage::HidePortForwardPanel => {
                 self.show_port_forward_panel = false;
             }
-            Message::PortForward(PortForwardMessage::PfLabelChanged(v)) => self.port_forward_form.label = v,
-            Message::PortForward(PortForwardMessage::PfKindChanged(k)) => self.port_forward_form.kind = k,
-            Message::PortForward(PortForwardMessage::PfHostChanged(id)) => self.port_forward_form.host_id = Some(id),
-            Message::PortForward(PortForwardMessage::PfListenHostChanged(v)) => self.port_forward_form.listen_host = v,
-            Message::PortForward(PortForwardMessage::PfListenPortChanged(v)) => {
+            PortForwardMessage::PfLabelChanged(v) => self.port_forward_form.label = v,
+            PortForwardMessage::PfKindChanged(k) => self.port_forward_form.kind = k,
+            PortForwardMessage::PfHostChanged(id) => self.port_forward_form.host_id = Some(id),
+            PortForwardMessage::PfListenHostChanged(v) => self.port_forward_form.listen_host = v,
+            PortForwardMessage::PfListenPortChanged(v) => {
                 self.port_forward_form.listen_port = v.chars().filter(|c| c.is_ascii_digit()).collect();
             }
-            Message::PortForward(PortForwardMessage::PfTargetHostChanged(v)) => self.port_forward_form.target_host = v,
-            Message::PortForward(PortForwardMessage::PfTargetPortChanged(v)) => {
+            PortForwardMessage::PfTargetHostChanged(v) => self.port_forward_form.target_host = v,
+            PortForwardMessage::PfTargetPortChanged(v) => {
                 self.port_forward_form.target_port = v.chars().filter(|c| c.is_ascii_digit()).collect();
             }
-            Message::PortForward(PortForwardMessage::PfAutoStartToggled(v)) => self.port_forward_form.auto_start = v,
-            Message::PortForward(PortForwardMessage::EditPortForwardRule(idx)) => {
+            PortForwardMessage::PfAutoStartToggled(v) => self.port_forward_form.auto_start = v,
+            PortForwardMessage::EditPortForwardRule(idx) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     self.show_port_forward_panel = true;
                     self.port_forward_form.editing_id = Some(rule.id);
@@ -87,7 +87,7 @@ impl Oryxis {
                     self.port_forward_form.error = None;
                 }
             }
-            Message::PortForward(PortForwardMessage::SavePortForwardRule) => {
+            PortForwardMessage::SavePortForwardRule => {
                 if let Some(err) = self.save_port_forward_rule() {
                     self.port_forward_form.error = Some(err);
                 } else {
@@ -96,7 +96,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)) => {
+            PortForwardMessage::DeletePortForwardRule(idx) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     let id = rule.id;
                     // Tear down a live forward before the rule disappears.
@@ -111,23 +111,23 @@ impl Oryxis {
             }
 
             // -- Runtime on/off --
-            Message::PortForward(PortForwardMessage::StartPortForward(id)) => {
-                return Ok(self.start_port_forward(id, false));
+            PortForwardMessage::StartPortForward(id) => {
+                return self.start_port_forward(id, false);
             }
-            Message::PortForward(PortForwardMessage::StopPortForward(id)) => {
+            PortForwardMessage::StopPortForward(id) => {
                 self.port_forward_starting.remove(&id);
                 // Await `cancel()` so a remote (`-R`) forward also releases
                 // its server-side listener via `cancel_tcpip_forward`, not
                 // just the local tasks that Drop would stop. Dropping the
                 // last `Arc` afterwards tears the rest down.
                 if let Some(session) = self.active_forwards.remove(&id) {
-                    return Ok(Task::perform(
+                    return Task::perform(
                         async move { session.cancel().await },
                         |_| Message::PortForward(PortForwardMessage::PortForwardLivenessTick),
-                    ));
+                    );
                 }
             }
-            Message::PortForward(PortForwardMessage::PortForwardStarted(id, res)) => {
+            PortForwardMessage::PortForwardStarted(id, res) => {
                 // `remove` returns false when StopPortForward already pulled
                 // this id from the in-flight set, i.e. the user toggled the
                 // rule off while the connect was still running. In that case
@@ -153,7 +153,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::PortForward(PortForwardMessage::PortForwardLivenessTick) => {
+            PortForwardMessage::PortForwardLivenessTick => {
                 // Drop forwards whose underlying connection has died so the
                 // per-row toggle reflects reality instead of lying "on".
                 let dead: Vec<Uuid> = self
@@ -167,17 +167,15 @@ impl Oryxis {
                     tracing::info!("port forward {id} connection dropped, toggled off");
                 }
             }
-            Message::PortForward(PortForwardMessage::PortForwardCardHovered(idx)) => {
+            PortForwardMessage::PortForwardCardHovered(idx) => {
                 self.hovered_port_forward_card = Some(idx);
             }
-            Message::PortForward(PortForwardMessage::PortForwardCardUnhovered) => {
+            PortForwardMessage::PortForwardCardUnhovered => {
                 self.hovered_port_forward_card = None;
             }
-            Message::PortForward(PortForwardMessage::PortForwardSearchChanged(v)) => self.port_forward_search = v,
-
-            m => return Err(m),
+            PortForwardMessage::PortForwardSearchChanged(v) => self.port_forward_search = v,
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Validate the editor draft and persist it. Returns `Some(error)` on
