@@ -53,7 +53,7 @@ impl Oryxis {
         progress: &crate::state::ConnectionProgress,
         s: &str,
     ) -> String {
-        if !self.progress_privacy_on(progress) || self.privacy_revealed {
+        if !self.progress_privacy_on(progress) || self.privacy.revealed {
             return s.to_string();
         }
         let conn = self.progress_connection(progress);
@@ -136,7 +136,7 @@ impl Oryxis {
         if self.progress_privacy_on(progress) {
             // Same eye affordance as Logs / Known Hosts, so the masked
             // header and host-key prompt can be revealed in place.
-            header_children.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+            header_children.push(crate::widgets::privacy_reveal_btn(self.privacy.revealed));
         }
         // Saved hosts offer Edit only once the connect failed (the card
         // resolves in seconds and the host has a permanent editor on its

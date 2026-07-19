@@ -38,7 +38,7 @@ impl Oryxis {
         // Rows are recorded (enabled ones) in visual order; Up/Down move
         // the ring, Enter activates the selection-or-top-match.
         self.modal_nav_reset();
-        let rows = self.palette_rows(&self.palette_query);
+        let rows = self.palette_rows(&self.palette.query);
 
         // ── Result list ────────────────────────────────────────────────
         let body: Element<'_, Message> = if rows.is_empty() {
@@ -66,7 +66,7 @@ impl Oryxis {
         };
 
         // ── Search header ──────────────────────────────────────────────
-        let search_input = text_input(t("command_palette_placeholder"), &self.palette_query)
+        let search_input = text_input(t("command_palette_placeholder"), &self.palette.query)
             .id(iced::widget::Id::new(PALETTE_INPUT_ID))
             .on_input(Message::PaletteQueryChanged)
             .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })

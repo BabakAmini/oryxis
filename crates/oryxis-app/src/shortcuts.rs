@@ -144,7 +144,7 @@ impl Oryxis {
         match m {
             Modal::NewTabPicker => self.show_new_tab_picker,
             Modal::TabJump => self.show_tab_jump,
-            Modal::CommandPalette => self.show_command_palette,
+            Modal::CommandPalette => self.palette.open,
             Modal::IconPicker => self.show_icon_picker,
             Modal::ThemePicker => self.show_theme_picker,
             Modal::ChainEditor => self.show_chain_editor,
@@ -196,8 +196,8 @@ impl Oryxis {
             }
             Modal::TabJump => self.show_tab_jump = false,
             Modal::CommandPalette => {
-                self.show_command_palette = false;
-                self.palette_query.clear();
+                self.palette.open = false;
+                self.palette.query.clear();
             }
             Modal::IconPicker => {
                 self.show_icon_picker = false;

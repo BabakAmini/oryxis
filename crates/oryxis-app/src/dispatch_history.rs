@@ -233,14 +233,14 @@ impl Oryxis {
             }
             Message::ExportSessionGif(log_id) => {
                 self.overlay = None;
-                if self.gif_export_running {
+                if self.gif_export.running {
                     return Ok(self
                         .show_toast(crate::i18n::t("gif_export_started").to_string()));
                 }
                 // Plugin not installed yet: park the export and open the
                 // consent modal; `PluginInstallDone("gif", Ok)` resumes.
                 let Some(binary) = crate::gif_export::resolve_binary() else {
-                    self.pending_gif_export = Some(log_id);
+                    self.gif_export.pending = Some(log_id);
                     return Ok(self.update(Message::ShowPluginInstallModal(
                         crate::gif_export::PROVIDER_ID.to_string(),
                     )));
@@ -282,7 +282,7 @@ impl Oryxis {
                     crate::util::sanitize_file_stem(&entry.label),
                     entry.started_at.format("%Y%m%d-%H%M%S"),
                 );
-                self.gif_export_running = true;
+                self.gif_export.running = true;
                 let start_toast = self
                     .show_toast_secs(crate::i18n::t("gif_export_started").to_string(), 4);
                 let render = Task::perform(
@@ -310,7 +310,7 @@ impl Oryxis {
                 return Ok(Task::batch([start_toast, render]));
             }
             Message::GifExportFinished(outcome) => {
-                self.gif_export_running = false;
+                self.gif_export.running = false;
                 match outcome {
                     None => {}
                     Some(Ok(path)) => {
@@ -350,7 +350,7 @@ impl Oryxis {
                 });
             }
             Message::TogglePrivacyReveal => {
-                self.privacy_revealed = !self.privacy_revealed;
+                self.privacy.revealed = !self.privacy.revealed;
             }
             Message::LogRowHovered(id) => {
                 self.hovered_log_row = Some(id);

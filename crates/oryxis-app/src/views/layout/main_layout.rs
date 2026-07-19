@@ -424,7 +424,7 @@ impl Oryxis {
         // Command palette (C4), VS Code-style Ctrl+Shift+P fuzzy action
         // search. Opens via the global hotkey; same overlay shell as the
         // tab-jump modal above.
-        if self.show_command_palette {
+        if self.palette.open {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,

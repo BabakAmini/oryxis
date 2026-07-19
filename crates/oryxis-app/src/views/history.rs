@@ -233,7 +233,7 @@ impl Oryxis {
         if privacy_applies {
             row_items.push(self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::PrivacyReveal,
-                crate::widgets::privacy_reveal_btn(self.privacy_revealed),
+                crate::widgets::privacy_reveal_btn(self.privacy.revealed),
             ));
             row_items.push(Space::new().width(8).into());
         }
@@ -351,7 +351,7 @@ impl Oryxis {
             let privacy_applies = viewer_conn
                 .map(|c| self.privacy_active(c))
                 .unwrap_or_else(|| self.privacy_global_active());
-            let mask = privacy_applies && !self.privacy_revealed;
+            let mask = privacy_applies && !self.privacy.revealed;
             let privacy_terms = if mask { self.privacy_terms() } else { Vec::new() };
             let rich_spans: Vec<iced::widget::text::Span<'_, ()>> = spans
                 .iter()
@@ -382,7 +382,7 @@ impl Oryxis {
                 Space::new().width(Length::Fill).into(),
             ];
             if privacy_applies {
-                header_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+                header_items.push(crate::widgets::privacy_reveal_btn(self.privacy.revealed));
                 header_items.push(Space::new().width(8).into());
             }
             // Resolve the viewed recording's index for the actions menu;
@@ -538,7 +538,7 @@ impl Oryxis {
         // / dashboard already mask. Per-host override wins; a deleted
         // host falls back to the global default; the Reveal toggle flips
         // it off.
-        let mask = !self.privacy_revealed
+        let mask = !self.privacy.revealed
             && conn
                 .map(|c| self.privacy_active(c))
                 .unwrap_or_else(|| self.privacy_global_active());

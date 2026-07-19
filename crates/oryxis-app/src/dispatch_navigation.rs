@@ -48,7 +48,7 @@ impl Oryxis {
                 self.keynav.pick_open = false;
                 // Leaving the Logs view re-arms Privacy Mode masking so a
                 // revealed timeline doesn't stay exposed on the next visit.
-                self.privacy_revealed = false;
+                self.privacy.revealed = false;
                 self.active_view = view;
                 self.active_tab = None;
                 // Drop any keyboard selection when leaving / changing the

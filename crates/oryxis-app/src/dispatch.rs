@@ -102,8 +102,8 @@ impl Oryxis {
         // process-wide flag this loop swaps. Fires once per install
         // (`hint_` settings are per-install bookkeeping, excluded from
         // portable export).
-        if oryxis_terminal::take_privacy_mask_drawn() && !self.privacy_hint_shown {
-            self.privacy_hint_shown = true;
+        if oryxis_terminal::take_privacy_mask_drawn() && !self.privacy.hint_shown {
+            self.privacy.hint_shown = true;
             self.persist_setting("hint_privacy_mask", "true");
             let hint =
                 self.show_toast_secs(crate::i18n::t("privacy_hint_toast").to_string(), 6);

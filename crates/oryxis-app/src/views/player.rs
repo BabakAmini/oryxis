@@ -31,7 +31,7 @@ impl Oryxis {
         let privacy_applies = conn
             .map(|c| self.privacy_active(c))
             .unwrap_or_else(|| self.privacy_global_active());
-        let mask = privacy_applies && !self.privacy_revealed;
+        let mask = privacy_applies && !self.privacy.revealed;
 
         // ── Header: title, geometry chip, reveal, close ──
         let title = if mask {
@@ -52,7 +52,7 @@ impl Oryxis {
             Space::new().width(Length::Fill).into(),
         ];
         if privacy_applies {
-            header_items.push(crate::widgets::privacy_reveal_btn(self.privacy_revealed));
+            header_items.push(crate::widgets::privacy_reveal_btn(self.privacy.revealed));
             header_items.push(Space::new().width(8).into());
         }
         // Recording actions, mirroring the static viewer's header: a

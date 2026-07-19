@@ -345,25 +345,25 @@ impl Oryxis {
                 if self.vault_ui.state != crate::state::VaultState::Unlocked {
                     return Ok(Task::none());
                 }
-                self.show_command_palette = true;
-                self.palette_query.clear();
+                self.palette.open = true;
+                self.palette.query.clear();
                 // Focus the query input so the user types immediately.
                 return Ok(iced::widget::operation::focus(
                     iced::widget::Id::new(crate::palette::PALETTE_INPUT_ID),
                 ));
             }
             Message::HideCommandPalette => {
-                self.show_command_palette = false;
-                self.palette_query.clear();
+                self.palette.open = false;
+                self.palette.query.clear();
             }
             Message::PaletteQueryChanged(v) => {
-                self.palette_query = v;
+                self.palette.query = v;
             }
             Message::PaletteActivate(inner) => {
                 // Two-step dispatch like TabJumpSelect: close first, then
                 // fire the row's real message (it may open another modal).
-                self.show_command_palette = false;
-                self.palette_query.clear();
+                self.palette.open = false;
+                self.palette.query.clear();
                 return Ok(Task::done(*inner));
             }
             Message::RunHotkeyAction(action) => {

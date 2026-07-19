@@ -94,6 +94,23 @@ pub(crate) fn preprocess_events(
     (events, duration_ms, geometry)
 }
 
+/// GIF export machinery for session recordings (issue #71). A sibling
+/// of [`SessionPlayer`] rather than a field on it: an export is
+/// triggered from the History list without the player open, and a
+/// pending export must survive the player closing while the `gif`
+/// plugin installs / renders, so it cannot live inside
+/// `Oryxis.session_player` (an `Option` that may be `None` the whole
+/// time). One field on `Oryxis` (`self.gif_export`).
+#[derive(Default)]
+pub(crate) struct GifExportState {
+    /// Recording waiting for the `gif` plugin install to finish; the
+    /// `PluginInstallDone("gif", Ok)` handler resumes the export.
+    pub pending: Option<Uuid>,
+    /// One GIF render at a time: re-entry shows the "rendering" toast
+    /// instead of racing two renders over the save dialog.
+    pub running: bool,
+}
+
 /// The open player: one recording, one read-only terminal backend, a
 /// scaled playback clock. Lives in `Oryxis.session_player` while the
 /// player surface is up on the History screen.

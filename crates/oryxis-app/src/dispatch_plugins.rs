@@ -425,7 +425,7 @@ impl Oryxis {
                 self.plugin_install_modal = None;
                 // A dismissed consent modal also drops any GIF export
                 // that was parked on the install finishing.
-                self.pending_gif_export = None;
+                self.gif_export.pending = None;
                 Ok(Task::none())
             }
 
@@ -572,7 +572,7 @@ impl Oryxis {
                 // that the binary is in place; an install failure
                 // drops it (the failure is already on the panel row).
                 if id == crate::gif_export::PROVIDER_ID
-                    && let Some(log_id) = self.pending_gif_export.take()
+                    && let Some(log_id) = self.gif_export.pending.take()
                 {
                     let installed = matches!(
                         self.plugins

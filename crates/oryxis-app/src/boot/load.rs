@@ -460,33 +460,33 @@ impl Oryxis {
                 self.setting_show_host_address = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_mode") {
-                self.setting_privacy_mode = v == "true";
+                self.privacy.mode = v == "true";
             }
             // Privacy mask lists (issue #78). The never list is seeded
             // with the generic-username defaults at struct init; a
             // stored value (even an empty string, the user clearing
             // the field is a choice) replaces it wholesale.
             if let Ok(Some(v)) = vault.get_setting("privacy_always_mask") {
-                self.setting_privacy_always_mask = v;
+                self.privacy.always_mask = v;
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_never_mask") {
-                self.setting_privacy_never_mask = v;
+                self.privacy.never_mask = v;
             }
             if let Ok(Some(v)) = vault.get_setting("hint_privacy_mask") {
-                self.privacy_hint_shown = v == "true";
+                self.privacy.hint_shown = v == "true";
             }
             // Per-class mask gates (issue #78 block 1): absent = on.
             if let Ok(Some(v)) = vault.get_setting("privacy_mask_public_ips") {
-                self.setting_privacy_mask_public_ips = v != "false";
+                self.privacy.mask_public_ips = v != "false";
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_mask_private_ips") {
-                self.setting_privacy_mask_private_ips = v != "false";
+                self.privacy.mask_private_ips = v != "false";
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_mask_usernames") {
-                self.setting_privacy_mask_usernames = v != "false";
+                self.privacy.mask_usernames = v != "false";
             }
             if let Ok(Some(v)) = vault.get_setting("privacy_mask_hostnames") {
-                self.setting_privacy_mask_hostnames = v != "false";
+                self.privacy.mask_hostnames = v != "false";
             }
             // One-shot reset: Privacy Mode was never meant to be on by
             // default, yet some vaults carry a persisted
@@ -494,8 +494,8 @@ impl Oryxis {
             // sentinel keeps a user who deliberately re-enables it from
             // being reset again on the next boot.
             if let Ok(None) = vault.get_setting("privacy_default_off_applied") {
-                if self.setting_privacy_mode {
-                    self.setting_privacy_mode = false;
+                if self.privacy.mode {
+                    self.privacy.mode = false;
                     let _ = vault.set_setting("privacy_mode", "false");
                 }
                 let _ = vault.set_setting("privacy_default_off_applied", "true");

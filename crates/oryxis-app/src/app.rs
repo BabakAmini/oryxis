@@ -228,10 +228,10 @@ pub struct Oryxis {
     pub(crate) show_tab_jump: bool,
     pub(crate) tab_jump_search: String,
     /// Command palette (C4): `Ctrl+Shift+P` fuzzy search over every
-    /// action. Only the query is app state; the row selection rides the
-    /// modal keynav layer (`ModalSurface::Modal(Modal::CommandPalette)`).
-    pub(crate) show_command_palette: bool,
-    pub(crate) palette_query: String,
+    /// action. Only the open flag + query are app state; the row
+    /// selection rides the modal keynav layer
+    /// (`ModalSurface::Modal(Modal::CommandPalette)`).
+    pub(crate) palette: crate::state::PaletteState,
     /// Top-left burger menu visibility. Mirrors Termius's `☰` strip at
     /// the start of the tab bar: Settings / Updates / About / Exit.
     /// Toggled via the burger button or by pressing the same button
@@ -878,20 +878,14 @@ pub struct Oryxis {
     /// surface on the History view while `Some`. Mutually exclusive
     /// with `viewing_session_log` (opening either closes the other).
     pub(crate) session_player: Option<crate::state::SessionPlayer>,
-    /// Recording waiting for the `gif` plugin install to finish; the
-    /// `PluginInstallDone("gif", Ok)` handler resumes the export.
-    pub(crate) pending_gif_export: Option<Uuid>,
-    /// One GIF render at a time: re-entry shows the "rendering" toast
-    /// instead of racing two renders over the save dialog.
-    pub(crate) gif_export_running: bool,
+    /// GIF export of a recording (issue #71): pending-install handoff +
+    /// the one-render-at-a-time flag. Sibling of `session_player` (an
+    /// export can run with the player closed), see
+    /// [`crate::state::GifExportState`].
+    pub(crate) gif_export: crate::state::GifExportState,
     /// Session-log row under the cursor (Logs view); drives the
     /// clickable-row hover highlight.
     pub(crate) hovered_log_row: Option<Uuid>,
-    /// Privacy Mode reveal toggle for the Logs view. When `false` (the
-    /// default) sensitive data in the timeline + session-log viewer is
-    /// masked behind muted blocks; the toolbar / viewer "Reveal" button
-    /// flips this to show the raw values. Reset whenever the view is left.
-    pub(crate) privacy_revealed: bool,
 
     // Terminal theme
     /// Theme derived from the active app theme, used as the global
@@ -1053,48 +1047,10 @@ pub struct Oryxis {
     /// keeping addresses out of screenshots / screen shares. Port 22 is
     /// always omitted from the address regardless of this toggle.
     pub(crate) setting_show_host_address: bool,
-    /// Global Privacy Mode default: when on, sensitive data (host / ip /
-    /// user / port / proxy on cards and logs, plus IP and `user@host`
-    /// prompt tokens in the terminal) is auto-hidden behind muted blocks
-    /// and revealed on hover. Off by default. A per-host
-    /// `Connection.privacy_mode` override wins over this.
-    pub(crate) setting_privacy_mode: bool,
-    /// Privacy Mode session override (issue #78): `Some(v)` forces the
-    /// mode to `v` everywhere, above the global setting AND the
-    /// per-host overrides; `None` follows the configuration. Volatile
-    /// by design (never persisted): the use case is "I'm about to
-    /// share my screen", not "change my configuration". Toggled by
-    /// the Ctrl+Shift+M hotkey and the status-bar chip.
-    pub(crate) privacy_session_override: Option<bool>,
-    /// Whether the one-shot "Privacy Mode is masking output" hint toast
-    /// already fired (issue #78). Mirrors the per-install
-    /// `hint_privacy_mask` setting; in-memory so the draw-flag check in
-    /// `update` stays a branch, not a vault read.
-    pub(crate) privacy_hint_shown: bool,
-    /// Privacy Mode always-mask list (issue #78): user-edited,
-    /// comma-separated literals masked wherever they appear, on top of
-    /// the vault-derived hostnames + usernames. Raw as typed; parsing
-    /// happens in `privacy_terms()`. Mirrors the `privacy_always_mask`
-    /// setting.
-    pub(crate) setting_privacy_always_mask: String,
-    /// Privacy Mode never-mask list (issue #78): user-edited,
-    /// comma-separated words the derived terms must NOT include,
-    /// seeded with `PRIVACY_NEVER_MASK_DEFAULT` (root, ubuntu, ...) so
-    /// shared usernames keep everyday output readable. Raw as typed.
-    /// Mirrors the `privacy_never_mask` setting.
-    pub(crate) setting_privacy_never_mask: String,
-    /// Per-class Privacy Mode gates (issue #78 block 1), all default
-    /// on; each mirrors a `privacy_mask_*` setting. Public IPs get
-    /// their own switch because documentation screenshots sometimes
-    /// NEED the public address visible while everything else masks.
-    pub(crate) setting_privacy_mask_public_ips: bool,
-    /// Private / loopback / link-local addresses (v4 + v6).
-    pub(crate) setting_privacy_mask_private_ips: bool,
-    /// Username shapes (`user@host`, `/home/<u>`, `C:\Users\<u>`) AND
-    /// the saved-connection usernames inside the terms list.
-    pub(crate) setting_privacy_mask_usernames: bool,
-    /// Saved-connection hostnames inside the terms list.
-    pub(crate) setting_privacy_mask_hostnames: bool,
+    /// Privacy Mode (issue #78): global toggle, session override, hint
+    /// flag, always/never mask lists, per-class gates and the Logs
+    /// reveal toggle. See [`crate::state::PrivacyState`].
+    pub(crate) privacy: crate::state::PrivacyState,
     /// Settings > Advanced debug logging: mirror of the `debug_logging`
     /// setting, true while tracing events are also written to the
     /// exportable `~/.oryxis/oryxis-debug.log` file (see `logging.rs`).
