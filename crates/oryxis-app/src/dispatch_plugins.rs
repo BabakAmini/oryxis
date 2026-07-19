@@ -13,7 +13,7 @@ use iced::Task;
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PluginMessage, Message, Oryxis};
 use crate::plugins::cache;
 use crate::state::{PluginUiEntry, PluginUiStatus};
 
@@ -207,7 +207,7 @@ impl Oryxis {
             }
             tasks.push(Task::perform(
                 crate::mcp_install::migrate_install(),
-                |result| Message::PluginInstallDone("mcp".to_string(), result),
+                |result| Message::Plugin(PluginMessage::PluginInstallDone("mcp".to_string(), result)),
             ));
         }
 
@@ -226,7 +226,7 @@ impl Oryxis {
                 auto_update(id.clone(), current),
                 move |result| match result {
                     Ok(Some(version)) => {
-                        Message::PluginInstallDone(id.clone(), Ok(version))
+                        Message::Plugin(PluginMessage::PluginInstallDone(id.clone(), Ok(version)))
                     }
                     _ => Message::NoOp,
                 },
@@ -241,7 +241,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::PluginToggleGlobalAutoUpdate(on) => {
+            Message::Plugin(PluginMessage::PluginToggleGlobalAutoUpdate(on)) => {
                 self.plugins_auto_update_global = on;
                 self.persist_setting(
                     "plugins_auto_update_global",
@@ -267,7 +267,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::PluginToggleAutoUpdate(id, on) => {
+            Message::Plugin(PluginMessage::PluginToggleAutoUpdate(id, on)) => {
                 if let Some(entry) =
                     self.plugins.iter_mut().find(|p| p.provider_id == id)
                 {
@@ -280,7 +280,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::ShowPluginMenu(id) => {
+            Message::Plugin(PluginMessage::ShowPluginMenu(id)) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle, mirroring the other card kebabs.
                 let already = matches!(
@@ -300,7 +300,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::PluginCheckAllUpdates => {
+            Message::Plugin(PluginMessage::PluginCheckAllUpdates) => {
                 // Header action: one click checks every row that can
                 // be updated from here (installed via the cache; dev
                 // builds and not-installed providers have nothing to
@@ -320,13 +320,13 @@ impl Oryxis {
                 let tasks: Vec<Task<Message>> = ids
                     .into_iter()
                     .filter_map(|id| {
-                        self.handle_plugins(Message::PluginCheckUpdates(id)).ok()
+                        self.handle_plugins(Message::Plugin(PluginMessage::PluginCheckUpdates(id))).ok()
                     })
                     .collect();
                 Ok(Task::batch(tasks))
             }
 
-            Message::PluginCheckUpdates(id) => {
+            Message::Plugin(PluginMessage::PluginCheckUpdates(id)) => {
                 // Fired from the row kebab too: drop the menu so the
                 // badge flip to "checking" is visible right away.
                 if matches!(
@@ -350,12 +350,12 @@ impl Oryxis {
                             .map_err(|e| e.to_string())
                     },
                     move |result| {
-                        Message::PluginManifestFetched(id_for_msg.clone(), result)
+                        Message::Plugin(PluginMessage::PluginManifestFetched(id_for_msg.clone(), result))
                     },
                 ))
             }
 
-            Message::PluginManifestFetched(id, result) => {
+            Message::Plugin(PluginMessage::PluginManifestFetched(id, result)) => {
                 if let Some(entry) =
                     self.plugins.iter_mut().find(|p| p.provider_id == id)
                 {
@@ -404,7 +404,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::ShowPluginInstallModal(id) => {
+            Message::Plugin(PluginMessage::ShowPluginInstallModal(id)) => {
                 self.plugin_install_modal = Some(id.clone());
                 // Fetch the manifest so the modal can show download
                 // size + changelog, unless one is already cached.
@@ -415,13 +415,13 @@ impl Oryxis {
                     .map(|p| p.manifest.is_none())
                     .unwrap_or(false);
                 if needs_fetch {
-                    self.handle_plugins(Message::PluginCheckUpdates(id))
+                    self.handle_plugins(Message::Plugin(PluginMessage::PluginCheckUpdates(id)))
                 } else {
                     Ok(Task::none())
                 }
             }
 
-            Message::HidePluginInstallModal => {
+            Message::Plugin(PluginMessage::HidePluginInstallModal) => {
                 self.plugin_install_modal = None;
                 // A dismissed consent modal also drops any GIF export
                 // that was parked on the install finishing.
@@ -429,7 +429,7 @@ impl Oryxis {
                 Ok(Task::none())
             }
 
-            Message::PluginInstall(id) => {
+            Message::Plugin(PluginMessage::PluginInstall(id)) => {
                 // Installing needs a manifest entry to download.
                 let (has_versions, best) = self
                     .plugins
@@ -504,11 +504,11 @@ impl Oryxis {
                             e.i18n_key().to_string()
                         })
                     },
-                    move |result| Message::PluginInstallDone(id.clone(), result),
+                    move |result| Message::Plugin(PluginMessage::PluginInstallDone(id.clone(), result)),
                 ))
             }
 
-            Message::PluginInstallDone(id, result) => {
+            Message::Plugin(PluginMessage::PluginInstallDone(id, result)) => {
                 let token = self.mcp.server_token.clone();
                 // Carried into the config refresh so a plugin update
                 // doesn't strip an opted-in vault password from it.
@@ -591,7 +591,7 @@ impl Oryxis {
                 Ok(task)
             }
 
-            Message::PluginUninstall(id) => {
+            Message::Plugin(PluginMessage::PluginUninstall(id)) => {
                 // Reached from the row kebab: the confirm dialog takes
                 // over, the menu must not linger under it.
                 self.overlay = None;
@@ -612,13 +612,13 @@ impl Oryxis {
                     link: None,
                     action: Some(crate::state::ErrorDialogAction {
                         label: crate::i18n::t("plugin_action_uninstall").to_string(),
-                        message: Box::new(Message::PluginUninstallConfirmed(id)),
+                        message: Box::new(Message::Plugin(PluginMessage::PluginUninstallConfirmed(id))),
                         danger: true,
                     }),
                 });
                 Ok(Task::none())
             }
-            Message::PluginUninstallConfirmed(id) => {
+            Message::Plugin(PluginMessage::PluginUninstallConfirmed(id)) => {
                 if let Ok(dir) = cache::provider_dir(&id) {
                     let _ = std::fs::remove_dir_all(&dir);
                 }

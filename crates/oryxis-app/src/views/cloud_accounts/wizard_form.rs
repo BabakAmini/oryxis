@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Row, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PluginMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::{CloudAuthChoice, CloudProviderChoice, CloudTestState};
 use crate::theme::OryxisColors;
@@ -108,7 +108,7 @@ impl Oryxis {
                     left: 14.0,
                 }),
             )
-            .on_press(Message::ShowPluginInstallModal(provider_id_str.to_string()))
+            .on_press(Message::Plugin(PluginMessage::ShowPluginInstallModal(provider_id_str.to_string())))
             .style(|_, _| button::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border {
@@ -119,9 +119,9 @@ impl Oryxis {
                 ..Default::default()
             });
             let install_btn = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(
+                crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::ShowPluginInstallModal(
                     provider_id_str.to_string(),
-                )),
+                ))),
                 6.0,
                 install_btn.into(),
             );

@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PluginMessage, Message, Oryxis};
 use crate::mcp::{install_mcp_config_to_file, install_mcp_config_to_wsl, mcp_config_json, mcp_config_json_wsl};
 use crate::state::{EnvVarForm, PortForwardForm};
 
@@ -88,9 +88,9 @@ impl Oryxis {
                     && !crate::mcp_install::is_installed()
                     && !crate::dispatch_plugins::dev_binary_present("mcp")
                 {
-                    return Ok(Task::done(Message::ShowPluginInstallModal(
+                    return Ok(Task::done(Message::Plugin(PluginMessage::ShowPluginInstallModal(
                         "mcp".to_string(),
-                    )));
+                    ))));
                 }
             }
             Message::ShowMcpInfo => {

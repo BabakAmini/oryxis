@@ -296,7 +296,7 @@ impl Oryxis {
                 items = items.push(self.menu_item(
                     iced_fonts::lucide::trash(),
                     crate::i18n::t("plugin_action_remove_downloads"),
-                    Message::PluginUninstall(id),
+                    Message::Plugin(PluginMessage::PluginUninstall(id)),
                     OryxisColors::t().error,
                 ));
             }
@@ -304,7 +304,7 @@ impl Oryxis {
                 items = items.push(self.menu_item(
                     iced_fonts::lucide::refresh_cw(),
                     crate::i18n::t("plugin_action_check_updates"),
-                    Message::PluginCheckUpdates(id.clone()),
+                    Message::Plugin(PluginMessage::PluginCheckUpdates(id.clone())),
                     OryxisColors::t().text_secondary,
                 ));
                 // Toggle row: stays open on click (mirrors the tag
@@ -313,21 +313,21 @@ impl Oryxis {
                     self.menu_item(
                         iced_fonts::lucide::check(),
                         crate::i18n::t("plugins_auto_update"),
-                        Message::PluginToggleAutoUpdate(id.clone(), false),
+                        Message::Plugin(PluginMessage::PluginToggleAutoUpdate(id.clone(), false)),
                         OryxisColors::t().accent,
                     )
                 } else {
                     self.menu_item(
                         iced_fonts::lucide::circle(),
                         crate::i18n::t("plugins_auto_update"),
-                        Message::PluginToggleAutoUpdate(id.clone(), true),
+                        Message::Plugin(PluginMessage::PluginToggleAutoUpdate(id.clone(), true)),
                         OryxisColors::t().text_muted,
                     )
                 });
                 items = items.push(self.menu_item(
                     iced_fonts::lucide::trash(),
                     crate::i18n::t("plugin_action_uninstall"),
-                    Message::PluginUninstall(id),
+                    Message::Plugin(PluginMessage::PluginUninstall(id)),
                     OryxisColors::t().error,
                 ));
             }

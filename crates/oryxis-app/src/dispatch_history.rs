@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PluginMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_history(
@@ -241,9 +241,9 @@ impl Oryxis {
                 // consent modal; `PluginInstallDone("gif", Ok)` resumes.
                 let Some(binary) = crate::gif_export::resolve_binary() else {
                     self.gif_export.pending = Some(log_id);
-                    return Ok(self.update(Message::ShowPluginInstallModal(
+                    return Ok(self.update(Message::Plugin(PluginMessage::ShowPluginInstallModal(
                         crate::gif_export::PROVIDER_ID.to_string(),
-                    )));
+                    ))));
                 };
                 // Same source as the .cast export: flush first, resolve
                 // the terminal type + theme like the live pane did (the

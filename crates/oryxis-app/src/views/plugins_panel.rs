@@ -12,7 +12,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{AgentMessage, AiMessage, SyncMessage, Message, Oryxis};
+use crate::app::{PluginMessage, AgentMessage, AiMessage, SyncMessage, Message, Oryxis};
 use crate::state::{PluginUiEntry, PluginUiStatus};
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_section, toggle_row_desc};
@@ -97,25 +97,25 @@ impl Oryxis {
                     .into(),
                 Space::new().width(Length::Fill).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::PluginCheckAllUpdates),
+                    crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginCheckAllUpdates)),
                     6.0,
                     pill_button(
                         crate::i18n::t("plugin_action_check_updates"),
-                        Some(Message::PluginCheckAllUpdates),
+                        Some(Message::Plugin(PluginMessage::PluginCheckAllUpdates)),
                         OryxisColors::t().text_secondary,
                         false,
                     ),
                 ),
                 Space::new().width(14).into(),
                 self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::PluginToggleGlobalAutoUpdate(
+                    crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginToggleGlobalAutoUpdate(
                         !self.plugins_auto_update_global,
-                    )),
+                    ))),
                     8.0,
                     crate::widgets::toggle_switch_labeled(
                         crate::i18n::t("plugins_auto_update_global"),
                         self.plugins_auto_update_global,
-                        Message::PluginToggleGlobalAutoUpdate(!self.plugins_auto_update_global),
+                        Message::Plugin(PluginMessage::PluginToggleGlobalAutoUpdate(!self.plugins_auto_update_global)),
                     ),
                 ),
             ])
@@ -236,13 +236,13 @@ impl Oryxis {
         let can_install = best.is_some();
         let install_btn = pill_button(
             crate::i18n::t("plugin_install_confirm"),
-            can_install.then(|| Message::PluginInstall(provider_id.to_string())),
+            can_install.then(|| Message::Plugin(PluginMessage::PluginInstall(provider_id.to_string()))),
             OryxisColors::t().accent,
             true,
         );
         let cancel_btn = pill_button(
             crate::i18n::t("cancel"),
-            Some(Message::HidePluginInstallModal),
+            Some(Message::Plugin(PluginMessage::HidePluginInstallModal)),
             OryxisColors::t().text_muted,
             false,
         );
@@ -466,11 +466,11 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
     match &entry.status {
         PluginUiStatus::NotInstalled => {
             row_items.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
+                crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::ShowPluginInstallModal(id.clone()))),
                 6.0,
                 pill_button(
                     crate::i18n::t("plugin_action_install"),
-                    Some(Message::ShowPluginInstallModal(id.clone())),
+                    Some(Message::Plugin(PluginMessage::ShowPluginInstallModal(id.clone()))),
                     OryxisColors::t().accent,
                     true,
                 ),
@@ -478,11 +478,11 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
         }
         PluginUiStatus::UpdateAvailable { .. } => {
             row_items.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginInstall(id.clone())),
+                crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginInstall(id.clone()))),
                 6.0,
                 pill_button(
                     crate::i18n::t("plugin_action_update"),
-                    Some(Message::PluginInstall(id.clone())),
+                    Some(Message::Plugin(PluginMessage::PluginInstall(id.clone()))),
                     OryxisColors::t().accent,
                     true,
                 ),
@@ -490,22 +490,22 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
         }
         PluginUiStatus::Failed(_) => {
             row_items.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::PluginCheckUpdates(id.clone())),
+                crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginCheckUpdates(id.clone()))),
                 6.0,
                 pill_button(
                     crate::i18n::t("plugin_action_retry"),
-                    Some(Message::PluginCheckUpdates(id.clone())),
+                    Some(Message::Plugin(PluginMessage::PluginCheckUpdates(id.clone()))),
                     OryxisColors::t().text_secondary,
                     false,
                 ),
             ));
             row_items.push(Space::new().width(8).into());
             row_items.push(app.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ShowPluginInstallModal(id.clone())),
+                crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::ShowPluginInstallModal(id.clone()))),
                 6.0,
                 pill_button(
                     crate::i18n::t("plugin_action_install"),
-                    Some(Message::ShowPluginInstallModal(id.clone())),
+                    Some(Message::Plugin(PluginMessage::ShowPluginInstallModal(id.clone()))),
                     OryxisColors::t().accent,
                     false,
                 ),
@@ -529,12 +529,12 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
     if has_menu {
         row_items.push(Space::new().width(8).into());
         row_items.push(app.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::ShowPluginMenu(id.clone())),
+            crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::ShowPluginMenu(id.clone()))),
             6.0,
             crate::widgets::card_kebab_button(
                 OryxisColors::t().text_muted,
                 true,
-                Message::ShowPluginMenu(id.clone()),
+                Message::Plugin(PluginMessage::ShowPluginMenu(id.clone())),
             )
             .into(),
         ));
@@ -570,7 +570,7 @@ fn plugin_card<'a>(app: &Oryxis, entry: &'a PluginUiEntry) -> Element<'a, Messag
         // Right-click anywhere on the row opens the same kebab menu
         // (app-wide card convention).
         iced::widget::MouseArea::new(styled)
-            .on_right_press(Message::ShowPluginMenu(id))
+            .on_right_press(Message::Plugin(PluginMessage::ShowPluginMenu(id)))
             .into()
     } else {
         styled.into()

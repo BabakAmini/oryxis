@@ -4,7 +4,7 @@
 
 use iced::Element;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PluginMessage, Message, Oryxis};
 use crate::state::VaultState;
 use crate::theme::OryxisColors;
 
@@ -49,7 +49,7 @@ impl Oryxis {
             crate::widgets::modal_overlay(
                 base,
                 self.view_plugin_install_modal(),
-                Some(Message::HidePluginInstallModal),
+                Some(Message::Plugin(PluginMessage::HidePluginInstallModal)),
                 40.0,
             )
         } else if self.pending_kbi_prompt.is_some() && self.connecting.is_none() {
