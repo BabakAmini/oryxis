@@ -164,6 +164,7 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_sftp_archive);
         let message = try_handler!(self, message, handle_sftp);
         let message = try_handler!(self, message, handle_ssh);
+        let message = try_handler!(self, message, handle_update);
         let message = try_handler!(self, message, handle_port_forwards);
         let message = try_handler!(self, message, handle_settings);
         let message = try_handler!(self, message, handle_keys);
