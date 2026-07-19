@@ -51,6 +51,103 @@ fn session_log_segments(head: &[u8], marks: &[(usize, i64)]) -> Vec<(usize, i64)
     segs
 }
 
+/// One vault row waiting in a flush batch, kept in stream order so the
+/// table's insertion order (which replay reads back) matches the order
+/// the live grid saw things happen.
+enum PendingSessionRow {
+    /// Output chunk (`kind='o'`): replay offset (`None` in simple
+    /// mode) + bytes.
+    Chunk(Option<i64>, Vec<u8>),
+    /// Grid geometry change (`kind='r'`) at this point of the stream.
+    Resize(i64, u16, u16),
+}
+
+/// A replay row produced by [`session_log_rows`], before the bytes are
+/// materialized: chunk ranges index into the flushed head.
+#[derive(Debug, PartialEq)]
+enum SessionRow {
+    Chunk(i64, std::ops::Range<usize>),
+    Resize(i64, u16, u16),
+}
+
+/// Largest position `<= pos` that is a line boundary (start of buffer,
+/// or right after a `\n`/`\r`). Chunk cuts must stay line-bounded so a
+/// secret run (which contains neither byte) is never split across
+/// redaction chunks; a resize cut snaps back here.
+fn line_bounded_floor(head: &[u8], pos: usize) -> usize {
+    let mut p = pos.min(head.len());
+    while p > 0 && !matches!(head[p - 1], b'\n' | b'\r') {
+        p -= 1;
+    }
+    p
+}
+
+/// Interleave a flushed head's replay rows: the timed output chunks
+/// (cut at the arrival marks, see [`session_log_segments`]) plus the
+/// recorded resize marks as `'r'` rows at the stream position where
+/// the grid actually changed. Each resize forces an extra cut at its
+/// line-bounded floor so the row can sit between the chunks; bytes on
+/// the same partial line as the resize replay right after it, which is
+/// what the live grid's reflow showed anyway. Without the interleave,
+/// resizes landed at flush time after a whole window of chunks, so
+/// replay processed up to 64 KiB of bytes on a stale grid; the connect
+/// window (MOTD + prompt-setup echo formatted for the PTY's initial
+/// size) rendered garbled and the OSC 7 setup's self-erasing echo
+/// (DECSC/DECRC) misfired, leaving the setup block on screen.
+fn session_log_rows(
+    head: &[u8],
+    marks: &[(usize, i64)],
+    resizes: &[(usize, i64, u16, u16)],
+) -> Vec<SessionRow> {
+    let mut cuts = if head.is_empty() {
+        Vec::new()
+    } else {
+        session_log_segments(head, marks)
+    };
+    for &(pos, _, _, _) in resizes {
+        let p = line_bounded_floor(head, pos);
+        if p < head.len() && !cuts.iter().any(|&(start, _)| start == p) {
+            // Stamp the forced cut with the arrival time of the bytes
+            // at it: the last mark at or before the position.
+            let ms = marks
+                .iter()
+                .rev()
+                .find(|&&(mp, _)| mp <= p)
+                .map(|&(_, ms)| ms)
+                .unwrap_or(0);
+            cuts.push((p, ms));
+        }
+    }
+    cuts.sort_unstable_by_key(|&(start, _)| start);
+    let mut rows = Vec::new();
+    let mut ri = 0;
+    for (i, &(start, ms)) in cuts.iter().enumerate() {
+        let end = cuts.get(i + 1).map(|c| c.0).unwrap_or(head.len());
+        // Every resize whose floor is at or before this chunk's start
+        // applies before its bytes (floors are monotonic, so the walk
+        // stays in order).
+        while ri < resizes.len()
+            && line_bounded_floor(head, resizes[ri].0) <= start
+        {
+            let (_, ms, cols, rows_n) = resizes[ri];
+            rows.push(SessionRow::Resize(ms, cols, rows_n));
+            ri += 1;
+        }
+        if start < end {
+            rows.push(SessionRow::Chunk(ms, start..end));
+        }
+    }
+    // Resizes past the last chunk (or with no chunks at all) land at
+    // the end of the batch: the flush-cadence fallback records exactly
+    // this shape for a resize with no output after it.
+    while ri < resizes.len() {
+        let (_, ms, cols, rows_n) = resizes[ri];
+        rows.push(SessionRow::Resize(ms, cols, rows_n));
+        ri += 1;
+    }
+    rows
+}
+
 /// Largest cut `<= take` that doesn't split a trailing multi-byte
 /// UTF-8 sequence (its continuation bytes may not have arrived yet).
 /// Walks back over at most 3 continuation bytes; anything that doesn't
@@ -111,78 +208,24 @@ impl Oryxis {
         // simple = one untimed chunk per flush, the plain log of old.
         let full = self.setting_session_log_full;
         let compress = self.setting_session_log_compress;
-        // (log id, offset_ms, bytes) output chunks + pending resizes.
-        let mut pending: Vec<(uuid::Uuid, Option<i64>, Vec<u8>)> = Vec::new();
-        let mut resizes: Vec<(uuid::Uuid, i64, u16, u16)> = Vec::new();
+        // Replay rows per pane, in stream order (chunks interleaved
+        // with resizes; see `session_log_rows`).
+        let mut pending: Vec<(uuid::Uuid, PendingSessionRow)> = Vec::new();
         for tab in &mut self.tabs {
             for pane in tab.pane_grid.panes.values_mut() {
-                if let Some(log_id) = pane.session_log_id
-                    && !pane.session_log_buf.is_empty()
-                {
-                    let buf = &mut pane.session_log_buf;
-                    let take = if final_flush {
-                        buf.len()
-                    } else if buf.len() >= SESSION_LOG_FLUSH_BYTES {
-                        // Oversized burst: flush everything, but never
-                        // split a multi-byte UTF-8 sequence across chunks
-                        // (the .cast export decodes per chunk, so both
-                        // halves of a split char would render as U+FFFD).
-                        utf8_aligned(buf, buf.len())
-                    } else {
-                        // Hold back the partial trailing line so a secret
-                        // mid-echo isn't split across redaction chunks.
-                        // `\r` ends a line here too: progress-bar redraws
-                        // are CR-delimited and would otherwise sit in RAM
-                        // until a newline or the size threshold.
-                        match buf.iter().rposition(|&b| b == b'\n' || b == b'\r') {
-                            Some(pos) => pos + 1,
-                            None => 0,
-                        }
-                    };
-                    if take == 0 {
-                        continue;
-                    }
-                    let tail = buf.split_off(take);
-                    let head = std::mem::replace(buf, tail);
-                    // Partition the arrival marks: the head's marks
-                    // drive the timed segments below; the tail's are
-                    // rebased, keeping a mark at 0 so carried-over
-                    // bytes don't lose their arrival time.
-                    let mut head_marks: Vec<(usize, i64)> = Vec::new();
-                    let mut tail_marks: Vec<(usize, i64)> = Vec::new();
-                    for (pos, ms) in pane.session_log_marks.drain(..) {
-                        if pos < take {
-                            head_marks.push((pos, ms));
-                        } else {
-                            tail_marks.push((pos - take, ms));
-                        }
-                    }
-                    if !pane.session_log_buf.is_empty()
-                        && tail_marks.first().is_none_or(|m| m.0 > 0)
-                    {
-                        let carry_ms = head_marks.last().map(|m| m.1).unwrap_or(0);
-                        tail_marks.insert(0, (0, carry_ms));
-                    }
-                    pane.session_log_marks = tail_marks;
-                    if full {
-                        let segs = session_log_segments(&head, &head_marks);
-                        for (i, &(start, ms)) in segs.iter().enumerate() {
-                            let end = segs.get(i + 1).map(|s| s.0).unwrap_or(head.len());
-                            pending.push((log_id, Some(ms), head[start..end].to_vec()));
-                        }
-                    } else {
-                        // Simple mode: one untimed chunk, no replay
-                        // metadata (NULL offset = the legacy shape).
-                        pending.push((log_id, None, head));
-                    }
-                    // Geometry check rides the flush cadence: cheap, and
-                    // a resize between flushes still lands close enough
-                    // for replay. The first flush records the initial
-                    // size (the asciicast header reads it back). Replay
-                    // metadata, so full-detail mode only.
-                    let size = full
-                        .then(|| pane.terminal.lock().ok())
-                        .flatten()
+                let Some(log_id) = pane.session_log_id else {
+                    continue;
+                };
+                // Geometry fallback on the flush cadence: catches a
+                // resize with NO output after it (the primary capture
+                // point is the output batch itself, which stamps the
+                // resize at its exact stream position). Replay
+                // metadata, so full-detail mode only.
+                if full {
+                    let size = pane
+                        .terminal
+                        .lock()
+                        .ok()
                         .map(|s| (s.cols(), s.rows()))
                         .filter(|&(c, r)| c > 0 && r > 0);
                     if let Some((cols, rows)) = size
@@ -193,26 +236,125 @@ impl Oryxis {
                             .session_log_t0
                             .map(|t| t.elapsed().as_millis() as i64)
                             .unwrap_or(0);
-                        resizes.push((log_id, now_ms, cols, rows));
+                        pane.session_log_resizes.push((
+                            pane.session_log_buf.len(),
+                            now_ms,
+                            cols,
+                            rows,
+                        ));
                     }
+                }
+                if pane.session_log_buf.is_empty()
+                    && pane.session_log_resizes.is_empty()
+                {
+                    continue;
+                }
+                let buf = &mut pane.session_log_buf;
+                let take = if final_flush {
+                    buf.len()
+                } else if buf.len() >= SESSION_LOG_FLUSH_BYTES {
+                    // Oversized burst: flush everything, but never
+                    // split a multi-byte UTF-8 sequence across chunks
+                    // (the .cast export decodes per chunk, so both
+                    // halves of a split char would render as U+FFFD).
+                    utf8_aligned(buf, buf.len())
+                } else {
+                    // Hold back the partial trailing line so a secret
+                    // mid-echo isn't split across redaction chunks.
+                    // `\r` ends a line here too: progress-bar redraws
+                    // are CR-delimited and would otherwise sit in RAM
+                    // until a newline or the size threshold.
+                    match buf.iter().rposition(|&b| b == b'\n' || b == b'\r') {
+                        Some(pos) => pos + 1,
+                        None => 0,
+                    }
+                };
+                // Nothing flushable yet; pending resize marks ride
+                // along with the bytes they precede on a later flush.
+                // A final flush drains even an empty head so a trailing
+                // resize isn't lost with the session.
+                if take == 0 && !final_flush {
+                    continue;
+                }
+                let tail = buf.split_off(take);
+                let head = std::mem::replace(buf, tail);
+                // Partition the arrival marks: the head's marks
+                // drive the timed segments below; the tail's are
+                // rebased, keeping a mark at 0 so carried-over
+                // bytes don't lose their arrival time.
+                let mut head_marks: Vec<(usize, i64)> = Vec::new();
+                let mut tail_marks: Vec<(usize, i64)> = Vec::new();
+                for (pos, ms) in pane.session_log_marks.drain(..) {
+                    if pos < take {
+                        head_marks.push((pos, ms));
+                    } else {
+                        tail_marks.push((pos - take, ms));
+                    }
+                }
+                if !pane.session_log_buf.is_empty()
+                    && tail_marks.first().is_none_or(|m| m.0 > 0)
+                {
+                    let carry_ms = head_marks.last().map(|m| m.1).unwrap_or(0);
+                    tail_marks.insert(0, (0, carry_ms));
+                }
+                pane.session_log_marks = tail_marks;
+                // Same partition for the resize marks. A mark exactly
+                // at the cut belongs to the held-back tail (it applies
+                // before bytes that flush later), except on a final
+                // flush, where nothing follows.
+                let mut head_resizes: Vec<(usize, i64, u16, u16)> = Vec::new();
+                let mut tail_resizes: Vec<(usize, i64, u16, u16)> = Vec::new();
+                for (pos, ms, cols, rows) in pane.session_log_resizes.drain(..) {
+                    if pos < take || final_flush {
+                        head_resizes.push((pos, ms, cols, rows));
+                    } else {
+                        tail_resizes.push((pos - take, ms, cols, rows));
+                    }
+                }
+                pane.session_log_resizes = tail_resizes;
+                if full {
+                    for row in session_log_rows(&head, &head_marks, &head_resizes) {
+                        pending.push((
+                            log_id,
+                            match row {
+                                SessionRow::Chunk(ms, range) => PendingSessionRow::Chunk(
+                                    Some(ms),
+                                    head[range].to_vec(),
+                                ),
+                                SessionRow::Resize(ms, cols, rows) => {
+                                    PendingSessionRow::Resize(ms, cols, rows)
+                                }
+                            },
+                        ));
+                    }
+                } else if !head.is_empty() {
+                    // Simple mode: one untimed chunk, no replay
+                    // metadata (NULL offset = the legacy shape).
+                    pending.push((log_id, PendingSessionRow::Chunk(None, head)));
                 }
             }
         }
-        if pending.is_empty() && resizes.is_empty() {
+        if pending.is_empty() {
             return;
         }
         if let Some(vault) = &self.vault {
-            for (log_id, offset_ms, bytes) in pending {
-                let scrubbed = crate::session_redact::redact_secrets(&bytes);
-                if let Err(e) =
-                    vault.append_session_data(&log_id, &scrubbed, offset_ms, compress)
-                {
-                    tracing::warn!("session log append failed for {log_id}: {e}");
-                }
-            }
-            for (log_id, offset_ms, cols, rows) in resizes {
-                if let Err(e) = vault.append_session_resize(&log_id, offset_ms, cols, rows) {
-                    tracing::warn!("session resize append failed for {log_id}: {e}");
+            for (log_id, row) in pending {
+                match row {
+                    PendingSessionRow::Chunk(offset_ms, bytes) => {
+                        let scrubbed = crate::session_redact::redact_secrets(&bytes);
+                        if let Err(e) = vault.append_session_data(
+                            &log_id, &scrubbed, offset_ms, compress,
+                        ) {
+                            tracing::warn!("session log append failed for {log_id}: {e}");
+                        }
+                    }
+                    PendingSessionRow::Resize(offset_ms, cols, rows) => {
+                        if let Err(e) =
+                            vault.append_session_resize(&log_id, offset_ms, cols, rows)
+                        {
+                            tracing::warn!("session resize append failed for {log_id}: {e}");
+                        }
+                    }
                 }
             }
         }
@@ -311,8 +453,12 @@ impl Oryxis {
                     let mut new_cwd = None;
                     let mut new_notification = None;
                     let mut new_progress = None;
+                    let mut size_now = None;
                     if let Ok(mut state) = pane.terminal.lock() {
                         state.process(&bytes);
+                        // Grid size this batch was processed at, for the
+                        // recording's resize marks below.
+                        size_now = Some((state.cols(), state.rows()));
                         // A buffering DEC ?2026 update reports its abort
                         // deadline here; read it while still locked.
                         sync_deadline = state.sync_timeout();
@@ -507,10 +653,35 @@ impl Oryxis {
                             let t0 = *pane
                                 .session_log_t0
                                 .get_or_insert_with(std::time::Instant::now);
-                            pane.session_log_marks.push((
-                                pane.session_log_buf.len(),
-                                t0.elapsed().as_millis() as i64,
-                            ));
+                            let now_ms = t0.elapsed().as_millis() as i64;
+                            // A grid size change since the last recorded
+                            // geometry lands as a resize mark at the
+                            // current stream position: this batch's bytes
+                            // were processed at the new size, so replay
+                            // must resize before feeding them. The first
+                            // batch records the initial geometry through
+                            // the same path (last size starts `None`).
+                            // Stamping resizes only at flush time built
+                            // the replay grid at the first flush's size,
+                            // so the connect window's bytes (MOTD +
+                            // prompt-setup echo formatted for the PTY's
+                            // initial 120x40) rendered garbled and the
+                            // OSC 7 setup's self-erasing echo survived on
+                            // screen in the player / .cast / GIF.
+                            if let Some((cols, rows)) =
+                                size_now.filter(|&(c, r)| c > 0 && r > 0)
+                                && pane.session_log_last_size != Some((cols, rows))
+                            {
+                                pane.session_log_last_size = Some((cols, rows));
+                                pane.session_log_resizes.push((
+                                    pane.session_log_buf.len(),
+                                    now_ms,
+                                    cols,
+                                    rows,
+                                ));
+                            }
+                            pane.session_log_marks
+                                .push((pane.session_log_buf.len(), now_ms));
                         }
                         pane.session_log_buf.extend_from_slice(&bytes);
                         over_threshold =
@@ -682,7 +853,10 @@ impl Oryxis {
 
 #[cfg(test)]
 mod tests {
-    use super::{session_log_segments, utf8_aligned, SESSION_LOG_SEGMENT_MS};
+    use super::{
+        session_log_rows, session_log_segments, utf8_aligned, SessionRow,
+        SESSION_LOG_SEGMENT_MS,
+    };
 
     /// Arrival marks for consecutive batches: each batch starts where
     /// the previous one ended, mirroring how the PTY handler records.
@@ -742,6 +916,97 @@ mod tests {
         assert_eq!(session_log_segments(&head, &marks).len(), 1);
         // No marks at all: a single segment at t=0.
         assert_eq!(session_log_segments(b"x", &[]), vec![(0, 0)]);
+    }
+
+    #[test]
+    fn initial_geometry_resize_lands_before_the_first_chunk() {
+        // The first output batch records the grid it was processed at
+        // as a resize mark at position 0: replay must build the grid
+        // BEFORE feeding the connect window's bytes (the player and
+        // the .cast header read their initial geometry from it).
+        let (head, marks) = marks_for(&[(b"Welcome\n", 0)]);
+        let rows = session_log_rows(&head, &marks, &[(0, 0, 120, 40)]);
+        assert_eq!(
+            rows,
+            vec![
+                SessionRow::Resize(0, 120, 40),
+                SessionRow::Chunk(0, 0..head.len()),
+            ]
+        );
+    }
+
+    #[test]
+    fn mid_stream_resize_cuts_the_chunk_and_sits_between() {
+        // Bytes before the resize replay on the old grid, bytes after
+        // it on the new one, even when the arrival marks alone would
+        // have coalesced everything into a single chunk.
+        let (head, marks) = marks_for(&[(b"before\n", 0), (b"after\n", 10)]);
+        let rows = session_log_rows(&head, &marks, &[(7, 10, 90, 30)]);
+        assert_eq!(
+            rows,
+            vec![
+                SessionRow::Chunk(0, 0..7),
+                SessionRow::Resize(10, 90, 30),
+                SessionRow::Chunk(10, 7..head.len()),
+            ]
+        );
+    }
+
+    #[test]
+    fn mid_line_resize_snaps_back_to_a_line_boundary() {
+        // Chunk cuts must stay line-bounded (secret runs contain no
+        // `\n`/`\r`, so a cut there can't split one across redaction
+        // chunks): a resize mark mid-line snaps its cut back to the
+        // previous boundary, and the partial line replays after the
+        // resize, matching the live grid's reflow.
+        let (head, marks) = marks_for(&[(b"line\n", 0), (b"par", 5), (b"tial\n", 20)]);
+        let rows = session_log_rows(&head, &marks, &[(8, 20, 100, 50)]);
+        assert_eq!(
+            rows,
+            vec![
+                SessionRow::Chunk(0, 0..5),
+                SessionRow::Resize(20, 100, 50),
+                SessionRow::Chunk(5, 5..head.len()),
+            ]
+        );
+    }
+
+    #[test]
+    fn trailing_resize_lands_after_the_last_chunk() {
+        // The flush-cadence fallback records a resize with no output
+        // after it at the buffer's end; with no bytes at all (final
+        // flush of an idle pane) the row still flushes on its own.
+        let (head, marks) = marks_for(&[(b"done\n", 0)]);
+        let rows = session_log_rows(&head, &marks, &[(5, 30, 80, 24)]);
+        assert_eq!(
+            rows,
+            vec![
+                SessionRow::Chunk(0, 0..head.len()),
+                SessionRow::Resize(30, 80, 24),
+            ]
+        );
+        let rows = session_log_rows(&[], &[], &[(0, 40, 80, 24)]);
+        assert_eq!(rows, vec![SessionRow::Resize(40, 80, 24)]);
+    }
+
+    #[test]
+    fn consecutive_resizes_at_one_position_all_replay_in_order() {
+        // Two size changes with no bytes between them (a live drag
+        // sampled across batches) keep both rows, in order.
+        let (head, marks) = marks_for(&[(b"x\n", 0)]);
+        let rows = session_log_rows(
+            &head,
+            &marks,
+            &[(2, 10, 100, 40), (2, 20, 110, 42)],
+        );
+        assert_eq!(
+            rows,
+            vec![
+                SessionRow::Chunk(0, 0..head.len()),
+                SessionRow::Resize(10, 100, 40),
+                SessionRow::Resize(20, 110, 42),
+            ]
+        );
     }
 
     #[test]

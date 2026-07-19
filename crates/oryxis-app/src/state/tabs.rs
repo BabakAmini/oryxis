@@ -235,8 +235,16 @@ pub(crate) struct Pane {
     /// the drained bytes at newline-aligned marks so the stored chunks
     /// carry real replay timing without extra writes mid-session.
     pub session_log_marks: Vec<(usize, i64)>,
-    /// Last terminal geometry written to the recording; a change at
-    /// flush time appends a resize event (`kind='r'`).
+    /// Resize marks into `session_log_buf`: (byte position, ms since
+    /// `session_log_t0`, cols, rows), recorded when an output batch is
+    /// processed on a grid whose size differs from the last recorded
+    /// one. The flush interleaves these as `kind='r'` rows between the
+    /// output chunks, so replay resizes at the same stream position the
+    /// live grid did (the first batch records the initial geometry).
+    pub session_log_resizes: Vec<(usize, i64, u16, u16)>,
+    /// Last terminal geometry written to the recording; a change
+    /// appends a resize mark (output-batch path, or the flush-cadence
+    /// fallback for a resize with no output after it).
     pub session_log_last_size: Option<(u16, u16)>,
     /// What this pane reconnects to when restored from a saved session group.
     /// Defaults to `Ephemeral`; the creating site overrides it to `Host` or
@@ -403,6 +411,7 @@ impl Pane {
             session_log_buf: Vec::new(),
             session_log_t0: None,
             session_log_marks: Vec::new(),
+            session_log_resizes: Vec::new(),
             session_log_last_size: None,
             origin: PaneOrigin::Ephemeral,
             sync_flush_scheduled: false,
@@ -430,6 +439,22 @@ impl Pane {
             // Xterm defaults until resolved for a real host at connect.
             quirks: oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS,
         }
+    }
+
+    /// Attach a fresh session log to this pane, resetting the whole
+    /// recording state. A reconnect reuses the pane, and a stale clock
+    /// zero / last recorded geometry would leak the previous log's
+    /// timeline into the new recording: offsets counting from the old
+    /// session's first byte, and no initial resize row (the grid
+    /// matches the "last recorded" size, so the change detector stays
+    /// quiet and replay falls back to 80x24).
+    pub fn start_session_log(&mut self, log_id: Uuid) {
+        self.session_log_id = Some(log_id);
+        self.session_log_buf.clear();
+        self.session_log_t0 = None;
+        self.session_log_marks.clear();
+        self.session_log_resizes.clear();
+        self.session_log_last_size = None;
     }
 }
 

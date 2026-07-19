@@ -1147,7 +1147,7 @@ impl Oryxis {
         if let Some(log_id) = session_log_id
             && let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id)
         {
-            pane.session_log_id = Some(log_id);
+            pane.start_session_log(log_id);
         }
 
         // Host-key bridge: the engine asks via `hk_ask`, we surface the
