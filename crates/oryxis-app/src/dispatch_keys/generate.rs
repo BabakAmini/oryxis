@@ -7,7 +7,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{KeysMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -17,7 +17,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Key generation (keychain > ADD > Generate key) --
-            Message::ShowKeyGeneratePanel => {
+            Message::Keys(KeysMessage::ShowKeyGeneratePanel) => {
                 self.active_view = View::Keys;
                 self.active_tab = None;
                 // Mutually exclusive with the import/identity panels.
@@ -30,19 +30,19 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::HideKeyGeneratePanel => {
+            Message::Keys(KeysMessage::HideKeyGeneratePanel) => {
                 self.show_key_generate_panel = false;
                 self.key_generate_form = crate::state::KeyGenerateForm::default();
             }
-            Message::KeyGenLabelChanged(v) => {
+            Message::Keys(KeysMessage::KeyGenLabelChanged(v)) => {
                 self.key_generate_form.label = v;
                 self.key_generate_form.error = None;
             }
-            Message::KeyGenCommentChanged(v) => self.key_generate_form.comment = v,
-            Message::KeyGenAlgoSelected(a) => self.key_generate_form.algo = a,
-            Message::KeyGenBitsSelected(b) => self.key_generate_form.rsa_bits = b,
-            Message::KeyGenCurveSelected(c) => self.key_generate_form.ecdsa_curve = c,
-            Message::GenerateKey => {
+            Message::Keys(KeysMessage::KeyGenCommentChanged(v)) => self.key_generate_form.comment = v,
+            Message::Keys(KeysMessage::KeyGenAlgoSelected(a)) => self.key_generate_form.algo = a,
+            Message::Keys(KeysMessage::KeyGenBitsSelected(b)) => self.key_generate_form.rsa_bits = b,
+            Message::Keys(KeysMessage::KeyGenCurveSelected(c)) => self.key_generate_form.ecdsa_curve = c,
+            Message::Keys(KeysMessage::GenerateKey) => {
                 if self.key_generate_form.working {
                     return Ok(Task::none());
                 }
@@ -73,12 +73,12 @@ impl Oryxis {
                             .map_err(|e| e.to_string())
                     }),
                     |result| match result {
-                        Ok(inner) => Message::KeyGenerated(inner),
-                        Err(e) => Message::KeyGenerated(Err(format!("Thread error: {}", e))),
+                        Ok(inner) => Message::Keys(KeysMessage::KeyGenerated(inner)),
+                        Err(e) => Message::Keys(KeysMessage::KeyGenerated(Err(format!("Thread error: {}", e)))),
                     },
                 ));
             }
-            Message::KeyGenerated(result) => {
+            Message::Keys(KeysMessage::KeyGenerated(result)) => {
                 self.key_generate_form.working = false;
                 match result {
                     Ok(generated) => {
@@ -110,12 +110,12 @@ impl Oryxis {
                     Err(e) => self.key_generate_form.error = Some(e),
                 }
             }
-            Message::CopyGeneratedPublicKey => {
+            Message::Keys(KeysMessage::CopyGeneratedPublicKey) => {
                 if let Some(result) = &self.key_generate_form.result {
                     return Ok(iced::clipboard::write(result.public_key.clone()).discard());
                 }
             }
-            Message::SaveGeneratedPublicKeyFile => {
+            Message::Keys(KeysMessage::SaveGeneratedPublicKeyFile) => {
                 let Some(result) = self.key_generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
@@ -132,29 +132,29 @@ impl Oryxis {
                         }
                     }),
                     |result| match result {
-                        Ok(Ok(())) => Message::KeyFileBrowseError(String::new()),
-                        Ok(Err(e)) => Message::KeyFileBrowseError(e),
-                        Err(e) => Message::KeyFileBrowseError(format!("Thread error: {}", e)),
+                        Ok(Ok(())) => Message::Keys(KeysMessage::KeyFileBrowseError(String::new())),
+                        Ok(Err(e)) => Message::Keys(KeysMessage::KeyFileBrowseError(e)),
+                        Err(e) => Message::Keys(KeysMessage::KeyFileBrowseError(format!("Thread error: {}", e))),
                     },
                 ));
             }
-            Message::KeyGenExportPassphraseChanged(v) => {
+            Message::Keys(KeysMessage::KeyGenExportPassphraseChanged(v)) => {
                 self.key_generate_form.export_passphrase = v;
                 self.key_generate_form.error = None;
             }
-            Message::KeyGenExportPassphraseConfirmChanged(v) => {
+            Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmChanged(v)) => {
                 self.key_generate_form.export_passphrase_confirm = v;
                 self.key_generate_form.error = None;
             }
-            Message::KeyGenExportPassphraseToggleVisibility => {
+            Message::Keys(KeysMessage::KeyGenExportPassphraseToggleVisibility) => {
                 self.key_generate_form.export_passphrase_visible =
                     !self.key_generate_form.export_passphrase_visible;
             }
-            Message::KeyGenExportPassphraseConfirmToggleVisibility => {
+            Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility) => {
                 self.key_generate_form.export_passphrase_confirm_visible =
                     !self.key_generate_form.export_passphrase_confirm_visible;
             }
-            Message::ExportGeneratedPrivateKey => {
+            Message::Keys(KeysMessage::ExportGeneratedPrivateKey) => {
                 let Some(result) = self.key_generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
@@ -208,9 +208,9 @@ impl Oryxis {
                         }
                     }),
                     |result| match result {
-                        Ok(Ok(())) => Message::KeyFileBrowseError(String::new()),
-                        Ok(Err(e)) => Message::KeyFileBrowseError(e),
-                        Err(e) => Message::KeyFileBrowseError(format!("Thread error: {}", e)),
+                        Ok(Ok(())) => Message::Keys(KeysMessage::KeyFileBrowseError(String::new())),
+                        Ok(Err(e)) => Message::Keys(KeysMessage::KeyFileBrowseError(e)),
+                        Err(e) => Message::Keys(KeysMessage::KeyFileBrowseError(format!("Thread error: {}", e))),
                     },
                 ));
             }

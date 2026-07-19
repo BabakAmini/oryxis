@@ -172,7 +172,7 @@ impl Oryxis {
 
     pub(crate) fn build_menu_key_actions(&self, idx: usize) -> Element<'_, Message> {
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditKey(idx), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Keys(KeysMessage::EditKey(idx)), OryxisColors::t().text_secondary),
         ];
         // Expose-via-agent toggle: only offered while the agent server
         // is running, so it stays out of the menu for users who never
@@ -203,24 +203,24 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::badge_check(),
                 crate::i18n::t("cert_view"),
-                Message::ViewKeyCertificate(idx),
+                Message::Keys(KeysMessage::ViewKeyCertificate(idx)),
                 OryxisColors::t().text_secondary,
             ));
             items = items.push(self.menu_item(
                 iced_fonts::lucide::badge_x(),
                 crate::i18n::t("cert_remove"),
-                Message::RequestRemoveKeyCertificate(idx),
+                Message::Keys(KeysMessage::RequestRemoveKeyCertificate(idx)),
                 OryxisColors::t().text_secondary,
             ));
         }
-        items = items.push(self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteKey(idx), OryxisColors::t().error));
+        items = items.push(self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::Keys(KeysMessage::RequestDeleteKey(idx)), OryxisColors::t().error));
         items.into()
     }
 
     pub(crate) fn build_menu_identity_actions(&self, idx: usize) -> Element<'_, Message> {
         column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditIdentity(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::RequestDeleteIdentity(idx), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Keys(KeysMessage::EditIdentity(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("remove"), Message::Keys(KeysMessage::RequestDeleteIdentity(idx)), OryxisColors::t().error),
         ].into()
     }
 
@@ -237,11 +237,11 @@ impl Oryxis {
         // Termius pattern); it opens the import panel with the
         // certificate field focused.
         column![
-            self.menu_item(iced_fonts::lucide::sparkles(), crate::i18n::t("generate_key"), Message::ShowKeyGeneratePanel, OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::ShowKeyPanel, OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::fingerprint(), crate::i18n::t("import_public_key"), Message::ShowKeyPanelPublicFocus, OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::badge_check(), crate::i18n::t("certificate"), Message::ShowKeyPanelCertFocus, OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::ShowIdentityPanel, OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::sparkles(), crate::i18n::t("generate_key"), Message::Keys(KeysMessage::ShowKeyGeneratePanel), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::Keys(KeysMessage::ShowKeyPanel), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::fingerprint(), crate::i18n::t("import_public_key"), Message::Keys(KeysMessage::ShowKeyPanelPublicFocus), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::badge_check(), crate::i18n::t("certificate"), Message::Keys(KeysMessage::ShowKeyPanelCertFocus), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::Keys(KeysMessage::ShowIdentityPanel), OryxisColors::t().text_secondary),
         ].into()
     }
 

@@ -15,7 +15,7 @@ impl Oryxis {
                 text(panel_title).size(18).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideIdentityPanel)
+                    .on_press(Message::Keys(KeysMessage::HideIdentityPanel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(OryxisColors::t().bg_surface)),
@@ -36,7 +36,7 @@ impl Oryxis {
                 10.0,
                 text_input(t("my_identity_placeholder"), &self.identity_form.label)
                     .id(iced::widget::Id::new("panel-identity-label"))
-                    .on_input(Message::IdentityLabelChanged)
+                    .on_input(|v| Message::Keys(KeysMessage::IdentityLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -57,7 +57,7 @@ impl Oryxis {
                     10.0,
                     text_input("root", &self.identity_form.username)
                         .id(iced::widget::Id::new("panel-identity-username"))
-                        .on_input(Message::IdentityUsernameChanged)
+                        .on_input(|v| Message::Keys(KeysMessage::IdentityUsernameChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -89,15 +89,15 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     identity_pw_placeholder,
                     self.identity_form.password.as_str(),
-                    Message::IdentityPasswordChanged,
+                    |v| Message::Keys(KeysMessage::IdentityPasswordChanged(v)),
                     None,
                     self.identity_form.password_visible,
-                    Message::IdentityTogglePasswordVisibility,
+                    Message::Keys(KeysMessage::IdentityTogglePasswordVisibility),
                     10.0,
                     Some(iced::widget::Id::new("panel-identity-password")),
                     |eye| self.panel_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::IdentityTogglePasswordVisibility,
+                            Message::Keys(KeysMessage::IdentityTogglePasswordVisibility),
                         ),
                         6.0,
                         eye,
@@ -130,7 +130,7 @@ impl Oryxis {
                         key_options,
                         |s: &String| s.clone(),
                     )
-                    .on_select(Message::IdentityKeyChanged)
+                    .on_select(|v| Message::Keys(KeysMessage::IdentityKeyChanged(v)))
                     .id(iced::widget::Id::new("identity-pick-key"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -186,16 +186,16 @@ impl Oryxis {
         let has_label = !self.identity_form.label.trim().is_empty();
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideIdentityPanel),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::HideIdentityPanel)),
                 6.0,
-                crate::widgets::form_cancel_button(Message::HideIdentityPanel),
+                crate::widgets::form_cancel_button(Message::Keys(KeysMessage::HideIdentityPanel)),
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SaveIdentity),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::SaveIdentity)),
                 6.0,
                 crate::widgets::form_save_button(
                     save_label,
-                    has_label.then_some(Message::SaveIdentity),
+                    has_label.then_some(Message::Keys(KeysMessage::SaveIdentity)),
                 ),
             ),
         );

@@ -229,12 +229,12 @@ impl Oryxis {
                 View::Keys => (
                     "search_keys_identities",
                     self.key_search.as_str(),
-                    Message::KeySearchChanged,
+                    |v| Message::Keys(KeysMessage::KeySearchChanged(v)),
                 ),
                 View::Snippets => (
                     "search_snippets",
                     self.snippet_search.as_str(),
-                    Message::SnippetSearchChanged,
+                    |v| Message::Keys(KeysMessage::SnippetSearchChanged(v)),
                 ),
                 View::PortForwarding => (
                     "search_port_forwards",
@@ -244,7 +244,7 @@ impl Oryxis {
                 View::History => (
                     "search_logs",
                     self.history_search.as_str(),
-                    Message::HistorySearchChanged,
+                    |v| Message::Keys(KeysMessage::HistorySearchChanged(v)),
                 ),
                 View::Cloud => (
                     "search_cloud_accounts",

@@ -9,7 +9,7 @@ use iced::Task;
 
 use oryxis_core::models::identity::Identity;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{KeysMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState};
 
 impl Oryxis {
@@ -19,7 +19,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // ── Identities ──
-            Message::ShowIdentityPanel => {
+            Message::Keys(KeysMessage::ShowIdentityPanel) => {
                 self.show_identity_panel = true;
                 self.identity_form.label.clear();
                 self.identity_form.username.clear();
@@ -33,25 +33,25 @@ impl Oryxis {
                 self.identity_context_menu = None;
                 self.overlay = None;
             }
-            Message::HideIdentityPanel => {
+            Message::Keys(KeysMessage::HideIdentityPanel) => {
                 self.show_identity_panel = false;
             }
-            Message::IdentityLabelChanged(v) => {
+            Message::Keys(KeysMessage::IdentityLabelChanged(v)) => {
                 self.identity_form.label = v;
             }
-            Message::IdentityUsernameChanged(v) => {
+            Message::Keys(KeysMessage::IdentityUsernameChanged(v)) => {
                 self.identity_form.username = v;
             }
-            Message::IdentityPasswordChanged(v) => {
+            Message::Keys(KeysMessage::IdentityPasswordChanged(v)) => {
                 self.identity_form.password.set(v);
             }
-            Message::IdentityTogglePasswordVisibility => {
+            Message::Keys(KeysMessage::IdentityTogglePasswordVisibility) => {
                 self.identity_form.password_visible = !self.identity_form.password_visible;
             }
-            Message::IdentityKeyChanged(v) => {
+            Message::Keys(KeysMessage::IdentityKeyChanged(v)) => {
                 self.identity_form.key = if v == "(none)" { None } else { Some(v) };
             }
-            Message::SaveIdentity => {
+            Message::Keys(KeysMessage::SaveIdentity) => {
                 if self.identity_form.label.trim().is_empty() {
                     return Ok(Task::none());
                 }
@@ -82,7 +82,7 @@ impl Oryxis {
                 }
                 self.show_identity_panel = false;
             }
-            Message::EditIdentity(idx) => {
+            Message::Keys(KeysMessage::EditIdentity(idx)) => {
                 if let Some(identity) = self.identities.get(idx) {
                     self.identity_form.editing_id = Some(identity.id);
                     self.identity_form.label = identity.label.clone();
@@ -100,13 +100,13 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::RequestDeleteIdentity(idx) => {
+            Message::Keys(KeysMessage::RequestDeleteIdentity(idx)) => {
                 if let Some(identity) = self.identities.get(idx) {
                     let name = identity.label.clone();
-                    self.confirm_remove(name, Message::DeleteIdentity(idx));
+                    self.confirm_remove(name, Message::Keys(KeysMessage::DeleteIdentity(idx)));
                 }
             }
-            Message::DeleteIdentity(idx) => {
+            Message::Keys(KeysMessage::DeleteIdentity(idx)) => {
                 if let Some(identity) = self.identities.get(idx) {
                     let id = identity.id;
                     if let Some(vault) = &self.vault {
@@ -117,7 +117,7 @@ impl Oryxis {
                 self.identity_context_menu = None;
                 self.overlay = None;
             }
-            Message::ShowIdentityMenu(idx) => {
+            Message::Keys(KeysMessage::ShowIdentityMenu(idx)) => {
                 if self.identity_context_menu == Some(idx) {
                     self.identity_context_menu = None;
                     self.overlay = None;
@@ -131,7 +131,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::ToggleKeychainAddMenu => {
+            Message::Keys(KeysMessage::ToggleKeychainAddMenu) => {
                 if self.show_keychain_add_menu {
                     self.show_keychain_add_menu = false;
                     self.overlay = None;

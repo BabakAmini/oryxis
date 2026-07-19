@@ -20,7 +20,7 @@ impl Oryxis {
                 text(panel_title).size(18).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideKeyPanel)
+                    .on_press(Message::Keys(KeysMessage::HideKeyPanel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(OryxisColors::t().bg_surface)),
@@ -41,7 +41,7 @@ impl Oryxis {
                 10.0,
                 text_input("my-server-key", &self.key_import_form.label)
                     .id(iced::widget::Id::new("panel-key-import-name"))
-                    .on_input(Message::KeyImportLabelChanged)
+                    .on_input(|v| Message::Keys(KeysMessage::KeyImportLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -54,10 +54,10 @@ impl Oryxis {
         // Certificate section header uses, so all three sections share
         // one visual pattern (label leading, Browse trailing).
         let browse_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::BrowseKeyFile),
+            crate::keynav::RowAction::activate(Message::Keys(KeysMessage::BrowseKeyFile)),
             6.0,
             button(text(t("cert_browse")).size(12).color(OryxisColors::t().accent))
-                .on_press(Message::BrowseKeyFile)
+                .on_press(Message::Keys(KeysMessage::BrowseKeyFile))
                 .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
                 .style(|_, status| {
                     let bg = match status {
@@ -102,7 +102,7 @@ impl Oryxis {
             10.0,
             text_editor(&self.key_import_content)
                 .id(iced::widget::Id::new("panel-key-import-content"))
-                .on_action(Message::KeyContentAction)
+                .on_action(|v| Message::Keys(KeysMessage::KeyContentAction(v)))
                 .padding(10)
                 .height(180)
                 .font(iced::Font::MONOSPACE)
@@ -131,15 +131,15 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         t("key_passphrase_placeholder"),
                         &self.key_import_form.passphrase,
-                        Message::KeyImportPassphraseChanged,
-                        Some(Message::ImportKey),
+                        |v| Message::Keys(KeysMessage::KeyImportPassphraseChanged(v)),
+                        Some(Message::Keys(KeysMessage::ImportKey)),
                         self.key_import_form.passphrase_visible,
-                        Message::KeyImportPassphraseToggleVisibility,
+                        Message::Keys(KeysMessage::KeyImportPassphraseToggleVisibility),
                         10.0,
                         Some(iced::widget::Id::new("panel-key-import-passphrase")),
                         |eye| self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::KeyImportPassphraseToggleVisibility,
+                                Message::Keys(KeysMessage::KeyImportPassphraseToggleVisibility),
                             ),
                             6.0,
                             eye,
@@ -172,7 +172,7 @@ impl Oryxis {
                 10.0,
                 text_editor(&self.key_import_public_content)
                     .id(iced::widget::Id::new("panel-key-import-public"))
-                    .on_action(Message::KeyImportPublicAction)
+                    .on_action(|v| Message::Keys(KeysMessage::KeyImportPublicAction(v)))
                     .placeholder("ssh-ed25519 AAAA...")
                     .padding(10)
                     .height(72)
@@ -192,10 +192,10 @@ impl Oryxis {
         // auto-probe on file pick prefills it and raises the hint below.
         // Keyboard rows record in build order: Browse, then the field.
         let cert_browse_btn = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::BrowseCertFile),
+            crate::keynav::RowAction::activate(Message::Keys(KeysMessage::BrowseCertFile)),
             6.0,
             button(text(t("cert_browse")).size(12).color(OryxisColors::t().accent))
-                .on_press(Message::BrowseCertFile)
+                .on_press(Message::Keys(KeysMessage::BrowseCertFile))
                 .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
                 .style(|_, status| {
                     let bg = match status {
@@ -224,7 +224,7 @@ impl Oryxis {
                 10.0,
                 text_editor(&self.key_import_cert_content)
                     .id(iced::widget::Id::new("panel-key-import-cert"))
-                    .on_action(Message::KeyImportCertAction)
+                    .on_action(|v| Message::Keys(KeysMessage::KeyImportCertAction(v)))
                     .placeholder("ssh-ed25519-cert-v01@openssh.com AAAA...")
                     .padding(10)
                     .height(72)
@@ -260,16 +260,16 @@ impl Oryxis {
         let save_label = if self.key_import_form.editing_id.is_some() { t("update_key") } else { t("save_key") };
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideKeyPanel),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::HideKeyPanel)),
                 6.0,
-                crate::widgets::form_cancel_button(Message::HideKeyPanel),
+                crate::widgets::form_cancel_button(Message::Keys(KeysMessage::HideKeyPanel)),
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::ImportKey),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::ImportKey)),
                 6.0,
                 crate::widgets::form_save_button(
                     save_label,
-                    can_save.then_some(Message::ImportKey),
+                    can_save.then_some(Message::Keys(KeysMessage::ImportKey)),
                 ),
             ),
         );

@@ -12,7 +12,7 @@ use iced::Task;
 use oryxis_vault::VaultError;
 
 use super::certs::validate_certificate;
-use crate::app::{Message, Oryxis};
+use crate::app::{KeysMessage, Message, Oryxis};
 use crate::state::{OverlayContent, OverlayState, View};
 
 impl Oryxis {
@@ -22,7 +22,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Keys --
-            Message::ShowKeyPanel => {
+            Message::Keys(KeysMessage::ShowKeyPanel) => {
                 // Also navigate to the Keys screen, the import panel is rendered
                 // inside view_keys(), so the user needs to be there to see it
                 // (e.g. when they click "+ Key" from the host editor).
@@ -46,12 +46,12 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::ShowKeyPanelPublicFocus => {
+            Message::Keys(KeysMessage::ShowKeyPanelPublicFocus) => {
                 // The ADD menu's "Import public key" entry (B3): the same
                 // import panel, opened with the public-key field focused,
                 // the security-key delegation flow (paste the sk- line,
                 // no private material exists to import).
-                let open = self.handle_keys(Message::ShowKeyPanel)?;
+                let open = self.handle_keys(Message::Keys(KeysMessage::ShowKeyPanel))?;
                 return Ok(Task::batch([
                     open,
                     iced::widget::operation::focus(iced::widget::Id::new(
@@ -59,12 +59,12 @@ impl Oryxis {
                     )),
                 ]));
             }
-            Message::ShowKeyPanelCertFocus => {
+            Message::Keys(KeysMessage::ShowKeyPanelCertFocus) => {
                 // The ADD menu's "Certificate" entry (B2.1): the same
                 // import panel (a certificate lives on its key, one
                 // entity), opened with the certificate field focused so
                 // the intent lands somewhere visible.
-                let open = self.handle_keys(Message::ShowKeyPanel)?;
+                let open = self.handle_keys(Message::Keys(KeysMessage::ShowKeyPanel))?;
                 return Ok(Task::batch([
                     open,
                     iced::widget::operation::focus(iced::widget::Id::new(
@@ -72,7 +72,7 @@ impl Oryxis {
                     )),
                 ]));
             }
-            Message::HideKeyPanel => {
+            Message::Keys(KeysMessage::HideKeyPanel) => {
                 self.show_key_panel = false;
                 self.key_import_form.editing_id = None;
                 self.key_import_form.passphrase.clear();
@@ -89,8 +89,8 @@ impl Oryxis {
                 self.key_error = None;
                 self.key_success = None;
             }
-            Message::KeyImportLabelChanged(v) => self.key_import_form.label = v,
-            Message::KeyContentAction(action) => {
+            Message::Keys(KeysMessage::KeyImportLabelChanged(v)) => self.key_import_form.label = v,
+            Message::Keys(KeysMessage::KeyContentAction(action)) => {
                 self.key_import_content.perform(action);
                 let new_text = self.key_import_content.text();
                 // Re-detect on every edit. If the user pastes an encrypted
@@ -107,15 +107,15 @@ impl Oryxis {
                 }
                 self.key_import_form.pem = new_text;
             }
-            Message::KeyImportPassphraseChanged(v) => {
+            Message::Keys(KeysMessage::KeyImportPassphraseChanged(v)) => {
                 self.key_import_form.passphrase = v;
                 // Clear stale "wrong passphrase" feedback as the user types.
                 self.key_error = None;
             }
-            Message::KeyImportPassphraseToggleVisibility => {
+            Message::Keys(KeysMessage::KeyImportPassphraseToggleVisibility) => {
                 self.key_import_form.passphrase_visible = !self.key_import_form.passphrase_visible;
             }
-            Message::BrowseKeyFile => {
+            Message::Keys(KeysMessage::BrowseKeyFile) => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let file = rfd::FileDialog::new()
@@ -159,14 +159,14 @@ impl Oryxis {
                     }),
                     |result| match result {
                         Ok(Ok((filename, content, public, cert))) => {
-                            Message::KeyFileLoaded(filename, content, public, cert)
+                            Message::Keys(KeysMessage::KeyFileLoaded(filename, content, public, cert))
                         }
-                        Ok(Err(e)) => Message::KeyFileBrowseError(e),
-                        Err(e) => Message::KeyFileBrowseError(format!("Thread error: {}", e)),
+                        Ok(Err(e)) => Message::Keys(KeysMessage::KeyFileBrowseError(e)),
+                        Err(e) => Message::Keys(KeysMessage::KeyFileBrowseError(format!("Thread error: {}", e))),
                     },
                 ));
             }
-            Message::KeyFileLoaded(filename, content, public, cert) => {
+            Message::Keys(KeysMessage::KeyFileLoaded(filename, content, public, cert)) => {
                 if self.key_import_form.label.is_empty() {
                     self.key_import_form.label = filename;
                 }
@@ -199,7 +199,7 @@ impl Oryxis {
                 // a second toast in the main keychain area is just noise.
                 self.key_success = None;
             }
-            Message::KeyImportPublicAction(action) => {
+            Message::Keys(KeysMessage::KeyImportPublicAction(action)) => {
                 let edited = action.is_edit();
                 self.key_import_public_content.perform(action);
                 if edited {
@@ -207,19 +207,19 @@ impl Oryxis {
                     self.key_error = None;
                 }
             }
-            Message::KeyFileBrowseError(err) => {
+            Message::Keys(KeysMessage::KeyFileBrowseError(err)) => {
                 if !err.contains("cancelled") {
                     self.key_error = Some(err);
                 }
             }
-            Message::ImportKey => return self.import_key_from_form(),
-            Message::RequestDeleteKey(idx) => {
+            Message::Keys(KeysMessage::ImportKey) => return self.import_key_from_form(),
+            Message::Keys(KeysMessage::RequestDeleteKey(idx)) => {
                 if let Some(key) = self.keys.get(idx) {
                     let name = key.label.clone();
-                    self.confirm_remove(name, Message::DeleteKey(idx));
+                    self.confirm_remove(name, Message::Keys(KeysMessage::DeleteKey(idx)));
                 }
             }
-            Message::DeleteKey(idx) => {
+            Message::Keys(KeysMessage::DeleteKey(idx)) => {
                 if let Some(key) = self.keys.get(idx) {
                     let id = key.id;
                     if let Some(vault) = &self.vault {
@@ -231,7 +231,7 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::ShowKeyMenu(idx) => {
+            Message::Keys(KeysMessage::ShowKeyMenu(idx)) => {
                 if self.key_context_menu == Some(idx) {
                     self.key_context_menu = None;
                     self.overlay = None;
@@ -245,13 +245,13 @@ impl Oryxis {
                     });
                 }
             }
-            Message::HideKeyMenu => {
+            Message::Keys(KeysMessage::HideKeyMenu) => {
                 self.key_context_menu = None;
                 self.identity_context_menu = None;
                 self.show_keychain_add_menu = false;
                 self.overlay = None;
             }
-            Message::EditKey(idx) => {
+            Message::Keys(KeysMessage::EditKey(idx)) => {
                 if let Some(key) = self.keys.get(idx) {
                     self.key_import_form.editing_id = Some(key.id);
                     self.key_import_form.label = key.label.clone();
@@ -281,13 +281,13 @@ impl Oryxis {
                     self.overlay = None;
                 }
             }
-            Message::KeySearchChanged(v) => {
+            Message::Keys(KeysMessage::KeySearchChanged(v)) => {
                 self.key_search = v;
             }
-            Message::SnippetSearchChanged(v) => {
+            Message::Keys(KeysMessage::SnippetSearchChanged(v)) => {
                 self.snippet_search = v;
             }
-            Message::HistorySearchChanged(v) => {
+            Message::Keys(KeysMessage::HistorySearchChanged(v)) => {
                 self.history_search = v;
             }
 

@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -963,11 +963,11 @@ impl Oryxis {
                 self.active_tab = None;
                 self.update(Message::ShowNewConnection)
             }
-            NewKey => self.update(Message::ShowKeyPanel),
+            NewKey => self.update(Message::Keys(KeysMessage::ShowKeyPanel)),
             NewIdentity => {
                 self.active_view = View::Keys;
                 self.active_tab = None;
-                self.update(Message::ShowIdentityPanel)
+                self.update(Message::Keys(KeysMessage::ShowIdentityPanel))
             }
             CloseActiveTab => {
                 // With a terminal tab focused (View::Terminal or the

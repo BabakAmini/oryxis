@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -522,8 +522,8 @@ impl Oryxis {
                 }
             }
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(i)),
-            NavItem::Key(i) => Message::ShowKeyMenu(i),
-            NavItem::Identity(i) => Message::ShowIdentityMenu(i),
+            NavItem::Key(i) => Message::Keys(KeysMessage::ShowKeyMenu(i)),
+            NavItem::Identity(i) => Message::Keys(KeysMessage::ShowIdentityMenu(i)),
             NavItem::Snippet(i) => Message::Snippet(SnippetMessage::ShowSnippetMenu(i)),
             NavItem::CloudAccount(id) => Message::Cloud(CloudMessage::ShowCloudCardMenu(id)),
             // Session-log rows carry a kebab menu (Export .cast /
@@ -581,8 +581,8 @@ impl Oryxis {
             NavItem::Dash(DashNavItem::Group(gid)) => Message::Navigation(NavigationMessage::OpenGroup(gid)),
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(i)),
             NavItem::Dash(DashNavItem::Host(i)) => Message::Ssh(SshMessage::ConnectSsh(i)),
-            NavItem::Key(i) => Message::EditKey(i),
-            NavItem::Identity(i) => Message::EditIdentity(i),
+            NavItem::Key(i) => Message::Keys(KeysMessage::EditKey(i)),
+            NavItem::Identity(i) => Message::Keys(KeysMessage::EditIdentity(i)),
             NavItem::Snippet(i) => Message::Snippet(SnippetMessage::RunSnippet(i)),
             NavItem::SnippetGroup(i) => {
                 let Some(name) = self.snippet_group_names().get(i).cloned() else {
@@ -640,7 +640,7 @@ impl Oryxis {
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::Cloud(CloudMessage::ShowCloudProviderPicker),
             (View::Dashboard, ToolbarItem::CloudDiscover(pid)) => Message::Cloud(CloudMessage::ShowCloudDiscover(pid)),
             (View::Keys, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Keys)),
-            (View::Keys, ToolbarItem::Primary) => Message::ToggleKeychainAddMenu,
+            (View::Keys, ToolbarItem::Primary) => Message::Keys(KeysMessage::ToggleKeychainAddMenu),
             (View::Snippets, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Snippets)),
             (View::Snippets, ToolbarItem::Primary) => Message::Snippet(SnippetMessage::ShowSnippetPanel),
             (View::PortForwarding, ToolbarItem::Primary) => Message::PortForward(PortForwardMessage::ShowPortForwardPanel),

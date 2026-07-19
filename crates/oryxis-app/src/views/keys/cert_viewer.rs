@@ -127,17 +127,17 @@ impl Oryxis {
 
         let buttons = dir_row(vec![
             self.modal_nav_slot(
-                crate::keynav::RowAction::activate(Message::RequestRemoveKeyCertificate(data.key_idx)),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::RequestRemoveKeyCertificate(data.key_idx))),
                 6.0,
                 false,
-                crate::widgets::styled_button(t("cert_remove"), Message::RequestRemoveKeyCertificate(data.key_idx), c.error),
+                crate::widgets::styled_button(t("cert_remove"), Message::Keys(KeysMessage::RequestRemoveKeyCertificate(data.key_idx)), c.error),
             ),
             Space::new().width(Length::Fill).into(),
             self.modal_nav_slot_default(
-                crate::keynav::RowAction::activate(Message::CloseCertViewer),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::CloseCertViewer)),
                 6.0,
                 false,
-                crate::widgets::styled_button(t("close"), Message::CloseCertViewer, c.accent),
+                crate::widgets::styled_button(t("close"), Message::Keys(KeysMessage::CloseCertViewer), c.accent),
             ),
         ])
         .align_y(iced::Alignment::Center);

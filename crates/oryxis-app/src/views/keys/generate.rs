@@ -21,7 +21,7 @@ impl Oryxis {
                 text(t("generate_key")).size(18).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideKeyGeneratePanel)
+                    .on_press(Message::Keys(KeysMessage::HideKeyGeneratePanel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, status| {
                         let bg = match status {
@@ -77,21 +77,21 @@ impl Oryxis {
                 Space::new().height(10),
                 dir_row(vec![
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CopyGeneratedPublicKey),
+                        crate::keynav::RowAction::activate(Message::Keys(KeysMessage::CopyGeneratedPublicKey)),
                         6.0,
                         crate::widgets::styled_button(
                             t("keygen_copy_public"),
-                            Message::CopyGeneratedPublicKey,
+                            Message::Keys(KeysMessage::CopyGeneratedPublicKey),
                             OryxisColors::t().bg_selected,
                         ),
                     ),
                     Space::new().width(8).into(),
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::SaveGeneratedPublicKeyFile),
+                        crate::keynav::RowAction::activate(Message::Keys(KeysMessage::SaveGeneratedPublicKeyFile)),
                         6.0,
                         crate::widgets::styled_button(
                             t("keygen_save_pub"),
-                            Message::SaveGeneratedPublicKeyFile,
+                            Message::Keys(KeysMessage::SaveGeneratedPublicKeyFile),
                             OryxisColors::t().bg_selected,
                         ),
                     ),
@@ -113,15 +113,15 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     "",
                     &form.export_passphrase,
-                    Message::KeyGenExportPassphraseChanged,
+                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseChanged(v)),
                     None,
                     form.export_passphrase_visible,
-                    Message::KeyGenExportPassphraseToggleVisibility,
+                    Message::Keys(KeysMessage::KeyGenExportPassphraseToggleVisibility),
                     10.0,
                     Some(iced::widget::Id::new("keygen-export-pass")),
                     |eye| self.panel_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::KeyGenExportPassphraseToggleVisibility,
+                            Message::Keys(KeysMessage::KeyGenExportPassphraseToggleVisibility),
                         ),
                         6.0,
                         eye,
@@ -137,15 +137,15 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     "",
                     &form.export_passphrase_confirm,
-                    Message::KeyGenExportPassphraseConfirmChanged,
+                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmChanged(v)),
                     None,
                     form.export_passphrase_confirm_visible,
-                    Message::KeyGenExportPassphraseConfirmToggleVisibility,
+                    Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility),
                     10.0,
                     Some(iced::widget::Id::new("keygen-export-pass-confirm")),
                     |eye| self.panel_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::KeyGenExportPassphraseConfirmToggleVisibility,
+                            Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility),
                         ),
                         6.0,
                         eye,
@@ -162,11 +162,11 @@ impl Oryxis {
             }
             col = col.push(Space::new().height(10));
             col = col.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::ExportGeneratedPrivateKey),
+                crate::keynav::RowAction::activate(Message::Keys(KeysMessage::ExportGeneratedPrivateKey)),
                 6.0,
                 crate::widgets::styled_button(
                     t("keygen_export_btn"),
-                    Message::ExportGeneratedPrivateKey,
+                    Message::Keys(KeysMessage::ExportGeneratedPrivateKey),
                     OryxisColors::t().bg_selected,
                 ),
             ));
@@ -180,7 +180,7 @@ impl Oryxis {
                 t("keygen_label"),
                 text_input("deploy-key", &form.label)
                     .id(iced::widget::Id::new("keygen-label"))
-                    .on_input(Message::KeyGenLabelChanged)
+                    .on_input(|v| Message::Keys(KeysMessage::KeyGenLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -197,7 +197,7 @@ impl Oryxis {
                         [KeyGenAlgo::Ed25519, KeyGenAlgo::Rsa, KeyGenAlgo::Ecdsa],
                         |a: &KeyGenAlgo| a.to_string(),
                     )
-                    .on_select(Message::KeyGenAlgoSelected)
+                    .on_select(|v| Message::Keys(KeysMessage::KeyGenAlgoSelected(v)))
                     .id(iced::widget::Id::new("keygen-algo"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -226,7 +226,7 @@ impl Oryxis {
                                 ],
                                 |b: &oryxis_vault::RsaBits| b.to_string(),
                             )
-                            .on_select(Message::KeyGenBitsSelected)
+                            .on_select(|v| Message::Keys(KeysMessage::KeyGenBitsSelected(v)))
                             .id(iced::widget::Id::new("keygen-bits"))
                             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -253,7 +253,7 @@ impl Oryxis {
                                 ],
                                 |c: &oryxis_vault::EcdsaCurveChoice| c.to_string(),
                             )
-                            .on_select(Message::KeyGenCurveSelected)
+                            .on_select(|v| Message::Keys(KeysMessage::KeyGenCurveSelected(v)))
                             .id(iced::widget::Id::new("keygen-curve"))
                             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -273,7 +273,7 @@ impl Oryxis {
                 t("keygen_comment"),
                 text_input("user@example.com", &form.comment)
                     .id(iced::widget::Id::new("keygen-comment"))
-                    .on_input(Message::KeyGenCommentChanged)
+                    .on_input(|v| Message::Keys(KeysMessage::KeyGenCommentChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -312,27 +312,27 @@ impl Oryxis {
             crate::widgets::form_footer(
                 Space::new().width(0).into(),
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::HideKeyGeneratePanel),
+                    crate::keynav::RowAction::activate(Message::Keys(KeysMessage::HideKeyGeneratePanel)),
                     6.0,
                     crate::widgets::form_save_button(
                         t("done"),
-                        Some(Message::HideKeyGeneratePanel),
+                        Some(Message::Keys(KeysMessage::HideKeyGeneratePanel)),
                     ),
                 ),
             )
         } else {
             crate::widgets::form_footer(
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::HideKeyGeneratePanel),
+                    crate::keynav::RowAction::activate(Message::Keys(KeysMessage::HideKeyGeneratePanel)),
                     6.0,
-                    crate::widgets::form_cancel_button(Message::HideKeyGeneratePanel),
+                    crate::widgets::form_cancel_button(Message::Keys(KeysMessage::HideKeyGeneratePanel)),
                 ),
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::GenerateKey),
+                    crate::keynav::RowAction::activate(Message::Keys(KeysMessage::GenerateKey)),
                     6.0,
                     crate::widgets::form_save_button(
                         t("keygen_generate_btn"),
-                        (!form.working).then_some(Message::GenerateKey),
+                        (!form.working).then_some(Message::Keys(KeysMessage::GenerateKey)),
                     ),
                 ),
             )

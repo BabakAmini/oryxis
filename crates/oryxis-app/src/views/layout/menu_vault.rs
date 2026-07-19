@@ -747,7 +747,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::plus(),
                     crate::i18n::t("add_btn"),
-                    Message::ToggleKeychainAddMenu,
+                    Message::Keys(KeysMessage::ToggleKeychainAddMenu),
                     secondary,
                 ));
                 col = col.push(self.menu_item(

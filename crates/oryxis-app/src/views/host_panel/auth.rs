@@ -67,9 +67,9 @@ impl Oryxis {
             // the cert field focused, since that is the missing piece the
             // user came for.
             let (add_key_msg, add_key_label) = if cert_mode {
-                (Message::ShowKeyPanelCertFocus, t("add_certificate_btn"))
+                (Message::Keys(KeysMessage::ShowKeyPanelCertFocus), t("add_certificate_btn"))
             } else {
-                (Message::ShowKeyPanel, t("add_key_btn"))
+                (Message::Keys(KeysMessage::ShowKeyPanel), t("add_key_btn"))
             };
             let add_key_btn = self.panel_nav_slot(
                 crate::keynav::RowAction::activate(add_key_msg.clone()),

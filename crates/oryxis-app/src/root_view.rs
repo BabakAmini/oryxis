@@ -4,7 +4,7 @@
 
 use iced::Element;
 
-use crate::app::{PluginMessage, Message, Oryxis};
+use crate::app::{KeysMessage, PluginMessage, Message, Oryxis};
 use crate::state::VaultState;
 use crate::theme::OryxisColors;
 
@@ -65,7 +65,7 @@ impl Oryxis {
             // Read-only certificate viewer (B2). Vault-area modal: gated on
             // Unlocked, and swept by the soft-lock so it can't linger over
             // the lock screen. Backdrop click closes it.
-            crate::widgets::modal_overlay(base, self.view_cert_viewer_modal(), Some(Message::CloseCertViewer), 40.0)
+            crate::widgets::modal_overlay(base, self.view_cert_viewer_modal(), Some(Message::Keys(KeysMessage::CloseCertViewer)), 40.0)
         } else {
             base
         };

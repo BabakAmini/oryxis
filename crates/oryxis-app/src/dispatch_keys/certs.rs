@@ -9,7 +9,7 @@
 use iced::widget::text_editor;
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{KeysMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_keys_certs(
@@ -17,7 +17,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::KeyImportCertAction(action) => {
+            Message::Keys(KeysMessage::KeyImportCertAction(action)) => {
                 let edited = action.is_edit();
                 self.key_import_cert_content.perform(action);
                 if edited {
@@ -26,7 +26,7 @@ impl Oryxis {
                     self.key_error = None;
                 }
             }
-            Message::BrowseCertFile => {
+            Message::Keys(KeysMessage::BrowseCertFile) => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let file = rfd::FileDialog::new()
@@ -40,13 +40,13 @@ impl Oryxis {
                         }
                     }),
                     |result| match result {
-                        Ok(Ok(content)) => Message::CertFileLoaded(content),
-                        Ok(Err(e)) => Message::KeyFileBrowseError(e),
-                        Err(e) => Message::KeyFileBrowseError(format!("Thread error: {}", e)),
+                        Ok(Ok(content)) => Message::Keys(KeysMessage::CertFileLoaded(content)),
+                        Ok(Err(e)) => Message::Keys(KeysMessage::KeyFileBrowseError(e)),
+                        Err(e) => Message::Keys(KeysMessage::KeyFileBrowseError(format!("Thread error: {}", e))),
                     },
                 ));
             }
-            Message::CertFileLoaded(content) => {
+            Message::Keys(KeysMessage::CertFileLoaded(content)) => {
                 self.key_import_form.certificate = content.trim().to_string();
                 self.key_import_cert_content =
                     text_editor::Content::with_text(content.trim());
@@ -54,20 +54,20 @@ impl Oryxis {
                 self.key_import_form.cert_detected = false;
                 self.key_error = None;
             }
-            Message::ViewKeyCertificate(idx) => {
+            Message::Keys(KeysMessage::ViewKeyCertificate(idx)) => {
                 if let Some(data) = self.build_cert_viewer(idx) {
                     self.cert_viewer = Some(data);
                 }
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::CloseCertViewer => {
+            Message::Keys(KeysMessage::CloseCertViewer) => {
                 self.cert_viewer = None;
             }
-            Message::RequestRemoveKeyCertificate(idx) => {
+            Message::Keys(KeysMessage::RequestRemoveKeyCertificate(idx)) => {
                 if let Some(key) = self.keys.get(idx) {
                     let name = key.label.clone();
-                    self.confirm_remove(name, Message::RemoveKeyCertificate(idx));
+                    self.confirm_remove(name, Message::Keys(KeysMessage::RemoveKeyCertificate(idx)));
                 }
                 // The confirm dialog renders inside the main view (below the
                 // cert-viewer overlay), so close the viewer first, otherwise
@@ -76,7 +76,7 @@ impl Oryxis {
                 self.key_context_menu = None;
                 self.overlay = None;
             }
-            Message::RemoveKeyCertificate(idx) => {
+            Message::Keys(KeysMessage::RemoveKeyCertificate(idx)) => {
                 if let Some(key) = self.keys.get(idx) {
                     let mut key = key.clone();
                     key.certificate = None;

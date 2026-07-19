@@ -44,7 +44,7 @@ impl Oryxis {
             .center_y(Length::Fixed(24.0))
             .center_x(Length::Fixed(72.0)),
         )
-        .on_press(Message::ToggleKeychainAddMenu)
+        .on_press(Message::Keys(KeysMessage::ToggleKeychainAddMenu))
         .style(move |_, status| {
             let bg = match status {
                 BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -77,7 +77,7 @@ impl Oryxis {
             .center_y(Length::Fixed(24.0))
             .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 4.0 }),
         )
-        .on_press(Message::ToggleKeychainAddMenu)
+        .on_press(Message::Keys(KeysMessage::ToggleKeychainAddMenu))
         .style(move |_, status| {
             let bg = match status {
                 BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -230,11 +230,11 @@ impl Oryxis {
                 crate::i18n::t("add_key_desc").to_string(),
                 (
                     crate::i18n::t("generate_key").to_string(),
-                    Message::ShowKeyGeneratePanel,
+                    Message::Keys(KeysMessage::ShowKeyGeneratePanel),
                 ),
                 (
                     crate::i18n::t("import_key").to_string(),
-                    Message::ShowKeyPanel,
+                    Message::Keys(KeysMessage::ShowKeyPanel),
                 ),
             );
 
@@ -355,7 +355,7 @@ impl Oryxis {
                     .into(),
                 ]).align_y(iced::Alignment::Center),
             )
-            .on_press(Message::EditKey(idx))
+            .on_press(Message::Keys(KeysMessage::EditKey(idx)))
             .padding(card_padding)
             .width(Length::Fill)
             .style(|_, status| {
@@ -379,7 +379,7 @@ impl Oryxis {
             let dots_btn = crate::widgets::card_kebab_button(
                 key_dots_glyph_color,
                 key_show_dots,
-                Message::ShowKeyMenu(idx),
+                Message::Keys(KeysMessage::ShowKeyMenu(idx)),
             );
             let key_dots_align = if key_rtl {
                 iced::alignment::Horizontal::Left
@@ -407,7 +407,7 @@ impl Oryxis {
             let wrapped = MouseArea::new(card_element)
                 .on_enter(Message::KeyCardHovered(idx))
                 .on_exit(Message::KeyCardUnhovered)
-                .on_right_press(Message::ShowKeyMenu(idx));
+                .on_right_press(Message::Keys(KeysMessage::ShowKeyMenu(idx)));
 
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
@@ -551,7 +551,7 @@ impl Oryxis {
                     .into(),
                 ]).align_y(iced::Alignment::Center),
             )
-            .on_press(Message::EditIdentity(idx))
+            .on_press(Message::Keys(KeysMessage::EditIdentity(idx)))
             .padding(id_card_padding)
             .width(Length::Fill)
             .style(|_, status| {
@@ -575,7 +575,7 @@ impl Oryxis {
             let dots_btn = crate::widgets::card_kebab_button(
                 id_dots_glyph_color,
                 id_show_dots,
-                Message::ShowIdentityMenu(idx),
+                Message::Keys(KeysMessage::ShowIdentityMenu(idx)),
             );
             let id_dots_align = if id_rtl {
                 iced::alignment::Horizontal::Left
@@ -601,7 +601,7 @@ impl Oryxis {
             let wrapped = MouseArea::new(card_element)
                 .on_enter(Message::IdentityCardHovered(idx))
                 .on_exit(Message::IdentityCardUnhovered)
-                .on_right_press(Message::ShowIdentityMenu(idx));
+                .on_right_press(Message::Keys(KeysMessage::ShowIdentityMenu(idx)));
 
             let id_card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
