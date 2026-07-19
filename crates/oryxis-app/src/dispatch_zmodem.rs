@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{ZmodemMessage, Message, Oryxis};
 use crate::state::{TerminalTransport, ZmodemPane};
 
 impl Oryxis {
@@ -144,13 +144,13 @@ impl Oryxis {
                         // would fail without its parent. Make it first.
                         if let Err(e) = tokio::fs::create_dir_all(&dest_dir).await {
                             let _ = out
-                                .send(Message::ZmodemProgress(
+                                .send(Message::Zmodem(ZmodemMessage::ZmodemProgress(
                                     pane_id,
                                     Progress::Error(format!(
                                         "download folder {}: {e}",
                                         dest_dir.display()
                                     )),
-                                ))
+                                )))
                                 .await;
                             return;
                         }
@@ -182,13 +182,13 @@ impl Oryxis {
                         // when done, closing `progress_rx` below.
                         tokio::spawn(oryxis_zmodem::run(direction, spec, Vec::new(), io));
                         while let Some(p) = progress_rx.recv().await {
-                            if out.send(Message::ZmodemProgress(pane_id, p)).await.is_err() {
+                            if out.send(Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, p))).await.is_err() {
                                 break;
                             }
                         }
                     }
                     None => {
-                        let _ = out.send(Message::ZmodemProgress(pane_id, Progress::Aborted)).await;
+                        let _ = out.send(Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, Progress::Aborted))).await;
                     }
                 }
             },
@@ -202,7 +202,7 @@ impl Oryxis {
     /// and toast the outcome.
     pub(crate) fn handle_zmodem(&mut self, message: Message) -> Result<Task<Message>, Message> {
         match message {
-            Message::ZmodemProgress(pane_id, progress) => {
+            Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, progress)) => {
                 // Terminal events tear the divert down and replay any
                 // output the transfer no longer owns: the driver's
                 // `trailing` (bytes past the peer's "OO" sign-off),
@@ -276,28 +276,28 @@ impl Oryxis {
                     Ok(self.update(Message::PtyOutput(pane_id, replay)))
                 }
             }
-            Message::PickZmodemDownloadDir => Ok(Task::perform(
+            Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir) => Ok(Task::perform(
                 tokio::task::spawn_blocking(|| {
                     rfd::FileDialog::new()
                         .set_title(crate::i18n::t("zmodem_download_dir"))
                         .pick_folder()
                         .map(|p| p.display().to_string())
                 }),
-                |res| Message::ZmodemDownloadDirPicked(res.ok().flatten()),
+                |res| Message::Zmodem(ZmodemMessage::ZmodemDownloadDirPicked(res.ok().flatten())),
             )),
-            Message::ZmodemDownloadDirPicked(dir) => {
+            Message::Zmodem(ZmodemMessage::ZmodemDownloadDirPicked(dir)) => {
                 if let Some(dir) = dir {
                     self.persist_setting("zmodem_download_dir", &dir);
                     self.setting_zmodem_download_dir = dir;
                 }
                 Ok(Task::none())
             }
-            Message::ClearZmodemDownloadDir => {
+            Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir) => {
                 self.persist_setting("zmodem_download_dir", "");
                 self.setting_zmodem_download_dir = String::new();
                 Ok(Task::none())
             }
-            Message::ZmodemCancel(pane_id) => {
+            Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)) => {
                 if let Some(pane) = self.pane_by_id_mut(pane_id)
                     && let Some(zm) = pane.zmodem.as_ref()
                 {

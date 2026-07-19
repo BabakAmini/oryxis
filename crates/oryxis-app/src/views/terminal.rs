@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{AiMessage, Message, Oryxis};
+use crate::app::{ZmodemMessage, AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -206,7 +206,7 @@ impl Oryxis {
             body = body.push(iced::widget::progress_bar(0.0..=1.0, frac));
         }
         let cancel = button(text(t("cancel")).size(11).color(OryxisColors::t().text_primary))
-            .on_press(Message::ZmodemCancel(pane_id))
+            .on_press(Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)))
             .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
             .style(|_, status| {
                 let bg = match status {

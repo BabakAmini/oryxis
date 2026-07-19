@@ -80,11 +80,11 @@ impl Oryxis {
             configured.to_string()
         };
         let browse = self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::PickZmodemDownloadDir),
+            crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
             8.0,
             crate::widgets::styled_button_opt(
                 crate::i18n::t("browse"),
-                Some(Message::PickZmodemDownloadDir),
+                Some(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
                 crate::theme::OryxisColors::t().accent,
             ),
         );
@@ -106,11 +106,11 @@ impl Oryxis {
         // Reset-to-default only when a custom folder is set.
         if !configured.is_empty() {
             let reset = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::ClearZmodemDownloadDir),
+                crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir)),
                 8.0,
                 crate::widgets::styled_button_opt(
                     crate::i18n::t("reset"),
-                    Some(Message::ClearZmodemDownloadDir),
+                    Some(Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir)),
                     crate::theme::OryxisColors::t().text_muted,
                 ),
             );
