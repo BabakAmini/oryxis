@@ -21,7 +21,7 @@ use oryxis_sync::crypto::DeviceIdentity;
 use oryxis_sync::{SyncConfig, SyncEngine, SyncError, SyncEvent, SyncHandle, SyncMode};
 use oryxis_vault::VaultStore;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SyncMessage, Message, Oryxis};
 
 /// Live sync engine owned by `Oryxis` while sync is enabled.
 pub(crate) struct SyncRuntime {
@@ -129,7 +129,7 @@ impl Oryxis {
     }
 
     /// Spawn the sync engine from current settings and return a `Task`
-    /// that pumps its event stream into `Message::SyncEngineEvent`.
+    /// that pumps its event stream into `|v| Message::Sync(SyncMessage::EngineEvent(v))`.
     /// No-op (`Task::none`) if the engine is already running or the
     /// vault isn't available.
     pub(crate) fn start_sync_engine(&mut self) -> Task<Message> {
@@ -154,7 +154,7 @@ impl Oryxis {
                 self.sync.engine_running = true;
                 self.sync.status = Some(crate::i18n::t("sync_status_running").to_string());
                 let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(event_rx);
-                Task::stream(stream).map(Message::SyncEngineEvent)
+                Task::stream(stream).map(|v| Message::Sync(SyncMessage::EngineEvent(v)))
             }
             Err(e) => {
                 self.sync.engine_running = false;

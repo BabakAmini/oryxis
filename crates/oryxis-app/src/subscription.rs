@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{PlayerMessage, Message, Oryxis};
+use crate::app::{SyncMessage, PlayerMessage, Message, Oryxis};
 
 // Coarse-grained record of the last cursor position forwarded to the
 // message loop. The subscription closure quantises to a 4 px grid and
@@ -326,7 +326,7 @@ impl Oryxis {
         if self.sync.enabled && self.sync.transport == "sftp" && self.sync.mode == "auto" {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(300))
-                    .map(|_| Message::SftpSyncTick),
+                    .map(|_| Message::Sync(SyncMessage::SftpTick)),
             );
         }
 

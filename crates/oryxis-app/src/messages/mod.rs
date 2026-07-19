@@ -19,6 +19,8 @@ mod onboarding;
 pub use onboarding::OnboardingMessage;
 mod player;
 pub use player::PlayerMessage;
+mod sync;
+pub use sync::SyncMessage;
 
 /// The four per-class Privacy Mode gates (issue #78 block 1), each
 /// mirroring a `privacy_mask_*` setting. The usernames class covers
@@ -2128,87 +2130,7 @@ pub enum Message {
     McpVaultPwStripResult(Result<(), String>),
 
     // Sync
-    SyncToggleEnabled,
-    SyncTogglePasswords,
-    SyncModeChanged(String),
-    SyncDeviceNameChanged(String),
-    SyncSignalingUrlChanged(String),
-    /// Bearer token text-input change. Persisted to the vault settings
-    /// table; an empty string leaves the request without an
-    /// `Authorization` header (fine for unauthenticated signaling).
-    SyncSignalingTokenChanged(String),
-    SyncRelayUrlChanged(String),
-    SyncListenPortChanged(String),
-    // "Set up your own relay" wizard (Settings > Sync > P2P).
-    SyncWizardToggle,
-    SyncWizardDomainChanged(String),
-    SyncWizardPortChanged(String),
-    SyncWizardFormatChanged(crate::state::RelayWizardFormat),
-    SyncWizardRegenToken,
-    SyncWizardTest,
-    SyncWizardTestResult(Result<(), String>),
-    SyncStartPairing,
-    SyncUnpairDevice(uuid::Uuid),
-    SyncNow,
-    /// Top-level result of a manual `SyncNow`. Per-peer outcomes arrive
-    /// separately as `SyncEngineEvent`s; this only carries a vault-level
-    /// failure (e.g. the lock could not be taken).
-    SyncNowFinished(Result<(), String>),
-    /// An event emitted by the running `SyncEngine` (peer discovered,
-    /// sync completed, pairing progress, ...), pumped in from the
-    /// engine's event channel via `Task::stream`.
-    SyncEngineEvent(oryxis_sync::SyncEvent),
-    /// Stop hosting the pairing code and return to the idle pairing view.
-    SyncCancelHostingPairing,
-    /// Switch the pairing panel into "join with a code" mode.
-    SyncJoinPairingRequested,
-    /// Text-input change for the joiner's 6-digit code field.
-    SyncJoinCodeChanged(String),
-    /// Text-input change for the joiner's `ip:port` host-address field.
-    SyncJoinTargetChanged(String),
-    /// Joiner pressed Connect: dial the entered address with the code.
-    SyncJoinPairingConnect,
-    /// Joiner backed out of the join form, return to the idle view.
-    SyncJoinPairingCancel,
-    /// Text-input change for the joiner's `oryxis://pair/...` link
-    /// field (the cross-network alternative to code + address).
-    SyncJoinLinkChanged(String),
-    /// Joiner pressed Connect with link: parse the link, look the
-    /// device id up on the signaling server, run the handshake.
-    SyncJoinPairingByLink,
-    /// User clicked Pair on a row in the live discovered-devices
-    /// list. Switches to the Joining sub-view and pre-fills the
-    /// host-address field with the discovered peer's `ip:port`.
-    SyncPairWithDiscovered(uuid::Uuid),
-    /// Abort the in-flight `Sync Now` Task. Fires the oneshot the
-    /// task is racing against; the task lands back as
-    /// `SyncNowFinished(Err("Cancelled"))` and clears the flags.
-    SyncCancelInProgress,
-    /// Switch the sync transport between `"p2p"` and `"sftp"`. Persists
-    /// the setting, stops the P2P engine when leaving `p2p`, and starts
-    /// it when returning.
-    SyncTransportChanged(String),
-    /// Pick the host the SFTP-sync snapshot file lives on (also closes
-    /// the picker modal).
-    SyncSftpHostChanged(uuid::Uuid),
-    /// Open the "Select a host" modal for the SFTP-sync backup host.
-    SyncSftpOpenPicker,
-    /// Close that modal without changing the selection.
-    SyncSftpClosePicker,
-    /// Search-filter text change inside the host picker modal.
-    SyncSftpPickerSearch(String),
-    /// Text-input change for the SFTP-sync remote path.
-    SyncSftpPathChanged(String),
-    /// Text-input change for the SFTP-sync passphrase (persisted
-    /// encrypted on change).
-    SyncSftpPassphraseChanged(String),
-    /// Auto-cadence timer fired (transport `sftp`, mode `auto`): run a
-    /// sync round if one isn't already in flight.
-    SftpSyncTick,
-    /// An SFTP-sync round finished. `Ok` carries a short status summary;
-    /// `Err` a human-readable failure. A failed round never overwrites
-    /// the remote snapshot (see `dispatch_sftp_sync`).
-    SftpSyncDone(Result<String, String>),
+    Sync(SyncMessage),
 
     // Export / Import
     ExportVault,

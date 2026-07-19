@@ -57,7 +57,7 @@ pub(super) fn sync_host_picker_modal(app: &Oryxis) -> Element<'_, Message> {
             ])
             .align_y(iced::Alignment::Center),
         )
-        .on_press(Message::SyncSftpHostChanged(conn.id))
+        .on_press(Message::Sync(SyncMessage::SftpHostChanged(conn.id)))
         .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
         .width(Length::Fill)
         .style(|_, status| {
@@ -86,7 +86,7 @@ pub(super) fn sync_host_picker_modal(app: &Oryxis) -> Element<'_, Message> {
                     .into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{2715}").size(13).color(OryxisColors::t().text_muted))
-                    .on_press(Message::SyncSftpClosePicker)
+                    .on_press(Message::Sync(SyncMessage::SftpClosePicker))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, status| {
                         let bg = match status {
@@ -108,7 +108,7 @@ pub(super) fn sync_host_picker_modal(app: &Oryxis) -> Element<'_, Message> {
             .width(Length::Fill),
             Space::new().height(8),
             text_input(t("search_hosts"), &app.sync.sftp.picker_search)
-                .on_input(Message::SyncSftpPickerSearch)
+                .on_input(|v| Message::Sync(SyncMessage::SftpPickerSearch(v)))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x()),
@@ -139,7 +139,7 @@ pub(super) fn sync_host_picker_modal(app: &Oryxis) -> Element<'_, Message> {
                     ..Default::default()
                 }),
         )
-        .on_press(Message::SyncSftpClosePicker),
+        .on_press(Message::Sync(SyncMessage::SftpClosePicker)),
     );
 
     let centered = container(iced::widget::MouseArea::new(dialog).on_press(Message::NoOp))

@@ -12,7 +12,7 @@ use iced::Task;
 use oryxis_ssh::SshEngine;
 use oryxis_vault::VaultStore;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{SyncMessage, Message, Oryxis};
 use crate::i18n::t;
 
 /// Default snapshot filename appended when the user gives only a directory
@@ -244,9 +244,9 @@ impl Oryxis {
                 Ok::<usize, String>(pulled)
             },
             |res| match res {
-                Ok(pulled) => Message::SftpSyncDone(Ok(t("sftp_sync_done")
-                    .replace("{n}", &pulled.to_string()))),
-                Err(e) => Message::SftpSyncDone(Err(e)),
+                Ok(pulled) => Message::Sync(SyncMessage::SftpDone(Ok(t("sftp_sync_done")
+                    .replace("{n}", &pulled.to_string())))),
+                Err(e) => Message::Sync(SyncMessage::SftpDone(Err(e))),
             },
         )
     }
