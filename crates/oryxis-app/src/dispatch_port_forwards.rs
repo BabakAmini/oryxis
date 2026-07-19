@@ -21,7 +21,7 @@ use oryxis_core::models::connection::{AuthMethod, Connection};
 use oryxis_core::models::port_forward_rule::PortForwardRule;
 use oryxis_ssh::{ConnectionResolver, ForwardSession, HostKeyQuery, SshEngine};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{PortForwardMessage, Message, Oryxis};
 
 /// Items streamed out of an interactive (manual-toggle) forward connect:
 /// either a host-key question for the UI modal, or the final result.
@@ -41,7 +41,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- Editor panel --
-            Message::ShowPortForwardPanel => {
+            Message::PortForward(PortForwardMessage::ShowPortForwardPanel) => {
                 self.overlay = None;
                 self.show_port_forward_panel = true;
                 self.port_forward_form.editing_id = None;
@@ -57,22 +57,22 @@ impl Oryxis {
                 self.port_forward_form.auto_start = false;
                 self.port_forward_form.error = None;
             }
-            Message::HidePortForwardPanel => {
+            Message::PortForward(PortForwardMessage::HidePortForwardPanel) => {
                 self.show_port_forward_panel = false;
             }
-            Message::PfLabelChanged(v) => self.port_forward_form.label = v,
-            Message::PfKindChanged(k) => self.port_forward_form.kind = k,
-            Message::PfHostChanged(id) => self.port_forward_form.host_id = Some(id),
-            Message::PfListenHostChanged(v) => self.port_forward_form.listen_host = v,
-            Message::PfListenPortChanged(v) => {
+            Message::PortForward(PortForwardMessage::PfLabelChanged(v)) => self.port_forward_form.label = v,
+            Message::PortForward(PortForwardMessage::PfKindChanged(k)) => self.port_forward_form.kind = k,
+            Message::PortForward(PortForwardMessage::PfHostChanged(id)) => self.port_forward_form.host_id = Some(id),
+            Message::PortForward(PortForwardMessage::PfListenHostChanged(v)) => self.port_forward_form.listen_host = v,
+            Message::PortForward(PortForwardMessage::PfListenPortChanged(v)) => {
                 self.port_forward_form.listen_port = v.chars().filter(|c| c.is_ascii_digit()).collect();
             }
-            Message::PfTargetHostChanged(v) => self.port_forward_form.target_host = v,
-            Message::PfTargetPortChanged(v) => {
+            Message::PortForward(PortForwardMessage::PfTargetHostChanged(v)) => self.port_forward_form.target_host = v,
+            Message::PortForward(PortForwardMessage::PfTargetPortChanged(v)) => {
                 self.port_forward_form.target_port = v.chars().filter(|c| c.is_ascii_digit()).collect();
             }
-            Message::PfAutoStartToggled(v) => self.port_forward_form.auto_start = v,
-            Message::EditPortForwardRule(idx) => {
+            Message::PortForward(PortForwardMessage::PfAutoStartToggled(v)) => self.port_forward_form.auto_start = v,
+            Message::PortForward(PortForwardMessage::EditPortForwardRule(idx)) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     self.show_port_forward_panel = true;
                     self.port_forward_form.editing_id = Some(rule.id);
@@ -87,7 +87,7 @@ impl Oryxis {
                     self.port_forward_form.error = None;
                 }
             }
-            Message::SavePortForwardRule => {
+            Message::PortForward(PortForwardMessage::SavePortForwardRule) => {
                 if let Some(err) = self.save_port_forward_rule() {
                     self.port_forward_form.error = Some(err);
                 } else {
@@ -96,7 +96,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::DeletePortForwardRule(idx) => {
+            Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     let id = rule.id;
                     // Tear down a live forward before the rule disappears.
@@ -111,10 +111,10 @@ impl Oryxis {
             }
 
             // -- Runtime on/off --
-            Message::StartPortForward(id) => {
+            Message::PortForward(PortForwardMessage::StartPortForward(id)) => {
                 return Ok(self.start_port_forward(id, false));
             }
-            Message::StopPortForward(id) => {
+            Message::PortForward(PortForwardMessage::StopPortForward(id)) => {
                 self.port_forward_starting.remove(&id);
                 // Await `cancel()` so a remote (`-R`) forward also releases
                 // its server-side listener via `cancel_tcpip_forward`, not
@@ -123,11 +123,11 @@ impl Oryxis {
                 if let Some(session) = self.active_forwards.remove(&id) {
                     return Ok(Task::perform(
                         async move { session.cancel().await },
-                        |_| Message::PortForwardLivenessTick,
+                        |_| Message::PortForward(PortForwardMessage::PortForwardLivenessTick),
                     ));
                 }
             }
-            Message::PortForwardStarted(id, res) => {
+            Message::PortForward(PortForwardMessage::PortForwardStarted(id, res)) => {
                 // `remove` returns false when StopPortForward already pulled
                 // this id from the in-flight set, i.e. the user toggled the
                 // rule off while the connect was still running. In that case
@@ -153,7 +153,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::PortForwardLivenessTick => {
+            Message::PortForward(PortForwardMessage::PortForwardLivenessTick) => {
                 // Drop forwards whose underlying connection has died so the
                 // per-row toggle reflects reality instead of lying "on".
                 let dead: Vec<Uuid> = self
@@ -167,13 +167,13 @@ impl Oryxis {
                     tracing::info!("port forward {id} connection dropped, toggled off");
                 }
             }
-            Message::PortForwardCardHovered(idx) => {
+            Message::PortForward(PortForwardMessage::PortForwardCardHovered(idx)) => {
                 self.hovered_port_forward_card = Some(idx);
             }
-            Message::PortForwardCardUnhovered => {
+            Message::PortForward(PortForwardMessage::PortForwardCardUnhovered) => {
                 self.hovered_port_forward_card = None;
             }
-            Message::PortForwardSearchChanged(v) => self.port_forward_search = v,
+            Message::PortForward(PortForwardMessage::PortForwardSearchChanged(v)) => self.port_forward_search = v,
 
             m => return Err(m),
         }
@@ -310,7 +310,7 @@ impl Oryxis {
                         .map(Arc::new)
                         .map_err(|e| e.to_string())
                 },
-                move |res| Message::PortForwardStarted(id, res),
+                move |res| Message::PortForward(PortForwardMessage::PortForwardStarted(id, res)),
             );
         }
 
@@ -385,12 +385,12 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PfStreamMsg::HostKey(q) => Message::SshHostKeyVerify(q),
-            PfStreamMsg::Done(r) => Message::PortForwardStarted(id, r),
+            PfStreamMsg::Done(r) => Message::PortForward(PortForwardMessage::PortForwardStarted(id, r)),
             PfStreamMsg::NoCommonAlgo { category, server_offers } => Message::SshNoCommonAlgo {
                 conn_id: pf_conn_id,
                 category,
                 server_offers,
-                retry: Box::new(Message::StartPortForward(id)),
+                retry: Box::new(Message::PortForward(PortForwardMessage::StartPortForward(id))),
             },
         })
     }

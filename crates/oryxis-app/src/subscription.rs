@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 
 // Coarse-grained record of the last cursor position forwarded to the
 // message loop. The subscription closure quantises to a 4 px grid and
@@ -261,7 +261,7 @@ impl Oryxis {
         if !self.active_forwards.is_empty() {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(5))
-                    .map(|_| Message::PortForwardLivenessTick),
+                    .map(|_| Message::PortForward(PortForwardMessage::PortForwardLivenessTick)),
             );
         }
 

@@ -9,7 +9,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::port_forward_rule::{ForwardKind, PortForwardRule};
 
-use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{PortForwardMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
@@ -52,7 +52,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .center_x(Length::Fixed(72.0)),
             )
-            .on_press(Message::ShowPortForwardPanel)
+            .on_press(Message::PortForward(PortForwardMessage::ShowPortForwardPanel))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -118,7 +118,7 @@ impl Oryxis {
                 t("create_port_forward_desc").to_string(),
                 Some((
                     t("new_port_forward").to_string(),
-                    Message::ShowPortForwardPanel,
+                    Message::PortForward(PortForwardMessage::ShowPortForwardPanel),
                 )),
             );
 
@@ -194,14 +194,14 @@ impl Oryxis {
             } else if active {
                 (
                     t("pf_on"),
-                    Some(Message::StopPortForward(rule.id)),
+                    Some(Message::PortForward(PortForwardMessage::StopPortForward(rule.id))),
                     OryxisColors::t().success,
                     Color::WHITE,
                 )
             } else {
                 (
                     t("pf_off"),
-                    Some(Message::StartPortForward(rule.id)),
+                    Some(Message::PortForward(PortForwardMessage::StartPortForward(rule.id))),
                     OryxisColors::t().bg_surface,
                     OryxisColors::t().text_secondary,
                 )
@@ -230,7 +230,7 @@ impl Oryxis {
             let show_trash = self.hovered_port_forward_card == Some(idx) || kb_selected;
             let trash: Element<'_, Message> = if show_trash {
                 button(text("\u{1F5D1}").size(13).color(OryxisColors::t().text_muted))
-                    .on_press(Message::DeletePortForwardRule(idx))
+                    .on_press(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)))
                     .padding(Padding { top: 1.0, right: 6.0, bottom: 1.0, left: 6.0 })
                     .style(|_, st| {
                         let bg = match st {
@@ -279,7 +279,7 @@ impl Oryxis {
                 )
                 .padding(Padding { top: 8.0, right: 2.0, bottom: 8.0, left: 2.0 }),
             )
-            .on_press(Message::EditPortForwardRule(idx))
+            .on_press(Message::PortForward(PortForwardMessage::EditPortForwardRule(idx)))
             .width(Length::Fill)
             .style(move |_, st| {
                 let (bg, bc, bw) = match st {
@@ -295,8 +295,8 @@ impl Oryxis {
             });
 
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
-                .on_enter(Message::PortForwardCardHovered(idx))
-                .on_exit(Message::PortForwardCardUnhovered)
+                .on_enter(Message::PortForward(PortForwardMessage::PortForwardCardHovered(idx)))
+                .on_exit(Message::PortForward(PortForwardMessage::PortForwardCardUnhovered))
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
@@ -351,7 +351,7 @@ impl Oryxis {
                 text(title).size(18).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HidePortForwardPanel)
+                    .on_press(Message::PortForward(PortForwardMessage::HidePortForwardPanel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(OryxisColors::t().bg_surface)),
@@ -367,7 +367,7 @@ impl Oryxis {
         // arrows/Esc while focused (fork support).
         let kind_options = ForwardKind::ALL.to_vec();
         let kind_picker = pick_list(Some(self.port_forward_form.kind), kind_options, |k: &ForwardKind| k.to_string())
-            .on_select(Message::PfKindChanged)
+            .on_select(|v| Message::PortForward(PortForwardMessage::PfKindChanged(v)))
             .id(iced::widget::Id::new("panel-pf-kind"))
             .on_open(Message::PickOpenChanged(true))
             .on_close(Message::PickOpenChanged(false))
@@ -388,7 +388,7 @@ impl Oryxis {
             .collect();
         let host_picker = pick_list(selected_host_label, host_options, |s: &String| s.clone())
             .on_select(move |label: String| {
-                Message::PfHostChanged(host_lookup.get(&label).copied().unwrap_or_default())
+                Message::PortForward(PortForwardMessage::PfHostChanged(host_lookup.get(&label).copied().unwrap_or_default()))
             })
             .id(iced::widget::Id::new("panel-pf-host"))
             .on_open(Message::PickOpenChanged(true))
@@ -416,7 +416,7 @@ impl Oryxis {
         };
 
         let mut form = column![
-            label_field(t("name"), &self.port_forward_form.label, "my-db-tunnel", "panel-pf-name", Message::PfLabelChanged),
+            label_field(t("name"), &self.port_forward_form.label, "my-db-tunnel", "panel-pf-name", |v| Message::PortForward(PortForwardMessage::PfLabelChanged(v))),
             Space::new().height(14),
             text(t("pf_kind")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
@@ -434,9 +434,9 @@ impl Oryxis {
                 host_picker.into(),
             ),
             Space::new().height(14),
-            label_field(t("pf_listen_host"), &self.port_forward_form.listen_host, "127.0.0.1", "panel-pf-listen-host", Message::PfListenHostChanged),
+            label_field(t("pf_listen_host"), &self.port_forward_form.listen_host, "127.0.0.1", "panel-pf-listen-host", |v| Message::PortForward(PortForwardMessage::PfListenHostChanged(v))),
             Space::new().height(14),
-            label_field(t("pf_listen_port"), &self.port_forward_form.listen_port, "8080", "panel-pf-listen-port", Message::PfListenPortChanged),
+            label_field(t("pf_listen_port"), &self.port_forward_form.listen_port, "8080", "panel-pf-listen-port", |v| Message::PortForward(PortForwardMessage::PfListenPortChanged(v))),
         ]
         .width(Length::Fill)
         .align_x(dir_align_x());
@@ -446,9 +446,9 @@ impl Oryxis {
         if self.port_forward_form.kind.has_target() {
             form = form
                 .push(Space::new().height(14))
-                .push(label_field(t("pf_target_host"), &self.port_forward_form.target_host, "10.0.0.5", "panel-pf-target-host", Message::PfTargetHostChanged))
+                .push(label_field(t("pf_target_host"), &self.port_forward_form.target_host, "10.0.0.5", "panel-pf-target-host", |v| Message::PortForward(PortForwardMessage::PfTargetHostChanged(v))))
                 .push(Space::new().height(14))
-                .push(label_field(t("pf_target_port"), &self.port_forward_form.target_port, "5432", "panel-pf-target-port", Message::PfTargetPortChanged));
+                .push(label_field(t("pf_target_port"), &self.port_forward_form.target_port, "5432", "panel-pf-target-port", |v| Message::PortForward(PortForwardMessage::PfTargetPortChanged(v))));
         }
 
         // Remote bind on 0.0.0.0 needs `GatewayPorts yes` on the server.
@@ -472,13 +472,13 @@ impl Oryxis {
         form = form
             .push(Space::new().height(14))
             .push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::PfAutoStartToggled(
+                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::PfAutoStartToggled(
                     !self.port_forward_form.auto_start,
-                )),
+                ))),
                 8.0,
                 checkbox(self.port_forward_form.auto_start)
                     .label(t("pf_auto_start"))
-                    .on_toggle(Message::PfAutoStartToggled)
+                    .on_toggle(|v| Message::PortForward(PortForwardMessage::PfAutoStartToggled(v)))
                     .size(16)
                     .text_size(12)
                     .into(),
@@ -492,14 +492,14 @@ impl Oryxis {
             && let Some(idx) = self.port_forward_rules.iter().position(|r| r.id == edit_id)
         {
             let del_btn = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::DeletePortForwardRule(idx)),
+                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx))),
                 8.0,
                 button(
                     container(text(t("delete")).size(13).color(OryxisColors::t().error))
                         .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
                         .width(Length::Fill).center_x(Length::Fill),
                 )
-                .on_press(Message::DeletePortForwardRule(idx))
+                .on_press(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)))
                 .width(Length::Fill)
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(Color::TRANSPARENT)),
@@ -517,14 +517,14 @@ impl Oryxis {
         let panel_error = crate::widgets::form_error(self.port_forward_form.error.as_deref());
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HidePortForwardPanel),
+                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::HidePortForwardPanel)),
                 6.0,
-                crate::widgets::form_cancel_button(Message::HidePortForwardPanel),
+                crate::widgets::form_cancel_button(Message::PortForward(PortForwardMessage::HidePortForwardPanel)),
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SavePortForwardRule),
+                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::SavePortForwardRule)),
                 6.0,
-                crate::widgets::form_save_button(t("save"), Some(Message::SavePortForwardRule)),
+                crate::widgets::form_save_button(t("save"), Some(Message::PortForward(PortForwardMessage::SavePortForwardRule))),
             ),
         );
 

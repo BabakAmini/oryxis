@@ -793,7 +793,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::plus(),
                     crate::i18n::t("new_port_forward"),
-                    Message::ShowPortForwardPanel,
+                    Message::PortForward(PortForwardMessage::ShowPortForwardPanel),
                     secondary,
                 ));
             }

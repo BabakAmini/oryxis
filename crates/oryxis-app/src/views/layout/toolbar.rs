@@ -239,7 +239,7 @@ impl Oryxis {
                 View::PortForwarding => (
                     "search_port_forwards",
                     self.port_forward_search.as_str(),
-                    Message::PortForwardSearchChanged,
+                    |v| Message::PortForward(PortForwardMessage::PortForwardSearchChanged(v)),
                 ),
                 View::History => (
                     "search_logs",

@@ -10,8 +10,7 @@ use iced::widget::text_editor;
 use iced::Point;
 use uuid::Uuid;
 
-use oryxis_ssh::{ForwardSession, SshSession};
-use oryxis_core::models::port_forward_rule::ForwardKind;
+use oryxis_ssh::SshSession;
 
 use crate::state::{ConnectionStep, SettingsSection, View};
 
@@ -23,6 +22,8 @@ mod player;
 pub use player::PlayerMessage;
 mod vault;
 pub use vault::VaultMessage;
+mod port_forward;
+pub use port_forward::PortForwardMessage;
 mod snippet;
 pub use snippet::SnippetMessage;
 mod share;
@@ -1048,32 +1049,10 @@ pub enum Message {
     ThemeEditorClosePicker,
 
     // Port forwards (standalone entity)
-    ShowPortForwardPanel,
-    HidePortForwardPanel,
-    PfLabelChanged(String),
-    PfKindChanged(ForwardKind),
-    PfHostChanged(Uuid),
-    PfListenHostChanged(String),
-    PfListenPortChanged(String),
-    PfTargetHostChanged(String),
-    PfTargetPortChanged(String),
-    PfAutoStartToggled(bool),
-    SavePortForwardRule,
-    EditPortForwardRule(usize),
-    DeletePortForwardRule(usize),
-    /// Toggle a rule on: opens a dedicated PTY-less SSH session.
-    StartPortForward(Uuid),
-    /// Toggle a rule off: drops its `ForwardSession` (cancels the tunnel).
-    StopPortForward(Uuid),
-    /// Result of a `StartPortForward` connect attempt.
-    PortForwardStarted(Uuid, Result<Arc<ForwardSession>, String>),
-    /// Periodic liveness sweep; drops forwards whose connection died.
-    PortForwardLivenessTick,
+    // Port forwards (handle_port_forwards)
+    PortForward(PortForwardMessage),
     /// Periodic flush of buffered session-log output to the vault.
     SessionLogFlushTick,
-    PortForwardCardHovered(usize),
-    PortForwardCardUnhovered,
-    PortForwardSearchChanged(String),
     CloudSearchChanged(String),
     ProxySearchChanged(String),
 

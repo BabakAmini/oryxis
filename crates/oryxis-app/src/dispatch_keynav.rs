@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -590,7 +590,7 @@ impl Oryxis {
                 };
                 Message::Snippet(SnippetMessage::OpenSnippetGroup(name))
             }
-            NavItem::PortForward(i) => Message::EditPortForwardRule(i),
+            NavItem::PortForward(i) => Message::PortForward(PortForwardMessage::EditPortForwardRule(i)),
             NavItem::HistoryLog(id) => Message::ViewSessionLog(id),
             NavItem::CloudAccount(id) => Message::ShowCloudForm(Some(id)),
             NavItem::Proxy(id) => Message::ShowProxyIdentityForm(Some(id)),
@@ -643,7 +643,7 @@ impl Oryxis {
             (View::Keys, ToolbarItem::Primary) => Message::ToggleKeychainAddMenu,
             (View::Snippets, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Snippets),
             (View::Snippets, ToolbarItem::Primary) => Message::Snippet(SnippetMessage::ShowSnippetPanel),
-            (View::PortForwarding, ToolbarItem::Primary) => Message::ShowPortForwardPanel,
+            (View::PortForwarding, ToolbarItem::Primary) => Message::PortForward(PortForwardMessage::ShowPortForwardPanel),
             (View::History, ToolbarItem::Primary) => Message::RequestClearHistory,
             (View::History, ToolbarItem::PagerPrev) => Message::LogsPagePrev,
             (View::History, ToolbarItem::PagerNext) => Message::LogsPageNext,
