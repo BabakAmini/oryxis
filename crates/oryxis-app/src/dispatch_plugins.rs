@@ -13,7 +13,7 @@ use iced::Task;
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{PluginMessage, Message, Oryxis};
+use crate::app::{HistoryMessage, PluginMessage, Message, Oryxis};
 use crate::plugins::cache;
 use crate::state::{PluginUiEntry, PluginUiStatus};
 
@@ -584,7 +584,7 @@ impl Oryxis {
                     if installed {
                         return Ok(Task::batch([
                             task,
-                            Task::done(Message::ExportSessionGif(log_id)),
+                            Task::done(Message::History(HistoryMessage::ExportSessionGif(log_id))),
                         ]));
                     }
                 }

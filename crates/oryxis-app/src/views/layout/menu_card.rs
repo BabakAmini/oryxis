@@ -44,7 +44,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::film(),
                     crate::i18n::t("export_cast_tip"),
-                    Message::ExportSessionCast(log_id),
+                    Message::History(HistoryMessage::ExportSessionCast(log_id)),
                     OryxisColors::t().text_secondary,
                 ));
                 // Renders through the downloaded oryxis-gif plugin;
@@ -52,27 +52,27 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::image(),
                     crate::i18n::t("export_gif_tip"),
-                    Message::ExportSessionGif(log_id),
+                    Message::History(HistoryMessage::ExportSessionGif(log_id)),
                     OryxisColors::t().text_secondary,
                 ));
             }
             col = col.push(self.menu_item(
                 iced_fonts::lucide::file_text(),
                 crate::i18n::t("export_transcript_tip"),
-                Message::ExportSessionTranscript(log_id),
+                Message::History(HistoryMessage::ExportSessionTranscript(log_id)),
                 OryxisColors::t().text_secondary,
             ));
             col = col.push(self.menu_item(
                 iced_fonts::lucide::keyboard(),
                 crate::i18n::t("export_commands_tip"),
-                Message::ExportSessionCommands(log_id),
+                Message::History(HistoryMessage::ExportSessionCommands(log_id)),
                 OryxisColors::t().text_secondary,
             ));
         }
         col = col.push(self.menu_item(
             iced_fonts::lucide::trash(),
             crate::i18n::t("delete"),
-            Message::RequestDeleteSessionLog(idx),
+            Message::History(HistoryMessage::RequestDeleteSessionLog(idx)),
             OryxisColors::t().error,
         ));
         // Honest-export caption: recordings carry the raw
@@ -123,7 +123,7 @@ impl Oryxis {
             }
         }
         if has_url {
-            items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::CopyHostSshUrl(idx), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::History(HistoryMessage::CopyHostSshUrl(idx)), OryxisColors::t().text_secondary));
         }
         // Remote-desktop host: Connect (above) already launches the
         // desktop; add an explicit Stop while its tunnel is live.

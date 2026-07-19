@@ -11,7 +11,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use chrono::{DateTime, Utc};
 
-use crate::app::{PlayerMessage, Message, Oryxis};
+use crate::app::{HistoryMessage, PlayerMessage, Message, Oryxis};
 use crate::theme::OryxisColors;
 use crate::util::format_data_size;
 
@@ -150,12 +150,12 @@ impl Oryxis {
 
         let prev_btn = nav_btn(
             iced_fonts::lucide::chevron_left(),
-            Message::LogsPagePrev,
+            Message::History(HistoryMessage::LogsPagePrev),
             can_prev,
         );
         let next_btn = nav_btn(
             iced_fonts::lucide::chevron_right(),
-            Message::LogsPageNext,
+            Message::History(HistoryMessage::LogsPageNext),
             can_next,
         );
 
@@ -202,7 +202,7 @@ impl Oryxis {
             }
         });
         if has_entries {
-            clear_btn = clear_btn.on_press(Message::RequestClearHistory);
+            clear_btn = clear_btn.on_press(Message::History(HistoryMessage::RequestClearHistory));
         }
 
         // Responsive collapse: search yields first, then folds to an icon;
@@ -419,7 +419,7 @@ impl Oryxis {
                             })
                             .into(),
                         None,
-                        Message::ShowSessionLogViewerMenu(idx),
+                        Message::History(HistoryMessage::ShowSessionLogViewerMenu(idx)),
                     ),
                     crate::i18n::t("more_actions"),
                 ));
@@ -438,7 +438,7 @@ impl Oryxis {
                         top: 0.0, right: 14.0, bottom: 0.0, left: 14.0,
                     }),
                 )
-                .on_press(Message::CloseSessionLogView)
+                .on_press(Message::History(HistoryMessage::CloseSessionLogView))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().error },
@@ -681,7 +681,7 @@ impl Oryxis {
                     crate::widgets::card_kebab_button(
                         OryxisColors::t().text_muted,
                         true,
-                        Message::ShowSessionLogMenu(idx),
+                        Message::History(HistoryMessage::ShowSessionLogMenu(idx)),
                     )
                     .into()
                 } else {
@@ -756,12 +756,12 @@ impl Oryxis {
                 // (app-wide card convention); left click still opens
                 // the recording.
                 let mut area = iced::widget::MouseArea::new(card)
-                    .on_press(Message::ViewSessionLog(log_id))
-                    .on_enter(Message::LogRowHovered(log_id))
-                    .on_exit(Message::LogRowUnhovered)
+                    .on_press(Message::History(HistoryMessage::ViewSessionLog(log_id)))
+                    .on_enter(Message::History(HistoryMessage::LogRowHovered(log_id)))
+                    .on_exit(Message::History(HistoryMessage::LogRowUnhovered))
                     .interaction(iced::mouse::Interaction::Pointer);
                 if let TimelineKind::Session { idx, .. } = &row.kind {
-                    area = area.on_right_press(Message::ShowSessionLogMenu(*idx));
+                    area = area.on_right_press(Message::History(HistoryMessage::ShowSessionLogMenu(*idx)));
                 }
                 let row_el: Element<'_, Message> = area.into();
                 crate::widgets::select_ring_opt(

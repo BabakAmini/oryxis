@@ -387,7 +387,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_clear_history_dialog(),
-                    Some(Message::CancelClearHistory),
+                    Some(Message::History(HistoryMessage::CancelClearHistory)),
                     0.0,
                 ),
                 resize_overlay,

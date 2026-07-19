@@ -809,20 +809,20 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::chevron_left(),
                     crate::i18n::t("toolbar_prev"),
-                    Message::LogsPagePrev,
+                    Message::History(HistoryMessage::LogsPagePrev),
                     secondary,
                 ));
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::chevron_right(),
                     crate::i18n::t("toolbar_next"),
-                    Message::LogsPageNext,
+                    Message::History(HistoryMessage::LogsPageNext),
                     secondary,
                 ));
                 if !self.logs.is_empty() || !self.session_logs.is_empty() {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::trash(),
                         crate::i18n::t("clear_all"),
-                        Message::RequestClearHistory,
+                        Message::History(HistoryMessage::RequestClearHistory),
                         OryxisColors::t().error,
                     ));
                 }

@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -532,7 +532,7 @@ impl Oryxis {
             // one to the other (the same index the view and the menu use).
             NavItem::HistoryLog(id) => {
                 let idx = self.session_logs.iter().position(|e| e.id == id)?;
-                Message::ShowSessionLogMenu(idx)
+                Message::History(HistoryMessage::ShowSessionLogMenu(idx))
             }
             // Rows without a context menu (proxies, known hosts, port
             // forwards, settings): nothing to open.
@@ -591,7 +591,7 @@ impl Oryxis {
                 Message::Snippet(SnippetMessage::OpenSnippetGroup(name))
             }
             NavItem::PortForward(i) => Message::PortForward(PortForwardMessage::EditPortForwardRule(i)),
-            NavItem::HistoryLog(id) => Message::ViewSessionLog(id),
+            NavItem::HistoryLog(id) => Message::History(HistoryMessage::ViewSessionLog(id)),
             NavItem::CloudAccount(id) => Message::ShowCloudForm(Some(id)),
             NavItem::Proxy(id) => Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(Some(id))),
             NavItem::KnownHost(i) => Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(i)),
@@ -644,9 +644,9 @@ impl Oryxis {
             (View::Snippets, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Snippets)),
             (View::Snippets, ToolbarItem::Primary) => Message::Snippet(SnippetMessage::ShowSnippetPanel),
             (View::PortForwarding, ToolbarItem::Primary) => Message::PortForward(PortForwardMessage::ShowPortForwardPanel),
-            (View::History, ToolbarItem::Primary) => Message::RequestClearHistory,
-            (View::History, ToolbarItem::PagerPrev) => Message::LogsPagePrev,
-            (View::History, ToolbarItem::PagerNext) => Message::LogsPageNext,
+            (View::History, ToolbarItem::Primary) => Message::History(HistoryMessage::RequestClearHistory),
+            (View::History, ToolbarItem::PagerPrev) => Message::History(HistoryMessage::LogsPagePrev),
+            (View::History, ToolbarItem::PagerNext) => Message::History(HistoryMessage::LogsPageNext),
             (View::Cloud, ToolbarItem::Primary) => Message::ShowCloudForm(None),
             (View::Proxies, ToolbarItem::Primary) => Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)),
             (View::KnownHosts, ToolbarItem::Primary) => Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts),

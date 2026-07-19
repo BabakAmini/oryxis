@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{CommandHistoryMessage, PluginMessage, Message, Oryxis};
+use crate::app::{HistoryMessage, CommandHistoryMessage, PluginMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_history(
@@ -22,16 +22,16 @@ impl Oryxis {
             // so the user gets a true "empty list" instead of seeing
             // every previously recorded session reappear after the
             // wipe finishes.
-            Message::RequestClearHistory => {
+            Message::History(HistoryMessage::RequestClearHistory) => {
                 // Close the `…` overflow menu before the confirm dialog
                 // rises (no-op when triggered from the inline button).
                 self.overlay = None;
                 self.clear_history_confirm = true;
             }
-            Message::CancelClearHistory => {
+            Message::History(HistoryMessage::CancelClearHistory) => {
                 self.clear_history_confirm = false;
             }
-            Message::ClearLogs => {
+            Message::History(HistoryMessage::ClearLogs) => {
                 self.clear_history_confirm = false;
                 if let Some(vault) = &self.vault {
                     let _ = vault.clear_logs();
@@ -45,7 +45,7 @@ impl Oryxis {
                 self.viewing_session_log = None;
                 self.session_player = None;
             }
-            Message::LogsPageNext => {
+            Message::History(HistoryMessage::LogsPageNext) => {
                 let max_page = (self.logs_total.saturating_sub(1)) / 50;
                 if self.logs_page < max_page {
                     self.logs_page += 1;
@@ -56,7 +56,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::LogsPagePrev => {
+            Message::History(HistoryMessage::LogsPagePrev) => {
                 if self.logs_page > 0 {
                     self.logs_page -= 1;
                     if let Some(vault) = &self.vault {
@@ -66,7 +66,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::ViewSessionLog(log_id) => {
+            Message::History(HistoryMessage::ViewSessionLog(log_id)) => {
                 // Flush buffered output first so viewing a still-active
                 // session shows everything recorded up to this moment,
                 // not just what was last persisted.
@@ -80,10 +80,10 @@ impl Oryxis {
                         self.session_player = None;
                 }
             }
-            Message::CloseSessionLogView => {
+            Message::History(HistoryMessage::CloseSessionLogView) => {
                 self.viewing_session_log = None;
             }
-            Message::ShowSessionLogViewerMenu(idx) => {
+            Message::History(HistoryMessage::ShowSessionLogViewerMenu(idx)) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle, mirroring the row kebab below.
                 let already = matches!(
@@ -101,7 +101,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::ShowSessionLogMenu(idx) => {
+            Message::History(HistoryMessage::ShowSessionLogMenu(idx)) => {
                 use crate::state::{OverlayContent, OverlayState};
                 // Toggle, mirroring the other card kebabs.
                 let already = matches!(
@@ -119,7 +119,7 @@ impl Oryxis {
                     });
                 }
             }
-            Message::ExportSessionCast(log_id) => {
+            Message::History(HistoryMessage::ExportSessionCast(log_id)) => {
                 self.overlay = None;
                 // Flush first so an in-progress session exports complete.
                 self.flush_session_logs_final();
@@ -162,7 +162,7 @@ impl Oryxis {
                 );
                 return Ok(save_text_file_task(body, default_name, "cast"));
             }
-            Message::ExportSessionTranscript(log_id) => {
+            Message::History(HistoryMessage::ExportSessionTranscript(log_id)) => {
                 self.overlay = None;
                 self.flush_session_logs_final();
                 let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
@@ -196,7 +196,7 @@ impl Oryxis {
                 );
                 return Ok(save_text_file_task(body, default_name, "txt"));
             }
-            Message::ExportSessionCommands(log_id) => {
+            Message::History(HistoryMessage::ExportSessionCommands(log_id)) => {
                 self.overlay = None;
                 // 'c' rows are written at capture time (never buffered),
                 // so no flush is needed here.
@@ -231,7 +231,7 @@ impl Oryxis {
                 );
                 return Ok(save_text_file_task(body, default_name, "txt"));
             }
-            Message::ExportSessionGif(log_id) => {
+            Message::History(HistoryMessage::ExportSessionGif(log_id)) => {
                 self.overlay = None;
                 if self.gif_export.running {
                     return Ok(self
@@ -305,11 +305,11 @@ impl Oryxis {
                             ),
                         }
                     },
-                    Message::GifExportFinished,
+                    |v| Message::History(HistoryMessage::GifExportFinished(v)),
                 );
                 return Ok(Task::batch([start_toast, render]));
             }
-            Message::GifExportFinished(outcome) => {
+            Message::History(HistoryMessage::GifExportFinished(outcome)) => {
                 self.gif_export.running = false;
                 match outcome {
                     None => {}
@@ -327,7 +327,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::RequestDeleteSessionLog(idx) => {
+            Message::History(HistoryMessage::RequestDeleteSessionLog(idx)) => {
                 // Reached from the row kebab; drop it before the dialog.
                 self.overlay = None;
                 let label = self
@@ -344,7 +344,7 @@ impl Oryxis {
                     link: None,
                     action: Some(crate::state::ErrorDialogAction {
                         label: crate::i18n::t("delete").to_string(),
-                        message: Box::new(Message::DeleteSessionLog(idx)),
+                        message: Box::new(Message::History(HistoryMessage::DeleteSessionLog(idx))),
                         danger: true,
                     }),
                 });
@@ -352,13 +352,13 @@ impl Oryxis {
             Message::TogglePrivacyReveal => {
                 self.privacy.revealed = !self.privacy.revealed;
             }
-            Message::LogRowHovered(id) => {
+            Message::History(HistoryMessage::LogRowHovered(id)) => {
                 self.hovered_log_row = Some(id);
             }
-            Message::LogRowUnhovered => {
+            Message::History(HistoryMessage::LogRowUnhovered) => {
                 self.hovered_log_row = None;
             }
-            Message::DeleteSessionLog(idx) => {
+            Message::History(HistoryMessage::DeleteSessionLog(idx)) => {
                 if let Some(entry) = self.session_logs.get(idx) {
                     let id = entry.id;
                     if let Some(vault) = &self.vault {
@@ -390,7 +390,7 @@ impl Oryxis {
                         self.session_player = None;
                 }
             }
-            Message::ClearSessionLogs => {
+            Message::History(HistoryMessage::ClearSessionLogs) => {
                 if let Some(vault) = &self.vault {
                     let _ = vault.clear_session_logs();
                     self.session_logs_page = 0;
@@ -399,7 +399,7 @@ impl Oryxis {
                 self.viewing_session_log = None;
                 self.session_player = None;
             }
-            Message::SessionLogsPageNext => {
+            Message::History(HistoryMessage::SessionLogsPageNext) => {
                 let max_page = self.session_logs_total.saturating_sub(1) / 50;
                 if self.session_logs_page < max_page {
                     self.session_logs_page += 1;
@@ -410,7 +410,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::SessionLogsPagePrev => {
+            Message::History(HistoryMessage::SessionLogsPagePrev) => {
                 if self.session_logs_page > 0 {
                     self.session_logs_page -= 1;
                     if let Some(vault) = &self.vault {
@@ -426,7 +426,7 @@ impl Oryxis {
                     tracing::warn!("open_in_browser({url}) failed: {e}");
                 }
             }
-            Message::CopyHostSshUrl(idx) => {
+            Message::History(HistoryMessage::CopyHostSshUrl(idx)) => {
                 // Card action: canonical ssh:// URL for the host. Closes
                 // the context menu itself (CopyToClipboard stays free of
                 // menu state; it is also dispatched from inside overlays).

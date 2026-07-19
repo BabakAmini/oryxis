@@ -14,7 +14,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{PlayerMessage, Message, Oryxis};
+use crate::app::{HistoryMessage, PlayerMessage, Message, Oryxis};
 use crate::state::SessionPlayer;
 use crate::theme::OryxisColors;
 
@@ -67,7 +67,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary)
                     .into(),
                 Some(crate::i18n::t("player_view_log")),
-                Message::ViewSessionLog(p.log_id),
+                Message::History(HistoryMessage::ViewSessionLog(p.log_id)),
             ));
             header_items.push(Space::new().width(8).into());
             let menu_open = matches!(
@@ -86,7 +86,7 @@ impl Oryxis {
                         })
                         .into(),
                     None,
-                    Message::ShowSessionLogViewerMenu(idx),
+                    Message::History(HistoryMessage::ShowSessionLogViewerMenu(idx)),
                 ),
                 crate::i18n::t("more_actions"),
             ));

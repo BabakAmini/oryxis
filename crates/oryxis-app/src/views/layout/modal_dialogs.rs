@@ -494,25 +494,25 @@ impl Oryxis {
                         self.modal_nav_reset();
                         self.modal_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::CancelClearHistory,
+                                Message::History(HistoryMessage::CancelClearHistory),
                             ),
                             6.0,
                             false,
                             styled_button(
                                 crate::i18n::t("cancel"),
-                                Message::CancelClearHistory,
+                                Message::History(HistoryMessage::CancelClearHistory),
                                 OryxisColors::t().text_muted,
                             ),
                         )
                     },
                     Space::new().width(8).into(),
                     self.modal_nav_slot_default(
-                        crate::keynav::RowAction::activate(Message::ClearLogs),
+                        crate::keynav::RowAction::activate(Message::History(HistoryMessage::ClearLogs)),
                         6.0,
                         true,
                         styled_button(
                             crate::i18n::t("clear_all"),
-                            Message::ClearLogs,
+                            Message::History(HistoryMessage::ClearLogs),
                             OryxisColors::t().error,
                         ),
                     ),
