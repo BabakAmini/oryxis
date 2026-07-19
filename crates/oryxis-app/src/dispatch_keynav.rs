@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
+use crate::app::{CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -516,7 +516,7 @@ impl Oryxis {
                     .iter()
                     .any(|g| g.id == gid && g.cloud_query.is_some());
                 if dynamic {
-                    Message::ShowDynamicGroupCardMenu(gid)
+                    Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid))
                 } else {
                     Message::ShowFolderActions(gid)
                 }
@@ -525,7 +525,7 @@ impl Oryxis {
             NavItem::Key(i) => Message::ShowKeyMenu(i),
             NavItem::Identity(i) => Message::ShowIdentityMenu(i),
             NavItem::Snippet(i) => Message::Snippet(SnippetMessage::ShowSnippetMenu(i)),
-            NavItem::CloudAccount(id) => Message::ShowCloudCardMenu(id),
+            NavItem::CloudAccount(id) => Message::Cloud(CloudMessage::ShowCloudCardMenu(id)),
             // Session-log rows carry a kebab menu (Export .cast /
             // transcript / commands / Delete). The row is keyed by uuid;
             // the menu is keyed by the index into `session_logs`, so map
@@ -592,7 +592,7 @@ impl Oryxis {
             }
             NavItem::PortForward(i) => Message::PortForward(PortForwardMessage::EditPortForwardRule(i)),
             NavItem::HistoryLog(id) => Message::History(HistoryMessage::ViewSessionLog(id)),
-            NavItem::CloudAccount(id) => Message::ShowCloudForm(Some(id)),
+            NavItem::CloudAccount(id) => Message::Cloud(CloudMessage::ShowCloudForm(Some(id))),
             NavItem::Proxy(id) => Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(Some(id))),
             NavItem::KnownHost(i) => Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(i)),
             NavItem::ContentAction(i) => {
@@ -637,8 +637,8 @@ impl Oryxis {
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
             (View::Dashboard, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Hosts)),
             (View::Dashboard, ToolbarItem::Primary) => Message::ShowNewConnection,
-            (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::ShowCloudProviderPicker,
-            (View::Dashboard, ToolbarItem::CloudDiscover(pid)) => Message::ShowCloudDiscover(pid),
+            (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::Cloud(CloudMessage::ShowCloudProviderPicker),
+            (View::Dashboard, ToolbarItem::CloudDiscover(pid)) => Message::Cloud(CloudMessage::ShowCloudDiscover(pid)),
             (View::Keys, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Keys)),
             (View::Keys, ToolbarItem::Primary) => Message::ToggleKeychainAddMenu,
             (View::Snippets, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Snippets)),
@@ -647,7 +647,7 @@ impl Oryxis {
             (View::History, ToolbarItem::Primary) => Message::History(HistoryMessage::RequestClearHistory),
             (View::History, ToolbarItem::PagerPrev) => Message::History(HistoryMessage::LogsPagePrev),
             (View::History, ToolbarItem::PagerNext) => Message::History(HistoryMessage::LogsPageNext),
-            (View::Cloud, ToolbarItem::Primary) => Message::ShowCloudForm(None),
+            (View::Cloud, ToolbarItem::Primary) => Message::Cloud(CloudMessage::ShowCloudForm(None)),
             (View::Proxies, ToolbarItem::Primary) => Message::ProxyIdentity(ProxyIdentityMessage::ShowProxyIdentityForm(None)),
             (View::KnownHosts, ToolbarItem::Primary) => Message::KnownHost(KnownHostMessage::RequestClearAllKnownHosts),
             (_, ToolbarItem::PrivacyReveal) => Message::TogglePrivacyReveal,

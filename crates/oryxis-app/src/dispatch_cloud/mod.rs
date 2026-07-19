@@ -23,7 +23,7 @@ use oryxis_cloud::CloudProviderRegistry;
 use oryxis_core::models::cloud_profile::CloudProfile;
 use uuid::Uuid;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{CloudMessage, Message, Oryxis};
 use crate::state::{CloudAuthChoice, CloudDiscoverState, CloudProviderChoice};
 
 impl Oryxis {
@@ -106,10 +106,10 @@ impl Oryxis {
                     .map(Box::new)
                     .map_err(|e| e.to_string())
             },
-            move |result| Message::SsmSessionReady {
+            move |result| Message::Cloud(CloudMessage::SsmSessionReady {
                 host_label: host_label.clone(),
                 result,
-            },
+            }),
         )
     }
 
@@ -222,7 +222,7 @@ impl Oryxis {
                     // goes silently dead (issue #38 follow-up).
                     Task::stream(stream)
                         .map(move |bytes| Message::PtyOutput(pane_id, bytes))
-                        .chain(Task::done(Message::PluginSessionEnded(pane_id))),
+                        .chain(Task::done(Message::Cloud(CloudMessage::PluginSessionEnded(pane_id)))),
                 ])
             }
             Err(e) => {
@@ -279,11 +279,11 @@ impl Oryxis {
         Ok(Task::perform(
             async move { provider.discover(&profile).await },
             |result| {
-                Message::CloudDiscoverResult(
+                Message::Cloud(CloudMessage::CloudDiscoverResult(
                     result
                         .map(Box::new)
                         .map_err(|e| e.to_string()),
-                )
+                ))
             },
         ))
     }

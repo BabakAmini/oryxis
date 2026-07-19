@@ -1,6 +1,7 @@
 //! Terminal tabs and panes (split out of `state.rs`).
 
 use super::*;
+use crate::messages::CloudMessage;
 
 /// What a pane reconnects to, so a saved session group can reference it.
 /// This is an explicit discriminator rather than inferring "local" from a
@@ -828,24 +829,24 @@ impl TerminalTab {
             // serializable spec. SSM (relaunch None) and anything else stay
             // unpersisted.
             PaneOrigin::Ephemeral => match self.relaunch.as_deref() {
-                Some(crate::messages::Message::ConnectEcsExecTask {
+                Some(crate::messages::Message::Cloud(CloudMessage::ConnectEcsExecTask {
                     group_id,
                     task_id,
                     task_label,
                     container,
-                }) => Some(PinnedTabSpec::EcsExec {
+                })) => Some(PinnedTabSpec::EcsExec {
                     group_id: *group_id,
                     task_id: task_id.clone(),
                     task_label: task_label.clone(),
                     container: container.clone(),
                     label: base,
                 }),
-                Some(crate::messages::Message::ConnectKubectlExecPod {
+                Some(crate::messages::Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                     group_id,
                     namespace,
                     pod,
                     container,
-                }) => Some(PinnedTabSpec::KubectlExec {
+                })) => Some(PinnedTabSpec::KubectlExec {
                     group_id: *group_id,
                     namespace: namespace.clone(),
                     pod: pod.clone(),

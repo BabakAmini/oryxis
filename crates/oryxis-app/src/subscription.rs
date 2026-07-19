@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
+use crate::app::{CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
 
@@ -299,7 +299,7 @@ impl Oryxis {
                 .unwrap_or(30);
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(minutes * 60))
-                    .map(|_| Message::CloudAutoRefreshTick),
+                    .map(|_| Message::Cloud(CloudMessage::CloudAutoRefreshTick)),
             );
         }
         // Cloud SSM/ECS idle keepalive. The SSM websocket drops the

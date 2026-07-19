@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{NavigationMessage, Message, Oryxis};
+use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -162,7 +162,7 @@ impl Oryxis {
                 // resolves; let the user retry a failure explicitly).
                 if self.dynamic_group_needs_resolve(gid) {
                     return Ok(self
-                        .handle_cloud(Message::DynamicGroupResolve(gid))
+                        .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
                         .unwrap_or_else(|_| Task::none()));
                 }
             }

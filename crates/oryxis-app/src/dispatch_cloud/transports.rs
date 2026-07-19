@@ -4,7 +4,7 @@
 
 use iced::Task;
 
-use crate::app::{NavigationMessage, Message, Oryxis};
+use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(super) fn handle_cloud_transports(
@@ -12,7 +12,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::PluginSessionEnded(pane_id) => {
+            Message::Cloud(CloudMessage::PluginSessionEnded(pane_id)) => {
                 // The plugin process (session-manager-plugin / kubectl)
                 // exited: stale task, idle timeout, remote close. The
                 // pane used to just go silently dead; now the tab marks
@@ -53,11 +53,11 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
-            Message::EcsExecConnectFreshTask {
+            Message::Cloud(CloudMessage::EcsExecConnectFreshTask {
                 group_id,
                 container,
                 fallback_task_id,
-            } => {
+            }) => {
                 self.error_dialog = None;
                 match self.cloud_dynamic_group_state.get(&group_id) {
                     Some(crate::state::DynamicGroupState::Loaded { hosts, .. }) => {
@@ -78,12 +78,12 @@ impl Oryxis {
                                 .clone()
                                 .filter(|c| !c.is_empty())
                                 .unwrap_or(container);
-                            return Ok(self.update(Message::ConnectEcsExecTask {
+                            return Ok(self.update(Message::Cloud(CloudMessage::ConnectEcsExecTask {
                                 group_id,
                                 task_id: host.resource_id.clone(),
                                 task_label: host.label.clone(),
                                 container,
-                            }));
+                            })));
                         }
                         // Nothing running: land on the listing so the task
                         // states are visible, with a dialog saying why.
@@ -104,17 +104,17 @@ impl Oryxis {
                                 fallback_task_id,
                             });
                         Ok(self
-                            .handle_cloud(Message::DynamicGroupResolve(group_id))
+                            .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(group_id)))
                             .unwrap_or_else(|_| Task::none()))
                     }
                 }
             }
-            Message::ConnectEcsExecTask {
+            Message::Cloud(CloudMessage::ConnectEcsExecTask {
                 group_id,
                 task_id,
                 task_label,
                 container,
-            } => {
+            }) => {
                 // When launched from the new-tab picker, close it and drop
                 // any pending split-pane target. ECS Exec opens a full tab
                 // via the session plugin, it can't fill an SSH-only split
@@ -224,21 +224,21 @@ impl Oryxis {
                             .map(Box::new)
                             .map_err(|e| e.to_string())
                     },
-                    move |result| Message::EcsExecSessionReady {
+                    move |result| Message::Cloud(CloudMessage::EcsExecSessionReady {
                         group_id,
                         task_label: task_label_for_msg.clone(),
                         task_id: task_id_for_msg.clone(),
                         container: container_for_msg.clone(),
                         result,
-                    },
+                    }),
                 ))
             }
-            Message::ConnectKubectlExecPod {
+            Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                 group_id,
                 namespace,
                 pod,
                 container,
-            } => {
+            }) => {
                 // See ConnectEcsExecTask: close the picker and drop any
                 // pending split-pane target, kubectl exec opens a full tab.
                 self.show_new_tab_picker = false;
@@ -317,15 +317,15 @@ impl Oryxis {
                 // Relaunch payload for Duplicate Tab: pod shells have no
                 // saved Connection, so the tab carries its own re-open
                 // message instead of being looked up by label.
-                let relaunch = Message::ConnectKubectlExecPod {
+                let relaunch = Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                     group_id,
                     namespace,
                     pod,
                     container,
-                };
+                });
                 Ok(self.spawn_plugin_tab(&label, "kubectl".into(), args, Some(relaunch)))
             }
-            Message::SsmSessionReady { host_label, result } => {
+            Message::Cloud(CloudMessage::SsmSessionReady { host_label, result }) => {
                 // Same payload + plugin pipeline as ECS Exec, so the
                 // spawn helper is shared. Different label prefix on
                 // the tab so the user can tell SSM-into-EC2 from
@@ -397,13 +397,13 @@ impl Oryxis {
                     None,
                 ))
             }
-            Message::EcsExecSessionReady {
+            Message::Cloud(CloudMessage::EcsExecSessionReady {
                 group_id,
                 task_label,
                 task_id,
                 container,
                 result,
-            } => {
+            }) => {
                 let session = match result {
                     Ok(s) => *s,
                     Err(msg) => {
@@ -471,11 +471,11 @@ impl Oryxis {
                             action: Some(crate::state::ErrorDialogAction {
                                 label: crate::i18n::t("ecs_exec_connect_current")
                                     .to_string(),
-                                message: Box::new(Message::EcsExecConnectFreshTask {
+                                message: Box::new(Message::Cloud(CloudMessage::EcsExecConnectFreshTask {
                                     group_id,
                                     container,
                                     fallback_task_id: task_id,
-                                }),
+                                })),
                                 danger: false,
                             }),
                         });
@@ -484,7 +484,7 @@ impl Oryxis {
                         // re-resolve it so the dead row is replaced.
                         let nav = self.update(Message::Navigation(NavigationMessage::OpenGroup(group_id)));
                         let resolve = self
-                            .handle_cloud(Message::DynamicGroupResolve(group_id))
+                            .handle_cloud(Message::Cloud(CloudMessage::DynamicGroupResolve(group_id)))
                             .unwrap_or_else(|_| Task::none());
                         return Ok(Task::batch([nav, resolve]));
                     }
@@ -555,12 +555,12 @@ impl Oryxis {
                 // Relaunch payload for Duplicate Tab: ECS tasks have no
                 // saved Connection, so the tab carries the message that
                 // re-opens an exec session into the same task/container.
-                let relaunch = Message::ConnectEcsExecTask {
+                let relaunch = Message::Cloud(CloudMessage::ConnectEcsExecTask {
                     group_id,
                     task_id,
                     task_label,
                     container,
-                };
+                });
                 Ok(self.spawn_plugin_tab(
                     &tab_label,
                     plugin_path.to_string_lossy().to_string(),

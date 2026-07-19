@@ -9,7 +9,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, row, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{CloudMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::CloudDiscoverState;
 use crate::theme::OryxisColors;
@@ -33,14 +33,14 @@ impl Oryxis {
             ..Default::default()
         };
         let refresh_icon_btn: Element<'_, Message> = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::CloudDiscoverRefresh),
+            crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverRefresh)),
             4.0,
             button(
                 iced_fonts::lucide::refresh_cw()
                     .size(15)
                     .color(OryxisColors::t().text_muted),
             )
-            .on_press(Message::CloudDiscoverRefresh)
+            .on_press(Message::Cloud(CloudMessage::CloudDiscoverRefresh))
             .padding(Padding {
                 top: 4.0,
                 right: 8.0,
@@ -54,7 +54,7 @@ impl Oryxis {
         // already owns panel close, and recording it would make the
         // header the first Down target instead of the results.
         let close_btn = button(text("\u{00D7}").size(20).color(OryxisColors::t().text_muted))
-            .on_press(Message::HideCloudDiscover)
+            .on_press(Message::Cloud(CloudMessage::HideCloudDiscover))
             .padding(Padding {
                 top: 4.0,
                 right: 8.0,
@@ -115,7 +115,7 @@ impl Oryxis {
                 crate::widgets::INPUT_RADIUS,
                 text_input(t("cloud_discover_search_ph"), &self.cloud_discover_filter)
                     .id(iced::widget::Id::new("panel-discover-search"))
-                    .on_input(Message::CloudDiscoverFilterChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::CloudDiscoverFilterChanged(v)))
                     .padding(Padding {
                         top: 9.0,
                         right: 12.0,
@@ -154,7 +154,7 @@ impl Oryxis {
                     Space::new().height(12),
                     // Retry is a keyboard row: Enter re-runs discovery.
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CloudDiscoverRefresh),
+                        crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverRefresh)),
                         6.0,
                         button(
                             container(
@@ -169,7 +169,7 @@ impl Oryxis {
                                 left: 12.0,
                             }),
                         )
-                        .on_press(Message::CloudDiscoverRefresh)
+                        .on_press(Message::Cloud(CloudMessage::CloudDiscoverRefresh))
                         .style(|_, _| button::Style {
                             background: Some(Background::Color(OryxisColors::t().bg_surface)),
                             border: Border {
@@ -235,13 +235,13 @@ impl Oryxis {
                 ..Default::default()
             });
             if can_import {
-                b = b.on_press(Message::CloudDiscoverImport);
+                b = b.on_press(Message::Cloud(CloudMessage::CloudDiscoverImport));
             }
             // Recorded only while actionable: ringing a disabled
             // Import would make Enter a silent no-op.
             if can_import {
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::CloudDiscoverImport),
+                    crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverImport)),
                     8.0,
                     b.into(),
                 )
@@ -390,9 +390,9 @@ impl Oryxis {
             // Collapsible headers are keyboard rows too, so the whole
             // checklist can be driven without the mouse.
             sections.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "ec2".to_string(),
-                )),
+                ))),
                 4.0,
                 section_header("ec2", &header_text, ec2_collapsed),
             ));
@@ -446,9 +446,9 @@ impl Oryxis {
                     // Checkbox toggle is the keyboard row (Enter/Space
                     // flip it, selection stays for repeat toggling).
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CloudDiscoverToggleEc2(
+                        crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleEc2(
                             id_for_msg.clone(),
-                        )),
+                        ))),
                         4.0,
                         button(
                             row![
@@ -460,7 +460,7 @@ impl Oryxis {
                             ]
                             .align_y(iced::Alignment::Center),
                         )
-                        .on_press(Message::CloudDiscoverToggleEc2(id_for_msg))
+                        .on_press(Message::Cloud(CloudMessage::CloudDiscoverToggleEc2(id_for_msg)))
                         .padding(Padding {
                             top: 3.0,
                             right: 6.0,
@@ -548,9 +548,9 @@ impl Oryxis {
             };
             let ecs_collapsed = self.cloud_discover_collapsed.contains("ecs");
             sections.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "ecs".to_string(),
-                )),
+                ))),
                 4.0,
                 section_header("ecs", &ecs_header, ecs_collapsed),
             ));
@@ -618,7 +618,7 @@ impl Oryxis {
                         // Checkbox toggle is the keyboard row.
                         self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::CloudDiscoverToggleEcs(key.clone()),
+                                Message::Cloud(CloudMessage::CloudDiscoverToggleEcs(key.clone())),
                             ),
                             4.0,
                             button(
@@ -631,7 +631,7 @@ impl Oryxis {
                                 ]
                                 .align_y(iced::Alignment::Center),
                             )
-                            .on_press(Message::CloudDiscoverToggleEcs(key_for_msg))
+                            .on_press(Message::Cloud(CloudMessage::CloudDiscoverToggleEcs(key_for_msg)))
                             .padding(Padding {
                                 top: 3.0,
                                 right: 6.0,
@@ -724,9 +724,9 @@ impl Oryxis {
             };
             let k8s_collapsed = self.cloud_discover_collapsed.contains("k8s");
             sections.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "k8s".to_string(),
-                )),
+                ))),
                 4.0,
                 section_header("k8s", &k8s_header, k8s_collapsed),
             ));
@@ -784,7 +784,7 @@ impl Oryxis {
                             // Checkbox toggle is the keyboard row.
                             self.panel_nav_slot(
                                 crate::keynav::RowAction::activate(
-                                    Message::CloudDiscoverToggleK8s(key.clone()),
+                                    Message::Cloud(CloudMessage::CloudDiscoverToggleK8s(key.clone())),
                                 ),
                                 4.0,
                                 button(
@@ -797,7 +797,7 @@ impl Oryxis {
                                     ]
                                     .align_y(iced::Alignment::Center),
                                 )
-                                .on_press(Message::CloudDiscoverToggleK8s(key_for_msg))
+                                .on_press(Message::Cloud(CloudMessage::CloudDiscoverToggleK8s(key_for_msg)))
                                 .padding(Padding {
                                     top: 3.0,
                                     right: 6.0,
@@ -872,9 +872,9 @@ impl Oryxis {
             };
             let gke_collapsed = self.cloud_discover_collapsed.contains("gke");
             sections.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "gke".to_string(),
-                )),
+                ))),
                 4.0,
                 section_header("gke", &gke_header, gke_collapsed),
             ));
@@ -896,10 +896,10 @@ impl Oryxis {
                             .color(OryxisColors::t().text_muted)
                             .into()
                     } else {
-                        let add_msg = Message::CloudDiscoverAddGke {
+                        let add_msg = Message::Cloud(CloudMessage::CloudDiscoverAddGke {
                             cluster: c.name.clone(),
                             location: c.location.clone(),
-                        };
+                        });
                         dir_row(vec![
                             text(info)
                                 .size(11)
@@ -988,9 +988,9 @@ impl Oryxis {
             };
             let aks_collapsed = self.cloud_discover_collapsed.contains("aks");
             sections.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudDiscoverToggleSection(
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "aks".to_string(),
-                )),
+                ))),
                 4.0,
                 section_header("aks", &aks_header, aks_collapsed),
             ));
@@ -1018,10 +1018,10 @@ impl Oryxis {
                             .color(OryxisColors::t().text_muted)
                             .into()
                     } else {
-                        let add_msg = Message::CloudDiscoverAddAks {
+                        let add_msg = Message::Cloud(CloudMessage::CloudDiscoverAddAks {
                             cluster: c.name.clone(),
                             resource_group: c.resource_group.clone(),
-                        };
+                        });
                         dir_row(vec![
                             text(info)
                                 .size(11)

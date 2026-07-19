@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{button, column, container, pick_list, row, scrollable, text, text_input, Row, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{NavigationMessage, PluginMessage, Message, Oryxis};
+use crate::app::{CloudMessage, NavigationMessage, PluginMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::{CloudAuthChoice, CloudProviderChoice, CloudTestState};
 use crate::theme::OryxisColors;
@@ -35,7 +35,7 @@ impl Oryxis {
                     .into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(20).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideCloudForm)
+                    .on_press(Message::Cloud(CloudMessage::HideCloudForm))
                     .padding(Padding {
                         top: 4.0,
                         right: 8.0,
@@ -177,7 +177,7 @@ impl Oryxis {
             10.0,
             text_input("prod-aws", &self.cloud_form.label)
                 .id(iced::widget::Id::new("panel-cloud-name"))
-                .on_input(Message::CloudFormLabelChanged)
+                .on_input(|v| Message::Cloud(CloudMessage::CloudFormLabelChanged(v)))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                 .into(),
@@ -205,7 +205,7 @@ impl Oryxis {
                     CloudProviderChoice::Azure => "Azure".to_string(),
                 },
             )
-            .on_select(Message::CloudFormProviderChanged)
+            .on_select(|v| Message::Cloud(CloudMessage::CloudFormProviderChanged(v)))
             .id(iced::widget::Id::new("cloud-pick-provider"))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -240,7 +240,7 @@ impl Oryxis {
                     CloudAuthChoice::AzCli => t("cloud_auth_az").to_string(),
                 },
             )
-            .on_select(Message::CloudFormAuthKindChanged)
+            .on_select(|v| Message::Cloud(CloudMessage::CloudFormAuthKindChanged(v)))
             .id(iced::widget::Id::new("cloud-pick-auth"))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -266,7 +266,7 @@ impl Oryxis {
                     // with its remove action (there is no per-chip
                     // input to focus).
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CloudFormAwsRegionRemove(i)),
+                        crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudFormAwsRegionRemove(i))),
                         12.0,
                         region_chip(r.as_str(), i),
                     )
@@ -299,8 +299,8 @@ impl Oryxis {
                     10.0,
                     text_input("us-east-1", &self.cloud_form.aws_region_draft)
                         .id(iced::widget::Id::new("panel-cloud-region-draft"))
-                        .on_input(Message::CloudFormAwsRegionDraftChanged)
-                        .on_submit(Message::CloudFormAwsRegionAdd)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsRegionDraftChanged(v)))
+                        .on_submit(Message::Cloud(CloudMessage::CloudFormAwsRegionAdd))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style)
                         .align_x(dir_align_x())
@@ -329,7 +329,7 @@ impl Oryxis {
                     10.0,
                     text_input("default", &self.cloud_form.aws_profile_name)
                         .id(iced::widget::Id::new("panel-cloud-aws-profile"))
-                        .on_input(Message::CloudFormAwsProfileNameChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsProfileNameChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -356,7 +356,7 @@ impl Oryxis {
                         10.0,
                         text_input("AKIAIOSFODNN7EXAMPLE", &self.cloud_form.aws_access_key_id)
                             .id(iced::widget::Id::new("panel-cloud-aws-key-id"))
-                            .on_input(Message::CloudFormAwsAccessKeyIdChanged)
+                            .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeyIdChanged(v)))
                             .padding(10)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                             .into(),
@@ -374,16 +374,16 @@ impl Oryxis {
                         crate::widgets::password_input_with_eye_nav(
                             secret_placeholder,
                             &self.cloud_form.aws_access_key_secret,
-                            Message::CloudFormAwsAccessKeySecretChanged,
+                            |v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretChanged(v)),
                             None,
                             self.cloud_form.aws_access_key_secret_visible,
-                            Message::CloudFormAwsAccessKeySecretToggleVisibility,
+                            Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility),
                             10.0,
                             Some(iced::widget::Id::new("panel-cloud-aws-key-secret")),
                             |eye| {
                                 self.panel_nav_slot(
                                     crate::keynav::RowAction::activate(
-                                        Message::CloudFormAwsAccessKeySecretToggleVisibility,
+                                        Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility),
                                     ),
                                     6.0,
                                     eye,
@@ -403,7 +403,7 @@ impl Oryxis {
                         10.0,
                         text_input(t("cloud_aws_access_key_session_token_ph"), &self.cloud_form.aws_access_key_session_token)
                             .id(iced::widget::Id::new("panel-cloud-aws-session-token"))
-                            .on_input(Message::CloudFormAwsAccessKeySessionTokenChanged)
+                            .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v)))
                             .padding(10)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                             .into(),
@@ -425,7 +425,7 @@ impl Oryxis {
                     10.0,
                     text_input("https://acme.awsapps.com/start", &self.cloud_form.aws_sso_start_url)
                         .id(iced::widget::Id::new("panel-cloud-sso-start-url"))
-                        .on_input(Message::CloudFormAwsSsoStartUrlChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsSsoStartUrlChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -442,7 +442,7 @@ impl Oryxis {
                     10.0,
                     text_input("us-east-1", &self.cloud_form.aws_sso_region)
                         .id(iced::widget::Id::new("panel-cloud-sso-region"))
-                        .on_input(Message::CloudFormAwsSsoRegionChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsSsoRegionChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -459,7 +459,7 @@ impl Oryxis {
                     10.0,
                     text_input("123456789012", &self.cloud_form.aws_sso_account_id)
                         .id(iced::widget::Id::new("panel-cloud-sso-account"))
-                        .on_input(Message::CloudFormAwsSsoAccountIdChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsSsoAccountIdChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -476,7 +476,7 @@ impl Oryxis {
                     10.0,
                     text_input("AdministratorAccess", &self.cloud_form.aws_sso_role_name)
                         .id(iced::widget::Id::new("panel-cloud-sso-role"))
-                        .on_input(Message::CloudFormAwsSsoRoleNameChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsSsoRoleNameChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -501,7 +501,7 @@ impl Oryxis {
                     10.0,
                     text_input(t("cloud_k8s_kubeconfig_ph"), &self.cloud_form.kubeconfig_path)
                         .id(iced::widget::Id::new("panel-cloud-kubeconfig-path"))
-                        .on_input(Message::CloudFormKubeconfigPathChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormKubeconfigPathChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style)
                         .align_x(dir_align_x())
@@ -523,7 +523,7 @@ impl Oryxis {
                     10.0,
                     text_input(t("cloud_k8s_context_ph"), &self.cloud_form.context)
                         .id(iced::widget::Id::new("panel-cloud-k8s-context"))
-                        .on_input(Message::CloudFormContextChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormContextChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style)
                         .align_x(dir_align_x())
@@ -553,7 +553,7 @@ impl Oryxis {
                     10.0,
                     text_input(t("cloud_gcp_project_ph"), &self.cloud_form.gcp_project)
                         .id(iced::widget::Id::new("panel-cloud-gcp-project"))
-                        .on_input(Message::CloudFormGcpProjectChanged)
+                        .on_input(|v| Message::Cloud(CloudMessage::CloudFormGcpProjectChanged(v)))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style)
                         .align_x(dir_align_x())
@@ -586,7 +586,7 @@ impl Oryxis {
                         &self.cloud_form.azure_subscription,
                     )
                     .id(iced::widget::Id::new("panel-cloud-azure-subscription"))
-                    .on_input(Message::CloudFormAzureSubscriptionChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::CloudFormAzureSubscriptionChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -646,7 +646,7 @@ impl Oryxis {
                 ..Default::default()
             });
             if !test_button_disabled {
-                btn = btn.on_press(Message::CloudFormTestCredentials);
+                btn = btn.on_press(Message::Cloud(CloudMessage::CloudFormTestCredentials));
             }
             btn
         };
@@ -657,7 +657,7 @@ impl Oryxis {
             test_btn.into()
         } else {
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::CloudFormTestCredentials),
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudFormTestCredentials)),
                 8.0,
                 test_btn.into(),
             )
@@ -697,21 +697,21 @@ impl Oryxis {
         let panel_error = crate::widgets::form_error(self.cloud_form.error.as_deref());
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideCloudForm),
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::HideCloudForm)),
                 6.0,
-                crate::widgets::form_cancel_button(Message::HideCloudForm),
+                crate::widgets::form_cancel_button(Message::Cloud(CloudMessage::HideCloudForm)),
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SaveCloudProfile),
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::SaveCloudProfile)),
                 6.0,
-                crate::widgets::form_save_button(t("save"), Some(Message::SaveCloudProfile)),
+                crate::widgets::form_save_button(t("save"), Some(Message::Cloud(CloudMessage::SaveCloudProfile))),
             ),
         );
 
         let mut bottom = column![];
         if let Some(edit_id) = self.cloud_form.editing_id {
             let del_btn = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::DeleteCloudProfile(edit_id)),
+                crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::DeleteCloudProfile(edit_id))),
                 8.0,
                 button(
                     container(
@@ -728,7 +728,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .center_x(Length::Fill),
                 )
-                .on_press(Message::DeleteCloudProfile(edit_id))
+                .on_press(Message::Cloud(CloudMessage::DeleteCloudProfile(edit_id)))
                 .width(Length::Fill)
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(Color::TRANSPARENT)),
@@ -802,7 +802,7 @@ fn region_chip(label: &str, idx: usize) -> Element<'_, Message> {
                 bottom: 0.0,
                 left: 6.0,
             })
-            .on_press(Message::CloudFormAwsRegionRemove(idx))
+            .on_press(Message::Cloud(CloudMessage::CloudFormAwsRegionRemove(idx)))
             .style(|_, _| button::Style {
                 background: None,
                 ..Default::default()

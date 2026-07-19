@@ -15,7 +15,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, row, text, Space};
 use iced::{Background, Border, Color, Element, Padding};
 
-use crate::app::Message;
+use crate::app::{Message, CloudMessage};
 use crate::state::{CloudAuthChoice, CloudProviderChoice};
 use crate::theme::OryxisColors;
 
@@ -43,7 +43,7 @@ pub(super) fn section_header<'a>(
         ]
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::CloudDiscoverToggleSection(key.to_string()))
+    .on_press(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(key.to_string())))
     .padding(Padding {
         top: 4.0,
         right: 6.0,

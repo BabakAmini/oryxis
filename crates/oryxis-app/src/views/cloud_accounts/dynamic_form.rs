@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, pick_list, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{NavigationMessage, Message, Oryxis};
+use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row};
@@ -34,7 +34,7 @@ impl Oryxis {
                         .size(20)
                         .color(OryxisColors::t().text_muted),
                 )
-                .on_press(Message::HideDynamicGroupForm)
+                .on_press(Message::Cloud(CloudMessage::HideDynamicGroupForm))
                 .padding(Padding {
                     top: 4.0,
                     right: 8.0,
@@ -77,7 +77,7 @@ impl Oryxis {
                 TransportKind::KubectlExec => "kubectl exec".to_string(),
             },
         )
-        .on_select(Message::DynamicGroupFormTransportChanged)
+        .on_select(|v| Message::Cloud(CloudMessage::DynamicGroupFormTransportChanged(v)))
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
@@ -98,7 +98,7 @@ impl Oryxis {
             key_options,
             |s: &String| s.clone(),
         )
-        .on_select(Message::DynamicGroupFormKeyChanged)
+        .on_select(|v| Message::Cloud(CloudMessage::DynamicGroupFormKeyChanged(v)))
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
@@ -119,7 +119,7 @@ impl Oryxis {
             identity_options,
             |s: &String| s.clone(),
         )
-        .on_select(Message::DynamicGroupFormIdentityChanged)
+        .on_select(|v| Message::Cloud(CloudMessage::DynamicGroupFormIdentityChanged(v)))
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .padding(10)
@@ -151,7 +151,7 @@ impl Oryxis {
                 .center_x(Length::Fixed(32.0))
                 .center_y(Length::Fixed(32.0)),
         )
-        .on_press(Message::ShowIconPickerForDynamicGroupForm)
+        .on_press(Message::Cloud(CloudMessage::ShowIconPickerForDynamicGroupForm))
         .padding(0)
         .style(move |_, status| {
             let ring = match status {
@@ -179,7 +179,7 @@ impl Oryxis {
             t("group_placeholder"),
             &self.cloud_dynamic_form.parent_label,
         )
-        .on_input(Message::DynamicGroupFormParentChanged)
+        .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormParentChanged(v)))
         .padding(10)
         .width(Length::Fill)
         .style(crate::widgets::rounded_input_style)
@@ -240,7 +240,7 @@ impl Oryxis {
                 preview_box,
                 Space::new().width(10).into(),
                 text_input("group label", &self.cloud_dynamic_form.label)
-                    .on_input(Message::DynamicGroupFormLabelChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x())
@@ -272,7 +272,7 @@ impl Oryxis {
                 K8sSelectorKind::ALL.to_vec(),
                 |k| k.to_string(),
             )
-            .on_select(Message::DynamicGroupFormK8sSelectorKindChanged)
+            .on_select(|v| Message::Cloud(CloudMessage::DynamicGroupFormK8sSelectorKindChanged(v)))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
@@ -293,7 +293,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
                 text_input(t("cloud_k8s_context_ph"), &self.cloud_dynamic_form.k8s_context)
-                    .on_input(Message::DynamicGroupFormK8sContextChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormK8sContextChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -303,7 +303,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
                 text_input("default", &self.cloud_dynamic_form.namespace)
-                    .on_input(Message::DynamicGroupFormNamespaceChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormNamespaceChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -315,7 +315,7 @@ impl Oryxis {
                 selector_pick,
                 Space::new().height(8),
                 text_input(value_ph, &self.cloud_dynamic_form.k8s_selector_value)
-                    .on_input(Message::DynamicGroupFormK8sSelectorValueChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormK8sSelectorValueChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -334,7 +334,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
                 text_input("my-cluster", &self.cloud_dynamic_form.cluster)
-                    .on_input(Message::DynamicGroupFormClusterChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormClusterChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -344,7 +344,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
                 text_input("my-service", &self.cloud_dynamic_form.service)
-                    .on_input(Message::DynamicGroupFormServiceChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormServiceChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -354,7 +354,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
                 Space::new().height(4),
                 text_input(t("cloud_dynamic_form_container_ph"), &self.cloud_dynamic_form.container)
-                    .on_input(Message::DynamicGroupFormContainerChanged)
+                    .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormContainerChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style)
                     .align_x(dir_align_x()),
@@ -386,7 +386,7 @@ impl Oryxis {
                 .color(OryxisColors::t().text_secondary),
             Space::new().height(4),
             text_input("ec2-user", &self.cloud_dynamic_form.username)
-                .on_input(Message::DynamicGroupFormUsernameChanged)
+                .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormUsernameChanged(v)))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x()),
@@ -396,7 +396,7 @@ impl Oryxis {
                 .color(OryxisColors::t().text_secondary),
             Space::new().height(4),
             text_input("exec bash", &self.cloud_dynamic_form.initial_command)
-                .on_input(Message::DynamicGroupFormInitialCommandChanged)
+                .on_input(|v| Message::Cloud(CloudMessage::DynamicGroupFormInitialCommandChanged(v)))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x()),
@@ -442,7 +442,7 @@ impl Oryxis {
             .width(Length::Fill)
             .center_x(Length::Fill),
         )
-        .on_press(Message::SaveDynamicGroup)
+        .on_press(Message::Cloud(CloudMessage::SaveDynamicGroup))
         .width(Length::Fill)
         .style(|_, _| button::Style {
             background: Some(Background::Color(OryxisColors::t().accent)),

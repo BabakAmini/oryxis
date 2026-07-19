@@ -40,7 +40,7 @@ impl Oryxis {
                         .size(13)
                         .color(OryxisColors::t().text_muted),
                 )
-                .on_press(Message::DynamicGroupResolve(gid))
+                .on_press(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
                 .padding(Padding {
                     top: 4.0,
                     right: 8.0,
@@ -96,7 +96,7 @@ impl Oryxis {
                 // the group), mirroring the new-tab picker's
                 // retry-on-failure row.
                 let retry: Element<'_, Message> = self.content_action_slot(
-                    crate::keynav::RowAction::activate(Message::DynamicGroupResolve(gid)),
+                    crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::DynamicGroupResolve(gid))),
                     6.0,
                     button(
                         container(
@@ -111,7 +111,7 @@ impl Oryxis {
                             left: 12.0,
                         }),
                     )
-                    .on_press(Message::DynamicGroupResolve(gid))
+                    .on_press(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
                     .style(|_, status| {
                         let bg = match status {
                             BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -332,7 +332,7 @@ impl Oryxis {
                         // must dispatch the exact same thing.
                         let connect_msg = match &k8s_namespace {
                             // K8s pod row: open `kubectl exec`.
-                            Some(ns) => Message::ConnectKubectlExecPod {
+                            Some(ns) => Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                                 group_id: gid,
                                 namespace: ns.clone(),
                                 pod: task_id.clone(),
@@ -340,9 +340,9 @@ impl Oryxis {
                                     .container_name
                                     .clone()
                                     .unwrap_or_default(),
-                            },
+                            }),
                             // ECS task row: SSM-backed Exec.
-                            None => Message::ConnectEcsExecTask {
+                            None => Message::Cloud(CloudMessage::ConnectEcsExecTask {
                                 group_id: gid,
                                 task_id: task_id.clone(),
                                 task_label,
@@ -358,7 +358,7 @@ impl Oryxis {
                                     .container_name
                                     .clone()
                                     .unwrap_or_else(|| ecs_container.clone()),
-                            },
+                            }),
                         };
                         let mut row_el: Element<'_, Message> =
                             button(

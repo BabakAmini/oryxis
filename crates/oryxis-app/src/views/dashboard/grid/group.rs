@@ -494,7 +494,7 @@ impl Oryxis {
                     crate::widgets::card_kebab_button(
                         OryxisColors::t().text_muted,
                         true,
-                        Message::ShowDynamicGroupCardMenu(gid),
+                        Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)),
                     )
                     .into()
                 } else {
@@ -562,9 +562,9 @@ impl Oryxis {
                 });
 
                 let wrapped = MouseArea::new(folder_card)
-                    .on_enter(Message::DynamicGroupCardHovered(gid))
-                    .on_exit(Message::DynamicGroupCardUnhovered)
-                    .on_right_press(Message::ShowDynamicGroupCardMenu(gid));
+                    .on_enter(Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)))
+                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered))
+                    .on_right_press(Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)));
                 group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
             }
         } else if let Some(active_gid) = self.active_group {
@@ -657,7 +657,7 @@ impl Oryxis {
                     crate::widgets::card_kebab_button(
                         OryxisColors::t().text_muted,
                         true,
-                        Message::ShowDynamicGroupCardMenu(gid),
+                        Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)),
                     )
                     .into()
                 } else {
@@ -718,9 +718,9 @@ impl Oryxis {
                     }
                 });
                 let wrapped = MouseArea::new(folder_card)
-                    .on_enter(Message::DynamicGroupCardHovered(gid))
-                    .on_exit(Message::DynamicGroupCardUnhovered)
-                    .on_right_press(Message::ShowDynamicGroupCardMenu(gid));
+                    .on_enter(Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)))
+                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered))
+                    .on_right_press(Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)));
                 group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
             }
         }

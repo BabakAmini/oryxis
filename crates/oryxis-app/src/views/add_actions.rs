@@ -6,7 +6,7 @@
 
 use iced::Color;
 
-use crate::app::{ShareMessage, Message, Oryxis};
+use crate::app::{CloudMessage, ShareMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 
@@ -83,7 +83,7 @@ impl Oryxis {
             actions.push(AddHostAction {
                 icon,
                 label: cp.label.as_str(),
-                msg: Message::ShowCloudDiscover(cp.id),
+                msg: Message::Cloud(CloudMessage::ShowCloudDiscover(cp.id)),
                 color: brand,
             });
         }

@@ -249,7 +249,7 @@ impl Oryxis {
                 View::Cloud => (
                     "search_cloud_accounts",
                     self.cloud_search.as_str(),
-                    Message::CloudSearchChanged,
+                    |v| Message::Cloud(CloudMessage::CloudSearchChanged(v)),
                 ),
                 View::Proxies => (
                     "search_proxies",

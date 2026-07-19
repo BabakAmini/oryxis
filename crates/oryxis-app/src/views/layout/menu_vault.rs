@@ -414,7 +414,7 @@ impl Oryxis {
             &self.cloud_discover_default_group_picker_search,
         )
         .on_input(
-            Message::CloudDiscoverDefaultGroupPickerSearchChanged,
+            |v| Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v)),
         )
         .padding(8)
         .width(Length::Fixed(menu_content_width))
@@ -478,7 +478,7 @@ impl Oryxis {
                     .width(Length::Fill),
                 )
                 .on_press(
-                    Message::CloudDiscoverDefaultGroupPick(label.clone()),
+                    Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(label.clone())),
                 )
                 .width(Length::Fill)
                 .style(|_, status| {
@@ -499,7 +499,7 @@ impl Oryxis {
                 });
                 items = items.push(self.modal_nav_slot(
                     crate::keynav::RowAction::activate(
-                        Message::CloudDiscoverDefaultGroupPick(label),
+                        Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(label)),
                     ),
                     4.0,
                     false,
@@ -679,7 +679,7 @@ impl Oryxis {
                             col = col.push(self.menu_item(
                                 iced_fonts::lucide::download(),
                                 crate::i18n::t("cloud_discover"),
-                                Message::ShowCloudDiscover(pid),
+                                Message::Cloud(CloudMessage::ShowCloudDiscover(pid)),
                                 secondary,
                             ));
                         } else {
@@ -692,7 +692,7 @@ impl Oryxis {
                             col = col.push(self.menu_item(
                                 iced_fonts::lucide::ellipsis(),
                                 crate::i18n::t("toolbar_more"),
-                                Message::ShowCloudProviderPicker,
+                                Message::Cloud(CloudMessage::ShowCloudProviderPicker),
                                 secondary,
                             ));
                         }
@@ -707,7 +707,7 @@ impl Oryxis {
                         col = col.push(self.menu_item(
                             iced_fonts::lucide::ellipsis(),
                             crate::i18n::t("toolbar_more"),
-                            Message::ShowCloudProviderPicker,
+                            Message::Cloud(CloudMessage::ShowCloudProviderPicker),
                             secondary,
                         ));
                     }
@@ -785,7 +785,7 @@ impl Oryxis {
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::plus(),
                     crate::i18n::t("cloud_new_account"),
-                    Message::ShowCloudForm(None),
+                    Message::Cloud(CloudMessage::ShowCloudForm(None)),
                     secondary,
                 ));
             }

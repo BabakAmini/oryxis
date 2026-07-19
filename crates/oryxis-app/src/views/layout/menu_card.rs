@@ -261,22 +261,22 @@ impl Oryxis {
 
     pub(crate) fn build_menu_dynamic_group_actions(&self, id: uuid::Uuid) -> Element<'_, Message> {
         column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditDynamicGroup(id), OryxisColors::t().accent),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Cloud(CloudMessage::EditDynamicGroup(id)), OryxisColors::t().accent),
             // Rename = friendly display label only. The
             // cloud_query (cluster/service/container) and the
             // import-dedupe key never look at it, so renaming
             // is safe and the subtitle keeps surfacing the
             // original ECS path.
             self.menu_item(iced_fonts::lucide::text_cursor_input(), crate::i18n::t("rename"), Message::StartRenameFolder(id), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteDynamicGroup(id), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Cloud(CloudMessage::DeleteDynamicGroup(id)), OryxisColors::t().error),
         ].into()
     }
 
     pub(crate) fn build_menu_cloud_profile_actions(&self, id: uuid::Uuid) -> Element<'_, Message> {
         column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::ShowCloudForm(Some(id)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::refresh_cw(), crate::i18n::t("cloud_profile_sync"), Message::CloudProfileSync(id), OryxisColors::t().accent),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::DeleteCloudProfile(id), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Cloud(CloudMessage::ShowCloudForm(Some(id))), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::refresh_cw(), crate::i18n::t("cloud_profile_sync"), Message::Cloud(CloudMessage::CloudProfileSync(id)), OryxisColors::t().accent),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Cloud(CloudMessage::DeleteCloudProfile(id)), OryxisColors::t().error),
         ].into()
     }
 

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iced::Task;
 use oryxis_cloud::CloudProviderRegistry;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{CloudMessage, Message, Oryxis};
 use crate::state::{DynamicGroupState, OverlayContent, OverlayState};
 
 impl Oryxis {
@@ -38,7 +38,7 @@ impl Oryxis {
         message: Message,
     ) -> Result<Task<Message>, Message> {
         match message {
-            Message::DynamicGroupResolve(gid) => {
+            Message::Cloud(CloudMessage::DynamicGroupResolve(gid)) => {
                 let Some(group) = self.groups.iter().find(|g| g.id == gid).cloned() else {
                     return Ok(Task::none());
                 };
@@ -71,11 +71,11 @@ impl Oryxis {
                 return Ok(Task::perform(
                     async move { provider.resolve_query(&profile, &query).await },
                     move |result| {
-                        Message::DynamicGroupResolved(gid, result.map_err(|e| e.to_string()))
+                        Message::Cloud(CloudMessage::DynamicGroupResolved(gid, result.map_err(|e| e.to_string())))
                     },
                 ));
             }
-            Message::DynamicGroupResolved(gid, result) => {
+            Message::Cloud(CloudMessage::DynamicGroupResolved(gid, result)) => {
                 let next = match result {
                     Ok(hosts) => DynamicGroupState::Loaded {
                         hosts,
@@ -93,11 +93,11 @@ impl Oryxis {
                     .take_if(|p| p.group_id == gid)
                 {
                     if loaded {
-                        return Ok(self.update(Message::EcsExecConnectFreshTask {
+                        return Ok(self.update(Message::Cloud(CloudMessage::EcsExecConnectFreshTask {
                             group_id: pending.group_id,
                             container: pending.container,
                             fallback_task_id: pending.fallback_task_id,
-                        }));
+                        })));
                     }
                     self.show_error_dialog(
                         crate::i18n::t("ecs_exec_start_failed_title").to_string(),
@@ -107,7 +107,7 @@ impl Oryxis {
             }
 
             // ---- Edit dynamic group panel ----
-            Message::EditDynamicGroup(gid) => {
+            Message::Cloud(CloudMessage::EditDynamicGroup(gid)) => {
                 self.overlay = None;
                 let Some(group) = self.groups.iter().find(|g| g.id == gid).cloned() else {
                     return Ok(Task::none());
@@ -180,61 +180,61 @@ impl Oryxis {
                     }
                 }
             }
-            Message::HideDynamicGroupForm => {
+            Message::Cloud(CloudMessage::HideDynamicGroupForm) => {
                 self.cloud_dynamic_form.visible = false;
                 self.cloud_dynamic_form.group_id = None;
             }
-            Message::DynamicGroupFormUsernameChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormUsernameChanged(v)) => {
                 self.cloud_dynamic_form.username = v;
             }
-            Message::DynamicGroupFormInitialCommandChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormInitialCommandChanged(v)) => {
                 self.cloud_dynamic_form.initial_command = v;
             }
-            Message::DynamicGroupFormTransportChanged(t) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormTransportChanged(t)) => {
                 self.cloud_dynamic_form.transport = t;
             }
-            Message::DynamicGroupFormKeyChanged(label) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormKeyChanged(label)) => {
                 self.cloud_dynamic_form.selected_key = if label == "(none)" {
                     None
                 } else {
                     Some(label)
                 };
             }
-            Message::DynamicGroupFormIdentityChanged(label) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormIdentityChanged(label)) => {
                 self.cloud_dynamic_form.selected_identity = if label == "(none)" {
                     None
                 } else {
                     Some(label)
                 };
             }
-            Message::DynamicGroupFormLabelChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormLabelChanged(v)) => {
                 self.cloud_dynamic_form.label = v;
             }
-            Message::DynamicGroupFormParentChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormParentChanged(v)) => {
                 self.cloud_dynamic_form.parent_label = v;
             }
-            Message::DynamicGroupFormClusterChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormClusterChanged(v)) => {
                 self.cloud_dynamic_form.cluster = v;
             }
-            Message::DynamicGroupFormServiceChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormServiceChanged(v)) => {
                 self.cloud_dynamic_form.service = v;
             }
-            Message::DynamicGroupFormContainerChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormContainerChanged(v)) => {
                 self.cloud_dynamic_form.container = v;
             }
-            Message::DynamicGroupFormK8sContextChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormK8sContextChanged(v)) => {
                 self.cloud_dynamic_form.k8s_context = v;
             }
-            Message::DynamicGroupFormNamespaceChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormNamespaceChanged(v)) => {
                 self.cloud_dynamic_form.namespace = v;
             }
-            Message::DynamicGroupFormK8sSelectorKindChanged(k) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormK8sSelectorKindChanged(k)) => {
                 self.cloud_dynamic_form.k8s_selector_kind = k;
             }
-            Message::DynamicGroupFormK8sSelectorValueChanged(v) => {
+            Message::Cloud(CloudMessage::DynamicGroupFormK8sSelectorValueChanged(v)) => {
                 self.cloud_dynamic_form.k8s_selector_value = v;
             }
-            Message::ShowIconPickerForDynamicGroupForm => {
+            Message::Cloud(CloudMessage::ShowIconPickerForDynamicGroupForm) => {
                 // Pre-fill the picker from the current form values so
                 // re-opens preserve the user's in-flight selection.
                 // Fallback to `server` so the preview always renders.
@@ -252,7 +252,7 @@ impl Oryxis {
                 self.icon_picker.for_local_terminal = false;
                 self.show_icon_picker = true;
             }
-            Message::SaveDynamicGroup => {
+            Message::Cloud(CloudMessage::SaveDynamicGroup) => {
                 let Some(gid) = self.cloud_dynamic_form.group_id else {
                     return Ok(Task::none());
                 };
@@ -367,7 +367,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::DeleteDynamicGroup(gid) => {
+            Message::Cloud(CloudMessage::DeleteDynamicGroup(gid)) => {
                 self.overlay = None;
                 if let Some(vault) = &self.vault {
                     let _ = vault.delete_group(&gid);
@@ -381,7 +381,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::ShowDynamicGroupCardMenu(gid) => {
+            Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)) => {
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
                     content: OverlayContent::DynamicGroupActions(gid),
@@ -389,10 +389,10 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
-            Message::DynamicGroupCardHovered(gid) => {
+            Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)) => {
                 self.hovered_dynamic_group_card = Some(gid);
             }
-            Message::DynamicGroupCardUnhovered => {
+            Message::Cloud(CloudMessage::DynamicGroupCardUnhovered) => {
                 self.hovered_dynamic_group_card = None;
             }
             m => return Err(m),

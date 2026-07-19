@@ -44,7 +44,7 @@ impl Oryxis {
             crate::i18n::t("cloud_discover_import_into_placeholder"),
             &self.cloud_discover_default_group_name,
         )
-        .on_input(Message::CloudDiscoverDefaultGroupNameChanged)
+        .on_input(|v| Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupNameChanged(v)))
         .id(iced::widget::Id::new("cloud-import-group-input"))
         .padding(8)
         .style(crate::widgets::rounded_input_style)
@@ -67,7 +67,7 @@ impl Oryxis {
             .center_x(Length::Fixed(32.0))
             .center_y(Length::Fixed(COMBO_HEIGHT)),
         )
-        .on_press(Message::ToggleCloudDiscoverGroupPicker)
+        .on_press(Message::Cloud(CloudMessage::ToggleCloudDiscoverGroupPicker))
         .padding(0)
         .style(|_, status| {
             let bg = match status {
@@ -108,7 +108,7 @@ impl Oryxis {
                     TransportKind::KubectlExec => "kubectl exec".to_string(),
                 },
             )
-            .on_select(Message::CloudDiscoverDefaultTransportChanged)
+            .on_select(|v| Message::Cloud(CloudMessage::CloudDiscoverDefaultTransportChanged(v)))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
             .padding(10)
@@ -118,7 +118,7 @@ impl Oryxis {
             let (t_prev, t_next) = crate::keynav::slots::cycle_pair(
                 &transport_options,
                 &self.cloud_discover_default_transport,
-                Message::CloudDiscoverDefaultTransportChanged,
+                |v| Message::Cloud(CloudMessage::CloudDiscoverDefaultTransportChanged(v)),
             );
             let transport_pick = self.modal_nav_slot(
                 crate::keynav::RowAction::picker(t_prev, t_next),
@@ -190,26 +190,26 @@ impl Oryxis {
                 crate::widgets::dir_row(vec![
                     self.modal_nav_slot_default(
                         crate::keynav::RowAction::activate(
-                            Message::CloudDiscoverImportConfirmed,
+                            Message::Cloud(CloudMessage::CloudDiscoverImportConfirmed),
                         ),
                         6.0,
                         true,
                         styled_button(
                             crate::i18n::t("import_btn_label"),
-                            Message::CloudDiscoverImportConfirmed,
+                            Message::Cloud(CloudMessage::CloudDiscoverImportConfirmed),
                             OryxisColors::t().accent,
                         ),
                     ),
                     Space::new().width(8).into(),
                     self.modal_nav_slot(
                         crate::keynav::RowAction::activate(
-                            Message::CloudDiscoverImportCancelled,
+                            Message::Cloud(CloudMessage::CloudDiscoverImportCancelled),
                         ),
                         6.0,
                         false,
                         styled_button(
                             crate::i18n::t("cancel"),
-                            Message::CloudDiscoverImportCancelled,
+                            Message::Cloud(CloudMessage::CloudDiscoverImportCancelled),
                             OryxisColors::t().text_muted,
                         ),
                     ),
@@ -250,9 +250,9 @@ impl Oryxis {
         // hover propagate to lower layers, lighting up rows
         // under the cursor while the modal is open).
         let on_scrim_click = if self.cloud_discover_default_group_picker_open {
-            Message::ToggleCloudDiscoverGroupPicker
+            Message::Cloud(CloudMessage::ToggleCloudDiscoverGroupPicker)
         } else {
-            Message::CloudDiscoverImportCancelled
+            Message::Cloud(CloudMessage::CloudDiscoverImportCancelled)
         };
         let scrim: Element<'_, Message> = iced::widget::opaque(
             MouseArea::new(
@@ -303,7 +303,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .height(Length::Fill),
             )
-            .on_press(Message::ToggleCloudDiscoverGroupPicker)
+            .on_press(Message::Cloud(CloudMessage::ToggleCloudDiscoverGroupPicker))
             .into();
             let positioned: Element<'_, Message> = column![
                 Space::new().height(y),

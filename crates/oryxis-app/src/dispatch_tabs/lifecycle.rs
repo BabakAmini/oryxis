@@ -7,7 +7,7 @@
 use iced::Task;
 use oryxis_core::models::cloud::TransportKind;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{CloudMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -386,11 +386,11 @@ impl Oryxis {
                 // a saved id is expected to go stale. Resolve the group
                 // and connect to the task currently running; the saved id
                 // only wins when it still exists.
-                Some(Message::EcsExecConnectFreshTask {
+                Some(Message::Cloud(CloudMessage::EcsExecConnectFreshTask {
                     group_id: *group_id,
                     container: container.clone(),
                     fallback_task_id: task_id.clone(),
-                })
+                }))
             }
             PinnedTabSpec::KubectlExec {
                 group_id,
@@ -400,12 +400,12 @@ impl Oryxis {
                 ..
             } => {
                 cloud = true;
-                Some(Message::ConnectKubectlExecPod {
+                Some(Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                     group_id: *group_id,
                     namespace: namespace.clone(),
                     pod: pod.clone(),
                     container: container.clone(),
-                })
+                }))
             }
             // SFTP dormant tabs live in `sftp_tabs`, not `self.tabs`, and reopen
             // via `SelectSftpTab` (which re-mounts their panes), so this

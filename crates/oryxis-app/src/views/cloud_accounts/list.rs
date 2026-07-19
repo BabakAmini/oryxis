@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{CloudMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
@@ -51,7 +51,7 @@ impl Oryxis {
                     left: 14.0,
                 }),
             )
-            .on_press(Message::ShowCloudForm(None))
+            .on_press(Message::Cloud(CloudMessage::ShowCloudForm(None)))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -179,7 +179,7 @@ impl Oryxis {
                 t("cloud_empty_desc").to_string(),
                 Some((
                     t("cloud_new_account_btn").to_string(),
-                    Message::ShowCloudForm(None),
+                    Message::Cloud(CloudMessage::ShowCloudForm(None)),
                 )),
             );
 
@@ -305,7 +305,7 @@ impl Oryxis {
                 let dots_btn = crate::widgets::card_kebab_button(
                     dots_glyph_color,
                     show_dots,
-                    Message::ShowCloudCardMenu(cp_id),
+                    Message::Cloud(CloudMessage::ShowCloudCardMenu(cp_id)),
                 );
                 let dots_align = if rtl {
                     iced::alignment::Horizontal::Left
@@ -329,9 +329,9 @@ impl Oryxis {
                     .into();
 
                 let wrapped = MouseArea::new(card_element)
-                    .on_enter(Message::CloudCardHovered(cp_id))
-                    .on_exit(Message::CloudCardUnhovered)
-                    .on_right_press(Message::ShowCloudCardMenu(cp_id));
+                    .on_enter(Message::Cloud(CloudMessage::CloudCardHovered(cp_id)))
+                    .on_exit(Message::Cloud(CloudMessage::CloudCardUnhovered))
+                    .on_right_press(Message::Cloud(CloudMessage::ShowCloudCardMenu(cp_id)));
 
                 let card_el: Element<'_, Message> =
                     container(wrapped).width(Length::Fill).clip(true).into();

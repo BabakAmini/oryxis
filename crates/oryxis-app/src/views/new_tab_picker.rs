@@ -17,7 +17,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::Group;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{CloudMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::DynamicGroupState;
 use crate::theme::OryxisColors;
@@ -369,7 +369,7 @@ impl Oryxis {
                 info_row(&format!("{}: {msg}", t("cloud_test_failed"))),
                 Space::new().height(8).into(),
                 self.modal_nav_slot(
-                    crate::keynav::RowAction::activate(Message::DynamicGroupResolve(gid)),
+                    crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::DynamicGroupResolve(gid))),
                     6.0,
                     false,
                     retry_row(gid),
@@ -415,13 +415,13 @@ impl Oryxis {
                     // verbatim (the container fallback is subtle): the per-row
                     // container under a wildcard query, else the query's.
                     let msg = match &k8s_namespace {
-                        Some(ns) => Message::ConnectKubectlExecPod {
+                        Some(ns) => Message::Cloud(CloudMessage::ConnectKubectlExecPod {
                             group_id: gid,
                             namespace: ns.clone(),
                             pod: task_id.clone(),
                             container: h.container_name.clone().unwrap_or_default(),
-                        },
-                        None => Message::ConnectEcsExecTask {
+                        }),
+                        None => Message::Cloud(CloudMessage::ConnectEcsExecTask {
                             group_id: gid,
                             task_id: task_id.clone(),
                             task_label,
@@ -429,7 +429,7 @@ impl Oryxis {
                                 .container_name
                                 .clone()
                                 .unwrap_or_else(|| ecs_container.clone()),
-                        },
+                        }),
                     };
                     // Secondary line shows the task / pod id, but only when
                     // the primary label isn't already that id (bare resources
@@ -756,7 +756,7 @@ fn retry_row<'a>(gid: uuid::Uuid) -> Element<'a, Message> {
     .align_y(iced::Alignment::Center);
     container(
         button(container(inner).padding(Padding { top: 8.0, right: 14.0, bottom: 8.0, left: 14.0 }))
-            .on_press(Message::DynamicGroupResolve(gid))
+            .on_press(Message::Cloud(CloudMessage::DynamicGroupResolve(gid)))
             .style(hover_row_style),
     )
     .center_x(Length::Fill)
