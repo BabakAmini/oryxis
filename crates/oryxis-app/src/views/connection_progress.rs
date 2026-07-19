@@ -726,17 +726,20 @@ impl Oryxis {
                     .into();
                 if feeds_active {
                     // Spark riding the same tint, eased lap ~1.2 s on the
-                    // 100 ms anim tick.
+                    // 100 ms anim tick. Even-sized (8 px, flush with the
+                    // stack) so its center lands on the same integer x as
+                    // the 2 px rail; an odd size centers at a half pixel
+                    // and snaps visibly off the line on fractional DPI.
                     let lap = (self.connect_anim_tick % 12) as f32 / 12.0;
                     let eased = lap * lap * (3.0 - 2.0 * lap);
                     let pos = ((eased * 1000.0) as u16).clamp(1, 999);
                     let spark = container(Space::new())
-                        .width(Length::Fixed(7.0))
-                        .height(Length::Fixed(7.0))
+                        .width(Length::Fixed(8.0))
+                        .height(Length::Fixed(8.0))
                         .style(move |_| container::Style {
                             background: Some(Background::Color(next_color)),
                             border: Border {
-                                radius: Radius::from(3.5),
+                                radius: Radius::from(4.0),
                                 color: Color { a: 0.35, ..next_color },
                                 width: 2.0,
                             },

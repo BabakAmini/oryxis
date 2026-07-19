@@ -22,7 +22,6 @@
 mod connect;
 mod hostkey;
 mod kbi;
-mod session_log;
 
 use iced::Task;
 
@@ -31,7 +30,7 @@ use uuid::Uuid;
 
 use oryxis_ssh::SshSession;
 
-use crate::app::{SettingsMessage, EditorMessage, SshMessage, Message, Oryxis};
+use crate::app::{EditorMessage, SshMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -69,10 +68,6 @@ impl Oryxis {
             Err(m) => m,
         };
         let message = match self.handle_ssh_kbi(message) {
-            Ok(task) => return Ok(task),
-            Err(m) => m,
-        };
-        let message = match self.handle_ssh_session_log(message) {
             Ok(task) => return Ok(task),
             Err(m) => m,
         };
@@ -306,13 +301,6 @@ impl Oryxis {
                     entry.conn.detected_os = os.clone();
                 }
                 tracing::info!("OS detected for {}: {:?}", conn_id, os);
-            }
-            Message::Settings(SettingsMessage::SettingToggleOsDetection) => {
-                self.setting_os_detection = !self.setting_os_detection;
-                self.persist_setting(
-                    "os_detection",
-                    if self.setting_os_detection { "true" } else { "false" },
-                );
             }
             Message::Ssh(SshMessage::SshDisconnected(pane_id)) => {
                 // Persist whatever this pane recorded before we mark the
