@@ -5,7 +5,7 @@
 
 use iced::Task;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{TrayMessage, Message, Oryxis};
 
 impl Oryxis {
     pub(crate) fn handle_tray(
@@ -14,7 +14,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // -- System tray --
-            Message::TrayPoll => {
+            Message::Tray(TrayMessage::TrayPoll) => {
                 // A native minimize verb (taskbar button, Win+Down,
                 // Alt+Space menu) is swallowed by the Win32 subclass
                 // in `tray`, which hides the window from inside the
@@ -235,10 +235,10 @@ impl Oryxis {
                     while let Some(cmd) = crate::tray_ipc::Child::poll_command() {
                         match cmd {
                             crate::tray_ipc::Command::Show => {
-                                follow_ups.push(Task::done(Message::TrayShow));
+                                follow_ups.push(Task::done(Message::Tray(TrayMessage::TrayShow)));
                             }
                             crate::tray_ipc::Command::Quit => {
-                                follow_ups.push(Task::done(Message::TrayQuit));
+                                follow_ups.push(Task::done(Message::Tray(TrayMessage::TrayQuit)));
                             }
                         }
                     }
@@ -273,15 +273,15 @@ impl Oryxis {
                     return Ok(Task::batch(follow_ups));
                 }
             }
-            Message::TrayMenuEvent(id) => {
+            Message::Tray(TrayMessage::TrayMenuEvent(id)) => {
                 // A tray menu item was clicked (delivered event-driven).
                 // Resolve its id to a concrete action; unknown ids and
                 // the cross-process "show that PID's window" case (which
                 // only sends an IPC command) resolve to no local Message.
                 let msg = match id.as_str() {
-                    crate::tray::MENU_ID_SHOW => Some(Message::TrayShow),
-                    crate::tray::MENU_ID_HIDE => Some(Message::TrayHide),
-                    crate::tray::MENU_ID_QUIT => Some(Message::TrayQuit),
+                    crate::tray::MENU_ID_SHOW => Some(Message::Tray(TrayMessage::TrayShow)),
+                    crate::tray::MENU_ID_HIDE => Some(Message::Tray(TrayMessage::TrayHide)),
+                    crate::tray::MENU_ID_QUIT => Some(Message::Tray(TrayMessage::TrayQuit)),
                     s if s.starts_with(crate::tray::MENU_PREFIX_SESSION) => {
                         // "oryxis-tray-session:<idx>" -> activate that open
                         // tab. The dispatcher already has TabSelect plumbed
@@ -289,7 +289,7 @@ impl Oryxis {
                         let suffix = &s[crate::tray::MENU_PREFIX_SESSION.len()..];
                         suffix.parse::<usize>().ok().and_then(|idx| {
                             if idx < self.tabs.len() {
-                                Some(Message::TrayActivateSession(idx))
+                                Some(Message::Tray(TrayMessage::TrayActivateSession(idx)))
                             } else {
                                 None
                             }
@@ -299,7 +299,7 @@ impl Oryxis {
                         // "oryxis-tray-host:<uuid>" -> open a new tab
                         // against that saved connection.
                         let suffix = &s[crate::tray::MENU_PREFIX_HOST.len()..];
-                        uuid::Uuid::parse_str(suffix).ok().map(Message::TrayOpenHost)
+                        uuid::Uuid::parse_str(suffix).ok().map(|v| Message::Tray(TrayMessage::TrayOpenHost(v)))
                     }
                     s if s.starts_with(crate::tray::MENU_PREFIX_HIDDEN) => {
                         // "oryxis-tray-hidden:<pid>". Our own pid -> show
@@ -309,7 +309,7 @@ impl Oryxis {
                         let suffix = &s[crate::tray::MENU_PREFIX_HIDDEN.len()..];
                         if let Ok(pid) = suffix.parse::<u32>() {
                             if pid == std::process::id() {
-                                Some(Message::TrayShow)
+                                Some(Message::Tray(TrayMessage::TrayShow))
                             } else {
                                 crate::tray_ipc::Primary::send_command(
                                     pid,
@@ -327,11 +327,11 @@ impl Oryxis {
                     return Ok(Task::done(m));
                 }
             }
-            Message::TrayIconDoubleClick => {
+            Message::Tray(TrayMessage::TrayIconDoubleClick) => {
                 // Double-click on the icon body restores the window.
-                return Ok(Task::done(Message::TrayShow));
+                return Ok(Task::done(Message::Tray(TrayMessage::TrayShow)));
             }
-            Message::TrayShow => {
+            Message::Tray(TrayMessage::TrayShow) => {
                 // Hop through iced::window::oldest -> window::run so
                 // we get the raw window handle on the UI thread. The
                 // tray hide/show helpers swallow non-Windows targets
@@ -349,7 +349,7 @@ impl Oryxis {
                     })
                     .discard());
             }
-            Message::TrayHide => {
+            Message::Tray(TrayMessage::TrayHide) => {
                 self.is_window_hidden = true;
                 self.broadcast_ipc_state_if_child();
                 return Ok(iced::window::oldest()
@@ -360,7 +360,7 @@ impl Oryxis {
                     })
                     .discard());
             }
-            Message::TrayQuit => {
+            Message::Tray(TrayMessage::TrayQuit) => {
                 tracing::info!("tray: quit requested");
                 // The window may have been shown and resized/maximized
                 // since the hide-to-tray persisted geometry; write the
@@ -368,24 +368,24 @@ impl Oryxis {
                 self.persist_window_geometry();
                 return Ok(iced::exit());
             }
-            Message::TrayActivateSession(idx) => {
+            Message::Tray(TrayMessage::TrayActivateSession(idx)) => {
                 // Show first (window may be hidden) then re-emit
                 // SelectTab via Task::done. Bundled together so the
                 // user sees the tab swap and the window pop in the
                 // same frame.
                 if idx < self.tabs.len() {
                     return Ok(Task::batch(vec![
-                        Task::done(Message::TrayShow),
+                        Task::done(Message::Tray(TrayMessage::TrayShow)),
                         Task::done(Message::SelectTab(idx)),
                     ]));
                 }
             }
-            Message::TrayOpenHost(uuid) => {
+            Message::Tray(TrayMessage::TrayOpenHost(uuid)) => {
                 if let Some(idx) =
                     self.connections.iter().position(|c| c.id == uuid)
                 {
                     return Ok(Task::batch(vec![
-                        Task::done(Message::TrayShow),
+                        Task::done(Message::Tray(TrayMessage::TrayShow)),
                         Task::done(Message::ConnectSsh(idx)),
                     ]));
                 }
