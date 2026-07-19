@@ -7,7 +7,7 @@ use iced::widget::{
 use iced::widget::button::Status as BtnStatus;
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{SnippetMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
@@ -40,7 +40,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0))
                 .center_x(Length::Fixed(72.0)),
             )
-            .on_press(Message::ShowSnippetPanel)
+            .on_press(Message::Snippet(SnippetMessage::ShowSnippetPanel))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -76,7 +76,7 @@ impl Oryxis {
                             .wrapping(iced::widget::text::Wrapping::None)
                             .color(OryxisColors::t().accent),
                     )
-                    .on_press(Message::CloseSnippetGroup)
+                    .on_press(Message::Snippet(SnippetMessage::CloseSnippetGroup))
                     .padding(Padding::ZERO)
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -130,7 +130,7 @@ impl Oryxis {
                     crate::widgets::bounds_reporter(
                         crate::widgets::tag_filter_toolbar_button(
                             self.snippet_filter_tags.len(),
-                            Message::ShowSnippetTagFilterMenu,
+                            Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
                         ),
                         self.snippet_tag_filter_btn_bounds.clone(),
                     ),
@@ -162,7 +162,7 @@ impl Oryxis {
                 crate::i18n::t("create_snippet_desc").to_string(),
                 Some((
                     crate::i18n::t("new_snippet").to_string(),
-                    Message::ShowSnippetPanel,
+                    Message::Snippet(SnippetMessage::ShowSnippetPanel),
                 )),
             );
 
@@ -376,7 +376,7 @@ impl Oryxis {
             container(text(record_label).size(11).color(c.text_primary))
                 .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 }),
         )
-        .on_press(Message::SnippetHotkeyCaptureStart)
+        .on_press(Message::Snippet(SnippetMessage::SnippetHotkeyCaptureStart))
         .style(move |_, status| {
             let bg = if self.snippet_hotkey_capturing {
                 Color { a: 0.15, ..OryxisColors::t().accent }
@@ -395,7 +395,7 @@ impl Oryxis {
         .into();
         let record_btn = if panel {
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SnippetHotkeyCaptureStart),
+                crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::SnippetHotkeyCaptureStart)),
                 6.0,
                 record_btn,
             )
@@ -412,7 +412,7 @@ impl Oryxis {
                 container(iced_fonts::lucide::x().size(11).color(c.text_muted))
                     .padding(Padding { top: 5.0, right: 7.0, bottom: 5.0, left: 7.0 }),
             )
-            .on_press(Message::SnippetHotkeyClear)
+            .on_press(Message::Snippet(SnippetMessage::SnippetHotkeyClear))
             .style(|_, status| {
                 let bg = match status {
                     BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
@@ -427,7 +427,7 @@ impl Oryxis {
             .into();
             let clear = if panel {
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::SnippetHotkeyClear),
+                    crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::SnippetHotkeyClear)),
                     6.0,
                     clear,
                 )
@@ -485,7 +485,7 @@ impl Oryxis {
                 crate::widgets::card_kebab_button(
                     OryxisColors::t().text_muted,
                     true,
-                    Message::ShowSnippetMenu(idx),
+                    Message::Snippet(SnippetMessage::ShowSnippetMenu(idx)),
                 )
                 .into()
             } else {
@@ -556,7 +556,7 @@ impl Oryxis {
                 // height + indent line up with the rest of the grid.
                 .padding(Padding { top: 8.0, right: 2.0, bottom: 8.0, left: 2.0 }),
             )
-            .on_press(Message::RunSnippet(idx))
+            .on_press(Message::Snippet(SnippetMessage::RunSnippet(idx)))
             .width(Length::Fill)
             .style(move |_, status| {
                 let (bg, bc, bw) = match status {
@@ -578,7 +578,7 @@ impl Oryxis {
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
                 .on_enter(Message::SnippetCardHovered(idx))
                 .on_exit(Message::SnippetCardUnhovered)
-                .on_right_press(Message::ShowSnippetMenu(idx))
+                .on_right_press(Message::Snippet(SnippetMessage::ShowSnippetMenu(idx)))
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();
@@ -635,7 +635,7 @@ self.keynav_ring_content(kb_selected, card_el)
             )
             .padding(Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 2.0 }),
         )
-        .on_press(Message::OpenSnippetGroup(name.to_string()))
+        .on_press(Message::Snippet(SnippetMessage::OpenSnippetGroup(name.to_string())))
         .width(Length::Fill)
         .style(move |_, status| {
             let (bg, bc, bw) = match status {
@@ -666,7 +666,7 @@ self.keynav_ring_content(kb_selected, card_el)
                 text(title).size(18).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(14).color(OryxisColors::t().text_muted))
-                    .on_press(Message::HideSnippetPanel)
+                    .on_press(Message::Snippet(SnippetMessage::HideSnippetPanel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(OryxisColors::t().bg_surface)),
@@ -685,7 +685,7 @@ self.keynav_ring_content(kb_selected, card_el)
                 10.0,
                 text_input("restart-nginx", &self.snippet_label)
                     .id(iced::widget::Id::new("panel-snippet-name"))
-                    .on_input(Message::SnippetLabelChanged)
+                    .on_input(|v| Message::Snippet(SnippetMessage::SnippetLabelChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -702,7 +702,7 @@ self.keynav_ring_content(kb_selected, card_el)
                 let (group_prev, group_next) = crate::keynav::slots::cycle_pair(
                     self.snippet_group_combo.options(),
                     &self.snippet_group,
-                    Message::SnippetGroupChanged,
+                    |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
                 );
                 let selection = (!self.snippet_group.is_empty())
                     .then_some(&self.snippet_group);
@@ -713,9 +713,9 @@ self.keynav_ring_content(kb_selected, card_el)
                         &self.snippet_group_combo,
                         t("group_optional_placeholder"),
                         selection,
-                        Message::SnippetGroupChanged,
+                        |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
                     )
-                    .on_input(Message::SnippetGroupChanged)
+                    .on_input(|v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)))
                     .padding(10)
                     .input_style(crate::widgets::rounded_input_style)
                     .menu_style(crate::widgets::combo_menu_style)
@@ -731,7 +731,7 @@ self.keynav_ring_content(kb_selected, card_el)
                 10.0,
                 text_input(t("tags_placeholder"), &self.snippet_tags_input)
                     .id(iced::widget::Id::new("panel-snippet-tags"))
-                    .on_input(Message::SnippetTagsChanged)
+                    .on_input(|v| Message::Snippet(SnippetMessage::SnippetTagsChanged(v)))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
@@ -752,7 +752,7 @@ self.keynav_ring_content(kb_selected, card_el)
                     text_editor(&self.snippet_command)
                         .id(iced::widget::Id::new("panel-snippet-command"))
                         .placeholder("sudo systemctl restart nginx")
-                        .on_action(Message::SnippetCommandAction)
+                        .on_action(|v| Message::Snippet(SnippetMessage::SnippetCommandAction(v)))
                         .padding(10)
                         .height(Length::Shrink)
                         .style(crate::widgets::rounded_editor_style),
@@ -770,16 +770,16 @@ self.keynav_ring_content(kb_selected, card_el)
         let panel_error = crate::widgets::form_error(self.snippet_error.as_deref());
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::HideSnippetPanel),
+                crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::HideSnippetPanel)),
                 6.0,
-                crate::widgets::form_cancel_button(Message::HideSnippetPanel),
+                crate::widgets::form_cancel_button(Message::Snippet(SnippetMessage::HideSnippetPanel)),
             ),
             self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::SaveSnippet),
+                crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::SaveSnippet)),
                 6.0,
                 crate::widgets::form_save_button(
                     crate::i18n::t("save"),
-                    Some(Message::SaveSnippet),
+                    Some(Message::Snippet(SnippetMessage::SaveSnippet)),
                 ),
             ),
         );

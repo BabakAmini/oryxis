@@ -764,14 +764,14 @@ impl Oryxis {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::tag(),
                         crate::i18n::t("host_tag_filter"),
-                        Message::ShowSnippetTagFilterMenu,
+                        Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
                         secondary,
                     ));
                 }
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::plus(),
                     crate::i18n::t("new_snippet"),
-                    Message::ShowSnippetPanel,
+                    Message::Snippet(SnippetMessage::ShowSnippetPanel),
                     secondary,
                 ));
                 col = col.push(self.menu_item(

@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{AiMessage, Message, Oryxis};
+use crate::app::{SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -756,7 +756,7 @@ impl Oryxis {
                     .is_some_and(|b| b.match_event(key, modifiers).is_some())
             });
             if let Some(idx) = hit {
-                return Some(self.update(Message::RunSnippet(idx)));
+                return Some(self.update(Message::Snippet(SnippetMessage::RunSnippet(idx))));
             }
         }
 

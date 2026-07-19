@@ -226,8 +226,8 @@ impl Oryxis {
 
     pub(crate) fn build_menu_snippet_actions(&self, idx: usize) -> Element<'_, Message> {
         column![
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditSnippet(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::RequestDeleteSnippet(idx), OryxisColors::t().error),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Snippet(SnippetMessage::EditSnippet(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Snippet(SnippetMessage::RequestDeleteSnippet(idx)), OryxisColors::t().error),
         ].into()
     }
 

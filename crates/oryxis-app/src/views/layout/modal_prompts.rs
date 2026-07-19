@@ -27,8 +27,8 @@ impl Oryxis {
                         false,
                         text_input("", value)
                             .id(input_id)
-                            .on_input(move |v| Message::SnippetVarChanged(i, v))
-                            .on_submit(Message::ConfirmSnippetVars)
+                            .on_input(move |v| Message::Snippet(SnippetMessage::SnippetVarChanged(i, v)))
+                            .on_submit(Message::Snippet(SnippetMessage::ConfirmSnippetVars))
                             .padding(10)
                             .style(crate::widgets::rounded_input_style)
                             .align_x(dir_align_x())
@@ -64,19 +64,19 @@ impl Oryxis {
                 Space::new().height(16),
                 dir_row(vec![
                     self.modal_nav_slot_default(
-                        crate::keynav::RowAction::activate(Message::ConfirmSnippetVars),
+                        crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::ConfirmSnippetVars)),
                         6.0,
                         true,
-                        styled_button(confirm_label, Message::ConfirmSnippetVars, c.accent),
+                        styled_button(confirm_label, Message::Snippet(SnippetMessage::ConfirmSnippetVars), c.accent),
                     ),
                     Space::new().width(8).into(),
                     self.modal_nav_slot(
-                        crate::keynav::RowAction::activate(Message::CancelSnippetVars),
+                        crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::CancelSnippetVars)),
                         6.0,
                         false,
                         styled_button(
                             crate::i18n::t("cancel"),
-                            Message::CancelSnippetVars,
+                            Message::Snippet(SnippetMessage::CancelSnippetVars),
                             c.text_muted,
                         ),
                     ),

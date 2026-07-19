@@ -296,7 +296,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.build_snippet_vars_dialog(pending),
-                    Some(Message::CancelSnippetVars),
+                    Some(Message::Snippet(SnippetMessage::CancelSnippetVars)),
                     0.0,
                 ),
                 resize_overlay,

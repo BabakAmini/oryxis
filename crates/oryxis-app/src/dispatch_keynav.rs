@@ -16,7 +16,7 @@
 use iced::keyboard;
 use iced::Task;
 
-use crate::app::{DashNavItem, Message, Oryxis};
+use crate::app::{SnippetMessage, DashNavItem, Message, Oryxis};
 use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
@@ -524,7 +524,7 @@ impl Oryxis {
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::ShowSessionGroupMenu(i),
             NavItem::Key(i) => Message::ShowKeyMenu(i),
             NavItem::Identity(i) => Message::ShowIdentityMenu(i),
-            NavItem::Snippet(i) => Message::ShowSnippetMenu(i),
+            NavItem::Snippet(i) => Message::Snippet(SnippetMessage::ShowSnippetMenu(i)),
             NavItem::CloudAccount(id) => Message::ShowCloudCardMenu(id),
             // Session-log rows carry a kebab menu (Export .cast /
             // transcript / commands / Delete). The row is keyed by uuid;
@@ -583,12 +583,12 @@ impl Oryxis {
             NavItem::Dash(DashNavItem::Host(i)) => Message::ConnectSsh(i),
             NavItem::Key(i) => Message::EditKey(i),
             NavItem::Identity(i) => Message::EditIdentity(i),
-            NavItem::Snippet(i) => Message::RunSnippet(i),
+            NavItem::Snippet(i) => Message::Snippet(SnippetMessage::RunSnippet(i)),
             NavItem::SnippetGroup(i) => {
                 let Some(name) = self.snippet_group_names().get(i).cloned() else {
                     return Task::none();
                 };
-                Message::OpenSnippetGroup(name)
+                Message::Snippet(SnippetMessage::OpenSnippetGroup(name))
             }
             NavItem::PortForward(i) => Message::EditPortForwardRule(i),
             NavItem::HistoryLog(id) => Message::ViewSessionLog(id),
@@ -634,7 +634,7 @@ impl Oryxis {
         Some(match (self.active_view, item) {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::ToggleHostListView,
             (View::Dashboard, ToolbarItem::TagFilter) => Message::ShowHostTagFilterMenu,
-            (View::Snippets, ToolbarItem::TagFilter) => Message::ShowSnippetTagFilterMenu,
+            (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
             (View::Dashboard, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Hosts),
             (View::Dashboard, ToolbarItem::Primary) => Message::ShowNewConnection,
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::ShowCloudProviderPicker,
@@ -642,7 +642,7 @@ impl Oryxis {
             (View::Keys, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Keys),
             (View::Keys, ToolbarItem::Primary) => Message::ToggleKeychainAddMenu,
             (View::Snippets, ToolbarItem::Sort) => Message::ToggleSortMenu(SortMenuKind::Snippets),
-            (View::Snippets, ToolbarItem::Primary) => Message::ShowSnippetPanel,
+            (View::Snippets, ToolbarItem::Primary) => Message::Snippet(SnippetMessage::ShowSnippetPanel),
             (View::PortForwarding, ToolbarItem::Primary) => Message::ShowPortForwardPanel,
             (View::History, ToolbarItem::Primary) => Message::RequestClearHistory,
             (View::History, ToolbarItem::PagerPrev) => Message::LogsPagePrev,

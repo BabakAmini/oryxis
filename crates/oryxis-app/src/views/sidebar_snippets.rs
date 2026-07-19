@@ -9,7 +9,7 @@ use iced::widget::{button, column, container, scrollable, text, MouseArea, Space
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use super::terminal::chat_header_btn;
-use crate::app::{AiMessage, Message, Oryxis};
+use crate::app::{SnippetMessage, AiMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -45,7 +45,7 @@ impl Oryxis {
             .center_y(Length::Fixed(22.0))
             .padding(Padding { top: 0.0, right: 12.0, bottom: 0.0, left: 12.0 }),
         )
-        .on_press(Message::ShowSnippetPanel)
+        .on_press(Message::Snippet(SnippetMessage::ShowSnippetPanel))
         .style(|_, status| {
             let bg = match status {
                 BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
@@ -102,7 +102,7 @@ impl Oryxis {
                 .center_y(Length::Fixed(24.0)),
             )
             .padding(0)
-            .on_press(Message::ToggleSnippetTagFilter)
+            .on_press(Message::Snippet(SnippetMessage::ToggleSnippetTagFilter))
             .style(move |_, status| {
                 let bg = if filter_active {
                     Color { a: 0.15, ..OryxisColors::t().accent }
@@ -127,14 +127,14 @@ impl Oryxis {
                 // Contrast ring: the button is accent-filled, an
                 // accent ring would vanish into it.
                 self.sidebar_nav_slot_contrast(
-                    crate::keynav::SidebarRow::button(Message::ShowSnippetPanel),
+                    crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::ShowSnippetPanel)),
                     stab,
                     6.0,
                     new_btn.into(),
                 ),
                 Space::new().width(Length::Fill).into(),
                 self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::button(Message::ToggleSnippetTagFilter),
+                    crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::ToggleSnippetTagFilter)),
                     stab,
                     6.0,
                     filter_btn,
@@ -175,7 +175,7 @@ impl Oryxis {
             // container, so it hugs the visible border instead of
             // floating 12 px away (owner QA).
             let btn = self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::ApplySudoPassword),
+                crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::ApplySudoPassword)),
                 stab,
                 8.0,
                 button(
@@ -190,7 +190,7 @@ impl Oryxis {
                     .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
                     .width(Length::Fill),
                 )
-                .on_press(Message::ApplySudoPassword)
+                .on_press(Message::Snippet(SnippetMessage::ApplySudoPassword))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let bg = match status {
@@ -291,7 +291,7 @@ impl Oryxis {
                 .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
                 .width(Length::Fill),
             )
-            .on_press(Message::CloseSidebarSnippetGroup)
+            .on_press(Message::Snippet(SnippetMessage::CloseSidebarSnippetGroup))
             .width(Length::Fill)
             .style(|_, status| {
                 let bg = match status {
@@ -305,7 +305,7 @@ impl Oryxis {
                 }
             });
             list = list.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::CloseSidebarSnippetGroup),
+                crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::CloseSidebarSnippetGroup)),
                 stab,
                 8.0,
                 back.into(),
@@ -368,7 +368,7 @@ impl Oryxis {
                 .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
                 .width(Length::Fill),
             )
-            .on_press(Message::OpenSidebarSnippetGroup(name.clone()))
+            .on_press(Message::Snippet(SnippetMessage::OpenSidebarSnippetGroup(name.clone())))
             .width(Length::Fill)
             .style(|_, status| {
                 let bg = match status {
@@ -382,7 +382,7 @@ impl Oryxis {
                 }
             });
             list = list.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::OpenSidebarSnippetGroup(name)),
+                crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::OpenSidebarSnippetGroup(name))),
                 stab,
                 8.0,
                 folder.into(),
@@ -399,9 +399,9 @@ impl Oryxis {
             );
             list = list.push(self.sidebar_nav_slot(
                 crate::keynav::SidebarRow::item(
-                    Message::RunSnippet(idx),
-                    Message::PasteSnippet(idx),
-                    Message::RequestDeleteSnippet(idx),
+                    Message::Snippet(SnippetMessage::RunSnippet(idx)),
+                    Message::Snippet(SnippetMessage::PasteSnippet(idx)),
+                    Message::Snippet(SnippetMessage::RequestDeleteSnippet(idx)),
                 ),
                 stab,
                 8.0,
@@ -506,7 +506,7 @@ impl Oryxis {
         };
 
         let header = dir_row(vec![
-            chat_header_btn(iced_fonts::lucide::arrow_left(), Message::HideSnippetPanel),
+            chat_header_btn(iced_fonts::lucide::arrow_left(), Message::Snippet(SnippetMessage::HideSnippetPanel)),
             Space::new().width(6).into(),
             text(title).size(14).color(c.text_primary).into(),
         ])
@@ -514,7 +514,7 @@ impl Oryxis {
 
         let label_input: Element<'_, Message> =
             iced::widget::text_input("restart-nginx", &self.snippet_label)
-                .on_input(Message::SnippetLabelChanged)
+                .on_input(|v| Message::Snippet(SnippetMessage::SnippetLabelChanged(v)))
                 .padding(8)
                 .size(13)
                 .style(crate::widgets::rounded_input_style)
@@ -527,9 +527,9 @@ impl Oryxis {
             &self.snippet_group_combo,
             t("group_optional_placeholder"),
             group_selection,
-            Message::SnippetGroupChanged,
+            |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
         )
-        .on_input(Message::SnippetGroupChanged)
+        .on_input(|v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)))
         .padding(8)
         .size(13.0)
         .input_style(crate::widgets::rounded_input_style)
@@ -538,7 +538,7 @@ impl Oryxis {
         .into();
         let tags_input: Element<'_, Message> =
             iced::widget::text_input(t("tags_placeholder"), &self.snippet_tags_input)
-                .on_input(Message::SnippetTagsChanged)
+                .on_input(|v| Message::Snippet(SnippetMessage::SnippetTagsChanged(v)))
                 .padding(8)
                 .size(13)
                 .style(crate::widgets::rounded_input_style)
@@ -548,7 +548,7 @@ impl Oryxis {
         let command_input: Element<'_, Message> = container(
             iced::widget::text_editor(&self.snippet_command)
                 .placeholder("sudo systemctl restart nginx")
-                .on_action(Message::SnippetCommandAction)
+                .on_action(|v| Message::Snippet(SnippetMessage::SnippetCommandAction(v)))
                 .padding(8)
                 .size(13)
                 .height(Length::Shrink)
@@ -568,7 +568,7 @@ impl Oryxis {
                 .center_x(Length::Fill)
                 .padding(Padding { top: 9.0, right: 0.0, bottom: 9.0, left: 0.0 }),
         )
-        .on_press(Message::SaveSnippet)
+        .on_press(Message::Snippet(SnippetMessage::SaveSnippet))
         .width(Length::Fill)
         .style(|_, _| button::Style {
             background: Some(Background::Color(OryxisColors::t().accent)),
@@ -614,7 +614,7 @@ impl Oryxis {
                     .center_x(Length::Fill)
                     .padding(Padding { top: 9.0, right: 0.0, bottom: 9.0, left: 0.0 }),
             )
-            .on_press(Message::RequestDeleteSnippet(idx))
+            .on_press(Message::Snippet(SnippetMessage::RequestDeleteSnippet(idx)))
             .width(Length::Fill)
             .style(|_, _| button::Style {
                 background: Some(Background::Color(Color::TRANSPARENT)),
@@ -719,9 +719,9 @@ fn snippet_row<'a>(
     let row_el: Element<'a, Message> = if hovered {
         let actions = container(
             dir_row(vec![
-                action_btn(iced_fonts::lucide::pencil(), Message::EditSnippet(idx), t("edit_snippet")),
-                action_btn(iced_fonts::lucide::clipboard_copy(), Message::PasteSnippet(idx), t("snippet_paste")),
-                action_btn(iced_fonts::lucide::play(), Message::RunSnippet(idx), t("snippet_run")),
+                action_btn(iced_fonts::lucide::pencil(), Message::Snippet(SnippetMessage::EditSnippet(idx)), t("edit_snippet")),
+                action_btn(iced_fonts::lucide::clipboard_copy(), Message::Snippet(SnippetMessage::PasteSnippet(idx)), t("snippet_paste")),
+                action_btn(iced_fonts::lucide::play(), Message::Snippet(SnippetMessage::RunSnippet(idx)), t("snippet_run")),
             ])
             .spacing(2)
             .align_y(iced::Alignment::Center),

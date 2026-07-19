@@ -209,8 +209,8 @@ impl Oryxis {
             OverlayContent::SnippetTagFilter => self.tag_filter_menu(
                 self.snippet_filter_tags.clone(),
                 self.distinct_snippet_tags(),
-                Message::ToggleSnippetTagFilterTag,
-                Message::ClearSnippetTagFilter,
+                |v| Message::Snippet(SnippetMessage::ToggleSnippetTagFilterTag(v)),
+                Message::Snippet(SnippetMessage::ClearSnippetTagFilter),
             ),
             OverlayContent::SessionLogActions(idx) => self.build_menu_session_log_actions(*idx),
             OverlayContent::SessionLogViewerActions(idx) => {
