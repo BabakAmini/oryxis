@@ -798,10 +798,10 @@ impl Oryxis {
                 self.show_identity_panel = true;
                 self.identity_form.label.clear();
                 self.identity_form.username.clear();
+                // SecretInput::clear also drops the touched flag.
                 self.identity_form.password.clear();
                 self.identity_form.key = None;
                 self.identity_form.password_visible = false;
-                self.identity_form.password_touched = false;
                 self.identity_form.has_existing_password = false;
                 self.identity_form.editing_id = None;
                 self.show_keychain_add_menu = false;
@@ -818,8 +818,7 @@ impl Oryxis {
                 self.identity_form.username = v;
             }
             Message::IdentityPasswordChanged(v) => {
-                self.identity_form.password_touched = true;
-                self.identity_form.password = v;
+                self.identity_form.password.set(v);
             }
             Message::IdentityTogglePasswordVisibility => {
                 self.identity_form.password_visible = !self.identity_form.password_visible;
@@ -848,13 +847,9 @@ impl Oryxis {
                 });
                 identity.updated_at = chrono::Utc::now();
 
-                let password = if !self.identity_form.password_touched {
-                    None
-                } else if self.identity_form.password.is_empty() {
-                    Some("")
-                } else {
-                    Some(self.identity_form.password.as_str())
-                };
+                // Tri-state: untouched preserves the stored password,
+                // cleared removes it, typed stores (SecretInput::resolve).
+                let password = self.identity_form.password.resolve();
 
                 if let Some(vault) = &self.vault {
                     let _ = vault.save_identity(&identity, password);
@@ -868,7 +863,6 @@ impl Oryxis {
                     self.identity_form.label = identity.label.clone();
                     self.identity_form.username = identity.username.clone().unwrap_or_default();
                     self.identity_form.password.clear();
-                    self.identity_form.password_touched = false;
                     self.identity_form.password_visible = false;
                     self.identity_form.has_existing_password = self.vault.as_ref()
                         .and_then(|v| v.get_identity_password(&identity.id).ok().flatten())

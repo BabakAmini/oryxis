@@ -51,8 +51,7 @@ impl Oryxis {
                     // Mirror the connection-password UX, never pre-fill the
                     // encrypted password, just flag that one exists so the
                     // user can leave it untouched to preserve.
-                    self.proxy_identity_form.password = String::new();
-                    self.proxy_identity_form.password_touched = false;
+                    self.proxy_identity_form.password.clear();
                     self.proxy_identity_form.has_existing_password = has_pw;
                 } else {
                     self.proxy_identity_form.editing_id = None;
@@ -61,8 +60,7 @@ impl Oryxis {
                     self.proxy_identity_form.host = String::new();
                     self.proxy_identity_form.port = "1080".into();
                     self.proxy_identity_form.username = String::new();
-                    self.proxy_identity_form.password = String::new();
-                    self.proxy_identity_form.password_touched = false;
+                    self.proxy_identity_form.password.clear();
                     self.proxy_identity_form.has_existing_password = false;
                 }
                 self.proxy_identity_form.password_visible = false;
@@ -100,8 +98,7 @@ impl Oryxis {
                 self.proxy_identity_form.username = v;
             }
             Message::ProxyIdentityFormPasswordChanged(v) => {
-                self.proxy_identity_form.password_touched = true;
-                self.proxy_identity_form.password = v;
+                self.proxy_identity_form.password.set(v);
             }
             Message::ProxyIdentityFormPasswordToggleVisibility => {
                 self.proxy_identity_form.password_visible =
@@ -176,15 +173,8 @@ impl Oryxis {
                 // Only forward the password to the vault when the user
                 // actually edited the field, preserves the existing
                 // encrypted value otherwise (mirrors `save_identity`).
-                let password_arg = if self.proxy_identity_form.password_touched {
-                    if self.proxy_identity_form.password.is_empty() {
-                        Some("")
-                    } else {
-                        Some(self.proxy_identity_form.password.as_str())
-                    }
-                } else {
-                    None
-                };
+                // Tri-state per SecretInput::resolve.
+                let password_arg = self.proxy_identity_form.password.resolve();
 
                 if let Some(vault) = &self.vault {
                     match vault.save_proxy_identity(&identity, password_arg) {

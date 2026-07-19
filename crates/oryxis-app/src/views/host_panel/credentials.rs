@@ -164,7 +164,7 @@ impl Oryxis {
             );
         } else {
             let pw_placeholder: &'static str = if self.editor_form.has_existing_password
-                && !self.editor_form.password_touched
+                && !self.editor_form.password.touched()
             {
                 "••••••••"
             } else {
@@ -182,7 +182,7 @@ impl Oryxis {
                     Space::new().width(10).into(),
                     crate::widgets::password_input_with_eye_nav(
                         pw_placeholder,
-                        &self.editor_form.password,
+                        self.editor_form.password.as_str(),
                         Message::EditorPasswordChanged,
                         Some(Message::EditorSave),
                         self.editor_form.password_visible,
@@ -208,7 +208,7 @@ impl Oryxis {
         // second factor, so the reduced form hides it.
         if is_ssh {
             let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
-                && !self.editor_form.totp_touched
+                && !self.editor_form.totp_secret.touched()
             {
                 "••••••••"
             } else {
@@ -225,7 +225,7 @@ impl Oryxis {
                     Space::new().width(10).into(),
                     crate::widgets::password_input_with_eye_nav(
                         totp_placeholder,
-                        &self.editor_form.totp_secret,
+                        self.editor_form.totp_secret.as_str(),
                         Message::EditorTotpChanged,
                         Some(Message::EditorSave),
                         self.editor_form.totp_visible,

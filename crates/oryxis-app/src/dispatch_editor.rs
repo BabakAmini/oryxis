@@ -449,10 +449,9 @@ impl Oryxis {
         // Validate a newly typed TOTP secret before anything is
         // written, so a typo'd secret can't be stored and then
         // silently fail at connect time. Cleared/untouched skip.
-        if self.editor_form.totp_touched
-            && !self.editor_form.totp_secret.trim().is_empty()
-            && let Err(e) =
-                oryxis_core::totp::Totp::parse(&self.editor_form.totp_secret)
+        if let Some(secret) = self.editor_form.totp_secret.resolve()
+            && !secret.trim().is_empty()
+            && let Err(e) = oryxis_core::totp::Totp::parse(secret)
         {
             return Err(format!("{}: {e}", crate::i18n::t("totp_invalid")));
         }
@@ -464,8 +463,9 @@ impl Oryxis {
     /// Build a fully populated `ConnectionForm` from an existing
     /// `Connection` (labels resolved against the current groups / keys /
     /// identities lists). Secrets are never prefilled: the `has_*` flags
-    /// drive the masked placeholders and the `*_touched` tri-state decides
-    /// what a later save writes. Shared by `EditConnection` (vault hosts)
+    /// drive the masked placeholders and the `SecretInput` tri-state
+    /// decides what a later save writes. Shared by `EditConnection`
+    /// (vault hosts)
     /// and `SaveQuickHost` (ad-hoc hosts being persisted).
     fn form_from_connection(
         &self,
@@ -485,7 +485,9 @@ impl Oryxis {
             hostname: conn.hostname.clone(),
             port: conn.port.to_string(),
             username: conn.username.clone().unwrap_or_default(),
-            password: String::new(),
+            // Never pre-fill the connection password: an untouched
+            // SecretInput resolves to None (preserve on save).
+            password: Default::default(),
             auth_method: conn.auth_method.clone(),
             group_name: conn
                 .group_id
@@ -502,7 +504,6 @@ impl Oryxis {
             }),
             editing_id: Some(conn.id),
             has_existing_password: has_pw,
-            password_touched: false,
             password_visible: false,
             username_focused: false,
             port_forwards: conn.port_forwards.iter().map(|pf| PortForwardForm {
@@ -533,21 +534,19 @@ impl Oryxis {
             proxy_host: conn.proxy.as_ref().map(|p| p.host.clone()).unwrap_or_default(),
             proxy_port: conn.proxy.as_ref().map(|p| p.port.to_string()).unwrap_or_default(),
             proxy_username: conn.proxy.as_ref().and_then(|p| p.username.clone()).unwrap_or_default(),
-            // Never pre-fill proxy_password from the encrypted vault, keep it empty
-            // and let `proxy_password_touched` decide whether to overwrite on save,
+            // Never pre-fill proxy_password from the encrypted vault, keep it
+            // empty and untouched so save preserves the stored value,
             // mirroring the main connection-password flow.
-            proxy_password: String::new(),
+            proxy_password: Default::default(),
             proxy_command: conn.proxy.as_ref().and_then(|p| match &p.proxy_type {
                 ProxyType::Command(cmd) => Some(cmd.clone()),
                 _ => None,
             }).unwrap_or_default(),
             has_existing_proxy_password: has_proxy_pw,
-            proxy_password_touched: false,
             // Never pre-fill the TOTP secret either; the
             // masked placeholder signals one is stored.
-            totp_secret: String::new(),
+            totp_secret: Default::default(),
             has_existing_totp: has_totp,
-            totp_touched: false,
             totp_visible: false,
             terminal_theme: conn.terminal_theme.clone(),
             keepalive_interval: conn
@@ -676,18 +675,15 @@ impl Oryxis {
                 // next reconnect.
                 form.editing_id = None;
                 // Re-seed the credentials typed in the editor flow so the
-                // save persists them (touched => tri-state writes).
+                // save persists them (set marks touched => tri-state writes).
                 if let Some(pw) = entry.password.clone() {
-                    form.password = pw;
-                    form.password_touched = true;
+                    form.password.set(pw);
                 }
                 if let Some(secret) = entry.totp_secret.clone() {
-                    form.totp_secret = secret;
-                    form.totp_touched = true;
+                    form.totp_secret.set(secret);
                 }
                 if let Some(pw) = entry.proxy_password.clone() {
-                    form.proxy_password = pw;
-                    form.proxy_password_touched = true;
+                    form.proxy_password.set(pw);
                 }
                 self.editor_form = form;
                 let cmd = entry.conn.initial_command.as_deref().unwrap_or_default();
@@ -790,17 +786,15 @@ impl Oryxis {
                 self.editor_form.username_focused = true;
             }
             Message::EditorPasswordChanged(v) => {
-                self.editor_form.password_touched = true;
                 self.editor_form.username_focused = false;
-                self.editor_form.password = v;
+                self.editor_form.password.set(v);
             }
             Message::EditorTogglePasswordVisibility => {
                 self.editor_form.password_visible = !self.editor_form.password_visible;
             }
             Message::EditorTotpChanged(v) => {
-                self.editor_form.totp_touched = true;
                 self.editor_form.username_focused = false;
-                self.editor_form.totp_secret = v;
+                self.editor_form.totp_secret.set(v);
             }
             Message::EditorToggleTotpVisibility => {
                 self.editor_form.totp_visible = !self.editor_form.totp_visible;
@@ -890,9 +884,10 @@ impl Oryxis {
                         self.editor_form.proxy_host.clear();
                         self.editor_form.proxy_port.clear();
                         self.editor_form.proxy_username.clear();
+                        // SecretInput::clear also drops the touched flag,
+                        // back to "preserve the stored value".
                         self.editor_form.proxy_password.clear();
                         self.editor_form.proxy_command.clear();
-                        self.editor_form.proxy_password_touched = false;
                     }
                     _ => {
                         // Coming back from an Identity selection: empty
@@ -903,7 +898,6 @@ impl Oryxis {
                             self.editor_form.proxy_username.clear();
                             self.editor_form.proxy_password.clear();
                             self.editor_form.proxy_command.clear();
-                            self.editor_form.proxy_password_touched = false;
                         }
                         // Pre-fill the canonical port for the chosen type
                         // when the field is still blank, saves the user a
@@ -920,8 +914,7 @@ impl Oryxis {
             Message::EditorProxyPortChanged(v) => { self.editor_form.proxy_port = v; }
             Message::EditorProxyUsernameChanged(v) => { self.editor_form.proxy_username = v; }
             Message::EditorProxyPasswordChanged(v) => {
-                self.editor_form.proxy_password_touched = true;
-                self.editor_form.proxy_password = v;
+                self.editor_form.proxy_password.set(v);
             }
             Message::EditorProxyCommandChanged(v) => { self.editor_form.proxy_command = v; }
             Message::EditorOpenThemePicker => {
@@ -1083,28 +1076,23 @@ impl Oryxis {
                         return Ok(Task::none());
                     }
                 };
-                let password = if !self.editor_form.password_touched {
-                    None // User didn't touch the field, preserve existing password
-                } else if self.editor_form.password.is_empty() {
-                    Some("") // User cleared the password, remove it
-                } else {
-                    Some(self.editor_form.password.as_str())
-                };
+                // Tri-state: untouched preserves the stored password,
+                // cleared removes it, typed stores (SecretInput::resolve).
+                let password = self.editor_form.password.resolve();
 
                 if let Some(vault) = &self.vault {
                     match vault.save_connection(&conn, password) {
                         Ok(()) => {
                             // Persist the encrypted proxy password in its own
                             // column. We only touch it when the user edited
-                            // the field, mirroring `password_touched` for the
-                            // main connection password.
-                            if self.editor_form.proxy_password_touched {
-                                let pw = if self.editor_form.proxy_password.is_empty() {
-                                    None
-                                } else {
-                                    Some(self.editor_form.proxy_password.as_str())
-                                };
-                                let _ = vault.set_proxy_password(&conn.id, pw);
+                            // the field (resolve returns Some), mirroring the
+                            // main connection password; an edited-empty field
+                            // maps to None = remove for this setter.
+                            if let Some(pw) = self.editor_form.proxy_password.resolve() {
+                                let _ = vault.set_proxy_password(
+                                    &conn.id,
+                                    (!pw.is_empty()).then_some(pw),
+                                );
                             }
                             // If the proxy was disabled in this save, drop any
                             // previously stored proxy password, keeping a
@@ -1123,8 +1111,10 @@ impl Oryxis {
                                 == oryxis_core::models::connection::ConnectionProtocol::Ssh;
                             if !is_ssh {
                                 let _ = vault.set_connection_totp_secret(&conn.id, None);
-                            } else if self.editor_form.totp_touched {
-                                let s = self.editor_form.totp_secret.trim();
+                            } else if let Some(secret) =
+                                self.editor_form.totp_secret.resolve()
+                            {
+                                let s = secret.trim();
                                 let s = (!s.is_empty()).then_some(s);
                                 let _ = vault.set_connection_totp_secret(&conn.id, s);
                             }
@@ -1173,15 +1163,25 @@ impl Oryxis {
                 // vault row to hydrate from at connect time). Untouched or
                 // cleared fields stay None.
                 let form = &self.editor_form;
-                let password = (form.password_touched && !form.password.is_empty())
-                    .then(|| form.password.clone());
-                let totp_secret = (form.totp_touched
-                    && !form.totp_secret.trim().is_empty())
-                .then(|| form.totp_secret.trim().to_string());
-                let proxy_password = (conn.proxy.is_some()
-                    && form.proxy_password_touched
-                    && !form.proxy_password.is_empty())
-                .then(|| form.proxy_password.clone());
+                let password = form
+                    .password
+                    .resolve()
+                    .filter(|pw| !pw.is_empty())
+                    .map(str::to_string);
+                let totp_secret = form
+                    .totp_secret
+                    .resolve()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_string);
+                let proxy_password = if conn.proxy.is_some() {
+                    form.proxy_password
+                        .resolve()
+                        .filter(|pw| !pw.is_empty())
+                        .map(str::to_string)
+                } else {
+                    None
+                };
                 let entry = crate::state::QuickConnectEntry {
                     conn,
                     password,

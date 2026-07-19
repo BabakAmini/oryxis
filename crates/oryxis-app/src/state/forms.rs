@@ -60,6 +60,72 @@ pub(crate) struct SessionGroupForm {
     pub current_pane: usize,
 }
 
+/// A secret-bearing text buffer that makes the vault's tri-state
+/// password contract structural instead of a copy-pasted `String` +
+/// `touched: bool` pair in every editor form.
+///
+/// The vault convention (every password setter in `VaultStore`, e.g.
+/// `save_connection` / `save_identity` / `save_proxy_identity`): the
+/// `Option` handed to a save call means
+/// - `None`: preserve the stored secret untouched,
+/// - `Some("")`: clear the stored secret,
+/// - `Some(pw)`: encrypt + store `pw`.
+///
+/// [`resolve`](Self::resolve) derives that `Option` from the buffer:
+/// an unedited field resolves to `None` (preserve), an edited-empty
+/// field to `Some("")` (clear), an edited non-empty field to
+/// `Some(value)` (store). The fields are private so the only path
+/// that marks the buffer edited is [`set`](Self::set) (the `*Changed`
+/// message arms), and the only ways back are [`clear`](Self::clear) /
+/// [`prefill`](Self::prefill) (form open / reset / hydration).
+#[derive(Debug, Clone, Default)]
+pub(crate) struct SecretInput {
+    value: String,
+    touched: bool,
+}
+
+impl SecretInput {
+    /// User edit: assign the buffer and mark it touched, so a later
+    /// [`resolve`](Self::resolve) writes (or clears) the vault value.
+    pub fn set(&mut self, value: String) {
+        self.value = value;
+        self.touched = true;
+    }
+
+    /// Seed the buffer WITHOUT marking it touched: an untouched field
+    /// still resolves to `None` (preserve the stored secret). This is
+    /// the hydration primitive; [`clear`](Self::clear) is its
+    /// empty-string shorthand.
+    pub fn prefill(&mut self, value: String) {
+        self.value = value;
+        self.touched = false;
+    }
+
+    /// Form open / reset / sweep: empty the buffer and forget any
+    /// edit, back to the "preserve the stored secret" state.
+    pub fn clear(&mut self) {
+        self.prefill(String::new());
+    }
+
+    /// The tri-state vault argument: `None` preserve, `Some("")`
+    /// clear, `Some(pw)` store. Exactly the contract every password
+    /// save call in the vault API expects.
+    pub fn resolve(&self) -> Option<&str> {
+        self.touched.then_some(self.value.as_str())
+    }
+
+    /// The raw buffer, for binding to a `text_input` value.
+    pub fn as_str(&self) -> &str {
+        &self.value
+    }
+
+    /// Whether the user edited the field this session. Drives the
+    /// masked "existing secret" placeholders in the views.
+    pub fn touched(&self) -> bool {
+        self.touched
+    }
+}
+
 /// Connection editor form state.
 #[derive(Debug, Clone)]
 pub(crate) struct ConnectionForm {
@@ -89,7 +155,8 @@ pub(crate) struct ConnectionForm {
     pub hostname: String,
     pub port: String,
     pub username: String,
-    pub password: String,
+    /// Connection password buffer; tri-state per [`SecretInput`].
+    pub password: SecretInput,
     pub auth_method: AuthMethod,
     pub group_name: String,
     /// Comma-separated tags as typed; parsed (trim/dedup/drop-empty)
@@ -107,8 +174,6 @@ pub(crate) struct ConnectionForm {
     pub editing_id: Option<Uuid>,
     /// Whether the connection already has a password stored in the vault.
     pub has_existing_password: bool,
-    /// Whether the user has modified the password field.
-    pub password_touched: bool,
     /// Whether to show the password in plain text.
     pub password_visible: bool,
     /// Whether the username field is focused (shows identity autocomplete).
@@ -131,19 +196,18 @@ pub(crate) struct ConnectionForm {
     pub proxy_host: String,
     pub proxy_port: String,
     pub proxy_username: String,
-    pub proxy_password: String,
+    /// Inline proxy password buffer; tri-state per [`SecretInput`].
+    pub proxy_password: SecretInput,
     pub proxy_command: String,
-    /// Mirrors `has_existing_password` / `password_touched`: avoids
-    /// pre-loading the encrypted proxy password into form state on edit
-    /// and lets save distinguish "preserve" from "explicitly cleared".
+    /// Mirrors `has_existing_password`: avoids pre-loading the
+    /// encrypted proxy password into form state on edit and lets save
+    /// distinguish "preserve" from "explicitly cleared".
     pub has_existing_proxy_password: bool,
-    pub proxy_password_touched: bool,
     /// TOTP secret input (bare Base32 or an otpauth:// URI) feeding the
     /// keyboard-interactive 2FA autofill. Same tri-state discipline as
     /// the passwords above.
-    pub totp_secret: String,
+    pub totp_secret: SecretInput,
     pub has_existing_totp: bool,
-    pub totp_touched: bool,
     pub totp_visible: bool,
     /// Per-host terminal palette override. `None` means "inherit the
     /// global pick"; `Some(name)` pins this host to the named palette.
@@ -759,11 +823,11 @@ pub(crate) struct ShareForm {
 pub(crate) struct IdentityForm {
     pub label: String,
     pub username: String,
-    pub password: String,
+    /// Password buffer; tri-state per [`SecretInput`].
+    pub password: SecretInput,
     /// Selected SSH key label, when the identity authenticates by key.
     pub key: Option<String>,
     pub password_visible: bool,
-    pub password_touched: bool,
     pub has_existing_password: bool,
     /// `Some` when editing an existing identity (update in place).
     pub editing_id: Option<Uuid>,
@@ -775,8 +839,8 @@ pub(crate) struct IdentityForm {
 /// lives in `Oryxis::proxy_identities` (this is form state only).
 ///
 /// Password follows the tri-state convention: `has_existing_password`
-/// records whether the stored row carries one, `password_touched`
-/// tracks whether the user edited the field this session, so save can
+/// records whether the stored row carries one, [`SecretInput`] tracks
+/// whether the user edited the field this session, so save can
 /// distinguish "leave as-is" from "clear" from "set".
 #[derive(Debug, Clone)]
 pub(crate) struct ProxyIdentityForm {
@@ -787,9 +851,8 @@ pub(crate) struct ProxyIdentityForm {
     pub host: String,
     pub port: String,
     pub username: String,
-    pub password: String,
+    pub password: SecretInput,
     pub password_visible: bool,
-    pub password_touched: bool,
     pub has_existing_password: bool,
     /// `Some` when editing an existing identity (update in place); `None`
     /// when adding a new one.
@@ -809,9 +872,8 @@ impl Default for ProxyIdentityForm {
             host: String::new(),
             port: String::new(),
             username: String::new(),
-            password: String::new(),
+            password: SecretInput::default(),
             password_visible: false,
-            password_touched: false,
             has_existing_password: false,
             editing_id: None,
             error: None,
@@ -845,7 +907,7 @@ impl Default for ConnectionForm {
             hostname: String::new(),
             port: "22".into(),
             username: String::new(),
-            password: String::new(),
+            password: SecretInput::default(),
             auth_method: AuthMethod::Auto,
             group_name: String::new(),
             tags_text: String::new(),
@@ -854,7 +916,6 @@ impl Default for ConnectionForm {
             selected_identity: None,
             editing_id: None,
             has_existing_password: false,
-            password_touched: false,
             password_visible: false,
             username_focused: false,
             port_forwards: Vec::new(),
@@ -866,13 +927,11 @@ impl Default for ConnectionForm {
             proxy_host: String::new(),
             proxy_port: String::new(),
             proxy_username: String::new(),
-            proxy_password: String::new(),
+            proxy_password: SecretInput::default(),
             proxy_command: String::new(),
             has_existing_proxy_password: false,
-            proxy_password_touched: false,
-            totp_secret: String::new(),
+            totp_secret: SecretInput::default(),
             has_existing_totp: false,
-            totp_touched: false,
             totp_visible: false,
             terminal_theme: None,
             keepalive_interval: String::new(),
@@ -889,5 +948,53 @@ impl Default for ConnectionForm {
             quirks: oryxis_core::models::terminal_quirks::TerminalQuirks::default(),
             rekey_limit_mb: String::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod secret_input_tests {
+    use super::SecretInput;
+
+    #[test]
+    fn untouched_resolves_to_none_preserving_stored_secret() {
+        // Fresh field: nothing typed, the stored secret must survive.
+        let field = SecretInput::default();
+        assert_eq!(field.resolve(), None);
+        // Hydration-style prefill must not count as an edit either.
+        let mut field = SecretInput::default();
+        field.prefill("hunter2".into());
+        assert_eq!(field.resolve(), None);
+        assert_eq!(field.as_str(), "hunter2");
+        assert!(!field.touched());
+    }
+
+    #[test]
+    fn edited_empty_resolves_to_some_empty_clearing_stored_secret() {
+        // Typing then erasing everything is an explicit clear.
+        let mut field = SecretInput::default();
+        field.set("secret".into());
+        field.set(String::new());
+        assert_eq!(field.resolve(), Some(""));
+        assert!(field.touched());
+    }
+
+    #[test]
+    fn edited_value_resolves_to_some_value_storing_it() {
+        let mut field = SecretInput::default();
+        field.set("s3cret".into());
+        assert_eq!(field.resolve(), Some("s3cret"));
+        assert_eq!(field.as_str(), "s3cret");
+        assert!(field.touched());
+    }
+
+    #[test]
+    fn clear_returns_to_the_preserve_state() {
+        // Form reset after an edit: back to "leave the vault value".
+        let mut field = SecretInput::default();
+        field.set("s3cret".into());
+        field.clear();
+        assert_eq!(field.resolve(), None);
+        assert_eq!(field.as_str(), "");
+        assert!(!field.touched());
     }
 }

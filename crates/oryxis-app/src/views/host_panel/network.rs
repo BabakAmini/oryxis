@@ -516,7 +516,7 @@ impl Oryxis {
             // the encrypted column already holds a value, and let the
             // user clear or replace it via the touched flag.
             let placeholder: &str = if self.editor_form.has_existing_proxy_password
-                && !self.editor_form.proxy_password_touched
+                && !self.editor_form.proxy_password.touched()
             {
                 crate::i18n::t("proxy_password_existing")
             } else {
@@ -532,7 +532,7 @@ impl Oryxis {
                     crate::i18n::t("proxy_password"),
                     crate::widgets::password_input_with_eye_nav(
                         placeholder,
-                        &self.editor_form.proxy_password,
+                        self.editor_form.proxy_password.as_str(),
                         Message::EditorProxyPasswordChanged,
                         Some(Message::EditorSave),
                         self.revealed_secrets
