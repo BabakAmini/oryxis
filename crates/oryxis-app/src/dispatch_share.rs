@@ -34,30 +34,30 @@ enum BackupConnectMsg {
 impl Oryxis {
     pub(crate) fn handle_share(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: ShareMessage,
+    ) -> Task<Message> {
         match message {
             // ── Export / Import ──
-            Message::Share(ShareMessage::ExportVault) => {
+            ShareMessage::ExportVault => {
                 self.show_export_dialog = true;
                 self.export_password = String::new();
                 self.export_include_keys = true;
                 self.export_selection = oryxis_vault::ExportSelection::all();
                 self.export_status = None;
             }
-            Message::Share(ShareMessage::ExportPasswordChanged(v)) => {
+            ShareMessage::ExportPasswordChanged(v) => {
                 self.export_password = v;
             }
-            Message::Share(ShareMessage::ExportToggleKeys) => {
+            ShareMessage::ExportToggleKeys => {
                 self.export_include_keys = !self.export_include_keys;
             }
-            Message::Share(ShareMessage::ExportToggleCategory(cat)) => {
+            ShareMessage::ExportToggleCategory(cat) => {
                 self.export_selection.toggle(cat);
             }
-            Message::Share(ShareMessage::ExportConfirm) => {
+            ShareMessage::ExportConfirm => {
                 if self.export_password.is_empty() {
                     self.export_status = Some(Err("Password is required".into()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let Some(vault) = &self.vault {
                     let options = oryxis_vault::ExportOptions {
@@ -70,7 +70,7 @@ impl Oryxis {
                             // The native save dialog blocks its thread for as
                             // long as the user browses; run it (and the write)
                             // off the event loop so the UI keeps painting.
-                            return Ok(Task::perform(
+                            return Task::perform(
                                 tokio::task::spawn_blocking(move || {
                                     let path = rfd::FileDialog::new()
                                         .set_title("Export Vault")
@@ -85,7 +85,7 @@ impl Oryxis {
                                     // the status untouched.
                                     _ => Message::NoOp,
                                 },
-                            ));
+                            );
                         }
                         Err(e) => {
                             self.export_status = Some(Err(e.to_string()));
@@ -93,13 +93,13 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Share(ShareMessage::ExportCompleted(result)) => {
+            ShareMessage::ExportCompleted(result) => {
                 self.export_status = Some(result);
             }
-            Message::Share(ShareMessage::ImportSshConfig) => {
+            ShareMessage::ImportSshConfig => {
                 self.overlay = None;
                 self.ssh_config_import_status = None;
-                return Ok(Task::perform(
+                return Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let mut dialog = rfd::FileDialog::new()
                             .set_title("Import SSH config")
@@ -119,17 +119,17 @@ impl Oryxis {
                         Ok(Some(text)) => Message::Share(ShareMessage::SshConfigFileLoaded(text)),
                         _ => Message::NoOp,
                     },
-                ));
+                );
             }
-            Message::Share(ShareMessage::SshConfigFileLoaded(Err(e))) => {
+            ShareMessage::SshConfigFileLoaded(Err(e)) => {
                 self.ssh_config_import_status = Some(Err(e));
             }
-            Message::Share(ShareMessage::SshConfigFileLoaded(Ok(text))) => {
+            ShareMessage::SshConfigFileLoaded(Ok(text)) => {
                 let parsed = crate::ssh_config::parse(&text);
                 if parsed.is_empty() {
                     let msg = crate::i18n::t("ssh_import_none_found").to_string();
                     self.ssh_config_import_status = Some(Err(msg.clone()));
-                    return Ok(self.show_toast(msg));
+                    return self.show_toast(msg);
                 }
                 // Flag aliases that already exist as a connection label so
                 // the preview can surface them and default them to
@@ -151,28 +151,28 @@ impl Oryxis {
                 self.ssh_config_import_status = None;
                 self.show_ssh_import_dialog = true;
             }
-            Message::Share(ShareMessage::SshImportToggle(i)) => {
+            ShareMessage::SshImportToggle(i) => {
                 if let Some(sel) = self.ssh_import_selected.get_mut(i) {
                     *sel = !*sel;
                 }
             }
-            Message::Share(ShareMessage::SshImportSelectAll(on)) => {
+            ShareMessage::SshImportSelectAll(on) => {
                 for sel in &mut self.ssh_import_selected {
                     *sel = on;
                 }
             }
-            Message::Share(ShareMessage::SshImportDismiss) => {
+            ShareMessage::SshImportDismiss => {
                 self.show_ssh_import_dialog = false;
                 self.ssh_import_hosts.clear();
                 self.ssh_import_selected.clear();
                 self.ssh_import_existing.clear();
             }
-            Message::Share(ShareMessage::SshImportConfirm) => {
+            ShareMessage::SshImportConfirm => {
                 let Some(vault) = &self.vault else {
                     self.show_ssh_import_dialog = false;
                     self.ssh_config_import_status =
                         Some(Err("Vault not unlocked".into()));
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 // Ticked hosts, in original order so `link_proxy_jumps`
                 // can resolve sibling aliases to freshly-assigned ids.
@@ -227,9 +227,9 @@ impl Oryxis {
                     summary.push_str(&errors.join("; "));
                     self.ssh_config_import_status = Some(Err(summary.clone()));
                 }
-                return Ok(self.show_toast(summary));
+                return self.show_toast(summary);
             }
-            Message::Share(ShareMessage::ImportVault) => {
+            ShareMessage::ImportVault => {
                 // Close the "+ Host ▾" add menu when reached from there.
                 self.overlay = None;
                 self.import_status = None;
@@ -239,7 +239,7 @@ impl Oryxis {
                 self.import_selection = oryxis_vault::ExportSelection::all();
                 // Picker + read off the event loop; the follow-up
                 // messages route back into the dialog state.
-                return Ok(Task::perform(
+                return Task::perform(
                     tokio::task::spawn_blocking(|| {
                         let path = rfd::FileDialog::new()
                             .set_title("Import Vault")
@@ -256,19 +256,19 @@ impl Oryxis {
                         Ok(Some(Err(e))) => Message::Share(ShareMessage::ImportCompleted(Err(e))),
                         _ => Message::NoOp,
                     },
-                ));
+                );
             }
-            Message::Share(ShareMessage::ImportFileLoaded(data)) => {
+            ShareMessage::ImportFileLoaded(data) => {
                 self.import_file_data = Some(data);
                 self.show_import_dialog = true;
             }
-            Message::Share(ShareMessage::ImportPasswordChanged(v)) => {
+            ShareMessage::ImportPasswordChanged(v) => {
                 self.import_password = v;
             }
-            Message::Share(ShareMessage::ImportInspect) => {
+            ShareMessage::ImportInspect => {
                 if self.import_password.is_empty() {
                     self.import_status = Some(Err(crate::i18n::t("password_required").to_string()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let Some(data) = &self.import_file_data {
                     match oryxis_vault::inspect_export(data, &self.import_password) {
@@ -288,21 +288,21 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Share(ShareMessage::ImportToggleCategory(cat)) => {
+            ShareMessage::ImportToggleCategory(cat) => {
                 // Only categories present in the file are interactive in
                 // the UI, but guard anyway, toggling an absent one is a
                 // no-op since it stays empty in the payload.
                 self.import_selection.toggle(cat);
             }
-            Message::Share(ShareMessage::ImportConfirm) => {
+            ShareMessage::ImportConfirm => {
                 if self.import_password.is_empty() {
                     self.import_status = Some(Err(crate::i18n::t("password_required").to_string()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 // Confirm only acts after a successful inspection, the UI
                 // hides the button until then, this guards the message path.
                 if self.import_summary.is_none() {
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if let (Some(vault), Some(data)) = (&self.vault, &self.import_file_data) {
                     match oryxis_vault::import_vault(vault, data, &self.import_password, &self.import_selection) {
@@ -345,7 +345,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Share(ShareMessage::ImportCompleted(result)) => {
+            ShareMessage::ImportCompleted(result) => {
                 self.import_status = Some(result);
                 if self.import_status.as_ref().is_some_and(|r| r.is_ok()) {
                     self.show_import_dialog = false;
@@ -353,7 +353,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
-            Message::Share(ShareMessage::ExportImportDismiss) => {
+            ShareMessage::ExportImportDismiss => {
                 self.show_export_dialog = false;
                 self.show_import_dialog = false;
                 self.export_status = None;
@@ -364,15 +364,15 @@ impl Oryxis {
             }
 
             // ── Backup / Restore over SFTP ──
-            Message::Share(ShareMessage::ExportToSftp) => {
+            ShareMessage::ExportToSftp => {
                 if self.export_password.is_empty() {
                     self.export_status =
                         Some(Err(crate::i18n::t("password_required").to_string()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 self.open_sftp_backup_picker(false);
             }
-            Message::Share(ShareMessage::ImportFromSftp) => {
+            ShareMessage::ImportFromSftp => {
                 // Close the "+ Host ▾" add menu when reached from there,
                 // and reset the import dialog state the loaded blob feeds.
                 self.overlay = None;
@@ -383,21 +383,21 @@ impl Oryxis {
                 self.import_selection = oryxis_vault::ExportSelection::all();
                 self.open_sftp_backup_picker(true);
             }
-            Message::Share(ShareMessage::SftpBackupHostSelected(idx)) => {
+            ShareMessage::SftpBackupHostSelected(idx) => {
                 self.sftp_backup.host = Some(idx);
             }
-            Message::Share(ShareMessage::SftpBackupPathChanged(v)) => {
+            ShareMessage::SftpBackupPathChanged(v) => {
                 self.sftp_backup.path = v;
             }
-            Message::Share(ShareMessage::SftpBackupCancel) => {
+            ShareMessage::SftpBackupCancel => {
                 self.sftp_backup.open = false;
                 self.sftp_backup.busy = false;
                 self.sftp_backup.status = None;
             }
-            Message::Share(ShareMessage::SftpBackupConfirm) => {
+            ShareMessage::SftpBackupConfirm => {
                 return self.run_sftp_backup();
             }
-            Message::Share(ShareMessage::SftpBackupExportDone(res)) => {
+            ShareMessage::SftpBackupExportDone(res) => {
                 self.sftp_backup.busy = false;
                 self.host_key_response_tx = None;
                 match res {
@@ -405,7 +405,7 @@ impl Oryxis {
                     Err(e) => self.sftp_backup.status = Some(Err(e)),
                 }
             }
-            Message::Share(ShareMessage::SftpBackupImportDone(res)) => {
+            ShareMessage::SftpBackupImportDone(res) => {
                 self.sftp_backup.busy = false;
                 self.host_key_response_tx = None;
                 match res {
@@ -418,14 +418,14 @@ impl Oryxis {
                         self.sftp_backup.status = None;
                         self.import_file_data = Some(data);
                         self.show_import_dialog = true;
-                        return Ok(Task::done(Message::Share(ShareMessage::ImportInspect)));
+                        return Task::done(Message::Share(ShareMessage::ImportInspect));
                     }
                     Err(e) => self.sftp_backup.status = Some(Err(e)),
                 }
             }
 
             // ── Share ──
-            Message::Share(ShareMessage::ShareConnection(idx)) => {
+            ShareMessage::ShareConnection(idx) => {
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx) {
                     self.share.group_mode = false;
@@ -437,7 +437,7 @@ impl Oryxis {
                     self.share.status = None;
                 }
             }
-            Message::Share(ShareMessage::ShowExportHosts(scope)) => {
+            ShareMessage::ShowExportHosts(scope) => {
                 self.overlay = None;
                 self.share.group_mode = true;
                 // Pre-tick the in-scope folders. Inside a folder, tick it
@@ -467,21 +467,21 @@ impl Oryxis {
                 self.share.include_keys = false;
                 self.share.status = None;
             }
-            Message::Share(ShareMessage::ShareToggleGroup(gid)) => {
+            ShareMessage::ShareToggleGroup(gid) => {
                 if !self.share.groups.remove(&gid) {
                     self.share.groups.insert(gid);
                 }
             }
-            Message::Share(ShareMessage::ShareToggleUngrouped) => {
+            ShareMessage::ShareToggleUngrouped => {
                 self.share.include_ungrouped = !self.share.include_ungrouped;
             }
-            Message::Share(ShareMessage::SharePasswordChanged(v)) => {
+            ShareMessage::SharePasswordChanged(v) => {
                 self.share.password = v;
             }
-            Message::Share(ShareMessage::ShareToggleKeys) => {
+            ShareMessage::ShareToggleKeys => {
                 self.share.include_keys = !self.share.include_keys;
             }
-            Message::Share(ShareMessage::ShareConfirm) => {
+            ShareMessage::ShareConfirm => {
                 // In group mode the filter is derived from the ticked
                 // folders just before export, so a mid-dialog tick is
                 // always reflected.
@@ -499,14 +499,14 @@ impl Oryxis {
                         self.share.status = Some(Err(
                             crate::i18n::t("export_nothing_selected").to_string(),
                         ));
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                     self.share.filter =
                         Some(oryxis_vault::ExportFilter::Hosts(ids));
                 }
                 if self.share.password.is_empty() {
                     self.share.status = Some(Err("Password is required".into()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 if self.vault.is_some() && self.share.filter.is_some() {
                     // Open the save dialog FIRST (off the event loop), then
@@ -518,7 +518,7 @@ impl Oryxis {
                         .share.suggested_name
                         .clone()
                         .unwrap_or_else(|| "shared.oryxis".to_string());
-                    return Ok(Task::perform(
+                    return Task::perform(
                         tokio::task::spawn_blocking(move || {
                             rfd::FileDialog::new()
                                 .set_title("Share")
@@ -530,10 +530,10 @@ impl Oryxis {
                             Ok(Some(path)) => Message::Share(ShareMessage::SharePathChosen(path)),
                             _ => Message::NoOp,
                         },
-                    ));
+                    );
                 }
             }
-            Message::Share(ShareMessage::SharePathChosen(path)) => {
+            ShareMessage::SharePathChosen(path) => {
                 if let (Some(vault), Some(filter)) = (&self.vault, &self.share.filter) {
                     let options = oryxis_vault::ExportOptions {
                         include_private_keys: self.share.include_keys,
@@ -580,7 +580,7 @@ impl Oryxis {
                                         ),
                                         None => crate::i18n::t("export_done").to_string(),
                                     };
-                                    return Ok(self.show_toast(toast));
+                                    return self.show_toast(toast);
                                 }
                                 Err(e) => {
                                     self.share.status = Some(Err(format!("Write failed: {}", e)));
@@ -593,7 +593,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Share(ShareMessage::ShareDismiss) => {
+            ShareMessage::ShareDismiss => {
                 self.show_share_dialog = false;
                 self.share.filter = None;
                 self.share.status = None;
@@ -602,9 +602,8 @@ impl Oryxis {
                 self.share.groups.clear();
                 self.share.include_ungrouped = false;
             }
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
 
@@ -688,10 +687,10 @@ impl Oryxis {
     /// Validate the picker, then connect to the chosen host (reusing an
     /// open tab session when one exists, else a fresh SFTP-only connect
     /// with the shared host-key modal) and transfer the encrypted blob.
-    fn run_sftp_backup(&mut self) -> Result<Task<Message>, Message> {
+    fn run_sftp_backup(&mut self) -> Task<Message> {
         // Guard against a second confirm while a transfer is in flight.
         if self.sftp_backup.busy {
-            return Ok(Task::none());
+            return Task::none();
         }
         let Some(conn) = self
             .sftp_backup.host
@@ -700,13 +699,13 @@ impl Oryxis {
         else {
             self.sftp_backup.status =
                 Some(Err(crate::i18n::t("sftp_backup_pick_host").to_string()));
-            return Ok(Task::none());
+            return Task::none();
         };
         let path = self.sftp_backup.path.trim().to_string();
         if path.is_empty() {
             self.sftp_backup.status =
                 Some(Err(crate::i18n::t("sftp_backup_path_required").to_string()));
-            return Ok(Task::none());
+            return Task::none();
         }
         let is_import = self.sftp_backup.is_import;
         // Restore needs the decrypt password up front (mirrors export, which
@@ -715,7 +714,7 @@ impl Oryxis {
         if is_import && self.import_password.is_empty() {
             self.sftp_backup.status =
                 Some(Err(crate::i18n::t("password_required").to_string()));
-            return Ok(Task::none());
+            return Task::none();
         }
         let label = conn.label.clone();
 
@@ -725,7 +724,7 @@ impl Oryxis {
             None
         } else {
             let Some(vault) = &self.vault else {
-                return Ok(Task::none());
+                return Task::none();
             };
             let options = oryxis_vault::ExportOptions {
                 include_private_keys: self.export_include_keys,
@@ -736,7 +735,7 @@ impl Oryxis {
                 Ok(d) => Some(d),
                 Err(e) => {
                     self.sftp_backup.status = Some(Err(e.to_string()));
-                    return Ok(Task::none());
+                    return Task::none();
                 }
             }
         };
@@ -772,7 +771,7 @@ impl Oryxis {
         if let Some(session) = existing {
             let remote = self.sftp_backup.path.trim().to_string();
             let data = export_data;
-            return Ok(Task::perform(
+            return Task::perform(
                 async move {
                     let client = session.open_sftp().await.map_err(|e| e.to_string())?;
                     if is_import {
@@ -795,7 +794,7 @@ impl Oryxis {
                     Err(e) if is_import => Message::Share(ShareMessage::SftpBackupImportDone(Err(e))),
                     Err(e) => Message::Share(ShareMessage::SftpBackupExportDone(Err(e))),
                 },
-            ));
+            );
         }
 
         // No open tab: connect a fresh SFTP-only session. Same credential
@@ -909,7 +908,7 @@ impl Oryxis {
                 let _ = sender.send(BackupConnectMsg::Done(result)).await;
             },
         );
-        Ok(Task::stream(stream).map(move |m| match m {
+        Task::stream(stream).map(move |m| match m {
             BackupConnectMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
             BackupConnectMsg::Done(Ok(outcome)) => done_ok(outcome),
             BackupConnectMsg::Done(Err(e)) if is_import => Message::Share(ShareMessage::SftpBackupImportDone(Err(e))),
@@ -922,7 +921,7 @@ impl Oryxis {
                     retry: Box::new(Message::Share(ShareMessage::SftpBackupConfirm)),
                 })
             }
-        }))
+        })
     }
 }
 

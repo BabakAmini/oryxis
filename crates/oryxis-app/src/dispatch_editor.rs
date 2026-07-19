@@ -577,77 +577,77 @@ impl Oryxis {
 
     pub(crate) fn handle_editor(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: EditorMessage,
+    ) -> Task<Message> {
         match message {
-            Message::Editor(EditorMessage::EditorToggleMcpEnabled) => {
+            EditorMessage::EditorToggleMcpEnabled => {
                 self.editor_form.mcp_enabled = !self.editor_form.mcp_enabled;
             }
-            Message::Editor(EditorMessage::EditorToggleAgentForwarding) => {
+            EditorMessage::EditorToggleAgentForwarding => {
                 self.editor_form.agent_forwarding = !self.editor_form.agent_forwarding;
             }
             // Cycle the per-host recording override: Default (inherit the
             // global setting) -> On -> Off -> Default.
-            Message::Editor(EditorMessage::EditorCycleSessionLogging) => {
+            EditorMessage::EditorCycleSessionLogging => {
                 self.editor_form.session_logging = match self.editor_form.session_logging {
                     None => Some(true),
                     Some(true) => Some(false),
                     Some(false) => None,
                 };
             }
-            Message::Editor(EditorMessage::EditorAddPortForward) => {
+            EditorMessage::EditorAddPortForward => {
                 self.editor_form.port_forwards.push(PortForwardForm::default());
             }
-            Message::Editor(EditorMessage::EditorRemovePortForward(i)) => {
+            EditorMessage::EditorRemovePortForward(i) => {
                 if i < self.editor_form.port_forwards.len() {
                     self.editor_form.port_forwards.remove(i);
                 }
             }
-            Message::Editor(EditorMessage::EditorPortFwdLocalPortChanged(i, v)) => {
+            EditorMessage::EditorPortFwdLocalPortChanged(i, v) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.local_port = v;
                 }
             }
-            Message::Editor(EditorMessage::EditorPortFwdRemoteHostChanged(i, v)) => {
+            EditorMessage::EditorPortFwdRemoteHostChanged(i, v) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.remote_host = v;
                 }
             }
-            Message::Editor(EditorMessage::EditorPortFwdRemotePortChanged(i, v)) => {
+            EditorMessage::EditorPortFwdRemotePortChanged(i, v) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.remote_port = v;
                 }
             }
-            Message::Editor(EditorMessage::EditorAddEnvVar) => {
+            EditorMessage::EditorAddEnvVar => {
                 self.editor_form.env_vars.push(EnvVarForm::default());
             }
-            Message::Editor(EditorMessage::EditorRemoveEnvVar(i)) => {
+            EditorMessage::EditorRemoveEnvVar(i) => {
                 if i < self.editor_form.env_vars.len() {
                     self.editor_form.env_vars.remove(i);
                 }
             }
-            Message::Editor(EditorMessage::EditorEnvVarKeyChanged(i, v)) => {
+            EditorMessage::EditorEnvVarKeyChanged(i, v) => {
                 if let Some(e) = self.editor_form.env_vars.get_mut(i) {
                     e.key = v;
                 }
             }
-            Message::Editor(EditorMessage::EditorEnvVarValueChanged(i, v)) => {
+            EditorMessage::EditorEnvVarValueChanged(i, v) => {
                 if let Some(e) = self.editor_form.env_vars.get_mut(i) {
                     e.value = v;
                 }
             }
             // -- Connection editor --
-            Message::Editor(EditorMessage::ShowNewConnection) => {
-                return Ok(self.open_new_host_editor(
+            EditorMessage::ShowNewConnection => {
+                return self.open_new_host_editor(
                     oryxis_core::models::connection::ConnectionProtocol::Ssh,
-                ));
+                );
             }
-            Message::Editor(EditorMessage::ShowNewRemoteDesktop) => {
-                return Ok(self.open_new_host_editor(
+            EditorMessage::ShowNewRemoteDesktop => {
+                return self.open_new_host_editor(
                     oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop,
-                ));
+                );
             }
-            Message::Editor(EditorMessage::EditConnection(idx)) => {
+            EditorMessage::EditConnection(idx) => {
                 self.card_context_menu = None;
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx) {
@@ -703,16 +703,16 @@ impl Oryxis {
                         _ => crate::state::StartupChoice::None,
                     };
                     self.rebuild_editor_combos();
-                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                    return iced::widget::operation::focus(iced::widget::Id::new(
                         "editor-hostname",
-                    )));
+                    ));
                 }
             }
-            Message::Editor(EditorMessage::SaveQuickHost(id)) => {
+            EditorMessage::SaveQuickHost(id) => {
                 self.overlay = None;
                 self.card_context_menu = None;
                 let Some(entry) = self.quick_connects.get(&id).cloned() else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 // Mutually exclusive right-panel slot, and the panel lives
                 // on the dashboard (the menu was clicked from a terminal).
@@ -753,11 +753,11 @@ impl Oryxis {
                     _ => crate::state::StartupChoice::None,
                 };
                 self.rebuild_editor_combos();
-                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                return iced::widget::operation::focus(iced::widget::Id::new(
                     "editor-hostname",
-                )));
+                ));
             }
-            Message::Editor(EditorMessage::EditQuickHost(id)) => {
+            EditorMessage::EditQuickHost(id) => {
                 // Same prefill as SaveQuickHost; the flag only swaps the
                 // footer emphasis (Connect primary / Save secondary) so
                 // the flow reads as "edit the temporary host and dial",
@@ -766,12 +766,12 @@ impl Oryxis {
                 if self.show_host_panel {
                     self.editor_form.quick_flow = true;
                 }
-                return Ok(task);
+                return task;
             }
-            Message::Editor(EditorMessage::EditorLabelChanged(v)) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
-            Message::Editor(EditorMessage::EditorTagsChanged(v)) => { self.editor_form.tags_text = v; }
-            Message::Editor(EditorMessage::EditorHostnameChanged(v)) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
-            Message::Editor(EditorMessage::EditorProtocolChanged(protocol)) => {
+            EditorMessage::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
+            EditorMessage::EditorTagsChanged(v) => { self.editor_form.tags_text = v; }
+            EditorMessage::EditorHostnameChanged(v) => { self.editor_form.hostname = v; self.editor_form.username_focused = false; }
+            EditorMessage::EditorProtocolChanged(protocol) => {
                 let prev = self.editor_form.protocol;
                 if prev != protocol {
                     // Retarget the numeric port only when both protocols
@@ -798,29 +798,29 @@ impl Oryxis {
                 }
                 self.editor_form.username_focused = false;
             }
-            Message::Editor(EditorMessage::EditorSerialBaudChanged(v)) => {
+            EditorMessage::EditorSerialBaudChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).baud = v;
             }
-            Message::Editor(EditorMessage::EditorSerialDataBitsChanged(v)) => {
+            EditorMessage::EditorSerialDataBitsChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).data_bits = v;
             }
-            Message::Editor(EditorMessage::EditorSerialParityChanged(v)) => {
+            EditorMessage::EditorSerialParityChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).parity = v;
             }
-            Message::Editor(EditorMessage::EditorSerialStopBitsChanged(v)) => {
+            EditorMessage::EditorSerialStopBitsChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).stop_bits = v;
             }
-            Message::Editor(EditorMessage::EditorSerialFlowChanged(v)) => {
+            EditorMessage::EditorSerialFlowChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).flow_control = v;
             }
-            Message::Editor(EditorMessage::EditorSerialLineEndingChanged(v)) => {
+            EditorMessage::EditorSerialLineEndingChanged(v) => {
                 self.editor_form.serial.get_or_insert_with(Default::default).line_ending = v;
             }
-            Message::Editor(EditorMessage::EditorSerialLocalEchoToggled) => {
+            EditorMessage::EditorSerialLocalEchoToggled => {
                 let s = self.editor_form.serial.get_or_insert_with(Default::default);
                 s.local_echo = !s.local_echo;
             }
-            Message::Editor(EditorMessage::EditorRdKindChanged(kind)) => {
+            EditorMessage::EditorRdKindChanged(kind) => {
                 // Retarget the port field when it still holds the other
                 // kind's default, so a typed port survives the RDP<->VNC
                 // switch (the endpoint port reuses the normal port field).
@@ -830,32 +830,32 @@ impl Oryxis {
                 }
                 self.editor_form.rd_kind = kind;
             }
-            Message::Editor(EditorMessage::EditorRdGatewayChanged(id)) => {
+            EditorMessage::EditorRdGatewayChanged(id) => {
                 self.editor_form.rd_gateway_id = id;
             }
-            Message::Editor(EditorMessage::EditorAddressFamilyChanged(family)) => {
+            EditorMessage::EditorAddressFamilyChanged(family) => {
                 self.editor_form.address_family = family;
             }
-            Message::Editor(EditorMessage::EditorPortChanged(v)) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
-            Message::Editor(EditorMessage::EditorUsernameChanged(v)) => {
+            EditorMessage::EditorPortChanged(v) => { self.editor_form.port = v; self.editor_form.username_focused = false; }
+            EditorMessage::EditorUsernameChanged(v) => {
                 self.editor_form.username = v;
                 self.editor_form.username_focused = true;
             }
-            Message::Editor(EditorMessage::EditorPasswordChanged(v)) => {
+            EditorMessage::EditorPasswordChanged(v) => {
                 self.editor_form.username_focused = false;
                 self.editor_form.password.set(v);
             }
-            Message::Editor(EditorMessage::EditorTogglePasswordVisibility) => {
+            EditorMessage::EditorTogglePasswordVisibility => {
                 self.editor_form.password_visible = !self.editor_form.password_visible;
             }
-            Message::Editor(EditorMessage::EditorTotpChanged(v)) => {
+            EditorMessage::EditorTotpChanged(v) => {
                 self.editor_form.username_focused = false;
                 self.editor_form.totp_secret.set(v);
             }
-            Message::Editor(EditorMessage::EditorToggleTotpVisibility) => {
+            EditorMessage::EditorToggleTotpVisibility => {
                 self.editor_form.totp_visible = !self.editor_form.totp_visible;
             }
-            Message::Editor(EditorMessage::EditorAuthMethodChanged(v)) => {
+            EditorMessage::EditorAuthMethodChanged(v) => {
                 // Localized (or English) label -> enum, shared with the
                 // Settings default-auth picker.
                 self.editor_form.auth_method = crate::util::auth_method_from_label(&v);
@@ -873,37 +873,37 @@ impl Oryxis {
                 }
                 self.reset_editor_key_combo();
             }
-            Message::Editor(EditorMessage::EditorGroupChanged(v)) => self.editor_form.group_name = v,
-            Message::Editor(EditorMessage::EditorKeyChanged(v)) => {
+            EditorMessage::EditorGroupChanged(v) => self.editor_form.group_name = v,
+            EditorMessage::EditorKeyChanged(v) => {
                 self.editor_form.selected_key = if v == "(none)" { None } else { Some(v) };
             }
-            Message::Editor(EditorMessage::EditorKeyComboOpened) => {
+            EditorMessage::EditorKeyComboOpened => {
                 // Focus clears the typed value so the dropdown opens on
                 // the full key list, not pre-filtered by the current pick.
                 self.reset_editor_key_combo();
             }
-            Message::Editor(EditorMessage::OpenChainEditor) => {
+            EditorMessage::OpenChainEditor => {
                 self.show_chain_editor = true;
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
-            Message::Editor(EditorMessage::CloseChainEditor) => {
+            EditorMessage::CloseChainEditor => {
                 self.show_chain_editor = false;
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
-            Message::Editor(EditorMessage::ChainEditorStartAdd) => {
+            EditorMessage::ChainEditorStartAdd => {
                 self.chain_editor_adding = true;
                 self.chain_editor_search.clear();
             }
-            Message::Editor(EditorMessage::ChainEditorCancelAdd) => {
+            EditorMessage::ChainEditorCancelAdd => {
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
-            Message::Editor(EditorMessage::ChainEditorSearchChanged(v)) => {
+            EditorMessage::ChainEditorSearchChanged(v) => {
                 self.chain_editor_search = v;
             }
-            Message::Editor(EditorMessage::ChainEditorAddHop(id)) => {
+            EditorMessage::ChainEditorAddHop(id) => {
                 // Append the hop, ignoring duplicates so the same host
                 // can't appear twice in one chain.
                 if !self.editor_form.jump_chain.contains(&id) {
@@ -912,22 +912,22 @@ impl Oryxis {
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
-            Message::Editor(EditorMessage::ChainEditorRemoveHop(idx)) => {
+            EditorMessage::ChainEditorRemoveHop(idx) => {
                 if idx < self.editor_form.jump_chain.len() {
                     self.editor_form.jump_chain.remove(idx);
                 }
             }
-            Message::Editor(EditorMessage::ChainEditorMoveHopUp(idx)) => {
+            EditorMessage::ChainEditorMoveHopUp(idx) => {
                 if idx > 0 && idx < self.editor_form.jump_chain.len() {
                     self.editor_form.jump_chain.swap(idx, idx - 1);
                 }
             }
-            Message::Editor(EditorMessage::ChainEditorMoveHopDown(idx)) => {
+            EditorMessage::ChainEditorMoveHopDown(idx) => {
                 if idx + 1 < self.editor_form.jump_chain.len() {
                     self.editor_form.jump_chain.swap(idx, idx + 1);
                 }
             }
-            Message::Editor(EditorMessage::EditorProxyKindChanged(kind)) => {
+            EditorMessage::EditorProxyKindChanged(kind) => {
                 let prev = self.editor_form.proxy_kind;
                 self.editor_form.proxy_kind = kind;
                 match kind {
@@ -966,38 +966,38 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Editor(EditorMessage::EditorProxyHostChanged(v)) => { self.editor_form.proxy_host = v; }
-            Message::Editor(EditorMessage::EditorProxyPortChanged(v)) => { self.editor_form.proxy_port = v; }
-            Message::Editor(EditorMessage::EditorProxyUsernameChanged(v)) => { self.editor_form.proxy_username = v; }
-            Message::Editor(EditorMessage::EditorProxyPasswordChanged(v)) => {
+            EditorMessage::EditorProxyHostChanged(v) => { self.editor_form.proxy_host = v; }
+            EditorMessage::EditorProxyPortChanged(v) => { self.editor_form.proxy_port = v; }
+            EditorMessage::EditorProxyUsernameChanged(v) => { self.editor_form.proxy_username = v; }
+            EditorMessage::EditorProxyPasswordChanged(v) => {
                 self.editor_form.proxy_password.set(v);
             }
-            Message::Editor(EditorMessage::EditorProxyCommandChanged(v)) => { self.editor_form.proxy_command = v; }
-            Message::Editor(EditorMessage::EditorOpenThemePicker) => {
+            EditorMessage::EditorProxyCommandChanged(v) => { self.editor_form.proxy_command = v; }
+            EditorMessage::EditorOpenThemePicker => {
                 self.show_theme_picker = true;
             }
-            Message::Editor(EditorMessage::EditorCloseThemePicker) => {
+            EditorMessage::EditorCloseThemePicker => {
                 self.show_theme_picker = false;
             }
-            Message::Editor(EditorMessage::EditorTerminalThemeChanged(name)) => {
+            EditorMessage::EditorTerminalThemeChanged(name) => {
                 // Empty string == "inherit the global pick".
                 self.editor_form.terminal_theme =
                     if name.is_empty() { None } else { Some(name) };
                 self.show_theme_picker = false;
             }
-            Message::Editor(EditorMessage::EditorCloudTransportChanged(t)) => {
+            EditorMessage::EditorCloudTransportChanged(t) => {
                 self.editor_form.cloud_transport = Some(t);
             }
-            Message::Editor(EditorMessage::EditorInitialCommandChanged(action)) => {
+            EditorMessage::EditorInitialCommandChanged(action) => {
                 self.editor_initial_command.perform(action);
             }
-            Message::Editor(EditorMessage::EditorStartupComboOpened) => {
+            EditorMessage::EditorStartupComboOpened => {
                 // Focus clears the typed value so the dropdown opens on
                 // the full snippet list, not pre-filtered by the current
                 // selection (the committed choice is preserved untouched).
                 self.reset_editor_startup_combo();
             }
-            Message::Editor(EditorMessage::EditorStartupChoiceChanged(label)) => {
+            EditorMessage::EditorStartupChoiceChanged(label) => {
                 use crate::state::StartupChoice;
                 // Map the picker label back to a source. The None / Custom
                 // sentinels come from i18n; anything else is a snippet
@@ -1016,7 +1016,7 @@ impl Oryxis {
                     self.editor_startup_choice = StartupChoice::Snippet(s.id);
                 }
             }
-            Message::Editor(EditorMessage::EditorIconStyleChanged(v)) => {
+            EditorMessage::EditorIconStyleChanged(v) => {
                 // "" clears the override; anything else is normalized to
                 // the known set so a stale UI value can't smuggle in a
                 // string the renderer doesn't understand.
@@ -1025,17 +1025,17 @@ impl Oryxis {
                     _ => None,
                 };
             }
-            Message::Editor(EditorMessage::EditorEncodingChanged(v)) => {
+            EditorMessage::EditorEncodingChanged(v) => {
                 // "UTF-8" is the implicit default, stored as None so the
                 // SSH engine skips transcoding entirely.
                 self.editor_form.encoding = if v == "UTF-8" { None } else { Some(v) };
             }
-            Message::Editor(EditorMessage::EditorTerminalTypeChanged(v)) => {
+            EditorMessage::EditorTerminalTypeChanged(v) => {
                 // "xterm-256color" is the implicit default, stored as None.
                 self.editor_form.terminal_type =
                     if v == "xterm-256color" { None } else { Some(v) };
             }
-            Message::Editor(EditorMessage::EditorKeepaliveChanged(v)) => {
+            EditorMessage::EditorKeepaliveChanged(v) => {
                 // Digits only; preserve empty (= inherit global). Cap at
                 // 86_400s (1 day) like the global setting field, so users
                 // can't accidentally type a runaway value.
@@ -1047,7 +1047,7 @@ impl Oryxis {
                     n.min(86_400).to_string()
                 };
             }
-            Message::Editor(EditorMessage::EditorAutoTitleChanged(v)) => {
+            EditorMessage::EditorAutoTitleChanged(v) => {
                 use crate::i18n::t;
                 // Map the localized pick label back to the tri-state override.
                 self.editor_form.auto_title = if v == t("host_auto_title_show") {
@@ -1058,7 +1058,7 @@ impl Oryxis {
                     None
                 };
             }
-            Message::Editor(EditorMessage::EditorPrivacyModeChanged(v)) => {
+            EditorMessage::EditorPrivacyModeChanged(v) => {
                 use crate::i18n::t;
                 // Map the localized pick label back to the tri-state override.
                 self.editor_form.privacy_mode = if v == t("host_privacy_mode_on") {
@@ -1069,30 +1069,30 @@ impl Oryxis {
                     None
                 };
             }
-            Message::Editor(EditorMessage::EditorQuirkBackspaceChanged(v)) => {
+            EditorMessage::EditorQuirkBackspaceChanged(v) => {
                 self.editor_form.quirks.backspace = crate::util::quirk_backspace_from_label(&v);
             }
-            Message::Editor(EditorMessage::EditorQuirkHomeEndChanged(v)) => {
+            EditorMessage::EditorQuirkHomeEndChanged(v) => {
                 self.editor_form.quirks.home_end = crate::util::quirk_home_end_from_label(&v);
             }
-            Message::Editor(EditorMessage::EditorQuirkFnKeysChanged(v)) => {
+            EditorMessage::EditorQuirkFnKeysChanged(v) => {
                 self.editor_form.quirks.function_keys = crate::util::quirk_fn_keys_from_label(&v);
             }
-            Message::Editor(EditorMessage::EditorQuirkMouseReportingChanged(on)) => {
+            EditorMessage::EditorQuirkMouseReportingChanged(on) => {
                 // Toggle shows the positive "report mouse"; off disables it.
                 self.editor_form.quirks.disable_mouse_reporting = !on;
             }
-            Message::Editor(EditorMessage::EditorQuirkTitleChangeChanged(on)) => {
+            EditorMessage::EditorQuirkTitleChangeChanged(on) => {
                 self.editor_form.quirks.disable_title_change = !on;
             }
-            Message::Editor(EditorMessage::EditorQuirkOsc52Changed(v)) => {
+            EditorMessage::EditorQuirkOsc52Changed(v) => {
                 self.editor_form.quirks.osc52 = crate::util::quirk_osc52_from_label(&v);
             }
-            Message::Editor(EditorMessage::EditorQuirkOptionAsMetaChanged(v)) => {
+            EditorMessage::EditorQuirkOptionAsMetaChanged(v) => {
                 self.editor_form.quirks.option_as_meta =
                     crate::util::quirk_option_as_meta_from_label(&v);
             }
-            Message::Editor(EditorMessage::EditorQuirkRekeyChanged(v)) => {
+            EditorMessage::EditorQuirkRekeyChanged(v) => {
                 // Digits only; empty allowed (= default). Clamp to russh's
                 // 1 GiB cap (1024 MB) so the field can't exceed it.
                 self.editor_form.rekey_limit_mb = if v.trim().is_empty() {
@@ -1101,7 +1101,7 @@ impl Oryxis {
                     crate::util::sanitize_uint(&v, 1024)
                 };
             }
-            Message::Editor(EditorMessage::EditorAlgoSetAuto(cat, auto)) => {
+            EditorMessage::EditorAlgoSetAuto(cat, auto) => {
                 // Auto = None (russh defaults). Switching to custom seeds the
                 // list with the safe defaults so the user adds legacy entries
                 // (or trims) from a working set rather than from nothing.
@@ -1111,7 +1111,7 @@ impl Oryxis {
                     Some(cat.defaults())
                 };
             }
-            Message::Editor(EditorMessage::EditorAlgoToggle(cat, name)) => {
+            EditorMessage::EditorAlgoToggle(cat, name) => {
                 let list = self.editor_form.algo_list_mut(cat).get_or_insert_with(Vec::new);
                 if let Some(pos) = list.iter().position(|n| n == &name) {
                     list.remove(pos);
@@ -1119,17 +1119,17 @@ impl Oryxis {
                     list.push(name);
                 }
             }
-            Message::Editor(EditorMessage::EditorSave) => {
+            EditorMessage::EditorSave => {
                 if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("editor_label_host_required").to_string());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let conn = match self.connection_from_editor_form(true) {
                     Ok(conn) => conn,
                     Err(msg) => {
                         self.host_panel_error = Some(msg);
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 };
                 // Tri-state: untouched preserves the stored password,
@@ -1190,7 +1190,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Editor(EditorMessage::EditorConnectWithoutSaving) => {
+            EditorMessage::EditorConnectWithoutSaving => {
                 // Ad-hoc connect from the "+ Host" flow: build the full
                 // Connection from the form but persist nothing. Only the
                 // hostname is required; an empty label defaults to the
@@ -1198,13 +1198,13 @@ impl Oryxis {
                 if self.editor_form.hostname.is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("quick_connect_hostname_required").into());
-                    return Ok(Task::none());
+                    return Task::none();
                 }
                 let mut conn = match self.connection_from_editor_form(false) {
                     Ok(conn) => conn,
                     Err(msg) => {
                         self.host_panel_error = Some(msg);
-                        return Ok(Task::none());
+                        return Task::none();
                     }
                 };
                 if conn.label.is_empty() {
@@ -1247,20 +1247,20 @@ impl Oryxis {
                 self.show_host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
-                return Ok(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry)))));
+                return self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))));
             }
-            Message::Editor(EditorMessage::EditorCancel) => {
+            EditorMessage::EditorCancel => {
                 self.show_host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
             }
-            Message::Editor(EditorMessage::RequestDeleteConnection(idx)) => {
+            EditorMessage::RequestDeleteConnection(idx) => {
                 if let Some(conn) = self.connections.get(idx) {
                     let name = conn.label.clone();
                     self.confirm_remove(name, Message::Editor(EditorMessage::DeleteConnection(idx)));
                 }
             }
-            Message::Editor(EditorMessage::DeleteConnection(idx)) => {
+            EditorMessage::DeleteConnection(idx) => {
                 self.card_context_menu = None;
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx) {
@@ -1273,7 +1273,7 @@ impl Oryxis {
                     }
                 }
             }
-            Message::Editor(EditorMessage::DuplicateConnection(idx)) => {
+            EditorMessage::DuplicateConnection(idx) => {
                 self.card_context_menu = None;
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx).cloned() {
@@ -1316,7 +1316,7 @@ impl Oryxis {
                 }
             }
             // ── Connection identity ──
-            Message::Editor(EditorMessage::EditorIdentityChanged(v)) => {
+            EditorMessage::EditorIdentityChanged(v) => {
                 self.editor_form.username_focused = false;
                 if v == "(none)" {
                     self.editor_form.selected_identity = None;
@@ -1326,20 +1326,20 @@ impl Oryxis {
             }
 
             // ── Live host-config edits from the terminal sidebar tab ──
-            Message::Editor(EditorMessage::HostConfigThemeChanged(name)) => {
+            EditorMessage::HostConfigThemeChanged(name) => {
                 // Empty sentinel = follow the global terminal theme (None).
                 let value = if name.is_empty() { None } else { Some(name) };
                 self.host_config_apply(|c| c.terminal_theme = value, true);
             }
-            Message::Editor(EditorMessage::HostConfigEncodingChanged(v)) => {
+            EditorMessage::HostConfigEncodingChanged(v) => {
                 let value = if v == "UTF-8" { None } else { Some(v) };
                 self.host_config_apply(|c| c.encoding = value, false);
             }
-            Message::Editor(EditorMessage::HostConfigTerminalTypeChanged(v)) => {
+            EditorMessage::HostConfigTerminalTypeChanged(v) => {
                 let value = if v == "xterm-256color" { None } else { Some(v) };
                 self.host_config_apply(|c| c.terminal_type = value, false);
             }
-            Message::Editor(EditorMessage::HostConfigAutoTitleChanged(v)) => {
+            EditorMessage::HostConfigAutoTitleChanged(v) => {
                 use crate::i18n::t;
                 let value = if v == t("host_auto_title_show") {
                     Some(true)
@@ -1350,10 +1350,8 @@ impl Oryxis {
                 };
                 self.host_config_apply(|c| c.auto_title = value, false);
             }
-
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Resolve the focused pane's connection index, apply `mutate`, persist

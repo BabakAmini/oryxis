@@ -176,6 +176,11 @@ impl Oryxis {
             Message::Vault(m) => return self.handle_vault(m),
             Message::Sync(m) => return self.handle_sync(m),
             Message::Mcp(m) => return self.handle_mcp(m),
+            Message::Editor(m) => return self.handle_editor(m),
+            Message::Share(m) => return self.handle_share(m),
+            Message::Tray(m) => return self.handle_tray(m),
+            Message::Onboarding(m) => return self.handle_onboarding(m),
+            Message::Player(m) => return self.handle_player(m),
             other => other,
         };
         // Domain-specific handlers each claim a slice of `Message`
@@ -189,15 +194,10 @@ impl Oryxis {
         let message = try_handler!(self, message, handle_settings);
         let message = try_handler!(self, message, handle_keys);
         let message = try_handler!(self, message, handle_cloud);
-        let message = try_handler!(self, message, handle_editor);
         let message = try_handler!(self, message, handle_tabs);
         let message = try_handler!(self, message, handle_terminal);
         let message = try_handler!(self, message, handle_sidebar_files);
-        let message = try_handler!(self, message, handle_share);
-        let message = try_handler!(self, message, handle_tray);
-        let message = try_handler!(self, message, handle_onboarding);
         let message = try_handler!(self, message, handle_history);
-        let message = try_handler!(self, message, handle_player);
 
         // Every Message variant is now claimed by one of the domain handlers
         // in the `try_handler!` chain above. Anything reaching here is an

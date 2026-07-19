@@ -23,12 +23,9 @@ const MAX_TICK_MS: f64 = 250.0;
 impl Oryxis {
     pub(crate) fn handle_player(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
-        let Message::Player(m) = message else {
-            return Err(message);
-        };
-        match m {
+        message: PlayerMessage,
+    ) -> Task<Message> {
+        match message {
             PlayerMessage::Open(log_id) => {
                 // Any open kebab menu should drop before the surface
                 // swaps; flush first so an in-progress session plays
@@ -36,25 +33,25 @@ impl Oryxis {
                 self.overlay = None;
                 self.flush_session_logs_final();
                 let Some(entry) = self.session_logs.iter().find(|e| e.id == log_id) else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let Some(vault) = &self.vault else {
-                    return Ok(Task::none());
+                    return Task::none();
                 };
                 let rows = match vault.get_session_events(&log_id) {
                     Ok(rows) => rows,
                     Err(e) => {
-                        return Ok(self.show_toast(
+                        return self.show_toast(
                             crate::i18n::t("history_export_failed")
                                 .replace("{error}", &e.to_string()),
-                        ));
+                        );
                     }
                 };
                 let (events, duration_ms, geometry) =
                     crate::state::preprocess_events(&rows);
                 if events.is_empty() {
-                    return Ok(self
-                        .show_toast(crate::i18n::t("player_empty").to_string()));
+                    return self
+                        .show_toast(crate::i18n::t("player_empty").to_string());
                 }
                 // The replay wears the same colors the live pane wore:
                 // per-host terminal theme override first, then the
@@ -82,10 +79,10 @@ impl Oryxis {
                         self.session_player = Some(player);
                     }
                     Err(e) => {
-                        return Ok(self.show_toast(
+                        return self.show_toast(
                             crate::i18n::t("history_export_failed")
                                 .replace("{error}", &e.to_string()),
-                        ));
+                        );
                     }
                 }
             }
@@ -137,7 +134,7 @@ impl Oryxis {
                 }
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Keyboard layer for the player surface: while it is up on the

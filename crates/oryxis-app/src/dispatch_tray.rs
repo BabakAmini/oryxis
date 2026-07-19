@@ -10,11 +10,11 @@ use crate::app::{TabsMessage, SshMessage, TrayMessage, Message, Oryxis};
 impl Oryxis {
     pub(crate) fn handle_tray(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
+        message: TrayMessage,
+    ) -> Task<Message> {
         match message {
             // -- System tray --
-            Message::Tray(TrayMessage::Poll) => {
+            TrayMessage::Poll => {
                 // A native minimize verb (taskbar button, Win+Down,
                 // Alt+Space menu) is swallowed by the Win32 subclass
                 // in `tray`, which hides the window from inside the
@@ -270,10 +270,10 @@ impl Oryxis {
                 // timer polling for one 10x/s. Only the child IPC
                 // commands collected above remain.
                 if !follow_ups.is_empty() {
-                    return Ok(Task::batch(follow_ups));
+                    return Task::batch(follow_ups);
                 }
             }
-            Message::Tray(TrayMessage::MenuEvent(id)) => {
+            TrayMessage::MenuEvent(id) => {
                 // A tray menu item was clicked (delivered event-driven).
                 // Resolve its id to a concrete action; unknown ids and
                 // the cross-process "show that PID's window" case (which
@@ -324,14 +324,14 @@ impl Oryxis {
                     _ => None,
                 };
                 if let Some(m) = msg {
-                    return Ok(Task::done(m));
+                    return Task::done(m);
                 }
             }
-            Message::Tray(TrayMessage::IconDoubleClick) => {
+            TrayMessage::IconDoubleClick => {
                 // Double-click on the icon body restores the window.
-                return Ok(Task::done(Message::Tray(TrayMessage::Show)));
+                return Task::done(Message::Tray(TrayMessage::Show));
             }
-            Message::Tray(TrayMessage::Show) => {
+            TrayMessage::Show => {
                 // Hop through iced::window::oldest -> window::run so
                 // we get the raw window handle on the UI thread. The
                 // tray hide/show helpers swallow non-Windows targets
@@ -341,58 +341,57 @@ impl Oryxis {
                 // matches the dispatcher's `Task<Message>` shape.
                 self.is_window_hidden = false;
                 self.broadcast_ipc_state_if_child();
-                return Ok(iced::window::oldest()
+                return iced::window::oldest()
                     .and_then(|id| {
                         iced::window::run(id, |window| {
                             crate::tray::show_window(window);
                         })
                     })
-                    .discard());
+                    .discard();
             }
-            Message::Tray(TrayMessage::Hide) => {
+            TrayMessage::Hide => {
                 self.is_window_hidden = true;
                 self.broadcast_ipc_state_if_child();
-                return Ok(iced::window::oldest()
+                return iced::window::oldest()
                     .and_then(|id| {
                         iced::window::run(id, |window| {
                             crate::tray::hide_window(window);
                         })
                     })
-                    .discard());
+                    .discard();
             }
-            Message::Tray(TrayMessage::Quit) => {
+            TrayMessage::Quit => {
                 tracing::info!("tray: quit requested");
                 // The window may have been shown and resized/maximized
                 // since the hide-to-tray persisted geometry; write the
                 // final state before exiting.
                 self.persist_window_geometry();
-                return Ok(iced::exit());
+                return iced::exit();
             }
-            Message::Tray(TrayMessage::ActivateSession(idx)) => {
+            TrayMessage::ActivateSession(idx) => {
                 // Show first (window may be hidden) then re-emit
                 // SelectTab via Task::done. Bundled together so the
                 // user sees the tab swap and the window pop in the
                 // same frame.
                 if idx < self.tabs.len() {
-                    return Ok(Task::batch(vec![
+                    return Task::batch(vec![
                         Task::done(Message::Tray(TrayMessage::Show)),
                         Task::done(Message::Tabs(TabsMessage::SelectTab(idx))),
-                    ]));
+                    ]);
                 }
             }
-            Message::Tray(TrayMessage::OpenHost(uuid)) => {
+            TrayMessage::OpenHost(uuid) => {
                 if let Some(idx) =
                     self.connections.iter().position(|c| c.id == uuid)
                 {
-                    return Ok(Task::batch(vec![
+                    return Task::batch(vec![
                         Task::done(Message::Tray(TrayMessage::Show)),
                         Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))),
-                    ]));
+                    ]);
                 }
             }
-            m => return Err(m),
         }
-        Ok(Task::none())
+        Task::none()
     }
 
     /// Rebuild the Windows taskbar JumpList's recent-hosts category when

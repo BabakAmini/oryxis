@@ -15,12 +15,9 @@ pub(crate) const ONBOARDING_LAST_SLIDE: usize = 4;
 impl Oryxis {
     pub(crate) fn handle_onboarding(
         &mut self,
-        message: Message,
-    ) -> Result<Task<Message>, Message> {
-        let Message::Onboarding(m) = message else {
-            return Err(message);
-        };
-        match m {
+        message: OnboardingMessage,
+    ) -> Task<Message> {
+        match message {
             OnboardingMessage::Next => {
                 if self.onboarding_slide < ONBOARDING_LAST_SLIDE {
                     self.onboarding_slide += 1;
@@ -35,6 +32,6 @@ impl Oryxis {
                 self.onboarding_slide = ONBOARDING_LAST_SLIDE;
             }
         }
-        Ok(Task::none())
+        Task::none()
     }
 }
