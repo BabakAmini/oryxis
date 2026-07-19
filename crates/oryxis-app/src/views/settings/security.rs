@@ -123,12 +123,12 @@ impl Oryxis {
         ])
     }
 
-    pub(crate) fn view_settings_security(&self) -> Element<'_, Message> {
-        // Keyboard rows are recorded in visual order. The set-password
-        // and change-password forms are deliberately NOT recorded:
-        // they carry their own Tab-walk and the keyboard router is
-        // disabled while they are open.
-        self.keynav_settings_reset();
+    /// Vault master-password card: the header toggle (already wrapped
+    /// in its panel section) plus the state-dependent body below it
+    /// (set-up form, protected callout or remove confirm). Keyboard
+    /// slots record during construction, so `view_settings_security`
+    /// must call the per-card builders in on-screen order.
+    fn security_password_card(&self) -> (Element<'_, Message>, Element<'_, Message>) {
         // The switch reflects either a committed password or an open
         // set-password form, so toggling it before a password exists
         // visibly moves the control (and reveals / hides the form).
@@ -298,53 +298,63 @@ impl Oryxis {
             }
         };
 
-        // Biometric (OS-keystore) unlock: lives inside the vault-password
-        // block, since it is a convenience layer over the master password
-        // (it stores that password in the OS keystore). Rendered as a
-        // highlighted card like the other vault callouts; offered only
-        // where the platform supports it and the vault actually has a
-        // password to store. Built here, before the lock/update buttons,
-        // so the keynav recording order matches the on-screen order.
-        let biometric_section: Element<'_, Message> =
-            if self.biometric_available && self.vault_ui.has_user_password {
-                let tint = OryxisColors::t().accent;
-                let card = container(
-                    dir_row(vec![
-                        crate::biometric::bio_icon().size(20).color(tint).into(),
-                        Space::new().width(12).into(),
-                        column![
-                            self.nav_toggle_row(
-                                crate::biometric::bio_setting_label(),
-                                self.setting_biometric_unlock_enabled,
-                                Message::ToggleBiometricUnlock,
-                            ),
-                            Space::new().height(4),
-                            text(t("biometric_unlock_desc"))
-                                .size(11)
-                                .color(OryxisColors::t().text_secondary),
-                        ]
-                        .width(Length::Fill)
-                        .align_x(dir_align_x())
-                        .into(),
-                    ])
-                    .align_y(iced::Alignment::Start),
-                )
-                .padding(14)
-                .width(Length::Fill)
-                .style(move |_| container::Style {
-                    background: Some(Background::Color(Color { a: 0.10, ..tint })),
-                    border: Border {
-                        radius: Radius::from(8.0),
-                        color: Color { a: 0.4, ..tint },
-                        width: 1.0,
-                    },
-                    ..Default::default()
-                });
-                column![Space::new().height(12), card].into()
-            } else {
-                Space::new().height(0).into()
-            };
+        (panel_section(column![password_toggle]), password_section)
+    }
 
+    /// Biometric (OS-keystore) unlock card: lives inside the
+    /// vault-password block, since it is a convenience layer over the
+    /// master password (it stores that password in the OS keystore).
+    /// Rendered as a highlighted card like the other vault callouts;
+    /// offered only where the platform supports it and the vault
+    /// actually has a password to store. Built before the lock/update
+    /// buttons, so the keynav recording order matches the on-screen
+    /// order.
+    fn security_biometric_card(&self) -> Element<'_, Message> {
+        if self.biometric_available && self.vault_ui.has_user_password {
+            let tint = OryxisColors::t().accent;
+            let card = container(
+                dir_row(vec![
+                    crate::biometric::bio_icon().size(20).color(tint).into(),
+                    Space::new().width(12).into(),
+                    column![
+                        self.nav_toggle_row(
+                            crate::biometric::bio_setting_label(),
+                            self.setting_biometric_unlock_enabled,
+                            Message::ToggleBiometricUnlock,
+                        ),
+                        Space::new().height(4),
+                        text(t("biometric_unlock_desc"))
+                            .size(11)
+                            .color(OryxisColors::t().text_secondary),
+                    ]
+                    .width(Length::Fill)
+                    .align_x(dir_align_x())
+                    .into(),
+                ])
+                .align_y(iced::Alignment::Start),
+            )
+            .padding(14)
+            .width(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(Color { a: 0.10, ..tint })),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: Color { a: 0.4, ..tint },
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+            column![Space::new().height(12), card].into()
+        } else {
+            Space::new().height(0).into()
+        }
+    }
+
+    /// Lock / auto-lock card pair: the Lock Vault + Update password
+    /// button row (with the change form dropping in below when open)
+    /// and the idle auto-lock panel. Returned as two elements so the
+    /// assembly keeps its exact spacing between them.
+    fn security_lock_card(&self) -> (Element<'_, Message>, Element<'_, Message>) {
         // Lock Vault only makes sense once a master password is
         // set; without one, locking has nothing to protect and
         // the unlock screen would have no way to re-enter (the
@@ -468,6 +478,12 @@ impl Oryxis {
             auto_lock_field,
         ]);
 
+        (lock_row, auto_lock_section)
+    }
+
+    /// Privacy Mode card: the master toggle plus, while the mode is
+    /// on, the per-class gates and the always/never mask lists.
+    fn security_privacy_card(&self) -> Element<'_, Message> {
         // Privacy & logging: session recordings, connection
         // history and the retention window. Moved here from the
         // Terminal section, recordings are scrubbed for secrets
@@ -475,7 +491,7 @@ impl Oryxis {
         let mut privacy_rows = column![
             self.nav_toggle_row(
                 crate::i18n::t("privacy_mode_label"),
-                self.setting_privacy_mode,
+                self.privacy.mode,
                 Message::TogglePrivacyMode,
             ),
             Space::new().height(4),
@@ -488,7 +504,7 @@ impl Oryxis {
         // Never-mask: words the derived terms must skip, seeded with
         // the generic usernames (root, ubuntu, ...) so `ls -l` output
         // stays readable by default.
-        if self.setting_privacy_mode {
+        if self.privacy.mode {
             // Per-class gates (issue #78 block 1), all on by default.
             // Public IPs get their own switch because documentation
             // screenshots sometimes NEED the public address readable
@@ -500,25 +516,25 @@ impl Oryxis {
                 .push(Space::new().height(10))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_public_ips"),
-                    self.setting_privacy_mask_public_ips,
+                    self.privacy.mask_public_ips,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::PublicIps),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_private_ips"),
-                    self.setting_privacy_mask_private_ips,
+                    self.privacy.mask_private_ips,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::PrivateIps),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_usernames"),
-                    self.setting_privacy_mask_usernames,
+                    self.privacy.mask_usernames,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::Usernames),
                 ))
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("privacy_class_hostnames"),
-                    self.setting_privacy_mask_hostnames,
+                    self.privacy.mask_hostnames,
                     Message::TogglePrivacyMaskClass(PrivacyMaskClass::Hostnames),
                 ));
             privacy_rows = privacy_rows
@@ -542,7 +558,7 @@ impl Oryxis {
                     10.0,
                     text_input(
                         "internal.example.com, acme-corp",
-                        &self.setting_privacy_always_mask,
+                        &self.privacy.always_mask,
                     )
                     .id(iced::widget::Id::new("set-security-privacy-always"))
                     .on_input(Message::SettingPrivacyAlwaysMaskChanged)
@@ -572,7 +588,7 @@ impl Oryxis {
                     10.0,
                     text_input(
                         "root, ubuntu, admin",
-                        &self.setting_privacy_never_mask,
+                        &self.privacy.never_mask,
                     )
                     .id(iced::widget::Id::new("set-security-privacy-never"))
                     .on_input(Message::SettingPrivacyNeverMaskChanged)
@@ -583,8 +599,13 @@ impl Oryxis {
                     .into(),
                 ));
         }
-        let privacy_mode_section = panel_section(privacy_rows);
+        panel_section(privacy_rows)
+    }
 
+    /// Logging card: session recording (+ its sub-options), the
+    /// connection-history toggle and the retention picker, one
+    /// logging theme in a single card.
+    fn security_logging_card(&self) -> Element<'_, Message> {
         let session_logging_enabled = self.setting_session_logging;
         let mut session_logging_rows = column![
             self.nav_toggle_row(
@@ -658,7 +679,7 @@ impl Oryxis {
             &retention_selected,
             Message::LogsRetentionChanged,
         );
-        let logging_section = panel_section(logging_rows.push(Space::new().height(16)).push(column![
+        panel_section(logging_rows.push(Space::new().height(16)).push(column![
             text(crate::i18n::t("log_retention_label"))
                 .size(13)
                 .color(OryxisColors::t().text_primary),
@@ -691,8 +712,15 @@ impl Oryxis {
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
                 .into(),
             ),
-        ]));
+        ]))
+    }
 
+    /// Export / import card body: the vault export + import buttons,
+    /// the inline export / import dialogs, the SFTP backup-target
+    /// picker and the status lines. The SSH config importer is built
+    /// separately (`security_ssh_import_card`); the assembly joins
+    /// the two inside one panel.
+    fn security_export_import_card(&self) -> iced::widget::Column<'_, Message> {
         // Export/Import section
         let export_btn = self.settings_nav_slot(
             crate::keynav::RowAction::activate(Message::ExportVault),
@@ -1125,9 +1153,13 @@ impl Oryxis {
                 .push(text(msg).size(12).color(color));
         }
 
-        // SSH config import, separate card, sits below the
-        // vault export/import. One-shot batch importer; no
-        // preview yet.
+        export_import_section
+    }
+
+    /// SSH config import block: sits below the vault export/import
+    /// inside the same panel. One-shot batch importer; no preview
+    /// yet.
+    fn security_ssh_import_card(&self) -> iced::widget::Column<'_, Message> {
         let ssh_config_btn = self.settings_nav_slot(
             crate::keynav::RowAction::activate(Message::ImportSshConfig),
             6.0,
@@ -1158,12 +1190,31 @@ impl Oryxis {
                 .push(text(msg).size(12).color(color));
         }
 
+        ssh_config_section
+    }
+
+    pub(crate) fn view_settings_security(&self) -> Element<'_, Message> {
+        // Keyboard rows are recorded in visual order. The set-password
+        // and change-password forms are deliberately NOT recorded:
+        // they carry their own Tab-walk and the keyboard router is
+        // disabled while they are open.
+        self.keynav_settings_reset();
+        // Keyboard slots record during construction, so the cards are
+        // built here in on-screen order; do not reorder these calls.
+        let (password_toggle_card, password_section) = self.security_password_card();
+        let biometric_section = self.security_biometric_card();
+        let (lock_row, auto_lock_section) = self.security_lock_card();
+        let privacy_mode_section = self.security_privacy_card();
+        let logging_section = self.security_logging_card();
+        let export_import_section = self.security_export_import_card();
+        let ssh_config_section = self.security_ssh_import_card();
+
         scrollable(
             container(
                 column![
                     crate::widgets::settings_group_header(crate::i18n::t("security_group_vault")),
                     Space::new().height(8),
-                    panel_section(column![password_toggle]),
+                    password_toggle_card,
                     password_section,
                     biometric_section,
                     Space::new().height(16),

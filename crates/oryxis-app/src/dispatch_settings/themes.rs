@@ -193,3 +193,417 @@ pub(crate) fn custom_theme_palette(
         ansi: std::array::from_fn(|i| c(&t.ansi[i], iced::Color::WHITE)),
     }
 }
+
+/// Map the active app theme to its companion terminal palette. Used
+/// as the bottom-of-the-stack fallback in
+/// `resolve_global_terminal_theme` when neither a global override nor a
+/// per-host override is set. Every app theme has a matching palette
+/// of the same name.
+fn app_theme_to_terminal(theme: AppTheme) -> oryxis_terminal::TerminalTheme {
+    match theme {
+        AppTheme::OryxisDark => oryxis_terminal::TerminalTheme::OryxisDark,
+        AppTheme::OryxisLight => oryxis_terminal::TerminalTheme::OryxisLight,
+        AppTheme::Termius => oryxis_terminal::TerminalTheme::Termius,
+        AppTheme::Darcula => oryxis_terminal::TerminalTheme::Darcula,
+        AppTheme::IslandsDark => oryxis_terminal::TerminalTheme::IslandsDark,
+        AppTheme::Dracula => oryxis_terminal::TerminalTheme::Dracula,
+        AppTheme::Monokai => oryxis_terminal::TerminalTheme::Monokai,
+        AppTheme::HackerGreen => oryxis_terminal::TerminalTheme::HackerGreen,
+        AppTheme::Nord => oryxis_terminal::TerminalTheme::Nord,
+        AppTheme::NordLight => oryxis_terminal::TerminalTheme::NordLight,
+        AppTheme::SolarizedDark => oryxis_terminal::TerminalTheme::SolarizedDark,
+        AppTheme::SolarizedLight => oryxis_terminal::TerminalTheme::SolarizedLight,
+        AppTheme::PaperLight => oryxis_terminal::TerminalTheme::PaperLight,
+    }
+}
+
+impl Oryxis {
+    /// Effective terminal palette for callers that don't have a
+    /// specific connection in mind: settings preview, local-shell tabs,
+    /// new-tab spawn defaults. Order: explicit user override → app
+    /// theme mapping.
+    /// Resolve a theme NAME (built-in or user-defined) to its palette.
+    /// `None` when the name matches neither (e.g. a custom theme the user
+    /// deleted), so callers fall through to their default.
+    pub(crate) fn terminal_palette_for_name(
+        &self,
+        name: &str,
+    ) -> Option<oryxis_terminal::TerminalPalette> {
+        if let Some(theme) =
+            oryxis_terminal::TerminalTheme::ALL.iter().find(|t| t.name() == name)
+        {
+            return Some(theme.palette());
+        }
+        self.custom_terminal_themes
+            .iter()
+            .find(|t| t.name == name)
+            .map(custom_theme_palette)
+    }
+
+    /// Effective global terminal palette: explicit user override (built-in
+    /// or custom) → app theme mapping.
+    pub(crate) fn resolve_global_terminal_palette(
+        &self,
+    ) -> oryxis_terminal::TerminalPalette {
+        if let Some(name) = &self.terminal_theme_override
+            && let Some(palette) = self.terminal_palette_for_name(name)
+        {
+            return palette;
+        }
+        app_theme_to_terminal(AppTheme::active()).palette()
+    }
+
+    /// Display name of the effective global terminal theme (for the
+    /// "inherit (Global)" label). Keeps a stale override name from showing
+    /// once the custom theme behind it is deleted.
+    pub(crate) fn resolve_global_terminal_theme_name(&self) -> String {
+        if let Some(name) = &self.terminal_theme_override
+            && self.terminal_palette_for_name(name).is_some()
+        {
+            return name.clone();
+        }
+        app_theme_to_terminal(AppTheme::active()).name().to_string()
+    }
+
+    /// Effective terminal palette for a known `Connection`. Per-host
+    /// override wins, then the global override, then the app theme.
+    pub(crate) fn resolve_terminal_palette_for_connection(
+        &self,
+        conn: &oryxis_core::models::Connection,
+    ) -> oryxis_terminal::TerminalPalette {
+        if let Some(name) = &conn.terminal_theme
+            && let Some(palette) = self.terminal_palette_for_name(name)
+        {
+            return palette;
+        }
+        self.resolve_global_terminal_palette()
+    }
+
+    /// Same resolution but starting from a tab label. Used by repaint
+    /// loops where we don't already hold a `Connection` reference.
+    /// Falls through to the global theme for tabs without a matching
+    /// connection (local shells, WSL, PowerShell, …).
+    fn resolve_terminal_palette_for_label(
+        &self,
+        label: &str,
+    ) -> oryxis_terminal::TerminalPalette {
+        let base = label.trim_end_matches(" (disconnected)");
+        if let Some(conn) = self.connections.iter().find(|c| c.label == base) {
+            return self.resolve_terminal_palette_for_connection(conn);
+        }
+        self.resolve_global_terminal_palette()
+    }
+
+    /// Re-paint every open tab's palette. Use after a global theme
+    /// change. Tabs whose connection has its own override pick that
+    /// override up automatically through `resolve_terminal_palette_for_label`.
+    pub(crate) fn repaint_all_terminal_palettes(&self) {
+        for tab in &self.tabs {
+            let palette = self.resolve_terminal_palette_for_label(&tab.label);
+            for pane in tab.pane_grid.panes.values() {
+                if let Ok(mut state) = pane.terminal.lock() {
+                    state.set_palette(palette.clone());
+                }
+            }
+        }
+    }
+
+    /// Apply the session-only local terminal theme to every open
+    /// local/ephemeral pane (panes without a saved host). Host panes keep
+    /// their own resolution. `None` falls back to the global palette.
+    pub(crate) fn apply_local_terminal_palette(&self) {
+        let palette = match &self.local_terminal_theme {
+            Some(name) => self
+                .terminal_palette_for_name(name)
+                .unwrap_or_else(|| self.resolve_global_terminal_palette()),
+            None => self.resolve_global_terminal_palette(),
+        };
+        for tab in &self.tabs {
+            for pane in tab.pane_grid.panes.values() {
+                if matches!(pane.origin, crate::state::PaneOrigin::Host(_)) {
+                    continue;
+                }
+                if let Ok(mut state) = pane.terminal.lock() {
+                    state.set_palette(palette.clone());
+                }
+            }
+        }
+    }
+
+    /// Re-paint only the tabs attached to a single host's label.
+    /// Called when the per-host override changes.
+    pub(crate) fn repaint_terminal_palettes_for_label(&self, label: &str) {
+        let palette = self.resolve_terminal_palette_for_label(label);
+        let base = label.trim_end_matches(" (disconnected)");
+        for tab in &self.tabs {
+            let tab_base = tab.label.trim_end_matches(" (disconnected)");
+            if tab_base != base {
+                continue;
+            }
+            for pane in tab.pane_grid.panes.values() {
+                if let Ok(mut state) = pane.terminal.lock() {
+                    state.set_palette(palette.clone());
+                }
+            }
+        }
+    }
+}
+
+impl Oryxis {
+    /// Theme-family arms: terminal / app theme pickers, the custom
+    /// terminal + UI theme editors, theme import and the theme cards.
+    pub(super) fn handle_settings_themes(
+        &mut self,
+        message: Message,
+    ) -> Result<Task<Message>, Message> {
+        match message {
+            Message::TerminalThemeChanged(name) => {
+                // Empty string == "follow app theme". Anything else is
+                // matched against the known theme names; an unknown
+                // string is ignored so a typo'd setting can't lock
+                // the user out of the picker.
+                if name.is_empty() {
+                    self.terminal_theme_override = None;
+                    self.persist_setting("terminal_theme_override", "");
+                } else if self.terminal_palette_for_name(&name).is_some() {
+                    // Built-in or custom theme name.
+                    self.terminal_theme_override = Some(name.clone());
+                    self.persist_setting("terminal_theme_override", &name);
+                } else {
+                    return Ok(Task::none());
+                }
+                self.terminal_palette = self.resolve_global_terminal_palette();
+                self.repaint_all_terminal_palettes();
+            }
+            Message::LocalConfigThemeChanged(name) => {
+                // Session-only override for local/ephemeral panes. Empty =
+                // follow the global terminal theme. Unknown names ignored.
+                if name.is_empty() {
+                    self.local_terminal_theme = None;
+                } else if self.terminal_palette_for_name(&name).is_some() {
+                    self.local_terminal_theme = Some(name);
+                } else {
+                    return Ok(Task::none());
+                }
+                self.apply_local_terminal_palette();
+            }
+            Message::LocalConfigSaveGlobal => {
+                // Promote the session override to the persisted global
+                // default, then drop it (the panes now follow global).
+                if let Some(name) = self.local_terminal_theme.take() {
+                    self.terminal_theme_override = Some(name.clone());
+                    self.persist_setting("terminal_theme_override", &name);
+                    self.terminal_palette = self.resolve_global_terminal_palette();
+                    self.repaint_all_terminal_palettes();
+                }
+            }
+            Message::ThemeEditorOpenPicker(slot) => {
+                self.theme_color_popover = Some((slot, self.mouse_position));
+            }
+            Message::ThemeEditorClosePicker => {
+                self.theme_color_popover = None;
+            }
+            Message::ThemeCardHovered(idx) => {
+                self.hovered_theme_card = Some(idx);
+            }
+            Message::ThemeCardUnhovered => {
+                self.hovered_theme_card = None;
+            }
+            Message::ThemeEditorNew => {
+                // Seed from the active terminal palette so the user starts
+                // from the currently-selected theme.
+                let p = self.terminal_palette.clone();
+                let hex = |c: iced::Color| {
+                    let q = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    format!("#{:02x}{:02x}{:02x}", q(c.r), q(c.g), q(c.b))
+                };
+                self.theme_editor = Some(crate::state::ThemeEditorForm {
+                    editing_id: None,
+                    name: String::new(),
+                    foreground: hex(p.foreground),
+                    background: hex(p.background),
+                    cursor: hex(p.cursor),
+                    ansi: std::array::from_fn(|i| hex(p.ansi[i])),
+                    error: None,
+                });
+            }
+            Message::ThemeImportOpen => {
+                self.show_theme_import = true;
+                self.theme_import_content = iced::widget::text_editor::Content::new();
+                self.theme_import_name.clear();
+                self.theme_import_error = None;
+            }
+            Message::ThemeImportClose => {
+                self.show_theme_import = false;
+            }
+            Message::ThemeImportContentAction(action) => {
+                self.theme_import_content.perform(action);
+                self.theme_import_error = None;
+            }
+            Message::ThemeImportNameChanged(v) => {
+                self.theme_import_name = v;
+            }
+            Message::ThemeImportApply => {
+                let content = self.theme_import_content.text();
+                let name = if self.theme_import_name.trim().is_empty() {
+                    crate::i18n::t("theme_imported_default").to_string()
+                } else {
+                    self.theme_import_name.trim().to_string()
+                };
+                match crate::theme_import::parse_theme(&content, &name) {
+                    Ok(theme) => {
+                        // Open the parsed colors in the editor (as a new
+                        // theme) so the user can review / rename before save.
+                        let mut form = crate::state::ThemeEditorForm::from_theme(&theme);
+                        form.editing_id = None;
+                        self.theme_editor = Some(form);
+                        self.show_theme_import = false;
+                    }
+                    Err(e) => self.theme_import_error = Some(e),
+                }
+            }
+            // -- Custom UI (chrome) themes --
+            Message::UiThemeEditorNew => {
+                // Seed from the currently active chrome colors so the user
+                // starts from a working theme.
+                let seed = crate::theme::theme_colors_to_hex(crate::theme::OryxisColors::t());
+                self.ui_theme_editor =
+                    Some(crate::state::UiThemeEditorForm::new_from_colors(seed));
+            }
+            Message::UiThemeEditorEdit(idx) => {
+                if let Some(theme) = self.custom_ui_themes.get(idx) {
+                    self.ui_theme_editor =
+                        Some(crate::state::UiThemeEditorForm::from_theme(theme));
+                }
+            }
+            Message::UiThemeEditorClose => {
+                self.ui_theme_editor = None;
+                self.ui_color_popover = None;
+            }
+            Message::UiThemeEditorNameChanged(name) => {
+                if let Some(form) = &mut self.ui_theme_editor {
+                    form.name = name;
+                    form.error = None;
+                }
+            }
+            Message::UiThemeColorChanged(idx, value) => {
+                if let Some(form) = &mut self.ui_theme_editor
+                    && idx < 21
+                {
+                    let cleaned: String = value
+                        .chars()
+                        .filter(|c| *c == '#' || c.is_ascii_hexdigit())
+                        .take(7)
+                        .collect();
+                    form.colors[idx] = cleaned;
+                }
+            }
+            Message::UiThemeEditorOpenPicker(idx) => {
+                self.ui_color_popover = Some((idx, self.mouse_position));
+            }
+            Message::UiThemeEditorClosePicker => {
+                self.ui_color_popover = None;
+            }
+            Message::UiThemeEditorSave => {
+                if let Some(err) = self.save_ui_theme_editor() {
+                    if let Some(form) = &mut self.ui_theme_editor {
+                        form.error = Some(err);
+                    }
+                } else {
+                    self.ui_theme_editor = None;
+                    self.ui_color_popover = None;
+                }
+            }
+            Message::UiThemeDelete(idx) => {
+                if let Some(theme) = self.custom_ui_themes.get(idx)
+                    && let Some(vault) = &self.vault
+                {
+                    let was_active = self.active_app_theme_name == theme.name;
+                    let _ = vault.delete_custom_ui_theme(&theme.id);
+                    self.custom_ui_themes =
+                        vault.list_custom_ui_themes().unwrap_or_default();
+                    if was_active {
+                        // The active theme is gone; fall back to the default.
+                        crate::theme::AppTheme::set_active(
+                            crate::theme::AppTheme::OryxisDark,
+                        );
+                        self.active_app_theme_name = "Oryxis Dark".to_string();
+                        self.persist_setting("app_theme", "Oryxis Dark");
+                        self.terminal_palette = self.resolve_global_terminal_palette();
+                        self.repaint_all_terminal_palettes();
+                    }
+                }
+            }
+            Message::UiThemeCardHovered(idx) => {
+                self.hovered_ui_theme_card = Some(idx);
+            }
+            Message::UiThemeCardUnhovered => {
+                self.hovered_ui_theme_card = None;
+            }
+            Message::ThemeEditorEdit(idx) => {
+                if let Some(theme) = self.custom_terminal_themes.get(idx) {
+                    self.theme_editor =
+                        Some(crate::state::ThemeEditorForm::from_theme(theme));
+                }
+            }
+            Message::ThemeEditorClose => {
+                self.close_modal(crate::state::Modal::ThemeEditor);
+            }
+            Message::ThemeEditorNameChanged(name) => {
+                if let Some(form) = &mut self.theme_editor {
+                    form.name = name;
+                    form.error = None;
+                }
+            }
+            Message::ThemeEditorColorChanged(slot, value) => {
+                if let Some(form) = &mut self.theme_editor {
+                    // Keep only hex-ish characters so the live preview stays
+                    // sane while typing; full validation happens on save.
+                    let cleaned: String = value
+                        .chars()
+                        .filter(|c| *c == '#' || c.is_ascii_hexdigit())
+                        .take(7)
+                        .collect();
+                    form.set_slot(slot, cleaned);
+                }
+            }
+            Message::ThemeEditorSave => {
+                if let Some(err) = self.save_theme_editor() {
+                    if let Some(form) = &mut self.theme_editor {
+                        form.error = Some(err);
+                    }
+                } else {
+                    self.close_modal(crate::state::Modal::ThemeEditor);
+                }
+            }
+            Message::ThemeDelete(idx) => {
+                if let Some(theme) = self.custom_terminal_themes.get(idx)
+                    && let Some(vault) = &self.vault
+                {
+                    let _ = vault.delete_custom_terminal_theme(&theme.id);
+                    self.custom_terminal_themes =
+                        vault.list_custom_terminal_themes().unwrap_or_default();
+                    // A host / global override pointing at the deleted theme
+                    // now resolves to its fallback; repaint reflects that.
+                    self.terminal_palette = self.resolve_global_terminal_palette();
+                    self.repaint_all_terminal_palettes();
+                }
+            }
+            Message::AppThemeChanged(name) => {
+                if self.apply_app_theme_name(&name) {
+                    self.active_app_theme_name = name.clone();
+                    self.persist_setting("app_theme", &name);
+                    // Refresh the global derived palette and re-paint
+                    // every tab. Tabs whose connection has its own
+                    // terminal_theme override pick that up via
+                    // `resolve_terminal_theme_for_label`, so the user's
+                    // per-host pick survives an app theme switch.
+                    self.terminal_palette = self.resolve_global_terminal_palette();
+                    self.repaint_all_terminal_palettes();
+                }
+            }
+            m => return Err(m),
+        }
+        Ok(Task::none())
+    }
+}
