@@ -8,7 +8,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 use oryxis_core::models::connection::AuthMethod;
 use oryxis_core::models::identity::Identity;
 
-use crate::app::{KeysMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{EditorMessage, KeysMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::ProxyKind;
 use crate::theme::OryxisColors;
@@ -70,7 +70,7 @@ impl Oryxis {
                 text(title).size(16).color(OryxisColors::t().text_primary).into(),
                 Space::new().width(Length::Fill).into(),
                 button(text("\u{00D7}").size(20).color(OryxisColors::t().text_muted))
-                    .on_press(Message::EditorCancel)
+                    .on_press(Message::Editor(EditorMessage::EditorCancel))
                     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
                     .style(|_, _| button::Style {
                         background: Some(Background::Color(Color::TRANSPARENT)),
@@ -407,7 +407,7 @@ fn terminal_theme_trigger<'a>(
         .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
         .width(Length::Fill),
     )
-    .on_press(Message::EditorOpenThemePicker)
+    .on_press(Message::Editor(EditorMessage::EditorOpenThemePicker))
     .padding(0)
     .width(Length::Fill)
     .style(move |_, _| button::Style {

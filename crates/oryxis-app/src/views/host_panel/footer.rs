@@ -22,7 +22,7 @@ impl Oryxis {
         };
         let make_save_btn = |app: &Self| -> Element<'_, Message> {
             app.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::EditorSave),
+                crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorSave)),
                 8.0,
                 button(
                     container(text(crate::i18n::t("save")).size(14).color(OryxisColors::t().text_primary))
@@ -30,7 +30,7 @@ impl Oryxis {
                         .width(Length::Fill)
                         .center_x(Length::Fill),
                 )
-                .on_press(Message::EditorSave)
+                .on_press(Message::Editor(EditorMessage::EditorSave))
                 .width(Length::Fill)
                 .style(move |_, status| {
                     let bg = if save_primary {
@@ -74,7 +74,7 @@ impl Oryxis {
                 OryxisColors::t().bg_surface
             };
             let btn = app.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::EditorConnectWithoutSaving),
+                crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorConnectWithoutSaving)),
                 8.0,
                 button(
                     container(
@@ -90,7 +90,7 @@ impl Oryxis {
                     .width(Length::Fill)
                     .center_x(Length::Fill),
                 )
-                .on_press(Message::EditorConnectWithoutSaving)
+                .on_press(Message::Editor(EditorMessage::EditorConnectWithoutSaving))
                 .width(Length::Fill)
                 .style(move |_, status| {
                     if quick_flow {

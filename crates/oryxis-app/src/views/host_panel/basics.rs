@@ -14,7 +14,7 @@ impl Oryxis {
             10.0,
             text_input(t("my_server_placeholder"), &self.editor_form.label)
                 .id(iced::widget::Id::new("editor-label"))
-                .on_input(Message::EditorLabelChanged).on_submit(Message::EditorSave).padding(10)
+                .on_input(|v| Message::Editor(EditorMessage::EditorLabelChanged(v))).on_submit(Message::Editor(EditorMessage::EditorSave)).padding(10)
                 .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
         );
         label_field
@@ -36,7 +36,7 @@ impl Oryxis {
         let (group_prev, group_next) = crate::keynav::slots::cycle_pair(
             self.editor_parent_combo.options(),
             &self.editor_form.group_name,
-            Message::EditorGroupChanged,
+            |v| Message::Editor(EditorMessage::EditorGroupChanged(v)),
         );
         let parent_combo: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::picker(group_prev, group_next),
@@ -45,9 +45,9 @@ impl Oryxis {
                 &self.editor_parent_combo,
                 t("group_placeholder"),
                 parent_selection,
-                Message::EditorGroupChanged,
+                |v| Message::Editor(EditorMessage::EditorGroupChanged(v)),
             )
-            .on_input(Message::EditorGroupChanged)
+            .on_input(|v| Message::Editor(EditorMessage::EditorGroupChanged(v)))
             .padding(10)
             .input_style(crate::widgets::rounded_input_style)
             .menu_style(crate::widgets::combo_menu_style)
@@ -65,8 +65,8 @@ impl Oryxis {
             10.0,
             text_input(t("tags_placeholder"), &self.editor_form.tags_text)
                 .id(iced::widget::Id::new("editor-tags"))
-                .on_input(Message::EditorTagsChanged)
-                .on_submit(Message::EditorSave)
+                .on_input(|v| Message::Editor(EditorMessage::EditorTagsChanged(v)))
+                .on_submit(Message::Editor(EditorMessage::EditorSave))
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x())
@@ -145,8 +145,8 @@ impl Oryxis {
                     &self.editor_form.hostname,
                 )
                     .id(iced::widget::Id::new("editor-hostname"))
-                    .on_input(Message::EditorHostnameChanged)
-                    .on_submit(Message::EditorSave)
+                    .on_input(|v| Message::Editor(EditorMessage::EditorHostnameChanged(v)))
+                    .on_submit(Message::Editor(EditorMessage::EditorSave))
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
             ),
@@ -172,7 +172,7 @@ impl Oryxis {
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-protocol")),
                 crate::widgets::INPUT_RADIUS,
                 pick_list(Some(self.editor_form.protocol), options, |p| p.to_string())
-                    .on_select(Message::EditorProtocolChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorProtocolChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-protocol"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -222,7 +222,7 @@ impl Oryxis {
                         TransportKind::EcsExec => "ECS Exec".to_string(),
                         TransportKind::KubectlExec => "kubectl exec".to_string(),
                     })
-                    .on_select(Message::EditorCloudTransportChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorCloudTransportChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-cloud-transport"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -262,8 +262,8 @@ impl Oryxis {
                 10.0,
                 text_input("22", &self.editor_form.port)
                     .id(iced::widget::Id::new("editor-port"))
-                    .on_input(Message::EditorPortChanged)
-                    .on_submit(Message::EditorSave)
+                    .on_input(|v| Message::Editor(EditorMessage::EditorPortChanged(v)))
+                    .on_submit(Message::Editor(EditorMessage::EditorSave))
                     .padding(6)
                     .width(56)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),

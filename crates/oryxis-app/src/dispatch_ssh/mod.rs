@@ -31,7 +31,7 @@ use uuid::Uuid;
 
 use oryxis_ssh::SshSession;
 
-use crate::app::{SshMessage, Message, Oryxis};
+use crate::app::{EditorMessage, SshMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -456,13 +456,13 @@ impl Oryxis {
                     self.active_view = View::Dashboard;
                     return Ok(match origin {
                         crate::state::ProgressOrigin::Saved(idx) => {
-                            self.update(Message::EditConnection(idx))
+                            self.update(Message::Editor(EditorMessage::EditConnection(idx)))
                         }
                         // Ad-hoc host: edit the TEMPORARY entry; the editor
                         // opens with Connect (without saving) as the primary
                         // action, Save as the explicit opt-in.
                         crate::state::ProgressOrigin::Quick(id) => {
-                            self.update(Message::EditQuickHost(id))
+                            self.update(Message::Editor(EditorMessage::EditQuickHost(id)))
                         }
                     });
                 }

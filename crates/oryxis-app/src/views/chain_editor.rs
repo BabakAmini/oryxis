@@ -21,7 +21,7 @@ use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_core::models::Connection;
 
-use crate::app::{Message, Oryxis};
+use crate::app::{EditorMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::keynav::RowAction;
 use crate::theme::OryxisColors;
@@ -71,10 +71,10 @@ impl Oryxis {
             // The close X doubles as the "Done" action, so it is a
             // keyboard row too (Esc also closes, via close_topmost_modal).
             self.modal_nav_slot(
-                RowAction::activate(Message::CloseChainEditor),
+                RowAction::activate(Message::Editor(EditorMessage::CloseChainEditor)),
                 6.0,
                 false,
-                chain_icon_button(iced_fonts::lucide::x(), Message::CloseChainEditor, false),
+                chain_icon_button(iced_fonts::lucide::x(), Message::Editor(EditorMessage::CloseChainEditor), false),
             ),
         ])
         .align_y(iced::Alignment::Center);
@@ -157,7 +157,7 @@ impl Oryxis {
             ])
             .align_y(iced::Alignment::Center),
         )
-        .on_press(Message::ChainEditorStartAdd)
+        .on_press(Message::Editor(EditorMessage::ChainEditorStartAdd))
         .padding(Padding {
             top: 10.0,
             right: 14.0,
@@ -184,7 +184,7 @@ impl Oryxis {
 
         // Keyboard row for "Add a Host". With an empty chain there is
         // no hop row to default to, so this button takes the ring.
-        let add_action = RowAction::activate(Message::ChainEditorStartAdd);
+        let add_action = RowAction::activate(Message::Editor(EditorMessage::ChainEditorStartAdd));
         let add_btn: Element<'_, Message> = if total == 0 {
             self.modal_nav_slot_default(add_action, 8.0, false, add_btn.into())
         } else {
@@ -208,7 +208,7 @@ impl Oryxis {
         let header = dir_row(vec![
             chain_icon_button(
                 iced_fonts::lucide::arrow_left(),
-                Message::ChainEditorCancelAdd,
+                Message::Editor(EditorMessage::ChainEditorCancelAdd),
                 false,
             ),
             Space::new().width(10).into(),
@@ -220,7 +220,7 @@ impl Oryxis {
         .align_y(iced::Alignment::Center);
 
         let search = text_input(t("search_hosts_or_tabs"), &self.chain_editor_search)
-            .on_input(Message::ChainEditorSearchChanged)
+            .on_input(|v| Message::Editor(EditorMessage::ChainEditorSearchChanged(v)))
             .padding(Padding {
                 top: 14.0,
                 right: 14.0,
@@ -289,7 +289,7 @@ impl Oryxis {
             // arrow in the header is deliberately NOT recorded so index
             // 0 is always the best match, not "go back" (Esc pops the
             // sub-view already).
-            let msg = Message::ChainEditorAddHop(conn.id);
+            let msg = Message::Editor(EditorMessage::ChainEditorAddHop(conn.id));
             rows.push(self.modal_nav_slot(
                 RowAction::activate(msg.clone()),
                 6.0,
@@ -414,8 +414,8 @@ impl Oryxis {
         ]
         .spacing(2);
 
-        let up_msg = (idx > 0).then_some(Message::ChainEditorMoveHopUp(idx));
-        let down_msg = (idx + 1 < total).then_some(Message::ChainEditorMoveHopDown(idx));
+        let up_msg = (idx > 0).then_some(Message::Editor(EditorMessage::ChainEditorMoveHopUp(idx)));
+        let down_msg = (idx + 1 < total).then_some(Message::Editor(EditorMessage::ChainEditorMoveHopDown(idx)));
 
         let controls = dir_row(vec![
             opt_icon_button(iced_fonts::lucide::chevron_up(), up_msg.clone()),
@@ -424,7 +424,7 @@ impl Oryxis {
             Space::new().width(2).into(),
             chain_icon_button(
                 iced_fonts::lucide::trash(),
-                Message::ChainEditorRemoveHop(idx),
+                Message::Editor(EditorMessage::ChainEditorRemoveHop(idx)),
                 true,
             ),
         ])
@@ -466,7 +466,7 @@ impl Oryxis {
         // selection): step onto the moved hop to keep dragging it. The
         // first hop is the surface default when the chain is non-empty.
         let action = RowAction {
-            activate: Some(Message::ChainEditorRemoveHop(idx)),
+            activate: Some(Message::Editor(EditorMessage::ChainEditorRemoveHop(idx))),
             prev: up_msg,
             next: down_msg,
             focus: None,

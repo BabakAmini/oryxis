@@ -7,7 +7,7 @@ use iced::border::Radius;
 use iced::widget::{column, container, scrollable, text, Space};
 use iced::{Background, Border, Element, Length};
 
-use crate::app::{Message, Oryxis};
+use crate::app::{EditorMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::styled_button;
@@ -47,7 +47,7 @@ impl Oryxis {
             global_palette,
             &inherit_label,
             self.editor_form.terminal_theme.is_none(),
-            Message::EditorTerminalThemeChanged(String::new()),
+            Message::Editor(EditorMessage::EditorTerminalThemeChanged(String::new())),
         ));
         for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
             let is_selected =
@@ -56,7 +56,7 @@ impl Oryxis {
                 theme.palette(),
                 theme.name(),
                 is_selected,
-                Message::EditorTerminalThemeChanged(theme.name().to_string()),
+                Message::Editor(EditorMessage::EditorTerminalThemeChanged(theme.name().to_string())),
             ));
         }
         // User-defined themes, selectable per host like the built-ins.
@@ -68,7 +68,7 @@ impl Oryxis {
                 palette,
                 &ct.name,
                 is_selected,
-                Message::EditorTerminalThemeChanged(ct.name.clone()),
+                Message::Editor(EditorMessage::EditorTerminalThemeChanged(ct.name.clone())),
             ));
         }
 
@@ -84,7 +84,7 @@ impl Oryxis {
 
         let close_btn = styled_button(
             t("close"),
-            Message::EditorCloseThemePicker,
+            Message::Editor(EditorMessage::EditorCloseThemePicker),
             OryxisColors::t().bg_hover,
         );
         // Dismiss action hugs the trailing edge (dialog convention),

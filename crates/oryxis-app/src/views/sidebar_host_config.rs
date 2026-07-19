@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, Space};
 use iced::{Background, Border, Element, Length, Padding};
 
-use crate::app::{NavigationMessage, Message, Oryxis};
+use crate::app::{EditorMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -196,7 +196,7 @@ impl Oryxis {
             crate::widgets::INPUT_RADIUS,
             pick_list(Some(encoding_selected), encoding_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-encoding"))
-                .on_select(Message::HostConfigEncodingChanged)
+                .on_select(|v| Message::Editor(EditorMessage::HostConfigEncodingChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
@@ -222,7 +222,7 @@ impl Oryxis {
             crate::widgets::INPUT_RADIUS,
             pick_list(Some(term_selected), term_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-term"))
-                .on_select(Message::HostConfigTerminalTypeChanged)
+                .on_select(|v| Message::Editor(EditorMessage::HostConfigTerminalTypeChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
@@ -248,7 +248,7 @@ impl Oryxis {
             crate::widgets::INPUT_RADIUS,
             pick_list(Some(title_selected), title_opts, |s: &String| s.clone())
                 .id(iced::widget::Id::new("sidebar-hostcfg-title"))
-                .on_select(Message::HostConfigAutoTitleChanged)
+                .on_select(|v| Message::Editor(EditorMessage::HostConfigAutoTitleChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(Length::Fill)
@@ -266,7 +266,7 @@ impl Oryxis {
         // Theme: swatch-preview cards (live repaint on pick). The
         // "follow app theme" card is the None sentinel.
         let mut theme_col = column![].spacing(8).width(Length::Fill);
-        for card in self.sidebar_theme_cards(conn.terminal_theme.as_deref(), Message::HostConfigThemeChanged) {
+        for card in self.sidebar_theme_cards(conn.terminal_theme.as_deref(), |v| Message::Editor(EditorMessage::HostConfigThemeChanged(v))) {
             theme_col = theme_col.push(card);
         }
 

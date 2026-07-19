@@ -32,7 +32,7 @@ impl Oryxis {
         // old read-only row + separate single-host "Jump Host" picker.
         let row_chaining: Element<'_, Message> = if is_ssh {
             self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::OpenChainEditor),
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::OpenChainEditor)),
             6.0,
             container(
                 button(
@@ -50,7 +50,7 @@ impl Oryxis {
                     ])
                     .align_y(iced::Alignment::Center),
                 )
-                .on_press(Message::OpenChainEditor)
+                .on_press(Message::Editor(EditorMessage::OpenChainEditor))
                 .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 0.0 })
                 .style(|_, status| {
                     let bg = match status {
@@ -81,10 +81,10 @@ impl Oryxis {
                 text(t("port_forwarding")).size(13).color(OryxisColors::t().text_secondary).into(),
                 Space::new().width(Length::Fill).into(),
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::EditorAddPortForward),
+                    crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorAddPortForward)),
                     4.0,
                     button(text("+").size(14).color(OryxisColors::t().text_primary))
-                        .on_press(Message::EditorAddPortForward)
+                        .on_press(Message::Editor(EditorMessage::EditorAddPortForward))
                         .style(|_, _| button::Style {
                             background: Some(Background::Color(OryxisColors::t().bg_hover)),
                             border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -106,30 +106,30 @@ impl Oryxis {
             pf_items = pf_items.push(
                 dir_row(vec![
                     text_input("8080", &pf.local_port)
-                        .on_input(move |v| Message::EditorPortFwdLocalPortChanged(idx, v))
+                        .on_input(move |v| Message::Editor(EditorMessage::EditorPortFwdLocalPortChanged(idx, v)))
                         .padding(6)
                         .width(70)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     text(" -> ").size(12).color(OryxisColors::t().text_muted).into(),
                     text_input("localhost", &pf.remote_host)
-                        .on_input(move |v| Message::EditorPortFwdRemoteHostChanged(idx, v))
+                        .on_input(move |v| Message::Editor(EditorMessage::EditorPortFwdRemoteHostChanged(idx, v)))
                         .padding(6)
                         .width(Length::Fill)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     text(":").size(12).color(OryxisColors::t().text_muted).into(),
                     text_input("3306", &pf.remote_port)
-                        .on_input(move |v| Message::EditorPortFwdRemotePortChanged(idx, v))
+                        .on_input(move |v| Message::Editor(EditorMessage::EditorPortFwdRemotePortChanged(idx, v)))
                         .padding(6)
                         .width(70)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::EditorRemovePortForward(idx)),
+                        crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorRemovePortForward(idx))),
                         4.0,
                         button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
-                            .on_press(Message::EditorRemovePortForward(idx))
+                            .on_press(Message::Editor(EditorMessage::EditorRemovePortForward(idx)))
                             .style(|_, _| button::Style {
                                 background: None,
                                 border: Border::default(),
@@ -172,8 +172,8 @@ impl Oryxis {
                         &self.editor_form.keepalive_interval,
                     )
                         .id(iced::widget::Id::new("editor-keepalive"))
-                        .on_input(Message::EditorKeepaliveChanged)
-                        .on_submit(Message::EditorSave)
+                        .on_input(|v| Message::Editor(EditorMessage::EditorKeepaliveChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
                         .padding(6)
                         .width(100)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -208,7 +208,7 @@ impl Oryxis {
                         vec![AddressFamily::Auto, AddressFamily::V4, AddressFamily::V6],
                         |f: &AddressFamily| f.to_string(),
                     )
-                    .on_select(Message::EditorAddressFamilyChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorAddressFamilyChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-addr-family"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -248,7 +248,7 @@ impl Oryxis {
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-auto-title")),
                 crate::widgets::INPUT_RADIUS,
                 pick_list(Some(auto_title_selected), auto_title_options, |s: &String| s.clone())
-                    .on_select(Message::EditorAutoTitleChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorAutoTitleChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-auto-title"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -287,7 +287,7 @@ impl Oryxis {
             let auto_label = t("algo_auto");
             let selected = if is_auto { auto_label } else { t("algo_custom") }.to_string();
             let mode_options = vec![auto_label.to_string(), t("algo_custom").to_string()];
-            let mk_mode = move |s: String| Message::EditorAlgoSetAuto(cat, s == auto_label);
+            let mk_mode = move |s: String| Message::Editor(EditorMessage::EditorAlgoSetAuto(cat, s == auto_label));
             // Focusable select; the id must be unique per category so
             // Tab focuses exactly one of the four mode pickers.
             let mode_id: &'static str = match cat {
@@ -323,14 +323,14 @@ impl Oryxis {
                     // Each algorithm checkbox is its own keyboard row;
                     // Enter/Space flips it like a click.
                     checks = checks.push(self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::EditorAlgoToggle(
+                        crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorAlgoToggle(
                             cat,
                             name.clone(),
-                        )),
+                        ))),
                         4.0,
                         checkbox(checked)
                             .label(algo)
-                            .on_toggle(move |_| Message::EditorAlgoToggle(cat, name.clone()))
+                            .on_toggle(move |_| Message::Editor(EditorMessage::EditorAlgoToggle(cat, name.clone())))
                             .size(15)
                             .text_size(12)
                             .into(),
@@ -387,7 +387,7 @@ impl Oryxis {
                         .unwrap_or_else(|| crate::i18n::t("proxy_type_identity_deleted").into()),
                     other => other.to_string(),
                 })
-                .on_select(Message::EditorProxyKindChanged)
+                .on_select(|v| Message::Editor(EditorMessage::EditorProxyKindChanged(v)))
                 .id(iced::widget::Id::new("editor-pick-proxy-kind"))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -445,8 +445,8 @@ impl Oryxis {
                             &self.editor_form.proxy_command,
                         )
                         .id(iced::widget::Id::new("editor-proxy-command"))
-                        .on_input(Message::EditorProxyCommandChanged)
-                        .on_submit(Message::EditorSave)
+                        .on_input(|v| Message::Editor(EditorMessage::EditorProxyCommandChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -468,8 +468,8 @@ impl Oryxis {
                             &self.editor_form.proxy_host,
                         )
                         .id(iced::widget::Id::new("editor-proxy-host"))
-                        .on_input(Message::EditorProxyHostChanged)
-                        .on_submit(Message::EditorSave)
+                        .on_input(|v| Message::Editor(EditorMessage::EditorProxyHostChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -483,8 +483,8 @@ impl Oryxis {
                         10.0,
                         text_input("1080", &self.editor_form.proxy_port)
                             .id(iced::widget::Id::new("editor-proxy-port"))
-                            .on_input(Message::EditorProxyPortChanged)
-                            .on_submit(Message::EditorSave)
+                            .on_input(|v| Message::Editor(EditorMessage::EditorProxyPortChanged(v)))
+                            .on_submit(Message::Editor(EditorMessage::EditorSave))
                             .padding(6)
                             .width(70)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -502,8 +502,8 @@ impl Oryxis {
                             &self.editor_form.proxy_username,
                         )
                         .id(iced::widget::Id::new("editor-proxy-username"))
-                        .on_input(Message::EditorProxyUsernameChanged)
-                        .on_submit(Message::EditorSave)
+                        .on_input(|v| Message::Editor(EditorMessage::EditorProxyUsernameChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -533,8 +533,8 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         placeholder,
                         self.editor_form.proxy_password.as_str(),
-                        Message::EditorProxyPasswordChanged,
-                        Some(Message::EditorSave),
+                        |v| Message::Editor(EditorMessage::EditorProxyPasswordChanged(v)),
+                        Some(Message::Editor(EditorMessage::EditorSave)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ProxyPassword),
                         Message::ToggleSecretVisibility(

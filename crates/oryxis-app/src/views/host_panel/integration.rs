@@ -8,7 +8,7 @@ impl Oryxis {
         // Expose to MCP / AI (SSH > Integration).
         let row_mcp: Element<'_, Message> = if is_ssh {
             self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::EditorToggleMcpEnabled),
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorToggleMcpEnabled)),
             8.0,
             container(
                 dir_row(vec![
@@ -21,7 +21,7 @@ impl Oryxis {
                         let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                         let fg = crate::theme::contrast_text_for(bg);
                         button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
-                            .on_press(Message::EditorToggleMcpEnabled)
+                            .on_press(Message::Editor(EditorMessage::EditorToggleMcpEnabled))
                             .style(move |_theme, _status| button::Style {
                                 background: Some(Background::Color(bg)),
                                 border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -59,7 +59,7 @@ impl Oryxis {
                         vec![RemoteDesktopKind::Rdp, RemoteDesktopKind::Vnc],
                         |k: &RemoteDesktopKind| k.to_string(),
                     )
-                    .on_select(Message::EditorRdKindChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorRdKindChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-rd-kind"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -100,7 +100,7 @@ impl Oryxis {
                             gw_labels.get(id).cloned().unwrap_or_default()
                         },
                     )
-                    .on_select(Message::EditorRdGatewayChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorRdGatewayChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-rd-gateway"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -131,10 +131,10 @@ impl Oryxis {
                 ].width(Length::Fill).into(),
                 Space::new().width(8).into(),
                 self.panel_nav_slot(
-                    crate::keynav::RowAction::activate(Message::EditorAddEnvVar),
+                    crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorAddEnvVar)),
                     4.0,
                     button(text("+").size(14).color(OryxisColors::t().text_primary))
-                        .on_press(Message::EditorAddEnvVar)
+                        .on_press(Message::Editor(EditorMessage::EditorAddEnvVar))
                         .style(|_, _| button::Style {
                             background: Some(Background::Color(OryxisColors::t().bg_hover)),
                             border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -156,23 +156,23 @@ impl Oryxis {
             env_items = env_items.push(
                 dir_row(vec![
                     text_input("LC_EXAMPLE", &e.key)
-                        .on_input(move |v| Message::EditorEnvVarKeyChanged(idx, v))
+                        .on_input(move |v| Message::Editor(EditorMessage::EditorEnvVarKeyChanged(idx, v)))
                         .padding(6)
                         .width(Length::FillPortion(2))
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     text("=").size(12).color(OryxisColors::t().text_muted).into(),
                     text_input(crate::i18n::t("env_value_placeholder"), &e.value)
-                        .on_input(move |v| Message::EditorEnvVarValueChanged(idx, v))
+                        .on_input(move |v| Message::Editor(EditorMessage::EditorEnvVarValueChanged(idx, v)))
                         .padding(6)
                         .width(Length::FillPortion(3))
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
                     self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::EditorRemoveEnvVar(idx)),
+                        crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorRemoveEnvVar(idx))),
                         4.0,
                         button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
-                            .on_press(Message::EditorRemoveEnvVar(idx))
+                            .on_press(Message::Editor(EditorMessage::EditorRemoveEnvVar(idx)))
                             .style(|_, _| button::Style {
                                 background: None,
                                 border: Border::default(),
@@ -208,7 +208,7 @@ impl Oryxis {
         let (startup_prev, startup_next) = crate::keynav::slots::cycle_pair(
             self.editor_startup_combo.options(),
             &startup_selected,
-            Message::EditorStartupChoiceChanged,
+            |v| Message::Editor(EditorMessage::EditorStartupChoiceChanged(v)),
         );
         let startup_picker: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::picker(startup_prev, startup_next),
@@ -217,9 +217,9 @@ impl Oryxis {
                 &self.editor_startup_combo,
                 &startup_selected,
                 Some(&startup_selected),
-                Message::EditorStartupChoiceChanged,
+                |v| Message::Editor(EditorMessage::EditorStartupChoiceChanged(v)),
             )
-            .on_open(Message::EditorStartupComboOpened)
+            .on_open(Message::Editor(EditorMessage::EditorStartupComboOpened))
             .padding(10)
             .input_style(crate::widgets::rounded_input_style)
             .menu_style(crate::widgets::combo_menu_style)
@@ -246,7 +246,7 @@ impl Oryxis {
                         text_editor(&self.editor_initial_command)
                             .id(iced::widget::Id::new("editor-initial-command"))
                             .placeholder(t("initial_command_ph"))
-                            .on_action(Message::EditorInitialCommandChanged)
+                            .on_action(|v| Message::Editor(EditorMessage::EditorInitialCommandChanged(v)))
                             .padding(10)
                             .height(Length::Shrink)
                             .style(crate::widgets::rounded_editor_style),

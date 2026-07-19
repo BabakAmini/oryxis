@@ -37,7 +37,7 @@ impl Oryxis {
             ),
         };
         let theme_trigger: Element<'_, Message> = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::EditorOpenThemePicker),
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorOpenThemePicker)),
             8.0,
             terminal_theme_trigger(preview_palette, theme_label),
         );
@@ -72,7 +72,7 @@ impl Oryxis {
                 crate::i18n::t(key).to_string()
             },
         )
-        .on_select(Message::EditorIconStyleChanged)
+        .on_select(|v| Message::Editor(EditorMessage::EditorIconStyleChanged(v)))
         .id(iced::widget::Id::new("editor-pick-icon-style"))
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -106,7 +106,7 @@ impl Oryxis {
             .clone()
             .unwrap_or_else(|| "UTF-8".to_string());
         let encoding_picker = pick_list(Some(encoding_selected), encoding_options, |s: &String| s.clone())
-            .on_select(Message::EditorEncodingChanged)
+            .on_select(|v| Message::Editor(EditorMessage::EditorEncodingChanged(v)))
             .id(iced::widget::Id::new("editor-pick-encoding"))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -139,7 +139,7 @@ impl Oryxis {
             .clone()
             .unwrap_or_else(|| "xterm-256color".to_string());
         let term_picker = pick_list(Some(term_selected), term_options, |s: &String| s.clone())
-            .on_select(Message::EditorTerminalTypeChanged)
+            .on_select(|v| Message::Editor(EditorMessage::EditorTerminalTypeChanged(v)))
             .id(iced::widget::Id::new("editor-pick-term"))
             .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
             .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -182,7 +182,7 @@ impl Oryxis {
         // Session logging (universal -> Terminal). Tri-state: Default
         // (inherit global) / On / Off. Enter/Space cycles the state.
         let row_session_logging: Element<'_, Message> = self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::EditorCycleSessionLogging),
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorCycleSessionLogging)),
             8.0,
             container(
                 dir_row(vec![
@@ -198,7 +198,7 @@ impl Oryxis {
                         };
                         let fg = crate::theme::contrast_text_for(bg);
                         button(text(t(label_key)).size(12).color(fg))
-                            .on_press(Message::EditorCycleSessionLogging)
+                            .on_press(Message::Editor(EditorMessage::EditorCycleSessionLogging))
                             .style(move |_theme, _status| button::Style {
                                 background: Some(Background::Color(bg)),
                                 border: Border { radius: Radius::from(4.0), ..Default::default() },
@@ -236,7 +236,7 @@ impl Oryxis {
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-privacy-mode")),
                 crate::widgets::INPUT_RADIUS,
                 pick_list(Some(privacy_mode_selected), privacy_mode_options, |s: &String| s.clone())
-                    .on_select(Message::EditorPrivacyModeChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorPrivacyModeChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-privacy-mode"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -345,7 +345,7 @@ impl Oryxis {
                 crate::util::quirk_backspace_label(BackspaceMode::Del127),
                 crate::util::quirk_backspace_label(BackspaceMode::CtrlH),
             ],
-            Message::EditorQuirkBackspaceChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkBackspaceChanged(v)),
         );
 
         let home_end_row = self.hp_quirk_pick_row(
@@ -357,7 +357,7 @@ impl Oryxis {
                 crate::util::quirk_home_end_label(HomeEndMode::Standard),
                 crate::util::quirk_home_end_label(HomeEndMode::Rxvt),
             ],
-            Message::EditorQuirkHomeEndChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkHomeEndChanged(v)),
         );
 
         let fn_keys_row = self.hp_quirk_pick_row(
@@ -371,20 +371,20 @@ impl Oryxis {
                 crate::util::quirk_fn_keys_label(FunctionKeyMode::Vt400),
                 crate::util::quirk_fn_keys_label(FunctionKeyMode::Rxvt),
             ],
-            Message::EditorQuirkFnKeysChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkFnKeysChanged(v)),
         );
 
         let mouse_row = self.hp_quirk_toggle_row(
             iced_fonts::lucide::mouse_pointer_click(),
             t("quirks_mouse_reporting"),
             !q.disable_mouse_reporting,
-            Message::EditorQuirkMouseReportingChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkMouseReportingChanged(v)),
         );
         let title_row = self.hp_quirk_toggle_row(
             iced_fonts::lucide::r#type(),
             t("quirks_title_change"),
             !q.disable_title_change,
-            Message::EditorQuirkTitleChangeChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkTitleChangeChanged(v)),
         );
 
         let osc52_selected = match q.osc52 {
@@ -403,7 +403,7 @@ impl Oryxis {
                 t("quirks_osc52_on").to_string(),
                 t("quirks_osc52_off").to_string(),
             ],
-            Message::EditorQuirkOsc52Changed,
+            |v| Message::Editor(EditorMessage::EditorQuirkOsc52Changed(v)),
         );
 
         // macOS Option-as-Meta (issue #80). Shown on every platform: the
@@ -421,7 +421,7 @@ impl Oryxis {
                 crate::util::quirk_option_as_meta_label(OptionAsMeta::OnlyRight),
                 crate::util::quirk_option_as_meta_label(OptionAsMeta::Both),
             ],
-            Message::EditorQuirkOptionAsMetaChanged,
+            |v| Message::Editor(EditorMessage::EditorQuirkOptionAsMetaChanged(v)),
         );
 
         // Rekey limit: a small numeric text input (empty = russh default).
@@ -430,7 +430,7 @@ impl Oryxis {
             crate::widgets::INPUT_RADIUS,
             text_input(t("quirks_rekey_hint"), &self.editor_form.rekey_limit_mb)
                 .id(iced::widget::Id::new("editor-quirk-rekey"))
-                .on_input(Message::EditorQuirkRekeyChanged)
+                .on_input(|v| Message::Editor(EditorMessage::EditorQuirkRekeyChanged(v)))
                 .width(120)
                 .padding(8)
                 .style(crate::widgets::rounded_input_style)

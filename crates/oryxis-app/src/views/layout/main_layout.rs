@@ -458,9 +458,9 @@ impl Oryxis {
         // else close the editor (mirrors Esc).
         if self.show_chain_editor {
             let on_scrim = if self.chain_editor_adding {
-                Message::ChainEditorCancelAdd
+                Message::Editor(EditorMessage::ChainEditorCancelAdd)
             } else {
-                Message::CloseChainEditor
+                Message::Editor(EditorMessage::CloseChainEditor)
             };
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
@@ -479,7 +479,7 @@ impl Oryxis {
                 crate::widgets::modal_overlay(
                     base,
                     self.view_terminal_theme_picker(),
-                    Some(Message::EditorCloseThemePicker),
+                    Some(Message::Editor(EditorMessage::EditorCloseThemePicker)),
                     0.0,
                 ),
                 resize_overlay,

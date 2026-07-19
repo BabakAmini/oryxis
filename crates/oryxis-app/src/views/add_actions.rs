@@ -6,7 +6,7 @@
 
 use iced::Color;
 
-use crate::app::{CloudMessage, ShareMessage, Message, Oryxis};
+use crate::app::{EditorMessage, CloudMessage, ShareMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 
@@ -53,7 +53,7 @@ impl Oryxis {
             actions.push(AddHostAction {
                 icon: iced_fonts::lucide::monitor().into(),
                 label: crate::i18n::t("add_remote_desktop"),
-                msg: Message::ShowNewRemoteDesktop,
+                msg: Message::Editor(EditorMessage::ShowNewRemoteDesktop),
                 color: secondary,
             });
         }

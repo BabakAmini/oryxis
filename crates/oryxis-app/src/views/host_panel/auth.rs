@@ -26,7 +26,7 @@ impl Oryxis {
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-auth-method")),
                 crate::widgets::INPUT_RADIUS,
                 pick_list(Some(auth_selected), auth_options, |s: &String| s.clone())
-                    .on_select(Message::EditorAuthMethodChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorAuthMethodChanged(v)))
                     .id(iced::widget::Id::new("editor-pick-auth-method"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -105,7 +105,7 @@ impl Oryxis {
             let (key_prev, key_next) = crate::keynav::slots::cycle_pair(
                 self.editor_key_combo.options(),
                 &key_selected,
-                Message::EditorKeyChanged,
+                |v| Message::Editor(EditorMessage::EditorKeyChanged(v)),
             );
             let key_combo: Element<'_, Message> = self.panel_nav_slot(
                 crate::keynav::RowAction::picker(key_prev, key_next),
@@ -114,9 +114,9 @@ impl Oryxis {
                     &self.editor_key_combo,
                     &key_selected,
                     Some(&key_selected),
-                    Message::EditorKeyChanged,
+                    |v| Message::Editor(EditorMessage::EditorKeyChanged(v)),
                 )
-                .on_open(Message::EditorKeyComboOpened)
+                .on_open(Message::Editor(EditorMessage::EditorKeyComboOpened))
                 .padding(10)
                 .input_style(crate::widgets::rounded_input_style)
                 .menu_style(crate::widgets::combo_menu_style)
@@ -262,7 +262,7 @@ impl Oryxis {
         // glyph) so it doesn't read as a duplicate of the Key row above.
         let row_agent_fwd: Element<'_, Message> = if is_ssh {
             self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::EditorToggleAgentForwarding),
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorToggleAgentForwarding)),
             8.0,
             container(
                 dir_row(vec![
@@ -275,7 +275,7 @@ impl Oryxis {
                         let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                         let fg = crate::theme::contrast_text_for(bg);
                         button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
-                            .on_press(Message::EditorToggleAgentForwarding)
+                            .on_press(Message::Editor(EditorMessage::EditorToggleAgentForwarding))
                             .style(move |_theme, _status| button::Style {
                                 background: Some(Background::Color(bg)),
                                 border: Border { radius: Radius::from(4.0), ..Default::default() },

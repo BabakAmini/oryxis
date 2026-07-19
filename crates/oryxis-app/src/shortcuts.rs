@@ -6,7 +6,7 @@ use iced::keyboard::{key::Named, Key, Modifiers};
 use iced::widget;
 use iced::Task;
 
-use crate::app::{KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
+use crate::app::{EditorMessage, KeysMessage, TerminalMessage, NavigationMessage, SnippetMessage, AiMessage, Message, Oryxis};
 use crate::hotkeys::{FamilyMatch, HotkeyAction};
 use crate::state::View;
 
@@ -961,7 +961,7 @@ impl Oryxis {
             NewHost => {
                 self.active_view = View::Dashboard;
                 self.active_tab = None;
-                self.update(Message::ShowNewConnection)
+                self.update(Message::Editor(EditorMessage::ShowNewConnection))
             }
             NewKey => self.update(Message::Keys(KeysMessage::ShowKeyPanel)),
             NewIdentity => {
@@ -985,7 +985,7 @@ impl Oryxis {
             }
             OpenPortForwards => {
                 if let Some(idx) = self.active_tab_connection_idx() {
-                    Task::done(Message::EditConnection(idx))
+                    Task::done(Message::Editor(EditorMessage::EditConnection(idx)))
                 } else if let Some(qid) = self.active_tab.and_then(|i| {
                     self.tabs.get(i).and_then(|t| match &t.active().origin {
                         crate::state::PaneOrigin::QuickHost(qid) => Some(*qid),
@@ -994,7 +994,7 @@ impl Oryxis {
                 }) {
                     // Ad-hoc tab: "edit host" becomes the save-to-vault
                     // prefill (there is no saved row to edit in place).
-                    Task::done(Message::SaveQuickHost(qid))
+                    Task::done(Message::Editor(EditorMessage::SaveQuickHost(qid)))
                 } else {
                     Task::none()
                 }

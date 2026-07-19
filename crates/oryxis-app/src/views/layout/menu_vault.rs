@@ -214,7 +214,7 @@ impl Oryxis {
         if let Some(crate::state::PaneOrigin::QuickHost(qid)) =
             self.tabs.get(idx).map(|t| &t.active().origin)
         {
-            items = items.push(self.menu_item(iced_fonts::lucide::save(), crate::i18n::t("quick_connect_save_host"), Message::SaveQuickHost(*qid), OryxisColors::t().accent));
+            items = items.push(self.menu_item(iced_fonts::lucide::save(), crate::i18n::t("quick_connect_save_host"), Message::Editor(EditorMessage::SaveQuickHost(*qid)), OryxisColors::t().accent));
         }
         // Save the whole arrangement (panes + splits + per-pane
         // scripts) as a reusable session group, or edit it if this
@@ -686,7 +686,7 @@ impl Oryxis {
                             col = col.push(self.menu_item(
                                 iced_fonts::lucide::plus(),
                                 crate::i18n::t("new_host"),
-                                Message::ShowNewConnection,
+                                Message::Editor(EditorMessage::ShowNewConnection),
                                 secondary,
                             ));
                             col = col.push(self.menu_item(
@@ -701,7 +701,7 @@ impl Oryxis {
                         col = col.push(self.menu_item(
                             iced_fonts::lucide::plus(),
                             crate::i18n::t("new_host"),
-                            Message::ShowNewConnection,
+                            Message::Editor(EditorMessage::ShowNewConnection),
                             secondary,
                         ));
                         col = col.push(self.menu_item(

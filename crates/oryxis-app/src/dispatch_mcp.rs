@@ -8,7 +8,7 @@
 
 use iced::Task;
 
-use crate::app::{McpMessage, PluginMessage, Message, Oryxis};
+use crate::app::{EditorMessage, McpMessage, PluginMessage, Message, Oryxis};
 use crate::mcp::{install_mcp_config_to_file, install_mcp_config_to_wsl, mcp_config_json, mcp_config_json_wsl};
 use crate::state::{EnvVarForm, PortForwardForm};
 
@@ -19,58 +19,58 @@ impl Oryxis {
     ) -> Result<Task<Message>, Message> {
         match message {
             // ── MCP ──
-            Message::EditorToggleMcpEnabled => {
+            Message::Editor(EditorMessage::EditorToggleMcpEnabled) => {
                 self.editor_form.mcp_enabled = !self.editor_form.mcp_enabled;
             }
-            Message::EditorToggleAgentForwarding => {
+            Message::Editor(EditorMessage::EditorToggleAgentForwarding) => {
                 self.editor_form.agent_forwarding = !self.editor_form.agent_forwarding;
             }
             // Cycle the per-host recording override: Default (inherit the
             // global setting) -> On -> Off -> Default.
-            Message::EditorCycleSessionLogging => {
+            Message::Editor(EditorMessage::EditorCycleSessionLogging) => {
                 self.editor_form.session_logging = match self.editor_form.session_logging {
                     None => Some(true),
                     Some(true) => Some(false),
                     Some(false) => None,
                 };
             }
-            Message::EditorAddPortForward => {
+            Message::Editor(EditorMessage::EditorAddPortForward) => {
                 self.editor_form.port_forwards.push(PortForwardForm::default());
             }
-            Message::EditorRemovePortForward(i) => {
+            Message::Editor(EditorMessage::EditorRemovePortForward(i)) => {
                 if i < self.editor_form.port_forwards.len() {
                     self.editor_form.port_forwards.remove(i);
                 }
             }
-            Message::EditorPortFwdLocalPortChanged(i, v) => {
+            Message::Editor(EditorMessage::EditorPortFwdLocalPortChanged(i, v)) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.local_port = v;
                 }
             }
-            Message::EditorPortFwdRemoteHostChanged(i, v) => {
+            Message::Editor(EditorMessage::EditorPortFwdRemoteHostChanged(i, v)) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.remote_host = v;
                 }
             }
-            Message::EditorPortFwdRemotePortChanged(i, v) => {
+            Message::Editor(EditorMessage::EditorPortFwdRemotePortChanged(i, v)) => {
                 if let Some(pf) = self.editor_form.port_forwards.get_mut(i) {
                     pf.remote_port = v;
                 }
             }
-            Message::EditorAddEnvVar => {
+            Message::Editor(EditorMessage::EditorAddEnvVar) => {
                 self.editor_form.env_vars.push(EnvVarForm::default());
             }
-            Message::EditorRemoveEnvVar(i) => {
+            Message::Editor(EditorMessage::EditorRemoveEnvVar(i)) => {
                 if i < self.editor_form.env_vars.len() {
                     self.editor_form.env_vars.remove(i);
                 }
             }
-            Message::EditorEnvVarKeyChanged(i, v) => {
+            Message::Editor(EditorMessage::EditorEnvVarKeyChanged(i, v)) => {
                 if let Some(e) = self.editor_form.env_vars.get_mut(i) {
                     e.key = v;
                 }
             }
-            Message::EditorEnvVarValueChanged(i, v) => {
+            Message::Editor(EditorMessage::EditorEnvVarValueChanged(i, v)) => {
                 if let Some(e) = self.editor_form.env_vars.get_mut(i) {
                     e.value = v;
                 }

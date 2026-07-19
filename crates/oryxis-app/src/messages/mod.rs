@@ -17,6 +17,8 @@ mod ai;
 pub use ai::AiMessage;
 mod onboarding;
 pub use onboarding::OnboardingMessage;
+mod editor;
+pub use editor::EditorMessage;
 mod keys;
 pub use keys::KeysMessage;
 mod sidebar_files;
@@ -205,56 +207,9 @@ pub enum Message {
     // Per-host terminal theme picker (modal opened from the host
     // editor). The form field updates immediately on select; the
     // change is committed on EditorSave like every other form field.
-    EditorOpenThemePicker,
-    EditorCloseThemePicker,
-    /// Empty string == "inherit the global theme".
-    EditorTerminalThemeChanged(String),
-    /// Cloud transport pick (only meaningful when editing a cloud-imported host).
-    EditorCloudTransportChanged(oryxis_core::models::cloud::TransportKind),
-    /// Per-host initial command, sent as keystrokes after the shell
-    /// opens. Empty = none. Useful for hosts that drop into `/bin/sh`
-    /// when you really want `bash`.
-    EditorInitialCommandChanged(text_editor::Action),
-    /// Set the per-host icon shape override. Empty string clears the
-    /// override (falls back to the global `default_host_icon`).
-    EditorIconStyleChanged(String),
-    EditorEncodingChanged(String),
-    /// Per-host TERM name picked in the host editor.
-    EditorTerminalTypeChanged(String),
-    /// Empty string == "inherit the global keepalive setting".
-    /// "0" == explicitly disabled on this host; any positive integer
-    /// is the per-host override in seconds. Sanitized to digits-only.
-    EditorKeepaliveChanged(String),
-    /// Per-host auto-title (OSC 0/2) selection from the host editor pick:
-    /// the localized "Default / Show / Hide" label.
-    EditorAutoTitleChanged(String),
-    /// Per-host Privacy Mode selection from the host editor pick: the
-    /// localized "Default / On / Off" label.
-    EditorPrivacyModeChanged(String),
+    // Editor (handle_editor)
+    Editor(EditorMessage),
     // ── C5 per-host legacy keyboard modes + feature toggles ──────────
-    /// Backspace mode pick (localized "Control-? (127)" / "Control-H (8)").
-    EditorQuirkBackspaceChanged(String),
-    /// Home/End mode pick (localized "Standard" / "rxvt").
-    EditorQuirkHomeEndChanged(String),
-    /// Function-key mode pick (localized Xterm / Linux / VT400 / rxvt).
-    EditorQuirkFnKeysChanged(String),
-    /// "Report mouse to remote" toggle (off = `disable_mouse_reporting`).
-    EditorQuirkMouseReportingChanged(bool),
-    /// "Allow remote title changes" toggle (off = `disable_title_change`).
-    EditorQuirkTitleChangeChanged(bool),
-    /// OSC 52 clipboard-write override pick (localized Default / On / Off).
-    EditorQuirkOsc52Changed(String),
-    /// macOS Option-as-Meta pick (localized Off / Left / Right / Both;
-    /// issue #80: the default composes characters like every macOS
-    /// terminal, Meta is the readline/emacs opt-in).
-    EditorQuirkOptionAsMetaChanged(String),
-    /// Per-host SSH rekey limit (MB) text input.
-    EditorQuirkRekeyChanged(String),
-    /// Toggle a per-host SSH algorithm category between Auto (None) and a
-    /// custom pinned list (seeded from the safe defaults).
-    EditorAlgoSetAuto(crate::state::AlgoCategory, bool),
-    /// Add/remove one algorithm name in a category's pinned list.
-    EditorAlgoToggle(crate::state::AlgoCategory, String),
     ShowTabMenu(usize),
     ReconnectTab(usize),
     DuplicateTab(usize),
@@ -673,79 +628,14 @@ pub enum Message {
     HideCardMenu,
 
     // Connection editor
-    ShowNewConnection,
-    /// Open the host editor seeded as a RemoteDesktop host ("Add remote
-    /// desktop" in the + Host menu; only shown when the feature toggle is on).
-    ShowNewRemoteDesktop,
-    EditConnection(usize),
-    EditorLabelChanged(String),
-    /// Host editor: comma-separated tags field.
-    EditorTagsChanged(String),
-    EditorHostnameChanged(String),
-    /// Host editor: the wire-protocol picker (SSH / Telnet). Switching
-    /// swaps the reduced form and, when the port still holds the old
-    /// protocol's default, retargets it (22 <-> 23).
-    EditorProtocolChanged(oryxis_core::models::connection::ConnectionProtocol),
     // Serial line params (reduced Serial form). Each carries the typed
     // value; the handler materializes `SerialParams` defaults first.
-    EditorSerialBaudChanged(u32),
-    EditorSerialDataBitsChanged(u8),
-    EditorSerialParityChanged(oryxis_core::models::serial::SerialParity),
-    EditorSerialStopBitsChanged(oryxis_core::models::serial::SerialStopBits),
-    EditorSerialFlowChanged(oryxis_core::models::serial::SerialFlowControl),
-    EditorSerialLineEndingChanged(oryxis_core::models::serial::SerialLineEnding),
-    EditorSerialLocalEchoToggled,
     // Remote desktop (RDP/VNC) editor rows: kind picker + the SSH host
     // to tunnel through (`None` = direct). The desktop endpoint + login
     // reuse the normal hostname/port/username/password fields.
-    EditorRdKindChanged(oryxis_core::models::remote_desktop::RemoteDesktopKind),
-    EditorRdGatewayChanged(Option<uuid::Uuid>),
-    /// Address-family preference picked in the host editor (SSH > Network).
-    EditorAddressFamilyChanged(oryxis_core::models::connection::AddressFamily),
-    EditorPortChanged(String),
-    EditorUsernameChanged(String),
-    EditorPasswordChanged(String),
-    EditorAuthMethodChanged(String),
-    EditorGroupChanged(String),
-    EditorKeyChanged(String),
     // Chain editor (Termius-style multi-hop jump-host editor). Opens
     // from the "Host Chaining" row in the host editor; edits the
     // ordered `editor_form.jump_chain`.
-    OpenChainEditor,
-    CloseChainEditor,
-    /// Switch the chain editor into "add a hop" mode (host picker).
-    ChainEditorStartAdd,
-    /// Back out of "add a hop" mode to the chain list.
-    ChainEditorCancelAdd,
-    ChainEditorSearchChanged(String),
-    /// Append the selected connection as the next hop.
-    ChainEditorAddHop(Uuid),
-    ChainEditorRemoveHop(usize),
-    ChainEditorMoveHopUp(usize),
-    ChainEditorMoveHopDown(usize),
-    EditorProxyKindChanged(crate::state::ProxyKind),
-    EditorProxyHostChanged(String),
-    EditorProxyPortChanged(String),
-    EditorProxyUsernameChanged(String),
-    EditorProxyPasswordChanged(String),
-    EditorProxyCommandChanged(String),
-    EditorTogglePasswordVisibility,
-    /// TOTP secret (2FA) field: value edit + eye toggle. Tri-state save
-    /// mirrors the password field (untouched preserves the stored secret).
-    EditorTotpChanged(String),
-    EditorToggleTotpVisibility,
-    EditorSave,
-    /// Connect using the current editor form WITHOUT persisting anything:
-    /// builds an ephemeral quick-connect entry (typed credentials ride in
-    /// memory) and dispatches `QuickConnect`. New-host flow only.
-    EditorConnectWithoutSaving,
-    EditorCancel,
-    /// Ask for confirmation before removing a host. Confirming dispatches
-    /// `DeleteConnection`. Destructive removals are routed through a confirm
-    /// dialog so a stray click can't silently drop a host.
-    RequestDeleteConnection(usize),
-    DeleteConnection(usize),
-    DuplicateConnection(usize),
 
     // Session groups (saved split-panel arrangements)
     // Session groups (handle_session_group)
@@ -754,13 +644,6 @@ pub enum Message {
     // SSH
     // Ssh (handle_ssh)
     Ssh(SshMessage),
-    /// Open the host editor prefilled from the quick-connect entry so the
-    /// user can persist it as a regular host.
-    SaveQuickHost(Uuid),
-    /// Same prefill, but as the temporary-host edit flow (from the
-    /// connect progress screen): Connect (without saving) is the primary
-    /// footer action, Save the secondary.
-    EditQuickHost(Uuid),
 
     // Snippets
     // Snippets (handle_snippets)
@@ -840,13 +723,6 @@ pub enum Message {
     // Terminal side panel (Chat / Snippets / Host config tabs)
     // AI settings + chat sidebar (handle_ai)
     Ai(AiMessage),
-    /// Live per-host edits from the Host config sidebar tab. Each mutates
-    /// the focused pane's connection, persists immediately, and (for the
-    /// theme) repaints the running terminal for instant preview.
-    HostConfigThemeChanged(String),
-    HostConfigEncodingChanged(String),
-    HostConfigTerminalTypeChanged(String),
-    HostConfigAutoTitleChanged(String),
     /// Local/ephemeral panes have no saved host: pick a session-only theme
     /// for the open local terminals, or promote it to the global default.
     LocalConfigThemeChanged(String),
@@ -977,15 +853,6 @@ pub enum Message {
     /// Toggle the Logs view Privacy Mode reveal (show raw sensitive data
     /// in the timeline + session-log viewer until toggled back).
     TogglePrivacyReveal,
-    /// Host editor startup-command source changed (the picker label:
-    /// the None sentinel, the Custom sentinel, or a snippet label).
-    EditorStartupChoiceChanged(String),
-    /// The Initial Command / Snippet combo gained focus; clears its
-    /// typed value so the dropdown opens on the full list.
-    EditorStartupComboOpened,
-    /// The SSH Key combo gained focus; clears its typed value so the
-    /// dropdown opens on the full list.
-    EditorKeyComboOpened,
     SettingToggleCloseToTray,
     SettingToggleMinimizeToTray,
     SettingToggleTabAccentLine,
@@ -1189,7 +1056,6 @@ pub enum Message {
     // transport, initial command) on a `Group.cloud_query`.
 
     // Connection identity
-    EditorIdentityChanged(String),
 
     // AI settings
 
@@ -1198,23 +1064,10 @@ pub enum Message {
     // AI chat sidebar
 
     // Port forwarding
-    EditorAddPortForward,
-    EditorRemovePortForward(usize),
-    EditorPortFwdLocalPortChanged(usize, String),
-    EditorPortFwdRemoteHostChanged(usize, String),
-    EditorPortFwdRemotePortChanged(usize, String),
-    EditorAddEnvVar,
-    EditorRemoveEnvVar(usize),
-    EditorEnvVarKeyChanged(usize, String),
-    EditorEnvVarValueChanged(usize, String),
 
     // SSH agent forwarding (per-host opt-in)
-    EditorToggleAgentForwarding,
 
     // MCP
-    EditorToggleMcpEnabled,
-    /// Cycle the per-host session-recording override: Default -> On -> Off.
-    EditorCycleSessionLogging,
     // Mcp (handle_mcp)
     Mcp(McpMessage),
 

@@ -7,7 +7,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, container, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{EditorMessage, CloudMessage, NavigationMessage, Message, Oryxis};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -143,7 +143,7 @@ impl Oryxis {
             .center_y(Length::Fixed(24.0))
             .center_x(Length::Fixed(72.0)),
         )
-        .on_press(Message::ShowNewConnection)
+        .on_press(Message::Editor(EditorMessage::ShowNewConnection))
         .style(move |_, status| {
             let bg = match status {
                 BtnStatus::Hovered => OryxisColors::t().button_bg_hover,

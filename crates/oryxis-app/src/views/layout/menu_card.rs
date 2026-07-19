@@ -110,8 +110,8 @@ impl Oryxis {
         );
         let mut items = column![
             self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::Ssh(SshMessage::ConnectSsh(idx)), OryxisColors::t().success),
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::EditConnection(idx), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::DuplicateConnection(idx), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Editor(EditorMessage::EditConnection(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::Editor(EditorMessage::DuplicateConnection(idx)), OryxisColors::t().text_secondary),
         ];
         if is_ssh_host {
             items = items
@@ -156,7 +156,7 @@ impl Oryxis {
             (crate::i18n::t("remove"), iced_fonts::lucide::trash())
         };
         items
-            .push(self.menu_item(remove_icon, remove_label, Message::RequestDeleteConnection(idx), OryxisColors::t().error))
+            .push(self.menu_item(remove_icon, remove_label, Message::Editor(EditorMessage::RequestDeleteConnection(idx)), OryxisColors::t().error))
             .into()
     }
 

@@ -23,8 +23,8 @@ impl Oryxis {
                     10.0,
                     text_input(t("username"), &self.editor_form.username)
                         .id(iced::widget::Id::new("editor-username"))
-                        .on_input(Message::EditorUsernameChanged)
-                        .on_submit(Message::EditorSave)
+                        .on_input(|v| Message::Editor(EditorMessage::EditorUsernameChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
                 ),
@@ -59,9 +59,9 @@ impl Oryxis {
                     );
                     let ident_label = identity.label.clone();
                     cred_items = cred_items.push(self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::EditorIdentityChanged(
+                        crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorIdentityChanged(
                             ident_label.clone(),
-                        )),
+                        ))),
                         6.0,
                         button(
                             container(
@@ -82,7 +82,7 @@ impl Oryxis {
                                 ..Default::default()
                             }),
                         )
-                        .on_press(Message::EditorIdentityChanged(ident_label))
+                        .on_press(Message::Editor(EditorMessage::EditorIdentityChanged(ident_label)))
                         .width(Length::Fill)
                         .style(|_, status| {
                             let bg = match status {
@@ -121,7 +121,7 @@ impl Oryxis {
                         ].into(),
                         Space::new().width(Length::Fill).into(),
                         button(text("\u{00D7}").size(11).color(OryxisColors::t().text_muted))
-                            .on_press(Message::EditorIdentityChanged("(none)".into()))
+                            .on_press(Message::Editor(EditorMessage::EditorIdentityChanged("(none)".into())))
                             .padding(4)
                             .style(|_, _| button::Style::default()).into(),
                     ]).align_y(iced::Alignment::Center),
@@ -143,7 +143,7 @@ impl Oryxis {
             // Keyboard row: Enter/Space clears the identity (the
             // banner's only verb, same as its × button).
             cred_items = cred_items.push(self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::EditorIdentityChanged("(none)".into())),
+                crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorIdentityChanged("(none)".into()))),
                 8.0,
                 banner,
             ));
@@ -183,15 +183,15 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         pw_placeholder,
                         self.editor_form.password.as_str(),
-                        Message::EditorPasswordChanged,
-                        Some(Message::EditorSave),
+                        |v| Message::Editor(EditorMessage::EditorPasswordChanged(v)),
+                        Some(Message::Editor(EditorMessage::EditorSave)),
                         self.editor_form.password_visible,
-                        Message::EditorTogglePasswordVisibility,
+                        Message::Editor(EditorMessage::EditorTogglePasswordVisibility),
                         10.0,
                         Some(iced::widget::Id::new("editor-password")),
                         |eye| self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::EditorTogglePasswordVisibility,
+                                Message::Editor(EditorMessage::EditorTogglePasswordVisibility),
                             ),
                             6.0,
                             eye,
@@ -226,15 +226,15 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         totp_placeholder,
                         self.editor_form.totp_secret.as_str(),
-                        Message::EditorTotpChanged,
-                        Some(Message::EditorSave),
+                        |v| Message::Editor(EditorMessage::EditorTotpChanged(v)),
+                        Some(Message::Editor(EditorMessage::EditorSave)),
                         self.editor_form.totp_visible,
-                        Message::EditorToggleTotpVisibility,
+                        Message::Editor(EditorMessage::EditorToggleTotpVisibility),
                         10.0,
                         Some(iced::widget::Id::new("editor-totp")),
                         |eye| self.panel_nav_slot(
                             crate::keynav::RowAction::activate(
-                                Message::EditorToggleTotpVisibility,
+                                Message::Editor(EditorMessage::EditorToggleTotpVisibility),
                             ),
                             6.0,
                             eye,
@@ -269,7 +269,7 @@ impl Oryxis {
                     crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-baud")),
                     radius,
                     pick_list(Some(p.baud), COMMON_BAUD_RATES.to_vec(), |b: &u32| b.to_string())
-                        .on_select(Message::EditorSerialBaudChanged)
+                        .on_select(|v| Message::Editor(EditorMessage::EditorSerialBaudChanged(v)))
                         .id(iced::widget::Id::new("editor-serial-baud"))
                         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -286,7 +286,7 @@ impl Oryxis {
                     crate::keynav::RowAction::input(iced::widget::Id::new("editor-serial-data")),
                     radius,
                     pick_list(Some(p.data_bits), vec![8u8, 7, 6, 5], |n: &u8| n.to_string())
-                        .on_select(Message::EditorSerialDataBitsChanged)
+                        .on_select(|v| Message::Editor(EditorMessage::EditorSerialDataBitsChanged(v)))
                         .id(iced::widget::Id::new("editor-serial-data"))
                         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -307,7 +307,7 @@ impl Oryxis {
                         vec![SerialParity::None, SerialParity::Odd, SerialParity::Even],
                         |v: &SerialParity| v.to_string(),
                     )
-                    .on_select(Message::EditorSerialParityChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorSerialParityChanged(v)))
                     .id(iced::widget::Id::new("editor-serial-parity"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -328,7 +328,7 @@ impl Oryxis {
                         vec![SerialStopBits::One, SerialStopBits::Two],
                         |v: &SerialStopBits| v.to_string(),
                     )
-                    .on_select(Message::EditorSerialStopBitsChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorSerialStopBitsChanged(v)))
                     .id(iced::widget::Id::new("editor-serial-stop"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -353,7 +353,7 @@ impl Oryxis {
                         ],
                         |v: &SerialFlowControl| v.to_string(),
                     )
-                    .on_select(Message::EditorSerialFlowChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorSerialFlowChanged(v)))
                     .id(iced::widget::Id::new("editor-serial-flow"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -378,7 +378,7 @@ impl Oryxis {
                         ],
                         |v: &SerialLineEnding| v.to_string(),
                     )
-                    .on_select(Message::EditorSerialLineEndingChanged)
+                    .on_select(|v| Message::Editor(EditorMessage::EditorSerialLineEndingChanged(v)))
                     .id(iced::widget::Id::new("editor-serial-eol"))
                     .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                     .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
@@ -392,7 +392,7 @@ impl Oryxis {
             // negotiation, so a non-echoing device shows nothing typed
             // until this is on).
             let echo_row = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::EditorSerialLocalEchoToggled),
+                crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorSerialLocalEchoToggled)),
                 8.0,
                 container(
                     dir_row(vec![
@@ -405,7 +405,7 @@ impl Oryxis {
                             let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
                             let fg = crate::theme::contrast_text_for(bg);
                             button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
-                                .on_press(Message::EditorSerialLocalEchoToggled)
+                                .on_press(Message::Editor(EditorMessage::EditorSerialLocalEchoToggled))
                                 .style(move |_theme, _status| button::Style {
                                     background: Some(Background::Color(bg)),
                                     border: Border { radius: Radius::from(4.0), ..Default::default() },
