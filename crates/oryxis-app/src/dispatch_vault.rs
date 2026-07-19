@@ -36,6 +36,10 @@ impl Oryxis {
                 }
                 self.vault_ui.calibrating = true;
                 self.vault_ui.error = None;
+                // Snapshot the confirmed password: the input stays live
+                // during the calibration and must not be re-read at apply
+                // time (see `pending_kdf_pw`).
+                self.vault_ui.pending_kdf_pw = Some(self.vault_ui.password_input.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::FirstSetup));
             }
             Message::VaultSkipPassword => {
@@ -276,6 +280,9 @@ impl Oryxis {
                     self.vault_ui.new_password.clear();
                     self.vault_ui.confirm_password.clear();
                     self.vault_ui.password_error = None;
+                    // Hiding the form is a cancel: abort any calibration
+                    // that is still in flight (see `pending_kdf_pw`).
+                    self.vault_ui.pending_kdf_pw = None;
                 }
             }
             Message::ConfirmRemoveVaultPassword => {
@@ -332,6 +339,7 @@ impl Oryxis {
                 }
                 self.vault_ui.calibrating = true;
                 self.vault_ui.password_error = None;
+                self.vault_ui.pending_kdf_pw = Some(self.vault_ui.new_password.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::SetUser));
             }
             Message::OpenChangeVaultPassword => {
@@ -351,6 +359,10 @@ impl Oryxis {
                 self.vault_ui.new_password.clear();
                 self.vault_ui.confirm_password.clear();
                 self.vault_ui.password_error = None;
+                // Cancel during the ~1s calibration: dropping the snapshot
+                // aborts the pending apply, so the rotation can't land after
+                // the user backed out.
+                self.vault_ui.pending_kdf_pw = None;
             }
             Message::VaultCurrentPasswordChanged(pw) => {
                 self.vault_ui.current_password = pw;
@@ -392,6 +404,7 @@ impl Oryxis {
                 // Phase 1 (E1): current verified, calibrate off-thread.
                 self.vault_ui.calibrating = true;
                 self.vault_ui.password_error = None;
+                self.vault_ui.pending_kdf_pw = Some(self.vault_ui.new_password.clone());
                 return Ok(calibrate_kdf_task(crate::state::VaultPwOp::Change));
             }
             Message::VaultKdfCalibrated(op, params) => {
@@ -400,12 +413,18 @@ impl Oryxis {
                 // thread, same cost as an unlock (the plan accepts that);
                 // only the multi-probe calibration went off-thread.
                 self.vault_ui.calibrating = false;
+                // The password to apply is the snapshot taken when the user
+                // confirmed, never the live buffers (they may have been
+                // edited or cleared during the calibration). A missing
+                // snapshot means the flow was cancelled: discard the result.
+                let Some(pw) = self.vault_ui.pending_kdf_pw.take() else {
+                    return Ok(Task::none());
+                };
                 let Some(vault) = &mut self.vault else {
                     return Ok(Task::none());
                 };
                 match op {
                     crate::state::VaultPwOp::FirstSetup => {
-                        let pw = self.vault_ui.password_input.clone();
                         match vault.set_master_password_with_params(&pw, params) {
                             Ok(()) => {
                                 let _ = vault.set_setting("has_user_password", "1");
@@ -432,7 +451,6 @@ impl Oryxis {
                         }
                     }
                     crate::state::VaultPwOp::SetUser => {
-                        let pw = self.vault_ui.new_password.clone();
                         match vault.set_user_password_with_params(&pw, params) {
                             Ok(()) => {
                                 self.vault_ui.has_user_password = true;
@@ -450,7 +468,6 @@ impl Oryxis {
                         }
                     }
                     crate::state::VaultPwOp::Change => {
-                        let pw = self.vault_ui.new_password.clone();
                         match vault.set_user_password_with_params(&pw, params) {
                             Ok(()) => {
                                 self.vault_ui.change_password_open = false;

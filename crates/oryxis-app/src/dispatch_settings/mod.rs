@@ -1803,6 +1803,9 @@ impl Oryxis {
                     // set-password form must not survive the soft lock.
                     self.vault_ui.new_password.clear();
                     self.vault_ui.confirm_password.clear();
+                    // Abort an in-flight KDF calibration too: its snapshot is
+                    // secret material and the apply must not land post-lock.
+                    self.vault_ui.pending_kdf_pw = None;
                     // Same for the MCP panel's master-password confirm.
                     self.mcp.vault_pw_prompt = None;
                     self.mcp.vault_pw_error = false;
@@ -2001,6 +2004,9 @@ impl Oryxis {
                         self.viewing_session_log = None;
                         self.vault_ui.new_password.clear();
                         self.vault_ui.confirm_password.clear();
+                        // Abort an in-flight KDF calibration (snapshot is
+                        // secret material; the apply must not land post-lock).
+                        self.vault_ui.pending_kdf_pw = None;
                         self.sftp.picker_open = false;
                         self.sftp.new_entry = None;
                         self.sftp.delete_confirm.clear();

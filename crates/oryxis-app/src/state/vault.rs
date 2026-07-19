@@ -78,4 +78,12 @@ pub(crate) struct VaultUi {
     /// and disables the submit button so the user can't fire it twice
     /// while the worker runs.
     pub(crate) calibrating: bool,
+    /// E1: the new password snapshotted at the moment the user confirmed,
+    /// applied when `VaultKdfCalibrated` lands. The apply phase must never
+    /// read the live form buffers: they stay editable during the ~1s
+    /// calibration, and Cancel clears them, so reading them late would
+    /// rotate the vault key to whatever the buffer holds by then (a
+    /// cleared buffer would rotate to the empty-string key). A cancel path
+    /// drops this snapshot instead, which aborts the pending apply.
+    pub(crate) pending_kdf_pw: Option<String>,
 }

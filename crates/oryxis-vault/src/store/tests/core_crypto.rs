@@ -317,6 +317,53 @@ fn removing_password_resets_to_default_params() {
 }
 
 #[test]
+fn failed_rotation_leaves_salt_and_unlock_intact() {
+    // A password change that fails mid-way (here: one secret blob is
+    // corrupt, so re_encrypt_all errors) must roll back ATOMICALLY,
+    // including the new kdf_salt + params. A salt committed outside the
+    // transaction would brick the vault: secrets stay under the old key
+    // while unlock derives over the new salt, so no password ever works
+    // again.
+    let mut vault = temp_vault();
+    vault.set_master_password("original").unwrap();
+    let conn = Connection::new("h", "example.com");
+    vault.save_connection(&conn, Some("secret")).unwrap();
+    // Corrupt the encrypted blob so the re-encryption pass fails.
+    vault
+        .db
+        .execute(
+            "UPDATE connections SET password = ?1 WHERE id = ?2",
+            params![vec![0xFFu8; 7], conn.id.to_string()],
+        )
+        .unwrap();
+    let salt_before: Vec<u8> = vault
+        .db
+        .query_row(
+            "SELECT value FROM vault_meta WHERE key = 'kdf_salt'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    assert!(vault.set_user_password("next").is_err());
+
+    let salt_after: Vec<u8> = vault
+        .db
+        .query_row(
+            "SELECT value FROM vault_meta WHERE key = 'kdf_salt'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(salt_before, salt_after, "failed rotation must not touch the salt");
+    // The vault still unlocks under the ORIGINAL password only.
+    vault.lock();
+    assert!(vault.unlock("next").is_err());
+    vault.unlock("original").unwrap();
+    assert!(!vault.is_locked());
+}
+
+#[test]
 fn calibrate_respects_floors() {
     let p = crate::store::calibrate_kdf();
     // Never weaker than the crate default; parallelism pinned to 1.

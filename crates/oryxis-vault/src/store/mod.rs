@@ -874,51 +874,59 @@ impl VaultStore {
     }
 
     /// Set a user password with EXPLICIT KDF parameters (E1). Rotates the
-    /// salt + params together, then re-encrypts every field to the new
-    /// key inside one transaction.
+    /// salt + params together with the re-encryption of every field, all
+    /// inside one transaction (see [`Self::change_master_key`]).
     pub fn set_user_password_with_params(
         &mut self,
         new_password: &str,
         params: KdfParams,
     ) -> Result<(), VaultError> {
         let old_key = self.require_unlocked()?.to_vec();
-        let new_key = self.rotate_vault_key(new_password, params)?;
+        let (salt, new_key) = self.rotate_vault_key(new_password, params)?;
 
-        self.change_master_key(&old_key, &new_key, "1")?;
+        self.change_master_key(&old_key, &new_key, "1", &salt, params)?;
         tracing::info!("Vault user password set");
         Ok(())
     }
 
-    /// Generate a fresh `kdf_salt` + write the KDF `params` (E1), then
-    /// derive the vault key for `password` over the new salt. Both writes
-    /// participate in the caller's transaction when one is open.
+    /// Generate a fresh `kdf_salt` and derive the vault key for `password`
+    /// over it (E1). Pure computation: NOTHING is written here. The salt
+    /// and params are persisted by [`Self::change_master_key`] inside the
+    /// same transaction as the re-encryption, so a failure or crash
+    /// mid-change can never leave a new salt on disk with the secrets
+    /// still under the old key (which would brick the vault: neither the
+    /// old nor the new password could ever unlock it again).
     fn rotate_vault_key(
         &self,
         password: &str,
         params: KdfParams,
-    ) -> Result<Vec<u8>, VaultError> {
+    ) -> Result<([u8; SALT_LEN], Vec<u8>), VaultError> {
         let mut salt = [0u8; SALT_LEN];
         OsRng.fill_bytes(&mut salt);
-        self.db.execute(
-            "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('kdf_salt', ?1)",
-            params![salt.to_vec()],
-        )?;
-        self.write_kdf_params(params)?;
-        Ok(derive_key_with_params(password.as_bytes(), &salt, params)?.to_vec())
+        let key = derive_key_with_params(password.as_bytes(), &salt, params)?.to_vec();
+        Ok((salt, key))
     }
 
-    /// Shared tail of a master password change: re-encrypt every
-    /// field, rewrite the password check and the `has_user_password`
-    /// flag, all inside one transaction so a crash mid-change can't
-    /// leave the vault half re-encrypted.
+    /// Shared tail of a master password change: persist the new
+    /// `kdf_salt` + KDF params, re-encrypt every field, rewrite the
+    /// password check and the `has_user_password` flag, all inside one
+    /// transaction so a crash mid-change can't leave the vault half
+    /// re-encrypted or the salt out of step with the secrets.
     fn change_master_key(
         &mut self,
         old_key: &[u8],
         new_key: &[u8],
         user_flag: &str,
+        salt: &[u8; SALT_LEN],
+        params: KdfParams,
     ) -> Result<(), VaultError> {
         self.db.execute_batch("BEGIN")?;
         let result = (|| -> Result<(), VaultError> {
+            self.db.execute(
+                "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('kdf_salt', ?1)",
+                params![salt.to_vec()],
+            )?;
+            self.write_kdf_params(params)?;
             self.re_encrypt_all(old_key, new_key)?;
             let check = encrypt_with_key(b"oryxis_vault_ok", new_key)?;
             self.db.execute(
@@ -951,9 +959,9 @@ impl VaultStore {
         // A passwordless vault derives over the empty string, so there is
         // no password entropy to protect: reset to the default (untuned)
         // KDF params rather than calibrating for a moot secret.
-        let new_key = self.rotate_vault_key("", KdfParams::DEFAULT)?;
+        let (salt, new_key) = self.rotate_vault_key("", KdfParams::DEFAULT)?;
 
-        self.change_master_key(&old_key, &new_key, "0")?;
+        self.change_master_key(&old_key, &new_key, "0", &salt, KdfParams::DEFAULT)?;
         tracing::info!("Vault user password removed");
         Ok(())
     }
