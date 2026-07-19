@@ -727,6 +727,31 @@ pub(crate) fn quirk_fn_keys_from_label(
     .unwrap_or(FunctionKeyMode::Xterm)
 }
 
+pub(crate) fn quirk_osc52_label(
+    m: Option<oryxis_core::models::terminal_quirks::Osc52Override>,
+) -> String {
+    use crate::i18n::t;
+    use oryxis_core::models::terminal_quirks::Osc52Override;
+    match m {
+        Some(Osc52Override::On) => t("quirks_osc52_on"),
+        Some(Osc52Override::Off) => t("quirks_osc52_off"),
+        None => t("quirks_osc52_default"),
+    }
+    .to_string()
+}
+
+pub(crate) fn quirk_osc52_from_label(
+    v: &str,
+) -> Option<oryxis_core::models::terminal_quirks::Osc52Override> {
+    use oryxis_core::models::terminal_quirks::Osc52Override;
+    [Some(Osc52Override::On), Some(Osc52Override::Off)]
+        .into_iter()
+        .find(|m| v == quirk_osc52_label(*m))
+        // Unknown labels (including the localized "Default") inherit the
+        // global policy, mirroring the tri-state pick semantics.
+        .unwrap_or(None)
+}
+
 /// Resolve a localized (or English) auth-picker label back to the enum.
 /// Mirrors `EditorAuthMethodChanged`: English fallback keeps a label
 /// persisted in another locale resolvable. Unknown values are `Auto`.
@@ -850,7 +875,7 @@ mod tests {
     #[test]
     fn quirk_label_round_trips_for_every_variant() {
         use oryxis_core::models::terminal_quirks::{
-            BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta,
+            BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta, Osc52Override,
         };
         // label(m) -> from_label -> m must be the identity for every
         // variant, so the host-editor pick can't silently map a mode to
@@ -877,10 +902,14 @@ mod tests {
         ] {
             assert_eq!(quirk_option_as_meta_from_label(&quirk_option_as_meta_label(m)), m);
         }
+        for m in [Some(Osc52Override::On), Some(Osc52Override::Off), None] {
+            assert_eq!(quirk_osc52_from_label(&quirk_osc52_label(m)), m);
+        }
         // An unknown label falls back to the default (never panics).
         assert_eq!(quirk_backspace_from_label("garbage"), BackspaceMode::Del127);
         assert_eq!(quirk_fn_keys_from_label("garbage"), FunctionKeyMode::Xterm);
         assert_eq!(quirk_option_as_meta_from_label("garbage"), OptionAsMeta::None);
+        assert_eq!(quirk_osc52_from_label("garbage"), None);
     }
 
     #[test]

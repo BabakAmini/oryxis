@@ -1037,15 +1037,7 @@ impl Oryxis {
                 self.editor_form.quirks.disable_title_change = !on;
             }
             Message::EditorQuirkOsc52Changed(v) => {
-                use crate::i18n::t;
-                use oryxis_core::models::terminal_quirks::Osc52Override;
-                self.editor_form.quirks.osc52 = if v == t("quirks_osc52_on") {
-                    Some(Osc52Override::On)
-                } else if v == t("quirks_osc52_off") {
-                    Some(Osc52Override::Off)
-                } else {
-                    None
-                };
+                self.editor_form.quirks.osc52 = crate::util::quirk_osc52_from_label(&v);
             }
             Message::EditorQuirkOptionAsMetaChanged(v) => {
                 self.editor_form.quirks.option_as_meta =
