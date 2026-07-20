@@ -335,23 +335,7 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted),
                 );
         }
-        let top_bar_section = panel_section(top_bar_col.push(Space::new().height(8)).push(
-            self.nav_toggle_row(
-                crate::i18n::t("show_status_bar"),
-                self.setting_show_status_bar,
-                Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
-            ),
-        ).push(column![
-            Space::new().height(8),
-            self.nav_toggle_row(
-                crate::i18n::t("monitor_status_bar"),
-                self.setting_monitor_status_bar,
-                Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
-            ),
-            Space::new().height(4),
-            text(crate::i18n::t("monitor_status_bar_desc"))
-                .size(11)
-                .color(OryxisColors::t().text_muted),
+        let top_bar_section = panel_section(top_bar_col.push(column![
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_line"),
@@ -365,6 +349,27 @@ impl Oryxis {
                 Message::Settings(SettingsMessage::SettingToggleTabAccentWash),
             ),
         ]));
+
+        // Status bar card: its own group with a live preview below (the
+        // toggles used to hide inside the Top bar card, where "Show
+        // status bar" read as a top-bar knob).
+        let status_bar_section = panel_section(column![
+            self.nav_toggle_row(
+                crate::i18n::t("show_status_bar"),
+                self.setting_show_status_bar,
+                Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
+            ),
+            Space::new().height(8),
+            self.nav_toggle_row(
+                crate::i18n::t("monitor_status_bar"),
+                self.setting_monitor_status_bar,
+                Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("monitor_status_bar_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        ]);
 
         // ── Theme ──
         // Built-in themes, then custom UI themes, then the "+" card.
@@ -586,6 +591,12 @@ impl Oryxis {
             // Shared live preview (tab chips + hairline), outside
             // both cards since it renders the two groups at once.
             self.tab_appearance_preview(),
+            Space::new().height(18),
+            gh(crate::i18n::t("interface_group_status_bar")),
+            Space::new().height(8),
+            status_bar_section,
+            Space::new().height(12),
+            self.status_bar_preview(),
             Space::new().height(18),
             gh(crate::i18n::t("interface_group_theme")),
             Space::new().height(8),

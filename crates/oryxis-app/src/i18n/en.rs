@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "interface_group_dashboard" => "Dashboard",
         "interface_group_tabs" => "Tabs",
         "interface_group_top_bar" => "Top bar",
+        "interface_group_status_bar" => "Status bar",
         "security_group_vault" => "Vault",
         "security_group_privacy" => "Privacy",
         "security_group_logging" => "Logging & history",

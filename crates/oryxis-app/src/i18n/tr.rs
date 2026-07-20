@@ -331,6 +331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Panel",
         "interface_group_tabs" => "Sekmeler",
         "interface_group_top_bar" => "Üst çubuk",
+        "interface_group_status_bar" => "Durum çubuğu",
         "security_group_vault" => "Kasa",
         "security_group_privacy" => "Gizlilik",
         "security_group_logging" => "Günlükler ve geçmiş",

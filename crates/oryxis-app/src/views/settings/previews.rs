@@ -106,6 +106,67 @@ impl Oryxis {
         column![strip, hairline].width(Length::Fill).into()
     }
 
+    /// Live preview of the status bar under the current settings: the
+    /// top hairline, the connection segment and the version tag, with
+    /// the host-vitals segment (sample values) appearing when its
+    /// toggle is on. Mirrors the layout of `view_status_bar` so what
+    /// the user sees here matches the real bar.
+    pub(crate) fn status_bar_preview(&self) -> Element<'_, Message> {
+        let top_hairline = container(Space::new().height(1))
+            .width(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().border)),
+                ..Default::default()
+            });
+        let mut items: Vec<Element<'_, Message>> = vec![
+            text(format!(
+                "● production-web, {}",
+                crate::i18n::t("status_bar_connected")
+            ))
+            .size(12)
+            .color(OryxisColors::t().success)
+            .into(),
+            Space::new().width(Length::Fill).into(),
+        ];
+        if self.setting_monitor_status_bar {
+            let vital = |label: String, value: &'static str| -> Element<'static, Message> {
+                dir_row(vec![
+                    text(label).size(11).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(4).into(),
+                    text(value)
+                        .size(11)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            };
+            items.push(vital(crate::i18n::t("monitor_cpu").into(), "12%"));
+            items.push(Space::new().width(12).into());
+            items.push(vital(crate::i18n::t("monitor_mem").into(), "38%"));
+            items.push(Space::new().width(12).into());
+            items.push(vital(crate::i18n::t("monitor_net").into(), "↓1.2M/s ↑340K/s"));
+            items.push(Space::new().width(12).into());
+        }
+        items.push(
+            text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
+                .size(12)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+        );
+        let bar = container(
+            dir_row(items)
+                .align_y(iced::Alignment::Center)
+                .padding(Padding { top: 3.0, right: 12.0, bottom: 3.0, left: 12.0 }),
+        )
+        .width(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
+            ..Default::default()
+        });
+        column![top_hairline, bar].width(Length::Fill).into()
+    }
+
     /// Live preview of a dashboard host card under the current dashboard
     /// settings: the default host icon shape, the optional address line,
     /// and the accent glass wash. Reuses `host_icon` and

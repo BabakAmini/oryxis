@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Nástěnka",
         "interface_group_tabs" => "Karty",
         "interface_group_top_bar" => "Horní lišta",
+        "interface_group_status_bar" => "Stavový řádek",
         "security_group_vault" => "Trezor",
         "security_group_privacy" => "Soukromí",
         "security_group_logging" => "Protokoly a historie",

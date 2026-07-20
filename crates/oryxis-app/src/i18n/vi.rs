@@ -331,6 +331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Bảng điều khiển",
         "interface_group_tabs" => "Tab",
         "interface_group_top_bar" => "Thanh trên",
+        "interface_group_status_bar" => "Thanh trạng thái",
         "security_group_vault" => "Kho",
         "security_group_privacy" => "Quyền riêng tư",
         "security_group_logging" => "Nhật ký & lịch sử",

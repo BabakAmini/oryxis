@@ -94,7 +94,10 @@ impl Oryxis {
         // terminal-only so it isn't subtracted here). Clamp so neither
         // pane can collapse.
         if let Some((start_x, start_ratio)) = self.sftp_split_drag {
-            let content_w = (self.window_size.width - self.vault_rail_width()).max(1.0);
+            let content_w = (self.window_size.width
+                - self.vault_rail_width()
+                - self.side_strip_reserve())
+            .max(1.0);
             let new_ratio =
                 (start_ratio + (pos.x - start_x) / content_w).clamp(0.15, 0.85);
             self.sftp_split_ratio = new_ratio;

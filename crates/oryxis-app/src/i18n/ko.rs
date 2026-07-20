@@ -331,6 +331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "대시보드",
         "interface_group_tabs" => "탭",
         "interface_group_top_bar" => "상단 바",
+        "interface_group_status_bar" => "상태 표시줄",
         "security_group_vault" => "볼트",
         "security_group_privacy" => "개인정보 보호",
         "security_group_logging" => "로그 및 기록",

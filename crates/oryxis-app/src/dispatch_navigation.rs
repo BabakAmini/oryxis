@@ -385,10 +385,15 @@ impl Oryxis {
                     } else {
                         0.0
                     };
+                    // Window-space anchor: a left-docked tab strip shifts
+                    // the toolbar right; a right dock pulls the RTL
+                    // trailing edge in.
+                    let strip_left = self.side_strip_left_offset();
+                    let strip_right = self.side_strip_reserve() - strip_left;
                     let x = if crate::i18n::is_rtl_layout() {
-                        (self.window_size.width - panel - pad).max(menu_w)
+                        (self.window_size.width - panel - pad - strip_right).max(menu_w)
                     } else {
-                        self.vault_rail_width() + pad
+                        self.vault_rail_width() + strip_left + pad
                     };
                     // Sit over the toolbar row itself (the shared anchor is
                     // tuned for dropdowns *below* the button row; back out

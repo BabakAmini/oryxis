@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "डैशबोर्ड",
         "interface_group_tabs" => "टैब",
         "interface_group_top_bar" => "ऊपरी बार",
+        "interface_group_status_bar" => "स्टेटस बार",
         "security_group_vault" => "वॉल्ट",
         "security_group_privacy" => "गोपनीयता",
         "security_group_logging" => "लॉग और इतिहास",

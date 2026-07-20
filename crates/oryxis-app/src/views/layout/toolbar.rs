@@ -11,7 +11,12 @@ impl Oryxis {
         } else {
             0.0
         };
-        (self.window_size.width - self.vault_rail_width() - panel - 48.0).max(0.0)
+        (self.window_size.width
+            - self.vault_rail_width()
+            - self.side_strip_reserve()
+            - panel
+            - 48.0)
+            .max(0.0)
     }
 
     // ── Responsive-toolbar geometry constants ──
@@ -40,7 +45,12 @@ impl Oryxis {
                     0.0
                 };
                 let available =
-                    (self.window_size.width - nav_width - panel - 48.0).max(0.0);
+                    (self.window_size.width
+                    - nav_width
+                    - self.side_strip_reserve()
+                    - panel
+                    - 48.0)
+                    .max(0.0);
                 let cols = crate::widgets::card_grid_columns(
                     available,
                     crate::app::CARD_WIDTH,
@@ -364,8 +374,11 @@ impl Oryxis {
             // doesn't stack on top.
             let btn: Element<'_, Message> = button(
                 container(
+                    // Wrapping off: a squeezed row must clip / collapse
+                    // into the "…", never fold a label onto two lines.
                     text(crate::i18n::t(label_key))
                         .size(12)
+                        .wrapping(iced::widget::text::Wrapping::None)
                         .color(fg),
                 )
                 .center_y(Length::Fixed(28.0))
@@ -481,8 +494,11 @@ impl Oryxis {
         // destinations that didn't fit. Sits right after the visible
         // pills. U+22EF is the midline ellipsis (vertically centered,
         // unlike the baseline-sitting U+2026).
+        // Shrink Space, not width(0): a zero-fixed Space is void-filtered
+        // out of the row and the settings gear would change child index
+        // whenever the "…" appears (see main_layout's slot skeleton note).
         let overflow_btn: Element<'_, Message> = if overflow_defs.is_empty() {
-            Space::new().width(0).into()
+            Space::new().into()
         } else {
             let open = self.show_subnav_overflow;
             button(
@@ -598,7 +614,16 @@ impl Oryxis {
         } else {
             0.0
         };
-        let avail = (self.window_size.width - flank - panel_reserve).max(0.0);
+        // Side-docked tab strip (issue #87): the row lives in the
+        // content column NEXT TO the strip, so the strip's width (plus
+        // its hairline) never belongs to this budget. Without the
+        // reserve the pills overflow the row edge and wrap instead of
+        // collapsing into the "…".
+        let avail = (self.window_size.width
+            - flank
+            - panel_reserve
+            - self.side_strip_reserve())
+        .max(0.0);
 
         let mut inline: Vec<SubnavPill> = Vec::new();
         let mut overflow: Vec<SubnavPill> = Vec::new();

@@ -434,7 +434,12 @@ impl Oryxis {
         // plus ~12 px reserved for the scrollbar gutter on the trailing
         // edge. Keep this in sync with the `padding` set on the
         // scrollable column further down.
-        let available = (self.window_size.width - nav_width - panel_width - 60.0).max(0.0);
+        let available = (self.window_size.width
+            - nav_width
+            - self.side_strip_reserve()
+            - panel_width
+            - 60.0)
+            .max(0.0);
         let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
         let keys_grid_elem = distribute_card_grid(cards, cols, 12.0, 12.0);
 

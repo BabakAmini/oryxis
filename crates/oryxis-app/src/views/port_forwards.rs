@@ -309,7 +309,12 @@ impl Oryxis {
 
         let nav_width = self.vault_rail_width();
         let panel_width = if self.show_port_forward_panel { PANEL_WIDTH } else { 0.0 };
-        let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
+        let available = (self.window_size.width
+            - nav_width
+            - self.side_strip_reserve()
+            - panel_width
+            - 48.0)
+            .max(0.0);
         let cols = card_grid_columns(available, CARD_WIDTH, 12.0);
         // Chunk the keyboard order to the same column count the grid
         // renders with.

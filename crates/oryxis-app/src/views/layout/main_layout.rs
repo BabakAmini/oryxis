@@ -116,11 +116,15 @@ impl Oryxis {
         // On Sftp / Settings / a connection tab it's hidden.
         let in_vault_area = self.in_vault_area();
         let vertical_rail = self.setting_nav_orientation == "vertical";
-        // Horizontal pill strip pinned above the content.
+        // Horizontal pill strip pinned above the content. The hidden
+        // placeholder is a Shrink Space on purpose: a zero-FIXED Space
+        // is void-filtered out of the column and the content would
+        // change child index between vault and non-vault views (see the
+        // slot skeleton note below).
         let sub_nav: Element<'_, Message> = if in_vault_area && !vertical_rail {
             self.view_vault_sub_nav()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         // Vertical icon rail on the leading edge of the content.
         let nav_rail: Option<Element<'_, Message>> = if in_vault_area && vertical_rail {
@@ -151,91 +155,131 @@ impl Oryxis {
             Some(panel) => dir_row(vec![inner, panel]).height(Length::Fill).into(),
             None => inner,
         };
-        let right_side: Element<'_, Message> = if side_tabs && !immersive {
-            // Side docking: the slim chrome bar keeps a neutral 1 px
-            // separator (it still reads as a titlebar); below it the
-            // vertical strip docks on the chosen PHYSICAL edge, the
-            // user picked "left" / "right" explicitly, so RTL must not
-            // flip it (hence a plain Row, not dir_row), with the accent
-            // hairline standing between strip and content.
-            let chrome_sep: Element<'_, Message> = container(Space::new().height(1.0))
+        // ── Constant-shape chrome tree ──
+        // Every dock mode fills the SAME slot skeleton (unused slots are
+        // zero-sized Spaces): iced keys widget state, scrollable offsets
+        // included, by tree position, so if the tab bar position or the
+        // side-dock toggles reshaped the tree, every scrollable in the
+        // content (including the Settings page the toggle was clicked
+        // on) would snap back to the top.
+        //
+        // CRITICAL: the placeholder must be `Space::new()` (Shrink), NOT
+        // `.width(0).height(0)`. This iced fork's Column/Row/Stack `push`
+        // silently DROPS children whose size hint is void (a Fixed(0.0)
+        // axis), so a zero-fixed Space never enters the child list, the
+        // slot count varies by mode after all, and the positional diff
+        // pairs every following subtree against the wrong state (all the
+        // stateless wrappers share one tag, so nothing catches it; the
+        // first stateful widget inside, a scrollable, silently loses its
+        // offset). A Shrink Space passes the void filter and still lays
+        // out at zero pixels.
+        let empty = || -> Element<'_, Message> { Space::new().into() };
+        let chrome_sep = || -> Element<'_, Message> {
+            // Neutral 1 px separator under the slim chrome bar of the
+            // docked layouts, so it still reads as a titlebar.
+            container(Space::new().height(1.0))
                 .width(Length::Fill)
                 .style(|_| container::Style {
                     background: Some(Background::Color(OryxisColors::t().border)),
                     ..Default::default()
                 })
-                .into();
-            // Vertical twin of `h_separator`: the accent washes top ->
-            // bottom (bright at the chrome bar fading toward the status
-            // bar), matching the side strip's own wash direction.
-            let v_separator: Element<'_, Message> = container(Space::new().width(hair_height))
-                .height(Length::Fill)
-                .style(move |_| container::Style {
-                    background: Some(match accent_tint {
-                        Some(c) => Background::Gradient(iced::Gradient::Linear(
-                            iced::gradient::Linear::new(iced::Radians(
-                                std::f32::consts::PI,
-                            ))
-                            .add_stop(0.0, c)
-                            .add_stop(0.85, Color { a: 0.0, ..c }),
-                        )),
-                        None => Background::Color(hair_color),
-                    }),
-                    ..Default::default()
-                })
-                .into();
-            let strip = self.view_side_tab_strip();
-            // Full-height strip: the status bar moves inside the
-            // content side, so the strip runs to the window's bottom
-            // edge instead of sitting on top of a window-wide bar.
-            let content_side: Element<'_, Message> = if self.setting_side_full_height
-                && let Some(sb) = status_bar.take()
-            {
-                column![body, sb].height(Length::Fill).into()
-            } else {
-                body
-            };
-            let content_row: Element<'_, Message> =
-                if tab_pos == crate::views::tab_bar::TabBarPos::Left {
-                    iced::widget::Row::with_children(vec![strip, v_separator, content_side])
-                        .height(Length::Fill)
-                        .into()
-                } else {
-                    iced::widget::Row::with_children(vec![content_side, v_separator, strip])
-                        .height(Length::Fill)
-                        .into()
-                };
-            if side_hidden_bar {
-                // No top bar at all: the strip's header carries the
-                // titlebar contract, so the row IS the window body.
-                content_row
-            } else {
-                column![tab_bar, chrome_sep, content_row]
-                    .height(Length::Fill)
-                    .into()
-            }
-        } else if bottom_tabs && !immersive {
-            // Bottom docking: the accent hairline (the active host's
-            // "respiração") moves with the strip, sitting on its top
-            // edge; the slim chrome bar above keeps a neutral 1 px
-            // separator so it still reads as a titlebar.
-            let chrome_sep: Element<'_, Message> = container(Space::new().height(1.0))
-                .width(Length::Fill)
-                .style(|_| container::Style {
-                    background: Some(Background::Color(OryxisColors::t().border)),
-                    ..Default::default()
-                })
-                .into();
-            column![tab_bar, chrome_sep, body, h_separator, self.view_bottom_tab_strip()]
-                .height(Length::Fill)
                 .into()
-        } else {
-            column![tab_bar, h_separator, body].height(Length::Fill).into()
         };
-        let layout = match status_bar {
-            Some(sb) => column![right_side, sb],
-            None => column![right_side],
-        };
+        let mut slot_top: Element<'_, Message> = empty();
+        let mut slot_top_sep: Element<'_, Message> = empty();
+        let mut slot_left: Element<'_, Message> = empty();
+        let mut slot_left_sep: Element<'_, Message> = empty();
+        let mut slot_right_sep: Element<'_, Message> = empty();
+        let mut slot_right: Element<'_, Message> = empty();
+        let mut slot_inner_status: Element<'_, Message> = empty();
+        let mut slot_bottom_sep: Element<'_, Message> = empty();
+        let mut slot_bottom_strip: Element<'_, Message> = empty();
+        let mut slot_status: Element<'_, Message> = empty();
+        if !immersive {
+            if side_tabs {
+                // Side docking: the vertical strip sits on the chosen
+                // PHYSICAL edge, the user picked "left" / "right"
+                // explicitly, so RTL must not flip it (hence the plain
+                // slot Row below, not dir_row), with the accent
+                // hairline standing between strip and content.
+                if !side_hidden_bar {
+                    slot_top = tab_bar;
+                    slot_top_sep = chrome_sep();
+                }
+                // Vertical twin of `h_separator`: the accent washes top
+                // -> bottom (bright at the chrome fading toward the
+                // status bar), matching the strip's own wash direction.
+                let v_separator: Element<'_, Message> =
+                    container(Space::new().width(hair_height))
+                        .height(Length::Fill)
+                        .style(move |_| container::Style {
+                            background: Some(match accent_tint {
+                                Some(c) => Background::Gradient(iced::Gradient::Linear(
+                                    iced::gradient::Linear::new(iced::Radians(
+                                        std::f32::consts::PI,
+                                    ))
+                                    .add_stop(0.0, c)
+                                    .add_stop(0.85, Color { a: 0.0, ..c }),
+                                )),
+                                None => Background::Color(hair_color),
+                            }),
+                            ..Default::default()
+                        })
+                        .into();
+                let strip = self.view_side_tab_strip();
+                if tab_pos == crate::views::tab_bar::TabBarPos::Left {
+                    slot_left = strip;
+                    slot_left_sep = v_separator;
+                } else {
+                    slot_right_sep = v_separator;
+                    slot_right = strip;
+                }
+                // Full-height strip: the status bar moves inside the
+                // content column, so the strip runs to the window's
+                // bottom edge instead of sitting on a window-wide bar.
+                if self.setting_side_full_height
+                    && let Some(sb) = status_bar.take()
+                {
+                    slot_inner_status = sb;
+                }
+            } else if bottom_tabs {
+                // Bottom docking: the accent hairline (the active
+                // host's "respiração") moves with the strip, sitting on
+                // its top edge.
+                slot_top = tab_bar;
+                slot_top_sep = chrome_sep();
+                slot_bottom_sep = h_separator;
+                slot_bottom_strip = self.view_bottom_tab_strip();
+            } else {
+                slot_top = tab_bar;
+                slot_top_sep = h_separator;
+            }
+            if let Some(sb) = status_bar.take() {
+                slot_status = sb;
+            }
+        }
+        let center: Element<'_, Message> =
+            iced::widget::Column::with_children(vec![body, slot_inner_status])
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        let middle: Element<'_, Message> = iced::widget::Row::with_children(vec![
+            slot_left,
+            slot_left_sep,
+            center,
+            slot_right_sep,
+            slot_right,
+        ])
+        .height(Length::Fill)
+        .into();
+        let layout = column![
+            slot_top,
+            slot_top_sep,
+            middle,
+            slot_bottom_sep,
+            slot_bottom_strip,
+            slot_status,
+        ];
 
         let base: Element<'_, Message> = container(layout)
             .width(Length::Fill)

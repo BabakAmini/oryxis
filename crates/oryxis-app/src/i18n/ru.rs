@@ -326,6 +326,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Панель",
         "interface_group_tabs" => "Вкладки",
         "interface_group_top_bar" => "Верхняя панель",
+        "interface_group_status_bar" => "Строка состояния",
         "security_group_vault" => "Хранилище",
         "security_group_privacy" => "Приватность",
         "security_group_logging" => "Журналы и история",

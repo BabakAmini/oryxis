@@ -168,7 +168,10 @@ impl Oryxis {
 
         // Pane geometry in view-local coordinates (x = 0 at the view's left
         // edge, i.e. right of the nav rail).
-        let content_w = (self.window_size.width - self.vault_rail_width()).max(1.0);
+        let content_w = (self.window_size.width
+            - self.vault_rail_width()
+            - self.side_strip_reserve())
+        .max(1.0);
         let left_w = content_w * self.sftp_split_ratio;
         let pane_right = match side {
             SftpPaneSide::Left => left_w,
@@ -248,9 +251,18 @@ impl Oryxis {
         };
         let ghost = col_drag_ghost(data_col_label(drag.col));
         // Cursor → view-local coordinates: x is offset by the nav rail (0 on
-        // the SFTP surface), y by the tab bar + hairline above the content.
-        let rail = self.vault_rail_width();
-        let view_top = if self.window_fullscreen { 0.0 } else { 41.0 };
+        // the SFTP surface) plus a left-docked tab strip, y by the tab bar +
+        // hairline above the content (absent in fullscreen and when the
+        // side dock hides the top bar).
+        let rail = self.vault_rail_width() + self.side_strip_left_offset();
+        let view_top = if self.window_fullscreen
+            || (crate::views::tab_bar::tab_bar_pos().is_side()
+                && self.setting_side_hide_top_bar)
+        {
+            0.0
+        } else {
+            41.0
+        };
         let gx = (self.mouse_position.x - rail + 12.0).max(0.0);
         let gy = (self.mouse_position.y - view_top - 4.0).max(0.0);
         let positioned: Element<'a, Message> = column![
@@ -340,7 +352,10 @@ impl Oryxis {
         // overflow, the layout switches the rows to a fixed width and the list
         // gets a horizontal scrollbar.
         let pane_avail = {
-            let content_w = (self.window_size.width - self.vault_rail_width()).max(1.0);
+            let content_w = (self.window_size.width
+            - self.vault_rail_width()
+            - self.side_strip_reserve())
+        .max(1.0);
             let w = match side {
                 SftpPaneSide::Left => content_w * self.sftp_split_ratio,
                 SftpPaneSide::Right => content_w * (1.0 - self.sftp_split_ratio),

@@ -326,6 +326,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "仪表板",
         "interface_group_tabs" => "标签页",
         "interface_group_top_bar" => "顶栏",
+        "interface_group_status_bar" => "状态栏",
         "security_group_vault" => "保险库",
         "security_group_privacy" => "隐私",
         "security_group_logging" => "日志与历史",

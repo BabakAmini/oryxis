@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Πίνακας",
         "interface_group_tabs" => "Καρτέλες",
         "interface_group_top_bar" => "Επάνω μπάρα",
+        "interface_group_status_bar" => "Γραμμή κατάστασης",
         "security_group_vault" => "Vault",
         "security_group_privacy" => "Απόρρητο",
         "security_group_logging" => "Καταγραφές & ιστορικό",

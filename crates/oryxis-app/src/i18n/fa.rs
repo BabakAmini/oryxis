@@ -331,6 +331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "داشبورد",
         "interface_group_tabs" => "زبانه‌ها",
         "interface_group_top_bar" => "نوار بالا",
+        "interface_group_status_bar" => "نوار وضعیت",
         "security_group_vault" => "صندوقچه",
         "security_group_privacy" => "حریم خصوصی",
         "security_group_logging" => "گزارش‌ها و تاریخچه",

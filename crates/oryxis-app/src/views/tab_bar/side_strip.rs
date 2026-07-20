@@ -178,14 +178,37 @@ impl Oryxis {
         .width(Length::Fill)
         .height(Length::Fill);
 
-        let mut inner = iced::widget::Column::new().spacing(TAB_SPACING);
-        for h in head {
-            inner = inner.push(h);
-        }
-        inner = inner.push(strip_scroll);
-        if let Some(footer) = footer {
-            inner = inner.push(footer);
-        }
+        // Constant-shape column: the header, pinned dock, list and
+        // footer live in FIXED child slots (zero-sized Spaces when
+        // absent). iced pairs widget state by child position and every
+        // stateless widget shares one tag, so a slot that appears or
+        // disappears would silently shift the scrollable one position
+        // over and hand its state (the scroll offset) to a sibling.
+        // The placeholder must be a SHRINK Space: this fork's
+        // Column::push void-filters any zero-FIXED child, which would
+        // silently drop the slot (see the skeleton note in
+        // `main_layout.rs`).
+        let empty = || -> Element<'_, Message> { Space::new().into() };
+        let mut head_slots = head.into_iter();
+        let header_slot = head_slots.next().unwrap_or_else(empty);
+        let pins_slot: Element<'_, Message> = {
+            let rest: Vec<Element<'_, Message>> = head_slots.collect();
+            if rest.is_empty() {
+                empty()
+            } else {
+                iced::widget::Column::with_children(rest)
+                    .spacing(TAB_SPACING)
+                    .into()
+            }
+        };
+        let footer_slot = footer.unwrap_or_else(empty);
+        let inner = iced::widget::Column::with_children(vec![
+            header_slot,
+            pins_slot,
+            strip_scroll.into(),
+            footer_slot,
+        ])
+        .spacing(TAB_SPACING);
 
         // Strip surface: the accent wash runs top -> bottom here (the
         // horizontal bars wash along their leading edge), fading toward
@@ -210,17 +233,20 @@ impl Oryxis {
                 ..Default::default()
             })
             .into();
+        // With no top bar this strip IS the titlebar: its empty areas
+        // (header gap, space below the tabs) drag the window and
+        // double-click maximizes, exactly like the horizontal strips.
+        // Tab buttons consume their own presses, so clicks on chips
+        // never start a window move. The MouseArea wrapper is ALWAYS
+        // present (handlers only bound in hidden-bar mode) so the
+        // hide toggle never changes this subtree's widget type.
+        let mut area = MouseArea::new(bar);
         if hide_top_bar {
-            // With no top bar this strip IS the titlebar: its empty
-            // areas (header gap, space below the tabs) drag the window
-            // and double-click maximizes, exactly like the horizontal
-            // strips. Tab buttons consume their own presses, so clicks
-            // on chips never start a window move.
-            bar = MouseArea::new(bar)
+            area = area
                 .on_press(Message::Tabs(TabsMessage::WindowDrag))
-                .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
-                .into();
+                .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle));
         }
+        bar = area.into();
 
         // Floating drag ghost, tracking the cursor's y (the horizontal
         // bars track x). Non-interactive so the tab MouseAreas below

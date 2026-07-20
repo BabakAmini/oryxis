@@ -331,6 +331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "Dasbor",
         "interface_group_tabs" => "Tab",
         "interface_group_top_bar" => "Bilah atas",
+        "interface_group_status_bar" => "Bilah status",
         "security_group_vault" => "Vault",
         "security_group_privacy" => "Privasi",
         "security_group_logging" => "Log & riwayat",

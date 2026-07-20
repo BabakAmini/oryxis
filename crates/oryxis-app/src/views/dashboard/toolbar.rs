@@ -366,7 +366,12 @@ impl Oryxis {
         let nav_width = self.vault_rail_width();
         let panel_open = self.cloud_discover_visible || self.show_host_panel;
         let panel_width = if panel_open { crate::app::PANEL_WIDTH } else { 0.0 };
-        let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
+        let available = (self.window_size.width
+            - nav_width
+            - self.side_strip_reserve()
+            - panel_width
+            - 48.0)
+            .max(0.0);
         let responsive_cols =
             crate::widgets::card_grid_columns(available, crate::app::CARD_WIDTH, 12.0);
         let show_view_toggle = responsive_cols > 1;

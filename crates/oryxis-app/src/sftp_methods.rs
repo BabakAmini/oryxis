@@ -592,32 +592,40 @@ impl Oryxis {
     /// check the right half, accounting for the left nav rail and the
     /// chat sidebar (when visible).
     pub(crate) fn is_cursor_over_remote_pane(&self) -> bool {
-        let sidebar = self.vault_rail_width();
+        // Side-docked tab strip (issue #87): a left dock shifts the
+        // content's left edge, a right dock pulls its right edge in.
+        let strip_left = self.side_strip_left_offset();
+        let strip_right = self.side_strip_reserve() - strip_left;
+        let left_edge = self.vault_rail_width() + strip_left;
         let chat_w = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| if t.chat_visible { self.chat_sidebar_width } else { 0.0 })
             .unwrap_or(0.0);
-        let content_w = (self.window_size.width - sidebar - chat_w).max(0.0);
+        let content_w =
+            (self.window_size.width - left_edge - chat_w - strip_right).max(0.0);
         // Honor the user's resizable split, not a fixed 50/50, so the
         // boundary matches the actual divider position.
-        let split = sidebar + content_w * self.sftp_split_ratio;
+        let split = left_edge + content_w * self.sftp_split_ratio;
         self.mouse_position.x > split
-            && self.mouse_position.x < self.window_size.width - chat_w
+            && self.mouse_position.x < self.window_size.width - chat_w - strip_right
     }
 
     /// Mirror helper for the left pane, checks the cursor sits in the
     /// half between the sidebar and the pane split.
     pub(crate) fn is_cursor_over_local_pane(&self) -> bool {
-        let sidebar = self.vault_rail_width();
+        let strip_left = self.side_strip_left_offset();
+        let strip_right = self.side_strip_reserve() - strip_left;
+        let left_edge = self.vault_rail_width() + strip_left;
         let chat_w = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| if t.chat_visible { self.chat_sidebar_width } else { 0.0 })
             .unwrap_or(0.0);
-        let content_w = (self.window_size.width - sidebar - chat_w).max(0.0);
-        let split = sidebar + content_w * self.sftp_split_ratio;
-        self.mouse_position.x > sidebar && self.mouse_position.x < split
+        let content_w =
+            (self.window_size.width - left_edge - chat_w - strip_right).max(0.0);
+        let split = left_edge + content_w * self.sftp_split_ratio;
+        self.mouse_position.x > left_edge && self.mouse_position.x < split
     }
 
     /// Look up whether a path in the given pane points at a directory,

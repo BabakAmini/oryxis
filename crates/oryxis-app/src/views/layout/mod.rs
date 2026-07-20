@@ -121,6 +121,30 @@ impl Oryxis {
         }
     }
 
+    /// Horizontal chrome the side-docked tab strip (issue #87) steals
+    /// from the content row, whichever edge it docks on (strip width +
+    /// its hairline). Zero for the horizontal strips. Every width
+    /// budget that starts from `window_size.width` must subtract this,
+    /// or its content overflows under / behind the strip.
+    pub(crate) fn side_strip_reserve(&self) -> f32 {
+        if crate::views::tab_bar::tab_bar_pos().is_side() {
+            crate::views::tab_bar::SIDE_STRIP_WIDTH + 2.0
+        } else {
+            0.0
+        }
+    }
+
+    /// The part of `side_strip_reserve` sitting LEFT of the content:
+    /// what every window-x to content-x mapping must shift by. Zero
+    /// when the strip docks right (content starts at the window edge).
+    pub(crate) fn side_strip_left_offset(&self) -> f32 {
+        if crate::views::tab_bar::tab_bar_pos() == crate::views::tab_bar::TabBarPos::Left {
+            crate::views::tab_bar::SIDE_STRIP_WIDTH + 2.0
+        } else {
+            0.0
+        }
+    }
+
     /// The side-panel editor currently open over the vault area, if any.
     /// Hoisted out of the individual views so `view_main` can place it
     /// beside the `column![sub_nav, content]` stack, letting the panel

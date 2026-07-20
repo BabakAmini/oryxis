@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "แดชบอร์ด",
         "interface_group_tabs" => "แท็บ",
         "interface_group_top_bar" => "แถบด้านบน",
+        "interface_group_status_bar" => "แถบสถานะ",
         "security_group_vault" => "Vault",
         "security_group_privacy" => "ความเป็นส่วนตัว",
         "security_group_logging" => "บันทึกและประวัติ",

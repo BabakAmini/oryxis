@@ -820,5 +820,6 @@ mod tabs;
 pub(crate) use buttons::*;
 pub(crate) use entry::*;
 pub(crate) use ghosts::*;
+pub(crate) use side_strip::*;
 pub(crate) use sizing::*;
 pub(crate) use tabs::*;

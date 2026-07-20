@@ -350,6 +350,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_dashboard" => "דשבורד",
         "interface_group_tabs" => "כרטיסיות",
         "interface_group_top_bar" => "סרגל עליון",
+        "interface_group_status_bar" => "שורת מצב",
         "security_group_vault" => "כספת",
         "security_group_privacy" => "פרטיות",
         "security_group_logging" => "יומנים והיסטוריה",

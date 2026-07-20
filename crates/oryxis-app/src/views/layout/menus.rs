@@ -351,15 +351,23 @@ impl Oryxis {
             .iter()
             .map(|(k, _)| Self::subnav_pill_width(k))
             .sum();
+        // Window-space anchor: a left-docked tab strip shifts the whole
+        // sub-nav right; a right dock pulls the clamp edge in. With the
+        // side dock's hidden top bar the row also sits 41 px higher.
+        let strip_left = self.side_strip_left_offset();
+        let strip_right = self.side_strip_reserve() - strip_left;
         // Clamp so the 200 px panel never runs past the right edge.
-        let dots_x = (8.0 + chip + inline_w).min((self.window_size.width - 206.0).max(0.0));
+        let dots_x = (8.0 + strip_left + chip + inline_w)
+            .min((self.window_size.width - strip_right - 206.0).max(0.0));
+        let side_hidden_bar = crate::views::tab_bar::tab_bar_pos().is_side()
+            && self.setting_side_hide_top_bar;
         let pinned = container(panel)
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Left)
             .align_y(iced::alignment::Vertical::Top)
             .padding(Padding {
-                top: 78.0,
+                top: if side_hidden_bar { 37.0 } else { 78.0 },
                 right: 0.0,
                 bottom: 0.0,
                 left: dots_x,
