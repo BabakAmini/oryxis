@@ -1116,6 +1116,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Apri con editor di testo predefinito",
         "sftp_open_with" => "Apri con...",
         "sftp_open_with_os" => "Apri con programma predefinito",
+        "sftp_path_history" => "Cartelle recenti",
         "sftp_no_editor_configured" => "Nessun editor predefinito configurato. Impostane uno in Impostazioni > SFTP.",
         "sftp_edit_prompt_title" => "File modificato",
         "sftp_edit_prompt_text" => "Il file '{file}' è stato modificato. Sostituire il file remoto su {host}?",

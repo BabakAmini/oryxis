@@ -1209,6 +1209,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Відкрити у типовому текстовому редакторі",
         "sftp_open_with" => "Відкрити за допомогою...",
         "sftp_open_with_os" => "Відкрити типовою програмою",
+        "sftp_path_history" => "Нещодавні теки",
         "sftp_no_editor_configured" => "Типовий редактор не налаштовано. Задайте його в Налаштування > SFTP.",
         "sftp_edit_prompt_title" => "Файл змінено",
         "sftp_edit_prompt_text" => "Файл '{file}' було змінено. Замінити віддалений файл на {host}?",

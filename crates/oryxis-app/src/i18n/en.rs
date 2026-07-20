@@ -1216,6 +1216,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sftp_open_with_editor" => "Open with default text editor",
         "sftp_open_with" => "Open with...",
         "sftp_open_with_os" => "Open with default program",
+        "sftp_path_history" => "Recent folders",
         "sftp_no_editor_configured" => "No default editor configured. Set one in Settings > SFTP.",
         "sftp_edit_prompt_title" => "File modified",
         "sftp_edit_prompt_text" => "The file '{file}' has been modified. Replace the remote file on {host}?",

@@ -1209,6 +1209,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Mở bằng trình soạn thảo văn bản mặc định",
         "sftp_open_with" => "Mở bằng...",
         "sftp_open_with_os" => "Mở bằng chương trình mặc định",
+        "sftp_path_history" => "Thư mục gần đây",
         "sftp_no_editor_configured" => "Chưa cấu hình trình soạn thảo mặc định. Đặt trong Cài đặt > SFTP.",
         "sftp_edit_prompt_title" => "Tệp đã thay đổi",
         "sftp_edit_prompt_text" => "Tệp '{file}' đã bị thay đổi. Thay thế tệp từ xa trên {host}?",

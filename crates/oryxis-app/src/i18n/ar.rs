@@ -1210,6 +1210,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "فتح بمحرر النصوص الافتراضي",
         "sftp_open_with" => "فتح باستخدام...",
         "sftp_open_with_os" => "فتح بالبرنامج الافتراضي",
+        "sftp_path_history" => "المجلدات الأخيرة",
         "sftp_no_editor_configured" => "لم يتم تعيين محرر افتراضي. عيّنه في الإعدادات > SFTP.",
         "sftp_edit_prompt_title" => "تم تعديل الملف",
         "sftp_edit_prompt_text" => "تم تعديل الملف '{file}'. هل تريد استبدال الملف البعيد على {host}؟",

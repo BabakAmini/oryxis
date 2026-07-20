@@ -1209,6 +1209,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Varsayılan metin düzenleyiciyle aç",
         "sftp_open_with" => "Birlikte aç...",
         "sftp_open_with_os" => "Varsayılan programla aç",
+        "sftp_path_history" => "Son klasörler",
         "sftp_no_editor_configured" => "Varsayılan düzenleyici ayarlanmadı. Ayarlar > SFTP içinde belirleyin.",
         "sftp_edit_prompt_title" => "Dosya değiştirildi",
         "sftp_edit_prompt_text" => "'{file}' dosyası değiştirildi. {host} üzerindeki uzak dosya değiştirilsin mi?",

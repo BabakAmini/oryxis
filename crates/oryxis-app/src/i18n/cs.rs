@@ -1215,6 +1215,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Otevřít ve výchozím textovém editoru",
         "sftp_open_with" => "Otevřít v...",
         "sftp_open_with_os" => "Otevřít výchozím programem",
+        "sftp_path_history" => "Nedávné složky",
         "sftp_no_editor_configured" => "Není nastaven výchozí editor. Nastavte jej v Nastavení > SFTP.",
         "sftp_edit_prompt_title" => "Soubor změněn",
         "sftp_edit_prompt_text" => "Soubor '{file}' byl změněn. Nahradit vzdálený soubor na {host}?",

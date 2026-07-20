@@ -1209,6 +1209,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Buka dengan editor teks default",
         "sftp_open_with" => "Buka dengan...",
         "sftp_open_with_os" => "Buka dengan program default",
+        "sftp_path_history" => "Folder terbaru",
         "sftp_no_editor_configured" => "Editor default belum diatur. Atur di Pengaturan > SFTP.",
         "sftp_edit_prompt_title" => "File diubah",
         "sftp_edit_prompt_text" => "File '{file}' telah diubah. Ganti file remote di {host}?",

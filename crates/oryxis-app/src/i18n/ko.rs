@@ -1209,6 +1209,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "기본 텍스트 편집기로 열기",
         "sftp_open_with" => "다른 앱으로 열기...",
         "sftp_open_with_os" => "기본 프로그램으로 열기",
+        "sftp_path_history" => "최근 폴더",
         "sftp_no_editor_configured" => "기본 편집기가 설정되지 않았습니다. 설정 > SFTP에서 지정하세요.",
         "sftp_edit_prompt_title" => "파일이 수정됨",
         "sftp_edit_prompt_text" => "파일 '{file}'이(가) 수정되었습니다. {host}의 원격 파일을 교체할까요?",

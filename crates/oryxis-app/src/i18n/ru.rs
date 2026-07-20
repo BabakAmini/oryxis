@@ -1116,6 +1116,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Открыть в редакторе по умолчанию",
         "sftp_open_with" => "Открыть с помощью...",
         "sftp_open_with_os" => "Открыть программой по умолчанию",
+        "sftp_path_history" => "Недавние папки",
         "sftp_no_editor_configured" => "Редактор по умолчанию не настроен. Задайте его в Настройки > SFTP.",
         "sftp_edit_prompt_title" => "Файл изменён",
         "sftp_edit_prompt_text" => "Файл '{file}' был изменён. Заменить удалённый файл на {host}?",

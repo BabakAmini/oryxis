@@ -10,6 +10,23 @@ use iced::Task;
 use crate::app::{Message, Oryxis, SftpMessage};
 use crate::sftp_helpers::{parent_path, sort_local_entries, sort_remote_entries};
 
+/// How many visited directories a pane remembers (issue #85). Deep enough
+/// to cover a session's worth of hopping, short enough that the dropdown
+/// stays scannable.
+const PATH_HISTORY_CAP: usize = 20;
+
+/// Record a directory in a pane's path history: most recent first, no
+/// duplicates (a revisit moves the entry to the top rather than adding a
+/// second one), capped at [`PATH_HISTORY_CAP`].
+fn push_path_history(pane: &mut crate::state::PaneState, path: String) {
+    if path.is_empty() {
+        return;
+    }
+    pane.path_history.retain(|p| p != &path);
+    pane.path_history.insert(0, path);
+    pane.path_history.truncate(PATH_HISTORY_CAP);
+}
+
 impl Oryxis {
     pub(super) fn handle_sftp_listing(
         &mut self,
@@ -81,6 +98,10 @@ impl Oryxis {
                 // offset from the widget and break edge-based scrolling.
                 let changed_dir = pane.remote_path != path;
                 pane.remote_path = path;
+                if changed_dir {
+                    let visited = pane.remote_path.clone();
+                    push_path_history(pane, visited);
+                }
                 pane.remote_entries = entries;
                 pane.remote_loading = false;
                 if changed_dir {
@@ -172,6 +193,10 @@ impl Oryxis {
                     // scrollable id and its preserved scroll position.
                     let changed_dir = pane.local_path != path;
                     pane.local_path = path.clone();
+                    if changed_dir {
+                        let visited = pane.local_path.display().to_string();
+                        push_path_history(pane, visited);
+                    }
                     pane.local_entries.clear();
                     pane.error = None;
                     pane.drives_open = false;
@@ -213,6 +238,8 @@ impl Oryxis {
                             // it's proven listable.
                             pane.local_path = path;
                             pane.list_scroll_y = 0.0;
+                            let visited = pane.local_path.display().to_string();
+                            push_path_history(pane, visited);
                         }
                         pane.local_entries = entries;
                         pane.error = None;
@@ -257,6 +284,30 @@ impl Oryxis {
                 if self.sftp.pane(side).path_editing.is_some() {
                     self.sftp.pane_mut(side).path_editing = Some(s);
                 }
+            }
+            SftpMessage::SftpPathHistoryToggle(side) => {
+                let open = self.sftp.pane(side).path_history_open;
+                // Only one dropdown at a time across the two panes.
+                self.sftp.left.path_history_open = false;
+                self.sftp.right.path_history_open = false;
+                self.sftp.pane_mut(side).path_history_open = !open;
+            }
+            SftpMessage::SftpPathHistoryClose => {
+                self.sftp.left.path_history_open = false;
+                self.sftp.right.path_history_open = false;
+            }
+            SftpMessage::SftpPathHistoryPick(side, path) => {
+                self.sftp.pane_mut(side).path_history_open = false;
+                self.sftp.pane_mut(side).path_editing = None;
+                if self.sftp.pane(side).is_remote {
+                    return Ok(Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(
+                        side, path,
+                    ))));
+                }
+                return Ok(Task::done(Message::Sftp(SftpMessage::SftpNavigateLocal(
+                    side,
+                    std::path::PathBuf::from(path),
+                ))));
             }
             SftpMessage::SftpCommitPath(side) => {
                 let Some(input) = self.sftp.pane_mut(side).path_editing.take() else {

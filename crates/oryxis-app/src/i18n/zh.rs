@@ -1125,6 +1125,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "用默认文本编辑器打开",
         "sftp_open_with" => "打开方式...",
         "sftp_open_with_os" => "用默认程序打开",
+        "sftp_path_history" => "最近的文件夹",
         "sftp_no_editor_configured" => "未配置默认编辑器。请在 设置 > SFTP 中设置。",
         "sftp_edit_prompt_title" => "文件已修改",
         "sftp_edit_prompt_text" => "文件 '{file}' 已被修改。是否替换 {host} 上的远程文件？",

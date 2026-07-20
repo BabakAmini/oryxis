@@ -55,6 +55,14 @@ pub(crate) struct PaneState {
     /// When `Some`, the breadcrumb is replaced by a text input the user
     /// can type a full path into. The string is the in-progress edit.
     pub path_editing: Option<String>,
+    /// Directories visited in this pane during the session, most recent
+    /// first, deduped, capped at `PATH_HISTORY_CAP` (issue #85). Feeds the
+    /// path-bar dropdown so the user can jump back without retyping.
+    /// Per-pane and in-memory only: paths are host-scoped and remounting
+    /// the pane on another host must not offer the previous host's tree.
+    pub path_history: Vec<String>,
+    /// Whether this pane's path-history dropdown is open.
+    pub path_history_open: bool,
     /// Actions popover anchored to this pane's header.
     pub actions_open: bool,
     /// Per-pane column configuration (visibility + order + widths). Seeded
@@ -502,6 +510,8 @@ impl SftpState {
         self.right.drives_open = false;
         self.left.filter_open = false;
         self.right.filter_open = false;
+        self.left.path_history_open = false;
+        self.right.path_history_open = false;
     }
 
     /// The side of the remote pane used as an upload destination /

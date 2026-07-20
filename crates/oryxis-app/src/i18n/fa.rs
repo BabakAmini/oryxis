@@ -1194,6 +1194,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "باز کردن با ویرایشگر متن پیش‌فرض",
         "sftp_open_with" => "باز کردن با...",
         "sftp_open_with_os" => "باز کردن با برنامه پیش‌فرض",
+        "sftp_path_history" => "پوشه‌های اخیر",
         "sftp_no_editor_configured" => "ویرایشگر پیش‌فرضی تنظیم نشده است. در تنظیمات > SFTP تعیین کنید.",
         "sftp_edit_prompt_title" => "فایل تغییر کرد",
         "sftp_edit_prompt_text" => "فایل '{file}' تغییر کرده است. فایل راه دور در {host} جایگزین شود؟",

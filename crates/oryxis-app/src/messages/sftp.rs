@@ -124,6 +124,12 @@ pub enum SftpMessage {
     OpenSftpForConnection(usize),
     SftpStartEditPath(crate::state::SftpPaneSide),
     SftpEditPath(crate::state::SftpPaneSide, String),
+    /// Toggle this pane's path-history dropdown (issue #85).
+    SftpPathHistoryToggle(crate::state::SftpPaneSide),
+    /// Close any open path-history dropdown.
+    SftpPathHistoryClose,
+    /// Navigate to a directory picked from the history dropdown.
+    SftpPathHistoryPick(crate::state::SftpPaneSide, String),
     SftpCommitPath(crate::state::SftpPaneSide),
     #[allow(dead_code)] // wired by upcoming Esc handler
     SftpCancelEditPath,

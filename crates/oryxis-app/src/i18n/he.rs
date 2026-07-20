@@ -1215,6 +1215,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "פתיחה בעורך הטקסט המוגדר",
         "sftp_open_with" => "פתיחה באמצעות...",
         "sftp_open_with_os" => "פתיחה בתוכנית ברירת המחדל",
+        "sftp_path_history" => "תיקיות אחרונות",
         "sftp_no_editor_configured" => "לא הוגדר עורך ברירת מחדל. הגדירו אחד בהגדרות > SFTP.",
         "sftp_edit_prompt_title" => "הקובץ שונה",
         "sftp_edit_prompt_text" => "הקובץ '{file}' שונה. להחליף את הקובץ המרוחק ב-{host}?",

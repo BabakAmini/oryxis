@@ -1215,6 +1215,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "डिफ़ॉल्ट टेक्स्ट एडिटर से खोलें",
         "sftp_open_with" => "इसके साथ खोलें...",
         "sftp_open_with_os" => "डिफ़ॉल्ट प्रोग्राम से खोलें",
+        "sftp_path_history" => "हाल के फ़ोल्डर",
         "sftp_no_editor_configured" => "कोई डिफ़ॉल्ट एडिटर सेट नहीं है। सेटिंग्स > SFTP में सेट करें।",
         "sftp_edit_prompt_title" => "फ़ाइल बदली गई",
         "sftp_edit_prompt_text" => "फ़ाइल '{file}' बदली गई है। {host} पर रिमोट फ़ाइल बदलें?",

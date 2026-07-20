@@ -1215,6 +1215,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "Άνοιγμα με τον προεπιλεγμένο επεξεργαστή κειμένου",
         "sftp_open_with" => "Άνοιγμα με...",
         "sftp_open_with_os" => "Άνοιγμα με το προεπιλεγμένο πρόγραμμα",
+        "sftp_path_history" => "Πρόσφατοι φάκελοι",
         "sftp_no_editor_configured" => "Δεν έχει οριστεί προεπιλεγμένος επεξεργαστής. Ορίστε έναν στις Ρυθμίσεις > SFTP.",
         "sftp_edit_prompt_title" => "Το αρχείο τροποποιήθηκε",
         "sftp_edit_prompt_text" => "Το αρχείο '{file}' τροποποιήθηκε. Αντικατάσταση του απομακρυσμένου αρχείου στο {host};",

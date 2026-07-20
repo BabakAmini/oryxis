@@ -233,6 +233,9 @@ impl Oryxis {
             | SftpMessage::SftpFilter(..)
             | SftpMessage::SftpStartEditPath(..)
             | SftpMessage::SftpEditPath(..)
+            | SftpMessage::SftpPathHistoryToggle(..)
+            | SftpMessage::SftpPathHistoryClose
+            | SftpMessage::SftpPathHistoryPick(..)
             | SftpMessage::SftpCommitPath(..)
             | SftpMessage::SftpCancelEditPath
             | SftpMessage::SftpSort(..)

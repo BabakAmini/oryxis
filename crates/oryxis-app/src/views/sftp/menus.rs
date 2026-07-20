@@ -836,6 +836,116 @@ pub(crate) fn menu_item_tinted<'a>(
     .into()
 }
 
+/// Combo-box arrow on the trailing edge of the path bar: opens this
+/// pane's visited-directory history (issue #85). Only rendered once the
+/// pane has history, so it never opens an empty list.
+pub(crate) fn path_history_button<'a>(
+    side: SftpPaneSide,
+    open: bool,
+) -> Element<'a, Message> {
+    let glyph = if open {
+        iced_fonts::lucide::chevron_up()
+    } else {
+        iced_fonts::lucide::chevron_down()
+    };
+    let btn = button(
+        container(glyph.size(11).color(OryxisColors::t().text_secondary))
+            .center_x(Length::Fixed(20.0))
+            .center_y(Length::Fixed(18.0)),
+    )
+    .on_press(Message::Sftp(SftpMessage::SftpPathHistoryToggle(side)))
+    .padding(0)
+    .style(move |_, status| {
+        let bg = match status {
+            BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
+            _ if open => OryxisColors::t().bg_hover,
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        }
+    });
+    crate::views::terminal::icon_tooltip(btn.into(), t("sftp_path_history"))
+}
+
+/// Visited-directory dropdown for the path bar: most recent first,
+/// clicking an entry navigates there. Closed via the scrim.
+pub(crate) fn path_history_overlay<'a>(
+    side: SftpPaneSide,
+    history: &'a [String],
+) -> Element<'a, Message> {
+    let mut col = column![].spacing(2).padding(4);
+    for path in history {
+        col = col.push(
+            button(
+                row![
+                    iced_fonts::lucide::history()
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
+                    Space::new().width(8),
+                    text(path.clone())
+                        .size(12)
+                        .color(OryxisColors::t().text_primary),
+                ]
+                .align_y(iced::Alignment::Center),
+            )
+            .on_press(Message::Sftp(SftpMessage::SftpPathHistoryPick(
+                side,
+                path.clone(),
+            )))
+            .padding(Padding { top: 6.0, right: 16.0, bottom: 6.0, left: 10.0 })
+            .width(Length::Fixed(360.0))
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                    ..Default::default()
+                }
+            }),
+        );
+    }
+    // A long history scrolls instead of running off the pane.
+    let menu = container(
+        iced::widget::scrollable(col).height(Length::Fixed(
+            (history.len() as f32 * 30.0 + 8.0).min(320.0),
+        )),
+    )
+    .style(|_| container::Style {
+        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+        border: Border {
+            radius: Radius::from(8.0),
+            color: OryxisColors::t().border,
+            width: 1.0,
+        },
+        shadow: iced::Shadow {
+            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+            offset: iced::Vector::new(0.0, 4.0),
+            blur_radius: 12.0,
+        },
+        ..Default::default()
+    });
+    let scrim: Element<'_, Message> = MouseArea::new(
+        container(Space::new()).width(Length::Fill).height(Length::Fill),
+    )
+    .on_press(Message::Sftp(SftpMessage::SftpPathHistoryClose))
+    .into();
+    // Anchored under the path bar, hugging the pane's trailing edge
+    // (where the arrow that opened it sits).
+    let positioned = container(menu)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(iced::alignment::Horizontal::Right)
+        .align_y(iced::alignment::Vertical::Top)
+        .padding(Padding { top: 70.0, right: 14.0, bottom: 0.0, left: 0.0 });
+    iced::widget::Stack::new().push(scrim).push(positioned).into()
+}
+
 /// Drive picker dropdown for Windows local pane. Lists `C:`, `D:`, etc.
 /// based on what's actually mounted. Closed via the scrim.
 pub(crate) fn drives_menu_overlay<'a>(side: SftpPaneSide) -> Element<'a, Message> {

@@ -301,6 +301,9 @@ impl Oryxis {
                     pane.host_label = None;
                     pane.remote_entries.clear();
                     pane.error = None;
+                    // The remote history belonged to the unmounted host.
+                    pane.path_history.clear();
+                    pane.path_history_open = false;
                     if pane.local_path.as_os_str().is_empty() {
                         pane.local_path = std::env::var_os("HOME")
                             .or_else(|| std::env::var_os("USERPROFILE"))
@@ -331,7 +334,11 @@ impl Oryxis {
                 pane.remote_loading = false;
                 pane.error = None;
                 // Fresh mount: any zip browse belonged to the previous
-                // session, and the new host gets its own tool probe.
+                // session, and the new host gets its own tool probe. The
+                // path history is host-scoped too (issue #85): another
+                // host's tree must never show up in this pane's dropdown.
+                pane.path_history.clear();
+                pane.path_history_open = false;
                 pane.zip = None;
                 pane.archive_tools = None;
                 pane.archive_busy = None;

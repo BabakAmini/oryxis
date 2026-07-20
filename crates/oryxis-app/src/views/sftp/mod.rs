@@ -533,7 +533,9 @@ impl Oryxis {
 
         // The path bar swaps between a clickable breadcrumb and a text
         // input, same area, two modes, like Finder / Files / Explorer.
-        let path_bar: Element<'_, Message> = if let Some(input) = &pane.path_editing {
+        // A combo-box arrow on the trailing edge opens this pane's
+        // visited-directory history (issue #85).
+        let path_inner: Element<'_, Message> = if let Some(input) = &pane.path_editing {
             let placeholder = if is_remote {
                 pane.remote_path.clone()
             } else {
@@ -560,6 +562,20 @@ impl Oryxis {
             MouseArea::new(container(crumbs).width(Length::Fill))
                 .on_press(Message::Sftp(SftpMessage::SftpStartEditPath(side)))
                 .into()
+        };
+
+        // Combo-box arrow: only once this pane has somewhere to go back
+        // to, so a fresh pane doesn't show a control that opens nothing.
+        let path_bar: Element<'_, Message> = if pane.path_history.is_empty() {
+            path_inner
+        } else {
+            crate::widgets::dir_row(vec![
+                container(path_inner).width(Length::Fill).into(),
+                Space::new().width(4).into(),
+                path_history_button(side, pane.path_history_open),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
         };
 
         let needle = pane.filter.to_lowercase();
@@ -958,6 +974,10 @@ impl Oryxis {
 
         if !is_remote && pane.drives_open {
             stack = stack.push(drives_menu_overlay(side));
+        }
+
+        if pane.path_history_open && !pane.path_history.is_empty() {
+            stack = stack.push(path_history_overlay(side, &pane.path_history));
         }
 
         // Drop highlight when a cross-pane internal drag (or, for a

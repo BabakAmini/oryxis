@@ -1216,6 +1216,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_open_with_editor" => "เปิดด้วยโปรแกรมแก้ไขข้อความเริ่มต้น",
         "sftp_open_with" => "เปิดด้วย...",
         "sftp_open_with_os" => "เปิดด้วยโปรแกรมเริ่มต้น",
+        "sftp_path_history" => "โฟลเดอร์ล่าสุด",
         "sftp_no_editor_configured" => "ยังไม่ได้ตั้งค่าโปรแกรมแก้ไขเริ่มต้น ตั้งค่าได้ที่ การตั้งค่า > SFTP",
         "sftp_edit_prompt_title" => "ไฟล์ถูกแก้ไข",
         "sftp_edit_prompt_text" => "ไฟล์ '{file}' ถูกแก้ไขแล้ว แทนที่ไฟล์ระยะไกลบน {host} หรือไม่?",
