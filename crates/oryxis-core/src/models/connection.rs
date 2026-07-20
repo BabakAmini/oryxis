@@ -109,6 +109,14 @@ pub struct Connection {
     /// `ssh hostB` from inside hostA without staging keys remotely.
     #[serde(default)]
     pub agent_forwarding: bool,
+    /// Opt-in agentless resource monitoring for this host (issue #83):
+    /// the terminal sidebar's Monitor tab polls `/proc` over the live
+    /// session. Off by default, unlike `mcp_enabled`: monitoring costs a
+    /// recurring probe, so it is never enabled behind the user's back.
+    /// `#[serde(default)]` so payloads written before this field (sync
+    /// peers, older exports) still deserialize.
+    #[serde(default)]
+    pub monitor_enabled: bool,
     /// Per-host terminal palette override. When set, takes precedence
     /// over the global `terminal_theme_override` setting and the app
     /// theme fallback. Stored as `TerminalTheme::name()` (e.g.
@@ -248,6 +256,7 @@ impl Connection {
             custom_icon: None,
             custom_color: None,
             agent_forwarding: false,
+            monitor_enabled: false,
             terminal_theme: None,
             cloud_ref: None,
             initial_command: None,
@@ -512,6 +521,19 @@ mod tests {
         value.as_object_mut().unwrap().remove("keepalive_interval");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.keepalive_interval, None);
+    }
+
+    /// Same contract for the monitoring opt-in: a payload written before
+    /// host monitoring existed carries no `monitor_enabled` key and must
+    /// land as `false`. Defaulting the other way would silently start
+    /// probing every host a legacy peer syncs over.
+    #[test]
+    fn monitor_enabled_legacy_payload_defaults_to_false() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("monitor_enabled");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert!(!de.monitor_enabled);
     }
 
     /// Same contract for the protocol selector: a payload written

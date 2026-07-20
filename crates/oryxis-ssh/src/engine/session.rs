@@ -110,6 +110,42 @@ impl SshSession {
         Ok(crate::sftp::SftpClient::new(session, handle_for_exec, timeout))
     }
 
+    /// Run a short, silent command on a side channel of this live session
+    /// and return its stdout. Same shape as `detect_os` (which predates
+    /// it), generalized so callers can supply the command: the host
+    /// monitor batches its whole `/proc` read into one `sh -c` per tick,
+    /// keeping the cost at a single channel round trip.
+    ///
+    /// Nothing reaches the user's PTY, and the shared handle lock is
+    /// released as soon as the channel is open so other tasks (SFTP,
+    /// forwards) aren't blocked while the command runs. Returns `None` on
+    /// any channel failure or if the command outlives `timeout`.
+    pub async fn probe(
+        &self,
+        command: &str,
+        timeout: std::time::Duration,
+    ) -> Option<String> {
+        let handle = self._handle.lock().await;
+        let mut channel = handle.channel_open_session().await.ok()?;
+        channel.exec(true, command).await.ok()?;
+        drop(handle); // release so other tasks can use the shared handle
+
+        let mut stdout = Vec::new();
+        let collect = async {
+            loop {
+                match channel.wait().await {
+                    Some(russh::ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
+                    Some(russh::ChannelMsg::Eof)
+                    | Some(russh::ChannelMsg::ExitStatus { .. })
+                    | None => break,
+                    _ => {}
+                }
+            }
+        };
+        tokio::time::timeout(timeout, collect).await.ok()?;
+        Some(String::from_utf8_lossy(&stdout).into_owned())
+    }
+
     pub fn is_alive(&self) -> bool {
         // Three death signals, any one of which means the session is
         // unusable: an explicit `close()` (latch, the task aborts it
