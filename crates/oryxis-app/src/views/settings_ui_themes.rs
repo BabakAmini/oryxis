@@ -390,6 +390,17 @@ pub(crate) fn ui_theme_add_card<'a>() -> Element<'a, Message> {
     )
 }
 
+/// "Import" card for the Interface theme grid: picks an Oryxis UI theme
+/// JSON straight from disk (no paste modal for the chrome format).
+pub(crate) fn ui_theme_import_card<'a>() -> Element<'a, Message> {
+    crate::widgets::theme_outline_card(
+        iced_fonts::lucide::download(),
+        t("theme_import"),
+        OryxisColors::t().text_secondary,
+        Message::Settings(SettingsMessage::UiThemeImportBrowse),
+    )
+}
+
 impl Oryxis {
     /// A custom UI theme card with hover edit / delete affordances.
     pub(crate) fn ui_theme_custom_card<'a>(
@@ -409,9 +420,29 @@ impl Oryxis {
         if self.hovered_ui_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
-                    ui_icon_btn(iced_fonts::lucide::pencil(), Message::Settings(SettingsMessage::UiThemeEditorEdit(idx))),
+                    ui_icon_btn(
+                        iced_fonts::lucide::pencil(),
+                        Message::Settings(SettingsMessage::UiThemeEditorEdit(idx)),
+                        t("edit"),
+                    ),
                     Space::new().width(4).into(),
-                    ui_icon_btn(iced_fonts::lucide::trash(), Message::Settings(SettingsMessage::UiThemeDelete(idx))),
+                    ui_icon_btn(
+                        iced_fonts::lucide::copy(),
+                        Message::Settings(SettingsMessage::UiThemeClone(idx)),
+                        t("duplicate"),
+                    ),
+                    Space::new().width(4).into(),
+                    ui_icon_btn(
+                        iced_fonts::lucide::upload(),
+                        Message::Settings(SettingsMessage::UiThemeExport(idx)),
+                        t("theme_export"),
+                    ),
+                    Space::new().width(4).into(),
+                    ui_icon_btn(
+                        iced_fonts::lucide::trash(),
+                        Message::Settings(SettingsMessage::UiThemeDelete(idx)),
+                        t("delete"),
+                    ),
                 ])
                 .align_y(iced::Alignment::Center),
             )
@@ -427,10 +458,52 @@ impl Oryxis {
             .on_exit(Message::Settings(SettingsMessage::UiThemeCardUnhovered))
             .into()
     }
+
+    /// A built-in app theme card in the Interface grid with a floating
+    /// clone icon revealed on hover, so a preset can be duplicated into an
+    /// editable custom UI theme in one click.
+    pub(crate) fn ui_builtin_theme_card<'a>(
+        &'a self,
+        idx: usize,
+        name: &'a str,
+        colors: &crate::theme::ThemeColors,
+        is_active: bool,
+    ) -> Element<'a, Message> {
+        let card = app_theme_card(
+            name,
+            colors,
+            is_active,
+            Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
+        );
+        let mut stack = iced::widget::Stack::new().push(card);
+        if self.hovered_builtin_ui_theme_card == Some(idx) {
+            let actions = container(ui_icon_btn(
+                iced_fonts::lucide::copy(),
+                Message::Settings(SettingsMessage::UiThemeCloneBuiltin(idx)),
+                t("duplicate"),
+            ))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(6);
+            stack = stack.push(actions);
+        }
+        MouseArea::new(stack)
+            .on_enter(Message::Settings(SettingsMessage::UiThemeBuiltinCardHovered(idx)))
+            .on_exit(Message::Settings(SettingsMessage::UiThemeBuiltinCardUnhovered))
+            .into()
+    }
 }
 
-fn ui_icon_btn<'a>(icon: iced::widget::Text<'a>, msg: Message) -> Element<'a, Message> {
-    button(
+/// Small floating icon button used for the per-card actions, wrapped in a
+/// tooltip per the icon-only convention.
+fn ui_icon_btn<'a>(
+    icon: iced::widget::Text<'a>,
+    msg: Message,
+    tip: &'a str,
+) -> Element<'a, Message> {
+    let btn = button(
         container(icon.size(13).color(OryxisColors::t().text_primary))
             .center_x(Length::Fixed(24.0))
             .center_y(Length::Fixed(24.0)),
@@ -447,7 +520,7 @@ fn ui_icon_btn<'a>(icon: iced::widget::Text<'a>, msg: Message) -> Element<'a, Me
             border: Border { radius: Radius::from(6.0), color: OryxisColors::t().border, width: 1.0 },
             ..Default::default()
         }
-    })
-    .into()
+    });
+    crate::views::terminal::icon_tooltip(btn.into(), tip)
 }
 

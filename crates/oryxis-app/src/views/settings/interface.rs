@@ -314,16 +314,18 @@ impl Oryxis {
         // the keyboard order, exactly as rendered.
         let active_name = self.active_app_theme_name.as_str();
         let mut cards: Vec<Element<'_, Message>> = Vec::new();
-        for theme in AppTheme::ALL.iter() {
+        for (bidx, theme) in AppTheme::ALL.iter().enumerate() {
             let name = theme.name();
             cards.push(self.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(name.to_string()))),
                 10.0,
-                crate::views::settings_ui_themes::app_theme_card(
+                // Hover reveals a clone icon (duplicate the preset into an
+                // editable custom UI theme); Enter still applies it.
+                self.ui_builtin_theme_card(
+                    bidx,
                     name,
                     theme.colors_ref(),
                     name == active_name,
-                    Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
                 ),
             ));
         }
@@ -352,6 +354,11 @@ impl Oryxis {
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeEditorNew)),
             10.0,
             crate::views::settings_ui_themes::ui_theme_add_card(),
+        ));
+        cards.push(self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeImportBrowse)),
+            10.0,
+            crate::views::settings_ui_themes::ui_theme_import_card(),
         ));
 
         // Chunk the cards into rows of two (Elements aren't Clone, so

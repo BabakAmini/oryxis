@@ -93,8 +93,23 @@ impl Oryxis {
             | SettingsMessage::UiThemeEditorClosePicker
             | SettingsMessage::UiThemeEditorSave
             | SettingsMessage::UiThemeDelete(..)
+            | SettingsMessage::UiThemeClone(..)
+            | SettingsMessage::UiThemeCloneBuiltin(..)
+            | SettingsMessage::UiThemeExport(..)
+            | SettingsMessage::UiThemeImportBrowse
+            | SettingsMessage::UiThemeImportFileLoaded(..)
+            | SettingsMessage::UiThemeBuiltinCardHovered(..)
+            | SettingsMessage::UiThemeBuiltinCardUnhovered
             | SettingsMessage::UiThemeCardHovered(..)
             | SettingsMessage::UiThemeCardUnhovered
+            | SettingsMessage::ThemeClone(..)
+            | SettingsMessage::ThemeCloneBuiltin(..)
+            | SettingsMessage::ThemeExport(..)
+            | SettingsMessage::ThemeExportFinished(..)
+            | SettingsMessage::ThemeImportBrowse
+            | SettingsMessage::ThemeImportFileLoaded(..)
+            | SettingsMessage::ThemeBuiltinCardHovered(..)
+            | SettingsMessage::ThemeBuiltinCardUnhovered
             | SettingsMessage::ThemeCardHovered(..)
             | SettingsMessage::ThemeCardUnhovered
             | SettingsMessage::ThemeEditorOpenPicker(..)

@@ -32,6 +32,19 @@ pub enum SettingsMessage {
     ThemeEditorSave,
     /// Delete the custom theme at this index.
     ThemeDelete(usize),
+    /// Open the editor with a copy of the custom theme at this index
+    /// (new theme, deduped "(copy)" name seed).
+    ThemeClone(usize),
+    /// Same, seeded from the built-in terminal theme at this index
+    /// (into `TerminalTheme::ALL`).
+    ThemeCloneBuiltin(usize),
+    /// Export the custom theme at this index as a Windows Terminal
+    /// scheme JSON file (save dialog).
+    ThemeExport(usize),
+    /// A theme export finished: `Ok` toasts success, `Err("cancelled")`
+    /// stays silent, any other `Err` toasts the failure. Shared by the
+    /// terminal and UI theme exports.
+    ThemeExportFinished(Result<(), String>),
     /// Import-theme modal (paste an iTerm / Windows Terminal / base16 scheme).
     ThemeImportOpen,
     ThemeImportClose,
@@ -39,6 +52,15 @@ pub enum SettingsMessage {
     ThemeImportNameChanged(String),
     /// Parse the pasted scheme; on success open it in the editor for review.
     ThemeImportApply,
+    /// Pick a scheme file from disk and load it into the import modal.
+    ThemeImportBrowse,
+    /// File contents arrived from the browse dialog (or an error;
+    /// "cancelled" is silent).
+    ThemeImportFileLoaded(Result<String, String>),
+    /// Hover tracking for the floating clone icon on a BUILT-IN terminal
+    /// theme card in the settings grid.
+    ThemeBuiltinCardHovered(usize),
+    ThemeBuiltinCardUnhovered,
     UiThemeEditorNew,
     UiThemeEditorEdit(usize),
     UiThemeEditorClose,
@@ -48,6 +70,24 @@ pub enum SettingsMessage {
     UiThemeEditorClosePicker,
     UiThemeEditorSave,
     UiThemeDelete(usize),
+    /// Open the UI theme editor with a copy of the custom UI theme at
+    /// this index (new theme, deduped "(copy)" name seed).
+    UiThemeClone(usize),
+    /// Same, seeded from the built-in app theme at this index (into
+    /// `AppTheme::ALL`).
+    UiThemeCloneBuiltin(usize),
+    /// Export the custom UI theme at this index as an Oryxis UI theme
+    /// JSON file (save dialog). Completion rides `ThemeExportFinished`.
+    UiThemeExport(usize),
+    /// Pick an Oryxis UI theme JSON from disk; parsed straight into the
+    /// editor (no paste modal for the UI format).
+    UiThemeImportBrowse,
+    /// File contents arrived from the UI-theme browse dialog.
+    UiThemeImportFileLoaded(Result<String, String>),
+    /// Hover tracking for the floating clone icon on a BUILT-IN app
+    /// theme card in the Interface grid.
+    UiThemeBuiltinCardHovered(usize),
+    UiThemeBuiltinCardUnhovered,
     UiThemeCardHovered(usize),
     UiThemeCardUnhovered,
     /// Hover tracking for the floating edit / delete icons on a custom

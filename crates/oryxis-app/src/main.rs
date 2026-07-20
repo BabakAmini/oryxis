@@ -103,6 +103,7 @@ mod subscription;
 mod sync_runtime;
 mod tab_cycle;
 mod theme;
+mod theme_export;
 mod theme_import;
 mod tray;
 mod tray_ipc;

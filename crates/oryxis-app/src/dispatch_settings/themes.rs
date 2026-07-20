@@ -602,8 +602,262 @@ impl Oryxis {
                     self.repaint_all_terminal_palettes();
                 }
             }
+            SettingsMessage::ThemeBuiltinCardHovered(idx) => {
+                self.hovered_builtin_theme_card = Some(idx);
+            }
+            SettingsMessage::ThemeBuiltinCardUnhovered => {
+                self.hovered_builtin_theme_card = None;
+            }
+            SettingsMessage::ThemeClone(idx) => {
+                if let Some(theme) = self.custom_terminal_themes.get(idx) {
+                    let mut form = crate::state::ThemeEditorForm::from_theme(theme);
+                    form.editing_id = None;
+                    form.name = self.unique_terminal_theme_name(&theme.name);
+                    self.theme_editor = Some(form);
+                }
+            }
+            SettingsMessage::ThemeCloneBuiltin(idx) => {
+                // Editable copy of a built-in preset (the issue-#82 "start
+                // from Dracula" flow), seeded from its palette.
+                if let Some(theme) = oryxis_terminal::TerminalTheme::ALL.get(idx) {
+                    let p = theme.palette();
+                    let hex = crate::theme::color_to_hex;
+                    self.theme_editor = Some(crate::state::ThemeEditorForm {
+                        editing_id: None,
+                        name: self.unique_terminal_theme_name(theme.name()),
+                        foreground: hex(p.foreground),
+                        background: hex(p.background),
+                        cursor: hex(p.cursor),
+                        ansi: std::array::from_fn(|i| hex(p.ansi[i])),
+                        error: None,
+                    });
+                }
+            }
+            SettingsMessage::ThemeExport(idx) => {
+                if let Some(theme) = self.custom_terminal_themes.get(idx) {
+                    let json = crate::theme_export::terminal_theme_to_json(theme);
+                    let file_name = format!(
+                        "{}.json",
+                        crate::theme_export::sanitize_theme_filename(&theme.name)
+                    );
+                    return Ok(save_theme_file_task(json, file_name));
+                }
+            }
+            SettingsMessage::ThemeExportFinished(result) => match result {
+                Ok(()) => {
+                    return Ok(self.show_toast_secs(
+                        crate::i18n::t("theme_exported").to_string(),
+                        4,
+                    ));
+                }
+                Err(e) if e == "cancelled" => {}
+                Err(e) => {
+                    return Ok(self.show_toast_secs(
+                        format!("{}: {e}", crate::i18n::t("theme_export_failed")),
+                        6,
+                    ));
+                }
+            },
+            SettingsMessage::ThemeImportBrowse => {
+                // Feed a scheme file into the paste modal; the existing
+                // Apply path parses it (h3 roadmap: file-picker import).
+                return Ok(Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        let file = rfd::FileDialog::new()
+                            .set_title(crate::i18n::t("theme_import_title"))
+                            .add_filter(
+                                "Theme files",
+                                &["json", "itermcolors", "yaml", "yml", "txt"],
+                            )
+                            .add_filter("All files", &["*"])
+                            .pick_file();
+                        match file {
+                            Some(path) => std::fs::read_to_string(&path)
+                                .map_err(|e| format!("Failed to read: {e}")),
+                            None => Err("cancelled".to_string()),
+                        }
+                    }),
+                    |result| {
+                        let r = match result {
+                            Ok(r) => r,
+                            Err(e) => Err(format!("Thread error: {e}")),
+                        };
+                        Message::Settings(SettingsMessage::ThemeImportFileLoaded(r))
+                    },
+                ));
+            }
+            SettingsMessage::ThemeImportFileLoaded(result) => match result {
+                Ok(content) => {
+                    if self.theme_import_name.trim().is_empty()
+                        && let Some(name) = crate::theme_import::suggest_name(&content)
+                    {
+                        self.theme_import_name = name;
+                    }
+                    self.theme_import_content =
+                        iced::widget::text_editor::Content::with_text(&content);
+                    self.theme_import_error = None;
+                }
+                Err(e) if e == "cancelled" => {}
+                Err(e) => self.theme_import_error = Some(e),
+            },
+            SettingsMessage::UiThemeBuiltinCardHovered(idx) => {
+                self.hovered_builtin_ui_theme_card = Some(idx);
+            }
+            SettingsMessage::UiThemeBuiltinCardUnhovered => {
+                self.hovered_builtin_ui_theme_card = None;
+            }
+            SettingsMessage::UiThemeClone(idx) => {
+                if let Some(theme) = self.custom_ui_themes.get(idx) {
+                    self.ui_theme_editor = Some(crate::state::UiThemeEditorForm {
+                        editing_id: None,
+                        name: self.unique_ui_theme_name(&theme.name),
+                        colors: theme.colors.clone(),
+                        error: None,
+                    });
+                }
+            }
+            SettingsMessage::UiThemeCloneBuiltin(idx) => {
+                if let Some(theme) = AppTheme::ALL.get(idx) {
+                    self.ui_theme_editor = Some(crate::state::UiThemeEditorForm {
+                        editing_id: None,
+                        name: self.unique_ui_theme_name(theme.name()),
+                        colors: crate::theme::theme_colors_to_hex(theme.colors_ref()),
+                        error: None,
+                    });
+                }
+            }
+            SettingsMessage::UiThemeExport(idx) => {
+                if let Some(theme) = self.custom_ui_themes.get(idx) {
+                    let json = crate::theme_export::ui_theme_to_json(theme);
+                    let file_name = format!(
+                        "{}.json",
+                        crate::theme_export::sanitize_theme_filename(&theme.name)
+                    );
+                    return Ok(save_theme_file_task(json, file_name));
+                }
+            }
+            SettingsMessage::UiThemeImportBrowse => {
+                return Ok(Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        let file = rfd::FileDialog::new()
+                            .set_title(crate::i18n::t("theme_import_title"))
+                            .add_filter("Oryxis UI theme", &["json"])
+                            .add_filter("All files", &["*"])
+                            .pick_file();
+                        match file {
+                            Some(path) => std::fs::read_to_string(&path)
+                                .map_err(|e| format!("Failed to read: {e}")),
+                            None => Err("cancelled".to_string()),
+                        }
+                    }),
+                    |result| {
+                        let r = match result {
+                            Ok(r) => r,
+                            Err(e) => Err(format!("Thread error: {e}")),
+                        };
+                        Message::Settings(SettingsMessage::UiThemeImportFileLoaded(r))
+                    },
+                ));
+            }
+            SettingsMessage::UiThemeImportFileLoaded(result) => match result {
+                Ok(content) => {
+                    match crate::theme_import::parse_ui_theme(
+                        &content,
+                        crate::i18n::t("theme_imported_default"),
+                    ) {
+                        Ok(theme) => {
+                            // Open in the editor for review; dedupe the name
+                            // up front so Save doesn't trip on a collision.
+                            let name = if self.ui_theme_name_taken(&theme.name) {
+                                self.unique_ui_theme_name(&theme.name)
+                            } else {
+                                theme.name.clone()
+                            };
+                            self.ui_theme_editor =
+                                Some(crate::state::UiThemeEditorForm {
+                                    editing_id: None,
+                                    name,
+                                    colors: theme.colors,
+                                    error: None,
+                                });
+                        }
+                        Err(e) => {
+                            return Ok(self.show_toast_secs(
+                                format!(
+                                    "{}: {e}",
+                                    crate::i18n::t("theme_import_failed")
+                                ),
+                                6,
+                            ));
+                        }
+                    }
+                }
+                Err(e) if e == "cancelled" => {}
+                Err(e) => {
+                    return Ok(self.show_toast_secs(
+                        format!("{}: {e}", crate::i18n::t("theme_import_failed")),
+                        6,
+                    ));
+                }
+            },
             m => return Err(m),
         }
         Ok(Task::none())
     }
+
+    /// Seed name for a cloned / imported terminal theme, unique across
+    /// built-ins and existing custom themes.
+    fn unique_terminal_theme_name(&self, base: &str) -> String {
+        crate::theme_export::unique_copy_name(
+            base,
+            crate::i18n::t("theme_copy_suffix"),
+            |n| {
+                oryxis_terminal::TerminalTheme::ALL.iter().any(|t| t.name() == n)
+                    || self.custom_terminal_themes.iter().any(|t| t.name == n)
+            },
+        )
+    }
+
+    /// True when a UI theme name collides with a built-in or custom theme.
+    fn ui_theme_name_taken(&self, name: &str) -> bool {
+        AppTheme::ALL.iter().any(|t| t.name() == name)
+            || self.custom_ui_themes.iter().any(|t| t.name == name)
+    }
+
+    /// Seed name for a cloned / imported UI theme, unique across built-ins
+    /// and existing custom themes.
+    fn unique_ui_theme_name(&self, base: &str) -> String {
+        crate::theme_export::unique_copy_name(
+            base,
+            crate::i18n::t("theme_copy_suffix"),
+            |n| self.ui_theme_name_taken(n),
+        )
+    }
+}
+
+/// Save-dialog task shared by the terminal and UI theme exports: pick a
+/// destination, write the JSON, report back via `ThemeExportFinished`
+/// ("cancelled" stays silent there).
+fn save_theme_file_task(contents: String, file_name: String) -> Task<Message> {
+    Task::perform(
+        tokio::task::spawn_blocking(move || {
+            let file = rfd::FileDialog::new()
+                .set_title(crate::i18n::t("theme_export_title"))
+                .set_file_name(file_name)
+                .add_filter("JSON", &["json"])
+                .save_file();
+            match file {
+                Some(path) => std::fs::write(&path, contents.as_bytes())
+                    .map_err(|e| format!("Failed to write: {e}")),
+                None => Err("cancelled".to_string()),
+            }
+        }),
+        |result| {
+            let r = match result {
+                Ok(r) => r,
+                Err(e) => Err(format!("Thread error: {e}")),
+            };
+            Message::Settings(SettingsMessage::ThemeExportFinished(r))
+        },
+    )
 }

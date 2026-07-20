@@ -533,7 +533,7 @@ impl Oryxis {
                 Message::Settings(SettingsMessage::TerminalThemeChanged(String::new())),
             ),
         ));
-        for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
+        for (bidx, theme) in oryxis_terminal::TerminalTheme::ALL.iter().enumerate() {
             let is_selected = self
                 .terminal_theme_override
                 .as_deref()
@@ -543,12 +543,9 @@ impl Oryxis {
                     theme.name().to_string(),
                 ))),
                 10.0,
-                crate::widgets::terminal_theme_card(
-                    theme.palette(),
-                    theme.name(),
-                    is_selected,
-                    Message::Settings(SettingsMessage::TerminalThemeChanged(theme.name().to_string())),
-                ),
+                // Hover reveals a clone icon (duplicate the preset into an
+                // editable custom theme); Enter still applies the theme.
+                self.terminal_builtin_theme_card(bidx, theme, is_selected),
             ));
         }
         // User-defined themes after the built-ins, each with the

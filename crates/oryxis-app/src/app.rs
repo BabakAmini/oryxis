@@ -778,6 +778,9 @@ pub struct Oryxis {
     /// Hovered custom terminal theme card (index into
     /// `custom_terminal_themes`), for the floating edit / delete icons.
     pub(crate) hovered_theme_card: Option<usize>,
+    /// Hovered BUILT-IN terminal theme card in the settings grid (index
+    /// into `TerminalTheme::ALL`), for the floating clone icon.
+    pub(crate) hovered_builtin_theme_card: Option<usize>,
     /// Open color-picker popover in the theme editor: `(slot, anchor)`.
     /// `None` = closed. Clicking a slot's swatch opens a compact picker
     /// (SV square + hue + hex + presets) anchored at the click.
@@ -793,6 +796,9 @@ pub struct Oryxis {
     pub(crate) ui_theme_editor: Option<crate::state::UiThemeEditorForm>,
     pub(crate) ui_color_popover: Option<(usize, iced::Point)>,
     pub(crate) hovered_ui_theme_card: Option<usize>,
+    /// Hovered BUILT-IN app theme card in the Interface grid (index into
+    /// `AppTheme::ALL`), for the floating clone icon.
+    pub(crate) hovered_builtin_ui_theme_card: Option<usize>,
     /// Name of the active app theme (built-in or custom UI theme). The
     /// `AppTheme` enum can't name a custom theme, so this tracks the
     /// selection for highlighting + delete/rename bookkeeping.

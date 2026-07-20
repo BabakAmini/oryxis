@@ -268,8 +268,44 @@ impl Oryxis {
         col = col.push(Space::new().height(8));
         col = col.push(crate::widgets::form_error(self.theme_import_error.as_deref()));
         col = col.push(Space::new().height(8));
+        // "Load from file" fills the paste box from a scheme file picked
+        // on disk; Apply then parses it like any pasted content.
+        let browse_btn = button(
+            dir_row(vec![
+                iced_fonts::lucide::folder_open()
+                    .size(13)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+                Space::new().width(6).into(),
+                text(t("theme_import_browse"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .on_press(Message::Settings(SettingsMessage::ThemeImportBrowse))
+        .padding(Padding { top: 7.0, right: 12.0, bottom: 7.0, left: 12.0 })
+        .style(|_, status| {
+            let bg = match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    OryxisColors::t().bg_hover
+                }
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }
+        });
         col = col.push(
             dir_row(vec![
+                browse_btn.into(),
                 Space::new().width(Length::Fill).into(),
                 crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::ThemeImportClose)),
                 Space::new().width(8).into(),
@@ -319,9 +355,29 @@ impl Oryxis {
         if self.hovered_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
-                    theme_icon_btn(iced_fonts::lucide::pencil(), Message::Settings(SettingsMessage::ThemeEditorEdit(idx))),
+                    theme_icon_btn(
+                        iced_fonts::lucide::pencil(),
+                        Message::Settings(SettingsMessage::ThemeEditorEdit(idx)),
+                        t("edit"),
+                    ),
                     Space::new().width(4).into(),
-                    theme_icon_btn(iced_fonts::lucide::trash(), Message::Settings(SettingsMessage::ThemeDelete(idx))),
+                    theme_icon_btn(
+                        iced_fonts::lucide::copy(),
+                        Message::Settings(SettingsMessage::ThemeClone(idx)),
+                        t("duplicate"),
+                    ),
+                    Space::new().width(4).into(),
+                    theme_icon_btn(
+                        iced_fonts::lucide::upload(),
+                        Message::Settings(SettingsMessage::ThemeExport(idx)),
+                        t("theme_export"),
+                    ),
+                    Space::new().width(4).into(),
+                    theme_icon_btn(
+                        iced_fonts::lucide::trash(),
+                        Message::Settings(SettingsMessage::ThemeDelete(idx)),
+                        t("delete"),
+                    ),
                 ])
                 .align_y(iced::Alignment::Center),
             )
@@ -335,6 +391,42 @@ impl Oryxis {
         MouseArea::new(stack)
             .on_enter(Message::Settings(SettingsMessage::ThemeCardHovered(idx)))
             .on_exit(Message::Settings(SettingsMessage::ThemeCardUnhovered))
+            .into()
+    }
+
+    /// A built-in terminal theme card in the settings grid with a floating
+    /// clone icon revealed on hover, so a preset can be duplicated into an
+    /// editable custom theme in one click.
+    pub(crate) fn terminal_builtin_theme_card<'a>(
+        &'a self,
+        idx: usize,
+        theme: &oryxis_terminal::TerminalTheme,
+        is_selected: bool,
+    ) -> Element<'a, Message> {
+        let name = theme.name();
+        let card = crate::widgets::terminal_theme_card(
+            theme.palette(),
+            name,
+            is_selected,
+            Message::Settings(SettingsMessage::TerminalThemeChanged(name.to_string())),
+        );
+        let mut stack = iced::widget::Stack::new().push(card);
+        if self.hovered_builtin_theme_card == Some(idx) {
+            let actions = container(theme_icon_btn(
+                iced_fonts::lucide::copy(),
+                Message::Settings(SettingsMessage::ThemeCloneBuiltin(idx)),
+                t("duplicate"),
+            ))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Right)
+            .align_y(iced::alignment::Vertical::Top)
+            .padding(6);
+            stack = stack.push(actions);
+        }
+        MouseArea::new(stack)
+            .on_enter(Message::Settings(SettingsMessage::ThemeBuiltinCardHovered(idx)))
+            .on_exit(Message::Settings(SettingsMessage::ThemeBuiltinCardUnhovered))
             .into()
     }
 }
@@ -360,12 +452,14 @@ pub(crate) fn terminal_theme_import_card<'a>() -> Element<'a, Message> {
     )
 }
 
-/// Small floating icon button used for the per-card edit / delete actions.
+/// Small floating icon button used for the per-card actions (edit / clone /
+/// export / delete), wrapped in a tooltip per the icon-only convention.
 fn theme_icon_btn<'a>(
     icon: iced::widget::Text<'a>,
     msg: Message,
+    tip: &'a str,
 ) -> Element<'a, Message> {
-    button(
+    let btn = button(
         container(icon.size(13).color(OryxisColors::t().text_primary))
             .center_x(Length::Fixed(24.0))
             .center_y(Length::Fixed(24.0)),
@@ -386,8 +480,8 @@ fn theme_icon_btn<'a>(
             },
             ..Default::default()
         }
-    })
-    .into()
+    });
+    crate::views::terminal::icon_tooltip(btn.into(), tip)
 }
 
 /// One editable color slot: label, clickable swatch (opens the color-picker

@@ -11,12 +11,17 @@
 //! can be unit-tested without a vault or UI.
 
 use oryxis_core::models::custom_terminal_theme::CustomTerminalTheme;
+use oryxis_core::models::custom_ui_theme::CustomUiTheme;
 
 /// Detect the format from the content and parse it. `name` is the
 /// user-provided theme name.
 pub(crate) fn parse_theme(content: &str, name: &str) -> Result<CustomTerminalTheme, String> {
     let trimmed = content.trim_start();
     if trimmed.starts_with('{') {
+        if content.contains("\"oryxis_ui_theme\"") {
+            return Err("This is an Oryxis UI (chrome) theme file; import it \
+                        from Settings > Interface.".to_string());
+        }
         parse_windows_terminal(content, name)
     } else if trimmed.starts_with("<?xml") || trimmed.contains("<plist") {
         parse_iterm(content, name)
@@ -26,6 +31,69 @@ pub(crate) fn parse_theme(content: &str, name: &str) -> Result<CustomTerminalThe
         Err("Unrecognized format (expected Windows Terminal JSON, iTerm \
              .itermcolors, or base16 YAML).".to_string())
     }
+}
+
+/// Pull a display name out of a pasted / loaded scheme so the import modal
+/// can pre-fill its name field: Windows Terminal JSON `"name"`, base16
+/// `scheme:` line, or an Oryxis UI theme envelope's `"name"`. `None` when
+/// the content carries no name (iTerm plists never do).
+pub(crate) fn suggest_name(content: &str) -> Option<String> {
+    let trimmed = content.trim_start();
+    if trimmed.starts_with('{') {
+        let v: serde_json::Value = serde_json::from_str(content).ok()?;
+        return v
+            .get("name")
+            .and_then(|n| n.as_str())
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty());
+    }
+    for line in content.lines() {
+        if let Some((k, val)) = line.split_once(':')
+            && k.trim() == "scheme"
+        {
+            let name = val.trim().trim_matches('"').trim_matches('\'').to_string();
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+    }
+    None
+}
+
+/// Parse the Oryxis UI-theme JSON envelope written by
+/// `theme_export::ui_theme_to_json`. Colors are matched by key
+/// (`UI_COLOR_KEYS`); a missing or invalid entry falls back to the
+/// Oryxis Dark value so an older file still imports after new fields are
+/// added. The file's `"name"` wins over `fallback_name`.
+pub(crate) fn parse_ui_theme(
+    content: &str,
+    fallback_name: &str,
+) -> Result<CustomUiTheme, String> {
+    let v: serde_json::Value =
+        serde_json::from_str(content).map_err(|e| format!("Invalid JSON: {e}"))?;
+    if v.get("oryxis_ui_theme").is_none() {
+        return Err("Not an Oryxis UI theme file (missing the \
+                    'oryxis_ui_theme' marker).".to_string());
+    }
+    let colors_obj = v
+        .get("colors")
+        .and_then(|c| c.as_object())
+        .ok_or("Missing 'colors' object")?;
+    let defaults = crate::theme::theme_colors_to_hex(&crate::theme::ORYXIS_DARK);
+    let colors: [String; 21] = std::array::from_fn(|i| {
+        colors_obj
+            .get(crate::theme_export::UI_COLOR_KEYS[i])
+            .and_then(|x| x.as_str())
+            .and_then(norm_hex)
+            .unwrap_or_else(|| defaults[i].clone())
+    });
+    let name = v
+        .get("name")
+        .and_then(|n| n.as_str())
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or(fallback_name);
+    Ok(CustomUiTheme::new(name.to_string(), colors))
 }
 
 fn build(
@@ -227,5 +295,44 @@ mod tests {
     #[test]
     fn unknown_format_errors() {
         assert!(parse_theme("hello world", "x").is_err());
+    }
+
+    #[test]
+    fn ui_theme_file_is_rejected_by_terminal_importer() {
+        let json = r#"{ "oryxis_ui_theme": 1, "name": "X", "colors": {} }"#;
+        let err = parse_theme(json, "x").unwrap_err();
+        assert!(err.contains("Interface"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn suggest_name_from_wt_and_base16() {
+        assert_eq!(
+            suggest_name(r##"{ "name": "Dracula", "background": "#000000" }"##),
+            Some("Dracula".to_string())
+        );
+        assert_eq!(
+            suggest_name("scheme: \"Tomorrow Night\"\nbase00: \"1d1f21\"\n"),
+            Some("Tomorrow Night".to_string())
+        );
+        assert_eq!(suggest_name("<?xml version=\"1.0\"?>"), None);
+    }
+
+    #[test]
+    fn ui_theme_missing_keys_fall_back_to_defaults() {
+        let json = r##"{
+            "oryxis_ui_theme": 1,
+            "name": "Partial",
+            "colors": { "bg_primary": "#101010", "accent": "#ff0000" }
+        }"##;
+        let t = parse_ui_theme(json, "fb").unwrap();
+        assert_eq!(t.name, "Partial");
+        assert_eq!(t.colors[0], "#101010");
+        assert_eq!(t.colors[8], "#ff0000");
+        // Unlisted key falls back to the Oryxis Dark value.
+        let defaults =
+            crate::theme::theme_colors_to_hex(&crate::theme::ORYXIS_DARK);
+        assert_eq!(t.colors[20], defaults[20]);
+        // No marker -> error.
+        assert!(parse_ui_theme(r#"{ "colors": {} }"#, "fb").is_err());
     }
 }
