@@ -96,6 +96,12 @@ impl Oryxis {
             | SettingsMessage::UiThemeClone(..)
             | SettingsMessage::UiThemeCloneBuiltin(..)
             | SettingsMessage::UiThemeExport(..)
+            | SettingsMessage::UiThemeExportBuiltin(..)
+            | SettingsMessage::UiThemeImportOpen
+            | SettingsMessage::UiThemeImportClose
+            | SettingsMessage::UiThemeImportContentAction(..)
+            | SettingsMessage::UiThemeImportNameChanged(..)
+            | SettingsMessage::UiThemeImportApply
             | SettingsMessage::UiThemeImportBrowse
             | SettingsMessage::UiThemeImportFileLoaded(..)
             | SettingsMessage::UiThemeBuiltinCardHovered(..)
@@ -105,6 +111,7 @@ impl Oryxis {
             | SettingsMessage::ThemeClone(..)
             | SettingsMessage::ThemeCloneBuiltin(..)
             | SettingsMessage::ThemeExport(..)
+            | SettingsMessage::ThemeExportBuiltin(..)
             | SettingsMessage::ThemeExportFinished(..)
             | SettingsMessage::ThemeImportBrowse
             | SettingsMessage::ThemeImportFileLoaded(..)

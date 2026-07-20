@@ -209,6 +209,7 @@ fn app_theme_to_terminal(theme: AppTheme) -> oryxis_terminal::TerminalTheme {
         AppTheme::Dracula => oryxis_terminal::TerminalTheme::Dracula,
         AppTheme::Monokai => oryxis_terminal::TerminalTheme::Monokai,
         AppTheme::HackerGreen => oryxis_terminal::TerminalTheme::HackerGreen,
+        AppTheme::OneDark => oryxis_terminal::TerminalTheme::OneDark,
         AppTheme::Nord => oryxis_terminal::TerminalTheme::Nord,
         AppTheme::NordLight => oryxis_terminal::TerminalTheme::NordLight,
         AppTheme::SolarizedDark => oryxis_terminal::TerminalTheme::SolarizedDark,
@@ -643,6 +644,27 @@ impl Oryxis {
                     return Ok(save_theme_file_task(json, file_name));
                 }
             }
+            SettingsMessage::ThemeExportBuiltin(idx) => {
+                // Presets export too: the file doubles as a format template
+                // for anyone hand-building or sharing a scheme.
+                if let Some(theme) = oryxis_terminal::TerminalTheme::ALL.get(idx) {
+                    let p = theme.palette();
+                    let hex = crate::theme::color_to_hex;
+                    let mut t = oryxis_core::models::custom_terminal_theme::CustomTerminalTheme::new_default(
+                        theme.name().to_string(),
+                    );
+                    t.foreground = hex(p.foreground);
+                    t.background = hex(p.background);
+                    t.cursor = hex(p.cursor);
+                    t.ansi = std::array::from_fn(|i| hex(p.ansi[i]));
+                    let json = crate::theme_export::terminal_theme_to_json(&t);
+                    let file_name = format!(
+                        "{}.json",
+                        crate::theme_export::sanitize_theme_filename(theme.name())
+                    );
+                    return Ok(save_theme_file_task(json, file_name));
+                }
+            }
             SettingsMessage::ThemeExportFinished(result) => match result {
                 Ok(()) => {
                     return Ok(self.show_toast_secs(
@@ -736,6 +758,64 @@ impl Oryxis {
                     return Ok(save_theme_file_task(json, file_name));
                 }
             }
+            SettingsMessage::UiThemeExportBuiltin(idx) => {
+                if let Some(theme) = AppTheme::ALL.get(idx) {
+                    let t = oryxis_core::models::custom_ui_theme::CustomUiTheme::new(
+                        theme.name().to_string(),
+                        crate::theme::theme_colors_to_hex(theme.colors_ref()),
+                    );
+                    let json = crate::theme_export::ui_theme_to_json(&t);
+                    let file_name = format!(
+                        "{}.json",
+                        crate::theme_export::sanitize_theme_filename(theme.name())
+                    );
+                    return Ok(save_theme_file_task(json, file_name));
+                }
+            }
+            SettingsMessage::UiThemeImportOpen => {
+                self.show_ui_theme_import = true;
+                self.ui_theme_import_content =
+                    iced::widget::text_editor::Content::new();
+                self.ui_theme_import_name.clear();
+                self.ui_theme_import_error = None;
+            }
+            SettingsMessage::UiThemeImportClose => {
+                self.close_modal(crate::state::Modal::UiThemeImport);
+            }
+            SettingsMessage::UiThemeImportContentAction(action) => {
+                self.ui_theme_import_content.perform(action);
+                self.ui_theme_import_error = None;
+            }
+            SettingsMessage::UiThemeImportNameChanged(v) => {
+                self.ui_theme_import_name = v;
+            }
+            SettingsMessage::UiThemeImportApply => {
+                let content = self.ui_theme_import_content.text();
+                match crate::theme_import::parse_ui_theme(
+                    &content,
+                    crate::i18n::t("theme_imported_default"),
+                ) {
+                    Ok(theme) => {
+                        // A typed name overrides the file's own; dedupe up
+                        // front so Save doesn't trip on a collision.
+                        let typed = self.ui_theme_import_name.trim();
+                        let base = if typed.is_empty() { theme.name.as_str() } else { typed };
+                        let name = if self.ui_theme_name_taken(base) {
+                            self.unique_ui_theme_name(base)
+                        } else {
+                            base.to_string()
+                        };
+                        self.ui_theme_editor = Some(crate::state::UiThemeEditorForm {
+                            editing_id: None,
+                            name,
+                            colors: theme.colors,
+                            error: None,
+                        });
+                        self.show_ui_theme_import = false;
+                    }
+                    Err(e) => self.ui_theme_import_error = Some(e),
+                }
+            }
             SettingsMessage::UiThemeImportBrowse => {
                 return Ok(Task::perform(
                     tokio::task::spawn_blocking(move || {
@@ -761,44 +841,19 @@ impl Oryxis {
             }
             SettingsMessage::UiThemeImportFileLoaded(result) => match result {
                 Ok(content) => {
-                    match crate::theme_import::parse_ui_theme(
-                        &content,
-                        crate::i18n::t("theme_imported_default"),
-                    ) {
-                        Ok(theme) => {
-                            // Open in the editor for review; dedupe the name
-                            // up front so Save doesn't trip on a collision.
-                            let name = if self.ui_theme_name_taken(&theme.name) {
-                                self.unique_ui_theme_name(&theme.name)
-                            } else {
-                                theme.name.clone()
-                            };
-                            self.ui_theme_editor =
-                                Some(crate::state::UiThemeEditorForm {
-                                    editing_id: None,
-                                    name,
-                                    colors: theme.colors,
-                                    error: None,
-                                });
-                        }
-                        Err(e) => {
-                            return Ok(self.show_toast_secs(
-                                format!(
-                                    "{}: {e}",
-                                    crate::i18n::t("theme_import_failed")
-                                ),
-                                6,
-                            ));
-                        }
+                    // Fill the paste modal; Apply parses it like any pasted
+                    // content (mirrors the terminal import flow).
+                    if self.ui_theme_import_name.trim().is_empty()
+                        && let Some(name) = crate::theme_import::suggest_name(&content)
+                    {
+                        self.ui_theme_import_name = name;
                     }
+                    self.ui_theme_import_content =
+                        iced::widget::text_editor::Content::with_text(&content);
+                    self.ui_theme_import_error = None;
                 }
                 Err(e) if e == "cancelled" => {}
-                Err(e) => {
-                    return Ok(self.show_toast_secs(
-                        format!("{}: {e}", crate::i18n::t("theme_import_failed")),
-                        6,
-                    ));
-                }
+                Err(e) => self.ui_theme_import_error = Some(e),
             },
             m => return Err(m),
         }

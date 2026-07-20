@@ -791,6 +791,12 @@ pub struct Oryxis {
     pub(crate) theme_import_content: iced::widget::text_editor::Content,
     pub(crate) theme_import_name: String,
     pub(crate) theme_import_error: Option<String>,
+    /// Import-UI-theme modal (paste the Oryxis UI theme JSON), mirroring
+    /// the terminal scheme import modal above.
+    pub(crate) show_ui_theme_import: bool,
+    pub(crate) ui_theme_import_content: iced::widget::text_editor::Content,
+    pub(crate) ui_theme_import_name: String,
+    pub(crate) ui_theme_import_error: Option<String>,
     /// Custom UI (chrome) theme editor modal + its color-picker popover and
     /// the hovered card (mirrors the terminal-theme editor).
     pub(crate) ui_theme_editor: Option<crate::state::UiThemeEditorForm>,

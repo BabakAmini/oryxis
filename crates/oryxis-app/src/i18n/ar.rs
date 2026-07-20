@@ -158,6 +158,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "تم تصدير السمة",
         "theme_export_failed" => "فشل التصدير",
         "theme_import_browse" => "تحميل من ملف",
+        "theme_import_ui_hint" => "الصق سمة واجهة Oryxis (بصيغة JSON) أو حمّل الملف. تُفتح الألوان في المحرر للمراجعة والحفظ.",
         "theme_import_failed" => "فشل الاستيراد",
         "theme_import_hint" => "الصق مخطط iTerm (.itermcolors) أو Windows Terminal (JSON) أو base16. تُفتح الألوان في المحرر للمراجعة والحفظ.",
         "theme_imported_default" => "سمة مستوردة",

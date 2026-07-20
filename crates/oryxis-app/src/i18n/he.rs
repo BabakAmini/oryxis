@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "ערכת הנושא יוצאה",
         "theme_export_failed" => "הייצוא נכשל",
         "theme_import_browse" => "טעינה מקובץ",
+        "theme_import_ui_hint" => "הדביקו ערכת נושא של ממשק Oryxis (JSON) או טענו את הקובץ. הצבעים ייפתחו בעורך לבדיקה ושמירה.",
         "theme_import_failed" => "הייבוא נכשל",
         "theme_import_hint" => "הדביקו ערכה של iTerm (.itermcolors), Windows Terminal (JSON) או base16. הצבעים נפתחים בעורך לבדיקה ושמירה.",
         "theme_imported_default" => "ערכת נושא מיובאת",

@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Motiv exportován",
         "theme_export_failed" => "Export se nezdařil",
         "theme_import_browse" => "Načíst ze souboru",
+        "theme_import_ui_hint" => "Vložte motiv rozhraní Oryxis (JSON) nebo načtěte soubor. Barvy se otevřou v editoru ke kontrole a uložení.",
         "theme_import_failed" => "Import se nezdařil",
         "theme_import_hint" => "Vložte schéma iTerm (.itermcolors), Windows Terminal (JSON) nebo base16. Barvy se otevřou v editoru ke kontrole a uložení.",
         "theme_imported_default" => "Importovaný motiv",

@@ -71,6 +71,7 @@ pub enum AppTheme {
     Dracula,
     Monokai,
     HackerGreen,
+    OneDark,
     Nord,
     NordLight,
     SolarizedDark,
@@ -88,6 +89,7 @@ impl AppTheme {
         Self::Dracula,
         Self::Monokai,
         Self::HackerGreen,
+        Self::OneDark,
         Self::Nord,
         Self::NordLight,
         Self::SolarizedDark,
@@ -105,6 +107,7 @@ impl AppTheme {
             Self::Dracula => "Dracula",
             Self::Monokai => "Monokai",
             Self::HackerGreen => "Hacker Green",
+            Self::OneDark => "One Dark",
             Self::Nord => "Nord",
             Self::NordLight => "Nord Light",
             Self::SolarizedDark => "Solarized Dark",
@@ -131,6 +134,7 @@ impl AppTheme {
             Self::Dracula => &DRACULA,
             Self::Monokai => &MONOKAI,
             Self::HackerGreen => &HACKER_GREEN,
+            Self::OneDark => &ONE_DARK,
             Self::Nord => &NORD,
             Self::NordLight => &NORD_LIGHT,
             Self::SolarizedDark => &SOLARIZED_DARK,
@@ -627,6 +631,34 @@ pub const DRACULA: ThemeColors = ThemeColors {
     button_bg: Color::from_rgb8(189, 147, 249),
     button_bg_hover: Color::from_rgb8(210, 170, 255),
     button_text: Color::WHITE,
+};
+
+/// One Dark, the Atom editor classic (also the base of VS Code's One Dark
+/// Pro). Blue function accent, muted gray chrome, green/yellow/red
+/// semantics straight from the syntax palette. Button text is dark: white
+/// fails contrast on the light #61AFEF accent.
+pub const ONE_DARK: ThemeColors = ThemeColors {
+    bg_primary: Color::from_rgb8(40, 44, 52),        // #282C34, editor bg
+    bg_sidebar: Color::from_rgb8(33, 37, 43),        // #21252B, tree view
+    bg_surface: Color::from_rgb8(44, 49, 58),        // #2C313A
+    bg_hover: Color::from_rgb8(53, 59, 69),          // #353B45
+    bg_selected: Color::from_rgb8(62, 68, 81),       // #3E4451, selection
+    text_primary: Color::from_rgb8(171, 178, 191),   // #ABB2BF, editor fg
+    text_secondary: Color::from_rgb8(140, 148, 162), // #8C94A2
+    text_muted: Color::from_rgb8(92, 99, 112),       // #5C6370, comments
+    accent: Color::from_rgb8(97, 175, 239),          // #61AFEF, function blue
+    accent_hover: Color::from_rgb8(130, 192, 245),   // #82C0F5
+    success: Color::from_rgb8(152, 195, 121),        // #98C379, string green
+    warning: Color::from_rgb8(229, 192, 123),        // #E5C07B
+    error: Color::from_rgb8(224, 108, 117),          // #E06C75
+    terminal_bg: Color::from_rgb8(40, 44, 52),
+    terminal_fg: Color::from_rgb8(171, 178, 191),
+    terminal_cursor: Color::from_rgb8(82, 139, 255), // #528BFF, Atom caret
+    border: Color::from_rgb8(62, 68, 81),            // #3E4451
+    border_focus: Color::from_rgb8(97, 175, 239),
+    button_bg: Color::from_rgb8(97, 175, 239),
+    button_bg_hover: Color::from_rgb8(130, 192, 245),
+    button_text: Color::from_rgb8(40, 44, 52),       // dark on light blue
 };
 
 /// Monokai, Wimer Hazenberg's classic (pink keyword, green string, dark bg).

@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "theme_exported" => "Theme exported",
         "theme_export_failed" => "Export failed",
         "theme_import_browse" => "Load from file",
+        "theme_import_ui_hint" => "Paste an Oryxis UI theme (JSON), or load the file. The colors open in the editor to review and save.",
         "theme_import_failed" => "Import failed",
         "theme_import_hint" => "Paste an iTerm (.itermcolors), Windows Terminal (JSON) or base16 scheme. The colors open in the editor to review and save.",
         "theme_imported_default" => "Imported theme",

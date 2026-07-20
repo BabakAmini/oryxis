@@ -164,6 +164,7 @@ impl Oryxis {
             Modal::ThemeEditor => self.theme_editor.is_some(),
             Modal::ThemeImport => self.show_theme_import,
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
+            Modal::UiThemeImport => self.show_ui_theme_import,
             Modal::ShareDialog => self.show_share_dialog,
             Modal::CloudImportConfirm => self.cloud_import_confirm_visible,
             Modal::ErrorDialog => self.error_dialog.is_some(),
@@ -252,6 +253,7 @@ impl Oryxis {
                 self.ui_theme_editor = None;
                 self.ui_color_popover = None;
             }
+            Modal::UiThemeImport => self.show_ui_theme_import = false,
             Modal::ShareDialog => {
                 self.show_share_dialog = false;
                 self.share.filter = None;

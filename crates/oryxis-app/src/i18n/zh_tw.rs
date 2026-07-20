@@ -157,6 +157,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "主題已匯出",
         "theme_export_failed" => "匯出失敗",
         "theme_import_browse" => "從檔案載入",
+        "theme_import_ui_hint" => "貼上 Oryxis 介面主題（JSON）或從檔案載入。顏色將在編輯器中開啟以供檢視和儲存。",
         "theme_import_failed" => "匯入失敗",
         "theme_import_hint" => "貼上 iTerm (.itermcolors)、Windows Terminal (JSON) 或 base16 配色。顏色將在編輯器中開啟以供檢視和儲存。",
         "theme_imported_default" => "匯入的主題",

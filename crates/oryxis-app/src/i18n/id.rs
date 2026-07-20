@@ -153,6 +153,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Tema diekspor",
         "theme_export_failed" => "Ekspor gagal",
         "theme_import_browse" => "Muat dari file",
+        "theme_import_ui_hint" => "Tempel tema antarmuka Oryxis (JSON) atau muat dari file. Warna akan terbuka di editor untuk ditinjau dan disimpan.",
         "theme_import_failed" => "Impor gagal",
         "theme_import_hint" => "Tempel skema iTerm (.itermcolors), Windows Terminal (JSON) atau base16. Warnanya terbuka di editor untuk ditinjau dan disimpan.",
         "theme_imported_default" => "Tema diimpor",

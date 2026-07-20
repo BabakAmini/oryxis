@@ -153,6 +153,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Đã xuất chủ đề",
         "theme_export_failed" => "Xuất thất bại",
         "theme_import_browse" => "Tải từ tệp",
+        "theme_import_ui_hint" => "Dán chủ đề giao diện Oryxis (JSON) hoặc tải từ tệp. Màu sắc sẽ mở trong trình chỉnh sửa để xem lại và lưu.",
         "theme_import_failed" => "Nhập thất bại",
         "theme_import_hint" => "Dán một bảng màu iTerm (.itermcolors), Windows Terminal (JSON) hoặc base16. Các màu sẽ mở trong trình sửa để xem lại và lưu.",
         "theme_imported_default" => "Chủ đề đã nhập",

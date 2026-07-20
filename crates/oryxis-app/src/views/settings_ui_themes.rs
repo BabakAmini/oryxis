@@ -390,14 +390,14 @@ pub(crate) fn ui_theme_add_card<'a>() -> Element<'a, Message> {
     )
 }
 
-/// "Import" card for the Interface theme grid: picks an Oryxis UI theme
-/// JSON straight from disk (no paste modal for the chrome format).
+/// "Import" card for the Interface theme grid: opens the paste-or-load
+/// modal for the Oryxis UI theme JSON.
 pub(crate) fn ui_theme_import_card<'a>() -> Element<'a, Message> {
     crate::widgets::theme_outline_card(
         iced_fonts::lucide::download(),
         t("theme_import"),
         OryxisColors::t().text_secondary,
-        Message::Settings(SettingsMessage::UiThemeImportBrowse),
+        Message::Settings(SettingsMessage::UiThemeImportOpen),
     )
 }
 
@@ -477,11 +477,22 @@ impl Oryxis {
         );
         let mut stack = iced::widget::Stack::new().push(card);
         if self.hovered_builtin_ui_theme_card == Some(idx) {
-            let actions = container(ui_icon_btn(
-                iced_fonts::lucide::copy(),
-                Message::Settings(SettingsMessage::UiThemeCloneBuiltin(idx)),
-                t("duplicate"),
-            ))
+            let actions = container(
+                dir_row(vec![
+                    ui_icon_btn(
+                        iced_fonts::lucide::copy(),
+                        Message::Settings(SettingsMessage::UiThemeCloneBuiltin(idx)),
+                        t("duplicate"),
+                    ),
+                    Space::new().width(4).into(),
+                    ui_icon_btn(
+                        iced_fonts::lucide::upload(),
+                        Message::Settings(SettingsMessage::UiThemeExportBuiltin(idx)),
+                        t("theme_export"),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Right)
@@ -493,6 +504,73 @@ impl Oryxis {
             .on_enter(Message::Settings(SettingsMessage::UiThemeBuiltinCardHovered(idx)))
             .on_exit(Message::Settings(SettingsMessage::UiThemeBuiltinCardUnhovered))
             .into()
+    }
+
+    /// Import-a-UI-theme modal: paste (or load from file) the Oryxis UI
+    /// theme JSON; on import the parsed colors open in the editor for
+    /// review. Mirrors `view_theme_import_modal`.
+    pub(crate) fn view_ui_theme_import_modal(&self) -> Element<'_, Message> {
+        let name_input = text_input(t("theme_name"), &self.ui_theme_import_name)
+            .on_input(|v| Message::Settings(SettingsMessage::UiThemeImportNameChanged(v)))
+            .padding(10)
+            .size(13)
+            .style(crate::widgets::rounded_input_style);
+
+        let paste = container(
+            iced::widget::text_editor(&self.ui_theme_import_content)
+                .on_action(|v| Message::Settings(SettingsMessage::UiThemeImportContentAction(v)))
+                .padding(10)
+                .height(Length::Fixed(220.0))
+                .font(iced::Font::MONOSPACE)
+                .size(11),
+        );
+
+        let mut col = column![
+            text(t("theme_import_title")).size(18).color(OryxisColors::t().text_primary),
+            Space::new().height(6),
+            text(t("theme_import_ui_hint")).size(12).color(OryxisColors::t().text_muted),
+            Space::new().height(16),
+            text(t("theme_name")).size(12).color(OryxisColors::t().text_secondary),
+            Space::new().height(4),
+            name_input,
+            Space::new().height(12),
+            paste,
+        ]
+        .spacing(0);
+        col = col.push(Space::new().height(8));
+        col = col.push(crate::widgets::form_error(self.ui_theme_import_error.as_deref()));
+        col = col.push(Space::new().height(8));
+        col = col.push(
+            dir_row(vec![
+                crate::views::settings_themes::import_browse_button(
+                    Message::Settings(SettingsMessage::UiThemeImportBrowse),
+                ),
+                Space::new().width(Length::Fill).into(),
+                crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::UiThemeImportClose)),
+                Space::new().width(8).into(),
+                crate::widgets::form_save_button(
+                    t("theme_import"),
+                    Some(Message::Settings(SettingsMessage::UiThemeImportApply)),
+                ),
+            ])
+            .align_y(iced::Alignment::Center),
+        );
+
+        let card = container(col)
+            .padding(24)
+            .width(Length::Fixed(560.0))
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_primary)),
+                border: Border {
+                    radius: Radius::from(12.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+        // Bare card; `widgets::modal_overlay` (the caller) owns centering,
+        // the absorbing scrim, and the click-trap.
+        card.into()
     }
 }
 

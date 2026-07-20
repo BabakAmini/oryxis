@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Το θέμα εξήχθη",
         "theme_export_failed" => "Η εξαγωγή απέτυχε",
         "theme_import_browse" => "Φόρτωση από αρχείο",
+        "theme_import_ui_hint" => "Επικολλήστε ένα θέμα διεπαφής Oryxis (JSON) ή φορτώστε το αρχείο. Τα χρώματα ανοίγουν στον επεξεργαστή για έλεγχο και αποθήκευση.",
         "theme_import_failed" => "Η εισαγωγή απέτυχε",
         "theme_import_hint" => "Επικολλήστε σχήμα iTerm (.itermcolors), Windows Terminal (JSON) ή base16. Τα χρώματα ανοίγουν στον επεξεργαστή για έλεγχο και αποθήκευση.",
         "theme_imported_default" => "Εισηγμένο θέμα",

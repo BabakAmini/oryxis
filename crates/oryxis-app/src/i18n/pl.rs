@@ -153,6 +153,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Motyw wyeksportowany",
         "theme_export_failed" => "Eksport nie powiódł się",
         "theme_import_browse" => "Wczytaj z pliku",
+        "theme_import_ui_hint" => "Wklej motyw interfejsu Oryxis (JSON) lub wczytaj plik. Kolory otworzą się w edytorze do przejrzenia i zapisania.",
         "theme_import_failed" => "Import nie powiódł się",
         "theme_import_hint" => "Wklej schemat iTerm (.itermcolors), Windows Terminal (JSON) lub base16. Kolory otworzą się w edytorze do przeglądu i zapisu.",
         "theme_imported_default" => "Zaimportowany motyw",

@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "ส่งออกธีมแล้ว",
         "theme_export_failed" => "ส่งออกไม่สำเร็จ",
         "theme_import_browse" => "โหลดจากไฟล์",
+        "theme_import_ui_hint" => "วางธีมอินเทอร์เฟซของ Oryxis (JSON) หรือโหลดจากไฟล์ สีจะเปิดในตัวแก้ไขเพื่อตรวจสอบและบันทึก",
         "theme_import_failed" => "นำเข้าไม่สำเร็จ",
         "theme_import_hint" => "วางสคีมของ iTerm (.itermcolors), Windows Terminal (JSON) หรือ base16 สีจะเปิดในตัวแก้ไขให้ตรวจสอบและบันทึก",
         "theme_imported_default" => "ธีมที่นำเข้า",

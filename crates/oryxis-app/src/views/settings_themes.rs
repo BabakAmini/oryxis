@@ -270,42 +270,9 @@ impl Oryxis {
         col = col.push(Space::new().height(8));
         // "Load from file" fills the paste box from a scheme file picked
         // on disk; Apply then parses it like any pasted content.
-        let browse_btn = button(
-            dir_row(vec![
-                iced_fonts::lucide::folder_open()
-                    .size(13)
-                    .color(OryxisColors::t().text_secondary)
-                    .into(),
-                Space::new().width(6).into(),
-                text(t("theme_import_browse"))
-                    .size(12)
-                    .color(OryxisColors::t().text_secondary)
-                    .into(),
-            ])
-            .align_y(iced::Alignment::Center),
-        )
-        .on_press(Message::Settings(SettingsMessage::ThemeImportBrowse))
-        .padding(Padding { top: 7.0, right: 12.0, bottom: 7.0, left: 12.0 })
-        .style(|_, status| {
-            let bg = match status {
-                button::Status::Hovered | button::Status::Pressed => {
-                    OryxisColors::t().bg_hover
-                }
-                _ => Color::TRANSPARENT,
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border {
-                    radius: Radius::from(8.0),
-                    color: OryxisColors::t().border,
-                    width: 1.0,
-                },
-                ..Default::default()
-            }
-        });
         col = col.push(
             dir_row(vec![
-                browse_btn.into(),
+                import_browse_button(Message::Settings(SettingsMessage::ThemeImportBrowse)),
                 Space::new().width(Length::Fill).into(),
                 crate::widgets::form_cancel_button(Message::Settings(SettingsMessage::ThemeImportClose)),
                 Space::new().width(8).into(),
@@ -412,11 +379,22 @@ impl Oryxis {
         );
         let mut stack = iced::widget::Stack::new().push(card);
         if self.hovered_builtin_theme_card == Some(idx) {
-            let actions = container(theme_icon_btn(
-                iced_fonts::lucide::copy(),
-                Message::Settings(SettingsMessage::ThemeCloneBuiltin(idx)),
-                t("duplicate"),
-            ))
+            let actions = container(
+                dir_row(vec![
+                    theme_icon_btn(
+                        iced_fonts::lucide::copy(),
+                        Message::Settings(SettingsMessage::ThemeCloneBuiltin(idx)),
+                        t("duplicate"),
+                    ),
+                    Space::new().width(4).into(),
+                    theme_icon_btn(
+                        iced_fonts::lucide::upload(),
+                        Message::Settings(SettingsMessage::ThemeExportBuiltin(idx)),
+                        t("theme_export"),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
             .width(Length::Fill)
             .height(Length::Fill)
             .align_x(iced::alignment::Horizontal::Right)
@@ -450,6 +428,46 @@ pub(crate) fn terminal_theme_import_card<'a>() -> Element<'a, Message> {
         OryxisColors::t().text_secondary,
         Message::Settings(SettingsMessage::ThemeImportOpen),
     )
+}
+
+/// "Load from file" footer button shared by the theme import modals
+/// (terminal scheme + UI theme): opens a file picker whose contents land
+/// in the modal's paste box.
+pub(crate) fn import_browse_button<'a>(msg: Message) -> Element<'a, Message> {
+    button(
+        dir_row(vec![
+            iced_fonts::lucide::folder_open()
+                .size(13)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+            Space::new().width(6).into(),
+            text(t("theme_import_browse"))
+                .size(12)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+        ])
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(msg)
+    .padding(Padding { top: 7.0, right: 12.0, bottom: 7.0, left: 12.0 })
+    .style(|_, status| {
+        let bg = match status {
+            button::Status::Hovered | button::Status::Pressed => {
+                OryxisColors::t().bg_hover
+            }
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border {
+                radius: Radius::from(8.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        }
+    })
+    .into()
 }
 
 /// Small floating icon button used for the per-card actions (edit / clone /

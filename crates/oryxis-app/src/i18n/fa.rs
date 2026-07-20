@@ -158,6 +158,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "تم صادر شد",
         "theme_export_failed" => "صادر کردن ناموفق بود",
         "theme_import_browse" => "بارگیری از فایل",
+        "theme_import_ui_hint" => "یک تم رابط کاربری Oryxis (JSON) را جای‌گذاری کنید یا فایل را بارگیری کنید. رنگ‌ها برای بازبینی و ذخیره در ویرایشگر باز می‌شوند.",
         "theme_import_failed" => "وارد کردن ناموفق بود",
         "theme_import_hint" => "یک طرح iTerm (.itermcolors)، Windows Terminal (JSON) یا base16 را بچسبانید. رنگ‌ها در ویرایشگر برای بازبینی و ذخیره باز می‌شوند.",
         "theme_imported_default" => "تم وارد شده",

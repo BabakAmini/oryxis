@@ -157,6 +157,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Тема экспортирована",
         "theme_export_failed" => "Ошибка экспорта",
         "theme_import_browse" => "Загрузить из файла",
+        "theme_import_ui_hint" => "Вставьте тему интерфейса Oryxis (JSON) или загрузите файл. Цвета откроются в редакторе для проверки и сохранения.",
         "theme_import_failed" => "Ошибка импорта",
         "theme_import_hint" => "Вставьте схему iTerm (.itermcolors), Windows Terminal (JSON) или base16. Цвета откроются в редакторе для проверки и сохранения.",
         "theme_imported_default" => "Импортированная тема",

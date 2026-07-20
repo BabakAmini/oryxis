@@ -41,6 +41,10 @@ pub enum SettingsMessage {
     /// Export the custom theme at this index as a Windows Terminal
     /// scheme JSON file (save dialog).
     ThemeExport(usize),
+    /// Export the BUILT-IN terminal theme at this index (into
+    /// `TerminalTheme::ALL`) the same way, so presets double as format
+    /// templates for hand-made theme files.
+    ThemeExportBuiltin(usize),
     /// A theme export finished: `Ok` toasts success, `Err("cancelled")`
     /// stays silent, any other `Err` toasts the failure. Shared by the
     /// terminal and UI theme exports.
@@ -79,8 +83,19 @@ pub enum SettingsMessage {
     /// Export the custom UI theme at this index as an Oryxis UI theme
     /// JSON file (save dialog). Completion rides `ThemeExportFinished`.
     UiThemeExport(usize),
-    /// Pick an Oryxis UI theme JSON from disk; parsed straight into the
-    /// editor (no paste modal for the UI format).
+    /// Export the BUILT-IN app theme at this index (into `AppTheme::ALL`)
+    /// the same way.
+    UiThemeExportBuiltin(usize),
+    /// Import-UI-theme modal (paste the Oryxis UI theme JSON), mirroring
+    /// the terminal scheme import modal.
+    UiThemeImportOpen,
+    UiThemeImportClose,
+    UiThemeImportContentAction(text_editor::Action),
+    UiThemeImportNameChanged(String),
+    /// Parse the pasted UI theme; on success open it in the editor for
+    /// review (a typed name overrides the file's own).
+    UiThemeImportApply,
+    /// Pick an Oryxis UI theme JSON from disk and load it into the modal.
     UiThemeImportBrowse,
     /// File contents arrived from the UI-theme browse dialog.
     UiThemeImportFileLoaded(Result<String, String>),

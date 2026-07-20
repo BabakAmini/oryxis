@@ -55,6 +55,7 @@ pub(crate) enum Modal {
     ThemeEditor,
     ThemeImport,
     UiThemeEditor,
+    UiThemeImport,
     ShareDialog,
     CloudImportConfirm,
     /// Shared error / single-action confirm dialog (`error_dialog`),
@@ -103,6 +104,7 @@ impl Modal {
         Modal::ThemeEditor,
         Modal::ThemeImport,
         Modal::UiThemeEditor,
+        Modal::UiThemeImport,
         Modal::ShareDialog,
         Modal::CloudImportConfirm,
         Modal::ErrorDialog,
@@ -147,6 +149,7 @@ impl Modal {
         Modal::ThemeEditor,
         Modal::UiThemeEditor,
         Modal::ThemeImport,
+        Modal::UiThemeImport,
         Modal::ShareDialog,
         Modal::CloudImportConfirm,
         Modal::SftpPicker,
@@ -177,6 +180,7 @@ impl Modal {
             | Modal::ThemeEditor
             | Modal::ThemeImport
             | Modal::UiThemeEditor
+            | Modal::UiThemeImport
             | Modal::ShareDialog
             | Modal::CloudImportConfirm
             | Modal::ErrorDialog
@@ -220,6 +224,7 @@ mod tests {
                 | Modal::ThemeEditor
                 | Modal::ThemeImport
                 | Modal::UiThemeEditor
+                | Modal::UiThemeImport
                 | Modal::ShareDialog
                 | Modal::CloudImportConfirm
                 | Modal::ErrorDialog
@@ -234,7 +239,7 @@ mod tests {
                 | Modal::CertificateViewer => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 29, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 30, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

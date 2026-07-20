@@ -153,6 +153,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "Tema dışa aktarıldı",
         "theme_export_failed" => "Dışa aktarma başarısız",
         "theme_import_browse" => "Dosyadan yükle",
+        "theme_import_ui_hint" => "Bir Oryxis arayüz temasını (JSON) yapıştırın veya dosyadan yükleyin. Renkler gözden geçirip kaydetmeniz için düzenleyicide açılır.",
         "theme_import_failed" => "İçe aktarma başarısız",
         "theme_import_hint" => "Bir iTerm (.itermcolors), Windows Terminal (JSON) veya base16 şeması yapıştırın. Renkler gözden geçirip kaydetmeniz için düzenleyicide açılır.",
         "theme_imported_default" => "İçe aktarılan tema",

@@ -532,6 +532,19 @@ impl Oryxis {
             );
         }
 
+        // Import-a-UI-theme modal (Settings -> Interface "Import" card).
+        if self.show_ui_theme_import {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.view_ui_theme_import_modal(),
+                    Some(Message::Settings(SettingsMessage::UiThemeImportClose)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Note: the update modal is rendered at the top-level `view()`
         // dispatcher (see `Oryxis::view`) so it overlays the lock screen
         // too. Don't re-render it here.

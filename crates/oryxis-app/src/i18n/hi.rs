@@ -156,6 +156,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "थीम एक्सपोर्ट हो गई",
         "theme_export_failed" => "एक्सपोर्ट विफल",
         "theme_import_browse" => "फ़ाइल से लोड करें",
+        "theme_import_ui_hint" => "Oryxis का UI थीम (JSON) पेस्ट करें या फ़ाइल से लोड करें। रंग समीक्षा और सेव करने के लिए एडिटर में खुलेंगे।",
         "theme_import_failed" => "इंपोर्ट विफल",
         "theme_import_hint" => "iTerm (.itermcolors), Windows Terminal (JSON) या base16 स्कीम पेस्ट करें। रंग समीक्षा और सेव के लिए एडिटर में खुलते हैं।",
         "theme_imported_default" => "इंपोर्ट की गई थीम",

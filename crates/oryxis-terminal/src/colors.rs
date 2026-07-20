@@ -12,6 +12,8 @@ pub enum TerminalTheme {
     Dracula,
     Monokai,
     HackerGreen,
+    OneDark,
+    GruvboxDark,
     Nord,
     NordLight,
     SolarizedDark,
@@ -29,6 +31,8 @@ impl TerminalTheme {
         Self::Dracula,
         Self::Monokai,
         Self::HackerGreen,
+        Self::OneDark,
+        Self::GruvboxDark,
         Self::Nord,
         Self::NordLight,
         Self::SolarizedDark,
@@ -46,6 +50,8 @@ impl TerminalTheme {
             Self::Dracula => "Dracula",
             Self::Monokai => "Monokai",
             Self::HackerGreen => "Hacker Green",
+            Self::OneDark => "One Dark",
+            Self::GruvboxDark => "Gruvbox Dark",
             Self::Nord => "Nord",
             Self::NordLight => "Nord Light",
             Self::SolarizedDark => "Solarized Dark",
@@ -64,6 +70,8 @@ impl TerminalTheme {
             Self::Dracula => TerminalPalette::dracula(),
             Self::Monokai => TerminalPalette::monokai(),
             Self::HackerGreen => TerminalPalette::hacker_green(),
+            Self::OneDark => TerminalPalette::one_dark(),
+            Self::GruvboxDark => TerminalPalette::gruvbox_dark(),
             Self::Nord => TerminalPalette::nord(),
             Self::NordLight => TerminalPalette::nord_light(),
             Self::SolarizedDark => TerminalPalette::solarized_dark(),
@@ -166,6 +174,63 @@ impl TerminalPalette {
                 Color::from_rgb8(255, 146, 213),  // Bright Magenta
                 Color::from_rgb8(164, 255, 255),  // Bright Cyan
                 Color::from_rgb8(255, 255, 255),  // Bright White
+            ],
+        }
+    }
+
+    /// One Dark, the Atom editor classic (canonical terminal port from
+    /// iTerm2-Color-Schemes; bright slots repeat the base hues, as
+    /// upstream does).
+    pub fn one_dark() -> Self {
+        Self {
+            foreground: Color::from_rgb8(171, 178, 191),  // #abb2bf
+            background: Color::from_rgb8(40, 44, 52),     // #282c34
+            cursor: Color::from_rgb8(82, 139, 255),       // #528bff
+            ansi: [
+                Color::from_rgb8(30, 33, 39),     // Black
+                Color::from_rgb8(224, 108, 117),  // Red
+                Color::from_rgb8(152, 195, 121),  // Green
+                Color::from_rgb8(209, 154, 102),  // Yellow (orange)
+                Color::from_rgb8(97, 175, 239),   // Blue
+                Color::from_rgb8(198, 120, 221),  // Magenta
+                Color::from_rgb8(86, 182, 194),   // Cyan
+                Color::from_rgb8(171, 178, 191),  // White
+                Color::from_rgb8(92, 99, 112),    // Bright Black
+                Color::from_rgb8(224, 108, 117),  // Bright Red
+                Color::from_rgb8(152, 195, 121),  // Bright Green
+                Color::from_rgb8(229, 192, 123),  // Bright Yellow
+                Color::from_rgb8(97, 175, 239),   // Bright Blue
+                Color::from_rgb8(198, 120, 221),  // Bright Magenta
+                Color::from_rgb8(86, 182, 194),   // Bright Cyan
+                Color::from_rgb8(255, 255, 255),  // Bright White
+            ],
+        }
+    }
+
+    /// Gruvbox Dark, Pavel Pertsev's retro-warm classic (canonical
+    /// medium-contrast palette).
+    pub fn gruvbox_dark() -> Self {
+        Self {
+            foreground: Color::from_rgb8(235, 219, 178),  // #ebdbb2
+            background: Color::from_rgb8(40, 40, 40),     // #282828
+            cursor: Color::from_rgb8(235, 219, 178),
+            ansi: [
+                Color::from_rgb8(40, 40, 40),     // Black
+                Color::from_rgb8(204, 36, 29),    // Red
+                Color::from_rgb8(152, 151, 26),   // Green
+                Color::from_rgb8(215, 153, 33),   // Yellow
+                Color::from_rgb8(69, 133, 136),   // Blue
+                Color::from_rgb8(177, 98, 134),   // Magenta
+                Color::from_rgb8(104, 157, 106),  // Cyan
+                Color::from_rgb8(168, 153, 132),  // White
+                Color::from_rgb8(146, 131, 116),  // Bright Black
+                Color::from_rgb8(251, 73, 52),    // Bright Red
+                Color::from_rgb8(184, 187, 38),   // Bright Green
+                Color::from_rgb8(250, 189, 47),   // Bright Yellow
+                Color::from_rgb8(131, 165, 152),  // Bright Blue
+                Color::from_rgb8(211, 134, 155),  // Bright Magenta
+                Color::from_rgb8(142, 192, 124),  // Bright Cyan
+                Color::from_rgb8(235, 219, 178),  // Bright White
             ],
         }
     }

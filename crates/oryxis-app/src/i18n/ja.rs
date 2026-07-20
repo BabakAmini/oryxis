@@ -157,6 +157,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "テーマをエクスポートしました",
         "theme_export_failed" => "エクスポートに失敗しました",
         "theme_import_browse" => "ファイルから読み込む",
+        "theme_import_ui_hint" => "Oryxis の UI テーマ（JSON）を貼り付けるか、ファイルから読み込みます。色はエディタで開き、確認して保存できます。",
         "theme_import_failed" => "インポートに失敗しました",
         "theme_import_hint" => "iTerm (.itermcolors)、Windows Terminal (JSON)、または base16 のスキームを貼り付けてください。色はエディタで開いて確認・保存できます。",
         "theme_imported_default" => "インポートしたテーマ",
