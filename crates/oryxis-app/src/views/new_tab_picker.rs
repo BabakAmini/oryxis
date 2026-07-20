@@ -859,7 +859,7 @@ fn resource_row<'a>(
             status_pill_widget(status_upper.unwrap(), OryxisColors::t().error)
         }
         Some(other) => status_pill_widget(other, OryxisColors::t().text_muted),
-        None => Space::new().width(0).into(),
+        None => Space::new().into(),
     };
 
     button(

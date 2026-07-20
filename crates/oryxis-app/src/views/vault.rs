@@ -146,7 +146,7 @@ impl Oryxis {
                 .align_x(iced::Alignment::Center)
                 .into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
             column![input, Space::new().height(12), btn, biometric_btn]
                 .align_x(iced::Alignment::Center)
@@ -156,7 +156,7 @@ impl Oryxis {
         let error = if let Some(err) = &self.vault_ui.error {
             Element::from(text(err.clone()).size(13).color(OryxisColors::t().error))
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         let destroy_section: Element<'_, Message> = if self.vault_ui.destroy_confirm {

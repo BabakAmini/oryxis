@@ -99,7 +99,7 @@ impl Oryxis {
         } else {
             // Title dropped (redundant with the section nav); the search
             // field fills this slot in the toolbar instead.
-            Space::new().width(0).into()
+            Space::new().into()
         };
 
         // "+ Host [▾]" split button, primary half opens the manual
@@ -358,7 +358,7 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
             .into()
         } else {
-            Space::new().width(0).into()
+            Space::new().into()
         };
 
         // Grid/List toggle, hidden once the window is so narrow that the
@@ -386,7 +386,7 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
             .into()
         } else {
-            Space::new().width(0).into()
+            Space::new().into()
         };
 
         // ── Responsive collapse ──

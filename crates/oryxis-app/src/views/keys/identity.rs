@@ -176,7 +176,7 @@ impl Oryxis {
                 column(items).into()
             }
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Shared form footer: disabled Save while the label is empty

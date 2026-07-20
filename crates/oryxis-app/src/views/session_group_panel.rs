@@ -183,7 +183,7 @@ impl Oryxis {
 
         // ── Section: Panes (one pane shown at a time; chevrons step) ──
         let panes_section: Element<'_, Message> = if form.pane_rows.is_empty() {
-            Space::new().height(0).into()
+            Space::new().into()
         } else {
             let total = form.pane_rows.len();
             let cur = form.current_pane.min(total - 1);
@@ -290,7 +290,7 @@ impl Oryxis {
             .padding(Padding { top: 4.0, right: 16.0, bottom: 4.0, left: 16.0 })
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // ── Bottom actions ──

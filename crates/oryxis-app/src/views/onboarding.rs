@@ -203,7 +203,7 @@ impl Oryxis {
             ]
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Offer the biometric convenience layer at password-creation time
@@ -221,7 +221,7 @@ impl Oryxis {
             ]
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         column![

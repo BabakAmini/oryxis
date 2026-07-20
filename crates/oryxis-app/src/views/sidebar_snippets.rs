@@ -213,7 +213,7 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 12.0, bottom: 8.0, left: 12.0 })
                 .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Sort then filter, carrying original indices so Run/Paste/Edit
@@ -560,7 +560,7 @@ impl Oryxis {
         let error: Element<'_, Message> = if let Some(err) = &self.snippet_error {
             text(err.clone()).size(11).color(c.error).into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         let save = button(

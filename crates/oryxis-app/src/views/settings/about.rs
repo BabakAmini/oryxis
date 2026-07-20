@@ -156,7 +156,7 @@ impl Oryxis {
                     .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 })
                     .into()
             }
-            None => Space::new().height(0).into(),
+            None => Space::new().into(),
         };
         // Bleeding-edge warning, only while the nightly channel is
         // selected, so stable users don't see scary copy.
@@ -170,7 +170,7 @@ impl Oryxis {
                 .padding(Padding { top: 4.0, right: 0.0, bottom: 0.0, left: 0.0 })
                 .into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
         let auto_update_section = panel_section(column![
             auto_update_toggle,

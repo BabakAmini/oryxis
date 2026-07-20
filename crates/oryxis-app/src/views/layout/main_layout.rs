@@ -46,7 +46,7 @@ impl Oryxis {
         // the titlebar contract moves into the strip's header row.
         let side_hidden_bar = side_tabs && self.setting_side_hide_top_bar;
         let tab_bar: Element<'_, Message> = if immersive || side_hidden_bar {
-            Space::new().height(0).into()
+            Space::new().into()
         } else if bottom_tabs || side_tabs {
             self.view_top_chrome_bar()
         } else {
@@ -85,7 +85,7 @@ impl Oryxis {
             None => (1.0_f32, OryxisColors::t().border),
         };
         let h_separator: Element<'_, Message> = if immersive {
-            Space::new().height(0).into()
+            Space::new().into()
         } else {
             container(Space::new().height(hair_height))
                 .width(Length::Fill)

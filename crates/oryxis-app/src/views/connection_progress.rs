@@ -837,7 +837,7 @@ impl Oryxis {
         failed: bool,
     ) -> Element<'_, Message> {
         if !failed {
-            return Space::new().height(0).into();
+            return Space::new().into();
         }
 
         // Whole-log payload for the clipboard: host header + every line.

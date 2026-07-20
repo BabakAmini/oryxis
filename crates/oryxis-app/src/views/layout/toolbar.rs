@@ -266,7 +266,7 @@ impl Oryxis {
                     self.proxy_search.as_str(),
                     |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxySearchChanged(v)),
                 ),
-                _ => return Space::new().width(0).height(0).into(),
+                _ => return Space::new().into(),
             };
         let id: &'static str = match self.active_view {
             View::Dashboard => "search-dashboard",

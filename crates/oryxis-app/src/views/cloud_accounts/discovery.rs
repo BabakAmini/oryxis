@@ -138,7 +138,7 @@ impl Oryxis {
         // Body content varies by state, keep each branch self-
         // contained so the layout above stays readable.
         let body: Element<'_, Message> = match &self.cloud_discover_state {
-            CloudDiscoverState::Idle => Space::new().height(0).into(),
+            CloudDiscoverState::Idle => Space::new().into(),
             CloudDiscoverState::Running => container(
                 text(t("cloud_discover_running"))
                     .size(13)

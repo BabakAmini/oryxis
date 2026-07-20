@@ -105,7 +105,7 @@ impl Oryxis {
             container(Element::from(text(err.clone()).size(12).color(OryxisColors::t().error)))
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 }).into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         if self.port_forward_rules.is_empty() {
@@ -333,7 +333,7 @@ impl Oryxis {
         // Inline search in Classic mode (Workspace puts it on the sub-nav).
         // Search now lives in the toolbar (`vault_search_field`); the
         // legacy below-toolbar search bar collapses to nothing.
-        let search_bar: Element<'_, Message> = Space::new().height(0).into();
+        let search_bar: Element<'_, Message> = Space::new().into();
 
         // Side panel hoisted to `view_main` (active_side_panel).
         column![toolbar, search_bar, status, grid]

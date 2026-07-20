@@ -492,7 +492,7 @@ impl Oryxis {
 
         // Search now lives in the toolbar (`vault_search_field`); the
         // legacy below-toolbar search bar collapses to nothing.
-        let search_bar: Element<'_, Message> = Space::new().height(0).into();
+        let search_bar: Element<'_, Message> = Space::new().into();
 
         column![toolbar, search_bar, list]
             .width(Length::Fill)

@@ -93,7 +93,7 @@ impl Oryxis {
             .padding(Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 0.0 })
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Editable key content (text_editor = multi-line)
@@ -153,7 +153,7 @@ impl Oryxis {
             .align_x(dir_align_x())
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Editable public-key line (B2.1, Termius parity): empty derives

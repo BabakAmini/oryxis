@@ -88,7 +88,7 @@ impl Oryxis {
         let error: Element<'_, Message> = if let Some(err) = &self.vault_ui.password_error {
             text(err.clone()).size(12).color(OryxisColors::t().error).into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         let update_btn = if self.vault_ui.calibrating {
             // E1: KDF calibration in flight; disable + show progress.
@@ -208,12 +208,12 @@ impl Oryxis {
                 ]
                 .into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
             let error: Element<'_, Message> = if let Some(err) = &self.vault_ui.password_error {
                 text(err.clone()).size(12).color(OryxisColors::t().error).into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
             column![
                 Space::new().height(8),
@@ -235,7 +235,7 @@ impl Oryxis {
             let error: Element<'_, Message> = if let Some(err) = &self.vault_ui.password_error {
                 text(err.clone()).size(12).color(OryxisColors::t().error).into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
             if self.vault_ui.confirm_remove_password {
                 // Confirm prompt armed by the header switch. The header
@@ -346,7 +346,7 @@ impl Oryxis {
             });
             column![Space::new().height(12), card].into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         }
     }
 
@@ -826,7 +826,7 @@ impl Oryxis {
                     ]).align_y(iced::Alignment::Center).into(),
                 )
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
             let confirm_btn = self.settings_nav_slot(
                 crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportConfirm)),

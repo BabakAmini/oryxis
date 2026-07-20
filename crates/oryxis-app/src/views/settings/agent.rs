@@ -75,7 +75,7 @@ impl Oryxis {
                     None => column![Space::new().height(12), toggle].into(),
                 }
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
 
             let copy_btn = |label_key: &'static str, msg: Message| -> Element<'_, Message> {

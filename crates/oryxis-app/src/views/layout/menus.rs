@@ -497,7 +497,7 @@ impl Oryxis {
             // SFTP is a tab now: the menu opens a fresh SFTP browser tab.
             item("sftp", Message::Sftp(SftpMessage::NewSftpTab), hk_sftp)
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         // Lock Vault only when a master password is set; without one,
         // locking has nothing to protect and the unlock screen has no
@@ -505,7 +505,7 @@ impl Oryxis {
         let lock_item: Element<'_, Message> = if self.vault_ui.has_user_password {
             item("lock_vault", Message::Vault(VaultMessage::LockVault), None)
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         // "VAULT" section header + indented children: the flat list
         // read as if Hosts/Keychain/... sat outside the Vault (issue
@@ -574,7 +574,7 @@ impl Oryxis {
                     self.hotkey_label_for_vault_slot(5)
                 ))
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             },
             indent(item(
                 "cloud_accounts",

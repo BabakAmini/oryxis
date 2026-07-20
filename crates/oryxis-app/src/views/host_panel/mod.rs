@@ -33,7 +33,7 @@ mod terminal_settings;
 /// because `panel_nav_slot` records at build time an ungated build would
 /// record invisible Tab targets. Each gated builder resolves to this.
 fn empty<'a>() -> Element<'a, Message> {
-    Space::new().height(0).into()
+    Space::new().into()
 }
 
 impl Oryxis {
@@ -127,24 +127,30 @@ impl Oryxis {
         // toggles. Terminal protocols only (SSH / Telnet / Serial); an
         // RDP/VNC host drives no terminal pane, so it drops out.
         let advanced_terminal: Element<'_, Message> = if is_rd {
-            Space::new().height(0).into()
+            Space::new().into()
         } else {
             self.hp_advanced_terminal_items()
         };
         // ── Error ──
+        // The gap toward the actions row lives in this container's own
+        // bottom padding (not a `.spacing` on the column below): the
+        // no-error placeholder is a present Shrink Space (constant tree
+        // shape, see main_layout's slot skeleton note), and a column
+        // spacing would open a stray 8px band above the buttons when
+        // there is no error to show.
         let panel_error: Element<'_, Message> = if let Some(err) = &self.host_panel_error {
             container(Element::from(text(err.clone()).size(11).color(OryxisColors::t().error)))
-                .padding(Padding { top: 4.0, right: 16.0, bottom: 4.0, left: 16.0 })
+                .padding(Padding { top: 4.0, right: 16.0, bottom: 12.0, left: 16.0 })
                 .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         let actions_row = self.hp_actions_row(has_address);
         // The error must live OUTSIDE the scrollable so it sits above
         // the Save button at the bottom of the panel, otherwise long
         // forms hide it below the fold and the user clicks Save again
         // wondering why nothing happens.
-        let bottom = column![panel_error, actions_row].spacing(8);
+        let bottom = column![panel_error, actions_row];
 
         // ── Compose one card per semantic group ──
         // Host (label / parent / connection target), SSH (everything

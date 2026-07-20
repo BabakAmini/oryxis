@@ -58,7 +58,7 @@ impl Oryxis {
             .collect::<Vec<_>>()
             .join("\n");
         let notes: Element<'_, Message> = if notes_preview.trim().is_empty() {
-            Space::new().height(0).into()
+            Space::new().into()
         } else {
             container(
                 scrollable(
@@ -161,7 +161,7 @@ impl Oryxis {
             .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 })
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         let body = container(

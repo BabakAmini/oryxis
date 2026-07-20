@@ -238,7 +238,7 @@ impl Oryxis {
             search_slot
         };
         let trailing: Element<'_, Message> = if self.proxy_identity_form.visible {
-            Space::new().width(0).height(Length::Fixed(32.0)).into()
+            Space::new().height(Length::Fixed(32.0)).into()
         } else if buttons_overflow {
             self.keynav_toolbar_slot(
                 crate::keynav::ToolbarItem::Overflow,

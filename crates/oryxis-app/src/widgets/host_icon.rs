@@ -75,7 +75,7 @@ pub(crate) fn host_icon<'a>(
                 _ => 0.0,
             };
             let inner: Element<'a, Message> = glyph
-                .unwrap_or_else(|| Space::new().width(0).height(0).into());
+                .unwrap_or_else(|| Space::new().into());
             container(inner)
                 .center_x(Length::Fixed(size))
                 .center_y(Length::Fixed(size))
@@ -88,7 +88,7 @@ pub(crate) fn host_icon<'a>(
         }
         HostIconStyle::Outline => {
             let inner: Element<'a, Message> = glyph
-                .unwrap_or_else(|| Space::new().width(0).height(0).into());
+                .unwrap_or_else(|| Space::new().into());
             container(inner)
                 .center_x(Length::Fixed(size))
                 .center_y(Length::Fixed(size))

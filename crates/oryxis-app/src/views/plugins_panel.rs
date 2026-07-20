@@ -316,7 +316,7 @@ impl Oryxis {
     fn agent_server_toggle(&self) -> Element<'_, Message> {
         // No socket path means no listener on this platform: hide it.
         if crate::agent_server::listener_socket_display().is_none() {
-            return Space::new().height(0).into();
+            return Space::new().into();
         }
 
         let toggle = self.settings_nav_slot(

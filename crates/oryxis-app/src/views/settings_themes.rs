@@ -216,7 +216,7 @@ impl Oryxis {
         let x = anchor.x.min((self.window_size.width - PW).max(0.0)).max(0.0);
         let y = anchor.y.min((self.window_size.height - PH).max(0.0)).max(0.0);
         let positioned = column![row![Space::new().width(x), card_trap]]
-            .push(Space::new().height(0));
+            .push(Space::new());
         let positioned = column![Space::new().height(y), positioned];
 
         let pop_backdrop: Element<'_, Message> = MouseArea::new(

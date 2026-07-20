@@ -105,7 +105,7 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted)
                 .into(),
-            _ => Space::new().width(0).into(),
+            _ => Space::new().into(),
         };
 
         let search_header = container(
@@ -189,7 +189,7 @@ impl Oryxis {
                 ..Default::default()
             })
             .into(),
-            _ => Space::new().width(0).into(),
+            _ => Space::new().into(),
         };
 
         let content = dir_row(vec![

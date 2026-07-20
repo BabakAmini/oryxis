@@ -169,7 +169,7 @@ impl Oryxis {
             ]
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // Content-heuristic warnings (paste_guard): one line per
@@ -234,7 +234,7 @@ impl Oryxis {
                 ]
                 .into()
             })
-            .unwrap_or_else(|| Space::new().height(0).into());
+            .unwrap_or_else(|| Space::new().into());
 
         let dialog = container(
             column![

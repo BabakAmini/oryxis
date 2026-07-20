@@ -49,7 +49,7 @@ impl Oryxis {
             })
             .into()
         } else {
-            Space::new().width(0).into()
+            Space::new().into()
         };
 
         // Privacy reveal toggle, shown only when the global Privacy Mode is on
@@ -60,7 +60,7 @@ impl Oryxis {
         self.keynav_toolbar_reset();
         let mut toolbar_items: Vec<Element<'_, Message>> = vec![
             // Title dropped (the nav shows the active section).
-            Space::new().width(0).into(),
+            Space::new().into(),
             Space::new().width(Length::Fill).into(),
         ];
         if self.privacy_global_active() {

@@ -92,7 +92,7 @@ impl Oryxis {
             ]
             .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
         let dialog_title = if self.share.group_mode {
             crate::i18n::t("export_hosts")
@@ -148,7 +148,7 @@ impl Oryxis {
                     };
                     Element::from(column![Space::new().height(8), text(msg).size(12).color(color)])
                 } else {
-                    Element::from(Space::new().height(0))
+                    Element::from(Space::new())
                 },
             ]
             .padding(24),

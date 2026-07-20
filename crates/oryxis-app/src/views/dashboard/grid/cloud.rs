@@ -277,7 +277,7 @@ impl Oryxis {
                                 status_upper.clone().unwrap(),
                                 OryxisColors::t().text_muted,
                             ),
-                            None => Space::new().width(0).into(),
+                            None => Space::new().into(),
                         };
 
                         // Only RUNNING tasks can be exec'd into. A

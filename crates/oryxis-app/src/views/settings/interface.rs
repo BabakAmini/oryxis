@@ -467,7 +467,7 @@ impl Oryxis {
                 ]
                 .into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
         let rendering_section = panel_section(column![
             self.nav_pick_row(

@@ -209,7 +209,7 @@ impl Oryxis {
 
             // Dependent sub-picker, only for RSA / ECDSA.
             let sub_picker: Element<'_, Message> = match form.algo {
-                KeyGenAlgo::Ed25519 => Space::new().height(0).into(),
+                KeyGenAlgo::Ed25519 => Space::new().into(),
                 KeyGenAlgo::Rsa => column![
                     Space::new().height(12),
                     crate::widgets::panel_field(
@@ -287,7 +287,7 @@ impl Oryxis {
                 ]
                 .into()
             } else {
-                Space::new().height(0).into()
+                Space::new().into()
             };
 
             column![
@@ -310,7 +310,7 @@ impl Oryxis {
         let panel_error = crate::widgets::form_error(form.error.as_deref());
         let footer = if form.result.is_some() {
             crate::widgets::form_footer(
-                Space::new().width(0).into(),
+                Space::new().into(),
                 self.panel_nav_slot(
                     crate::keynav::RowAction::activate(Message::Keys(KeysMessage::HideKeyGeneratePanel)),
                     6.0,

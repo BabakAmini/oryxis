@@ -274,7 +274,7 @@ impl Oryxis {
                 btn.into(),
             )
         } else {
-            Space::new().width(0).into()
+            Space::new().into()
         };
 
         dir_row(vec![

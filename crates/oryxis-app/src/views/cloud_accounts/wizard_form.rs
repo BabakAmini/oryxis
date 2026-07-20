@@ -273,7 +273,7 @@ impl Oryxis {
                 })
                 .collect();
             let chips_block: Element<'_, Message> = if chips.is_empty() {
-                Space::new().height(0).into()
+                Space::new().into()
             } else {
                 // Plain Row, not dir_row, the chips are content-flow not
                 // structural layout and don't need to mirror under RTL.
@@ -602,7 +602,7 @@ impl Oryxis {
 
         // ── Test credentials button + result line ──
         let test_status: Element<'_, Message> = match &self.cloud_form.test_state {
-            CloudTestState::Idle => Space::new().height(0).into(),
+            CloudTestState::Idle => Space::new().into(),
             CloudTestState::Running => text(t("cloud_test_running"))
                 .size(11)
                 .color(OryxisColors::t().text_muted)

@@ -58,7 +58,7 @@ pub fn distribute_card_grid<'a, M: 'a>(
     use iced::widget::column;
 
     if cards.is_empty() {
-        return Space::new().height(0).into();
+        return Space::new().into();
     }
     let cols = cols.max(1);
     let mut grid_rows: Vec<Element<'a, M>> = Vec::new();

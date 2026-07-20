@@ -160,7 +160,7 @@ impl Oryxis {
         // matching the host-grid / snippets / history treatment.
         // Search now lives in the toolbar (`vault_search_field`); the
         // legacy below-toolbar search bar collapses to nothing.
-        let search_bar: Element<'_, Message> = Space::new().height(0).into();
+        let search_bar: Element<'_, Message> = Space::new().into();
 
         // ── Status message ──
         // While the import / identity sidebars are open, the panel surfaces
@@ -169,7 +169,7 @@ impl Oryxis {
         let panel_open =
             self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel;
         let status: Element<'_, Message> = if panel_open {
-            Space::new().height(0).into()
+            Space::new().into()
         } else if let Some(err) = &self.key_error {
             container(Element::from(text(err.clone()).size(12).color(OryxisColors::t().error)))
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 })
@@ -179,7 +179,7 @@ impl Oryxis {
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 })
                 .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         // ── Keys grid ──

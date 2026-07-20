@@ -89,7 +89,7 @@ pub(crate) fn form_error<'a>(error: Option<&'a str>) -> Element<'a, Message> {
         )
         .padding(Padding { top: 0.0, right: 16.0, bottom: 8.0, left: 16.0 })
         .into(),
-        None => Space::new().height(0).into(),
+        None => Space::new().into(),
     }
 }
 

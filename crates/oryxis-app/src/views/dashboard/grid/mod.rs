@@ -322,13 +322,13 @@ impl Oryxis {
         // The host search lives in the dashboard toolbar
         // (`vault_search_field`) now, so the legacy full-width bar here
         // collapses to a zero-height spacer.
-        let search_bar: Element<'_, Message> = Space::new().height(0).into();
+        let search_bar: Element<'_, Message> = Space::new().into();
 
         // The host editor's validation error renders inside the
         // editor panel itself (`host_panel::view_host_panel`) right
         // above the Save button. Slot reserved for future list-level
         // statuses.
-        let status: Element<'_, Message> = Space::new().height(0).into();
+        let status: Element<'_, Message> = Space::new().into();
         let at_root = self.active_group.is_none();
         let flatten = self.flatten_hosts && at_root;
 
@@ -582,7 +582,7 @@ impl Oryxis {
                 .width(Length::Fill)
                 .into()
         } else {
-            Space::new().height(0).into()
+            Space::new().into()
         };
 
         let main_content = column![toolbar, search_bar, filter_chip, status, grid]
