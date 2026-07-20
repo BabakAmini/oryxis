@@ -1226,6 +1226,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "Sorgu başarısız",
         "monitor_status_bar" => "Durum çubuğunda sunucu verileri",
         "monitor_status_bar_desc" => "İzlenen sunucunun CPU, bellek, ağ ve en dolu diskini gösterir. O sunucuda izlemenin açık olması gerekir.",
+        "monitor_ports" => "Dinlenen bağlantı noktaları",
+        "monitor_forward_port" => "Bu bağlantı noktasını yerele yönlendir",
         "sftp_no_editor_configured" => "Varsayılan düzenleyici ayarlanmadı. Ayarlar > SFTP içinde belirleyin.",
         "sftp_edit_prompt_title" => "Dosya değiştirildi",
         "sftp_edit_prompt_text" => "'{file}' dosyası değiştirildi. {host} üzerindeki uzak dosya değiştirilsin mi?",

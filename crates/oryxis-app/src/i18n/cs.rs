@@ -1232,6 +1232,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "Sondování se nezdařilo",
         "monitor_status_bar" => "Vytížení hostitele ve stavovém řádku",
         "monitor_status_bar_desc" => "Zobrazí CPU, paměť, síť a nejplnější disk monitorovaného hostitele. Vyžaduje zapnuté monitorování na daném hostiteli.",
+        "monitor_ports" => "Naslouchající porty",
+        "monitor_forward_port" => "Přesměrovat tento port lokálně",
         "sftp_no_editor_configured" => "Není nastaven výchozí editor. Nastavte jej v Nastavení > SFTP.",
         "sftp_edit_prompt_title" => "Soubor změněn",
         "sftp_edit_prompt_text" => "Soubor '{file}' byl změněn. Nahradit vzdálený soubor na {host}?",

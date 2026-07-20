@@ -68,6 +68,42 @@ impl Oryxis {
                 }
                 Task::none()
             }
+            MonitorMessage::TogglePorts => {
+                self.monitor_ports_open = !self.monitor_ports_open;
+                Task::none()
+            }
+            MonitorMessage::ForwardPort(conn_id, port) => {
+                // Prefill a local forward onto the same port and hand the
+                // user the editor: `-L 127.0.0.1:<port>` reaching
+                // `127.0.0.1:<port>` FROM THE SERVER, which is what a
+                // service listening on the host's loopback needs.
+                let label = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == conn_id)
+                    .map(|c| format!("{} :{port}", c.label))
+                    .unwrap_or_else(|| format!(":{port}"));
+                self.show_port_forward_panel = true;
+                self.port_forward_form.editing_id = None;
+                self.port_forward_form.label = label;
+                self.port_forward_form.kind =
+                    oryxis_core::models::port_forward_rule::ForwardKind::Local;
+                self.port_forward_form.host_id = Some(conn_id);
+                self.port_forward_form.listen_host = "127.0.0.1".into();
+                self.port_forward_form.listen_port = port.to_string();
+                self.port_forward_form.target_host = "127.0.0.1".into();
+                self.port_forward_form.target_port = port.to_string();
+                self.port_forward_form.auto_start = false;
+                self.port_forward_form.error = None;
+                // The editor lives in the Port Forwarding view, so the
+                // click navigates there: the rule is reviewed and saved
+                // deliberately, never created silently.
+                Task::done(Message::Navigation(
+                    crate::app::NavigationMessage::ChangeView(
+                        crate::state::View::PortForwarding,
+                    ),
+                ))
+            }
         }
     }
 

@@ -1133,6 +1133,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "Sondaggio non riuscito",
         "monitor_status_bar" => "Risorse dell'host nella barra di stato",
         "monitor_status_bar_desc" => "Mostra CPU, memoria, rete e il disco più pieno dell'host monitorato. Richiede il monitoraggio attivo su quell'host.",
+        "monitor_ports" => "Porte in ascolto",
+        "monitor_forward_port" => "Inoltra questa porta in locale",
         "sftp_no_editor_configured" => "Nessun editor predefinito configurato. Impostane uno in Impostazioni > SFTP.",
         "sftp_edit_prompt_title" => "File modificato",
         "sftp_edit_prompt_text" => "Il file '{file}' è stato modificato. Sostituire il file remoto su {host}?",

@@ -78,6 +78,7 @@ mod tests {
                 load: None,
                 net: None,
                 disks: Vec::new(),
+                ports: Vec::new(),
                 uptime_secs: None,
             },
             RawSnapshot { cpu_total: 0, cpu_idle: 0, net_rx: 0, net_tx: 0, at },

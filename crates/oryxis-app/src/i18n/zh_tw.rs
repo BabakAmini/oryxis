@@ -1142,6 +1142,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "探測失敗",
         "monitor_status_bar" => "狀態列顯示主機資源",
         "monitor_status_bar_desc" => "顯示受監控主機的 CPU、記憶體、網路和最滿的磁碟。需要在該主機上啟用監控。",
+        "monitor_ports" => "監聽連接埠",
+        "monitor_forward_port" => "將此連接埠轉送到本機",
         "sftp_no_editor_configured" => "尚未設定預設編輯器。請在 設定 > SFTP 中設定。",
         "sftp_edit_prompt_title" => "檔案已修改",
         "sftp_edit_prompt_text" => "檔案 '{file}' 已被修改。是否取代 {host} 上的遠端檔案？",

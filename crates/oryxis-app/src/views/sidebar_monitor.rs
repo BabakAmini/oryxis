@@ -137,6 +137,40 @@ impl Oryxis {
             }
         }
 
+        // Listening ports (issue #83): collapsed behind a count, since a
+        // busy host listens on dozens. Each row offers a local forward,
+        // which is the whole point of surfacing them here.
+        if !sample.ports.is_empty() {
+            body = body.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::Monitor(
+                    MonitorMessage::TogglePorts,
+                )),
+                TerminalSidebarTab::Monitor,
+                6.0,
+                ports_header(sample.ports.len(), self.monitor_ports_open),
+            ));
+            if self.monitor_ports_open {
+                for p in &sample.ports {
+                    // Only TCP can be tunnelled: SSH port forwarding has
+                    // no UDP mode, so a UDP row stays informational
+                    // rather than offering an action that would fail.
+                    let forward = (p.proto == "tcp").then(|| {
+                        Message::Monitor(MonitorMessage::ForwardPort(conn_id, p.port))
+                    });
+                    let row = port_row(p, forward.clone());
+                    body = body.push(match forward {
+                        Some(msg) => self.sidebar_nav_slot(
+                            crate::keynav::SidebarRow::button(msg),
+                            TerminalSidebarTab::Monitor,
+                            6.0,
+                            row,
+                        ),
+                        None => row,
+                    });
+                }
+            }
+        }
+
         // A probe that failed after we already have data: keep the last
         // reading on screen and say so, rather than blanking the tab.
         if let Some(e) = &self.monitor_error {
@@ -181,6 +215,103 @@ impl Oryxis {
         .width(Length::Fill)
         .into()
     }
+}
+
+/// "Ports (N)" disclosure row: clicking it expands the list.
+fn ports_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
+    let chevron = if open {
+        iced_fonts::lucide::chevron_down()
+    } else {
+        iced_fonts::lucide::chevron_right()
+    };
+    iced::widget::button(
+        dir_row(vec![
+            chevron.size(12).color(OryxisColors::t().text_muted).into(),
+            Space::new().width(6).into(),
+            text(t("monitor_ports"))
+                .size(11)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+            Space::new().width(6).into(),
+            text(count.to_string())
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+        ])
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(Message::Monitor(MonitorMessage::TogglePorts))
+    .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 2.0 })
+    .width(Length::Fill)
+    .style(|_, status| {
+        let bg = match status {
+            iced::widget::button::Status::Hovered
+            | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
+            _ => iced::Color::TRANSPARENT,
+        };
+        iced::widget::button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
+/// One listening socket: `port/proto`, the process name when the host
+/// let us see it, and (TCP only) a click that prefills a local forward.
+fn port_row<'a>(
+    port: &'a crate::monitor::model::PortStat,
+    forward: Option<Message>,
+) -> Element<'a, Message> {
+    let name = port.process.clone().unwrap_or_else(|| "-".to_string());
+    let content = dir_row(vec![
+        text(format!("{}/{}", port.port, port.proto))
+            .size(11)
+            .font(iced::Font::MONOSPACE)
+            .color(OryxisColors::t().text_primary)
+            .width(Length::Fixed(74.0))
+            .into(),
+        text(name)
+            .size(11)
+            .color(OryxisColors::t().text_secondary)
+            .width(Length::Fill)
+            .into(),
+        // The arrow only appears where a forward is actually possible.
+        if forward.is_some() {
+            iced_fonts::lucide::arrow_right_left()
+                .size(11)
+                .color(OryxisColors::t().accent)
+                .into()
+        } else {
+            Space::new().width(11).into()
+        },
+    ])
+    .align_y(iced::Alignment::Center);
+
+    let Some(msg) = forward else {
+        return iced::widget::container(content)
+            .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 })
+            .width(Length::Fill)
+            .into();
+    };
+    let btn = iced::widget::button(content)
+        .on_press(msg)
+        .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 })
+        .width(Length::Fill)
+        .style(|_, status| {
+            let bg = match status {
+                iced::widget::button::Status::Hovered
+                | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
+                _ => iced::Color::TRANSPARENT,
+            };
+            iced::widget::button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(6.0), ..Default::default() },
+                ..Default::default()
+            }
+        });
+    crate::views::terminal::icon_tooltip(btn.into(), t("monitor_forward_port"))
 }
 
 fn placeholder(label: &str) -> Element<'_, Message> {

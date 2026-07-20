@@ -1226,6 +1226,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "Thăm dò thất bại",
         "monitor_status_bar" => "Thông số máy chủ trên thanh trạng thái",
         "monitor_status_bar_desc" => "Hiển thị CPU, bộ nhớ, mạng và ổ đĩa đầy nhất của máy chủ đang giám sát. Cần bật giám sát trên máy chủ đó.",
+        "monitor_ports" => "Cổng đang lắng nghe",
+        "monitor_forward_port" => "Chuyển tiếp cổng này về máy cục bộ",
         "sftp_no_editor_configured" => "Chưa cấu hình trình soạn thảo mặc định. Đặt trong Cài đặt > SFTP.",
         "sftp_edit_prompt_title" => "Tệp đã thay đổi",
         "sftp_edit_prompt_text" => "Tệp '{file}' đã bị thay đổi. Thay thế tệp từ xa trên {host}?",

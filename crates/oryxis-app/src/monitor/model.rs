@@ -26,6 +26,9 @@ pub(crate) struct Sample {
     /// `None` on the first sample for the same reason as `cpu`.
     pub net: Option<NetStat>,
     pub disks: Vec<DiskStat>,
+    /// Listening sockets on the host (issue #83). Empty when neither
+    /// `ss` nor `netstat` is available, or the shell refused them.
+    pub ports: Vec<PortStat>,
     /// Seconds since boot, from `/proc/uptime`.
     pub uptime_secs: Option<u64>,
 }
@@ -88,6 +91,19 @@ impl DiskStat {
             (self.used as f32 / self.total as f32) * 100.0
         }
     }
+}
+
+/// One listening socket. The process name is best-effort: `ss -p` /
+/// `netstat -p` only name processes the login user owns unless the probe
+/// runs as root, so an unnamed port is the normal case, not an error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PortStat {
+    pub port: u16,
+    /// "tcp" or "udp" (the v6 variants are folded into their base
+    /// protocol; the distinction doesn't change what the user can
+    /// forward).
+    pub proto: &'static str,
+    pub process: Option<String>,
 }
 
 /// Counters kept between ticks so rates need only ONE read per tick: the

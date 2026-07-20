@@ -11,7 +11,7 @@
 //! their field `None` and the rest of the sample intact.
 
 use super::model::{
-    CpuStat, DiskStat, LoadStat, MemStat, NetStat, RawSnapshot, Sample,
+    CpuStat, DiskStat, LoadStat, MemStat, NetStat, PortStat, RawSnapshot, Sample,
 };
 use std::time::Instant;
 
@@ -30,6 +30,11 @@ pub(crate) fn linux_probe_command() -> String {
         "cat /proc/net/dev 2>/dev/null",
         "df -kP 2>/dev/null",
         "cat /proc/uptime 2>/dev/null",
+        // Listening sockets. `ss` is the modern tool; `netstat` covers
+        // hosts that still ship net-tools and nothing else. `-p` names
+        // only the processes the login user owns unless we are root, so
+        // unnamed ports are expected, not a failure.
+        "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null",
     ]
     .join(&format!("; echo '{SEP}'; "))
 }
@@ -51,6 +56,7 @@ pub(crate) fn parse_linux(
     let netdev = sections.next().unwrap_or("");
     let df = sections.next().unwrap_or("");
     let uptime = sections.next().unwrap_or("");
+    let sockets = sections.next().unwrap_or("");
 
     let (cpu_total, cpu_idle) = parse_cpu_jiffies(stat).unwrap_or((0, 0));
     let (net_rx, net_tx) = parse_net_dev(netdev).unwrap_or((0, 0));
@@ -90,6 +96,7 @@ pub(crate) fn parse_linux(
         load: parse_loadavg(loadavg),
         net,
         disks: parse_df(df),
+        ports: parse_listening_ports(sockets),
         uptime_secs: parse_uptime(uptime),
     };
     (sample, snapshot)
@@ -247,6 +254,77 @@ fn is_pseudo_fs(source: &str) -> bool {
     ) || source.starts_with("/dev/loop")
 }
 
+/// Listening sockets from `ss -tulnp` or `netstat -tulnp`.
+///
+/// Both tools are parsed by shape rather than by column index: the first
+/// token gives the protocol (`tcp` / `tcp6` / `udp` / `udp6`), the local
+/// address is the first `host:port` token, and the process name comes
+/// from `ss`'s `users:(("name",...` or `netstat`'s `pid/name`. That
+/// survives the column drift between distro versions (and `ss`'s
+/// header, which runs its last two labels together).
+///
+/// Results are deduped and sorted by port: a service bound on both IPv4
+/// and IPv6 is one forwardable port, not two rows.
+fn parse_listening_ports(sockets: &str) -> Vec<PortStat> {
+    let mut out: Vec<PortStat> = Vec::new();
+    for line in sockets.lines() {
+        let mut fields = line.split_whitespace();
+        let Some(first) = fields.next() else { continue };
+        let proto = match first {
+            "tcp" | "tcp6" => "tcp",
+            "udp" | "udp6" => "udp",
+            _ => continue, // header or noise
+        };
+        // netstat reports state in a later column; `ss` in the second.
+        // Either way a non-listening row (ESTABLISHED, TIME_WAIT) is not
+        // something the user can forward to.
+        if line.contains("ESTAB") || line.contains("TIME_WAIT") || line.contains("CLOSE") {
+            continue;
+        }
+        let Some(port) = fields.clone().find_map(parse_local_port) else { continue };
+        let process = parse_process_name(line);
+        if let Some(existing) = out.iter_mut().find(|p| p.port == port && p.proto == proto) {
+            // Same service on a second address family: keep whichever
+            // row managed to name the process.
+            if existing.process.is_none() {
+                existing.process = process;
+            }
+            continue;
+        }
+        out.push(PortStat { port, proto, process });
+    }
+    out.sort_by_key(|p| (p.port, p.proto));
+    out
+}
+
+/// Pull the port out of a `host:port` token, rejecting the peer column's
+/// wildcard (`0.0.0.0:*`) and anything without a numeric port.
+fn parse_local_port(token: &str) -> Option<u16> {
+    let (host, port) = token.rsplit_once(':')?;
+    if host.is_empty() || port == "*" {
+        return None;
+    }
+    port.parse::<u16>().ok().filter(|p| *p > 0)
+}
+
+/// `ss`: `users:(("sshd",pid=1,fd=3))`. `netstat`: `1234/sshd`.
+fn parse_process_name(line: &str) -> Option<String> {
+    if let Some(rest) = line.split("users:((\"").nth(1)
+        && let Some(name) = rest.split('"').next()
+        && !name.is_empty()
+    {
+        return Some(name.to_string());
+    }
+    // netstat's PID/Program column is the last token; "-" means the
+    // process wasn't visible to this user.
+    let last = line.split_whitespace().next_back()?;
+    let (pid, name) = last.split_once('/')?;
+    if pid.parse::<u32>().is_ok() && !name.is_empty() {
+        return Some(name.to_string());
+    }
+    None
+}
+
 /// `/proc/uptime`: `12345.67 98765.43` (seconds since boot, idle time).
 fn parse_uptime(uptime: &str) -> Option<u64> {
     uptime
@@ -263,7 +341,7 @@ mod tests {
     use std::time::Duration;
 
     /// Build a payload from per-section strings in probe order.
-    fn payload(sections: [&str; 6]) -> String {
+    fn payload(sections: [&str; 7]) -> String {
         sections.join(&format!("\n{SEP}\n"))
     }
 
@@ -274,19 +352,19 @@ mod tests {
     #[test]
     fn cpu_needs_a_baseline_then_reports_the_delta() {
         // 100 jiffies total, 100 idle -> fully idle.
-        let first = payload(["cpu 0 0 0 100 0 0 0 0", "", "", "", "", ""]);
+        let first = payload(["cpu 0 0 0 100 0 0 0 0", "", "", "", "", "", ""]);
         let now = t0();
         let (sample, snap) = parse_linux(&first, None, now);
         assert!(sample.cpu.is_none(), "first sample has no baseline");
 
         // +100 total, +100 idle -> 0% busy.
-        let idle = payload(["cpu 0 0 0 200 0 0 0 0", "", "", "", "", ""]);
+        let idle = payload(["cpu 0 0 0 200 0 0 0 0", "", "", "", "", "", ""]);
         let (sample, snap2) =
             parse_linux(&idle, Some(snap), now + Duration::from_secs(5));
         assert_eq!(sample.cpu.unwrap().pct, 0.0);
 
         // +100 total, +0 idle -> 100% busy.
-        let busy = payload(["cpu 100 0 0 200 0 0 0 0", "", "", "", "", ""]);
+        let busy = payload(["cpu 100 0 0 200 0 0 0 0", "", "", "", "", "", ""]);
         let (sample, _) =
             parse_linux(&busy, Some(snap2), now + Duration::from_secs(10));
         assert_eq!(sample.cpu.unwrap().pct, 100.0);
@@ -294,17 +372,17 @@ mod tests {
 
     #[test]
     fn cpu_counts_iowait_as_idle_and_survives_a_reset() {
-        let a = payload(["cpu 100 0 100 800 0 0 0 0", "", "", "", "", ""]);
+        let a = payload(["cpu 100 0 100 800 0 0 0 0", "", "", "", "", "", ""]);
         let now = t0();
         let (_, snap) = parse_linux(&a, None, now);
         // +200 jiffies total: +100 user (busy) and +100 iowait (idle).
         // Counting iowait as idle makes that 50% busy, not 100%.
-        let b = payload(["cpu 200 0 100 800 100 0 0 0", "", "", "", "", ""]);
+        let b = payload(["cpu 200 0 100 800 100 0 0 0", "", "", "", "", "", ""]);
         let (sample, _) = parse_linux(&b, Some(snap), now + Duration::from_secs(1));
         assert_eq!(sample.cpu.unwrap().pct, 50.0);
 
         // Counters going backwards (reboot) yield no reading, never a spike.
-        let after_reboot = payload(["cpu 1 0 1 1 0 0 0 0", "", "", "", "", ""]);
+        let after_reboot = payload(["cpu 1 0 1 1 0 0 0 0", "", "", "", "", "", ""]);
         let (_, snap_b) = parse_linux(&b, None, now);
         let (sample, _) =
             parse_linux(&after_reboot, Some(snap_b), now + Duration::from_secs(2));
@@ -321,7 +399,7 @@ mod tests {
                       SwapTotal:      2000000 kB\n\
                       SwapFree:       1500000 kB\n";
         let (sample, _) =
-            parse_linux(&payload(["", modern, "", "", "", ""]), None, t0());
+            parse_linux(&payload(["", modern, "", "", "", "", ""]), None, t0());
         let mem = sample.mem.unwrap();
         assert_eq!(mem.total, 8_000_000 * 1024);
         // 8000000 - 6000000 available.
@@ -334,14 +412,14 @@ mod tests {
                       Buffers:         100000 kB\n\
                       Cached:         1000000 kB\n";
         let (sample, _) =
-            parse_linux(&payload(["", legacy, "", "", "", ""]), None, t0());
+            parse_linux(&payload(["", legacy, "", "", "", "", ""]), None, t0());
         assert_eq!(sample.mem.unwrap().used, 6_400_000 * 1024);
     }
 
     #[test]
     fn loadavg_and_uptime_parse() {
         let (sample, _) = parse_linux(
-            &payload(["", "", "0.42 0.35 0.31 2/431 9999", "", "", "12345.67 500.0"]),
+            &payload(["", "", "0.42 0.35 0.31 2/431 9999", "", "", "12345.67 500.0", ""]),
             None,
             t0(),
         );
@@ -360,7 +438,7 @@ mod tests {
                    lo: 999999 10 0 0 0 0 0 0 999999 10 0 0 0 0 0 0\n\
                    eth0: 1000 10 0 0 0 0 0 0 2000 20 0 0 0 0 0 0\n";
         let now = t0();
-        let (sample, snap) = parse_linux(&payload(["", "", "", dev, "", ""]), None, now);
+        let (sample, snap) = parse_linux(&payload(["", "", "", dev, "", "", ""]), None, now);
         assert!(sample.net.is_none(), "no baseline yet");
         // lo's counters must not be in the snapshot.
         assert_eq!(snap.net_rx, 1000);
@@ -370,7 +448,7 @@ mod tests {
                     lo: 999999 10 0 0 0 0 0 0 999999 10 0 0 0 0 0 0\n\
                     eth0: 6000 10 0 0 0 0 0 0 4000 20 0 0 0 0 0 0\n";
         let (sample, _) = parse_linux(
-            &payload(["", "", "", dev2, "", ""]),
+            &payload(["", "", "", dev2, "", "", ""]),
             Some(snap),
             now + Duration::from_secs(5),
         );
@@ -386,7 +464,7 @@ mod tests {
                   tmpfs              1000000        0   1000000       0% /dev/shm\n\
                   /dev/loop0           50000    50000         0     100% /snap/core\n\
                   /dev/sdb1         20000000  1000000  19000000       5% /mnt/my disk\n";
-        let (sample, _) = parse_linux(&payload(["", "", "", "", df, ""]), None, t0());
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
         let mounts: Vec<&str> =
             sample.disks.iter().map(|d| d.mount.as_str()).collect();
         assert_eq!(mounts, vec!["/", "/mnt/my disk"]);
@@ -395,9 +473,78 @@ mod tests {
     }
 
     #[test]
+    fn ss_output_yields_listening_ports_with_names() {
+        // Real `ss -tulnp` shape, including the header whose last two
+        // labels run together and a `%lo` scoped address.
+        let ss = "Netid State  Recv-Q Send-Q  Local Address:Port Peer Address:PortProcess\n\
+                  udp   UNCONN 0      0       127.0.0.53%lo:53        0.0.0.0:*\n\
+                  tcp   LISTEN 0      128           0.0.0.0:22        0.0.0.0:*     users:((\"sshd\",pid=1,fd=3))\n\
+                  tcp   LISTEN 0      511         127.0.0.1:8080      0.0.0.0:*     users:((\"node\",pid=42,fd=20))\n\
+                  tcp   LISTEN 0      128              [::]:22           [::]:*     users:((\"sshd\",pid=1,fd=4))\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        // sshd on v4 + v6 is ONE forwardable port, and the rows are
+        // sorted by port.
+        let got: Vec<(u16, &str, Option<&str>)> = sample
+            .ports
+            .iter()
+            .map(|p| (p.port, p.proto, p.process.as_deref()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (22, "tcp", Some("sshd")),
+                (53, "udp", None),
+                (8080, "tcp", Some("node")),
+            ]
+        );
+    }
+
+    #[test]
+    fn netstat_fallback_and_non_listening_rows() {
+        let netstat = "Active Internet connections (only servers)\n\
+                       Proto Recv-Q Send-Q Local Address           Foreign Address         State       PID/Program name\n\
+                       tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN      1/sshd\n\
+                       tcp        0      0 127.0.0.1:5432          0.0.0.0:*               LISTEN      -\n\
+                       tcp        0      0 10.0.0.5:54321          10.0.0.9:443            ESTABLISHED 99/curl\n\
+                       udp        0      0 0.0.0.0:68              0.0.0.0:*                           7/dhclient\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", netstat]), None, t0());
+        let got: Vec<(u16, &str, Option<&str>)> = sample
+            .ports
+            .iter()
+            .map(|p| (p.port, p.proto, p.process.as_deref()))
+            .collect();
+        // The ESTABLISHED row is not a listening port; the `-` process
+        // column means "not ours to see", not a name.
+        assert_eq!(
+            got,
+            vec![
+                (22, "tcp", Some("sshd")),
+                (68, "udp", Some("dhclient")),
+                (5432, "tcp", None),
+            ]
+        );
+    }
+
+    #[test]
+    fn hosts_without_ss_or_netstat_report_no_ports() {
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ""]), None, t0());
+        assert!(sample.ports.is_empty());
+        // Garbage must not panic or invent ports either.
+        let (sample, _) = parse_linux(
+            &payload(["", "", "", "", "", "", "sh: ss: not found\n???"]),
+            None,
+            t0(),
+        );
+        assert!(sample.ports.is_empty());
+    }
+
+    #[test]
     fn missing_and_malformed_sections_degrade_to_none() {
         // A restricted container: no /proc reads, no df, everything empty.
-        let (sample, _) = parse_linux(&payload(["", "", "", "", "", ""]), None, t0());
+        let (sample, _) = parse_linux(&payload(["", "", "", "", "", "", ""]), None, t0());
         assert!(sample.cpu.is_none());
         assert!(sample.mem.is_none());
         assert!(sample.load.is_none());
@@ -413,6 +560,7 @@ mod tests {
             "eth0 no colon separator",
             "short line",
             "definitely not a float",
+            "",
         ]);
         let (sample, _) = parse_linux(&junk, None, t0());
         assert!(sample.mem.is_none());

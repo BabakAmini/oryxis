@@ -1133,6 +1133,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "Ошибка опроса",
         "monitor_status_bar" => "Показатели хоста в строке состояния",
         "monitor_status_bar_desc" => "Показывает ЦП, память, сеть и самый заполненный диск отслеживаемого хоста. Требуется включённый мониторинг на этом хосте.",
+        "monitor_ports" => "Прослушиваемые порты",
+        "monitor_forward_port" => "Пробросить этот порт локально",
         "sftp_no_editor_configured" => "Редактор по умолчанию не настроен. Задайте его в Настройки > SFTP.",
         "sftp_edit_prompt_title" => "Файл изменён",
         "sftp_edit_prompt_text" => "Файл '{file}' был изменён. Заменить удалённый файл на {host}?",

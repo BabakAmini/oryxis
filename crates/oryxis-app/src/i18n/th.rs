@@ -1233,6 +1233,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "การตรวจสอบล้มเหลว",
         "monitor_status_bar" => "แสดงสถานะโฮสต์ในแถบสถานะ",
         "monitor_status_bar_desc" => "แสดงซีพียู หน่วยความจำ เครือข่าย และดิสก์ที่เต็มที่สุดของโฮสต์ที่มอนิเตอร์ ต้องเปิดการมอนิเตอร์บนโฮสต์นั้น",
+        "monitor_ports" => "พอร์ตที่เปิดรอรับ",
+        "monitor_forward_port" => "ส่งต่อพอร์ตนี้มาที่เครื่อง",
         "sftp_no_editor_configured" => "ยังไม่ได้ตั้งค่าโปรแกรมแก้ไขเริ่มต้น ตั้งค่าได้ที่ การตั้งค่า > SFTP",
         "sftp_edit_prompt_title" => "ไฟล์ถูกแก้ไข",
         "sftp_edit_prompt_text" => "ไฟล์ '{file}' ถูกแก้ไขแล้ว แทนที่ไฟล์ระยะไกลบน {host} หรือไม่?",

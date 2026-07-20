@@ -18,4 +18,10 @@ pub enum MonitorMessage {
     /// Monitor tab's own opt-in prompt (the same flag the host editor
     /// toggles).
     EnableHost(Uuid),
+    /// Expand / collapse the listening-ports list in the Monitor tab.
+    TogglePorts,
+    /// "Forward this port": prefill a `-L` rule for the monitored host
+    /// and open the port-forward editor, so the user reviews and saves
+    /// it instead of a tunnel appearing behind their back.
+    ForwardPort(Uuid, u16),
 }

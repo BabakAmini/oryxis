@@ -805,6 +805,10 @@ pub struct Oryxis {
     /// Last probe failure, shown in the Monitor tab. Cleared by the next
     /// successful sample.
     pub(crate) monitor_error: Option<String>,
+    /// Whether the Monitor tab's listening-ports list is expanded. A
+    /// busy host can listen on dozens of ports, so it starts collapsed
+    /// behind a count.
+    pub(crate) monitor_ports_open: bool,
     pub(crate) setting_sftp_default_editor: String,
     /// Persisted "Autosave" grant from the save-confirmation dialog:
     /// edited remote files upload on every save without asking.

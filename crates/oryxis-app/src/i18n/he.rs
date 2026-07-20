@@ -1232,6 +1232,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_probe_failed" => "הבדיקה נכשלה",
         "monitor_status_bar" => "נתוני המארח בשורת המצב",
         "monitor_status_bar_desc" => "מציג מעבד, זיכרון, רשת והדיסק המלא ביותר של המארח המנוטר. דורש ניטור מופעל באותו מארח.",
+        "monitor_ports" => "פורטים מאזינים",
+        "monitor_forward_port" => "העברת פורט זה מקומית",
         "sftp_no_editor_configured" => "לא הוגדר עורך ברירת מחדל. הגדירו אחד בהגדרות > SFTP.",
         "sftp_edit_prompt_title" => "הקובץ שונה",
         "sftp_edit_prompt_text" => "הקובץ '{file}' שונה. להחליף את הקובץ המרוחק ב-{host}?",
