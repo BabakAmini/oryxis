@@ -145,5 +145,10 @@ split-debuginfo = "packed"
 # subpacket recovery via ZRPOS + offset overflow guard), both in review:
 # https://codeberg.org/jarkko/zmodem2/pulls/5
 # https://codeberg.org/jarkko/zmodem2/compare/main...wilsonglasser:serial-robustness
+# Pinned via a GitHub mirror of the same branch (github.com/wilsonglasser/
+# zmodem2) rather than Codeberg directly: Codeberg's git service has been
+# unreliable in CI (503s on fresh clones), so the mirror keeps release
+# builds independent of it. Same commit, byte-identical tree. Drops out
+# entirely once upstream releases these fixes.
 [patch.crates-io]
-zmodem2 = { git = "https://codeberg.org/wilsonglasser/zmodem2.git", rev = "8a4a0dafec2b9583b7ddbd6df779c6e7b53beb51" }
+zmodem2 = { git = "https://github.com/wilsonglasser/zmodem2.git", rev = "8a4a0dafec2b9583b7ddbd6df779c6e7b53beb51" }
