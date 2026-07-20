@@ -1224,6 +1224,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "Pemantauan membaca CPU, memori, beban, dan penggunaan disk host ini lewat sesi yang terbuka. Tidak ada yang dipasang di server.",
         "monitor_requires_host" => "Pemantauan hanya tersedia untuk host yang tersimpan.",
         "monitor_probe_failed" => "Probe gagal",
+        "monitor_status_bar" => "Kondisi host di bilah status",
+        "monitor_status_bar_desc" => "Menampilkan CPU, memori, jaringan, dan disk terpenuh dari host yang dipantau. Perlu pemantauan aktif di host tersebut.",
         "sftp_no_editor_configured" => "Editor default belum diatur. Atur di Pengaturan > SFTP.",
         "sftp_edit_prompt_title" => "File diubah",
         "sftp_edit_prompt_text" => "File '{file}' telah diubah. Ganti file remote di {host}?",

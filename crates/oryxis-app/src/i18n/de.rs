@@ -1131,6 +1131,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "Die Überwachung liest CPU, Speicher, Last und Plattenbelegung dieses Hosts über die offene Sitzung. Auf dem Server wird nichts installiert.",
         "monitor_requires_host" => "Überwachung gibt es nur für gespeicherte Hosts.",
         "monitor_probe_failed" => "Abfrage fehlgeschlagen",
+        "monitor_status_bar" => "Host-Kennzahlen in der Statusleiste",
+        "monitor_status_bar_desc" => "Zeigt CPU, Speicher, Netzwerk und den vollsten Datenträger des überwachten Hosts. Erfordert aktivierte Überwachung auf diesem Host.",
         "sftp_no_editor_configured" => "Kein Standardeditor konfiguriert. In Einstellungen > SFTP festlegen.",
         "sftp_edit_prompt_title" => "Datei geändert",
         "sftp_edit_prompt_text" => "Die Datei '{file}' wurde geändert. Remote-Datei auf {host} ersetzen?",

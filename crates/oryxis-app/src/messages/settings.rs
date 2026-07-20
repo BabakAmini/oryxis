@@ -142,6 +142,9 @@ pub enum SettingsMessage {
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,
+    /// Settings > Interface: show the monitored host's vitals in the
+    /// status bar (issue #83).
+    SettingToggleMonitorStatusBar,
     ToggleSftpForceOsc7,
     /// Settings > SFTP: the single external editor used by the remote
     /// "Open with default text editor" action (issue #84).

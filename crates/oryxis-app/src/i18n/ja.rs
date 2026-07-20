@@ -1140,6 +1140,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "監視は開いているセッション経由でこのホストの CPU・メモリ・ロード・ディスク使用量を読み取ります。サーバーには何もインストールしません。",
         "monitor_requires_host" => "監視は保存済みホストでのみ利用できます。",
         "monitor_probe_failed" => "プローブに失敗しました",
+        "monitor_status_bar" => "ステータスバーにホストの状態を表示",
+        "monitor_status_bar_desc" => "監視対象ホストの CPU・メモリ・ネットワークと最も使用率の高いディスクを表示します。そのホストで監視を有効にする必要があります。",
         "sftp_no_editor_configured" => "既定のエディタが未設定です。設定 > SFTP で指定してください。",
         "sftp_edit_prompt_title" => "ファイルが変更されました",
         "sftp_edit_prompt_text" => "ファイル '{file}' が変更されました。{host} 上のリモートファイルを置き換えますか？",

@@ -193,7 +193,10 @@ impl Oryxis {
         // Host monitor: only while its sidebar tab is the visible one and
         // the focused pane's host actually opted in, so an idle screen
         // (or a host that never enabled monitoring) never probes.
-        if self.monitor_tab_visible() && self.monitor_target().is_some() {
+        if (self.monitor_tab_visible()
+            || (self.setting_monitor_status_bar && self.setting_show_status_bar))
+            && self.monitor_target().is_some()
+        {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(
                     crate::dispatch_monitor::MONITOR_INTERVAL_SECS,

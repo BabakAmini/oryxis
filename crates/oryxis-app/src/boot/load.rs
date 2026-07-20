@@ -450,6 +450,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("show_status_bar") {
                 self.setting_show_status_bar = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("monitor_status_bar") {
+                self.setting_monitor_status_bar = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("host_list_view") {
                 self.setting_host_list_view = v == "true";
             }

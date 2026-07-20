@@ -83,6 +83,73 @@ impl Oryxis {
             items.push(broadcast_segment_btn(idx, tab.broadcast));
             items.push(Space::new().width(10).into());
         }
+        // Host vitals (issue #83, the MobaXterm-style bar): the same
+        // samples the sidebar Monitor tab renders, condensed to one line.
+        // Behind its own setting AND the host's monitoring opt-in, so it
+        // costs nothing until the user asks for both.
+        if self.setting_monitor_status_bar
+            && let Some(conn_id) = self.monitor_pane_connection()
+            && let Some(sample) = self.monitor.series.get(&conn_id).and_then(|s| s.latest())
+        {
+            let c = OryxisColors::t();
+            // Thresholds tint the value, not the label, so a pegged host
+            // reads at a glance without the bar turning into a wall of
+            // colour.
+            let tint = |pct: f32| {
+                if pct >= 90.0 {
+                    c.error
+                } else if pct >= 75.0 {
+                    c.warning
+                } else {
+                    c.text_secondary
+                }
+            };
+            let mut seg: Vec<Element<'_, Message>> = Vec::new();
+            if let Some(cpu) = sample.cpu {
+                seg.push(vital(
+                    crate::i18n::t("monitor_cpu"),
+                    format!("{:.0}%", cpu.pct),
+                    tint(cpu.pct),
+                ));
+            }
+            if let Some(mem) = sample.mem {
+                seg.push(vital(
+                    crate::i18n::t("monitor_mem"),
+                    format!("{:.0}%", mem.pct()),
+                    tint(mem.pct()),
+                ));
+            }
+            if let Some(net) = sample.net {
+                seg.push(vital(
+                    crate::i18n::t("monitor_net"),
+                    // The "/s" stays even though room is scarce: without
+                    // it the reading looks like a total, not a rate.
+                    format!(
+                        "↓{}/s ↑{}/s",
+                        crate::views::sidebar_monitor::fmt_bytes_short(net.rx_bps),
+                        crate::views::sidebar_monitor::fmt_bytes_short(net.tx_bps)
+                    ),
+                    c.text_secondary,
+                ));
+            }
+            // The busiest mount is the one worth a glance; the sidebar tab
+            // lists them all.
+            if let Some(disk) = sample
+                .disks
+                .iter()
+                .max_by(|a, b| a.pct().total_cmp(&b.pct()))
+            {
+                seg.push(vital(
+                    &disk.mount,
+                    format!("{:.0}%", disk.pct()),
+                    tint(disk.pct()),
+                ));
+            }
+            for el in seg {
+                items.push(el);
+                items.push(Space::new().width(12).into());
+            }
+        }
         // Privacy Mode chip (issue #78): visible whenever masking is
         // globally effective or a session override is armed, so the
         // state is never silent (the original #53 confusion). Clicking
@@ -114,6 +181,22 @@ impl Oryxis {
 
         column![top_hairline, bar].into()
     }
+}
+
+/// One host-vital readout in the status bar: muted label, tinted value
+/// (issue #83). Passive text, not a control: the sidebar Monitor tab is
+/// where the numbers are actionable.
+fn vital<'a>(label: &'a str, value: String, color: Color) -> Element<'a, Message> {
+    crate::widgets::dir_row(vec![
+        text(label.to_string())
+            .size(11)
+            .color(OryxisColors::t().text_muted)
+            .into(),
+        Space::new().width(4).into(),
+        text(value).size(11).color(color).into(),
+    ])
+    .align_y(iced::Alignment::Center)
+    .into()
 }
 
 /// One half of the status-bar Terminal/Files segment. The active half

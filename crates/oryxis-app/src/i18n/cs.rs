@@ -1230,6 +1230,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "Monitorování čte CPU, paměť, zátěž a využití disku tohoto hostitele přes otevřenou relaci. Na server se nic neinstaluje.",
         "monitor_requires_host" => "Monitorování je dostupné jen pro uložené hostitele.",
         "monitor_probe_failed" => "Sondování se nezdařilo",
+        "monitor_status_bar" => "Vytížení hostitele ve stavovém řádku",
+        "monitor_status_bar_desc" => "Zobrazí CPU, paměť, síť a nejplnější disk monitorovaného hostitele. Vyžaduje zapnuté monitorování na daném hostiteli.",
         "sftp_no_editor_configured" => "Není nastaven výchozí editor. Nastavte jej v Nastavení > SFTP.",
         "sftp_edit_prompt_title" => "Soubor změněn",
         "sftp_edit_prompt_text" => "Soubor '{file}' byl změněn. Nahradit vzdálený soubor na {host}?",

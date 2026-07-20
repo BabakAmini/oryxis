@@ -1224,6 +1224,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "Giám sát đọc CPU, bộ nhớ, tải và dung lượng đĩa của máy chủ này qua phiên đang mở. Không cài đặt gì trên máy chủ.",
         "monitor_requires_host" => "Giám sát chỉ khả dụng cho các máy chủ đã lưu.",
         "monitor_probe_failed" => "Thăm dò thất bại",
+        "monitor_status_bar" => "Thông số máy chủ trên thanh trạng thái",
+        "monitor_status_bar_desc" => "Hiển thị CPU, bộ nhớ, mạng và ổ đĩa đầy nhất của máy chủ đang giám sát. Cần bật giám sát trên máy chủ đó.",
         "sftp_no_editor_configured" => "Chưa cấu hình trình soạn thảo mặc định. Đặt trong Cài đặt > SFTP.",
         "sftp_edit_prompt_title" => "Tệp đã thay đổi",
         "sftp_edit_prompt_text" => "Tệp '{file}' đã bị thay đổi. Thay thế tệp từ xa trên {host}?",

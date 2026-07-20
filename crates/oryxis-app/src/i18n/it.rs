@@ -1131,6 +1131,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "Il monitoraggio legge CPU, memoria, carico e uso del disco di questo host tramite la sessione aperta. Non viene installato nulla sul server.",
         "monitor_requires_host" => "Il monitoraggio è disponibile solo per gli host salvati.",
         "monitor_probe_failed" => "Sondaggio non riuscito",
+        "monitor_status_bar" => "Risorse dell'host nella barra di stato",
+        "monitor_status_bar_desc" => "Mostra CPU, memoria, rete e il disco più pieno dell'host monitorato. Richiede il monitoraggio attivo su quell'host.",
         "sftp_no_editor_configured" => "Nessun editor predefinito configurato. Impostane uno in Impostazioni > SFTP.",
         "sftp_edit_prompt_title" => "File modificato",
         "sftp_edit_prompt_text" => "Il file '{file}' è stato modificato. Sostituire il file remoto su {host}?",

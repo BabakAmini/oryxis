@@ -307,6 +307,12 @@ fn sparkline<'a>(series: &[f32]) -> Element<'a, Message> {
         .into()
 }
 
+/// `fmt_bytes` without the space, for the status bar where horizontal
+/// room is scarce.
+pub(crate) fn fmt_bytes_short(bytes: u64) -> String {
+    fmt_bytes(bytes).replace(' ', "")
+}
+
 /// Human-readable byte count (1024-based, matching what `free` / `df`
 /// report on the hosts these numbers come from).
 fn fmt_bytes(bytes: u64) -> String {

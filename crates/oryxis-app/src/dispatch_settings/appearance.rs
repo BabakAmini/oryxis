@@ -26,6 +26,13 @@ impl Oryxis {
                     if self.setting_show_status_bar { "true" } else { "false" },
                 );
             }
+            SettingsMessage::SettingToggleMonitorStatusBar => {
+                self.setting_monitor_status_bar = !self.setting_monitor_status_bar;
+                self.persist_setting(
+                    "monitor_status_bar",
+                    if self.setting_monitor_status_bar { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleHostListView => {
                 // Dismiss the `…` overflow menu when toggled from there
                 // (no-op for the inline toolbar button).

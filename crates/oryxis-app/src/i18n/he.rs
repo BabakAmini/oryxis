@@ -1230,6 +1230,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "הניטור קורא מעבד, זיכרון, עומס ושימוש בדיסק של מארח זה דרך ההפעלה הפתוחה. דבר אינו מותקן בשרת.",
         "monitor_requires_host" => "ניטור זמין רק למארחים שמורים.",
         "monitor_probe_failed" => "הבדיקה נכשלה",
+        "monitor_status_bar" => "נתוני המארח בשורת המצב",
+        "monitor_status_bar_desc" => "מציג מעבד, זיכרון, רשת והדיסק המלא ביותר של המארח המנוטר. דורש ניטור מופעל באותו מארח.",
         "sftp_no_editor_configured" => "לא הוגדר עורך ברירת מחדל. הגדירו אחד בהגדרות > SFTP.",
         "sftp_edit_prompt_title" => "הקובץ שונה",
         "sftp_edit_prompt_text" => "הקובץ '{file}' שונה. להחליף את הקובץ המרוחק ב-{host}?",

@@ -1224,6 +1224,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "모니터링은 열려 있는 세션을 통해 이 호스트의 CPU, 메모리, 부하, 디스크 사용량을 읽습니다. 서버에는 아무것도 설치하지 않습니다.",
         "monitor_requires_host" => "모니터링은 저장된 호스트에서만 사용할 수 있습니다.",
         "monitor_probe_failed" => "프로브 실패",
+        "monitor_status_bar" => "상태 표시줄에 호스트 상태 표시",
+        "monitor_status_bar_desc" => "모니터링 중인 호스트의 CPU, 메모리, 네트워크와 사용률이 가장 높은 디스크를 표시합니다. 해당 호스트에서 모니터링을 켜야 합니다.",
         "sftp_no_editor_configured" => "기본 편집기가 설정되지 않았습니다. 설정 > SFTP에서 지정하세요.",
         "sftp_edit_prompt_title" => "파일이 수정됨",
         "sftp_edit_prompt_text" => "파일 '{file}'이(가) 수정되었습니다. {host}의 원격 파일을 교체할까요?",

@@ -1140,6 +1140,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "监控通过已打开的会话读取该主机的 CPU、内存、负载和磁盘使用情况。不会在服务器上安装任何东西。",
         "monitor_requires_host" => "仅已保存的主机支持监控。",
         "monitor_probe_failed" => "探测失败",
+        "monitor_status_bar" => "状态栏显示主机资源",
+        "monitor_status_bar_desc" => "显示受监控主机的 CPU、内存、网络和最满的磁盘。需要在该主机上启用监控。",
         "sftp_no_editor_configured" => "未配置默认编辑器。请在 设置 > SFTP 中设置。",
         "sftp_edit_prompt_title" => "文件已修改",
         "sftp_edit_prompt_text" => "文件 '{file}' 已被修改。是否替换 {host} 上的远程文件？",

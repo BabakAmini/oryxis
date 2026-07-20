@@ -295,6 +295,16 @@ impl Oryxis {
             ),
             Space::new().height(8),
             self.nav_toggle_row(
+                crate::i18n::t("monitor_status_bar"),
+                self.setting_monitor_status_bar,
+                Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("monitor_status_bar_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.nav_toggle_row(
                 crate::i18n::t("tab_accent_line"),
                 self.setting_tab_accent_line,
                 Message::Settings(SettingsMessage::SettingToggleTabAccentLine),

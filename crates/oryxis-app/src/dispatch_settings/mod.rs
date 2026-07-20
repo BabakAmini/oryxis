@@ -151,6 +151,7 @@ impl Oryxis {
                 return self.handle_settings_local_terminals(m).unwrap_or_else(crate::dispatch::unrouted);
             }
             m @ (SettingsMessage::SettingToggleShowStatusBar
+            | SettingsMessage::SettingToggleMonitorStatusBar
             | SettingsMessage::ToggleHostListView
             | SettingsMessage::ToggleCardAccentGlass
             | SettingsMessage::ToggleShowHostAddress

@@ -1230,6 +1230,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_opt_in_hint" => "मॉनिटरिंग खुले सेशन से इस होस्ट का CPU, मेमोरी, लोड और डिस्क उपयोग पढ़ती है। सर्वर पर कुछ भी इंस्टॉल नहीं होता।",
         "monitor_requires_host" => "मॉनिटरिंग सिर्फ़ सेव किए गए होस्ट के लिए उपलब्ध है।",
         "monitor_probe_failed" => "प्रोब विफल",
+        "monitor_status_bar" => "स्टेटस बार में होस्ट की स्थिति",
+        "monitor_status_bar_desc" => "मॉनिटर किए जा रहे होस्ट का CPU, मेमोरी, नेटवर्क और सबसे भरा डिस्क दिखाता है। उस होस्ट पर मॉनिटरिंग चालू होनी चाहिए।",
         "sftp_no_editor_configured" => "कोई डिफ़ॉल्ट एडिटर सेट नहीं है। सेटिंग्स > SFTP में सेट करें।",
         "sftp_edit_prompt_title" => "फ़ाइल बदली गई",
         "sftp_edit_prompt_text" => "फ़ाइल '{file}' बदली गई है। {host} पर रिमोट फ़ाइल बदलें?",
