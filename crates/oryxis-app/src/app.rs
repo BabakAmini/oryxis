@@ -1198,10 +1198,25 @@ pub struct Oryxis {
     /// Read by every tab/chip renderer via `active_tab_bg`.
     pub(crate) setting_tab_fill_style: String,
     /// Where the tab strip docks: `"top"` (default, tabs share the bar
-    /// with the window chrome) or `"bottom"` (the strip sits above the
+    /// with the window chrome), `"bottom"` (the strip sits above the
     /// status bar; a slim top bar keeps the burger, drag area and the
-    /// minimize / maximize / close buttons). Anything else reads as top.
+    /// minimize / maximize / close buttons) or `"left"` / `"right"`
+    /// (vertical tab list on that window edge, issue #87). Anything
+    /// else reads as top.
     pub(crate) setting_tab_bar_position: String,
+    /// Side dock only: pinned tabs live with the window chrome instead
+    /// of scrolling inside the strip. Top bar visible: they dock next
+    /// to Home up there; top bar hidden: they become a fixed group at
+    /// the top of the strip (Zen-style essentials).
+    pub(crate) setting_pinned_tabs_top_bar: bool,
+    /// Side dock only: hide the slim top bar entirely. The titlebar
+    /// contract moves into the strip: a header row carries the burger,
+    /// Home and compact window buttons, and the strip's empty area
+    /// drags the window (double-click maximizes).
+    pub(crate) setting_side_hide_top_bar: bool,
+    /// Side dock only: the strip runs to the window's bottom edge and
+    /// the status bar spans only the content area.
+    pub(crate) setting_side_full_height: bool,
     /// Toggles the SFTP feature entirely. Off hides the SFTP sidebar
     /// entry (both expanded and collapsed) so users who never transfer
     /// files don't have it taking up nav space. The SFTP settings panel

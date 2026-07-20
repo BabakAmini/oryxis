@@ -1545,6 +1545,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_bar_position_left" => "左",
         "tab_bar_position_right" => "右",
         "tab_bar_position_desc" => "下にするとタブバーがステータスバーの上に配置され、左 / 右にするとその側に縦のタブリストとして配置されます。ウィンドウボタンは上部の細いバーに残ります。",
+        "pinned_tabs_top_bar" => "ピン留めタブを上部バーに表示",
+        "pinned_tabs_top_bar_desc" => "ピン留めタブは上部バーのホームの隣に配置されます。上部バーを非表示にすると、タブ一覧の上部に固定グループとして表示されます。",
+        "side_hide_top_bar" => "上部バーを隠す",
+        "side_hide_top_bar_desc" => "ウィンドウボタンとホームがタブバーに移動します。空き領域のドラッグでウィンドウを移動、ダブルクリックで最大化します。",
+        "side_full_height" => "タブバーを全高にする",
+        "side_full_height_desc" => "タブバーがウィンドウの下端まで伸び、ステータスバーはコンテンツ領域のみを覆います。",
 
                 "ecs_exec_group_missing" => "このセッションの背後にあるクラウドグループは存在しません。タブのピンを外し、ダッシュボードから再接続してください。",
         "cloud_session_ended" => "セッションが終了しました",

@@ -42,7 +42,10 @@ impl Oryxis {
             crate::views::tab_bar::TabBarPos::from_setting(&self.setting_tab_bar_position);
         let bottom_tabs = tab_pos == crate::views::tab_bar::TabBarPos::Bottom;
         let side_tabs = tab_pos.is_side();
-        let tab_bar: Element<'_, Message> = if immersive {
+        // The side dock can hide the top bar entirely (`side_hide_top_bar`):
+        // the titlebar contract moves into the strip's header row.
+        let side_hidden_bar = side_tabs && self.setting_side_hide_top_bar;
+        let tab_bar: Element<'_, Message> = if immersive || side_hidden_bar {
             Space::new().height(0).into()
         } else if bottom_tabs || side_tabs {
             self.view_top_chrome_bar()
@@ -51,12 +54,11 @@ impl Oryxis {
         };
         let content = self.view_content();
         // Status bar is opt-out (Interface → Show status bar) and
-        // also suppressed in immersive fullscreen.
-        let status_bar: Element<'_, Message> = if self.setting_show_status_bar && !immersive {
-            self.view_status_bar()
-        } else {
-            Space::new().height(0).into()
-        };
+        // also suppressed in immersive fullscreen. Carried as an Option
+        // because the side dock's full-height mode moves it inside the
+        // content column instead of the window-wide bottom slot.
+        let mut status_bar: Option<Element<'_, Message>> =
+            (self.setting_show_status_bar && !immersive).then(|| self.view_status_bar());
 
         // Tab-bar bottom hairline. When a connection tab is active and
         // it has a per-host accent color, paint the hairline 2 px and
@@ -183,19 +185,35 @@ impl Oryxis {
                 })
                 .into();
             let strip = self.view_side_tab_strip();
+            // Full-height strip: the status bar moves inside the
+            // content side, so the strip runs to the window's bottom
+            // edge instead of sitting on top of a window-wide bar.
+            let content_side: Element<'_, Message> = if self.setting_side_full_height
+                && let Some(sb) = status_bar.take()
+            {
+                column![body, sb].height(Length::Fill).into()
+            } else {
+                body
+            };
             let content_row: Element<'_, Message> =
                 if tab_pos == crate::views::tab_bar::TabBarPos::Left {
-                    iced::widget::Row::with_children(vec![strip, v_separator, body])
+                    iced::widget::Row::with_children(vec![strip, v_separator, content_side])
                         .height(Length::Fill)
                         .into()
                 } else {
-                    iced::widget::Row::with_children(vec![body, v_separator, strip])
+                    iced::widget::Row::with_children(vec![content_side, v_separator, strip])
                         .height(Length::Fill)
                         .into()
                 };
-            column![tab_bar, chrome_sep, content_row]
-                .height(Length::Fill)
-                .into()
+            if side_hidden_bar {
+                // No top bar at all: the strip's header carries the
+                // titlebar contract, so the row IS the window body.
+                content_row
+            } else {
+                column![tab_bar, chrome_sep, content_row]
+                    .height(Length::Fill)
+                    .into()
+            }
         } else if bottom_tabs && !immersive {
             // Bottom docking: the accent hairline (the active host's
             // "respiração") moves with the strip, sitting on its top
@@ -214,7 +232,10 @@ impl Oryxis {
         } else {
             column![tab_bar, h_separator, body].height(Length::Fill).into()
         };
-        let layout = column![right_side, status_bar];
+        let layout = match status_bar {
+            Some(sb) => column![right_side, sb],
+            None => column![right_side],
+        };
 
         let base: Element<'_, Message> = container(layout)
             .width(Length::Fill)

@@ -605,6 +605,15 @@ impl Oryxis {
                 );
                 self.setting_tab_bar_position = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("pinned_tabs_top_bar") {
+                self.setting_pinned_tabs_top_bar = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("side_hide_top_bar") {
+                self.setting_side_hide_top_bar = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("side_full_height") {
+                self.setting_side_full_height = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_enabled") {
                 self.sftp_enabled = v == "true";
             }

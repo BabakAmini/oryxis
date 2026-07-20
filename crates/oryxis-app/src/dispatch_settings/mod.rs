@@ -164,6 +164,9 @@ impl Oryxis {
             | SettingsMessage::SettingTabFillStyleChanged(..)
             | SettingsMessage::SettingTabAccentColorChanged(..)
             | SettingsMessage::SettingTabBarPositionChanged(..)
+            | SettingsMessage::SettingTogglePinnedTabsTopBar
+            | SettingsMessage::SettingToggleSideHideTopBar
+            | SettingsMessage::SettingToggleSideFullHeight
             | SettingsMessage::SettingToggleShowTabStatusDot
             | SettingsMessage::SettingNavOrientationChanged(..)
             | SettingsMessage::ToggleNavRailExpanded

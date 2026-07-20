@@ -175,6 +175,27 @@ impl Oryxis {
                 self.setting_tab_bar_position = normalized.into();
                 self.persist_setting("tab_bar_position", normalized);
             }
+            SettingsMessage::SettingTogglePinnedTabsTopBar => {
+                self.setting_pinned_tabs_top_bar = !self.setting_pinned_tabs_top_bar;
+                self.persist_setting(
+                    "pinned_tabs_top_bar",
+                    if self.setting_pinned_tabs_top_bar { "true" } else { "false" },
+                );
+            }
+            SettingsMessage::SettingToggleSideHideTopBar => {
+                self.setting_side_hide_top_bar = !self.setting_side_hide_top_bar;
+                self.persist_setting(
+                    "side_hide_top_bar",
+                    if self.setting_side_hide_top_bar { "true" } else { "false" },
+                );
+            }
+            SettingsMessage::SettingToggleSideFullHeight => {
+                self.setting_side_full_height = !self.setting_side_full_height;
+                self.persist_setting(
+                    "side_full_height",
+                    if self.setting_side_full_height { "true" } else { "false" },
+                );
+            }
             m => return Err(m),
         }
         Ok(Task::none())

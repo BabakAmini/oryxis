@@ -29,6 +29,57 @@ pub(crate) struct StripCtx {
 }
 
 impl Oryxis {
+    /// Icon-only Home area tab: the route back to the vault surface
+    /// (the vault identity / switcher lives on the contextual sub-nav).
+    /// It stays selected across every vault sub-section, mirroring the
+    /// `in_vault_area` family used in `layout.rs`. Rendered by the
+    /// combined top bar and, in side-dock mode, by the slim chrome bar
+    /// (the vertical strip carries session tabs only). Settings stays
+    /// out on purpose - it lives in the burger menu so it doesn't take
+    /// a permanent slot.
+    pub(crate) fn home_area_tab(&self, solid_fill: bool) -> Element<'_, Message> {
+        let nav_active = self.active_tab.is_none();
+        let in_vault_area = matches!(
+            self.active_view,
+            View::Dashboard
+                | View::Keys
+                | View::Snippets
+                | View::PortForwarding
+                | View::Cloud
+                | View::Proxies
+                | View::KnownHosts
+                | View::History
+        );
+        area_tab(
+            "",
+            iced_fonts::lucide::house(),
+            View::Dashboard,
+            nav_active && in_vault_area,
+            solid_fill,
+        )
+    }
+
+    /// Whether the active tab drag (if any) picked up a pinned tab. In
+    /// side-dock mode with `pinned_tabs_top_bar` on, this decides which
+    /// surface draws the floating ghost: the chrome bar (pinned) or the
+    /// vertical strip (unpinned).
+    pub(crate) fn dragged_tab_pinned(&self) -> bool {
+        let Some(drag) = self.tab_drag.filter(|d| d.active) else {
+            return false;
+        };
+        self.tabs
+            .iter()
+            .find(|t| t._id == drag.from_id)
+            .map(|t| t.pinned)
+            .or_else(|| {
+                self.sftp_tabs
+                    .iter()
+                    .find(|t| t.id == drag.from_id)
+                    .map(|t| t.pinned)
+            })
+            .unwrap_or(false)
+    }
+
     /// Whether a `strip_order` entry is pinned (used by the vertical
     /// strip to pack consecutive compact chips into rows).
     pub(crate) fn strip_entry_pinned(&self, is_sftp: bool, idx: usize) -> bool {

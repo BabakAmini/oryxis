@@ -266,8 +266,10 @@ impl Oryxis {
         ]);
 
         // Top bar card: strip-level knobs (bar position, status bar,
-        // the bottom hairline and the whole-bar wash).
-        let top_bar_section = panel_section(column![
+        // the bottom hairline and the whole-bar wash). Built as a
+        // mutable column because the side-dock options only render when
+        // the position is left / right.
+        let mut top_bar_col = column![
             self.nav_pick_row(
                 crate::i18n::t("tab_bar_position"),
                 vec![
@@ -293,12 +295,53 @@ impl Oryxis {
             text(crate::i18n::t("tab_bar_position_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
-            Space::new().height(8),
+        ];
+        if matches!(self.setting_tab_bar_position.as_str(), "left" | "right") {
+            top_bar_col = top_bar_col
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("pinned_tabs_top_bar"),
+                    self.setting_pinned_tabs_top_bar,
+                    Message::Settings(SettingsMessage::SettingTogglePinnedTabsTopBar),
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("pinned_tabs_top_bar_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("side_hide_top_bar"),
+                    self.setting_side_hide_top_bar,
+                    Message::Settings(SettingsMessage::SettingToggleSideHideTopBar),
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("side_hide_top_bar_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("side_full_height"),
+                    self.setting_side_full_height,
+                    Message::Settings(SettingsMessage::SettingToggleSideFullHeight),
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("side_full_height_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                );
+        }
+        let top_bar_section = panel_section(top_bar_col.push(Space::new().height(8)).push(
             self.nav_toggle_row(
                 crate::i18n::t("show_status_bar"),
                 self.setting_show_status_bar,
                 Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
             ),
+        ).push(column![
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("monitor_status_bar"),
@@ -321,7 +364,7 @@ impl Oryxis {
                 self.setting_tab_accent_wash,
                 Message::Settings(SettingsMessage::SettingToggleTabAccentWash),
             ),
-        ]);
+        ]));
 
         // ── Theme ──
         // Built-in themes, then custom UI themes, then the "+" card.

@@ -81,14 +81,14 @@ pub(crate) fn tab_jump_btn<'a>() -> Element<'a, Message> {
 /// Terminal side-panel toggle (Chat / Snippets / History). Sits right of
 /// the `+ new tab` button. Replaces the old host-search button, which
 /// only duplicated `+`'s "open the new-tab picker" action.
-pub(crate) fn sidebar_btn<'a>() -> Element<'a, Message> {
+pub(crate) fn sidebar_btn<'a>(cell_w: f32, cell_h: f32) -> Element<'a, Message> {
     let hover_color = OryxisColors::t().text_secondary;
     button(
         container(
             iced_fonts::lucide::panel_right().size(15).color(hover_color),
         )
-        .center(Length::Fixed(SIDEBAR_BUTTON_WIDTH))
-        .height(Length::Fixed(BAR_HEIGHT)),
+        .center(Length::Fixed(cell_w))
+        .height(Length::Fixed(cell_h)),
     )
     .on_press(Message::Ai(AiMessage::ToggleChatSidebar))
     .padding(0)
@@ -145,17 +145,21 @@ pub(crate) fn burger_menu_btn<'a>(is_open: bool) -> Element<'a, Message> {
 }
 
 /// Minimize / maximize / close glyph button for the window chrome.
-/// Fills the full bar height (no padding) so hover backgrounds reach the
-/// very top and bottom edges, same behaviour as Windows / VS Code.
+/// Fills the full cell height (no padding) so hover backgrounds reach
+/// the very top and bottom edges, same behaviour as Windows / VS Code.
+/// The bars use the standard 46 x BAR_HEIGHT cell; the side strip's
+/// header (hidden top bar) passes a compact cell.
 pub(crate) fn window_btn<'a>(
     icon: iced::widget::Text<'a>,
     msg: Message,
     hover_color: Color,
+    cell_w: f32,
+    cell_h: f32,
 ) -> Element<'a, Message> {
     button(
         container(icon.size(15).color(OryxisColors::t().text_secondary))
-            .center(Length::Fixed(CHROME_BUTTON_WIDTH))
-            .height(Length::Fixed(BAR_HEIGHT)),
+            .center(Length::Fixed(cell_w))
+            .height(Length::Fixed(cell_h)),
     )
     .on_press(msg)
     .padding(0)

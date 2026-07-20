@@ -1,13 +1,21 @@
 //! Side-docked (left / right) vertical tab strip (issue #87).
 //!
 //! When `tab_bar_position` is `left` or `right` the tabs stack as a
-//! vertical list on that window edge, between the slim top chrome bar
-//! and the status bar. Every chip is rendered by the same
+//! vertical list on that window edge. Every chip is rendered by the same
 //! `strip_tab_element` the horizontal strips use, at one uniform row
 //! width; compact pinned chips pack several per row (Edge-style pinned
 //! grid). Left / right are physical edges by user choice, so RTL never
 //! flips the strip; the chips' inner rows still mirror through
 //! `dir_row` like everywhere else.
+//!
+//! Three side-only options compose on top (Settings -> Interface):
+//! `pinned_tabs_top_bar` docks the pinned tabs with the window chrome
+//! (the slim top bar, or a fixed group under this strip's header when
+//! that bar is hidden); `side_hide_top_bar` removes the top bar and
+//! moves the whole titlebar contract in here (header row with burger +
+//! Home + compact window buttons, empty areas drag the window,
+//! double-click maximizes); `side_full_height` is layout-only
+//! (`main_layout` keeps the status bar off this strip's column).
 
 use super::*;
 
@@ -19,18 +27,19 @@ pub(crate) const SIDE_TAB_WIDTH: f32 = SIDE_STRIP_WIDTH - 16.0;
 /// Rendered height of one strip row: the chip's TAB_HEIGHT content box
 /// plus the button's default 5px top/bottom paddings.
 const SIDE_ROW_HEIGHT: f32 = TAB_HEIGHT + 10.0;
-/// Window-space y where the strip's content starts: the slim top
-/// chrome bar, its 1px separator and the strip's own top gutter.
-/// `main_layout` must keep the side layout in sync with this so the
-/// drag ghost tracks the cursor.
-const SIDE_STRIP_TOP: f32 = BAR_HEIGHT + 1.0 + 6.0;
+/// Compact window-chrome cell used by the strip header when the top
+/// bar is hidden (the standard 46px cells would eat half the strip).
+const HEADER_CHROME_W: f32 = 28.0;
+const HEADER_CHROME_H: f32 = 32.0;
 
 impl Oryxis {
-    /// The vertical tab strip for the left / right docked layout:
-    /// Home area tab, then the unified pinned-first tab order (compact
-    /// pinned chips packed into rows), then `+`; `⋯` joins a docked
-    /// footer once the list overflows the viewport.
+    /// The vertical tab strip for the left / right docked layout: an
+    /// optional titlebar header (hidden-top-bar mode), an optional
+    /// fixed pinned group, then the scrolling tab list with `+`; `⋯`
+    /// joins a docked footer once the list overflows the viewport.
     pub(crate) fn view_side_tab_strip(&self) -> Element<'_, Message> {
+        let hide_top_bar = self.setting_side_hide_top_bar;
+        let pins_top = self.setting_pinned_tabs_top_bar;
         let compact_pins = self.setting_pinned_tab_style == "compact";
         let solid_fill =
             self.setting_tab_fill_style == "solid" || self.setting_performance_mode;
@@ -47,45 +56,57 @@ impl Oryxis {
             uniform_w: Some(SIDE_TAB_WIDTH),
             session_widths: Vec::new(),
         };
-
-        let mut items: Vec<Element<'_, Message>> = Vec::new();
-        {
-            // Icon-only Home tab, same square as the horizontal strip
-            // (see `tab_strip_bar` for why Settings stays out).
-            let nav_active = self.active_tab.is_none();
-            let in_vault_area = matches!(
-                self.active_view,
-                View::Dashboard
-                    | View::Keys
-                    | View::Snippets
-                    | View::PortForwarding
-                    | View::Cloud
-                    | View::Proxies
-                    | View::KnownHosts
-                    | View::History
-            );
-            items.push(area_tab(
-                "",
-                iced_fonts::lucide::house(),
-                View::Dashboard,
-                nav_active && in_vault_area,
-                solid_fill,
-            ));
-        }
-
-        // Consecutive compact pinned chips pack into rows of CHIP_W
-        // chips; everything else stacks one chip per row. `strip_order`
-        // is pinned-first, so with the compact style the chips form one
-        // grid at the top of the list.
         let chips_per_row = ((SIDE_TAB_WIDTH + TAB_SPACING)
             / (CHIP_W + TAB_SPACING))
             .floor()
             .max(1.0) as usize;
+
+        // Fixed head (never scrolls). Hidden-top-bar mode: the titlebar
+        // contract lives here: burger + Home + drag gap + side-panel
+        // toggle + compact window chrome. `pinned_tabs_top_bar` then
+        // docks the pinned tabs as an always-visible group right under
+        // it (Zen-style essentials), since there is no top bar to host
+        // them.
+        let mut head: Vec<Element<'_, Message>> = Vec::new();
+        if hide_top_bar {
+            let mut header: Vec<Element<'_, Message>> = vec![
+                burger_menu_btn(self.show_burger_menu),
+                self.home_area_tab(solid_fill),
+                Space::new().width(Length::Fill).into(),
+            ];
+            if self.active_tab.is_some() {
+                header.push(sidebar_btn(SIDEBAR_TOGGLE_WIDTH, HEADER_CHROME_H));
+            }
+            header.push(self.window_chrome_row(HEADER_CHROME_W, HEADER_CHROME_H).into());
+            head.push(
+                crate::widgets::dir_row(header)
+                    .align_y(iced::Alignment::Center)
+                    .into(),
+            );
+        }
+        let pins_docked_here = hide_top_bar && pins_top;
+        let mut pins_row_count = 0usize;
+        if pins_docked_here {
+            let rows = self.side_pins_rows(&ctx, chips_per_row, compact_pins);
+            pins_row_count = rows.len();
+            head.extend(rows);
+        }
+
+        // Scrolling list. With `pinned_tabs_top_bar` the pinned entries
+        // live with the chrome (top bar or the fixed head above), so
+        // they are skipped here; otherwise consecutive compact pinned
+        // chips pack into rows at the top of the list (`strip_order` is
+        // pinned-first) and everything else stacks one chip per row.
+        let mut items: Vec<Element<'_, Message>> = Vec::new();
         let mut chip_row: Vec<Element<'_, Message>> = Vec::new();
-        let mut row_count = 1usize; // the Home tab above
+        let mut row_count = 0usize;
         for (is_sftp, idx) in self.strip_order() {
+            let pinned = self.strip_entry_pinned(is_sftp, idx);
+            if pins_top && pinned {
+                continue;
+            }
             let el = self.strip_tab_element(&ctx, is_sftp, idx);
-            if compact_pins && self.strip_entry_pinned(is_sftp, idx) {
+            if compact_pins && pinned {
                 chip_row.push(el);
                 if chip_row.len() == chips_per_row {
                     items.push(
@@ -118,7 +139,11 @@ impl Oryxis {
         // the `⋯` jump button and the list alone scrolls. Mirrors the
         // horizontal strip's docked-plus / scroll-mode pair; vertical
         // rows never compress, so one trigger covers both.
-        let viewport_h = (self.window_size.height - SIDE_STRIP_TOP - 40.0).max(120.0);
+        let strip_top = if hide_top_bar { 0.0 } else { BAR_HEIGHT + 1.0 };
+        let head_h = if hide_top_bar { BAR_HEIGHT } else { 0.0 }
+            + pins_row_count as f32 * (SIDE_ROW_HEIGHT + TAB_SPACING);
+        let viewport_h =
+            (self.window_size.height - strip_top - head_h - 40.0).max(120.0);
         let content_h = (row_count as f32 + 1.0) * (SIDE_ROW_HEIGHT + TAB_SPACING);
         let overflow = content_h > viewport_h;
 
@@ -153,7 +178,11 @@ impl Oryxis {
         .width(Length::Fill)
         .height(Length::Fill);
 
-        let mut inner = iced::widget::Column::new().push(strip_scroll);
+        let mut inner = iced::widget::Column::new().spacing(TAB_SPACING);
+        for h in head {
+            inner = inner.push(h);
+        }
+        inner = inner.push(strip_scroll);
         if let Some(footer) = footer {
             inner = inner.push(footer);
         }
@@ -172,7 +201,7 @@ impl Oryxis {
         } else {
             Background::Color(bar_base)
         };
-        let bar: Element<'_, Message> = container(inner)
+        let mut bar: Element<'_, Message> = container(inner)
             .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 8.0 })
             .width(Length::Fixed(SIDE_STRIP_WIDTH))
             .height(Length::Fill)
@@ -181,14 +210,29 @@ impl Oryxis {
                 ..Default::default()
             })
             .into();
+        if hide_top_bar {
+            // With no top bar this strip IS the titlebar: its empty
+            // areas (header gap, space below the tabs) drag the window
+            // and double-click maximizes, exactly like the horizontal
+            // strips. Tab buttons consume their own presses, so clicks
+            // on chips never start a window move.
+            bar = MouseArea::new(bar)
+                .on_press(Message::Tabs(TabsMessage::WindowDrag))
+                .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
+                .into();
+        }
 
         // Floating drag ghost, tracking the cursor's y (the horizontal
         // bars track x). Non-interactive so the tab MouseAreas below
         // keep receiving the hover events that drive the live-slide.
-        if let Some((ghost, _ghost_w)) =
-            self.strip_drag_ghost_el(SIDE_TAB_WIDTH, compact_pins, &ctx.privacy_terms)
+        // With the pins docked in the (visible) top bar, that bar draws
+        // the pinned ghosts instead.
+        let ghost_elsewhere = pins_top && !hide_top_bar && self.dragged_tab_pinned();
+        if !ghost_elsewhere
+            && let Some((ghost, _ghost_w)) =
+                self.strip_drag_ghost_el(SIDE_TAB_WIDTH, compact_pins, &ctx.privacy_terms)
         {
-            let gy = (self.mouse_position.y - SIDE_STRIP_TOP - SIDE_ROW_HEIGHT / 2.0)
+            let gy = (self.mouse_position.y - strip_top - 6.0 - SIDE_ROW_HEIGHT / 2.0)
                 .max(0.0);
             let positioned: Element<'_, Message> = iced::widget::Column::new()
                 .push(Space::new().height(gy))
@@ -206,5 +250,41 @@ impl Oryxis {
                 .into();
         }
         bar
+    }
+
+    /// The pinned `strip_order` entries as fixed strip rows: compact
+    /// chips packed `chips_per_row` per row, full-style pins one per
+    /// row. Used by the hidden-top-bar head when `pinned_tabs_top_bar`
+    /// docks the pins on this strip.
+    fn side_pins_rows(
+        &self,
+        ctx: &StripCtx,
+        chips_per_row: usize,
+        compact_pins: bool,
+    ) -> Vec<Element<'_, Message>> {
+        let mut rows: Vec<Element<'_, Message>> = Vec::new();
+        let mut chip_row: Vec<Element<'_, Message>> = Vec::new();
+        for (is_sftp, idx) in self.strip_order() {
+            if !self.strip_entry_pinned(is_sftp, idx) {
+                continue;
+            }
+            let el = self.strip_tab_element(ctx, is_sftp, idx);
+            if compact_pins {
+                chip_row.push(el);
+                if chip_row.len() == chips_per_row {
+                    rows.push(
+                        row(std::mem::take(&mut chip_row))
+                            .spacing(TAB_SPACING)
+                            .into(),
+                    );
+                }
+            } else {
+                rows.push(el);
+            }
+        }
+        if !chip_row.is_empty() {
+            rows.push(row(chip_row).spacing(TAB_SPACING).into());
+        }
+        rows
     }
 }

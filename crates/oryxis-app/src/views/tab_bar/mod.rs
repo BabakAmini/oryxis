@@ -73,39 +73,59 @@ impl Oryxis {
         self.tab_strip_bar(true)
     }
 
-    /// Slim top bar for the bottom-docked layout: burger, an empty
+    /// Slim top bar for the docked layouts: burger, an empty
     /// window-drag area, the side-panel toggle and the chrome buttons.
     /// Keeps the titlebar affordances (drag, double-click maximize,
     /// minimize / maximize / close) at the top of the window where every
-    /// OS puts them, while the tabs live at the bottom.
+    /// OS puts them, while the tabs live at the bottom or on a side.
+    /// In side-dock mode the Home area tab joins it next to the burger
+    /// (the vertical strip carries session tabs only), and with
+    /// `pinned_tabs_top_bar` the pinned tabs dock here too, their strip
+    /// doubling as the drag area like the horizontal tab strip does.
     pub(crate) fn view_top_chrome_bar(&self) -> Element<'_, Message> {
-        let drag_area: Element<'_, Message> = MouseArea::new(
-            container(Space::new())
-                .width(Length::Fill)
-                .height(Length::Fixed(BAR_HEIGHT)),
-        )
-        .on_press(Message::Tabs(TabsMessage::WindowDrag))
-        .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
-        .into();
+        let side = tab_bar_pos().is_side();
+        let solid_fill =
+            self.setting_tab_fill_style == "solid" || self.setting_performance_mode;
+        let pins_here = side && self.setting_pinned_tabs_top_bar;
 
         let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
         if self.active_tab.is_some() {
-            cluster_items.push(sidebar_btn());
+            cluster_items.push(sidebar_btn(SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
             cluster_items.push(Space::new().width(2).into());
         }
-        cluster_items.push(self.window_chrome_row().into());
+        cluster_items.push(self.window_chrome_row(CHROME_BUTTON_WIDTH, BAR_HEIGHT).into());
         let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
             .align_y(iced::Alignment::Center)
             .into();
 
-        let leading: Vec<Element<'_, Message>> = vec![
+        let mut leading: Vec<Element<'_, Message>> = vec![
             burger_menu_btn(self.show_burger_menu),
             Space::new().width(1).height(TAB_HEIGHT).into(),
-            drag_area,
-            right_cluster,
         ];
+        if side {
+            leading.push(self.home_area_tab(solid_fill));
+        }
+        // The middle Fill slot: the pinned-tab strip (which keeps the
+        // window-drag / double-click contract on its empty area) or the
+        // plain drag area.
+        let ghost_ctx: Option<StripCtx> = pins_here.then(|| self.chrome_bar_pins_ctx());
+        if let Some(ref ctx) = ghost_ctx {
+            leading.push(self.chrome_bar_pins(ctx));
+        } else {
+            leading.push(
+                MouseArea::new(
+                    container(Space::new())
+                        .width(Length::Fill)
+                        .height(Length::Fixed(BAR_HEIGHT)),
+                )
+                .on_press(Message::Tabs(TabsMessage::WindowDrag))
+                .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
+                .into(),
+            );
+        }
+        leading.push(right_cluster);
         let bar_bg = self.tab_bar_background();
-        container(
+        let bar: Element<'_, Message> = container(
             crate::widgets::dir_row(leading).align_y(iced::Alignment::Center),
         )
         .width(Length::Fill)
@@ -114,15 +134,111 @@ impl Oryxis {
             background: Some(bar_bg),
             ..Default::default()
         })
+        .into();
+
+        // Floating ghost while a PINNED tab is being dragged: the pins
+        // live on this bar, so the ghost tracks the cursor's x here;
+        // the vertical strip draws the unpinned ghosts.
+        if let Some(ref ctx) = ghost_ctx
+            && self.dragged_tab_pinned()
+            && let Some((ghost, ghost_w)) = self.strip_drag_ghost_el(
+                ctx.drag_uniform_w,
+                ctx.compact_pins,
+                &ctx.privacy_terms,
+            )
+        {
+            let gx = (self.mouse_position.x - ghost_w / 2.0).max(0.0);
+            let positioned: Element<'_, Message> = iced::widget::Column::new()
+                .push(Space::new().height(7.0))
+                .push(
+                    iced::widget::Row::new()
+                        .push(Space::new().width(gx))
+                        .push(ghost),
+                )
+                .into();
+            return iced::widget::Stack::new()
+                .push(bar)
+                .push(positioned)
+                .width(Length::Fill)
+                .height(Length::Fixed(BAR_HEIGHT))
+                .into();
+        }
+        bar
+    }
+
+    /// Shared per-frame context for the pinned tabs rendered into the
+    /// slim chrome bar: horizontal widths (active natural, inactives
+    /// content-hugged; the scrollable is the overflow safety net).
+    fn chrome_bar_pins_ctx(&self) -> StripCtx {
+        let close_on_right = self.setting_tab_close_button_side == "right";
+        let mut session_widths = vec![TAB_MIN_WIDTH; self.tabs.len()];
+        let mut max_inactive_content = TAB_MIN_WIDTH;
+        for (i, tab) in self.tabs.iter().enumerate() {
+            if self.active_tab == Some(i) {
+                session_widths[i] = TAB_NATURAL_WIDTH;
+            } else {
+                let cw = tab_content_width(
+                    tab.display_label(self.tab_auto_title(tab)),
+                    close_on_right,
+                    tab.pane_count() > 1,
+                );
+                session_widths[i] = cw;
+                max_inactive_content = max_inactive_content.max(cw);
+            }
+        }
+        StripCtx {
+            privacy_terms: self.privacy_terms(),
+            close_on_right,
+            compact_pins: self.setting_pinned_tab_style == "compact",
+            solid_fill: self.setting_tab_fill_style == "solid"
+                || self.setting_performance_mode,
+            dragging_any: self.tab_drag.map(|d| d.active).unwrap_or(false),
+            drag_uniform_w: max_inactive_content.clamp(TAB_MIN_WIDTH, TAB_NATURAL_WIDTH),
+            uniform_w: None,
+            session_widths,
+        }
+    }
+
+    /// The pinned tabs as a horizontal strip inside the slim chrome bar
+    /// (side dock + `pinned_tabs_top_bar`): the same chips the strips
+    /// render, in a hidden-scrollbar scrollable whose empty area keeps
+    /// the window-drag / double-click-maximize titlebar contract.
+    fn chrome_bar_pins<'a>(&'a self, ctx: &StripCtx) -> Element<'a, Message> {
+        let mut items: Vec<Element<'a, Message>> = Vec::new();
+        for (is_sftp, idx) in self.strip_order() {
+            if !self.strip_entry_pinned(is_sftp, idx) {
+                continue;
+            }
+            items.push(self.strip_tab_element(ctx, is_sftp, idx));
+        }
+        let strip = scrollable(
+            row(items)
+                .spacing(TAB_SPACING)
+                .align_y(iced::Alignment::Center),
+        )
+        .id(iced::widget::Id::new("chrome-pin-scroll"))
+        .direction(scrollable::Direction::Horizontal(
+            scrollable::Scrollbar::new().width(0.0).scroller_width(0.0),
+        ))
+        .width(Length::Fill)
+        .height(Length::Fixed(BAR_HEIGHT));
+        MouseArea::new(
+            container(strip)
+                .width(Length::Fill)
+                .padding(Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 4.0 }),
+        )
+        .on_press(Message::Tabs(TabsMessage::WindowDrag))
+        .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
         .into()
     }
 
     /// Window controls (minimize / maximize-restore / close) in their own
     /// dir_row so the close button ends up on the leading edge under RTL,
     /// matching how macOS and GNOME flip traffic-light buttons when the
-    /// locale flips. Shared by the combined top bar and the slim chrome
-    /// bar of the bottom-docked layout.
-    fn window_chrome_row(&self) -> iced::widget::Row<'_, Message> {
+    /// locale flips. Shared by the combined top bar, the slim chrome bar
+    /// of the docked layouts (standard 46 x BAR_HEIGHT cells) and the
+    /// side strip's header when the top bar is hidden (compact cells).
+    pub(crate) fn window_chrome_row(&self, cell_w: f32, cell_h: f32) -> iced::widget::Row<'_, Message> {
         let max_icon = if self.window_maximized {
             iced_fonts::codicon::chrome_restore()
         } else {
@@ -133,16 +249,22 @@ impl Oryxis {
                 iced_fonts::codicon::chrome_minimize(),
                 Message::Tabs(TabsMessage::WindowMinimize),
                 OryxisColors::t().text_secondary,
+                cell_w,
+                cell_h,
             ),
             window_btn(
                 max_icon,
                 Message::Tabs(TabsMessage::WindowMaximizeToggle),
                 OryxisColors::t().text_secondary,
+                cell_w,
+                cell_h,
             ),
             window_btn(
                 iced_fonts::codicon::chrome_close(),
                 Message::Tabs(TabsMessage::WindowClose),
                 OryxisColors::t().error,
+                cell_w,
+                cell_h,
             ),
         ])
         .align_y(iced::Alignment::Center)
@@ -303,39 +425,10 @@ impl Oryxis {
         // single solid fill.
         let solid_fill = self.setting_tab_fill_style == "solid" || self.setting_performance_mode;
 
-        // The navigation areas (Hosts and SFTP) live as top-level tabs
-        // before the connection tabs. Settings stays out of the strip on
-        // purpose - it lives in the burger menu so it doesn't take a
-        // permanent slot.
-        {
-            let nav_active = self.active_tab.is_none();
-            // The "Hosts" area tab stays selected across every vault
-            // sub-section (Hosts, Keychain, Snippets, Port Forwarding,
-            // History), not just the Hosts grid. Those sub-sections
-            // live under the contextual sub-nav of this same area, so
-            // mirror the `in_vault_area` family used in `layout.rs`.
-            let in_vault_area = matches!(
-                self.active_view,
-                View::Dashboard
-                    | View::Keys
-                    | View::Snippets
-                    | View::PortForwarding
-                    | View::Cloud
-                    | View::Proxies
-                    | View::KnownHosts
-                    | View::History
-            );
-            // Icon-only Home tab: the vault identity / switcher now
-            // lives on the contextual sub-nav (the "Personal" chip),
-            // so this tab is just the route back to the vault surface.
-            tab_items.push(area_tab(
-                "",
-                iced_fonts::lucide::house(),
-                View::Dashboard,
-                nav_active && in_vault_area,
-                solid_fill,
-            ));
-        }
+        // The navigation areas live as top-level tabs before the
+        // connection tabs (see `home_area_tab` for the selection family
+        // and why Settings stays out).
+        tab_items.push(self.home_area_tab(solid_fill));
 
         // Terminal and SFTP tabs share one strip, pinned-first across BOTH
         // kinds (so an unpinned SFTP tab never jumps ahead of a pinned
@@ -502,10 +595,10 @@ impl Oryxis {
             // sense inside a connection tab, so skip it on the navigation
             // views where there's no terminal session to attach a panel to.
             if self.active_tab.is_some() {
-                cluster_items.push(sidebar_btn());
+                cluster_items.push(sidebar_btn(SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
                 cluster_items.push(Space::new().width(2).into());
             }
-            cluster_items.push(self.window_chrome_row().into());
+            cluster_items.push(self.window_chrome_row(CHROME_BUTTON_WIDTH, BAR_HEIGHT).into());
             let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
                 .align_y(iced::Alignment::Center)
                 .into();
@@ -643,16 +736,21 @@ impl Oryxis {
         // scrollable clamps.
         if tab_bar_pos().is_side() {
             let row_pitch = TAB_HEIGHT + 10.0 + TAB_SPACING;
-            // Home square + spacing sits above the first session tab.
-            let head = TAB_HEIGHT + 10.0 + TAB_SPACING;
+            // With `pinned_tabs_top_bar` the pinned entries live with
+            // the chrome, outside the scrollable, so they don't count
+            // toward the offset. Compact pinned chips otherwise pack
+            // several per row, which makes this slightly overshoot;
+            // like the horizontal math below, approximate is fine, the
+            // scrollable clamps.
+            let pins_top = self.setting_pinned_tabs_top_bar;
             let preceding = self
                 .strip_order()
                 .iter()
+                .filter(|&&(is_sftp, i)| !(pins_top && self.strip_entry_pinned(is_sftp, i)))
                 .position(|&(is_sftp, i)| !is_sftp && i == active_idx)
                 .unwrap_or(active_idx) as f32;
             let viewport_h = (self.window_size.height - BAR_HEIGHT - 40.0).max(120.0);
-            let y = (head + preceding * row_pitch - viewport_h / 2.0 + row_pitch / 2.0)
-                .max(0.0);
+            let y = (preceding * row_pitch - viewport_h / 2.0 + row_pitch / 2.0).max(0.0);
             return iced::widget::operation::scroll_to(
                 iced::widget::Id::new("tab-scroll"),
                 iced::widget::scrollable::AbsoluteOffset { x: 0.0, y },

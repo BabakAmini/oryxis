@@ -578,6 +578,9 @@ impl Oryxis {
                 setting_tab_accent_color: "host".into(),
                 setting_tab_fill_style: "gradient".into(),
                 setting_tab_bar_position: "top".into(),
+                setting_pinned_tabs_top_bar: false,
+                setting_side_hide_top_bar: false,
+                setting_side_full_height: false,
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who
                 // never persisted `layout_mode` also fall through to
