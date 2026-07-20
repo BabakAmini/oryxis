@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "App-Design",
         "interface_group_advanced" => "Erweitert",
         "show_status_bar" => "Statusleiste anzeigen",
+        "terminal_sidebar_left" => "Seitenleiste links andocken",
+        "terminal_sidebar_left_desc" => "Zeigt die Seitenleiste (Chat / Snippets / Dateien / Monitor) links vom Terminal statt rechts.",
         "system_tray" => "Infobereich",
         "close_to_tray" => "In Infobereich schließen",
         "close_to_tray_desc" => "Beim Klick auf Schließen wird Oryxis im Infobereich ausgeblendet statt beendet. Über das Tray-Symbol zurückholen. Nur Windows.",

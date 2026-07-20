@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "アプリのテーマ",
         "interface_group_advanced" => "詳細",
         "show_status_bar" => "ステータスバーを表示",
+        "terminal_sidebar_left" => "サイドバーを左に配置",
+        "terminal_sidebar_left_desc" => "サイドバー（チャット / スニペット / ファイル / モニター）を端末の右ではなく左に表示します。",
         "system_tray" => "システムトレイ",
         "close_to_tray" => "トレイに閉じる",
         "close_to_tray_desc" => "閉じるボタンをクリックすると、Oryxis は終了せずにシステムトレイに隠れます。トレイアイコンで復元できます。Windows のみ。",

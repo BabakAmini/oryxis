@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "应用主题",
         "interface_group_advanced" => "高级",
         "show_status_bar" => "显示状态栏",
+        "terminal_sidebar_left" => "将侧边栏停靠在左侧",
+        "terminal_sidebar_left_desc" => "将侧边栏（聊天 / 代码片段 / 文件 / 监控）显示在终端左侧而非右侧。",
         "system_tray" => "系统托盘",
         "close_to_tray" => "关闭到托盘",
         "close_to_tray_desc" => "点击关闭按钮会将 Oryxis 隐藏到系统托盘而不是退出。使用托盘图标恢复。仅 Windows。",

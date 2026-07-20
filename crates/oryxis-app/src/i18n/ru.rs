@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Тема приложения",
         "interface_group_advanced" => "Дополнительно",
         "show_status_bar" => "Показывать строку состояния",
+        "terminal_sidebar_left" => "Закрепить боковую панель слева",
+        "terminal_sidebar_left_desc" => "Показывать боковую панель (Чат / Сниппеты / Файлы / Монитор) слева от терминала, а не справа.",
         "system_tray" => "Системный трей",
         "close_to_tray" => "Закрывать в трей",
         "close_to_tray_desc" => "При нажатии на кнопку закрытия Oryxis сворачивается в системный трей вместо выхода. Используйте значок трея для восстановления. Только Windows.",

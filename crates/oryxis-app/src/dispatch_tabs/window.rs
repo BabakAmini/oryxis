@@ -82,11 +82,15 @@ impl Oryxis {
             }
         }
         // While the chat-sidebar resize handle is held down, the
-        // sidebar width tracks the cursor, dragging left grows
-        // the panel, dragging right shrinks it. Clamp to a sane
-        // band so the user can't accidentally make it unusable.
+        // sidebar width tracks the cursor. The handle sits on the panel's
+        // inner edge, so the drag direction that grows it flips with the
+        // dock side (issue #85): docked right, dragging left grows it;
+        // docked left, dragging right grows it. Clamp to a sane band so
+        // the user can't accidentally make it unusable.
         if let Some((start_x, start_width)) = self.chat_sidebar_drag {
-            let new_width = (start_width - (pos.x - start_x)).clamp(260.0, 700.0);
+            let delta = pos.x - start_x;
+            let signed = if self.setting_terminal_sidebar_left { delta } else { -delta };
+            let new_width = (start_width + signed).clamp(260.0, 700.0);
             self.chat_sidebar_width = new_width;
         }
         // SFTP center divider: the ratio tracks the cursor across the

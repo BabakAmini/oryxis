@@ -551,6 +551,7 @@ impl Oryxis {
                 setting_smart_tabs: true,
                 setting_smart_long_secs: 10,
                 setting_show_status_bar: true,
+                setting_terminal_sidebar_left: false,
                 setting_monitor_status_bar: false,
                 setting_host_list_view: false,
                 setting_card_accent_glass: true,

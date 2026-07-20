@@ -8,7 +8,7 @@ impl Oryxis {
     /// smart-tabs toggle is on (an off feature hides all of its UI).
     fn smart_tabs_threshold_row(&self) -> Element<'_, Message> {
         if !self.setting_smart_tabs {
-            return Space::new().height(0).into();
+            return Space::new().into();
         }
         column![
             Space::new().height(10),
@@ -33,7 +33,7 @@ impl Oryxis {
     /// like the other nested sub-options.
     fn command_history_dir_row(&self) -> Element<'_, Message> {
         if !self.setting_command_history_file {
-            return Space::new().height(0).into();
+            return Space::new().into();
         }
         let indent = if crate::i18n::is_rtl_layout() {
             Padding { right: 22.0, ..Padding::ZERO }
@@ -343,6 +343,16 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::Settings(SettingsMessage::SettingToggleSmartTabs)),
             self.smart_tabs_threshold_row(),
+            Space::new().height(10),
+            self.nav_toggle_row(
+                crate::i18n::t("terminal_sidebar_left"),
+                self.setting_terminal_sidebar_left,
+                Message::Settings(SettingsMessage::SettingToggleTerminalSidebarLeft),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("terminal_sidebar_left_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
 
         // The +/- stepper maps naturally onto the picker action:

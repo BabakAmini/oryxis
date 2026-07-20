@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Tema do app",
         "interface_group_advanced" => "Avançado",
         "show_status_bar" => "Mostrar barra de status",
+        "terminal_sidebar_left" => "Ancorar a barra lateral à esquerda",
+        "terminal_sidebar_left_desc" => "Mostra a barra lateral (Chat / Snippets / Arquivos / Monitor) à esquerda do terminal em vez da direita.",
         "system_tray" => "Bandeja do sistema",
         "close_to_tray" => "Fechar para bandeja",
         "close_to_tray_desc" => "Clicar no botão de fechar oculta o Oryxis na bandeja do sistema em vez de sair. Use o ícone da bandeja para voltar. Apenas Windows.",

@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "پوسته برنامه",
         "interface_group_advanced" => "پیشرفته",
         "show_status_bar" => "نمایش نوار وضعیت",
+        "terminal_sidebar_left" => "نوار کناری را در چپ قرار بده",
+        "terminal_sidebar_left_desc" => "نوار کناری (گفت‌وگو / قطعه‌کدها / فایل‌ها / پایش) را به‌جای راست، در سمت چپ ترمینال نشان می‌دهد.",
         "system_tray" => "سینی سیستم",
         "close_to_tray" => "بستن در سینی",
         "close_to_tray_desc" => "کلیک روی دکمه بستن، Oryxis را به جای خروج در سینی سیستم پنهان می‌کند. با آیکون سینی بازگردانید. فقط ویندوز.",

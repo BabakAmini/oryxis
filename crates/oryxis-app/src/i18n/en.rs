@@ -359,6 +359,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "interface_group_theme" => "App theme",
         "interface_group_advanced" => "Advanced",
         "show_status_bar" => "Show status bar",
+        "terminal_sidebar_left" => "Dock the sidebar on the left",
+        "terminal_sidebar_left_desc" => "Show the Chat / Snippets / Files / Monitor sidebar on the left of the terminal instead of the right.",
         "system_tray" => "System tray",
         "close_to_tray" => "Close to tray",
         "close_to_tray_desc" => "Clicking the window's close button hides Oryxis to the system tray instead of quitting. Use the tray icon to bring it back. Windows only.",

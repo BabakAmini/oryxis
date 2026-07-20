@@ -359,6 +359,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "ऐप थीम",
         "interface_group_advanced" => "उन्नत",
         "show_status_bar" => "स्टेटस बार दिखाएं",
+        "terminal_sidebar_left" => "साइडबार को बाईं ओर लगाएँ",
+        "terminal_sidebar_left_desc" => "साइडबार (चैट / स्निपेट / फ़ाइलें / मॉनिटर) को टर्मिनल के दाईं के बजाय बाईं ओर दिखाता है।",
         "system_tray" => "सिस्टम ट्रे",
         "close_to_tray" => "बंद करने पर ट्रे में भेजें",
         "close_to_tray_desc" => "विंडो का बंद करने वाला बटन क्लिक करने पर Oryxis बंद होने के बजाय सिस्टम ट्रे में छिप जाता है। वापस लाने के लिए ट्रे आइकॉन उपयोग करें। केवल Windows।",

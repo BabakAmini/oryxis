@@ -359,6 +359,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "ערכת נושא של האפליקציה",
         "interface_group_advanced" => "מתקדם",
         "show_status_bar" => "הצגת שורת מצב",
+        "terminal_sidebar_left" => "עגן את הסרגל הצדי משמאל",
+        "terminal_sidebar_left_desc" => "מציג את הסרגל הצדי (צ'אט / קטעים / קבצים / ניטור) משמאל למסוף במקום מימין.",
         "system_tray" => "מגש המערכת",
         "close_to_tray" => "סגירה למגש המערכת",
         "close_to_tray_desc" => "לחיצה על כפתור הסגירה של החלון מסתירה את Oryxis למגש המערכת במקום לצאת. השתמשו באייקון במגש כדי להחזיר אותו. Windows בלבד.",

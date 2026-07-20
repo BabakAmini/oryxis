@@ -188,6 +188,9 @@ pub enum SettingsMessage {
     ToggleKeywordHighlight,
     ToggleSmartContrast,
     SettingToggleShowStatusBar,
+    /// Settings > Terminal: flip the terminal sidebar to the left edge
+    /// (issue #85).
+    SettingToggleTerminalSidebarLeft,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
     ToggleHostListView,

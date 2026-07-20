@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Tema aplikasi",
         "interface_group_advanced" => "Lanjutan",
         "show_status_bar" => "Tampilkan bilah status",
+        "terminal_sidebar_left" => "Tempatkan bilah sisi di kiri",
+        "terminal_sidebar_left_desc" => "Menampilkan bilah sisi (Chat / Snippet / Berkas / Monitor) di kiri terminal alih-alih di kanan.",
         "system_tray" => "System tray",
         "close_to_tray" => "Tutup ke tray",
         "close_to_tray_desc" => "Mengklik tombol tutup jendela menyembunyikan Oryxis ke system tray alih-alih keluar. Gunakan ikon tray untuk memunculkannya kembali. Hanya Windows.",

@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Giao diện ứng dụng",
         "interface_group_advanced" => "Nâng cao",
         "show_status_bar" => "Hiện thanh trạng thái",
+        "terminal_sidebar_left" => "Neo thanh bên sang trái",
+        "terminal_sidebar_left_desc" => "Hiển thị thanh bên (Trò chuyện / Snippet / Tệp / Giám sát) ở bên trái terminal thay vì bên phải.",
         "system_tray" => "Khay hệ thống",
         "close_to_tray" => "Đóng vào khay",
         "close_to_tray_desc" => "Nhấp nút đóng của cửa sổ sẽ ẩn Oryxis vào khay hệ thống thay vì thoát. Dùng biểu tượng khay để mở lại. Chỉ Windows.",

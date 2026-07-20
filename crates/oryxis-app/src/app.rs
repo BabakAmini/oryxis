@@ -1074,6 +1074,11 @@ pub struct Oryxis {
     /// Oryxis version. Off in `view_main` simply skips rendering it,
     /// reclaiming the row for the active content area.
     pub(crate) setting_show_status_bar: bool,
+    /// Dock the terminal sidebar (Chat / Snippets / Files / Monitor /
+    /// Host config) on the LEFT of the terminal instead of the right
+    /// (issue #85). A physical edge like the #87 tab-bar dock, so RTL
+    /// does not flip it.
+    pub(crate) setting_terminal_sidebar_left: bool,
     /// Show the monitored host's vitals as a status-bar segment (issue
     /// #83, the MobaXterm-style bar). Off by default: it is a second,
     /// optional surface on the sidebar Monitor tab's engine, and an

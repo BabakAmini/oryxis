@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Thème de l'app",
         "interface_group_advanced" => "Avancé",
         "show_status_bar" => "Afficher la barre d'état",
+        "terminal_sidebar_left" => "Ancrer la barre latérale à gauche",
+        "terminal_sidebar_left_desc" => "Affiche la barre latérale (Chat / Snippets / Fichiers / Moniteur) à gauche du terminal au lieu de la droite.",
         "system_tray" => "Zone de notification",
         "close_to_tray" => "Fermer dans la zone",
         "close_to_tray_desc" => "Cliquer sur fermer masque Oryxis dans la zone de notification au lieu de quitter. Utilisez l'icône pour le ramener. Windows uniquement.",

@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Тема застосунку",
         "interface_group_advanced" => "Додатково",
         "show_status_bar" => "Показувати рядок стану",
+        "terminal_sidebar_left" => "Закріпити бічну панель ліворуч",
+        "terminal_sidebar_left_desc" => "Показувати бічну панель (Чат / Сніпети / Файли / Монітор) ліворуч від термінала, а не праворуч.",
         "system_tray" => "Системний трей",
         "close_to_tray" => "Згортати у трей",
         "close_to_tray_desc" => "Натискання кнопки закриття вікна ховає Oryxis у системний трей замість виходу. Використовуйте іконку трея, щоб повернути його. Лише для Windows.",

@@ -44,6 +44,13 @@ impl Oryxis {
                     &self.setting_monitor_interval.clone(),
                 );
             }
+            SettingsMessage::SettingToggleTerminalSidebarLeft => {
+                self.setting_terminal_sidebar_left = !self.setting_terminal_sidebar_left;
+                self.persist_setting(
+                    "terminal_sidebar_side",
+                    if self.setting_terminal_sidebar_left { "left" } else { "right" },
+                );
+            }
             SettingsMessage::ToggleHostListView => {
                 // Dismiss the `…` overflow menu when toggled from there
                 // (no-op for the inline toolbar button).

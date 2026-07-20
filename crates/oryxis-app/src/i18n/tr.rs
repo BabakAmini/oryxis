@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Uygulama teması",
         "interface_group_advanced" => "Gelişmiş",
         "show_status_bar" => "Durum çubuğunu göster",
+        "terminal_sidebar_left" => "Kenar çubuğunu sola yerleştir",
+        "terminal_sidebar_left_desc" => "Kenar çubuğunu (Sohbet / Parçacıklar / Dosyalar / İzleme) terminalin sağı yerine soluna gösterir.",
         "system_tray" => "Sistem tepsisi",
         "close_to_tray" => "Tepsiye küçült",
         "close_to_tray_desc" => "Pencerenin kapat düğmesine tıklamak Oryxis'i çıkmak yerine sistem tepsisine gizler. Geri getirmek için tepsi simgesini kullanın. Yalnızca Windows.",

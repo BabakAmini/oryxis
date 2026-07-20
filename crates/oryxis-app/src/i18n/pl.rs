@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Motyw aplikacji",
         "interface_group_advanced" => "Zaawansowane",
         "show_status_bar" => "Pokaż pasek stanu",
+        "terminal_sidebar_left" => "Zadokuj pasek boczny po lewej",
+        "terminal_sidebar_left_desc" => "Pokazuje pasek boczny (Czat / Fragmenty / Pliki / Monitor) po lewej stronie terminala zamiast po prawej.",
         "system_tray" => "Zasobnik systemowy",
         "close_to_tray" => "Zamykaj do zasobnika",
         "close_to_tray_desc" => "Kliknięcie przycisku zamykania okna ukrywa Oryxis w zasobniku systemowym zamiast zamykać aplikację. Użyj ikony w zasobniku, aby przywrócić okno. Tylko Windows.",

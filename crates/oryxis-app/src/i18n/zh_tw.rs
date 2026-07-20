@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "應用程式主題",
         "interface_group_advanced" => "進階",
         "show_status_bar" => "顯示狀態列",
+        "terminal_sidebar_left" => "將側邊欄停靠在左側",
+        "terminal_sidebar_left_desc" => "將側邊欄（聊天 / 程式碼片段 / 檔案 / 監控）顯示在終端機左側而非右側。",
         "system_tray" => "系統匣",
         "close_to_tray" => "關閉到系統匣",
         "close_to_tray_desc" => "點選關閉按鈕會將 Oryxis 隱藏到系統匣而不是結束。使用系統匣圖示還原。僅限 Windows。",

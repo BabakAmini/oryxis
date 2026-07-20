@@ -359,6 +359,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "ธีมแอป",
         "interface_group_advanced" => "ขั้นสูง",
         "show_status_bar" => "แสดงแถบสถานะ",
+        "terminal_sidebar_left" => "ยึดแถบด้านข้างไว้ทางซ้าย",
+        "terminal_sidebar_left_desc" => "แสดงแถบด้านข้าง (แชท / Snippet / ไฟล์ / มอนิเตอร์) ทางซ้ายของเทอร์มินัลแทนที่จะเป็นทางขวา",
         "system_tray" => "ถาดระบบ",
         "close_to_tray" => "ปิดไปยังถาดระบบ",
         "close_to_tray_desc" => "การคลิกปุ่มปิดหน้าต่างจะซ่อน Oryxis ไว้ในถาดระบบแทนการออกจากโปรแกรม ใช้ไอคอนในถาดเพื่อเรียกกลับมา เฉพาะ Windows",

@@ -74,11 +74,20 @@ impl Oryxis {
     /// the PTY (the chat-sidebar swallow gate), so promoting them to
     /// navigation costs nothing.
     pub(crate) fn cursor_over_sidebar(&self) -> bool {
-        self.active_tab
+        let visible = self
+            .active_tab
             .and_then(|i| self.tabs.get(i))
             .map(|t| t.chat_visible)
-            .unwrap_or(false)
-            && self.mouse_position.x > (self.window_size.width - self.chat_sidebar_width)
+            .unwrap_or(false);
+        if !visible {
+            return false;
+        }
+        // The sidebar hugs whichever edge it is docked on (issue #85).
+        if self.setting_terminal_sidebar_left {
+            self.mouse_position.x < self.chat_sidebar_width
+        } else {
+            self.mouse_position.x > self.window_size.width - self.chat_sidebar_width
+        }
     }
 
     /// Whether the recorded row at `idx` is an input row (Tab focuses

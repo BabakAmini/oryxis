@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "앱 테마",
         "interface_group_advanced" => "고급",
         "show_status_bar" => "상태 표시줄 표시",
+        "terminal_sidebar_left" => "사이드바를 왼쪽에 배치",
+        "terminal_sidebar_left_desc" => "사이드바(채팅 / 스니펫 / 파일 / 모니터)를 터미널 오른쪽 대신 왼쪽에 표시합니다.",
         "system_tray" => "시스템 트레이",
         "close_to_tray" => "트레이로 닫기",
         "close_to_tray_desc" => "창의 닫기 버튼을 클릭하면 종료하는 대신 Oryxis를 시스템 트레이로 숨깁니다. 트레이 아이콘으로 다시 불러올 수 있습니다. Windows 전용.",

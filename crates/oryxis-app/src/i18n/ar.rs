@@ -340,6 +340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "سمة التطبيق",
         "interface_group_advanced" => "متقدم",
         "show_status_bar" => "إظهار شريط الحالة",
+        "terminal_sidebar_left" => "إرساء الشريط الجانبي إلى اليسار",
+        "terminal_sidebar_left_desc" => "يعرض الشريط الجانبي (الدردشة / المقتطفات / الملفات / المراقبة) على يسار الطرفية بدلاً من اليمين.",
         "system_tray" => "علبة النظام",
         "close_to_tray" => "إغلاق إلى العلبة",
         "close_to_tray_desc" => "النقر على زر الإغلاق يخفي Oryxis في علبة النظام بدلاً من الخروج. استخدم أيقونة العلبة لاستعادته. ويندوز فقط.",

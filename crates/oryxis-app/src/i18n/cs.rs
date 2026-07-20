@@ -359,6 +359,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Motiv aplikace",
         "interface_group_advanced" => "Pokročilé",
         "show_status_bar" => "Zobrazit stavový řádek",
+        "terminal_sidebar_left" => "Ukotvit postranní panel vlevo",
+        "terminal_sidebar_left_desc" => "Zobrazí postranní panel (Chat / Úryvky / Soubory / Monitor) vlevo od terminálu místo vpravo.",
         "system_tray" => "Systémová lišta",
         "close_to_tray" => "Zavřít do lišty",
         "close_to_tray_desc" => "Kliknutí na zavírací tlačítko okna skryje Oryxis do systémové lišty místo ukončení. Ikona v liště jej vrátí zpět. Pouze Windows.",

@@ -335,6 +335,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "interface_group_theme" => "Tema dell'app",
         "interface_group_advanced" => "Avanzate",
         "show_status_bar" => "Mostra barra di stato",
+        "terminal_sidebar_left" => "Ancora la barra laterale a sinistra",
+        "terminal_sidebar_left_desc" => "Mostra la barra laterale (Chat / Snippet / File / Monitor) a sinistra del terminale invece che a destra.",
         "system_tray" => "Area di notifica",
         "close_to_tray" => "Chiudi nell'area",
         "close_to_tray_desc" => "Cliccare su chiudi nasconde Oryxis nell'area di notifica invece di uscire. Usa l'icona per riportarlo. Solo Windows.",

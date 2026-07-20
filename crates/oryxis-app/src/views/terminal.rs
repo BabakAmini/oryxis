@@ -125,14 +125,24 @@ impl Oryxis {
                 // (view_content) instead left the canvas eating clicks meant
                 // for the panel, so keep it inside.
                 if chat_visible || self.show_session_group_panel {
-                    let mut children = vec![term_with_toggle];
-                    if chat_visible {
+                    // Sidebar dock side (issue #85): an explicit physical
+                    // edge like the #87 tab-bar dock, so a plain Row (not
+                    // dir_row) places it, RTL must not flip a side the user
+                    // chose. The session-group editor keeps its trailing
+                    // position; only the Chat/Files sidebar moves.
+                    let left = self.setting_terminal_sidebar_left;
+                    let mut children: Vec<Element<'_, Message>> = Vec::new();
+                    if chat_visible && left {
+                        children.push(self.view_terminal_sidebar(tab));
+                    }
+                    children.push(term_with_toggle);
+                    if chat_visible && !left {
                         children.push(self.view_terminal_sidebar(tab));
                     }
                     if self.show_session_group_panel {
                         children.push(self.view_session_group_panel());
                     }
-                    dir_row(children)
+                    iced::widget::Row::with_children(children)
                         .width(Length::Fill)
                         .height(Length::Fill)
                         .into()
@@ -795,14 +805,19 @@ impl Oryxis {
             ..Default::default()
         });
 
-        container(
-            row![resize_handle, panel]
-                .width(Length::Fill)
-                .height(Length::Fill),
-        )
-        .width(Length::Fixed(self.chat_sidebar_width))
-        .height(Length::Fill)
-        .into()
+        // The 4 px drag handle sits on the INNER edge (the one facing the
+        // terminal): the panel's left when the sidebar is docked right,
+        // its right when docked left (issue #85).
+        let handle_and_panel: iced::widget::Row<'_, Message> =
+            if self.setting_terminal_sidebar_left {
+                row![panel, resize_handle]
+            } else {
+                row![resize_handle, panel]
+            };
+        container(handle_and_panel.width(Length::Fill).height(Length::Fill))
+            .width(Length::Fixed(self.chat_sidebar_width))
+            .height(Length::Fill)
+            .into()
     }
 
     /// Chat tab body: the message list, the floating Stop pill, the
