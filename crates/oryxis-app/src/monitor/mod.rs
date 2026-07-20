@@ -13,8 +13,10 @@
 //! Samples live in an in-memory ring per host and are never persisted,
 //! synced or exported.
 
+pub(crate) mod alert;
 pub(crate) mod model;
 pub(crate) mod probe;
+pub(crate) mod probe_bsd;
 pub(crate) mod ring;
 
 pub(crate) use ring::MonitorState;

@@ -12,6 +12,21 @@ use uuid::Uuid;
 
 use crate::app::{Message, MonitorMessage, Oryxis};
 
+/// Localized toast copy for a crossed threshold.
+fn breach_message(host: &str, breach: &crate::monitor::alert::Breach) -> String {
+    use crate::monitor::alert::Breach;
+    let key = match breach {
+        Breach::Cpu => "monitor_alert_cpu",
+        Breach::Mem => "monitor_alert_mem",
+        Breach::Disk(_) => "monitor_alert_disk",
+    };
+    let text = crate::i18n::t(key).replacen("{host}", host, 1);
+    match breach {
+        Breach::Disk(mount) => text.replacen("{mount}", mount, 1),
+        _ => text,
+    }
+}
+
 /// Cap on a single probe. Long enough for a loaded host to answer, short
 /// enough that a wedged one frees its in-flight slot before the user
 /// gives up on the tab.
@@ -48,6 +63,28 @@ impl Oryxis {
                             std::time::Instant::now(),
                         );
                         series.push(sample, snapshot);
+                        // Threshold check on the fresh window. Rising
+                        // edge only, so a pegged host is announced once
+                        // per crossing; foreground toasts by owner
+                        // constraint, never background alerting.
+                        let recent = series.tail(3);
+                        let (flags, breaches) =
+                            crate::monitor::alert::evaluate(&recent, series.breached);
+                        series.breached = flags;
+                        if !breaches.is_empty() {
+                            let host = self
+                                .connections
+                                .iter()
+                                .find(|c| c.id == conn_id)
+                                .map(|c| c.label.clone())
+                                .unwrap_or_default();
+                            let mut tasks: Vec<Task<Message>> = Vec::new();
+                            for b in breaches {
+                                tasks.push(self.show_toast_secs(breach_message(&host, &b), 8));
+                            }
+                            self.monitor_error = None;
+                            return Task::batch(tasks);
+                        }
                     }
                     Err(e) => {
                         // Keep whatever the window already holds (the last

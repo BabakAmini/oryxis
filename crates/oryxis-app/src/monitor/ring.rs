@@ -21,6 +21,9 @@ pub(crate) struct HostSeries {
     /// Counters from the last probe, the baseline for the next tick's
     /// CPU / network rates.
     pub raw_prev: Option<RawSnapshot>,
+    /// Which thresholds this host is currently over, so an alert fires
+    /// once per crossing instead of once per tick.
+    pub breached: super::alert::BreachFlags,
 }
 
 impl HostSeries {
@@ -35,6 +38,13 @@ impl HostSeries {
 
     pub fn latest(&self) -> Option<&Sample> {
         self.samples.back()
+    }
+
+    /// The newest `n` samples, oldest first: what the threshold check
+    /// needs to see a sustained breach rather than a single spike.
+    pub fn tail(&self, n: usize) -> Vec<&Sample> {
+        let skip = self.samples.len().saturating_sub(n);
+        self.samples.iter().skip(skip).collect()
     }
 
     /// CPU percentages over the window, oldest first, for the sparkline.

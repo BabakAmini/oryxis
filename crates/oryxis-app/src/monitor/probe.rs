@@ -24,17 +24,23 @@ const SEP: &str = "---ORYXIS-MON-SEP---";
 /// the split stable regardless.
 pub(crate) fn linux_probe_command() -> String {
     [
-        "cat /proc/stat 2>/dev/null | head -n1",
-        "cat /proc/meminfo 2>/dev/null",
-        "cat /proc/loadavg 2>/dev/null",
-        "cat /proc/net/dev 2>/dev/null",
-        "df -kP 2>/dev/null",
-        "cat /proc/uptime 2>/dev/null",
+        // Each section falls back to its BSD / macOS equivalent when the
+        // Linux source produces nothing, so ONE command serves every
+        // host and no OS detection has to happen first. The parsers pick
+        // the format by shape (see `probe_bsd`).
+        "cat /proc/stat 2>/dev/null | head -n1 || sysctl -n kern.cp_time 2>/dev/null",
+        "cat /proc/meminfo 2>/dev/null || { sysctl -n hw.memsize 2>/dev/null \
+             | sed 's/^/HwMemsize: /'; vm_stat 2>/dev/null; }",
+        "cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null",
+        "cat /proc/net/dev 2>/dev/null || netstat -ibn 2>/dev/null",
+        "df -kP 2>/dev/null || df -k 2>/dev/null",
+        "cat /proc/uptime 2>/dev/null || { date +%s | sed 's/^/Now: /'; \
+             sysctl -n kern.boottime 2>/dev/null; }",
         // Listening sockets. `ss` is the modern tool; `netstat` covers
         // hosts that still ship net-tools and nothing else. `-p` names
         // only the processes the login user owns unless we are root, so
         // unnamed ports are expected, not a failure.
-        "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null",
+        "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null || netstat -an 2>/dev/null",
     ]
     .join(&format!("; echo '{SEP}'; "))
 }
@@ -58,8 +64,12 @@ pub(crate) fn parse_linux(
     let uptime = sections.next().unwrap_or("");
     let sockets = sections.next().unwrap_or("");
 
-    let (cpu_total, cpu_idle) = parse_cpu_jiffies(stat).unwrap_or((0, 0));
-    let (net_rx, net_tx) = parse_net_dev(netdev).unwrap_or((0, 0));
+    let (cpu_total, cpu_idle) = parse_cpu_jiffies(stat)
+        .or_else(|| super::probe_bsd::parse_cp_time(stat))
+        .unwrap_or((0, 0));
+    let (net_rx, net_tx) = parse_net_dev(netdev)
+        .or_else(|| super::probe_bsd::parse_netstat_ib(netdev))
+        .unwrap_or((0, 0));
     let snapshot = RawSnapshot { cpu_total, cpu_idle, net_rx, net_tx, at: now };
 
     // Rates need a baseline. A counter that went backwards (reboot, or a
@@ -92,12 +102,23 @@ pub(crate) fn parse_linux(
     let sample = Sample {
         at: now,
         cpu,
-        mem: parse_meminfo(meminfo),
-        load: parse_loadavg(loadavg),
+        mem: parse_meminfo(meminfo)
+            .or_else(|| super::probe_bsd::parse_vm_stat(meminfo)),
+        load: parse_loadavg(loadavg)
+            .or_else(|| super::probe_bsd::parse_sysctl_loadavg(loadavg)),
         net,
-        disks: parse_df(df),
-        ports: parse_listening_ports(sockets),
-        uptime_secs: parse_uptime(uptime),
+        disks: {
+            // POSIX `df -kP` keeps the mount in column 6; macOS `df -k`
+            // pads extra inode columns and puts it last.
+            let d = parse_df(df);
+            if d.is_empty() { super::probe_bsd::parse_df_bsd(df) } else { d }
+        },
+        ports: {
+            let p = parse_listening_ports(sockets);
+            if p.is_empty() { super::probe_bsd::parse_netstat_an(sockets) } else { p }
+        },
+        uptime_secs: parse_uptime(uptime)
+            .or_else(|| super::probe_bsd::parse_boottime(uptime)),
     };
     (sample, snapshot)
 }
