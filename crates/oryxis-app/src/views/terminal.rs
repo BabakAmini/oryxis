@@ -647,8 +647,14 @@ impl Oryxis {
         // back to Snippets. Mirrors `effective_sidebar_tab`.
         let files_available = self.sftp_enabled
             && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        // Monitoring needs an SSH session (it reads /proc over an exec
+        // channel); the per-host opt-in is handled inside the tab body,
+        // which offers to enable it.
+        let monitor_available =
+            tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
             || (self.terminal_sidebar_tab == STab::Files && !files_available)
+            || (self.terminal_sidebar_tab == STab::Monitor && !monitor_available)
         {
             STab::Snippets
         } else {
@@ -685,6 +691,14 @@ impl Oryxis {
                 active == STab::Files,
                 Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Files)),
                 t("tab_tip_files"),
+            ));
+        }
+        if monitor_available {
+            strip.push(sidebar_tab_btn(
+                iced_fonts::lucide::activity(),
+                active == STab::Monitor,
+                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Monitor)),
+                t("tab_tip_monitor"),
             ));
         }
         strip.push(sidebar_tab_btn(
@@ -763,6 +777,7 @@ impl Oryxis {
             STab::Snippets => self.snippets_tab_content(),
             STab::History => self.history_tab_content(),
             STab::Files => self.files_tab_content(tab),
+            STab::Monitor => self.monitor_tab_content(),
             STab::HostConfig => self.host_config_tab_content(tab),
         };
         let panel_column = column![header, header_separator, content]

@@ -59,6 +59,8 @@ impl Oryxis {
         let active = if (self.terminal_sidebar_tab == TerminalSidebarTab::Chat
             && !self.ai.enabled)
             || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !files_available)
+            || (self.terminal_sidebar_tab == TerminalSidebarTab::Monitor
+                && tab.active().session.as_ref().and_then(|s| s.ssh()).is_none())
         {
             TerminalSidebarTab::Snippets
         } else {
@@ -394,6 +396,17 @@ impl Oryxis {
         {
             order.push(TerminalSidebarTab::Files);
         }
+        // Monitor needs only an SSH session (its per-host opt-in is
+        // offered inside the tab), so it joins the cycle whenever one is
+        // live, next to Files.
+        if self
+            .active_tab
+            .and_then(|idx| self.tabs.get(idx))
+            .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+            .unwrap_or(false)
+        {
+            order.push(TerminalSidebarTab::Monitor);
+        }
         order.push(TerminalSidebarTab::HostConfig);
 
         let was_open = self
@@ -437,6 +450,13 @@ impl Oryxis {
                 // the ring shows.
                 self.keynav.sidebar_selected = Some((target, 1));
                 Task::batch([self.sidebar_nav_scroll(1), self.sidebar_files_sync()])
+            }
+            TerminalSidebarTab::Monitor => {
+                // Gauges are informational; the only navigable row is the
+                // opt-in button (when the host hasn't enabled monitoring
+                // yet), which the body records first.
+                self.keynav.sidebar_selected = Some((target, 1));
+                self.sidebar_nav_scroll(1)
             }
             TerminalSidebarTab::Snippets | TerminalSidebarTab::HostConfig => {
                 // Land on the first row of the tab BODY. Index 0 is the

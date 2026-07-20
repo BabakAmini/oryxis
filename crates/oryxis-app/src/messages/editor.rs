@@ -154,6 +154,9 @@ pub enum EditorMessage {
     EditorEnvVarValueChanged(usize, String),
     EditorToggleAgentForwarding,
     EditorToggleMcpEnabled,
+    /// SSH > Integration: flip the per-host agentless monitoring opt-in
+    /// (issue #83).
+    EditorToggleMonitorEnabled,
     /// Cycle the per-host session-recording override: Default -> On -> Off.
     EditorCycleSessionLogging,
 }

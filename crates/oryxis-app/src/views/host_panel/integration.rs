@@ -40,6 +40,70 @@ impl Oryxis {
         row_mcp
     }
 
+    /// Per-host agentless monitoring opt-in (SSH > Integration, issue
+    /// #83). Same shape as the MCP row: SSH-only, since the probe reads
+    /// `/proc` over an exec channel.
+    pub(super) fn hp_row_monitor(&self, is_ssh: bool) -> Element<'_, Message> {
+        if !is_ssh {
+            return empty();
+        }
+        self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(
+                EditorMessage::EditorToggleMonitorEnabled,
+            )),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::activity()
+                        .size(14)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(10).into(),
+                    text(t("monitor_enable_host"))
+                        .size(13)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let on = self.editor_form.monitor_enabled;
+                        let bg = if on {
+                            OryxisColors::t().success
+                        } else {
+                            OryxisColors::t().bg_hover
+                        };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(
+                            text(if on {
+                                crate::i18n::t("toggle_on")
+                            } else {
+                                crate::i18n::t("toggle_off")
+                            })
+                            .size(12)
+                            .color(fg),
+                        )
+                        .on_press(Message::Editor(
+                            EditorMessage::EditorToggleMonitorEnabled,
+                        ))
+                        .style(move |_theme, _status| button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border {
+                                radius: Radius::from(4.0),
+                                ..Default::default()
+                            },
+                            text_color: fg,
+                            ..Default::default()
+                        })
+                        .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
+                        .into()
+                    },
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 })
+            .into(),
+        )
+    }
+
     pub(super) fn hp_rd_block(&self, is_rd: bool) -> Element<'_, Message> {
         use oryxis_core::models::connection::ConnectionProtocol as Proto;
         // Remote-desktop rows (RemoteDesktop hosts only): the kind picker

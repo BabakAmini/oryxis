@@ -319,6 +319,22 @@ impl Oryxis {
                 self.flush_session_logs_final();
                 if let Some(tab_idx) = self.pane_tab_index(pane_id) {
                     let label = self.tabs[tab_idx].label.replace(" (disconnected)", "");
+                    // Monitor samples belong to the dead session: the
+                    // counters the next rate would diff against are gone,
+                    // so keeping them would make the first post-reconnect
+                    // reading a fabrication spanning the outage.
+                    let monitored_host = self.tabs[tab_idx]
+                        .pane_grid
+                        .panes
+                        .values()
+                        .find(|p| p.id == pane_id)
+                        .and_then(|p| match p.origin {
+                            crate::state::PaneOrigin::Host(id) => Some(id),
+                            _ => None,
+                        });
+                    if let Some(id) = monitored_host {
+                        self.monitor_reset_host(&id);
+                    }
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
                         // Close (not just drop) the dead session: SFTP
@@ -346,6 +362,7 @@ impl Oryxis {
                         // The sidebar Files channel died with the session;
                         // a reconnect remounts lazily (preferences kept).
                         p.files.reset_for_disconnect();
+
                         // A fresh shell on reconnect needs the OSC 7
                         // inject again.
                         p.osc7_injected = false;

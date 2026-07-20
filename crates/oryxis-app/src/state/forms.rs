@@ -183,6 +183,9 @@ pub(crate) struct ConnectionForm {
     pub env_vars: Vec<EnvVarForm>,
     /// Whether this host is exposed via MCP.
     pub mcp_enabled: bool,
+    /// Opt-in agentless monitoring (issue #83), mirrored from
+    /// `Connection.monitor_enabled`.
+    pub monitor_enabled: bool,
     /// Forward the local ssh-agent socket to the remote shell. See the
     /// matching field on `Connection`.
     pub agent_forwarding: bool,
@@ -921,6 +924,7 @@ impl Default for ConnectionForm {
             port_forwards: Vec::new(),
             env_vars: Vec::new(),
             mcp_enabled: true,
+            monitor_enabled: false,
             agent_forwarding: false,
             session_logging: None,
             proxy_kind: ProxyKind::None,

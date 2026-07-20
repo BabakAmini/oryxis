@@ -17,5 +17,4 @@ pub(crate) mod model;
 pub(crate) mod probe;
 pub(crate) mod ring;
 
-pub(crate) use model::Sample;
 pub(crate) use ring::MonitorState;

@@ -190,6 +190,18 @@ impl Oryxis {
         // `self.sftp` and its slot holds a taken default, so there is no
         // double count), so a backgrounded edit-session keeps watching for
         // external saves no matter which surface owns it.
+        // Host monitor: only while its sidebar tab is the visible one and
+        // the focused pane's host actually opted in, so an idle screen
+        // (or a host that never enabled monitoring) never probes.
+        if self.monitor_tab_visible() && self.monitor_target().is_some() {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(
+                    crate::dispatch_monitor::MONITOR_INTERVAL_SECS,
+                ))
+                .map(|_| Message::Monitor(crate::app::MonitorMessage::Tick)),
+            );
+        }
+
         if self.sftp.edit_session.is_some()
             || !self.sftp.edit_watches.is_empty()
             || self

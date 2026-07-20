@@ -105,6 +105,7 @@ impl Oryxis {
             group_name: default_group,
             proxy_kind,
             mcp_enabled: self.setting_default_mcp_enabled,
+            monitor_enabled: false,
             encoding: self.setting_default_encoding.clone(),
             env_vars: self.setting_default_env_vars.clone(),
             ..crate::state::ConnectionForm::default()
@@ -347,6 +348,12 @@ impl Oryxis {
         conn.mcp_enabled = self.editor_form.protocol
             == oryxis_core::models::connection::ConnectionProtocol::Ssh
             && self.editor_form.mcp_enabled;
+        // Same SSH clamp as `mcp_enabled`: monitoring reads /proc over an
+        // SSH exec channel, so a host switched to Telnet / serial /
+        // remote-desktop can't stay monitored.
+        conn.monitor_enabled = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && self.editor_form.monitor_enabled;
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         conn.session_logging = self.editor_form.session_logging;
         conn.terminal_theme = self.editor_form.terminal_theme.clone();
@@ -516,6 +523,7 @@ impl Oryxis {
                 value: e.value.clone(),
             }).collect(),
             mcp_enabled: conn.mcp_enabled,
+            monitor_enabled: conn.monitor_enabled,
             agent_forwarding: conn.agent_forwarding,
             session_logging: conn.session_logging,
             // Saved-identity reference takes precedence over
@@ -582,6 +590,9 @@ impl Oryxis {
         match message {
             EditorMessage::EditorToggleMcpEnabled => {
                 self.editor_form.mcp_enabled = !self.editor_form.mcp_enabled;
+            }
+            EditorMessage::EditorToggleMonitorEnabled => {
+                self.editor_form.monitor_enabled = !self.editor_form.monitor_enabled;
             }
             EditorMessage::EditorToggleAgentForwarding => {
                 self.editor_form.agent_forwarding = !self.editor_form.agent_forwarding;

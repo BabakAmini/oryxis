@@ -116,6 +116,7 @@ impl Oryxis {
             empty()
         };
         let row_mcp = self.hp_row_mcp(is_ssh);
+        let row_monitor = self.hp_row_monitor(is_ssh);
         let rd_block = self.hp_rd_block(is_rd);
         let env_items = self.hp_env_items(is_ssh);
         let startup_block = self.hp_startup_block(is_ssh);
@@ -264,6 +265,7 @@ impl Oryxis {
                 .push(section_header(t("integration")))
                 .push(Space::new().height(ROW_GAP))
                 .push(row_mcp)
+                .push(row_monitor)
                 .push(Space::new().height(ROW_GAP))
                 .push(env_items)
                 .push(group_sep())

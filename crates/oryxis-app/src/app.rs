@@ -40,7 +40,7 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
+pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
@@ -795,6 +795,16 @@ pub struct Oryxis {
     /// the terminal scheme import modal above.
     /// Single external editor used by the SFTP "Open with default text
     /// editor" action (issue #84). Empty = unset.
+    /// Agentless host-monitor state (issue #83): per-host sample ring
+    /// for the sidebar Monitor tab. RAM only, never persisted or synced.
+    pub(crate) monitor: crate::monitor::MonitorState,
+    /// Bumped whenever a monitored host's series is invalidated
+    /// (disconnect, opt-out, lock). Probes carry the stamp they were
+    /// dispatched with, so a result from before the reset is dropped.
+    pub(crate) monitor_stamp: u64,
+    /// Last probe failure, shown in the Monitor tab. Cleared by the next
+    /// successful sample.
+    pub(crate) monitor_error: Option<String>,
     pub(crate) setting_sftp_default_editor: String,
     /// Persisted "Autosave" grant from the save-confirmation dialog:
     /// edited remote files upload on every save without asking.

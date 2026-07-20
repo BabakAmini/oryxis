@@ -31,6 +31,7 @@ pub(crate) mod settings_ui_themes;
 pub(crate) mod sftp;
 pub(crate) mod sidebar;
 pub(crate) mod sidebar_files;
+pub(crate) mod sidebar_monitor;
 pub(crate) mod sidebar_history;
 pub(crate) mod sidebar_host_config;
 pub(crate) mod sidebar_chat;

@@ -27,6 +27,10 @@ pub enum TerminalSidebarTab {
     /// hidden (and the dispatch falls back to `Snippets`) when the pane
     /// has no SSH transport.
     Files,
+    /// Agentless resource monitor for the focused pane's host: CPU /
+    /// memory / load / disk / network read from `/proc` over the live
+    /// session (issue #83). SSH-only and opt-in per host, like Files.
+    Monitor,
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,

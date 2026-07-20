@@ -258,6 +258,11 @@ impl Oryxis {
                     self.sftp.delete_confirm.clear();
                     self.sftp.edit_session = None;
                     self.sftp.edit_watches.clear();
+                    // Monitor samples are host telemetry gathered while
+                    // unlocked; drop them with the rest of the sweep so a
+                    // locked screen shows nothing about the fleet.
+                    self.monitor = Default::default();
+                    self.monitor_error = None;
                     self.sftp.overwrite_prompt = None;
                     self.sftp.properties = None;
                     // A pending keyboard-interactive prompt belongs to an
@@ -379,6 +384,8 @@ impl Oryxis {
                         self.sftp.delete_confirm.clear();
                         self.sftp.edit_session = None;
                         self.sftp.edit_watches.clear();
+                        self.monitor = Default::default();
+                        self.monitor_error = None;
                         self.sftp.overwrite_prompt = None;
                         self.sftp.properties = None;
                         // Cancel a pending keyboard-interactive / host-key

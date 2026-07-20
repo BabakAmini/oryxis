@@ -21,6 +21,8 @@ mod editor;
 pub use editor::EditorMessage;
 mod keys;
 pub use keys::KeysMessage;
+mod monitor;
+pub use monitor::MonitorMessage;
 mod sidebar_files;
 pub use sidebar_files::SidebarFilesMessage;
 mod terminal;
@@ -136,6 +138,11 @@ pub enum Message {
     // mid-flight can't land a listing on the wrong browser.
     // SidebarFiles (handle_sidebar_files)
     SidebarFiles(SidebarFilesMessage),
+    // Sidebar Monitor tab (agentless host vitals over the pane's live
+    // session). Samples carry the connection's `Uuid` + a request stamp
+    // so a reconnect mid-probe can't land on the wrong series.
+    // Monitor (handle_monitor)
+    Monitor(MonitorMessage),
     /// Open an arbitrary URL in the user's default browser.
     /// Used by clickable links in the About panel.
     OpenUrl(String),

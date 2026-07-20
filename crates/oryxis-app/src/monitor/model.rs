@@ -13,6 +13,10 @@ use std::time::Instant;
 /// One poll of a host's vitals.
 #[derive(Debug, Clone)]
 pub(crate) struct Sample {
+    /// When the probe landed. Unread today (the sidebar only renders the
+    /// newest sample); the status bar and the fleet view will index the
+    /// window by it.
+    #[allow(dead_code)]
     pub at: Instant,
     /// `None` on the first sample after mount: CPU% is a delta and needs
     /// a previous `/proc/stat` snapshot to compare against.
