@@ -4,6 +4,236 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-19
+
+The advanced-authentication and terminal-power release. Oryxis serves
+a standard ssh-agent to the rest of your system, connects with OpenSSH
+certificates and FIDO2 security keys, generates keys in-app, searches
+scrollback and broadcasts input across split panes, plays your
+recordings back and exports them as GIFs, and hardens Privacy Mode into
+a system you can tune per class. Under it all, the message and dispatch
+layers were rebuilt into a fully type-safe, compiler-checked router.
+
+### Added
+- **SSH agent server** (#54). Oryxis now speaks the standard ssh-agent
+  protocol, so external tools (`git`, VS Code, WSL) authenticate with
+  your vault keys with no extra config. Vault keys are read-only over
+  the wire and decrypted per signature, never held in memory for the
+  unlocked window; a per-key "Expose via agent" flag filters the
+  roster. Opt-in, it also accepts keys **pushed in** by tools like
+  KeePassXC (ADD / REMOVE over the protocol): added keys live in memory
+  only, are never written to the vault, and are swept on vault lock,
+  toggle-off or exit, with lifetime and confirm constraints honored. A
+  per-signature confirm prompt is available, and CONFIRM-constrained
+  keys always prompt. Transports: a unix socket
+  (`~/.oryxis/agent.sock`, 0600) and a Windows named pipe
+  (`\\.\pipe\oryxis-ssh-agent`) with a per-user DACL; an opt-in setting
+  additionally serves the standard `\\.\pipe\openssh-ssh-agent` name so
+  tools with a hardcoded target need zero config. Configured in its own
+  Settings section.
+- **Certificate authentication.** Oryxis offers OpenSSH user
+  certificates during publickey auth and adds a certificate-only auth
+  method that never silently falls back to the bare key. The keychain
+  gains a certificate editor and viewer, a "Certificate" badge on
+  keys that carry one, and an optional principal / host hint. Rides
+  sync and portable export like any key.
+- **FIDO2 security keys and PKCS#11 (via the agent).** Import
+  `sk-ssh-ed25519` and `sk-ecdsa-sk` security-key public keys and
+  smartcard / PKCS#11 identities exposed by your system agent; they
+  carry a "Security key" badge and can be pinned to a specific agent
+  identity and host. The touch / PIN is handled by the platform's own
+  agent, so hardware-backed keys authenticate without leaving the
+  private material anywhere Oryxis can see it.
+- **In-app SSH key generation.** Generate Ed25519, RSA (2048 / 3072 /
+  4096) or ECDSA (P-256 / P-384 / P-521) keys straight from the
+  keychain, with an optional passphrase, alongside the existing import
+  flow. The passphrase also rides the portable export.
+- **Argon2id key derivation auto-tuning.** At vault creation (and on a
+  master-password change) the KDF calibrates to your machine, targeting
+  roughly one second to unlock, and persists the chosen parameters next
+  to the salt. Existing vaults keep their parameters until a rotation
+  re-derives; the sync secret and portable-export KDFs are deliberately
+  frozen so cross-device and cross-machine unlock never change.
+- **Scrollback search** (Ctrl+F). Find-in-buffer for the terminal:
+  amber match highlight, an N / M counter, step forward / back, Esc to
+  close. It yields the shortcut to full-screen apps (vim / less / htop
+  keep their own page-forward binding) so it only ever grabs Ctrl+F on
+  the normal screen.
+- **Broadcast input across split panes.** Arm a tab (Ctrl+Shift+U, a
+  status-bar indicator, or the tab menu) and every keystroke and paste
+  fans out to all of its split panes at once, for driving a fleet from
+  one prompt. Panes can be muted individually; a broadcast border marks
+  an armed tab and stays inert on a lone pane; secret-bearing sends stay
+  single-pane.
+- **OSC 8 hyperlinks.** Terminal escape-sequence hyperlinks are now
+  clickable, with a scheme allowlist (http / https / mailto / ftp;
+  `javascript:` and `file:` are refused), a target-reveal chip so a
+  link's real destination can't be spoofed by its label, and an
+  underline that follows a link wrapped across rows.
+- **Command palette** (Ctrl+Shift+P). A fuzzy action search over every
+  hotkey action and every Settings section: type, arrow, Enter.
+- **Legacy keyboard modes and per-host toggles.** For the
+  network-appliance audience, per-host quirks: backspace (^H vs ^?),
+  rxvt Home / End, function-key styles, and toggles to disable mouse
+  reporting, remote resize, title changes and OSC 52 clipboard access,
+  plus an SSH rekey-limit field. All in an "Advanced terminal" section
+  of the host editor; defaults are byte-identical to the old behavior.
+- **GIF export of session recordings** (#71). Render any `.cast`
+  recording into a shareable GIF from the History screen, via an
+  optional `agg` plugin downloaded on first use through the same signed
+  distribution pipeline as the MCP server (the encoder and its fonts
+  stay out of the core binary). Colors come from the theme embedded in
+  the recording, so no extra flags.
+- **In-app session player** (#71). Play a recorded session back inside
+  the History view on the real terminal engine (no second emulator):
+  play / pause (Space), restart, seek and speed control, with the
+  timing captured in the recording. Read-only by construction, there is
+  no path for a replay to type anything, and it stops and sweeps
+  recordings on vault lock. The viewer actions (View log, export menu)
+  are mirrored in the player header.
+- **Privacy Mode v2** (#78). Masking graduates into a system: labels
+  redact everywhere they render (host cards, tab strip and drag ghosts,
+  the tab-jump modal, the Ctrl+K picker, the status bar, tray menu and
+  Windows JumpList), a session-scoped override (Ctrl+Shift+M, with a
+  chip) reveals for the current session only, vault-derived terms and
+  explicit always / never mask lists (multi-line editors in Settings)
+  drive what is masked, per-class gates turn each masking category on or
+  off, and the visual is a span-level eye-slash with a one-time hint the
+  first time something masks.
+- **Rebindable terminal clipboard hotkeys** (#75). The terminal's copy,
+  paste, select-all and scrollback chords join the rebindable-hotkey
+  family, scoped to the focused pane.
+- **SFTP archive operations.** Compress and extract zip and tar.gz from
+  the SFTP context menu: the remote side runs `tar` / `unzip` / `zip`
+  on an exec channel multiplexed over the live connection (POSIX and
+  Windows shells, with safe quoting), the local side uses native Rust
+  codecs, and a zip's contents can be browsed in place over ranged
+  reads without a full download.
+- **International keyboard handling** (#80). Composed input from AltGr
+  (Windows / Linux) and Option (macOS) now produces the character the
+  layout intends instead of being eaten as a Meta chord, fixing dead
+  keys and symbols on bépo, German and other non-US layouts. See the
+  Changed section for the macOS Option default.
+- **Redesigned connection screen.** Connecting now shows a living
+  vertical timeline: one animated disc per step (resolve, dial, proxy,
+  jump, auth, channel), a centered title, and Termius-style logs, with
+  a clean single error line on failure instead of a dumped stack.
+- **China download mirror.** A Settings > Advanced option routes every
+  GitHub-bound download (CJK fonts, plugin manifests and binaries,
+  update checks and installers) through a mirror for networks where
+  GitHub is slow or blocked. Auto (the default) tries GitHub first and
+  falls back per-request to the project asset host; a custom prefix
+  proxy is also supported. Mirrors are untrusted by design: fonts are
+  sha256-pinned, plugins and updates sha256 + Ed25519-pinned, so a
+  hostile mirror can only withhold or replay metadata, never run
+  unsigned code.
+- **Self-hosted relay setup wizard.** Settings > Sync gains a wizard
+  that generates the compose / systemd / Caddy files for your own sync
+  relay and adopts the endpoint after a health probe, plus a persistent
+  P2P health readout.
+- **MCP: opt-in vault password in the Claude Code config** (#72). When
+  installing the MCP server config for Claude Code, an opt-in setting
+  embeds the vault password so the server can unlock unattended;
+  protected on disk.
+- **SFTP keyboard and navigation.** The row context menu opens with the
+  Menu key and is fully keyboard-navigable (#52), and type-ahead does
+  Windows-style cycling (repeat a key to advance through matches, firing
+  immediately).
+- **Rebuilt first-run empty state**, an **Auto (OS)** language option
+  that follows the operating system's language by default, a
+  **restructured README** landing page with SECURITY / CONTRIBUTING and
+  a `docs/` set, a **Chinese landing page** and FAQ, and **five more
+  translated READMEs** (Traditional Chinese, Japanese, Korean, Persian,
+  Portuguese).
+
+### Changed
+- **Sync protocol bumped to v7 (re-pair required).** The certificate
+  and security-key work added enum variants a v6 peer cannot
+  deserialize, which serde rejects hard (unlike unknown fields). The
+  bump turns that into the same loud, non-destructive version reject as
+  every prior break: **both devices must run 0.10.0 to sync, and paired
+  devices need to re-pair.** The SFTP-snapshot format moves in lockstep
+  but asymmetrically, a v7 device still reads old snapshots (so existing
+  snapshot blobs keep working) and writes the new format; nothing is
+  lost either way.
+- **macOS: the Option key now composes characters by default.** Option
+  produces the accented / special character the layout intends
+  (`Option+n` then `n` gives `ñ`) instead of acting as Meta. If you
+  relied on Option as Meta, a per-host "Option as Meta" quirk in the
+  Advanced terminal editor restores it (four modes: both, left only,
+  right only, off).
+- **Version-shaped numbers are masked like addresses under Privacy
+  Mode.** A dotted quad such as `1.2.3.4` in a version string is now
+  redacted with the same rules as an IP, closing a leak where a
+  build / version banner could carry an address past the mask.
+- **The hosted sync relay is no longer a default.** Fresh installs are
+  LAN-only until you pick an internet backend (an SFTP snapshot or your
+  own relay); existing users who were actually syncing through the old
+  hosted URL are grandfathered onto it automatically at boot.
+- **ZMODEM transfers stream** instead of stop-and-wait windows (much
+  faster on high-latency links), with download resume, multi-file
+  upload and `sz -e` support, and per-tab progress.
+- **Settings reorganized.** Cards are grouped by theme rather than one
+  box per row, the SSH-agent configuration moved into its own section,
+  Top Bar and Tabs split into separate sections, and a setting sources
+  the host-coloured tab text from the host or the app (#79).
+
+### Fixed
+- **Closing the window no longer quits the app** on Windows when
+  close-to-tray is enabled (#74): every close verb (the X, Alt+F4, the
+  taskbar close) routes through the close-to-tray handler, the tray icon
+  appears when the primary window hides itself, and the OS minimize
+  verbs honour minimize-to-tray. Also sweeps the stray background
+  processes that could linger after exit.
+- **`sz` returns to the shell after a successful send** (#77): the final
+  ZMODEM handshake is flushed so `sz` / `rz` exit promptly, and a shell
+  prompt coalesced right behind the transfer's "OO" sign-off is no
+  longer swallowed.
+- **The hybrid Files surface remounts after a terminal reconnect**
+  (#63): a dropped-then-restored SSH session no longer leaves the tab's
+  SFTP surface pointing at the dead channel (the "session closed"
+  retry loop), local directory listing is async (no cold-path UI
+  freeze), OS drag-and-drop drops land reliably, and out-of-range file
+  mtimes no longer break a listing.
+- **Host-coloured tab text is contrast-validated** (#79): the accent
+  used as tab text is checked for 4.5:1 contrast against the tab
+  background and falls back when it would be unreadable.
+- **Privacy Mode redaction gaps closed** (#78): an IP embedded in a URL
+  host, an IP after `@`, the OSC 9 notification body, tray and JumpList
+  labels, IPv6 local-range classification and highlight spans remapped
+  from byte offsets to columns.
+- The command palette and its sibling pickers close on vault lock, the
+  find-bar stays top-right, and a broadcast border only shows on split
+  tabs.
+
+### Security
+- **Archive extraction hardened:** setuid / setgid bits are dropped on
+  extract, two remote / local archive path-injection holes are closed,
+  and a symlink archive member is refused.
+- **SSH agent hardening:** the per-signature key oracle is darkened for
+  connections that outlive the runtime, an add-during-lock race is
+  tightened, and the signed PEM is zeroized after use.
+- **ZMODEM hardening:** a received file name with a Windows drive letter
+  or alternate data stream is neutralized, an unannounced download is
+  capped, a download is held to its announced size, and a peer CAN
+  cancel is detected.
+- **MCP** protects the embedded vault password on disk, **update and
+  plugin** code confines remote-derived file names to the temp / cache
+  directory, and font downloads are HTTPS-only with atomic + fsync
+  installs.
+
+### Internal
+- **The `Message` enum was split into ~30 per-domain sub-enums** and the
+  central dispatcher rebuilt into a fully exhaustive, catch-all-free
+  match with roughly seventy type-safe per-variant handlers, so a
+  message that isn't routed is now a compile error.
+- **Large files were split** into sibling modules (the terminal widget,
+  the SSH / SFTP / terminal / settings / keys dispatchers, the keys
+  views) to keep each file navigable.
+- **A headless end-to-end test harness** (dev-only, behind a cargo
+  feature) drives the real app with no window and renders screenshots,
+  for reproducible UI QA and committed `.ice` flows.
+
 ## [0.9.0] - 2026-07-09
 
 ### Added

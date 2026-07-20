@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis の動作例：ホストへの接続、スニペットの実行、SFTP ブラウズ">
 </p>
 
-> このドキュメントは v0.9.0 以降の英語版 README の翻訳です（2026-07-19 同期）。
+> このドキュメントは v0.10.0 以降の英語版 README の翻訳です（2026-07-19 同期）。
 > 詳細ドキュメント（[機能ツアー](docs/FEATURES.md)、[アーキテクチャ](docs/ARCHITECTURE.md)）は英語です。
 
 ## Oryxis とは？
@@ -145,13 +145,13 @@ UI 言語を日本語に切り替えると、Noto Sans JP フォントが自動�
 ## ロードマップ
 
 Oryxis はおよそ週次で小さくリリースし、機能は準備ができ次第出荷
-されます。最新の安定版は **v0.9.0**。履歴は
+されます。最新の安定版は **v0.10.0**。履歴は
 [CHANGELOG.md](CHANGELOG.md)、インタラクティブなロードマップは
 [ロードマップ Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
-にあります。進行中の方向性：高度な認証（SSH 証明書、FIDO2 セキュ
-リティキー、PKCS#11）、ターミナル強化（スクロールバック検索、分割
-ペインへの一斉入力、コマンドパレット）、ネイティブ Mosh クライア
-ント、設定インポーター（PuTTY / WinSCP / mRemoteNG / Termius）、
+にあります。進行中の方向性：ネイティブ FIDO2（USB / NFC でセキュ
+リティキーと直接通信）、ターミナル強化（X11 転送、トリガーアク
+ション付きのキーワードハイライト）、ネイティブ Mosh クライアン
+ト、設定インポーター（PuTTY / WinSCP / mRemoteNG / Termius）、
 ホスト監視パネル、東アジアの曖昧幅（ambiguous width）オプションと
 ターミナル背景画像。
 

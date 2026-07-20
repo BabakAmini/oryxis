@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 演示：连接主机、运行代码片段、浏览 SFTP">
 </p>
 
-> 本文档基于 v0.9.0 之后的英文 README 翻译（2026-07-11 同步）。
+> 本文档基于 v0.10.0 之后的英文 README 翻译（2026-07-19 同步）。
 > 详细文档（[功能一览](docs/FEATURES.md)、[架构说明](docs/ARCHITECTURE.md)）为英文。
 
 ## Oryxis 是什么？
@@ -136,10 +136,10 @@ Big5 编码。
 ## 路线图
 
 Oryxis 以大约每周一次的节奏持续发布，功能就绪即上线。最新稳定版为
-**v0.9.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
+**v0.10.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
 [路线图讨论](https://github.com/wilsonglasser/oryxis/discussions/67)。
-正在推进的方向包括：高级认证（SSH 证书、FIDO2 安全密钥、PKCS#11）、
-终端增强（回滚搜索、分屏广播输入、命令面板）、原生 Mosh 客户端、
+正在推进的方向包括：原生 FIDO2（通过 USB / NFC 直接与安全密钥通信）、
+终端增强（X11 转发、带触发动作的关键字高亮）、原生 Mosh 客户端、
 配置导入器（PuTTY / WinSCP / mRemoteNG / Termius）、主机监控面板，
 以及面向中文用户的阿里云 / 腾讯云支持、东亚宽度选项和终端背景图。
 

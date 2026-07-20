@@ -215,21 +215,18 @@ information is collected or shared as part of this process.
 
 Oryxis ships small and often (roughly weekly). This section is
 forward-looking: items land incrementally as they are ready rather than
-being tied to a specific version. Latest stable is **v0.9.0**;
+being tied to a specific version. Latest stable is **v0.10.0**;
 [CHANGELOG.md](CHANGELOG.md) has the full history, and the
 [roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 tracks it interactively.
 
 **Planned**
 
-- **Advanced authentication:** SSH certificate auth, FIDO2 / security-key
-  keys (`sk-ssh-ed25519`, `sk-ecdsa-sk`), PKCS#11 / smartcard / YubiKey,
-  and in-app SSH key generation (Ed25519 / RSA / ECDSA).
-- **Terminal:** scrollback search, broadcast input across split panes,
-  X11 forwarding (`-X` / `-Y`), OSC 8 hyperlinks, keyword highlighting
-  with user-defined trigger actions, and a command palette.
-- **Session recordings:** an in-app player (play / pause, seek, speed) and
-  GIF export as an optional plugin.
+- **Native FIDO2:** talk to security keys directly (USB / NFC) for
+  `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
+  external agent.
+- **Terminal:** X11 forwarding (`-X` / `-Y`) and keyword highlighting
+  with user-defined trigger actions.
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
@@ -238,34 +235,27 @@ tracks it interactively.
 - **Quick-connect OS integration:** register as the `ssh://` URL handler
   and accept `oryxis user@host` on the CLI.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
-  importers, Wake-on-LAN, an optional network tools panel (DNS, ping /
-  traceroute, port test, TLS check, WHOIS, RBL), and SFTP zip / tar.gz
-  compress and extract.
-- **Vault & sync:** Argon2id auto-tuned to your machine, a curated
-  terminal theme collection plus theme file import, extra sync snapshot
+  importers, Wake-on-LAN, and an optional network tools panel (DNS,
+  ping / traceroute, port test, TLS check, WHOIS, RBL).
+- **Vault & sync:** a curated terminal theme collection plus theme file
+  import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;
   ciphertext only, as always), one-click relay deploy (the app installs
   `oryxis-relay` on a host from your vault over SSH, with the script
   shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
-- **Legacy keyboard modes:** per-host backspace / Home / End /
-  function-key styles and per-host toggles for mouse reporting, remote
-  resize and title changes.
 - **Host monitoring:** agentless CPU / memory / disk / network gauges
   over the SSH connection you already have: a per-session panel plus a
   multi-host dashboard, opt-in per host, nothing installed on servers.
-- **China & CJK:** a download mirror setting so fonts, plugins and
-  updates work on mainland networks, Alibaba Cloud (ECS) and Tencent
-  Cloud (CVM) providers, an East Asian ambiguous-width option, terminal
-  background images, and a Chinese README.
+- **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
+  providers, an East Asian ambiguous-width option, and terminal
+  background images.
 - **AI ops toolkit:** the assistant graduates from generating shell
   strings to typed, structured operations synthesized for the host's
   actual OS, with dry-run previews on every state change, an audit
   journal, and secrets structurally excluded from model context.
   Local-first, bring-your-own-key, no hosted backend.
-- **Consistency & stability:** a unified form system across all editors
-  and portable export/import test hardening.
 
 **Exploring**
 

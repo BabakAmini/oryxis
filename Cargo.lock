@@ -5539,7 +5539,7 @@ dependencies = [
 
 [[package]]
 name = "oryxis-app"
-version = "0.9.0"
+version = "0.10.0"
 dependencies = [
  "arboard",
  "async-trait",
