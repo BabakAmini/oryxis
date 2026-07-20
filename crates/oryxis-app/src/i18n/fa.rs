@@ -1559,7 +1559,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_bar_position" => "موقعیت نوار زبانه‌ها",
         "tab_bar_position_top" => "بالا",
         "tab_bar_position_bottom" => "پایین",
-        "tab_bar_position_desc" => "پایین نوار زبانه‌ها را بالای نوار وضعیت قرار می‌دهد؛ دکمه‌های پنجره در نوار باریک بالایی می‌مانند.",
+        "tab_bar_position_left" => "چپ",
+        "tab_bar_position_right" => "راست",
+        "tab_bar_position_desc" => "پایین نوار زبانه‌ها را بالای نوار وضعیت قرار می‌دهد؛ چپ / راست آن را به‌صورت فهرست عمودی در همان سمت قرار می‌دهند. دکمه‌های پنجره در نوار باریک بالایی می‌مانند.",
         "import_summary_imported" => "میزبان‌های واردشده:",
         "import_summary_skipped" => "رد شد، برچسب از قبل وجود دارد",
 

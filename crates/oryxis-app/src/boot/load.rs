@@ -598,9 +598,11 @@ impl Oryxis {
                 self.setting_tab_fill_style = v;
             }
             if let Ok(Some(v)) = vault.get_setting("tab_bar_position")
-                && (v == "top" || v == "bottom")
+                && (v == "top" || v == "bottom" || v == "left" || v == "right")
             {
-                crate::views::tab_bar::set_tab_bar_bottom(v == "bottom");
+                crate::views::tab_bar::set_tab_bar_pos(
+                    crate::views::tab_bar::TabBarPos::from_setting(&v),
+                );
                 self.setting_tab_bar_position = v;
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_enabled") {

@@ -2,20 +2,63 @@
 
 use super::*;
 
-/// Process-wide "tab strip docked at the bottom" gate, mirroring the
+/// Where the tab strip docks (Settings -> Interface -> Tab bar
+/// position). `Top` / `Bottom` are the horizontal strips; `Left` /
+/// `Right` dock a vertical tab list on that side of the window
+/// (issue #87). Left / right are PHYSICAL sides, not logical ones:
+/// the user picked an explicit edge, so RTL must not flip it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum TabBarPos {
+    #[default]
+    Top,
+    Bottom,
+    Left,
+    Right,
+}
+
+impl TabBarPos {
+    /// Parse the `tab_bar_position` setting value; anything
+    /// unrecognized falls back to `Top`, mirroring the dispatch
+    /// normalization.
+    pub(crate) fn from_setting(v: &str) -> Self {
+        match v {
+            "bottom" => Self::Bottom,
+            "left" => Self::Left,
+            "right" => Self::Right,
+            _ => Self::Top,
+        }
+    }
+
+    /// A vertical (left / right docked) strip.
+    pub(crate) fn is_side(self) -> bool {
+        matches!(self, Self::Left | Self::Right)
+    }
+}
+
+/// Process-wide tab-strip dock position gate, mirroring the
 /// `AUTO_TITLE` gate in `state/tabs.rs`: `active_tab_bg` is a free fn
 /// called from every tab/chip renderer, so threading the setting through
 /// each signature would touch the whole family for one gradient flip.
 /// Set from boot + the Settings dispatch; read at render time.
-static TAB_BAR_BOTTOM: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+static TAB_BAR_POS: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
-pub(crate) fn set_tab_bar_bottom(on: bool) {
-    TAB_BAR_BOTTOM.store(on, std::sync::atomic::Ordering::Relaxed);
+pub(crate) fn set_tab_bar_pos(pos: TabBarPos) {
+    let v = match pos {
+        TabBarPos::Top => 0,
+        TabBarPos::Bottom => 1,
+        TabBarPos::Left => 2,
+        TabBarPos::Right => 3,
+    };
+    TAB_BAR_POS.store(v, std::sync::atomic::Ordering::Relaxed);
 }
 
-pub(crate) fn tab_bar_bottom() -> bool {
-    TAB_BAR_BOTTOM.load(std::sync::atomic::Ordering::Relaxed)
+pub(crate) fn tab_bar_pos() -> TabBarPos {
+    match TAB_BAR_POS.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => TabBarPos::Bottom,
+        2 => TabBarPos::Left,
+        3 => TabBarPos::Right,
+        _ => TabBarPos::Top,
+    }
 }
 /// Decide how much horizontal space each tab gets. Returns
 /// `(active_width, inactive_width)`. The active tab claims its natural
@@ -123,14 +166,20 @@ pub(crate) fn active_tab_bg(accent: Color, solid_fill: bool) -> Background {
     if solid_fill {
         return Background::Color(Color { a: 0.16, ..accent });
     }
-    let top = Color { a: 0.28, ..accent };
-    let bot = Color { a: 0.04, ..accent };
-    // With the strip docked at the bottom the light source flips: the
-    // saturated edge hugs the content above ("lit from below"), keeping
-    // the fade oriented toward the window edge either way.
-    let (start, end) = if tab_bar_bottom() { (bot, top) } else { (top, bot) };
+    let hi = Color { a: 0.28, ..accent };
+    let lo = Color { a: 0.04, ..accent };
+    // The saturated edge always hugs the window edge the strip docks
+    // against ("lit from the frame"), fading toward the content: top
+    // strip lights from above, bottom from below, and the side-docked
+    // vertical strips light from their outer edge.
+    let (angle, start, end) = match tab_bar_pos() {
+        TabBarPos::Top => (std::f32::consts::PI, hi, lo),
+        TabBarPos::Bottom => (std::f32::consts::PI, lo, hi),
+        TabBarPos::Left => (std::f32::consts::FRAC_PI_2, hi, lo),
+        TabBarPos::Right => (std::f32::consts::FRAC_PI_2, lo, hi),
+    };
     Background::Gradient(iced::Gradient::Linear(
-        iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI))
+        iced::gradient::Linear::new(iced::Radians(angle))
             .add_stop(0.0, start)
             .add_stop(1.0, end),
     ))

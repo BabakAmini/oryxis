@@ -160,13 +160,18 @@ impl Oryxis {
             SettingsMessage::SettingTabBarPositionChanged(val) => {
                 let normalized = match val.as_str() {
                     "bottom" => "bottom",
+                    "left" => "left",
+                    "right" => "right",
                     _ => "top",
                 };
                 // The active-tab gradient direction lives in a process-wide
                 // gate (read by `active_tab_bg` at render time, same shape
-                // as the auto-title gate) so the "lit from above" fade can
-                // flip without threading a flag through every tab renderer.
-                crate::views::tab_bar::set_tab_bar_bottom(normalized == "bottom");
+                // as the auto-title gate) so the "lit from the frame" fade
+                // can flip without threading a flag through every tab
+                // renderer.
+                crate::views::tab_bar::set_tab_bar_pos(
+                    crate::views::tab_bar::TabBarPos::from_setting(normalized),
+                );
                 self.setting_tab_bar_position = normalized.into();
                 self.persist_setting("tab_bar_position", normalized);
             }

@@ -1542,7 +1542,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_bar_position" => "タブバーの位置",
         "tab_bar_position_top" => "上",
         "tab_bar_position_bottom" => "下",
-        "tab_bar_position_desc" => "下にするとタブバーがステータスバーの上に配置され、ウィンドウボタンは上部の細いバーに残ります。",
+        "tab_bar_position_left" => "左",
+        "tab_bar_position_right" => "右",
+        "tab_bar_position_desc" => "下にするとタブバーがステータスバーの上に配置され、左 / 右にするとその側に縦のタブリストとして配置されます。ウィンドウボタンは上部の細いバーに残ります。",
 
                 "ecs_exec_group_missing" => "このセッションの背後にあるクラウドグループは存在しません。タブのピンを外し、ダッシュボードから再接続してください。",
         "cloud_session_ended" => "セッションが終了しました",

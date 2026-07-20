@@ -32,15 +32,19 @@ impl Oryxis {
     /// overlay layering is applied on top by `layer_modals`.
     fn build_base(&self) -> Element<'_, Message> {
         let immersive = self.window_fullscreen;
-        // Opt-in bottom docking (Settings -> Interface -> Tab bar
-        // position): the strip moves above the status bar and the top
-        // row shrinks to a slim chrome bar (burger + drag area + window
-        // buttons), so the titlebar affordances stay where every OS
-        // puts them.
-        let bottom_tabs = self.setting_tab_bar_position == "bottom";
+        // Opt-in docking (Settings -> Interface -> Tab bar position):
+        // `bottom` moves the strip above the status bar; `left` /
+        // `right` dock it as a vertical list on that window edge
+        // (issue #87). In every docked mode the top row shrinks to a
+        // slim chrome bar (burger + drag area + window buttons), so
+        // the titlebar affordances stay where every OS puts them.
+        let tab_pos =
+            crate::views::tab_bar::TabBarPos::from_setting(&self.setting_tab_bar_position);
+        let bottom_tabs = tab_pos == crate::views::tab_bar::TabBarPos::Bottom;
+        let side_tabs = tab_pos.is_side();
         let tab_bar: Element<'_, Message> = if immersive {
             Space::new().height(0).into()
-        } else if bottom_tabs {
+        } else if bottom_tabs || side_tabs {
             self.view_top_chrome_bar()
         } else {
             self.view_tab_bar()
@@ -145,7 +149,54 @@ impl Oryxis {
             Some(panel) => dir_row(vec![inner, panel]).height(Length::Fill).into(),
             None => inner,
         };
-        let right_side: Element<'_, Message> = if bottom_tabs && !immersive {
+        let right_side: Element<'_, Message> = if side_tabs && !immersive {
+            // Side docking: the slim chrome bar keeps a neutral 1 px
+            // separator (it still reads as a titlebar); below it the
+            // vertical strip docks on the chosen PHYSICAL edge, the
+            // user picked "left" / "right" explicitly, so RTL must not
+            // flip it (hence a plain Row, not dir_row), with the accent
+            // hairline standing between strip and content.
+            let chrome_sep: Element<'_, Message> = container(Space::new().height(1.0))
+                .width(Length::Fill)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().border)),
+                    ..Default::default()
+                })
+                .into();
+            // Vertical twin of `h_separator`: the accent washes top ->
+            // bottom (bright at the chrome bar fading toward the status
+            // bar), matching the side strip's own wash direction.
+            let v_separator: Element<'_, Message> = container(Space::new().width(hair_height))
+                .height(Length::Fill)
+                .style(move |_| container::Style {
+                    background: Some(match accent_tint {
+                        Some(c) => Background::Gradient(iced::Gradient::Linear(
+                            iced::gradient::Linear::new(iced::Radians(
+                                std::f32::consts::PI,
+                            ))
+                            .add_stop(0.0, c)
+                            .add_stop(0.85, Color { a: 0.0, ..c }),
+                        )),
+                        None => Background::Color(hair_color),
+                    }),
+                    ..Default::default()
+                })
+                .into();
+            let strip = self.view_side_tab_strip();
+            let content_row: Element<'_, Message> =
+                if tab_pos == crate::views::tab_bar::TabBarPos::Left {
+                    iced::widget::Row::with_children(vec![strip, v_separator, body])
+                        .height(Length::Fill)
+                        .into()
+                } else {
+                    iced::widget::Row::with_children(vec![body, v_separator, strip])
+                        .height(Length::Fill)
+                        .into()
+                };
+            column![tab_bar, chrome_sep, content_row]
+                .height(Length::Fill)
+                .into()
+        } else if bottom_tabs && !immersive {
             // Bottom docking: the accent hairline (the active host's
             // "respiração") moves with the strip, sitting on its top
             // edge; the slim chrome bar above keeps a neutral 1 px

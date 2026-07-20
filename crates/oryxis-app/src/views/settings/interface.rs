@@ -270,13 +270,19 @@ impl Oryxis {
         let top_bar_section = panel_section(column![
             self.nav_pick_row(
                 crate::i18n::t("tab_bar_position"),
-                vec!["top".to_string(), "bottom".to_string()],
+                vec![
+                    "top".to_string(),
+                    "bottom".to_string(),
+                    "left".to_string(),
+                    "right".to_string(),
+                ],
                 self.setting_tab_bar_position.clone(),
                 |s: &String| {
-                    crate::i18n::t(if s == "bottom" {
-                        "tab_bar_position_bottom"
-                    } else {
-                        "tab_bar_position_top"
+                    crate::i18n::t(match s.as_str() {
+                        "bottom" => "tab_bar_position_bottom",
+                        "left" => "tab_bar_position_left",
+                        "right" => "tab_bar_position_right",
+                        _ => "tab_bar_position_top",
                     })
                     .to_string()
                 },
