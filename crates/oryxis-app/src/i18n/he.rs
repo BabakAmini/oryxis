@@ -1234,6 +1234,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "מציג מעבד, זיכרון, רשת והדיסק המלא ביותר של המארח המנוטר. דורש ניטור מופעל באותו מארח.",
         "monitor_ports" => "פורטים מאזינים",
         "monitor_forward_port" => "העברת פורט זה מקומית",
+        "monitor_interval" => "מרווח ניטור (שניות)",
+        "monitor_interval_desc" => "שניות בין דגימות כל עוד לשונית הניטור או המקטע שלה בשורת המצב מוצגים. מינימום 2.",
         "sftp_no_editor_configured" => "לא הוגדר עורך ברירת מחדל. הגדירו אחד בהגדרות > SFTP.",
         "sftp_edit_prompt_title" => "הקובץ שונה",
         "sftp_edit_prompt_text" => "הקובץ '{file}' שונה. להחליף את הקובץ המרוחק ב-{host}?",

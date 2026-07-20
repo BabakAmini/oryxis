@@ -1228,6 +1228,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "Hiển thị CPU, bộ nhớ, mạng và ổ đĩa đầy nhất của máy chủ đang giám sát. Cần bật giám sát trên máy chủ đó.",
         "monitor_ports" => "Cổng đang lắng nghe",
         "monitor_forward_port" => "Chuyển tiếp cổng này về máy cục bộ",
+        "monitor_interval" => "Chu kỳ giám sát (giây)",
+        "monitor_interval_desc" => "Số giây giữa các lần lấy mẫu khi tab Giám sát hoặc phần trên thanh trạng thái đang hiển thị. Tối thiểu 2.",
         "sftp_no_editor_configured" => "Chưa cấu hình trình soạn thảo mặc định. Đặt trong Cài đặt > SFTP.",
         "sftp_edit_prompt_title" => "Tệp đã thay đổi",
         "sftp_edit_prompt_text" => "Tệp '{file}' đã bị thay đổi. Thay thế tệp từ xa trên {host}?",

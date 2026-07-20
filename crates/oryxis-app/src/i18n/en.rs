@@ -1235,6 +1235,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "monitor_status_bar_desc" => "Show CPU, memory, network and the busiest disk of the monitored host. Needs monitoring enabled on that host.",
         "monitor_ports" => "Listening ports",
         "monitor_forward_port" => "Forward this port locally",
+        "monitor_interval" => "Monitoring interval (s)",
+        "monitor_interval_desc" => "Seconds between host-monitor probes while the Monitor tab or its status-bar segment is showing. Minimum 2.",
         "sftp_no_editor_configured" => "No default editor configured. Set one in Settings > SFTP.",
         "sftp_edit_prompt_title" => "File modified",
         "sftp_edit_prompt_text" => "The file '{file}' has been modified. Replace the remote file on {host}?",

@@ -152,6 +152,7 @@ impl Oryxis {
             }
             m @ (SettingsMessage::SettingToggleShowStatusBar
             | SettingsMessage::SettingToggleMonitorStatusBar
+            | SettingsMessage::SettingMonitorIntervalChanged(..)
             | SettingsMessage::ToggleHostListView
             | SettingsMessage::ToggleCardAccentGlass
             | SettingsMessage::ToggleShowHostAddress

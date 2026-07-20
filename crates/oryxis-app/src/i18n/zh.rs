@@ -1144,6 +1144,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "显示受监控主机的 CPU、内存、网络和最满的磁盘。需要在该主机上启用监控。",
         "monitor_ports" => "监听端口",
         "monitor_forward_port" => "将此端口转发到本地",
+        "monitor_interval" => "监控间隔（秒）",
+        "monitor_interval_desc" => "监控标签页或其状态栏区域显示时，两次采集之间的秒数。最小 2。",
         "sftp_no_editor_configured" => "未配置默认编辑器。请在 设置 > SFTP 中设置。",
         "sftp_edit_prompt_title" => "文件已修改",
         "sftp_edit_prompt_text" => "文件 '{file}' 已被修改。是否替换 {host} 上的远程文件？",

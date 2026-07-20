@@ -193,13 +193,18 @@ impl Oryxis {
         // Host monitor: only while its sidebar tab is the visible one and
         // the focused pane's host actually opted in, so an idle screen
         // (or a host that never enabled monitoring) never probes.
-        if (self.monitor_tab_visible()
-            || (self.setting_monitor_status_bar && self.setting_show_status_bar))
+        // Unlocked-gated like every other periodic subscription: a soft
+        // lock keeps live sessions but must stop reading the host, or
+        // the locked screen would still be gathering (and discarding)
+        // telemetry behind the lock screen.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && (self.monitor_tab_visible()
+                || (self.setting_monitor_status_bar && self.setting_show_status_bar))
             && self.monitor_target().is_some()
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(
-                    crate::dispatch_monitor::MONITOR_INTERVAL_SECS,
+                    self.monitor_interval_secs(),
                 ))
                 .map(|_| Message::Monitor(crate::app::MonitorMessage::Tick)),
             );

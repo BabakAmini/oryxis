@@ -809,6 +809,10 @@ pub struct Oryxis {
     /// busy host can listen on dozens of ports, so it starts collapsed
     /// behind a count.
     pub(crate) monitor_ports_open: bool,
+    /// Seconds between monitor probes, as typed in Settings. Parsed
+    /// (and floored) by `monitor_interval_secs`; kept as a string so a
+    /// half-typed value doesn't reset the field under the user.
+    pub(crate) setting_monitor_interval: String,
     pub(crate) setting_sftp_default_editor: String,
     /// Persisted "Autosave" grant from the save-confirmation dialog:
     /// edited remote files upload on every save without asking.

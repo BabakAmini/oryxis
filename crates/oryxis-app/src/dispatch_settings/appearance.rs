@@ -33,6 +33,17 @@ impl Oryxis {
                     if self.setting_monitor_status_bar { "true" } else { "false" },
                 );
             }
+            SettingsMessage::SettingMonitorIntervalChanged(v) => {
+                // Digits only, same shaping as the other interval fields:
+                // the value is validated on read, not on every keystroke.
+                // Cap at an hour: anything longer is indistinguishable
+                // from turning the tab off, and the field stays narrow.
+                self.setting_monitor_interval = crate::util::sanitize_uint(&v, 3_600);
+                self.persist_setting(
+                    "monitor_interval_seconds",
+                    &self.setting_monitor_interval.clone(),
+                );
+            }
             SettingsMessage::ToggleHostListView => {
                 // Dismiss the `…` overflow menu when toggled from there
                 // (no-op for the inline toolbar button).

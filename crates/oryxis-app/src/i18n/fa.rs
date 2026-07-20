@@ -1213,6 +1213,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "پردازنده، حافظه، شبکه و پرترین دیسک میزبان تحت پایش را نشان می‌دهد. نیازمند فعال بودن پایش روی آن میزبان است.",
         "monitor_ports" => "پورت‌های در حال شنود",
         "monitor_forward_port" => "انتقال این پورت به صورت محلی",
+        "monitor_interval" => "بازه پایش (ثانیه)",
+        "monitor_interval_desc" => "ثانیه بین کاوش‌ها تا زمانی که زبانه پایش یا بخش آن در نوار وضعیت دیده می‌شود. حداقل ۲.",
         "sftp_no_editor_configured" => "ویرایشگر پیش‌فرضی تنظیم نشده است. در تنظیمات > SFTP تعیین کنید.",
         "sftp_edit_prompt_title" => "فایل تغییر کرد",
         "sftp_edit_prompt_text" => "فایل '{file}' تغییر کرده است. فایل راه دور در {host} جایگزین شود؟",

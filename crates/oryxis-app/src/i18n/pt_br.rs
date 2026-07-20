@@ -1184,6 +1184,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "Mostra CPU, memória, rede e o disco mais cheio do host monitorado. Requer monitoramento ativado nesse host.",
         "monitor_ports" => "Portas em escuta",
         "monitor_forward_port" => "Encaminhar esta porta localmente",
+        "monitor_interval" => "Intervalo de monitoramento (s)",
+        "monitor_interval_desc" => "Segundos entre as coletas do monitor enquanto a aba Monitor ou seu segmento na barra de status está visível. Mínimo 2.",
         "sftp_no_editor_configured" => "Nenhum editor padrão configurado. Defina um em Configurações > SFTP.",
         "sftp_edit_prompt_title" => "Arquivo modificado",
         "sftp_edit_prompt_text" => "O arquivo '{file}' foi modificado. Substituir o arquivo remoto em {host}?",

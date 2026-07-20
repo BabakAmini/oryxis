@@ -1229,6 +1229,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "يعرض المعالج والذاكرة والشبكة والقرص الأكثر امتلاءً للمضيف المراقَب. يتطلب تفعيل المراقبة على ذلك المضيف.",
         "monitor_ports" => "المنافذ المستمعة",
         "monitor_forward_port" => "إعادة توجيه هذا المنفذ محليًا",
+        "monitor_interval" => "فاصل المراقبة (ثانية)",
+        "monitor_interval_desc" => "الثواني بين عمليات الفحص أثناء ظهور تبويب المراقبة أو قسمه في شريط الحالة. الحد الأدنى 2.",
         "sftp_no_editor_configured" => "لم يتم تعيين محرر افتراضي. عيّنه في الإعدادات > SFTP.",
         "sftp_edit_prompt_title" => "تم تعديل الملف",
         "sftp_edit_prompt_text" => "تم تعديل الملف '{file}'. هل تريد استبدال الملف البعيد على {host}؟",

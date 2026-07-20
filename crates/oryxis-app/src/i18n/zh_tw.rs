@@ -1144,6 +1144,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "顯示受監控主機的 CPU、記憶體、網路和最滿的磁碟。需要在該主機上啟用監控。",
         "monitor_ports" => "監聽連接埠",
         "monitor_forward_port" => "將此連接埠轉送到本機",
+        "monitor_interval" => "監控間隔（秒）",
+        "monitor_interval_desc" => "監控分頁或其狀態列區塊顯示時，兩次採集之間的秒數。最小 2。",
         "sftp_no_editor_configured" => "尚未設定預設編輯器。請在 設定 > SFTP 中設定。",
         "sftp_edit_prompt_title" => "檔案已修改",
         "sftp_edit_prompt_text" => "檔案 '{file}' 已被修改。是否取代 {host} 上的遠端檔案？",

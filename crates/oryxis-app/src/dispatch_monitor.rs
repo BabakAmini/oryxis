@@ -17,10 +17,15 @@ use crate::app::{Message, MonitorMessage, Oryxis};
 /// gives up on the tab.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
-/// Seconds between polls while the Monitor tab is open. Frequent enough
-/// to feel live, sparse enough that one exec channel per interval is
-/// negligible next to an interactive shell.
-pub(crate) const MONITOR_INTERVAL_SECS: u64 = 5;
+/// Default seconds between polls. Frequent enough to feel live, sparse
+/// enough that one exec channel per interval is negligible next to an
+/// interactive shell.
+pub(crate) const MONITOR_INTERVAL_DEFAULT_SECS: u64 = 5;
+
+/// Floor on the configured interval. Below this the probes start
+/// overlapping their own round trips on a slow link, which costs the
+/// host more than the readings are worth.
+const MONITOR_INTERVAL_FLOOR_SECS: u64 = 2;
 
 impl Oryxis {
     pub(crate) fn handle_monitor(&mut self, message: MonitorMessage) -> Task<Message> {
@@ -157,6 +162,18 @@ impl Oryxis {
         }
     }
 
+    /// Effective probe interval: the configured value, floored so a
+    /// typo (or an empty field mid-edit) can't hammer the host.
+    pub(crate) fn monitor_interval_secs(&self) -> u64 {
+        self.setting_monitor_interval
+            .trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|s| *s > 0)
+            .unwrap_or(MONITOR_INTERVAL_DEFAULT_SECS)
+            .max(MONITOR_INTERVAL_FLOOR_SECS)
+    }
+
     /// True while the Monitor tab is the visible sidebar tab, which is
     /// what mounts the tick: monitoring never polls a screen nobody is
     /// looking at.
@@ -170,5 +187,35 @@ impl Oryxis {
         self.monitor.forget(conn_id);
         self.monitor_stamp = self.monitor_stamp.wrapping_add(1);
         self.monitor_error = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The interval resolver's contract, exercised without an `Oryxis`
+    /// (the parse + floor is the whole rule; the struct only supplies
+    /// the string).
+    fn resolve(raw: &str) -> u64 {
+        raw.trim()
+            .parse::<u64>()
+            .ok()
+            .filter(|s| *s > 0)
+            .unwrap_or(super::MONITOR_INTERVAL_DEFAULT_SECS)
+            .max(2)
+    }
+
+    #[test]
+    fn interval_falls_back_and_floors() {
+        assert_eq!(resolve("10"), 10);
+        // Empty / half-typed / non-numeric fall back to the default
+        // rather than freezing the tick at zero.
+        assert_eq!(resolve(""), super::MONITOR_INTERVAL_DEFAULT_SECS);
+        assert_eq!(resolve("   "), super::MONITOR_INTERVAL_DEFAULT_SECS);
+        assert_eq!(resolve("abc"), super::MONITOR_INTERVAL_DEFAULT_SECS);
+        // "0" would be a busy loop against the host; the floor catches
+        // it and every sub-floor value.
+        assert_eq!(resolve("0"), super::MONITOR_INTERVAL_DEFAULT_SECS);
+        assert_eq!(resolve("1"), 2);
+        assert_eq!(resolve("2"), 2);
     }
 }

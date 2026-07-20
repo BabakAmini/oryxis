@@ -467,6 +467,7 @@ impl Oryxis {
                 monitor_stamp: 0,
                 monitor_error: None,
                 monitor_ports_open: false,
+                setting_monitor_interval: "5".to_string(),
                 setting_sftp_default_editor: String::new(),
                 setting_sftp_edit_autosave: false,
                 sftp_edit_upload_all: false,

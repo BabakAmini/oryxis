@@ -321,6 +321,23 @@ impl Oryxis {
                     .into(),
             ),
             Space::new().height(16),
+            text(crate::i18n::t("monitor_interval")).size(13).color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("monitor_interval_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-monitor-interval")),
+                10.0,
+                text_input("5", &self.setting_monitor_interval)
+                    .id(iced::widget::Id::new("set-monitor-interval"))
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingMonitorIntervalChanged(v)))
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
+            Space::new().height(16),
             self.nav_toggle_row(
                 crate::i18n::t("auto_reconnect"),
                 self.setting_auto_reconnect,

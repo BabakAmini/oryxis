@@ -1228,6 +1228,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "Menampilkan CPU, memori, jaringan, dan disk terpenuh dari host yang dipantau. Perlu pemantauan aktif di host tersebut.",
         "monitor_ports" => "Port yang mendengarkan",
         "monitor_forward_port" => "Teruskan port ini ke lokal",
+        "monitor_interval" => "Interval pemantauan (dtk)",
+        "monitor_interval_desc" => "Detik antar pengambilan data selama tab Monitor atau segmen bilah statusnya terlihat. Minimal 2.",
         "sftp_no_editor_configured" => "Editor default belum diatur. Atur di Pengaturan > SFTP.",
         "sftp_edit_prompt_title" => "File diubah",
         "sftp_edit_prompt_text" => "File '{file}' telah diubah. Ganti file remote di {host}?",

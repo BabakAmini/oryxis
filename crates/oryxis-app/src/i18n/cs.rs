@@ -1234,6 +1234,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "Zobrazí CPU, paměť, síť a nejplnější disk monitorovaného hostitele. Vyžaduje zapnuté monitorování na daném hostiteli.",
         "monitor_ports" => "Naslouchající porty",
         "monitor_forward_port" => "Přesměrovat tento port lokálně",
+        "monitor_interval" => "Interval monitorování (s)",
+        "monitor_interval_desc" => "Sekundy mezi dotazy, dokud je vidět karta Monitor nebo její část ve stavovém řádku. Minimum 2.",
         "sftp_no_editor_configured" => "Není nastaven výchozí editor. Nastavte jej v Nastavení > SFTP.",
         "sftp_edit_prompt_title" => "Soubor změněn",
         "sftp_edit_prompt_text" => "Soubor '{file}' byl změněn. Nahradit vzdálený soubor na {host}?",

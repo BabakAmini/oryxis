@@ -1228,6 +1228,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "모니터링 중인 호스트의 CPU, 메모리, 네트워크와 사용률이 가장 높은 디스크를 표시합니다. 해당 호스트에서 모니터링을 켜야 합니다.",
         "monitor_ports" => "수신 대기 포트",
         "monitor_forward_port" => "이 포트를 로컬로 전달",
+        "monitor_interval" => "모니터링 간격(초)",
+        "monitor_interval_desc" => "모니터 탭이나 상태 표시줄 구간이 보이는 동안 프로브 사이의 초. 최소 2.",
         "sftp_no_editor_configured" => "기본 편집기가 설정되지 않았습니다. 설정 > SFTP에서 지정하세요.",
         "sftp_edit_prompt_title" => "파일이 수정됨",
         "sftp_edit_prompt_text" => "파일 '{file}'이(가) 수정되었습니다. {host}의 원격 파일을 교체할까요?",

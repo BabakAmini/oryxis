@@ -1144,6 +1144,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "Affiche processeur, mémoire, réseau et le disque le plus rempli de l'hôte surveillé. Nécessite la surveillance activée sur cet hôte.",
         "monitor_ports" => "Ports en écoute",
         "monitor_forward_port" => "Rediriger ce port en local",
+        "monitor_interval" => "Intervalle de surveillance (s)",
+        "monitor_interval_desc" => "Secondes entre les sondes tant que l'onglet Moniteur ou son segment de barre d'état est affiché. Minimum 2.",
         "sftp_no_editor_configured" => "Aucun éditeur par défaut configuré. Définissez-en un dans Paramètres > SFTP.",
         "sftp_edit_prompt_title" => "Fichier modifié",
         "sftp_edit_prompt_text" => "Le fichier '{file}' a été modifié. Remplacer le fichier distant sur {host} ?",

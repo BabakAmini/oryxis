@@ -1234,6 +1234,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_status_bar_desc" => "मॉनिटर किए जा रहे होस्ट का CPU, मेमोरी, नेटवर्क और सबसे भरा डिस्क दिखाता है। उस होस्ट पर मॉनिटरिंग चालू होनी चाहिए।",
         "monitor_ports" => "सुन रहे पोर्ट",
         "monitor_forward_port" => "इस पोर्ट को लोकल पर फ़ॉरवर्ड करें",
+        "monitor_interval" => "मॉनिटरिंग अंतराल (सेकंड)",
+        "monitor_interval_desc" => "मॉनिटर टैब या स्टेटस बार वाला हिस्सा दिखते समय दो प्रोब के बीच के सेकंड। न्यूनतम 2।",
         "sftp_no_editor_configured" => "कोई डिफ़ॉल्ट एडिटर सेट नहीं है। सेटिंग्स > SFTP में सेट करें।",
         "sftp_edit_prompt_title" => "फ़ाइल बदली गई",
         "sftp_edit_prompt_text" => "फ़ाइल '{file}' बदली गई है। {host} पर रिमोट फ़ाइल बदलें?",
