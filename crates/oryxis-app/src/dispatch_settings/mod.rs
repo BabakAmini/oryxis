@@ -180,6 +180,10 @@ impl Oryxis {
             | SettingsMessage::ToggleRightClickCopy
             | SettingsMessage::ToggleMiddleClickPaste
             | SettingsMessage::ToggleSftpForceOsc7
+            | SettingsMessage::SettingSftpDefaultEditorChanged(..)
+            | SettingsMessage::SettingSftpDefaultEditorBrowse
+            | SettingsMessage::SettingSftpDefaultEditorPicked(..)
+            | SettingsMessage::ToggleSftpEditAutosave
             | SettingsMessage::ToggleScrollbackResetKeypress
             | SettingsMessage::ToggleScrollbackResetOutput
             | SettingsMessage::TerminalRightClickChanged(..)

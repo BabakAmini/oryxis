@@ -143,6 +143,16 @@ pub enum SettingsMessage {
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,
     ToggleSftpForceOsc7,
+    /// Settings > SFTP: the single external editor used by the remote
+    /// "Open with default text editor" action (issue #84).
+    SettingSftpDefaultEditorChanged(String),
+    /// Pick the editor executable via a file dialog.
+    SettingSftpDefaultEditorBrowse,
+    /// The browse dialog returned ("cancelled" errors stay silent).
+    SettingSftpDefaultEditorPicked(Result<String, String>),
+    /// Settings > SFTP: toggle the persisted auto-upload grant the
+    /// save-confirmation dialog's "Autosave" button turns on.
+    ToggleSftpEditAutosave,
     /// PuTTY "reset scrollback on keypress" toggled in Settings > Terminal.
     ToggleScrollbackResetKeypress,
     /// PuTTY "reset scrollback on display activity" toggled in Settings.

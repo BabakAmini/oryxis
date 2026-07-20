@@ -601,8 +601,10 @@ impl Oryxis {
                             remote_path: path,
                             temp_path,
                             label: basename,
+                            host: String::new(),
                             initial_mtime,
                             dirty: false,
+                            uploading: false,
                         })
                     },
                     move |result| match result {

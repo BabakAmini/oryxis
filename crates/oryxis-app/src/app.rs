@@ -793,6 +793,15 @@ pub struct Oryxis {
     pub(crate) theme_import_error: Option<String>,
     /// Import-UI-theme modal (paste the Oryxis UI theme JSON), mirroring
     /// the terminal scheme import modal above.
+    /// Single external editor used by the SFTP "Open with default text
+    /// editor" action (issue #84). Empty = unset.
+    pub(crate) setting_sftp_default_editor: String,
+    /// Persisted "Autosave" grant from the save-confirmation dialog:
+    /// edited remote files upload on every save without asking.
+    pub(crate) setting_sftp_edit_autosave: bool,
+    /// Session-only "Yes to all" grant from the same dialog (never
+    /// persisted; dies with the app run).
+    pub(crate) sftp_edit_upload_all: bool,
     pub(crate) show_ui_theme_import: bool,
     pub(crate) ui_theme_import_content: iced::widget::text_editor::Content,
     pub(crate) ui_theme_import_name: String,

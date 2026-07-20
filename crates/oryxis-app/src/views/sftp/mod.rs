@@ -290,6 +290,16 @@ impl Oryxis {
             Some(new_entry_modal(entry))
         } else if let Some(session) = &self.sftp.edit_session {
             Some(edit_in_place_modal(session))
+        } else if let Some(watch) = self
+            .sftp
+            .edit_watches
+            .iter()
+            .find(|w| w.dirty && !w.uploading)
+        {
+            // Save-confirmation for an "Open with" edit watch. Multiple
+            // dirty watches queue naturally: answering one re-renders
+            // with the next.
+            Some(edit_prompt_modal(watch))
         } else if let Some(prompt) = &self.sftp.overwrite_prompt {
             Some(overwrite_modal(prompt))
         } else if let Some(props) = &self.sftp.properties {

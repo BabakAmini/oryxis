@@ -328,8 +328,10 @@ impl Oryxis {
                             remote_path,
                             temp_path,
                             label: basename,
+                            host: String::new(),
                             initial_mtime,
                             dirty: false,
+                            uploading: false,
                         })
                     },
                     move |result| match result {
@@ -413,9 +415,357 @@ impl Oryxis {
                         _ => {}
                     }
                 }
+                // Watch entries ("Open with" flow), across EVERY surface
+                // so a parked tab's file keeps auto-uploading; the dialog
+                // for a non-granted save renders once its surface is
+                // active. With a grant the upload starts right here.
+                let auto = self.setting_sftp_edit_autosave || self.sftp_edit_upload_all;
+                let mut tasks: Vec<Task<Message>> = Vec::new();
+                let mut scan = |st: &mut crate::state::SftpState| {
+                    for w in st.edit_watches.iter_mut() {
+                        if w.uploading {
+                            continue;
+                        }
+                        let Ok(meta) = std::fs::metadata(&w.temp_path) else { continue };
+                        let Ok(mtime) = meta.modified() else { continue };
+                        match w.initial_mtime {
+                            None => w.initial_mtime = Some(mtime),
+                            Some(initial) if mtime > initial => {
+                                if auto {
+                                    w.uploading = true;
+                                    w.dirty = false;
+                                    tasks.push(watch_upload_task(w.clone()));
+                                } else {
+                                    w.dirty = true;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                };
+                scan(&mut self.sftp);
+                for tab in self.sftp_tabs.iter_mut() {
+                    scan(&mut tab.state);
+                }
+                for tab in self.tabs.iter_mut() {
+                    scan(&mut tab.files_state);
+                }
+                if !tasks.is_empty() {
+                    return Ok(Task::batch(tasks));
+                }
+            }
+            SftpMessage::SftpStartEditWith(remote_path, opener) => {
+                self.sftp.close_menus();
+                // The configured editor resolves NOW so an unset setting
+                // fails with guidance instead of a broken spawn later.
+                let editor = match opener {
+                    crate::state::SftpEditOpener::ConfiguredEditor => {
+                        let e = self.setting_sftp_default_editor.trim().to_string();
+                        if e.is_empty() {
+                            return Ok(self.show_toast_secs(
+                                crate::i18n::t("sftp_no_editor_configured").to_string(),
+                                5,
+                            ));
+                        }
+                        Some(e)
+                    }
+                    _ => None,
+                };
+                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
+                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    return Ok(Task::none());
+                };
+                let host = self
+                    .sftp
+                    .pane(remote_side)
+                    .host_label
+                    .clone()
+                    .unwrap_or_default();
+                return Ok(Task::perform(
+                    async move {
+                        let basename = remote_path
+                            .rsplit('/')
+                            .find(|s| !s.is_empty())
+                            .unwrap_or(&remote_path)
+                            .to_string();
+                        let bytes = client
+                            .read_file(&remote_path)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let temp_path = std::env::temp_dir().join(format!(
+                            "oryxis-{}-{}",
+                            uuid::Uuid::new_v4(),
+                            basename
+                        ));
+                        tokio::fs::write(&temp_path, &bytes)
+                            .await
+                            .map_err(|e| format!("write temp: {e}"))?;
+                        #[cfg(unix)]
+                        {
+                            use std::os::unix::fs::PermissionsExt as _;
+                            let _ = tokio::fs::set_permissions(
+                                &temp_path,
+                                std::fs::Permissions::from_mode(0o600),
+                            )
+                            .await;
+                        }
+                        spawn_edit_opener(&temp_path, opener, editor.as_deref())?;
+                        let initial_mtime = tokio::fs::metadata(&temp_path)
+                            .await
+                            .ok()
+                            .and_then(|m| m.modified().ok());
+                        Ok::<crate::state::EditSession, String>(crate::state::EditSession {
+                            client_override: Some(client),
+                            remote_path,
+                            temp_path,
+                            label: basename,
+                            host,
+                            initial_mtime,
+                            dirty: false,
+                            uploading: false,
+                        })
+                    },
+                    move |result| match result {
+                        Ok(session) => Message::Sftp(SftpMessage::SftpEditWatchReady(session)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
+                    },
+                ));
+            }
+            SftpMessage::SftpEditWatchReady(session) => {
+                self.sftp.edit_watches.push(session);
+            }
+            SftpMessage::SftpEditPromptChoice(choice) => {
+                use crate::state::SftpEditPromptChoice as C;
+                match choice {
+                    C::Yes => {
+                        if let Some(w) = self
+                            .sftp
+                            .edit_watches
+                            .iter_mut()
+                            .find(|w| w.dirty && !w.uploading)
+                        {
+                            w.uploading = true;
+                            w.dirty = false;
+                            return Ok(watch_upload_task(w.clone()));
+                        }
+                    }
+                    C::YesToAll | C::Autosave => {
+                        if choice == C::Autosave {
+                            // Persisted; Settings > SFTP has the toggle to
+                            // turn it back off (never a one-way trap).
+                            self.setting_sftp_edit_autosave = true;
+                            self.persist_setting("sftp_edit_autosave", "true");
+                        } else {
+                            self.sftp_edit_upload_all = true;
+                        }
+                        // Drain every pending save under the fresh grant,
+                        // whichever surface it belongs to.
+                        let mut tasks: Vec<Task<Message>> = Vec::new();
+                        let mut drain = |st: &mut crate::state::SftpState| {
+                            for w in st.edit_watches.iter_mut() {
+                                if w.dirty && !w.uploading {
+                                    w.uploading = true;
+                                    w.dirty = false;
+                                    tasks.push(watch_upload_task(w.clone()));
+                                }
+                            }
+                        };
+                        drain(&mut self.sftp);
+                        for tab in self.sftp_tabs.iter_mut() {
+                            drain(&mut tab.state);
+                        }
+                        for tab in self.tabs.iter_mut() {
+                            drain(&mut tab.files_state);
+                        }
+                        return Ok(Task::batch(tasks));
+                    }
+                    C::No => {
+                        if let Some(w) = self
+                            .sftp
+                            .edit_watches
+                            .iter_mut()
+                            .find(|w| w.dirty && !w.uploading)
+                        {
+                            // Skip this save; re-arm so the NEXT save
+                            // prompts again.
+                            w.dirty = false;
+                            w.initial_mtime = std::fs::metadata(&w.temp_path)
+                                .ok()
+                                .and_then(|m| m.modified().ok())
+                                .or(w.initial_mtime);
+                        }
+                    }
+                    C::Cancel => {
+                        // Stop watching this file. The temp copy stays on
+                        // disk, the user's editor may still have it open.
+                        if let Some(pos) = self
+                            .sftp
+                            .edit_watches
+                            .iter()
+                            .position(|w| w.dirty && !w.uploading)
+                        {
+                            self.sftp.edit_watches.remove(pos);
+                        }
+                    }
+                }
+            }
+            SftpMessage::SftpEditWatchUploadDone(temp_path, result) => {
+                let mut label: Option<String> = None;
+                if let Some(w) = self
+                    .sftp
+                    .edit_watches
+                    .iter_mut()
+                    .find(|w| w.temp_path == temp_path)
+                {
+                    label = rearm_watch(w, &result);
+                } else if let Some(w) = self.sftp_tabs.iter_mut().find_map(|t| {
+                    t.state.edit_watches.iter_mut().find(|w| w.temp_path == temp_path)
+                }) {
+                    label = rearm_watch(w, &result);
+                } else if let Some(w) = self.tabs.iter_mut().find_map(|t| {
+                    t.files_state
+                        .edit_watches
+                        .iter_mut()
+                        .find(|w| w.temp_path == temp_path)
+                }) {
+                    label = rearm_watch(w, &result);
+                }
+                match result {
+                    Ok(_) => {
+                        if let Some(label) = label {
+                            return Ok(self.show_toast_secs(
+                                crate::i18n::t("sftp_edit_uploaded")
+                                    .replacen("{file}", &label, 1),
+                                3,
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        return Ok(self.show_toast_secs(
+                            format!("{}: {e}", crate::i18n::t("sftp_edit_upload_failed")),
+                            6,
+                        ));
+                    }
+                }
             }
             m => return Err(m),
         }
         Ok(Task::none())
     }
+}
+
+/// Apply an upload completion to its watch entry: clear the in-flight
+/// flag, re-arm the mtime baseline, and hand back the label on success
+/// (for the toast). On error the save is NOT remote; re-arming to the
+/// current temp mtime avoids a retry loop while the surfaced toast tells
+/// the user their next save will prompt again.
+fn rearm_watch(
+    w: &mut crate::state::EditSession,
+    result: &Result<std::time::SystemTime, String>,
+) -> Option<String> {
+    w.uploading = false;
+    w.dirty = false;
+    match result {
+        Ok(mtime) => {
+            w.initial_mtime = Some(*mtime);
+            Some(w.label.clone())
+        }
+        Err(_) => {
+            w.initial_mtime = std::fs::metadata(&w.temp_path)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .or(w.initial_mtime);
+            None
+        }
+    }
+}
+
+/// Spawn the local application for an "Open with" edit, per opener kind.
+/// Runs inside the download task (blocking spawn is fine there).
+fn spawn_edit_opener(
+    temp_path: &std::path::Path,
+    opener: crate::state::SftpEditOpener,
+    editor: Option<&str>,
+) -> Result<(), String> {
+    match opener {
+        crate::state::SftpEditOpener::OsDefault => open::that(temp_path)
+            .map_err(|e| format!("open editor: {e} (temp at {})", temp_path.display())),
+        crate::state::SftpEditOpener::ConfiguredEditor => {
+            let editor = editor.ok_or("no editor configured")?;
+            std::process::Command::new(editor)
+                .arg(temp_path)
+                .spawn()
+                .map(|_| ())
+                .map_err(|e| format!("spawn {editor}: {e}"))
+        }
+        crate::state::SftpEditOpener::AskOs => open_with_os_picker(temp_path),
+    }
+}
+
+/// OS "open with" application picker. Windows has a shell verb for it;
+/// macOS gets an AppleScript chooser; Linux has no stable cross-desktop
+/// picker CLI, so the menu entry is hidden there (this arm is a fallback).
+fn open_with_os_picker(temp_path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("rundll32.exe")
+            .arg("shell32.dll,OpenAs_RunDLL")
+            .arg(temp_path)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("open-with dialog: {e}"))
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // `choose application` returns e.g. "application \"TextEdit\"";
+        // `open -a` accepts the display name.
+        let script = format!(
+            "tell application \"System Events\" to activate\n\
+             set theApp to name of (choose application)\n\
+             do shell script \"open -a \" & quoted form of theApp & \" \" & quoted form of \"{}\"",
+            temp_path.display()
+        );
+        std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("open-with dialog: {e}"))
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = temp_path;
+        Err("The OS application picker is not available on this platform".to_string())
+    }
+}
+
+/// Upload a watch entry's temp file to its remote path, resolving the
+/// temp mtime FIRST so the re-arm covers exactly the content uploaded
+/// (a save landing mid-upload keeps a newer mtime and prompts again).
+fn watch_upload_task(session: crate::state::EditSession) -> Task<Message> {
+    let temp_key = session.temp_path.clone();
+    Task::perform(
+        async move {
+            let mtime = tokio::fs::metadata(&session.temp_path)
+                .await
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .unwrap_or_else(std::time::SystemTime::now);
+            let bytes = tokio::fs::read(&session.temp_path)
+                .await
+                .map_err(|e| format!("read temp: {e}"))?;
+            let client = session
+                .client_override
+                .clone()
+                .ok_or_else(|| "no client attached to the edit watch".to_string())?;
+            client
+                .write_file(&session.remote_path, &bytes)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<std::time::SystemTime, String>(mtime)
+        },
+        move |result| {
+            Message::Sftp(SftpMessage::SftpEditWatchUploadDone(temp_key.clone(), result))
+        },
+    )
 }

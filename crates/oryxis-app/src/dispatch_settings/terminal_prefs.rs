@@ -111,6 +111,49 @@ impl Oryxis {
                     if self.setting_middle_click_paste { "true" } else { "false" },
                 );
             }
+            SettingsMessage::SettingSftpDefaultEditorChanged(v) => {
+                self.setting_sftp_default_editor = v;
+                self.persist_setting(
+                    "sftp_default_editor",
+                    &self.setting_sftp_default_editor.clone(),
+                );
+            }
+            SettingsMessage::SettingSftpDefaultEditorBrowse => {
+                return Ok(Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        rfd::FileDialog::new()
+                            .set_title(crate::i18n::t("setting_default_editor"))
+                            .pick_file()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .ok_or_else(|| "cancelled".to_string())
+                    }),
+                    |result| {
+                        let r = match result {
+                            Ok(r) => r,
+                            Err(e) => Err(format!("Thread error: {e}")),
+                        };
+                        Message::Settings(SettingsMessage::SettingSftpDefaultEditorPicked(r))
+                    },
+                ));
+            }
+            SettingsMessage::SettingSftpDefaultEditorPicked(result) => {
+                if let Ok(path) = result {
+                    self.setting_sftp_default_editor = path;
+                    self.persist_setting(
+                        "sftp_default_editor",
+                        &self.setting_sftp_default_editor.clone(),
+                    );
+                }
+                // "cancelled" / thread errors stay silent: the user just
+                // closed the dialog.
+            }
+            SettingsMessage::ToggleSftpEditAutosave => {
+                self.setting_sftp_edit_autosave = !self.setting_sftp_edit_autosave;
+                self.persist_setting(
+                    "sftp_edit_autosave",
+                    if self.setting_sftp_edit_autosave { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleSftpForceOsc7 => {
                 self.setting_sftp_force_osc7 = !self.setting_sftp_force_osc7;
                 self.persist_setting(

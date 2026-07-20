@@ -265,8 +265,10 @@ fn sftp_state_unsaved_covers_dirty_edit_sessions() {
         remote_path: "/srv/x.conf".into(),
         temp_path: std::path::PathBuf::from("/tmp/oryxis-x.conf"),
         label: "x.conf".into(),
+        host: String::new(),
         initial_mtime: None,
         dirty: false,
+        uploading: false,
     });
     assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
     st.edit_session.as_mut().unwrap().dirty = true;

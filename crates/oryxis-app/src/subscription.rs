@@ -191,8 +191,15 @@ impl Oryxis {
         // double count), so a backgrounded edit-session keeps watching for
         // external saves no matter which surface owns it.
         if self.sftp.edit_session.is_some()
-            || self.sftp_tabs.iter().any(|t| t.state.edit_session.is_some())
-            || self.tabs.iter().any(|t| t.files_state.edit_session.is_some())
+            || !self.sftp.edit_watches.is_empty()
+            || self
+                .sftp_tabs
+                .iter()
+                .any(|t| t.state.edit_session.is_some() || !t.state.edit_watches.is_empty())
+            || self
+                .tabs
+                .iter()
+                .any(|t| t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty())
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))

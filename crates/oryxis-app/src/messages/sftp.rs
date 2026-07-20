@@ -189,6 +189,18 @@ pub enum SftpMessage {
     SftpEditSave,
     SftpEditDiscard,
     SftpEditWatchTick,
+    /// Open a remote file with a chosen local application (issue #84):
+    /// downloads a temp copy, spawns the opener, and registers a
+    /// background watch that confirms each save via the blocking dialog.
+    SftpStartEditWith(String, crate::state::SftpEditOpener),
+    /// The temp copy is written and the opener spawned: register the
+    /// watch entry (the non-blocking sibling of `SftpEditReady`).
+    SftpEditWatchReady(crate::state::EditSession),
+    /// A button of the save-confirmation dialog was pressed.
+    SftpEditPromptChoice(crate::state::SftpEditPromptChoice),
+    /// A watch upload finished: re-arm the entry (keyed by temp path)
+    /// with the temp mtime captured at upload time, or surface the error.
+    SftpEditWatchUploadDone(std::path::PathBuf, Result<std::time::SystemTime, String>),
     SftpCancelRemoteLoad(crate::state::SftpPaneSide),
     /// Retry the last failed remote action, either re-list the
     /// current path (if a session is still mounted) or re-run the

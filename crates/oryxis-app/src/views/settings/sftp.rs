@@ -129,8 +129,61 @@ impl Oryxis {
                         |v| Message::Settings(SettingsMessage::SettingSftpOpTimeoutChanged(v)),
                     )),
             );
+            // External editor (issue #84): the single application the
+            // remote "Open with default text editor" action spawns, plus
+            // the persisted auto-upload grant ("Autosave" in the save
+            // dialog) so that choice is never a one-way trap.
+            let editor_section = panel_section(column![
+                text(t("setting_default_editor"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(4),
+                text(t("setting_default_editor_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(8),
+                dir_row(vec![
+                    self.settings_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("set-sftp-editor")),
+                        10.0,
+                        text_input(t("setting_default_editor_placeholder"), &self.setting_sftp_default_editor)
+                            .id(iced::widget::Id::new("set-sftp-editor"))
+                            .on_input(|v| Message::Settings(SettingsMessage::SettingSftpDefaultEditorChanged(v)))
+                            .padding(10)
+                            .width(Length::Fill)
+                            .style(crate::widgets::rounded_input_style)
+                            .align_x(dir_align_x())
+                            .into(),
+                    ),
+                    Space::new().width(8).into(),
+                    self.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Settings(
+                            SettingsMessage::SettingSftpDefaultEditorBrowse,
+                        )),
+                        8.0,
+                        crate::widgets::styled_button(
+                            t("browse"),
+                            Message::Settings(SettingsMessage::SettingSftpDefaultEditorBrowse),
+                            OryxisColors::t().bg_selected,
+                        ),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center),
+                Space::new().height(16),
+                self.nav_toggle_row(
+                    t("setting_edit_autosave_toggle"),
+                    self.setting_sftp_edit_autosave,
+                    Message::Settings(SettingsMessage::ToggleSftpEditAutosave),
+                ),
+                Space::new().height(4),
+                text(t("setting_edit_autosave_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            ]);
             content_col = content_col
                 .push(osc7_section)
+                .push(Space::new().height(12))
+                .push(editor_section)
                 .push(Space::new().height(12))
                 .push(tuning_section);
         }

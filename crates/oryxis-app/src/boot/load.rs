@@ -863,6 +863,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_force_osc7") {
                 self.setting_sftp_force_osc7 = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("sftp_default_editor") {
+                self.setting_sftp_default_editor = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("sftp_edit_autosave") {
+                self.setting_sftp_edit_autosave = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_connect_timeout") {
                 self.setting_sftp_connect_timeout = v;
             }

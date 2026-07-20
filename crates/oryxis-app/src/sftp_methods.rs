@@ -1305,7 +1305,9 @@ fn is_wsl_root(path: &std::path::Path) -> bool {
 /// guards and the hybrid Close-SFTP-session guard so the two paths can
 /// never diverge on what counts as discardable.
 pub(crate) fn sftp_state_has_unsaved(st: &crate::state::SftpState) -> bool {
-    st.transfer.is_some() || st.edit_session.as_ref().is_some_and(|e| e.dirty)
+    st.transfer.is_some()
+        || st.edit_session.as_ref().is_some_and(|e| e.dirty)
+        || st.edit_watches.iter().any(|w| w.dirty || w.uploading)
 }
 
 fn list_wsl_distros_for_pane() -> Vec<String> {

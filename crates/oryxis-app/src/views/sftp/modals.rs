@@ -614,6 +614,98 @@ pub(crate) fn properties_modal<'a>(
 /// middle, ghost-style cancel on the left, so the modal stays compact
 /// instead of stacking four heavy buttons vertically. The scrim is
 /// non-dismissable: the user must pick something explicitly.
+/// MobaXterm-style save-confirmation dialog for an "Open with" edit
+/// watch (issue #84): a save was detected on the local temp copy and the
+/// user decides whether it replaces the remote file. Yes / Yes to all /
+/// Autosave escalate the grant; No skips this save; Cancel stops
+/// watching the file.
+pub(crate) fn edit_prompt_modal<'a>(
+    session: &crate::state::EditSession,
+) -> Element<'a, Message> {
+    use crate::state::SftpEditPromptChoice as C;
+    let host = if session.host.is_empty() {
+        t("the_other_host").to_string()
+    } else {
+        session.host.clone()
+    };
+    let body = t("sftp_edit_prompt_text")
+        .replacen("{file}", &session.label, 1)
+        .replacen("{host}", &host, 1);
+
+    let choice =
+        |c: C| Message::Sftp(SftpMessage::SftpEditPromptChoice(c));
+
+    let content = column![
+        text(t("sftp_edit_prompt_title"))
+            .size(15)
+            .font(iced::Font {
+                weight: iced::font::Weight::Semibold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            })
+            .color(OryxisColors::t().text_primary),
+        Space::new().height(6),
+        text(body).size(12).color(OryxisColors::t().text_secondary),
+        Space::new().height(2),
+        text(session.remote_path.clone())
+            .size(11)
+            .color(OryxisColors::t().text_muted),
+        Space::new().height(18),
+        row![
+            ghost_button(t("cancel"), choice(C::Cancel)),
+            Space::new().width(Length::Fill),
+            outlined_button(t("no"), choice(C::No)),
+            Space::new().width(8),
+            outlined_button(t("sftp_edit_autosave_btn"), choice(C::Autosave)),
+            Space::new().width(8),
+            outlined_button(t("sftp_edit_yes_all"), choice(C::YesToAll)),
+            Space::new().width(8),
+            primary_button(t("yes"), choice(C::Yes), OryxisColors::t().accent),
+        ]
+        .align_y(iced::Alignment::Center),
+    ]
+    .width(Length::Fill);
+
+    let dialog = container(content.padding(22).width(620))
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            shadow: iced::Shadow {
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.30),
+                offset: iced::Vector::new(0.0, 8.0),
+                blur_radius: 24.0,
+            },
+            ..Default::default()
+        });
+
+    // Non-dismissable scrim (same rationale as the overwrite prompt):
+    // clicking outside is not a valid answer for a data-bearing decision.
+    let scrim: Element<'_, Message> = container(Space::new())
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(Color::from_rgba(0.0, 0.0, 0.0, 0.5))),
+            ..Default::default()
+        })
+        .into();
+
+    let centered = container(MouseArea::new(dialog).on_press(Message::NoOp))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill);
+
+    iced::widget::Stack::new()
+        .push(scrim)
+        .push(centered)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
 pub(crate) fn overwrite_modal<'a>(
     prompt: &crate::state::OverwritePrompt,
 ) -> Element<'a, Message> {

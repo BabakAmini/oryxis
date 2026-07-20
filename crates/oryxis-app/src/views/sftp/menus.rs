@@ -332,12 +332,45 @@ pub(crate) fn row_context_menu_box<'a>(
                 ));
             }
         }
-        // Edit-in-place for a single remote file.
+        // Edit-in-place for a single remote file, plus the "Open with"
+        // family (issue #84): configured editor / OS picker / OS default,
+        // all watched in the background with a per-save confirm dialog.
         if !multi && !menu.is_dir {
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
+                secondary,
+            ));
+            items = items.push(slot(
+                iced_fonts::lucide::pen_line(),
+                crate::i18n::t("sftp_open_with_editor").to_string(),
+                Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.path.clone(),
+                    crate::state::SftpEditOpener::ConfiguredEditor,
+                )),
+                secondary,
+            ));
+            // The OS application picker has no stable cross-desktop CLI
+            // on Linux; the entry only shows where it actually works.
+            if cfg!(any(target_os = "windows", target_os = "macos")) {
+                items = items.push(slot(
+                    iced_fonts::lucide::layout_grid(),
+                    crate::i18n::t("sftp_open_with").to_string(),
+                    Message::Sftp(SftpMessage::SftpStartEditWith(
+                        menu.path.clone(),
+                        crate::state::SftpEditOpener::AskOs,
+                    )),
+                    secondary,
+                ));
+            }
+            items = items.push(slot(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("sftp_open_with_os").to_string(),
+                Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.path.clone(),
+                    crate::state::SftpEditOpener::OsDefault,
+                )),
                 secondary,
             ));
         }
@@ -361,12 +394,45 @@ pub(crate) fn row_context_menu_box<'a>(
                 accent,
             ));
         }
-        // Edit-in-place for a single remote file.
+        // Edit-in-place for a single remote file, plus the "Open with"
+        // family (issue #84): configured editor / OS picker / OS default,
+        // all watched in the background with a per-save confirm dialog.
         if !multi && !menu.is_dir {
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
+                secondary,
+            ));
+            items = items.push(slot(
+                iced_fonts::lucide::pen_line(),
+                crate::i18n::t("sftp_open_with_editor").to_string(),
+                Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.path.clone(),
+                    crate::state::SftpEditOpener::ConfiguredEditor,
+                )),
+                secondary,
+            ));
+            // The OS application picker has no stable cross-desktop CLI
+            // on Linux; the entry only shows where it actually works.
+            if cfg!(any(target_os = "windows", target_os = "macos")) {
+                items = items.push(slot(
+                    iced_fonts::lucide::layout_grid(),
+                    crate::i18n::t("sftp_open_with").to_string(),
+                    Message::Sftp(SftpMessage::SftpStartEditWith(
+                        menu.path.clone(),
+                        crate::state::SftpEditOpener::AskOs,
+                    )),
+                    secondary,
+                ));
+            }
+            items = items.push(slot(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("sftp_open_with_os").to_string(),
+                Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.path.clone(),
+                    crate::state::SftpEditOpener::OsDefault,
+                )),
                 secondary,
             ));
         }

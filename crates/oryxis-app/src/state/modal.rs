@@ -69,6 +69,11 @@ pub(crate) enum Modal {
     SftpNewEntry,
     SftpProperties,
     SftpOverwrite,
+    /// Save-confirmation for an "Open with" edit watch (issue #84): a
+    /// data-bearing decision like `SftpOverwrite`, so it blocks input
+    /// and owns its own dismissal (absent from `ESC_ORDER`; Esc must
+    /// not silently pick a side).
+    SftpEditPrompt,
     SftpPicker,
     /// The ssh-agent per-signature confirm prompt (`agent.pending_confirm`,
     /// B1). A blocking security prompt like `HostKey`: it MUST block input
@@ -114,6 +119,7 @@ impl Modal {
         Modal::SftpNewEntry,
         Modal::SftpProperties,
         Modal::SftpOverwrite,
+        Modal::SftpEditPrompt,
         Modal::SftpPicker,
         Modal::AgentConfirm,
         Modal::CertificateViewer,
@@ -190,6 +196,7 @@ impl Modal {
             | Modal::SftpNewEntry
             | Modal::SftpProperties
             | Modal::SftpOverwrite
+            | Modal::SftpEditPrompt
             | Modal::SftpPicker
             | Modal::AgentConfirm
             | Modal::CertificateViewer => true,
@@ -234,12 +241,13 @@ mod tests {
                 | Modal::SftpNewEntry
                 | Modal::SftpProperties
                 | Modal::SftpOverwrite
+                | Modal::SftpEditPrompt
                 | Modal::SftpPicker
                 | Modal::AgentConfirm
                 | Modal::CertificateViewer => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 30, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 31, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

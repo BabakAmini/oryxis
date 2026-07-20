@@ -304,6 +304,10 @@ pub(crate) struct SftpState {
     /// temp path and opened in the user's default editor. Persists until
     /// the user clicks Save Back or Discard.
     pub edit_session: Option<EditSession>,
+    /// Files opened via the "Open with" actions: watched in the
+    /// background (the surface stays usable) and confirmed per save via
+    /// the blocking dialog, MobaXterm-style. Multiple files at once.
+    pub edit_watches: Vec<EditSession>,
     /// Pending overwrite confirmation, set when the user uploads a file
     /// whose name already exists in the destination. Cleared when the
     /// user picks an action.
@@ -445,6 +449,7 @@ impl Default for SftpState {
             selected_rows: Vec::new(),
             selection_anchor: None,
             edit_session: None,
+            edit_watches: Vec::new(),
             overwrite_prompt: None,
             properties: None,
             transfer_panel_open: false,
@@ -645,20 +650,57 @@ pub(crate) enum OverwriteAction {
 #[derive(Debug, Clone)]
 pub(crate) struct EditSession {
     /// When set, the save uploads through THIS client (sidebar Files
-    /// browser ops); `None` resolves the remote SFTP pane as before.
+    /// browser ops and every `edit_watches` entry); `None` resolves the
+    /// remote SFTP pane as before.
     pub client_override: Option<SftpClient>,
     pub remote_path: String,
     pub temp_path: std::path::PathBuf,
     /// Display label shown in the modal, basename of the remote file.
     pub label: String,
+    /// Host label the file came from, shown by the save-confirmation
+    /// dialog ("replace the remote file on {host}?").
+    pub host: String,
     /// Mtime of the temp file when it was first written (right after
     /// download). The watcher tick polls this to detect saves coming
-    /// from the user's editor.
+    /// from the user's editor. Watch entries re-arm it after every
+    /// upload / skip so each new save prompts again.
     pub initial_mtime: Option<std::time::SystemTime>,
     /// True once the watcher tick observes an mtime newer than
-    /// `initial_mtime`, drives the "Changes detected" copy in the
-    /// modal so the user knows their save was picked up.
+    /// `initial_mtime`. On the blocking edit session it drives the
+    /// "Changes detected" copy; on a watch entry it queues the
+    /// save-confirmation dialog.
     pub dirty: bool,
+    /// A watch upload is in flight; the tick and the dialog skip the
+    /// entry until the completion message re-arms it.
+    pub uploading: bool,
+}
+
+/// How "Open with..." resolves the local application for a remote file
+/// (issue #84). `OsDefault` is the file-association open the classic
+/// edit flow already used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SftpEditOpener {
+    /// The single configured editor from Settings > SFTP.
+    ConfiguredEditor,
+    /// The OS "open with" application picker (Windows / macOS only).
+    AskOs,
+    /// The OS file association (`open::that`).
+    OsDefault,
+}
+
+/// A button of the MobaXterm-style save-confirmation dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SftpEditPromptChoice {
+    /// Upload this save.
+    Yes,
+    /// Upload this and every later save this app run, without asking.
+    YesToAll,
+    /// Persist auto-upload (Settings > SFTP toggle turns it back off).
+    Autosave,
+    /// Skip this save, keep watching.
+    No,
+    /// Stop watching this file (the temp copy stays on disk).
+    Cancel,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
