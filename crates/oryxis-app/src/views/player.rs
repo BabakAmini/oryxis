@@ -1,9 +1,10 @@
 //! In-app session player surface (issue #71), rendered by
 //! `view_history` while `Oryxis.session_player` is `Some`: the
 //! recording replays through the regular terminal widget pinned to its
-//! recorded geometry, under a transport bar (play/pause, restart,
-//! scrubber, speed). Read-only by construction: the backend has no PTY
-//! and no input callback is wired.
+//! recorded geometry, rendered at a font size fitted to the stage
+//! (issue #89), under a transport bar (play/pause, restart, scrubber,
+//! speed). Read-only by construction: the backend has no PTY and no
+//! input callback is wired.
 
 use std::sync::Arc;
 
@@ -19,7 +20,10 @@ use crate::state::SessionPlayer;
 use crate::theme::OryxisColors;
 
 impl Oryxis {
-    pub(crate) fn view_session_player(&self, p: &SessionPlayer) -> Element<'_, Message> {
+    pub(crate) fn view_session_player<'a>(
+        &'a self,
+        p: &'a SessionPlayer,
+    ) -> Element<'a, Message> {
         // Privacy Mode resolves like the static viewer: the recording's
         // host override wins, a deleted host falls back to the global
         // default; the toolbar Reveal toggle lifts the masking.
@@ -128,32 +132,14 @@ impl Oryxis {
 
         // ── Terminal canvas, pinned to the recording's geometry ──
         // The grid is fixed (the recorded resize events drive it), so
-        // the canvas gets exactly the pixel size that grid needs and
-        // scrolls inside the surface when it doesn't fit.
-        let (px_w, px_h) = oryxis_terminal::widget::grid_pixel_size(
-            &self.terminal_font_name,
-            self.terminal_font_size,
-            p.cols,
-            p.rows,
-        );
-        let term_view = TerminalView::new(Arc::clone(&p.terminal))
-            .with_fixed_grid(true)
-            // No mouse-tracking reports ever leave a replay (there is
-            // nothing to receive them); selection/copy stay local.
-            .focused(false)
-            .with_mouse_reporting(false)
-            .with_font_size(self.terminal_font_size)
-            .with_font_name(&self.terminal_font_name)
-            .with_copy_on_select(self.setting_copy_on_select)
-            .with_right_click_copy(self.setting_right_click_copy)
-            .with_bold_is_bright(self.setting_bold_is_bright)
-            .with_keyword_highlight(self.setting_keyword_highlight)
-            .with_performance(self.setting_performance_mode)
-            .with_privacy(mask)
-            .with_privacy_terms(&self.privacy_terms())
-            .with_privacy_classes(self.privacy_classes())
-            .with_smart_contrast(self.setting_smart_contrast)
-            .with_word_delimiters(&self.setting_word_delimiters);
+        // the canvas gets exactly the pixel size that grid needs. The
+        // replay font shrinks below the configured size whenever that
+        // grid would overflow the stage (issue #89: the player surface
+        // loses height to the header and transport bar, so a recording
+        // made on a bigger terminal always overflowed), bottoming out
+        // at a legibility floor where the scrollbars take over.
+        // Display-only: the emulation keeps the recorded geometry, so
+        // full-screen apps (vim, tmux) replay exactly as captured.
         let term_bg = {
             // The palette was resolved at open; read it off the state
             // like the link chip does (non-blocking; a missed frame
@@ -163,20 +149,70 @@ impl Oryxis {
                 .map(|s| s.palette.background)
                 .unwrap_or(OryxisColors::t().bg_primary)
         };
-        let term_canvas = canvas(term_view)
-            .width(Length::Fixed(px_w))
-            .height(Length::Fixed(px_h));
-        let stage = scrollable(
-            container(term_canvas)
-                .padding(16)
-                .width(Length::Fill)
-                .align_x(iced::alignment::Horizontal::Center),
-        )
-        .direction(scrollable::Direction::Both {
-            vertical: scrollable::Scrollbar::default(),
-            horizontal: scrollable::Scrollbar::default(),
-        })
-        .height(Length::Fill);
+        let stage = iced::widget::responsive(move |avail| {
+            let font_size = fitted_font_size(
+                &self.terminal_font_name,
+                self.terminal_font_size,
+                p.cols,
+                p.rows,
+                iced::Size::new(
+                    (avail.width - STAGE_PAD * 2.0).max(0.0),
+                    (avail.height - STAGE_PAD * 2.0).max(0.0),
+                ),
+            );
+            let (px_w, px_h) = oryxis_terminal::widget::grid_pixel_size(
+                &self.terminal_font_name,
+                font_size,
+                p.cols,
+                p.rows,
+            );
+            let term_view = TerminalView::new(Arc::clone(&p.terminal))
+                .with_fixed_grid(true)
+                // No mouse-tracking reports ever leave a replay (there
+                // is nothing to receive them); selection/copy stay
+                // local.
+                .focused(false)
+                .with_mouse_reporting(false)
+                .with_font_size(font_size)
+                .with_font_name(&self.terminal_font_name)
+                .with_copy_on_select(self.setting_copy_on_select)
+                .with_right_click_copy(self.setting_right_click_copy)
+                .with_bold_is_bright(self.setting_bold_is_bright)
+                .with_keyword_highlight(self.setting_keyword_highlight)
+                .with_performance(self.setting_performance_mode)
+                .with_privacy(mask)
+                .with_privacy_terms(&self.privacy_terms())
+                .with_privacy_classes(self.privacy_classes())
+                .with_smart_contrast(self.setting_smart_contrast)
+                .with_word_delimiters(&self.setting_word_delimiters);
+            let term_canvas = canvas(term_view)
+                .width(Length::Fixed(px_w))
+                .height(Length::Fixed(px_h));
+            // Inside a both-axis scrollable `Length::Fill` collapses to
+            // the content size, so center by sizing the container to
+            // the larger of the stage and the (padded) canvas: a
+            // fitted frame centers on both axes, an overflowing one
+            // (fit at the floor) keeps its natural size and scrolls.
+            Element::from(
+                scrollable(
+                    container(term_canvas)
+                        .padding(STAGE_PAD)
+                        .width(Length::Fixed(
+                            avail.width.max(px_w + STAGE_PAD * 2.0),
+                        ))
+                        .height(Length::Fixed(
+                            avail.height.max(px_h + STAGE_PAD * 2.0),
+                        ))
+                        .align_x(iced::alignment::Horizontal::Center)
+                        .align_y(iced::alignment::Vertical::Center),
+                )
+                .direction(scrollable::Direction::Both {
+                    vertical: scrollable::Scrollbar::default(),
+                    horizontal: scrollable::Scrollbar::default(),
+                })
+                .height(Length::Fill),
+            )
+        });
         let stage = container(stage)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -273,6 +309,42 @@ impl Oryxis {
     }
 }
 
+/// Padding around the replay canvas inside the stage.
+const STAGE_PAD: f32 = 16.0;
+
+/// Legibility floor for the fitted replay font: below this the fit
+/// gives up and the stage's scrollbars take over.
+const MIN_REPLAY_FONT: f32 = 6.0;
+
+/// Fit walk step. Half-pixel granularity keeps the per-(family, size)
+/// glyph-metric cache small and the fitted size stable across tiny
+/// stage jitters.
+const FIT_STEP: f32 = 0.5;
+
+/// Largest font size, capped at the configured `base`, at which a
+/// pinned `cols` x `rows` grid fits inside `avail` (issue #89). Walks
+/// down from `base` in [`FIT_STEP`] steps; every probed size lands in
+/// the shared `cell_advance` cache, so steady-state layout passes cost
+/// one lookup per step. Bottoms out at [`MIN_REPLAY_FONT`].
+fn fitted_font_size(
+    font_name: &str,
+    base: f32,
+    cols: u16,
+    rows: u16,
+    avail: iced::Size,
+) -> f32 {
+    let fits = |size: f32| {
+        let (w, h) =
+            oryxis_terminal::widget::grid_pixel_size(font_name, size, cols, rows);
+        w <= avail.width && h <= avail.height
+    };
+    let mut size = base.max(MIN_REPLAY_FONT);
+    while size > MIN_REPLAY_FONT && !fits(size) {
+        size = (size - FIT_STEP).max(MIN_REPLAY_FONT);
+    }
+    size
+}
+
 /// Shared style for the transport-bar icon buttons: transparent at
 /// rest, `bg_hover` fill on hover, accent tint on press (the app-wide
 /// button-feedback convention).
@@ -324,7 +396,39 @@ fn format_clock(ms: i64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::format_clock;
+    use super::{fitted_font_size, format_clock, MIN_REPLAY_FONT};
+
+    // Without a live renderer `cell_advance` uses its deterministic
+    // `font_size * 0.6` fallback, so grid sizes here are exact:
+    // width = cols * size * 0.6 + 16, height = rows * size * 1.15 + 16.
+
+    #[test]
+    fn fit_keeps_the_configured_size_when_the_grid_fits() {
+        // 80x24 at 14 px ≈ 688x403: comfortably inside 1000x600.
+        let size =
+            fitted_font_size("Test Mono", 14.0, 80, 24, iced::Size::new(1000.0, 600.0));
+        assert_eq!(size, 14.0);
+    }
+
+    #[test]
+    fn fit_shrinks_an_oversized_grid_to_the_stage() {
+        // 200x50 at 14 px ≈ 1696x821: must shrink for an 800x500 stage.
+        let avail = iced::Size::new(800.0, 500.0);
+        let size = fitted_font_size("Test Mono", 14.0, 200, 50, avail);
+        assert!(size < 14.0, "oversized grid must shrink, got {size}");
+        assert!(size >= MIN_REPLAY_FONT);
+        let (w, h) = oryxis_terminal::widget::grid_pixel_size("Test Mono", size, 200, 50);
+        assert!(w <= avail.width && h <= avail.height, "fitted grid overflows: {w}x{h}");
+    }
+
+    #[test]
+    fn fit_bottoms_out_at_the_floor_for_degenerate_stages() {
+        // Nothing readable fits a 100x80 stage; the floor wins and the
+        // scrollbars take over.
+        let size =
+            fitted_font_size("Test Mono", 14.0, 200, 50, iced::Size::new(100.0, 80.0));
+        assert_eq!(size, MIN_REPLAY_FONT);
+    }
 
     #[test]
     fn clock_formats_minutes_and_hours() {
