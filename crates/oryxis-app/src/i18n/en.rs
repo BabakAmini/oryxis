@@ -939,6 +939,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "no_stored_password" => "No stored password for this host",
         "host_encoding" => "Encoding",
         "host_terminal_type" => "Terminal type (TERM)",
+        "term_fallback_toast" => "This host has no terminfo entry for \"{requested}\". Connected with \"{used}\" instead; consider changing this host's Terminal Type.",
+        "term_missing_toast" => "This host has no terminfo entry for \"{requested}\" and no substitute was found. Full-screen apps may misbehave; try another Terminal Type for this host.",
         "host_encoding_desc" => "Character set for this host's terminal. Default UTF-8.",
         "connection_failed_log" => "Connection failed with connection log:",
         "connecting_status" => "Connecting...",

@@ -64,10 +64,44 @@ impl SshEngine {
         let channel = handle.channel_open_session().await
             .map_err(|e| SshError::Channel(format!("Failed to open session channel: {}", e)))?;
 
-        // Request PTY
-        let term = self.terminal_type.as_deref().unwrap_or("xterm-256color");
+        // Request PTY. A custom TERM is first checked against the
+        // host's own terminfo db (issue #88: e.g. CentOS 7 has no
+        // `tmux-256color`, which leaves vim/nano unusable) and swapped
+        // for the nearest present entry when missing; the switch is
+        // recorded on the session so the UI can tell the user. The
+        // default TERM is never probed, keeping the common path free.
+        let requested = self
+            .terminal_type
+            .as_deref()
+            .unwrap_or(DEFAULT_TERMINAL_TYPE);
+        let mut term_fallback: Option<TermFallback> = None;
+        let mut term = requested.to_string();
+        if requested != DEFAULT_TERMINAL_TYPE {
+            match self.probe_terminfo(&handle, requested).await {
+                TermProbe::Fallback(used) => {
+                    tracing::warn!(
+                        "host lacks terminfo for {requested}, requesting PTY with {used}"
+                    );
+                    term = used.clone();
+                    term_fallback = Some(TermFallback {
+                        requested: requested.to_string(),
+                        used: Some(used),
+                    });
+                }
+                TermProbe::MissingNoFallback => {
+                    tracing::warn!(
+                        "host lacks terminfo for {requested} and every fallback candidate; keeping it"
+                    );
+                    term_fallback = Some(TermFallback {
+                        requested: requested.to_string(),
+                        used: None,
+                    });
+                }
+                TermProbe::Present | TermProbe::Inconclusive => {}
+            }
+        }
         channel
-            .request_pty(false, term, cols, rows, 0, 0, &[])
+            .request_pty(false, &term, cols, rows, 0, 0, &[])
             .await
             .map_err(|e| SshError::Channel(format!("PTY request failed: {}", e)))?;
 
@@ -253,6 +287,7 @@ impl SshEngine {
                 // Default, overridden by the engine right after this
                 // returns via `sftp_open_timeout` assignment.
                 sftp_open_timeout: std::time::Duration::from_secs(10),
+                term_fallback,
             },
             output_rx,
         ))

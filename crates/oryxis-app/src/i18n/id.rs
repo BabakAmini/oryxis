@@ -932,6 +932,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Tidak ada kata sandi tersimpan untuk host ini",
         "host_encoding" => "Pengkodean",
         "host_terminal_type" => "Tipe terminal (TERM)",
+        "term_fallback_toast" => "Host ini tidak memiliki entri terminfo untuk \"{requested}\". Terhubung dengan \"{used}\" sebagai gantinya; pertimbangkan mengubah tipe terminal host ini.",
+        "term_missing_toast" => "Host ini tidak memiliki entri terminfo untuk \"{requested}\" dan tidak ditemukan pengganti. Aplikasi layar penuh mungkin bermasalah; coba tipe terminal lain untuk host ini.",
         "host_encoding_desc" => "Set karakter untuk terminal host ini. Default UTF-8.",
         "connection_failed_log" => "Koneksi gagal dengan log koneksi:",
         "connecting_status" => "Menghubungkan...",

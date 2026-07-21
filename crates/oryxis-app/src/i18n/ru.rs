@@ -770,6 +770,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Нет сохранённого пароля для этого хоста",
         "host_encoding" => "Кодировка",
         "host_terminal_type" => "Тип терминала (TERM)",
+        "term_fallback_toast" => "На этом хосте нет записи terminfo для \"{requested}\". Подключено с \"{used}\"; рассмотрите смену типа терминала для этого хоста.",
+        "term_missing_toast" => "На этом хосте нет записи terminfo для \"{requested}\", и замена не найдена. Полноэкранные приложения могут работать неправильно; попробуйте другой тип терминала для этого хоста.",
         "host_encoding_desc" => "Кодировка терминала для этого хоста. По умолчанию UTF-8.",
         "connection_failed_log" => "Сбой подключения, журнал подключения:",
         "connecting_status" => "Подключение...",

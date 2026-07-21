@@ -932,6 +932,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Không có mật khẩu lưu cho máy chủ này",
         "host_encoding" => "Mã hóa ký tự",
         "host_terminal_type" => "Loại terminal (TERM)",
+        "term_fallback_toast" => "Host này không có mục terminfo cho \"{requested}\". Đã kết nối bằng \"{used}\" thay thế; hãy cân nhắc đổi loại terminal của host này.",
+        "term_missing_toast" => "Host này không có mục terminfo cho \"{requested}\" và không tìm thấy phương án thay thế. Ứng dụng toàn màn hình có thể hoạt động sai; hãy thử loại terminal khác cho host này.",
         "host_encoding_desc" => "Bộ ký tự cho terminal của máy chủ này. Mặc định UTF-8.",
         "connection_failed_log" => "Kết nối thất bại với nhật ký kết nối:",
         "connecting_status" => "Đang kết nối...",

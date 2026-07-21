@@ -24,12 +24,15 @@ mod handler;
 mod kbi;
 mod net_quality;
 mod session;
+mod terminfo;
 
 pub use errors::*;
 pub use forwarding::*;
 pub use net_quality::{NetQuality, NetQualitySnapshot};
 pub(crate) use net_quality::*;
 pub use session::*;
+pub use terminfo::TermFallback;
+pub(crate) use terminfo::*;
 pub(crate) use handler::*;
 use agent::*;
 use kbi::*;

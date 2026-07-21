@@ -938,6 +938,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Κανένας αποθηκευμένος κωδικός για αυτόν τον host",
         "host_encoding" => "Κωδικοποίηση",
         "host_terminal_type" => "Τύπος τερματικού (TERM)",
+        "term_fallback_toast" => "Αυτός ο host δεν έχει καταχώριση terminfo για το \"{requested}\". Έγινε σύνδεση με \"{used}\" αντ' αυτού. Εξετάστε την αλλαγή του τύπου τερματικού αυτού του host.",
+        "term_missing_toast" => "Αυτός ο host δεν έχει καταχώριση terminfo για το \"{requested}\" και δεν βρέθηκε υποκατάστατο. Οι εφαρμογές πλήρους οθόνης μπορεί να δυσλειτουργούν. Δοκιμάστε άλλον τύπο τερματικού για αυτόν τον host.",
         "host_encoding_desc" => "Σύνολο χαρακτήρων για το τερματικό αυτού του host. Προεπιλογή UTF-8.",
         "connection_failed_log" => "Η σύνδεση απέτυχε με αρχείο καταγραφής σύνδεσης:",
         "connecting_status" => "Σύνδεση...",

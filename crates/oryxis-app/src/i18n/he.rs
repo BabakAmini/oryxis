@@ -938,6 +938,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "אין סיסמה שמורה למארח הזה",
         "host_encoding" => "קידוד",
         "host_terminal_type" => "סוג טרמינל (TERM)",
+        "term_fallback_toast" => "למארח זה אין רשומת terminfo עבור \"{requested}\". החיבור בוצע עם \"{used}\" במקום; שקלו לשנות את סוג הטרמינל של מארח זה.",
+        "term_missing_toast" => "למארח זה אין רשומת terminfo עבור \"{requested}\" ולא נמצא תחליף. יישומי מסך מלא עלולים לפעול באופן שגוי; נסו סוג טרמינל אחר עבור מארח זה.",
         "host_encoding_desc" => "ערכת התווים לטרמינל של המארח הזה. ברירת המחדל UTF-8.",
         "connection_failed_log" => "החיבור נכשל עם יומן החיבור הבא:",
         "connecting_status" => "מתחבר...",

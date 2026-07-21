@@ -934,6 +934,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "رمز عبوری برای این میزبان ذخیره نشده است",
         "host_encoding" => "کدگذاری",
         "host_terminal_type" => "نوع ترمینال (TERM)",
+        "term_fallback_toast" => "این میزبان مدخل terminfo برای \"{requested}\" ندارد. در عوض با \"{used}\" متصل شد؛ تغییر نوع ترمینال این میزبان را در نظر بگیرید.",
+        "term_missing_toast" => "این میزبان مدخل terminfo برای \"{requested}\" ندارد و جایگزینی هم یافت نشد. برنامه‌های تمام‌صفحه ممکن است درست کار نکنند؛ نوع ترمینال دیگری برای این میزبان امتحان کنید.",
         "host_encoding_desc" => "مجموعه نویسه‌های ترمینال این میزبان. پیش‌فرض UTF-8.",
         "connection_failed_log" => "اتصال ناموفق بود؛ گزارش اتصال:",
         "connecting_status" => "در حال اتصال...",

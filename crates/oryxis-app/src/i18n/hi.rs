@@ -938,6 +938,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "इस होस्ट के लिए कोई सेव किया हुआ पासवर्ड नहीं",
         "host_encoding" => "एन्कोडिंग",
         "host_terminal_type" => "टर्मिनल प्रकार (TERM)",
+        "term_fallback_toast" => "इस होस्ट में \"{requested}\" के लिए terminfo प्रविष्टि नहीं है। इसके बजाय \"{used}\" से कनेक्ट किया गया; इस होस्ट का टर्मिनल प्रकार बदलने पर विचार करें।",
+        "term_missing_toast" => "इस होस्ट में \"{requested}\" के लिए terminfo प्रविष्टि नहीं है और कोई विकल्प नहीं मिला। पूर्ण-स्क्रीन ऐप गलत व्यवहार कर सकते हैं; इस होस्ट के लिए किसी अन्य टर्मिनल प्रकार को आज़माएँ।",
         "host_encoding_desc" => "इस होस्ट के टर्मिनल का कैरेक्टर सेट। डिफ़ॉल्ट UTF-8।",
         "connection_failed_log" => "कनेक्शन विफल, कनेक्शन लॉग:",
         "connecting_status" => "कनेक्ट हो रहा है...",

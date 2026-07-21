@@ -905,6 +905,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Nenhuma senha salva para este host",
         "host_encoding" => "Codificação",
         "host_terminal_type" => "Tipo de terminal (TERM)",
+        "term_fallback_toast" => "Este host não tem entrada de terminfo para \"{requested}\". Conectado com \"{used}\" no lugar; considere trocar o tipo de terminal deste host.",
+        "term_missing_toast" => "Este host não tem entrada de terminfo para \"{requested}\" e nenhum substituto foi encontrado. Aplicativos de tela cheia podem falhar; tente outro tipo de terminal para este host.",
         "host_encoding_desc" => "Conjunto de caracteres do terminal deste host. Padrão UTF-8.",
         "connection_failed_log" => "Falha na conexão com o log de conexão:",
         "connecting_status" => "Conectando...",

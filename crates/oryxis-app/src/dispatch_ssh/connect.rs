@@ -793,6 +793,26 @@ impl Oryxis {
                         )).await;
                         match engine.open_session(handle, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, &conn.port_forwards).await {
                             Ok((session, mut rx)) => {
+                                // Terminfo fallback (issue #88): the probe
+                                // found the configured TERM missing on the
+                                // host; log what was actually requested so
+                                // the timeline explains the differing TERM.
+                                if let Some(fb) = session.term_fallback() {
+                                    let line = match fb.used.as_deref() {
+                                        Some(used) => format!(
+                                            "Host has no terminfo entry for \"{}\"; using \"{}\" for this session",
+                                            fb.requested, used
+                                        ),
+                                        None => format!(
+                                            "Host has no terminfo entry for \"{}\" and no fallback was found; full-screen apps may misbehave",
+                                            fb.requested
+                                        ),
+                                    };
+                                    let _ = sender.send(SshStreamMsg::Progress(
+                                        ConnectionStep::OpeningSession,
+                                        line,
+                                    )).await;
+                                }
                                 let session = Arc::new(session);
                                 let _ = sender.send(SshStreamMsg::Connected(session.clone())).await;
                                 while let Some(data) = rx.recv().await {

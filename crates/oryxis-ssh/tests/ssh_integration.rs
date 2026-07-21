@@ -235,6 +235,60 @@ async fn pty_session_round_trips_input_to_output() {
 
 #[tokio::test]
 #[ignore = "requires Docker, run with --ignored"]
+async fn custom_terminal_type_probe_never_blocks_connect() {
+    // Issue #88 regression guard for the pre-PTY terminfo probe: with a
+    // custom TERM configured the connect gains an exec round trip before
+    // the PTY request, and it must never hang or fail the connect, on
+    // any host shape (this Alpine-based image has no `infocmp`, so the
+    // probe here lands on the inconclusive path; hosts with a full
+    // ncurses exercise present/fallback instead). The probe outcomes
+    // themselves are unit-tested in `engine::terminfo`; what only a
+    // live sshd can prove is the channel choreography. The shell's TERM
+    // must agree with whatever the probe decided.
+    let (conn, password, _container) = start_sshd(false).await;
+    let engine = engine().with_terminal_type(Some("tmux-256color".to_string()));
+    let (session, mut rx) = engine
+        .connect(&conn, Some(&password), None, 80, 24)
+        .await
+        .expect("connect with custom TERM");
+    let expected_term = match session.term_fallback() {
+        Some(fb) => fb.used.as_deref().unwrap_or("tmux-256color").to_string(),
+        None => "tmux-256color".to_string(),
+    };
+    session.write(b"echo term-is-$TERM\n").expect("write");
+
+    let marker = format!("term-is-{expected_term}");
+    let mut buf = Vec::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(15);
+    let saw_marker = loop {
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            break false;
+        }
+        match tokio::time::timeout(remaining, rx.recv()).await {
+            Ok(Some(chunk)) => {
+                buf.extend_from_slice(&chunk);
+                let text = String::from_utf8_lossy(&buf);
+                if text
+                    .lines()
+                    .any(|l| l.contains(&marker) && !l.contains("echo "))
+                {
+                    break true;
+                }
+            }
+            Ok(None) => break false,
+            Err(_) => break false,
+        }
+    };
+    assert!(
+        saw_marker,
+        "expected TERM {expected_term:?} in pty output, got: {:?}",
+        String::from_utf8_lossy(&buf)
+    );
+}
+
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
 async fn pty_session_resize_is_not_fatal() {
     // resize() is fire-and-forget, we just want to confirm it doesn't
     // panic and the session stays alive afterwards.

@@ -950,6 +950,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "لا توجد كلمة مرور محفوظة لهذا المضيف",
         "host_encoding" => "الترميز",
         "host_terminal_type" => "نوع الطرفية (TERM)",
+        "term_fallback_toast" => "هذا المضيف لا يحتوي على مدخل terminfo لـ \"{requested}\". تم الاتصال باستخدام \"{used}\" بدلاً منه؛ فكّر في تغيير نوع الطرفية لهذا المضيف.",
+        "term_missing_toast" => "هذا المضيف لا يحتوي على مدخل terminfo لـ \"{requested}\" ولم يُعثر على بديل. قد لا تعمل تطبيقات ملء الشاشة بشكل صحيح؛ جرّب نوع طرفية آخر لهذا المضيف.",
         "host_encoding_desc" => "مجموعة أحرف طرفية هذا المضيف. الافتراضي UTF-8.",
         "connection_failed_log" => "فشل الاتصال مع سجل الاتصال:",
         "connecting_status" => "جارٍ الاتصال...",

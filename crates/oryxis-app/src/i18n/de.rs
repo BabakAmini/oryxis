@@ -770,6 +770,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Kein gespeichertes Passwort für diesen Host",
         "host_encoding" => "Kodierung",
         "host_terminal_type" => "Terminaltyp (TERM)",
+        "term_fallback_toast" => "Dieser Host hat keinen terminfo-Eintrag für \"{requested}\". Stattdessen wurde \"{used}\" verwendet; ändern Sie ggf. den Terminaltyp dieses Hosts.",
+        "term_missing_toast" => "Dieser Host hat keinen terminfo-Eintrag für \"{requested}\" und es wurde kein Ersatz gefunden. Vollbild-Anwendungen können sich fehlverhalten; probieren Sie einen anderen Terminaltyp für diesen Host.",
         "host_encoding_desc" => "Zeichensatz für das Terminal dieses Hosts. Standard UTF-8.",
         "connection_failed_log" => "Verbindung fehlgeschlagen, Verbindungsprotokoll:",
         "connecting_status" => "Verbinde...",

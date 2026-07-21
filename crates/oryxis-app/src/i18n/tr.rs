@@ -932,6 +932,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Bu sunucu için kayıtlı parola yok",
         "host_encoding" => "Kodlama",
         "host_terminal_type" => "Terminal türü (TERM)",
+        "term_fallback_toast" => "Bu ana makinede \"{requested}\" için terminfo girdisi yok. Bunun yerine \"{used}\" ile bağlanıldı; bu ana makinenin terminal türünü değiştirmeyi düşünün.",
+        "term_missing_toast" => "Bu ana makinede \"{requested}\" için terminfo girdisi yok ve bir alternatif bulunamadı. Tam ekran uygulamalar hatalı çalışabilir; bu ana makine için başka bir terminal türü deneyin.",
         "host_encoding_desc" => "Bu sunucunun terminali için karakter kümesi. Varsayılan UTF-8.",
         "connection_failed_log" => "Bağlantı şu bağlantı kaydıyla başarısız oldu:",
         "connecting_status" => "Bağlanılıyor...",

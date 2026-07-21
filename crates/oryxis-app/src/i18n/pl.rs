@@ -938,6 +938,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Brak zapisanego hasła dla tego hosta",
         "host_encoding" => "Kodowanie",
         "host_terminal_type" => "Typ terminala (TERM)",
+        "term_fallback_toast" => "Ten host nie ma wpisu terminfo dla \"{requested}\". Połączono z użyciem \"{used}\"; rozważ zmianę typu terminala tego hosta.",
+        "term_missing_toast" => "Ten host nie ma wpisu terminfo dla \"{requested}\" i nie znaleziono zamiennika. Aplikacje pełnoekranowe mogą działać nieprawidłowo; wypróbuj inny typ terminala dla tego hosta.",
         "host_encoding_desc" => "Zestaw znaków dla terminala tego hosta. Domyślnie UTF-8.",
         "connection_failed_log" => "Połączenie nieudane, dziennik połączenia:",
         "connecting_status" => "Łączenie...",

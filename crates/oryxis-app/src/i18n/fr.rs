@@ -779,6 +779,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Aucun mot de passe enregistré pour cet hôte",
         "host_encoding" => "Encodage",
         "host_terminal_type" => "Type de terminal (TERM)",
+        "term_fallback_toast" => "Cet hôte n'a pas d'entrée terminfo pour \"{requested}\". Connexion établie avec \"{used}\" à la place ; pensez à changer le type de terminal de cet hôte.",
+        "term_missing_toast" => "Cet hôte n'a pas d'entrée terminfo pour \"{requested}\" et aucun substitut n'a été trouvé. Les applications plein écran peuvent dysfonctionner ; essayez un autre type de terminal pour cet hôte.",
         "host_encoding_desc" => "Jeu de caractères du terminal de cet hôte. Par défaut UTF-8.",
         "connection_failed_log" => "Échec de la connexion avec le journal de connexion :",
         "connecting_status" => "Connexion...",

@@ -938,6 +938,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Pro tohoto hostitele není uloženo žádné heslo",
         "host_encoding" => "Kódování",
         "host_terminal_type" => "Typ terminálu (TERM)",
+        "term_fallback_toast" => "Tento hostitel nemá záznam terminfo pro \"{requested}\". Připojeno s \"{used}\"; zvažte změnu typu terminálu tohoto hostitele.",
+        "term_missing_toast" => "Tento hostitel nemá záznam terminfo pro \"{requested}\" a náhrada nebyla nalezena. Celoobrazovkové aplikace se mohou chovat chybně; zkuste pro tohoto hostitele jiný typ terminálu.",
         "host_encoding_desc" => "Znaková sada terminálu tohoto hostitele. Výchozí UTF-8.",
         "connection_failed_log" => "Připojení selhalo, protokol připojení:",
         "connecting_status" => "Připojování...",

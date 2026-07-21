@@ -779,6 +779,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "此主機沒有已儲存的密碼",
         "host_encoding" => "編碼",
         "host_terminal_type" => "終端機類型 (TERM)",
+        "term_fallback_toast" => "此主機沒有 \"{requested}\" 的 terminfo 條目，已改用 \"{used}\" 連線；建議修改此主機的終端機類型。",
+        "term_missing_toast" => "此主機沒有 \"{requested}\" 的 terminfo 條目，也找不到可用替代。全螢幕應用程式可能顯示異常；請嘗試為此主機選擇其他終端機類型。",
         "host_encoding_desc" => "此主機終端機的字元集。預設 UTF-8。",
         "connection_failed_log" => "連線失敗，連線記錄：",
         "connecting_status" => "正在連線...",

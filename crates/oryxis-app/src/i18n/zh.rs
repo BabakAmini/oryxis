@@ -779,6 +779,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "此主机没有保存的密码",
         "host_encoding" => "编码",
         "host_terminal_type" => "终端类型 (TERM)",
+        "term_fallback_toast" => "此主机没有 \"{requested}\" 的 terminfo 条目，已改用 \"{used}\" 连接；建议修改此主机的终端类型。",
+        "term_missing_toast" => "此主机没有 \"{requested}\" 的 terminfo 条目，也未找到可用替代。全屏应用可能显示异常；请尝试为此主机选择其他终端类型。",
         "host_encoding_desc" => "此主机终端的字符集。默认 UTF-8。",
         "connection_failed_log" => "连接失败，连接日志：",
         "connecting_status" => "正在连接...",

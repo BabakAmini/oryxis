@@ -770,6 +770,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "Nessuna password salvata per questo host",
         "host_encoding" => "Codifica",
         "host_terminal_type" => "Tipo di terminale (TERM)",
+        "term_fallback_toast" => "Questo host non ha una voce terminfo per \"{requested}\". Connesso con \"{used}\" al suo posto; valuta di cambiare il tipo di terminale di questo host.",
+        "term_missing_toast" => "Questo host non ha una voce terminfo per \"{requested}\" e non è stato trovato alcun sostituto. Le applicazioni a schermo intero potrebbero non funzionare; prova un altro tipo di terminale per questo host.",
         "host_encoding_desc" => "Set di caratteri del terminale di questo host. Predefinito UTF-8.",
         "connection_failed_log" => "Connessione non riuscita con log di connessione:",
         "connecting_status" => "Connessione in corso...",

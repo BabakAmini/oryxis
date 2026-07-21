@@ -126,6 +126,21 @@ impl Oryxis {
                 }
             }
             SshMessage::SshConnected(pane_id, session) => {
+                // Terminfo fallback (issue #88): by the time the PTY is up
+                // the progress card is gone, so the timeline log alone is
+                // easy to miss; a toast tells the user why TERM differs
+                // and points at the host's Terminal Type setting.
+                if let Some(fb) = session.ssh().and_then(|s| s.term_fallback()) {
+                    let msg = match fb.used.as_deref() {
+                        Some(used) => crate::i18n::t("term_fallback_toast")
+                            .replace("{requested}", &fb.requested)
+                            .replace("{used}", used),
+                        None => crate::i18n::t("term_missing_toast")
+                            .replace("{requested}", &fb.requested),
+                    };
+                    // Returns Task::none(); the toast itself is state.
+                    let _ = self.show_toast_secs(msg, 8);
+                }
                 let mut detect_for: Option<(Uuid, Arc<SshSession>)> = None;
                 if let Some(tab_idx) = self.pane_tab_index(pane_id) {
                     let label = self.tabs[tab_idx].label.clone();

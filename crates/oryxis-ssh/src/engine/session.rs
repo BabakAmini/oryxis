@@ -38,6 +38,9 @@ pub struct SshSession {
     /// transfer pool) wait before giving up. Set by `SshEngine`'s
     /// builder so the user can tune it from the SFTP settings panel.
     pub(crate) sftp_open_timeout: std::time::Duration,
+    /// Set when the pre-PTY terminfo probe found the configured `TERM`
+    /// missing on the host (issue #88). See `engine::terminfo`.
+    pub(crate) term_fallback: Option<TermFallback>,
 }
 
 impl std::fmt::Debug for SshSession {
@@ -175,6 +178,14 @@ impl SshSession {
     /// window). See [`NetQualitySnapshot`].
     pub fn net_quality(&self) -> NetQualitySnapshot {
         self.net_quality.snapshot()
+    }
+
+    /// The terminfo fallback applied when the PTY was requested, if the
+    /// host turned out to lack the configured `TERM` entry (issue #88).
+    /// The UI surfaces it so the user knows why `TERM` differs and can
+    /// change the host's Terminal Type for good.
+    pub fn term_fallback(&self) -> Option<&TermFallback> {
+        self.term_fallback.as_ref()
     }
 
     /// Tear the session down. Idempotent: only the first call acts.

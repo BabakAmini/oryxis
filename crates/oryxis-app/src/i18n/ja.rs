@@ -779,6 +779,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "このホストに保存されたパスワードがありません",
         "host_encoding" => "エンコーディング",
         "host_terminal_type" => "端末タイプ (TERM)",
+        "term_fallback_toast" => "このホストには \"{requested}\" の terminfo エントリがありません。代わりに \"{used}\" で接続しました。このホストの端末タイプの変更を検討してください。",
+        "term_missing_toast" => "このホストには \"{requested}\" の terminfo エントリがなく、代替も見つかりませんでした。全画面アプリが正しく動作しない可能性があります。このホストの端末タイプを変更してみてください。",
         "host_encoding_desc" => "このホストのターミナルの文字セット。既定は UTF-8。",
         "connection_failed_log" => "接続に失敗しました。接続ログ：",
         "connecting_status" => "接続中...",

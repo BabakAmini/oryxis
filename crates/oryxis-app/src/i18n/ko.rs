@@ -932,6 +932,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "이 호스트에 저장된 비밀번호가 없습니다",
         "host_encoding" => "인코딩",
         "host_terminal_type" => "터미널 종류 (TERM)",
+        "term_fallback_toast" => "이 호스트에는 \"{requested}\"의 terminfo 항목이 없습니다. 대신 \"{used}\"(으)로 연결했습니다. 이 호스트의 터미널 종류 변경을 고려하세요.",
+        "term_missing_toast" => "이 호스트에는 \"{requested}\"의 terminfo 항목이 없고 대체 항목도 찾지 못했습니다. 전체 화면 앱이 오작동할 수 있으니 다른 터미널 종류를 시도해 보세요.",
         "host_encoding_desc" => "이 호스트의 터미널에 사용할 문자 집합. 기본값 UTF-8.",
         "connection_failed_log" => "연결 로그와 함께 연결 실패:",
         "connecting_status" => "연결 중...",
