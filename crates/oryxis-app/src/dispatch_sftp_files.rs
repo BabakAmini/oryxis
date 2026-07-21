@@ -798,35 +798,6 @@ fn open_with_os_picker(temp_path: &std::path::Path) -> Result<(), String> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::split_command_line;
-
-    #[test]
-    fn split_plain_words() {
-        assert_eq!(split_command_line("code --wait"), vec!["code", "--wait"]);
-    }
-
-    #[test]
-    fn split_keeps_quoted_spaces_and_backslashes() {
-        assert_eq!(
-            split_command_line(r#""C:\Program Files\VS Code\Code.exe" --wait"#),
-            vec![r"C:\Program Files\VS Code\Code.exe", "--wait"]
-        );
-        assert_eq!(
-            split_command_line("'my editor' -n"),
-            vec!["my editor", "-n"]
-        );
-    }
-
-    #[test]
-    fn split_empty_and_whitespace() {
-        assert!(split_command_line("").is_empty());
-        assert!(split_command_line("   ").is_empty());
-        // An empty quoted pair still yields an (empty) argument.
-        assert_eq!(split_command_line("vim \"\""), vec!["vim", ""]);
-    }
-}
 
 /// Upload a watch entry's temp file to its remote path, resolving the
 /// temp mtime FIRST so the re-arm covers exactly the content uploaded
@@ -857,4 +828,34 @@ fn watch_upload_task(session: crate::state::EditSession) -> Task<Message> {
             Message::Sftp(SftpMessage::SftpEditWatchUploadDone(temp_key.clone(), result))
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_command_line;
+
+    #[test]
+    fn split_plain_words() {
+        assert_eq!(split_command_line("code --wait"), vec!["code", "--wait"]);
+    }
+
+    #[test]
+    fn split_keeps_quoted_spaces_and_backslashes() {
+        assert_eq!(
+            split_command_line(r#""C:\Program Files\VS Code\Code.exe" --wait"#),
+            vec![r"C:\Program Files\VS Code\Code.exe", "--wait"]
+        );
+        assert_eq!(
+            split_command_line("'my editor' -n"),
+            vec!["my editor", "-n"]
+        );
+    }
+
+    #[test]
+    fn split_empty_and_whitespace() {
+        assert!(split_command_line("").is_empty());
+        assert!(split_command_line("   ").is_empty());
+        // An empty quoted pair still yields an (empty) argument.
+        assert_eq!(split_command_line("vim \"\""), vec!["vim", ""]);
+    }
 }

@@ -140,11 +140,13 @@ impl SshSession {
         let collect = async {
             loop {
                 match channel.wait().await {
-                    Some(russh::ChannelMsg::Data { data }) => {
-                        if stdout.len() < PROBE_STDOUT_CAP {
-                            let room = PROBE_STDOUT_CAP - stdout.len();
-                            stdout.extend_from_slice(&data[..data.len().min(room)]);
-                        }
+                    // Once the cap is hit the guard stops matching and
+                    // excess data falls through to `_` (drained, dropped).
+                    Some(russh::ChannelMsg::Data { data })
+                        if stdout.len() < PROBE_STDOUT_CAP =>
+                    {
+                        let room = PROBE_STDOUT_CAP - stdout.len();
+                        stdout.extend_from_slice(&data[..data.len().min(room)]);
                     }
                     Some(russh::ChannelMsg::Eof)
                     | Some(russh::ChannelMsg::ExitStatus { .. })
