@@ -1417,6 +1417,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Özellikler",
         "feature_ai_desc" => "Bağlı sunucuda komut çalıştırabilen terminal içi yapay zeka sohbeti.",
         "feature_sftp_desc" => "Çift bölmeli yöneticiyle SSH üzerinden dosya gezin ve aktar.",
+        "feature_monitoring" => "Sunucu izleme",
+        "feature_monitoring_desc" => "Açık oturum üzerinden bir sunucunun CPU, bellek, disk, ağ ve dinlenen bağlantı noktalarını canlı okur. Kenar çubuğuna bir İzleme sekmesi ve isteğe bağlı bir durum çubuğu göstergesi ekler.",
         "feature_sync_desc" => "Kasanızın cihazlar arası şifreli eşler arası senkronizasyonu.",
         "feature_remote_desktop_desc" => "RDP/VNC ana bilgisayarları, doğrudan veya SSH ağ geçidi üzerinden.",
         "plugins_subtitle" => "İndirilen bulut sağlayıcı eklentilerini yönetin.",

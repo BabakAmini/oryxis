@@ -1328,6 +1328,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Funzionalità",
         "feature_ai_desc" => "Chat IA nel terminale che può eseguire comandi sul server connesso.",
         "feature_sftp_desc" => "Sfoglia e trasferisci file via SSH con un gestore a doppio pannello.",
+        "feature_monitoring" => "Monitoraggio host",
+        "feature_monitoring_desc" => "CPU, memoria, disco, rete e porte in ascolto di un host in tempo reale, letti tramite la sessione aperta. Aggiunge una scheda Monitor nella barra laterale e un indicatore opzionale nella barra di stato.",
         "feature_sync_desc" => "Sincronizzazione peer-to-peer crittografata della cassaforte tra i dispositivi.",
         "feature_remote_desktop_desc" => "Host RDP/VNC, diretti o tramite un gateway SSH.",
         "plugins_subtitle" => "Gestisci i plugin dei provider cloud scaricati.",

@@ -79,6 +79,21 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
+                // Host monitoring (issue #83): niche + recurring, so the
+                // whole subsystem hides until enabled here (the sidebar
+                // Monitor tab, status-bar segment, per-host opt-in and
+                // interval all appear only once this is on).
+                self.settings_nav_slot(
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleHostMonitoring)),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("feature_monitoring"),
+                        crate::i18n::t("feature_monitoring_desc"),
+                        self.setting_host_monitoring,
+                        Message::Settings(SettingsMessage::SettingToggleHostMonitoring),
+                    ),
+                ),
+                Space::new().height(12),
                 // Features holds only the enable toggle; the confirm +
                 // socket rows live in the Settings sidebar's SSH Agent
                 // section, which appears while the agent is enabled.

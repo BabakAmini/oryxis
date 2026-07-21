@@ -1495,6 +1495,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "features" => "Features",
         "feature_ai_desc" => "In-terminal AI chat that can run commands on the connected server.",
         "feature_sftp_desc" => "Browse and transfer files over SSH with a dual-pane manager.",
+        "feature_monitoring" => "Host monitoring",
+        "feature_monitoring_desc" => "Live CPU, memory, disk, network and listening ports of a host, read over the open session. Adds a Monitor sidebar tab and an optional status-bar readout.",
         "feature_sync_desc" => "Encrypted peer-to-peer sync of your vault across your devices.",
         "feature_remote_desktop_desc" => "RDP/VNC hosts, reached directly or tunnelled through an SSH gateway.",
         "plugins_subtitle" => "Manage downloaded cloud-provider plugins.",

@@ -1338,6 +1338,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "功能",
         "feature_ai_desc" => "終端機內的 AI 聊天，可在已連線的伺服器上執行指令。",
         "feature_sftp_desc" => "透過 SSH 用雙面板管理器瀏覽和傳輸檔案。",
+        "feature_monitoring" => "主機監控",
+        "feature_monitoring_desc" => "透過已開啟的工作階段即時讀取主機的 CPU、記憶體、磁碟、網路和監聽連接埠。會新增側邊欄監控分頁與可選的狀態列讀數。",
         "feature_sync_desc" => "在你的裝置之間加密點對點同步保險庫。",
         "feature_remote_desktop_desc" => "RDP/VNC 主機，直接連線或透過 SSH 閘道。",
         "plugins_subtitle" => "管理已下載的雲端提供者外掛程式。",

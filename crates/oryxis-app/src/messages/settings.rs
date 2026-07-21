@@ -191,6 +191,9 @@ pub enum SettingsMessage {
     /// Settings > Terminal: flip the terminal sidebar to the left edge
     /// (issue #85).
     SettingToggleTerminalSidebarLeft,
+    /// Features & Plugins: master toggle for the host-monitoring feature
+    /// (issue #83). Gates ALL monitoring UI.
+    SettingToggleHostMonitoring,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
     ToggleHostListView,

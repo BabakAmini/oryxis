@@ -1340,6 +1340,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "機能",
         "feature_ai_desc" => "接続中のサーバーでコマンドを実行できるターミナル内 AI チャット。",
         "feature_sftp_desc" => "デュアルペインのマネージャーで SSH 経由のファイル閲覧・転送。",
+        "feature_monitoring" => "ホスト監視",
+        "feature_monitoring_desc" => "開いているセッション経由でホストの CPU・メモリ・ディスク・ネットワーク・待ち受けポートをリアルタイムに読み取ります。サイドバーにモニタータブと、任意のステータスバー表示を追加します。",
         "feature_sync_desc" => "デバイス間でボルトを暗号化ピアツーピア同期します。",
         "feature_remote_desktop_desc" => "RDP/VNC ホスト。直接または SSH ゲートウェイ経由で接続。",
         "plugins_subtitle" => "ダウンロード済みのクラウドプロバイダープラグインを管理します。",

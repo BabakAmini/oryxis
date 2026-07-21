@@ -87,7 +87,8 @@ impl Oryxis {
         // samples the sidebar Monitor tab renders, condensed to one line.
         // Behind its own setting AND the host's monitoring opt-in, so it
         // costs nothing until the user asks for both.
-        if self.setting_monitor_status_bar
+        if self.setting_host_monitoring
+            && self.setting_monitor_status_bar
             && let Some(conn_id) = self.monitor_pane_connection()
             && let Some(sample) = self.monitor.series.get(&conn_id).and_then(|s| s.latest())
         {

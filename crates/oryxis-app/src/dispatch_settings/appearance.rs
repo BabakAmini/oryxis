@@ -44,6 +44,32 @@ impl Oryxis {
                     &self.setting_monitor_interval.clone(),
                 );
             }
+            SettingsMessage::SettingToggleHostMonitoring => {
+                self.setting_host_monitoring = !self.setting_host_monitoring;
+                self.persist_setting(
+                    "host_monitoring_enabled",
+                    if self.setting_host_monitoring { "true" } else { "false" },
+                );
+                if self.setting_host_monitoring {
+                    // First enable ever: seed the internal defaults ON so
+                    // the feature shows immediate value instead of being
+                    // "enabled but invisible". Guarded by a marker so a
+                    // later off/on never clobbers the user's own choices.
+                    if !self.setting_host_monitoring_seeded {
+                        self.setting_host_monitoring_seeded = true;
+                        self.persist_setting("host_monitoring_seeded", "true");
+                        self.setting_monitor_status_bar = true;
+                        self.persist_setting("monitor_status_bar", "true");
+                    }
+                } else {
+                    // Turning the feature off stops all probing and drops
+                    // the in-memory samples; nothing monitoring-related
+                    // renders anymore, so a stale ring would only leak.
+                    self.monitor = Default::default();
+                    self.monitor_error = None;
+                    self.monitor_ports_open = false;
+                }
+            }
             SettingsMessage::SettingToggleTerminalSidebarLeft => {
                 self.setting_terminal_sidebar_left = !self.setting_terminal_sidebar_left;
                 self.persist_setting(

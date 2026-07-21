@@ -178,6 +178,9 @@ impl Oryxis {
     /// has monitoring enabled. `None` for local / ephemeral panes, hosts
     /// that never opted in, and dead sessions.
     pub(crate) fn monitor_target(&self) -> Option<(Uuid, std::sync::Arc<oryxis_ssh::SshSession>)> {
+        if !self.setting_host_monitoring {
+            return None;
+        }
         let conn_id = self.monitor_pane_connection()?;
         if !self.connections.iter().any(|c| c.id == conn_id && c.monitor_enabled) {
             return None;

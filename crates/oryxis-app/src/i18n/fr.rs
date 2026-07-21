@@ -1364,6 +1364,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Fonctionnalités",
         "feature_ai_desc" => "Chat IA dans le terminal pouvant exécuter des commandes sur le serveur connecté.",
         "feature_sftp_desc" => "Parcourez et transférez des fichiers via SSH avec un gestionnaire à deux volets.",
+        "feature_monitoring" => "Surveillance de l'hôte",
+        "feature_monitoring_desc" => "Processeur, mémoire, disque, réseau et ports en écoute d'un hôte en direct, lus via la session ouverte. Ajoute un onglet Moniteur dans la barre latérale et un indicateur facultatif dans la barre d'état.",
         "feature_sync_desc" => "Synchronisation pair-à-pair chiffrée de votre coffre entre vos appareils.",
         "feature_remote_desktop_desc" => "Hôtes RDP/VNC, en direct ou via une passerelle SSH.",
         "plugins_subtitle" => "Gérez les plugins de fournisseurs cloud téléchargés.",

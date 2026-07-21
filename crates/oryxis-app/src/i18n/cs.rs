@@ -1494,6 +1494,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Funkce",
         "feature_ai_desc" => "AI chat v terminálu, který může spouštět příkazy na připojeném serveru.",
         "feature_sftp_desc" => "Procházení a přenos souborů přes SSH ve dvoupanelovém správci.",
+        "feature_monitoring" => "Monitorování hostitele",
+        "feature_monitoring_desc" => "CPU, paměť, disk, síť a naslouchající porty hostitele v reálném čase, čtené přes otevřenou relaci. Přidá kartu Monitor v postranním panelu a volitelný údaj ve stavovém řádku.",
         "feature_sync_desc" => "Šifrovaná peer-to-peer synchronizace trezoru mezi vašimi zařízeními.",
         "feature_remote_desktop_desc" => "Hostitelé RDP/VNC, dostupní přímo nebo tunelem přes SSH bránu.",
         "plugins_subtitle" => "Správa stažených pluginů cloudových poskytovatelů.",

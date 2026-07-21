@@ -657,11 +657,12 @@ impl Oryxis {
         // back to Snippets. Mirrors `effective_sidebar_tab`.
         let files_available = self.sftp_enabled
             && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
-        // Monitoring needs an SSH session (it reads /proc over an exec
-        // channel); the per-host opt-in is handled inside the tab body,
-        // which offers to enable it.
-        let monitor_available =
-            tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        // Monitoring needs the feature enabled (Features & Plugins) AND
+        // an SSH session (it reads /proc over an exec channel); the
+        // per-host opt-in is handled inside the tab body, which offers
+        // to enable it.
+        let monitor_available = self.setting_host_monitoring
+            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
             || (self.terminal_sidebar_tab == STab::Files && !files_available)
             || (self.terminal_sidebar_tab == STab::Monitor && !monitor_available)

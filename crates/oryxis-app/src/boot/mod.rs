@@ -582,6 +582,8 @@ impl Oryxis {
                 setting_pinned_tabs_top_bar: false,
                 setting_side_hide_top_bar: false,
                 setting_side_full_height: false,
+                setting_host_monitoring: false,
+                setting_host_monitoring_seeded: false,
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who
                 // never persisted `layout_mode` also fall through to

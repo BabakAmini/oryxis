@@ -1424,6 +1424,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Funkcje",
         "feature_ai_desc" => "Czat AI w terminalu, który może uruchamiać polecenia na połączonym serwerze.",
         "feature_sftp_desc" => "Przeglądaj i przesyłaj pliki przez SSH dwupanelowym menedżerem.",
+        "feature_monitoring" => "Monitorowanie hosta",
+        "feature_monitoring_desc" => "CPU, pamięć, dysk, sieć i nasłuchujące porty hosta na żywo, odczytane przez otwartą sesję. Dodaje kartę Monitor na pasku bocznym i opcjonalny odczyt na pasku stanu.",
         "feature_sync_desc" => "Szyfrowana synchronizacja peer-to-peer sejfu między urządzeniami.",
         "feature_remote_desktop_desc" => "Hosty RDP/VNC, bezpośrednio lub przez bramę SSH.",
         "plugins_subtitle" => "Zarządzaj pobranymi wtyczkami dostawców chmury.",

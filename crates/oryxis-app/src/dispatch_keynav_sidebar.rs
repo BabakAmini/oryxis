@@ -60,7 +60,8 @@ impl Oryxis {
             && !self.ai.enabled)
             || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !files_available)
             || (self.terminal_sidebar_tab == TerminalSidebarTab::Monitor
-                && tab.active().session.as_ref().and_then(|s| s.ssh()).is_none())
+                && (!self.setting_host_monitoring
+                    || tab.active().session.as_ref().and_then(|s| s.ssh()).is_none()))
         {
             TerminalSidebarTab::Snippets
         } else {
@@ -405,14 +406,15 @@ impl Oryxis {
         {
             order.push(TerminalSidebarTab::Files);
         }
-        // Monitor needs only an SSH session (its per-host opt-in is
-        // offered inside the tab), so it joins the cycle whenever one is
-        // live, next to Files.
-        if self
-            .active_tab
-            .and_then(|idx| self.tabs.get(idx))
-            .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
-            .unwrap_or(false)
+        // Monitor joins the cycle only when the feature is on and an SSH
+        // session is live (its per-host opt-in is offered inside the tab),
+        // next to Files.
+        if self.setting_host_monitoring
+            && self
+                .active_tab
+                .and_then(|idx| self.tabs.get(idx))
+                .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+                .unwrap_or(false)
         {
             order.push(TerminalSidebarTab::Monitor);
         }

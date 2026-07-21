@@ -1494,6 +1494,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "יכולות",
         "feature_ai_desc" => "צ'אט AI בתוך הטרמינל שיכול להריץ פקודות על השרת המחובר.",
         "feature_sftp_desc" => "עיון בקבצים והעברתם דרך SSH עם מנהל דו-חלוני.",
+        "feature_monitoring" => "ניטור מארח",
+        "feature_monitoring_desc" => "מעבד, זיכרון, דיסק, רשת ופורטים מאזינים של מארח בזמן אמת, נקראים דרך ההפעלה הפתוחה. מוסיף לשונית ניטור בסרגל הצדי ומחוון אופציונלי בשורת המצב.",
         "feature_sync_desc" => "סנכרון עמית-לעמית מוצפן של הכספת בין המכשירים שלכם.",
         "feature_remote_desktop_desc" => "מארחי RDP/VNC, בגישה ישירה או במנהרה דרך שער SSH.",
         "plugins_subtitle" => "ניהול תוספי ספקי ענן שהורדו.",

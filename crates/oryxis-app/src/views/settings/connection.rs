@@ -4,6 +4,36 @@ use super::*;
 use iced::widget::column;
 
 impl Oryxis {
+    /// The host-monitor interval field (issue #83), shown in the session
+    /// card only while the monitoring feature is enabled (Features &
+    /// Plugins). Includes its own leading gap so the card collapses
+    /// cleanly when hidden. Mirrors `smart_tabs_threshold_row`.
+    fn monitor_interval_block(&self) -> Element<'_, Message> {
+        if !self.setting_host_monitoring {
+            return Space::new().into();
+        }
+        column![
+            Space::new().height(16),
+            text(crate::i18n::t("monitor_interval")).size(13).color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(crate::i18n::t("monitor_interval_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("set-monitor-interval")),
+                10.0,
+                text_input("5", &self.setting_monitor_interval)
+                    .id(iced::widget::Id::new("set-monitor-interval"))
+                    .on_input(|v| Message::Settings(SettingsMessage::SettingMonitorIntervalChanged(v)))
+                    .padding(10)
+                    .width(240)
+                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                    .into(),
+            ),
+        ]
+        .into()
+    }
+
     pub(crate) fn view_settings_connection(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order. The defaults card
         // renders first, so the keepalive section (previously built up
@@ -320,23 +350,7 @@ impl Oryxis {
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                     .into(),
             ),
-            Space::new().height(16),
-            text(crate::i18n::t("monitor_interval")).size(13).color(OryxisColors::t().text_primary),
-            Space::new().height(4),
-            text(t("monitor_interval_desc"))
-                .size(11).color(OryxisColors::t().text_muted),
-            Space::new().height(8),
-            self.settings_nav_slot(
-                crate::keynav::RowAction::input(iced::widget::Id::new("set-monitor-interval")),
-                10.0,
-                text_input("5", &self.setting_monitor_interval)
-                    .id(iced::widget::Id::new("set-monitor-interval"))
-                    .on_input(|v| Message::Settings(SettingsMessage::SettingMonitorIntervalChanged(v)))
-                    .padding(10)
-                    .width(240)
-                    .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
-                    .into(),
-            ),
+            self.monitor_interval_block(),
             Space::new().height(16),
             self.nav_toggle_row(
                 crate::i18n::t("auto_reconnect"),

@@ -1417,6 +1417,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Fitur",
         "feature_ai_desc" => "Obrolan AI dalam terminal yang dapat menjalankan perintah di server yang terhubung.",
         "feature_sftp_desc" => "Jelajahi dan transfer berkas lewat SSH dengan pengelola dua panel.",
+        "feature_monitoring" => "Pemantauan host",
+        "feature_monitoring_desc" => "CPU, memori, disk, jaringan, dan port yang mendengarkan dari host secara langsung, dibaca lewat sesi yang terbuka. Menambahkan tab Monitor di bilah sisi dan indikator bilah status opsional.",
         "feature_sync_desc" => "Sinkronisasi peer-to-peer terenkripsi brankas Anda antarperangkat.",
         "feature_remote_desktop_desc" => "Host RDP/VNC, langsung atau melalui gateway SSH.",
         "plugins_subtitle" => "Kelola plugin penyedia cloud yang telah diunduh.",

@@ -353,23 +353,29 @@ impl Oryxis {
         // Status bar card: its own group with a live preview below (the
         // toggles used to hide inside the Top bar card, where "Show
         // status bar" read as a top-bar knob).
-        let status_bar_section = panel_section(column![
-            self.nav_toggle_row(
-                crate::i18n::t("show_status_bar"),
-                self.setting_show_status_bar,
-                Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
-            ),
-            Space::new().height(8),
-            self.nav_toggle_row(
-                crate::i18n::t("monitor_status_bar"),
-                self.setting_monitor_status_bar,
-                Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
-            ),
-            Space::new().height(4),
-            text(crate::i18n::t("monitor_status_bar_desc"))
-                .size(11)
-                .color(OryxisColors::t().text_muted),
-        ]);
+        let mut status_bar_col = column![self.nav_toggle_row(
+            crate::i18n::t("show_status_bar"),
+            self.setting_show_status_bar,
+            Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
+        )];
+        // The host-vitals segment toggle only exists while the monitoring
+        // feature is enabled (Features & Plugins).
+        if self.setting_host_monitoring {
+            status_bar_col = status_bar_col
+                .push(Space::new().height(8))
+                .push(self.nav_toggle_row(
+                    crate::i18n::t("monitor_status_bar"),
+                    self.setting_monitor_status_bar,
+                    Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("monitor_status_bar_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                );
+        }
+        let status_bar_section = panel_section(status_bar_col);
 
         // ── Theme ──
         // Built-in themes, then custom UI themes, then the "+" card.

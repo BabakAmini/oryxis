@@ -1417,6 +1417,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Tính năng",
         "feature_ai_desc" => "Trò chuyện AI trong terminal có thể chạy lệnh trên máy chủ đã kết nối.",
         "feature_sftp_desc" => "Duyệt và truyền tệp qua SSH bằng trình quản lý hai khung.",
+        "feature_monitoring" => "Giám sát máy chủ",
+        "feature_monitoring_desc" => "CPU, bộ nhớ, đĩa, mạng và cổng đang lắng nghe của máy chủ theo thời gian thực, đọc qua phiên đang mở. Thêm một tab Giám sát ở thanh bên và chỉ báo tùy chọn trên thanh trạng thái.",
         "feature_sync_desc" => "Đồng bộ ngang hàng được mã hóa kho lưu trữ giữa các thiết bị của bạn.",
         "feature_remote_desktop_desc" => "Máy chủ RDP/VNC, trực tiếp hoặc qua cổng SSH.",
         "plugins_subtitle" => "Quản lý các plugin nhà cung cấp cloud đã tải.",

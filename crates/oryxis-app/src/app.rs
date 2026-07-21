@@ -1228,6 +1228,18 @@ pub struct Oryxis {
     /// still renders so the user can re-enable + tweak in one place,
     /// mirroring how `ai_enabled` works.
     pub(crate) sftp_enabled: bool,
+    /// Master toggle for the host-monitoring feature (issue #83), in
+    /// Features & Plugins. Off by default: monitoring is niche and
+    /// recurring, so ALL of its UI (the sidebar Monitor tab, the
+    /// status-bar segment, the per-host opt-in, the interval + alerts)
+    /// stays hidden until the user enables the feature here. Distinct
+    /// from the per-host `Connection.monitor_enabled`, which decides
+    /// WHICH hosts are probed once the feature is on.
+    pub(crate) setting_host_monitoring: bool,
+    /// Whether enabling the feature has ever seeded its internal
+    /// defaults (the status-bar segment). Set once on first enable so a
+    /// later off/on can't clobber the user's own choices.
+    pub(crate) setting_host_monitoring_seeded: bool,
     /// Vault navigation orientation: `"horizontal"` (default) renders the
     /// sub-sections as a pill strip beneath the top bar; `"vertical"`
     /// renders them as an icon rail on the left of the vault content. The

@@ -44,7 +44,9 @@ impl Oryxis {
     /// #83). Same shape as the MCP row: SSH-only, since the probe reads
     /// `/proc` over an exec channel.
     pub(super) fn hp_row_monitor(&self, is_ssh: bool) -> Element<'_, Message> {
-        if !is_ssh {
+        // The per-host opt-in only exists once the monitoring feature is
+        // enabled in Features & Plugins.
+        if !is_ssh || !self.setting_host_monitoring {
             return empty();
         }
         self.panel_nav_slot(

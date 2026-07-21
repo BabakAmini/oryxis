@@ -1329,6 +1329,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "Funktionen",
         "feature_ai_desc" => "KI-Chat im Terminal, der Befehle auf dem verbundenen Server ausführen kann.",
         "feature_sftp_desc" => "Dateien per SSH mit einem Zweifenster-Manager durchsuchen und übertragen.",
+        "feature_monitoring" => "Host-Überwachung",
+        "feature_monitoring_desc" => "CPU, Speicher, Datenträger, Netzwerk und offene Ports eines Hosts in Echtzeit, über die offene Sitzung gelesen. Fügt einen Monitor-Tab in der Seitenleiste und eine optionale Statusleisten-Anzeige hinzu.",
         "feature_sync_desc" => "Verschlüsselte Peer-to-Peer-Synchronisierung Ihres Tresors zwischen Geräten.",
         "feature_remote_desktop_desc" => "RDP/VNC-Hosts, direkt oder über ein SSH-Gateway.",
         "plugins_subtitle" => "Verwalte heruntergeladene Cloud-Provider-Plugins.",

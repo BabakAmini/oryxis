@@ -197,7 +197,8 @@ impl Oryxis {
         // lock keeps live sessions but must stop reading the host, or
         // the locked screen would still be gathering (and discarding)
         // telemetry behind the lock screen.
-        if self.vault_ui.state == crate::state::VaultState::Unlocked
+        if self.setting_host_monitoring
+            && self.vault_ui.state == crate::state::VaultState::Unlocked
             && (self.monitor_tab_visible()
                 || (self.setting_monitor_status_bar && self.setting_show_status_bar))
             && self.monitor_target().is_some()

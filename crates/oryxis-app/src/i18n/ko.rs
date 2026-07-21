@@ -1418,6 +1418,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "features" => "기능",
         "feature_ai_desc" => "연결된 서버에서 명령을 실행할 수 있는 터미널 내 AI 채팅.",
         "feature_sftp_desc" => "이중 창 관리자로 SSH를 통해 파일을 탐색하고 전송합니다.",
+        "feature_monitoring" => "호스트 모니터링",
+        "feature_monitoring_desc" => "열려 있는 세션을 통해 호스트의 CPU, 메모리, 디스크, 네트워크, 수신 대기 포트를 실시간으로 읽습니다. 사이드바 모니터 탭과 선택적 상태 표시줄 표시를 추가합니다.",
         "feature_sync_desc" => "기기 간 볼트를 암호화된 P2P로 동기화합니다.",
         "feature_remote_desktop_desc" => "RDP/VNC 호스트. 직접 또는 SSH 게이트웨이를 통해 연결.",
         "plugins_subtitle" => "다운로드한 클라우드 공급자 플러그인을 관리합니다.",

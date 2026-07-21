@@ -620,6 +620,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_enabled") {
                 self.sftp_enabled = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("host_monitoring_enabled") {
+                self.setting_host_monitoring = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("host_monitoring_seeded") {
+                self.setting_host_monitoring_seeded = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()
             {
