@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Verz",
         "terminal_sidebar_left" => "Seitenleiste links andocken",
         "terminal_sidebar_left_desc" => "Zeigt die Seitenleiste (Chat / Snippets / Dateien / Monitor) links vom Terminal statt rechts.",
+        "sidebar_auto_open" => "Seitenleiste beim Verbinden öffnen",
+        "sidebar_auto_open_desc" => "Öffnet die Terminal-Seitenleiste automatisch, wenn eine Sitzung geöffnet wird. Jeder Host kann dies in seinem Editor überschreiben.",
         "system_tray" => "Infobereich",
         "close_to_tray" => "In Infobereich schließen",
         "close_to_tray_desc" => "Beim Klick auf Schließen wird Oryxis im Infobereich ausgeblendet statt beendet. Über das Tray-Symbol zurückholen. Nur Windows.",

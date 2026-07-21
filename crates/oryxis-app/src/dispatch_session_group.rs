@@ -403,7 +403,7 @@ impl Oryxis {
         let Some(&focused) = grid.panes.keys().next() else {
             return Task::none();
         };
-        let tab = TerminalTab {
+        let mut tab = TerminalTab {
             _id: uuid::Uuid::new_v4(),
             label: group.label.clone(),
             custom_name: None,
@@ -427,6 +427,20 @@ impl Oryxis {
             files_state: Box::default(),
             broadcast: false,
         };
+        // Auto-open the terminal sidebar for the restored tab: the first
+        // host pane's override wins, falling back to the global setting
+        // (a group tab can mix hosts; the first is the tab's identity).
+        tab.chat_visible = tab
+            .pane_grid
+            .panes
+            .values()
+            .find_map(|p| match p.origin {
+                crate::state::PaneOrigin::Host(id) => Some(id),
+                _ => None,
+            })
+            .and_then(|id| self.connections.iter().find(|c| c.id == id))
+            .map(|c| c.sidebar_auto_open.unwrap_or(self.setting_sidebar_auto_open))
+            .unwrap_or(self.setting_sidebar_auto_open);
         let tab_idx = self.tabs.len();
         self.tabs.push(tab);
         self.active_tab = Some(tab_idx);

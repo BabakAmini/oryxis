@@ -250,6 +250,10 @@ pub(crate) struct ConnectionForm {
     /// `None` inherits the global setting, `Some(true/false)` forces it
     /// on/off for this host.
     pub privacy_mode: Option<bool>,
+    /// Per-host sidebar auto-open override. Mirrors
+    /// `Connection.sidebar_auto_open` (`None` inherits the global
+    /// `sidebar_auto_open` setting).
+    pub sidebar_auto_open: Option<bool>,
     /// Per-host legacy keyboard modes + feature toggles (C5). Edited
     /// directly; saved as `Connection.quirks` only when it differs from
     /// the default (so an untouched host stays `None`).
@@ -949,6 +953,7 @@ impl Default for ConnectionForm {
             macs: None,
             host_key_algorithms: None,
             privacy_mode: None,
+            sidebar_auto_open: None,
             quirks: oryxis_core::models::terminal_quirks::TerminalQuirks::default(),
             rekey_limit_mb: String::new(),
         }

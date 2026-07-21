@@ -123,6 +123,7 @@ impl Oryxis {
         let appearance_items = self.hp_appearance_items();
         let row_session_logging = self.hp_row_session_logging();
         let row_privacy_mode = self.hp_row_privacy_mode();
+        let row_sidebar_auto_open = self.hp_row_sidebar_auto_open();
         // C5 Advanced-terminal block: legacy keyboard modes + feature
         // toggles. Terminal protocols only (SSH / Telnet / Serial); an
         // RDP/VNC host drives no terminal pane, so it drops out.
@@ -337,6 +338,8 @@ impl Oryxis {
                 .push(row_session_logging)
                 .push(Space::new().height(GROUP_GAP))
                 .push(row_privacy_mode)
+                .push(Space::new().height(GROUP_GAP))
+                .push(row_sidebar_auto_open)
                 .push(Space::new().height(GROUP_GAP))
                 .push(advanced_terminal),
         );

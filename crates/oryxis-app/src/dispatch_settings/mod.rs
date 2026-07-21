@@ -157,6 +157,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleStatusDimensions
             | SettingsMessage::SettingToggleStatusCwd
             | SettingsMessage::SettingToggleTerminalSidebarLeft
+            | SettingsMessage::SettingToggleSidebarAutoOpen
             | SettingsMessage::SettingToggleHostMonitoring
             | SettingsMessage::SettingToggleMonitorAllHosts
             | SettingsMessage::SettingToggleMonitorStatusBar

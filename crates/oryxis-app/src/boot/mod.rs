@@ -557,6 +557,7 @@ impl Oryxis {
                 setting_status_show_dimensions: false,
                 setting_status_show_cwd: false,
                 setting_terminal_sidebar_left: false,
+                setting_sidebar_auto_open: false,
                 setting_monitor_status_bar: false,
                 setting_host_list_view: false,
                 setting_card_accent_glass: true,

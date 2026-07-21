@@ -106,6 +106,13 @@ impl Oryxis {
                     if self.setting_terminal_sidebar_left { "left" } else { "right" },
                 );
             }
+            SettingsMessage::SettingToggleSidebarAutoOpen => {
+                self.setting_sidebar_auto_open = !self.setting_sidebar_auto_open;
+                self.persist_setting(
+                    "sidebar_auto_open",
+                    if self.setting_sidebar_auto_open { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleHostListView => {
                 // Dismiss the `…` overflow menu when toggled from there
                 // (no-op for the inline toolbar button).

@@ -351,6 +351,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Tempatkan bilah sisi di kiri",
         "terminal_sidebar_left_desc" => "Menampilkan bilah sisi (Chat / Snippet / Berkas / Monitor) di kiri terminal alih-alih di kanan.",
+        "sidebar_auto_open" => "Buka bilah sisi saat terhubung",
+        "sidebar_auto_open_desc" => "Membuka bilah sisi terminal secara otomatis saat sesi dibuka. Setiap host dapat menimpanya di editornya.",
         "system_tray" => "System tray",
         "close_to_tray" => "Tutup ke tray",
         "close_to_tray_desc" => "Mengklik tombol tutup jendela menyembunyikan Oryxis ke system tray alih-alih keluar. Gunakan ikon tray untuk memunculkannya kembali. Hanya Windows.",

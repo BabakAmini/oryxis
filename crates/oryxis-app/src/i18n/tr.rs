@@ -351,6 +351,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Dizin",
         "terminal_sidebar_left" => "Kenar çubuğunu sola yerleştir",
         "terminal_sidebar_left_desc" => "Kenar çubuğunu (Sohbet / Parçacıklar / Dosyalar / İzleme) terminalin sağı yerine soluna gösterir.",
+        "sidebar_auto_open" => "Bağlanınca kenar çubuğunu aç",
+        "sidebar_auto_open_desc" => "Bir oturum açıldığında terminal kenar çubuğunu otomatik olarak açar. Her ana makine bunu kendi düzenleyicisinde geçersiz kılabilir.",
         "system_tray" => "Sistem tepsisi",
         "close_to_tray" => "Tepsiye küçült",
         "close_to_tray_desc" => "Pencerenin kapat düğmesine tıklamak Oryxis'i çıkmak yerine sistem tepsisine gizler. Geri getirmek için tepsi simgesini kullanın. Yalnızca Windows.",

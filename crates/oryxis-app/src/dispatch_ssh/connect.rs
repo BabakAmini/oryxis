@@ -270,6 +270,18 @@ impl Oryxis {
                         crate::state::PaneOrigin::QuickHost(id)
                     }
                 };
+                // Auto-open the terminal sidebar, decided once at tab
+                // birth: per-host override wins, the global setting is
+                // the default (quick hosts have no override). Toggling
+                // afterwards stays entirely with the user.
+                new_tab.chat_visible = match origin {
+                    crate::state::ProgressOrigin::Saved(_) => conn
+                        .sidebar_auto_open
+                        .unwrap_or(self.setting_sidebar_auto_open),
+                    crate::state::ProgressOrigin::Quick(_) => {
+                        self.setting_sidebar_auto_open
+                    }
+                };
                 // C5: resolve this host's terminal quirks once, on the hot
                 // key path + widget read from `pane.quirks` thereafter. The
                 // OSC 52 override lives deep in the emulator event handler,

@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Rép",
         "terminal_sidebar_left" => "Ancrer la barre latérale à gauche",
         "terminal_sidebar_left_desc" => "Affiche la barre latérale (Chat / Snippets / Fichiers / Moniteur) à gauche du terminal au lieu de la droite.",
+        "sidebar_auto_open" => "Ouvrir la barre latérale à la connexion",
+        "sidebar_auto_open_desc" => "Ouvre automatiquement la barre latérale du terminal à l'ouverture d'une session. Chaque hôte peut le remplacer dans son éditeur.",
         "system_tray" => "Zone de notification",
         "close_to_tray" => "Fermer dans la zone",
         "close_to_tray_desc" => "Cliquer sur fermer masque Oryxis dans la zone de notification au lieu de quitter. Utilisez l'icône pour le ramener. Windows uniquement.",

@@ -412,6 +412,7 @@ impl Oryxis {
         conn.auto_title = self.editor_form.auto_title;
         conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
+        conn.sidebar_auto_open = self.editor_form.sidebar_auto_open;
         // C5: store quirks only when they differ from the xterm default,
         // so an untouched host keeps `quirks = None` (old-payload parity).
         conn.quirks = (self.editor_form.quirks
@@ -581,6 +582,7 @@ impl Oryxis {
             macs: conn.macs.clone(),
             host_key_algorithms: conn.host_key_algorithms.clone(),
             privacy_mode: conn.privacy_mode,
+            sidebar_auto_open: conn.sidebar_auto_open,
             quirks: conn.quirks.unwrap_or_default(),
             rekey_limit_mb: conn
                 .rekey_limit_mb
@@ -1079,6 +1081,17 @@ impl Oryxis {
                 use crate::i18n::t;
                 // Map the localized pick label back to the tri-state override.
                 self.editor_form.privacy_mode = if v == t("host_privacy_mode_on") {
+                    Some(true)
+                } else if v == t("host_privacy_mode_off") {
+                    Some(false)
+                } else {
+                    None
+                };
+            }
+            EditorMessage::EditorSidebarAutoOpenChanged(v) => {
+                use crate::i18n::t;
+                // Same localized-label mapping as the privacy row above.
+                self.editor_form.sidebar_auto_open = if v == t("host_privacy_mode_on") {
                     Some(true)
                 } else if v == t("host_privacy_mode_off") {
                     Some(false)

@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "サイドバーを左に配置",
         "terminal_sidebar_left_desc" => "サイドバー（チャット / スニペット / ファイル / モニター）を端末の右ではなく左に表示します。",
+        "sidebar_auto_open" => "接続時にサイドバーを開く",
+        "sidebar_auto_open_desc" => "セッションを開くとターミナルのサイドバーを自動的に開きます。ホストごとにエディタで上書きできます。",
         "system_tray" => "システムトレイ",
         "close_to_tray" => "トレイに閉じる",
         "close_to_tray_desc" => "閉じるボタンをクリックすると、Oryxis は終了せずにシステムトレイに隠れます。トレイアイコンで復元できます。Windows のみ。",

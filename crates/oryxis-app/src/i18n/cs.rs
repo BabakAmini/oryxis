@@ -370,6 +370,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Adr",
         "terminal_sidebar_left" => "Ukotvit postranní panel vlevo",
         "terminal_sidebar_left_desc" => "Zobrazí postranní panel (Chat / Úryvky / Soubory / Monitor) vlevo od terminálu místo vpravo.",
+        "sidebar_auto_open" => "Otevřít postranní panel při připojení",
+        "sidebar_auto_open_desc" => "Automaticky otevře postranní panel terminálu při otevření relace. Každý hostitel to může přepsat ve svém editoru.",
         "system_tray" => "Systémová lišta",
         "close_to_tray" => "Zavřít do lišty",
         "close_to_tray_desc" => "Kliknutí na zavírací tlačítko okna skryje Oryxis do systémové lišty místo ukončení. Ikona v liště jej vrátí zpět. Pouze Windows.",

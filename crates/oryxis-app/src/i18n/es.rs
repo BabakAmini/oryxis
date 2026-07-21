@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Anclar la barra lateral a la izquierda",
         "terminal_sidebar_left_desc" => "Muestra la barra lateral (Chat / Snippets / Archivos / Monitor) a la izquierda del terminal en lugar de a la derecha.",
+        "sidebar_auto_open" => "Abrir la barra lateral al conectar",
+        "sidebar_auto_open_desc" => "Abre automáticamente la barra lateral del terminal al abrir una sesión. Cada host puede sobrescribirlo en su editor.",
         "system_tray" => "Bandeja del sistema",
         "close_to_tray" => "Cerrar a la bandeja",
         "close_to_tray_desc" => "Al hacer clic en el botón cerrar, Oryxis se oculta en la bandeja del sistema en lugar de salir. Use el icono de la bandeja para recuperarlo. Solo Windows.",

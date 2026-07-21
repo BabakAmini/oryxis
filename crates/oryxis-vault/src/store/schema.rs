@@ -343,6 +343,10 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rekey_limit_mb INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_enabled INTEGER DEFAULT 0;");
 
+        // Per-host tri-state override for auto-opening the terminal
+        // sidebar on connect (NULL = follow the global setting).
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sidebar_auto_open INTEGER;");
+
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");
         let _ = self.db.execute_batch("UPDATE groups SET created_at = datetime('now'), updated_at = datetime('now') WHERE created_at IS NULL;");

@@ -353,6 +353,16 @@ impl Oryxis {
             text(crate::i18n::t("terminal_sidebar_left_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+            self.nav_toggle_row(
+                crate::i18n::t("sidebar_auto_open"),
+                self.setting_sidebar_auto_open,
+                Message::Settings(SettingsMessage::SettingToggleSidebarAutoOpen),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("sidebar_auto_open_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
 
         // The +/- stepper maps naturally onto the picker action:

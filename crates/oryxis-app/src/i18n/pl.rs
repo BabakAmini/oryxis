@@ -351,6 +351,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Kat",
         "terminal_sidebar_left" => "Zadokuj pasek boczny po lewej",
         "terminal_sidebar_left_desc" => "Pokazuje pasek boczny (Czat / Fragmenty / Pliki / Monitor) po lewej stronie terminala zamiast po prawej.",
+        "sidebar_auto_open" => "Otwieraj pasek boczny przy połączeniu",
+        "sidebar_auto_open_desc" => "Automatycznie otwiera pasek boczny terminala przy otwarciu sesji. Każdy host może to nadpisać w swoim edytorze.",
         "system_tray" => "Zasobnik systemowy",
         "close_to_tray" => "Zamykaj do zasobnika",
         "close_to_tray_desc" => "Kliknięcie przycisku zamykania okna ukrywa Oryxis w zasobniku systemowym zamiast zamykać aplikację. Użyj ikony w zasobniku, aby przywrócić okno. Tylko Windows.",

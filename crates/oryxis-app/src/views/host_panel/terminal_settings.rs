@@ -249,6 +249,43 @@ impl Oryxis {
         row_privacy_mode
     }
 
+    pub(super) fn hp_row_sidebar_auto_open(&self) -> Element<'_, Message> {
+        // Per-host sidebar auto-open override: Default (inherit the
+        // global setting) / On (always open on connect) / Off (never).
+        // Reuses the tri-state option labels of the privacy row.
+        let selected = match self.editor_form.sidebar_auto_open {
+            Some(true) => t("host_privacy_mode_on"),
+            Some(false) => t("host_privacy_mode_off"),
+            None => t("host_privacy_mode_default"),
+        }
+        .to_string();
+        let options = vec![
+            t("host_privacy_mode_default").to_string(),
+            t("host_privacy_mode_on").to_string(),
+            t("host_privacy_mode_off").to_string(),
+        ];
+        let row: Element<'_, Message> = panel_option_row(
+            iced_fonts::lucide::panel_left_open(),
+            t("sidebar_auto_open"),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(
+                    "editor-pick-sidebar-auto-open",
+                )),
+                crate::widgets::INPUT_RADIUS,
+                pick_list(Some(selected), options, |s: &String| s.clone())
+                    .on_select(|v| Message::Editor(EditorMessage::EditorSidebarAutoOpenChanged(v)))
+                    .id(iced::widget::Id::new("editor-pick-sidebar-auto-open"))
+                    .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                    .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+                    .width(120)
+                    .padding(10)
+                    .style(crate::widgets::rounded_pick_list_style)
+                    .into(),
+            ),
+        );
+        row
+    }
+
     /// A keyboard-navigable pick_list row for the Advanced-terminal
     /// section (icon + label + widget-owned select), mirroring the
     /// privacy-mode row.

@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Ancora la barra laterale a sinistra",
         "terminal_sidebar_left_desc" => "Mostra la barra laterale (Chat / Snippet / File / Monitor) a sinistra del terminale invece che a destra.",
+        "sidebar_auto_open" => "Apri la barra laterale alla connessione",
+        "sidebar_auto_open_desc" => "Apre automaticamente la barra laterale del terminale all'apertura di una sessione. Ogni host può sovrascriverlo nel proprio editor.",
         "system_tray" => "Area di notifica",
         "close_to_tray" => "Chiudi nell'area",
         "close_to_tray_desc" => "Cliccare su chiudi nasconde Oryxis nell'area di notifica invece di uscire. Usa l'icona per riportarlo. Solo Windows.",

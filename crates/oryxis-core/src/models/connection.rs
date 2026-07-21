@@ -205,6 +205,12 @@ pub struct Connection {
     /// hides it (even when the global toggle is on).
     #[serde(default)]
     pub privacy_mode: Option<bool>,
+    /// Per-host override for auto-opening the terminal sidebar when a
+    /// session to this host opens. `None` follows the global
+    /// `sidebar_auto_open` setting; `Some(true)` always opens it for
+    /// this host; `Some(false)` never opens it automatically.
+    #[serde(default)]
+    pub sidebar_auto_open: Option<bool>,
     /// Per-host legacy keyboard modes + terminal feature toggles (C5:
     /// backspace / home-end / function-key encoding, mouse-reporting /
     /// title-change / OSC 52 gates). `None` = all defaults (today's xterm
@@ -271,6 +277,7 @@ impl Connection {
             macs: None,
             host_key_algorithms: None,
             privacy_mode: None,
+            sidebar_auto_open: None,
             quirks: None,
             rekey_limit_mb: None,
         }
@@ -715,6 +722,28 @@ mod tests {
         value.as_object_mut().unwrap().remove("privacy_mode");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.privacy_mode, None);
+    }
+
+    #[test]
+    fn sidebar_auto_open_legacy_payload_defaults_to_none() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("sidebar_auto_open");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.sidebar_auto_open, None);
+    }
+
+    #[test]
+    fn sidebar_auto_open_round_trip() {
+        let mut conn = Connection::new("h", "1.2.3.4");
+        // None (inherit), Some(true) (force open), Some(false) (never
+        // open) each round-trip distinctly.
+        for v in [None, Some(true), Some(false)] {
+            conn.sidebar_auto_open = v;
+            let json = serde_json::to_string(&conn).unwrap();
+            let de: Connection = serde_json::from_str(&json).unwrap();
+            assert_eq!(de.sidebar_auto_open, v);
+        }
     }
 
     #[test]

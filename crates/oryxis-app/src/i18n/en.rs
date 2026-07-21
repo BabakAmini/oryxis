@@ -370,6 +370,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Dock the sidebar on the left",
         "terminal_sidebar_left_desc" => "Show the Chat / Snippets / Files / Monitor sidebar on the left of the terminal instead of the right.",
+        "sidebar_auto_open" => "Open sidebar on connect",
+        "sidebar_auto_open_desc" => "Automatically open the terminal sidebar when a session opens. Each host can override this in its editor.",
         "system_tray" => "System tray",
         "close_to_tray" => "Close to tray",
         "close_to_tray_desc" => "Clicking the window's close button hides Oryxis to the system tray instead of quitting. Use the tray icon to bring it back. Windows only.",

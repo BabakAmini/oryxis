@@ -351,6 +351,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "경로",
         "terminal_sidebar_left" => "사이드바를 왼쪽에 배치",
         "terminal_sidebar_left_desc" => "사이드바(채팅 / 스니펫 / 파일 / 모니터)를 터미널 오른쪽 대신 왼쪽에 표시합니다.",
+        "sidebar_auto_open" => "연결 시 사이드바 열기",
+        "sidebar_auto_open_desc" => "세션이 열리면 터미널 사이드바를 자동으로 엽니다. 호스트별로 편집기에서 재정의할 수 있습니다.",
         "system_tray" => "시스템 트레이",
         "close_to_tray" => "트레이로 닫기",
         "close_to_tray_desc" => "창의 닫기 버튼을 클릭하면 종료하는 대신 Oryxis를 시스템 트레이로 숨깁니다. 트레이 아이콘으로 다시 불러올 수 있습니다. Windows 전용.",

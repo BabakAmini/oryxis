@@ -351,6 +351,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "Thư mục",
         "terminal_sidebar_left" => "Neo thanh bên sang trái",
         "terminal_sidebar_left_desc" => "Hiển thị thanh bên (Trò chuyện / Snippet / Tệp / Giám sát) ở bên trái terminal thay vì bên phải.",
+        "sidebar_auto_open" => "Mở thanh bên khi kết nối",
+        "sidebar_auto_open_desc" => "Tự động mở thanh bên của terminal khi một phiên được mở. Mỗi máy chủ có thể ghi đè trong trình chỉnh sửa của nó.",
         "system_tray" => "Khay hệ thống",
         "close_to_tray" => "Đóng vào khay",
         "close_to_tray_desc" => "Nhấp nút đóng của cửa sổ sẽ ẩn Oryxis vào khay hệ thống thay vì thoát. Dùng biểu tượng khay để mở lại. Chỉ Windows.",

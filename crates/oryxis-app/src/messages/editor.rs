@@ -31,6 +31,7 @@ pub enum EditorMessage {
     /// Per-host Privacy Mode selection from the host editor pick: the
     /// localized "Default / On / Off" label.
     EditorPrivacyModeChanged(String),
+    EditorSidebarAutoOpenChanged(String),
     /// Backspace mode pick (localized "Control-? (127)" / "Control-H (8)").
     EditorQuirkBackspaceChanged(String),
     /// Home/End mode pick (localized "Standard" / "rxvt").

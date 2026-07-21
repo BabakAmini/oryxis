@@ -346,6 +346,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_cwd" => "目錄",
         "terminal_sidebar_left" => "將側邊欄停靠在左側",
         "terminal_sidebar_left_desc" => "將側邊欄（聊天 / 程式碼片段 / 檔案 / 監控）顯示在終端機左側而非右側。",
+        "sidebar_auto_open" => "連線時開啟側邊欄",
+        "sidebar_auto_open_desc" => "開啟工作階段時自動開啟終端機側邊欄。每台主機可在其編輯器中覆寫此設定。",
         "system_tray" => "系統匣",
         "close_to_tray" => "關閉到系統匣",
         "close_to_tray_desc" => "點選關閉按鈕會將 Oryxis 隱藏到系統匣而不是結束。使用系統匣圖示還原。僅限 Windows。",
