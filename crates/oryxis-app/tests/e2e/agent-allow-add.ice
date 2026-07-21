@@ -19,7 +19,9 @@ click (1175, 64)
 expect "Features & Plugins"
 click "Features & Plugins"
 expect "SSH Agent"
-click (1141, 305)
+# y moved 305 -> 350 when the Host monitoring feature row (#83)
+# joined the list above SSH Agent.
+click (1141, 350)
 settle 300
 click "SSH Agent"
 expect "Confirm each use"
