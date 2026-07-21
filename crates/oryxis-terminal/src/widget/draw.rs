@@ -709,15 +709,18 @@ where
                             ),
                             bar_color,
                         );
-                        // Eye-slash cutout, centered, background-colored so it
-                        // reads as punched out of the bar. Only when the span
-                        // has room; short spans keep the bare rounded bar.
+                        // Eye-slash, centered, in the theme's text color: the
+                        // bar leans toward the background, so the foreground
+                        // is the side with contrast headroom on every theme
+                        // (a background-colored cutout went near-invisible on
+                        // near-black themes, issue #78 follow-up). Only when
+                        // the span has room; short spans keep the bare bar.
                         if bw >= cell_w * 5.0 && bh >= 8.0 {
                             let (cx, cy) = (bx + bw / 2.0, by + bh / 2.0);
                             let eye_h = bh * 0.28;
                             let eye_w = (eye_h * 2.6).min(bw * 0.5);
-                            let cutout = canvas::Stroke {
-                                style: canvas::stroke::Style::Solid(palette.background),
+                            let ink = canvas::Stroke {
+                                style: canvas::stroke::Style::Solid(palette.foreground),
                                 width: (bh * 0.10).clamp(1.0, 1.6),
                                 line_cap: canvas::stroke::LineCap::Round,
                                 ..canvas::Stroke::default()
@@ -733,19 +736,19 @@ where
                                     Point::new(cx - eye_w / 2.0, cy),
                                 );
                             });
-                            frame.stroke(&almond, cutout);
+                            frame.stroke(&almond, ink);
                             frame.fill(
                                 &canvas::Path::circle(
                                     Point::new(cx, cy),
                                     (eye_h * 0.45).max(1.0),
                                 ),
-                                palette.background,
+                                palette.foreground,
                             );
                             let slash = canvas::Path::line(
                                 Point::new(cx - eye_w * 0.62, cy + eye_h * 1.5),
                                 Point::new(cx + eye_w * 0.62, cy - eye_h * 1.5),
                             );
-                            frame.stroke(&slash, cutout);
+                            frame.stroke(&slash, ink);
                         }
                     }
                     // First-mask signal for the app's one-shot hint toast
