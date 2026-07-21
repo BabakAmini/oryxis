@@ -4,10 +4,14 @@
 //! folded into the corresponding session log row (start/end times,
 //! data size) so the list reads as one chronological feed.
 
+use std::sync::Arc;
+
 use iced::border::Radius;
-use iced::widget::{button, column, container, scrollable, text, Space};
+use iced::widget::{button, canvas, column, container, scrollable, text, Space};
 use iced::widget::button::Status as BtnStatus;
 use iced::{Background, Border, Color, Element, Length, Padding};
+
+use oryxis_terminal::widget::TerminalView;
 
 use chrono::{DateTime, Utc};
 
@@ -335,12 +339,12 @@ impl Oryxis {
         }
 
         // ── Session viewer overlay ──
-        if let Some((log_id, ref spans)) = self.viewing_session_log {
-            // Recreate the terminal's look: palette colors parsed from
-            // the recording's SGR sequences over the theme background.
-            let palette = self.resolve_global_terminal_palette();
-            let default_fg = palette.foreground;
-            let term_bg = palette.background;
+        if let Some(viewer) = &self.viewing_session_log {
+            let log_id = viewer.log_id;
+            // The transcript background wears the theme's terminal
+            // background; the recording's own colors live inside the
+            // emulator the widget renders.
+            let term_bg = self.resolve_global_terminal_palette().background;
             // Resolve the recording's host to decide Privacy Mode. Per-host
             // override wins; a deleted host falls back to the global default.
             let viewer_conn = self
@@ -352,23 +356,67 @@ impl Oryxis {
                 .map(|c| self.privacy_active(c))
                 .unwrap_or_else(|| self.privacy_global_active());
             let mask = privacy_applies && !self.privacy.revealed;
-            let privacy_terms = if mask { self.privacy_terms() } else { Vec::new() };
-            let rich_spans: Vec<iced::widget::text::Span<'_, ()>> = spans
-                .iter()
-                .map(|s| {
-                    let txt = if mask {
-                        crate::widgets::redact_for_display(&s.text, &privacy_terms, self.privacy_classes())
-                    } else {
-                        s.text.clone()
-                    };
-                    iced::widget::text::Span::new(txt)
-                        .color(s.color.unwrap_or(default_fg))
+            // The transcript renders through the real terminal widget
+            // (issues #90/#91): read-only, PTY-less, so selection,
+            // copy-on-select and the right-click schemes match the live
+            // pane and the selection highlight is cell-exact. No input
+            // callbacks are wired; the widget's own scrollback scrolls it,
+            // so it is NOT nested in an iced scrollable.
+            let term_view = TerminalView::new(Arc::clone(&viewer.terminal))
+                // Focused so the widget's keyboard chords fire: Ctrl+Shift+C
+                // (the copy path that worked in the old viewer), Select All,
+                // and PageUp/Down over the recording's scrollback. Safe
+                // because the History and Terminal views never render at the
+                // same time, so no live pane competes for focus. Plain keys
+                // are not captured here (they fall through), so the toolbar
+                // search still receives its input.
+                .focused(true)
+                .with_mouse_reporting(false)
+                .with_font_size(self.terminal_font_size)
+                .with_font_name(&self.terminal_font_name)
+                .with_copy_on_select(self.setting_copy_on_select)
+                .with_right_click_copy(self.setting_right_click_copy)
+                .with_right_click_action(self.setting_terminal_right_click.to_widget())
+                .with_terminal_chords(self.terminal_chord_resolver())
+                // A recording has no live edge to snap back to, so a stray
+                // keypress must not jump the reader out of the scrollback,
+                // and the "reset on output" snap must not fight the
+                // open-at-top scroll (the whole recording was fed before
+                // the first draw, so its epoch bump would otherwise pull
+                // the view to the bottom).
+                .with_reset_scroll_on_keypress(false)
+                .with_reset_scroll_on_output(false)
+                .with_bold_is_bright(self.setting_bold_is_bright)
+                .with_keyword_highlight(self.setting_keyword_highlight)
+                .with_performance(self.setting_performance_mode)
+                .with_privacy(mask)
+                .with_privacy_terms(&self.privacy_terms())
+                .with_privacy_classes(self.privacy_classes())
+                .with_smart_contrast(self.setting_smart_contrast)
+                .with_word_delimiters(&self.setting_word_delimiters);
+            // Right-click scheme = Menu: the widget has no menu of its
+            // own, so wire the read-only transcript context menu (Copy /
+            // Copy All). The Paste and Extend schemes copy a live
+            // selection without a menu, so they need no wiring here.
+            let term_view = if self.setting_terminal_right_click
+                == crate::util::RightClickMode::Menu
+            {
+                term_view.on_context_menu(|x, y, sel| {
+                    Message::History(HistoryMessage::ShowSessionViewerContextMenu(x, y, sel))
                 })
-                .collect();
-            let body = iced::widget::text::Rich::<'_, (), Message>::with_spans(rich_spans)
-                .size(12)
-                .font(iced::Font::MONOSPACE)
-                .selectable(true);
+            } else {
+                term_view
+            };
+            let body = container(
+                canvas(term_view).width(Length::Fill).height(Length::Fill),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .padding(8)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(term_bg)),
+                ..Default::default()
+            });
             // Header row: title, optional Privacy reveal toggle (only when
             // the recording's host is under Privacy Mode), then the
             // recording actions: Play (the primary verb, its own button,
@@ -464,16 +512,7 @@ impl Oryxis {
                     .padding(Padding {
                         top: 16.0, right: 20.0, bottom: 12.0, left: 20.0,
                     }),
-                    scrollable(
-                        container(body)
-                            .padding(16)
-                            .width(Length::Fill)
-                            .style(move |_| container::Style {
-                                background: Some(Background::Color(term_bg)),
-                                ..Default::default()
-                            }),
-                    )
-                    .height(Length::Fill),
+                    body,
                 ],
             )
             .width(Length::Fill)

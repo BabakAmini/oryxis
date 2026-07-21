@@ -150,11 +150,18 @@ impl Oryxis {
                 .unwrap_or(OryxisColors::t().bg_primary)
         };
         let stage = iced::widget::responsive(move |avail| {
+            // The font is fitted against the recording's LARGEST frame
+            // (`fit_cols`/`fit_rows`), not the current one, so it stays
+            // constant across a session that was resized mid-recording
+            // instead of jumping at every resize event. Every actual
+            // frame is <= the fit geometry, so none overflow; the canvas
+            // below is still sized to the CURRENT grid, so a smaller
+            // frame just centers with margins at the same font.
             let font_size = fitted_font_size(
                 &self.terminal_font_name,
                 self.terminal_font_size,
-                p.cols,
-                p.rows,
+                p.fit_cols,
+                p.fit_rows,
                 iced::Size::new(
                     (avail.width - STAGE_PAD * 2.0).max(0.0),
                     (avail.height - STAGE_PAD * 2.0).max(0.0),

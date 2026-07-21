@@ -81,6 +81,13 @@ pub(crate) enum OverlayContent {
     /// right-click (the app can't reach the widget's live selection).
     /// Position lives in `OverlayState.x/y` (window-absolute).
     TerminalContextMenu(Uuid, Option<String>),
+    /// Right-click context menu over the session-log transcript viewer
+    /// (issue #90, right-click scheme = Menu). Read-only, so the only
+    /// items are Copy (when a selection was live) and Copy All; there is
+    /// a single viewer at a time, so no id is carried. Selection text is
+    /// captured by the widget at right-click. Position lives in
+    /// `OverlayState.x/y` (window-absolute).
+    SessionLogViewerContext(Option<String>),
     /// Kebab menu on a Plugins-panel row. Carries the provider id.
     /// Items depend on the row's status: check for updates, the
     /// auto-update override toggle, uninstall / remove downloads.

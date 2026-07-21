@@ -203,9 +203,19 @@ pub struct TerminalBackend {
 
 impl TerminalBackend {
     pub fn new(cols: u16, rows: u16) -> Self {
+        Self::new_with_scrollback(cols, rows, default_scrollback())
+    }
+
+    /// Like [`new`](Self::new) but with an explicit scrollback line
+    /// budget instead of the process-wide default. The session-log
+    /// viewer uses this to hold a whole recording (which can exceed the
+    /// user's live `scrollback_rows`) without truncating the oldest
+    /// lines. alacritty grows the history lazily, so a high budget costs
+    /// only what the content actually fills.
+    pub fn new_with_scrollback(cols: u16, rows: u16, scrollback: usize) -> Self {
         let size = TermSize { cols, rows };
         let config = TermConfig {
-            scrolling_history: default_scrollback(),
+            scrolling_history: scrollback,
             semantic_escape_chars: DEFAULT_WORD_DELIMITERS.to_string(),
             ..Default::default()
         };

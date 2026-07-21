@@ -332,7 +332,7 @@ impl Oryxis {
     /// thing here and another there. The lists are cloned because
     /// `TerminalView` carries no lifetime; they hold one or two chords
     /// each, so it costs nothing per pane per frame.
-    fn terminal_chord_resolver(&self) -> oryxis_terminal::widget::ChordResolver {
+    pub(crate) fn terminal_chord_resolver(&self) -> oryxis_terminal::widget::ChordResolver {
         use crate::hotkeys::HotkeyAction::*;
         use oryxis_terminal::widget::TerminalChordAction;
         let get = |a| self.hotkey_bindings.get(&a).cloned().unwrap_or_default();

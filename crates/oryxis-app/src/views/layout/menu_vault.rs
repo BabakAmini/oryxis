@@ -870,4 +870,31 @@ impl Oryxis {
             ));
         items.into()
     }
+
+    /// Read-only context menu for the session-log transcript viewer
+    /// (issue #90, right-click scheme = Menu). Only copy actions apply:
+    /// Copy (the selection captured at right-click, shown when there was
+    /// one) and Copy All. No Paste / Clear, since the transcript has no
+    /// PTY and its scrollback is the immutable recording.
+    pub(crate) fn build_menu_session_viewer_context(
+        &self,
+        selection: &Option<String>,
+    ) -> Element<'_, Message> {
+        let mut items = column![];
+        if let Some(text) = selection {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::copy(),
+                crate::i18n::t("terminal_copy"),
+                Message::Terminal(TerminalMessage::TerminalCopySelection(text.clone())),
+                OryxisColors::t().text_secondary,
+            ));
+        }
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::copy_check(),
+            crate::i18n::t("terminal_copy_all"),
+            Message::History(HistoryMessage::SessionViewerCopyAll),
+            OryxisColors::t().text_secondary,
+        ));
+        items.into()
+    }
 }

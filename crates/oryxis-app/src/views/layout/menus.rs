@@ -83,6 +83,10 @@ impl Oryxis {
                 // Copy (only with a selection) + Copy All + Paste + Clear.
                 if sel.is_some() { 4.0 } else { 3.0 }
             }
+            OverlayContent::SessionLogViewerContext(sel) => {
+                // Copy (only with a selection) + Copy All.
+                if sel.is_some() { 2.0 } else { 1.0 }
+            }
             _ => 2.5,
         };
         items * ITEM_H + 10.0
@@ -246,6 +250,9 @@ impl Oryxis {
             OverlayContent::ToolbarOverflow => self.build_menu_toolbar_overflow(),
             OverlayContent::TerminalContextMenu(pane_id, selection) => {
                 self.build_menu_terminal_context(*pane_id, selection)
+            }
+            OverlayContent::SessionLogViewerContext(selection) => {
+                self.build_menu_session_viewer_context(selection)
             }
         };
 

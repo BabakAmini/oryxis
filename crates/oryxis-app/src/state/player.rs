@@ -94,6 +94,73 @@ pub(crate) fn preprocess_events(
     (events, duration_ms, geometry)
 }
 
+/// Scrollback budget for the static transcript viewer. The whole
+/// recording is fed at once (no clock), so the history must hold every
+/// line the session scrolled past, not just the user's live
+/// `scrollback_rows`. alacritty grows the history lazily, so this
+/// ceiling only costs what the recording actually fills; a session that
+/// scrolled past it loses its oldest lines (a documented edge, far above
+/// any readable transcript length).
+const TRANSCRIPT_SCROLLBACK: usize = 100_000;
+
+/// The static transcript viewer (issues #90/#91). The whole recording is
+/// rendered into a read-only terminal backend, so selection,
+/// copy-on-select and the right-click schemes behave exactly like the
+/// live terminal, with cell-exact highlight hit-testing. The old
+/// `text::Rich` path had none of that: it only copied via Ctrl+Shift+C,
+/// ignored the right-click schemes, and its selection highlight drifted
+/// vertically from the text in a long session (a fork-side layout quirk
+/// the terminal widget's own metrics sidestep). Fed once with no clock;
+/// the widget's own scrollback scrolls it. Mutually exclusive with the
+/// [`SessionPlayer`] surface (opening either closes the other).
+pub(crate) struct SessionLogViewer {
+    /// The recording being shown (index resolution for the header
+    /// actions, and to drop the viewer when its log is deleted).
+    pub log_id: Uuid,
+    /// The PTY-less emulator holding the whole recording, shared with the
+    /// terminal widget the same way live panes are.
+    pub terminal: Arc<Mutex<TerminalState>>,
+}
+
+impl SessionLogViewer {
+    /// Build a viewer over a recording's rows: feed every output and
+    /// resize event (typed-command rows dropped, malformed resizes
+    /// skipped) into a PTY-less backend at the recorded geometry, in
+    /// capture order and with no timing. Fails only if the emulator
+    /// can't be constructed.
+    pub fn build(
+        log_id: Uuid,
+        rows: &[oryxis_vault::SessionLogEvent],
+        palette: TerminalPalette,
+    ) -> oryxis_terminal::widget::TerminalResult<Self> {
+        let (events, _duration, geometry) = preprocess_events(rows);
+        let mut state = TerminalState::new_no_pty_with_scrollback(
+            geometry.0,
+            geometry.1,
+            TRANSCRIPT_SCROLLBACK,
+        )?;
+        state.palette = palette;
+        for ev in &events {
+            match &ev.kind {
+                PlayerEventKind::Output(bytes) => state.process(bytes),
+                PlayerEventKind::Resize(c, r) => {
+                    state.resize(*c, *r);
+                }
+            }
+        }
+        // A recording is read like a log, top to bottom, so open at the
+        // very start of the session rather than the terminal-native live
+        // edge. `i32::MAX` is clamped to the real top by the draw pass, so
+        // it lands exactly there even after the widget reflows the buffer
+        // to the panel width on first layout.
+        state.pending_scroll.set(Some(i32::MAX));
+        Ok(Self {
+            log_id,
+            terminal: Arc::new(Mutex::new(state)),
+        })
+    }
+}
+
 /// GIF export machinery for session recordings (issue #71). A sibling
 /// of [`SessionPlayer`] rather than a field on it: an export is
 /// triggered from the History list without the player open, and a
@@ -150,6 +217,16 @@ pub(crate) struct SessionPlayer {
     /// view to size the fixed-grid canvas.
     pub cols: u16,
     pub rows: u16,
+    /// The largest grid the recording ever reached (max cols, max rows
+    /// across every resize event). The replay font is fitted against
+    /// THIS, once, and held constant for the whole playback: a session
+    /// that was resized mid-recording would otherwise refit per frame
+    /// and the text would visibly jump size at each resize (and land at
+    /// whatever the final geometry dictated). Fitting the biggest frame
+    /// guarantees none overflow, and smaller frames just center with
+    /// margins at the same, stable font.
+    pub fit_cols: u16,
+    pub fit_rows: u16,
     /// Geometry to rebuild with on a backward seek / restart.
     initial_geometry: (u16, u16),
     /// Palette applied to (re)built backends, resolved once at open
@@ -169,6 +246,16 @@ impl SessionPlayer {
         palette: TerminalPalette,
     ) -> oryxis_terminal::widget::TerminalResult<Self> {
         let terminal = Self::build_terminal(geometry, &palette)?;
+        // Fit geometry: the largest grid any frame reaches, so the
+        // replay font is chosen once for the biggest frame and never
+        // rescales mid-playback. Seeded with the initial geometry so a
+        // recording with no resize row still has a valid fit target.
+        let (fit_cols, fit_rows) = events.iter().fold(geometry, |(mc, mr), e| {
+            match e.kind {
+                PlayerEventKind::Resize(c, r) => (mc.max(c), mr.max(r)),
+                PlayerEventKind::Output(_) => (mc, mr),
+            }
+        });
         Ok(Self {
             log_id,
             label,
@@ -183,6 +270,8 @@ impl SessionPlayer {
             terminal,
             cols: geometry.0,
             rows: geometry.1,
+            fit_cols,
+            fit_rows,
             initial_geometry: geometry,
             palette,
         })
@@ -415,6 +504,32 @@ mod tests {
     }
 
     #[test]
+    fn fit_geometry_is_the_per_axis_max_across_resizes() {
+        // A recording that grows then shrinks: the fit target is the
+        // largest cols AND the largest rows seen, taken independently, so
+        // the replay font is chosen for the biggest frame and never
+        // rescales mid-playback. Here no single frame is 120x50, but the
+        // fit must still be 120x50 so neither the widest nor the tallest
+        // frame overflows.
+        let p = player_over(&[
+            ev(Some(0), 'r', b"120x30"),
+            ev(Some(10), 'o', b"a"),
+            ev(Some(20), 'r', b"80x50"),
+            ev(Some(30), 'o', b"b"),
+            ev(Some(40), 'r', b"100x40"),
+        ]);
+        assert_eq!((p.fit_cols, p.fit_rows), (120, 50));
+    }
+
+    #[test]
+    fn fit_geometry_falls_back_to_the_initial_when_unresized() {
+        // No resize row: the fit target is the initial geometry (the
+        // legacy 80x24 fallback), never zero.
+        let p = player_over(&[ev(None, 'o', b"hi")]);
+        assert_eq!((p.fit_cols, p.fit_rows), FALLBACK_GEOMETRY);
+    }
+
+    #[test]
     fn backward_seek_rebuilds_and_replays_from_zero() {
         // Real recordings stamp their initial size at t=0 (first
         // flush); that first resize is the header geometry the player
@@ -475,6 +590,58 @@ mod tests {
         assert!(p.playing, "play at the end restarts");
         assert_eq!(p.clock_ms, 0.0);
         assert_eq!(p.next_event, 1, "the t=0 event is re-fed on restart");
+    }
+
+    fn viewer_char_at(v: &SessionLogViewer, row: i32, col: usize) -> char {
+        use oryxis_terminal::alacritty_terminal::index::{Column, Line};
+        let state = v.terminal.lock().unwrap();
+        state.backend.term.grid()[Line(row)][Column(col)].c
+    }
+
+    #[test]
+    fn session_log_viewer_renders_the_recording_and_drops_command_rows() {
+        let viewer = SessionLogViewer::build(
+            Uuid::nil(),
+            &[
+                ev(Some(0), 'r', b"80x24"),
+                ev(Some(10), 'o', b"hello"),
+                // A typed-command row must never paint into the grid.
+                ev(Some(20), 'c', b"secret cmd"),
+            ],
+            TerminalPalette::default(),
+        )
+        .expect("headless viewer");
+        let row: String = (0..5).map(|c| viewer_char_at(&viewer, 0, c)).collect();
+        assert_eq!(row, "hello");
+    }
+
+    #[test]
+    fn session_log_viewer_keeps_the_whole_scrollback() {
+        // 500 lines fed into a 24-row screen: the rest must survive in
+        // scrollback, not get truncated to the visible grid.
+        let mut data = Vec::new();
+        for i in 0..500 {
+            data.extend_from_slice(format!("line {i}\r\n").as_bytes());
+        }
+        let viewer = SessionLogViewer::build(
+            Uuid::nil(),
+            &[ev(Some(0), 'r', b"80x24"), ev(Some(10), 'o', &data)],
+            TerminalPalette::default(),
+        )
+        .expect("headless viewer");
+        use oryxis_terminal::alacritty_terminal::grid::Dimensions;
+        let history = viewer
+            .terminal
+            .lock()
+            .unwrap()
+            .backend
+            .term
+            .grid()
+            .history_size();
+        assert!(
+            history >= 470,
+            "scrollback dropped lines: history_size = {history}"
+        );
     }
 
     #[test]

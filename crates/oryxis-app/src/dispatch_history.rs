@@ -71,17 +71,68 @@ impl Oryxis {
                 // session shows everything recorded up to this moment,
                 // not just what was last persisted.
                 self.flush_session_logs_final();
-                if let Some(vault) = &self.vault
-                    && let Ok(Some(data)) = vault.get_session_data(&log_id) {
-                        let palette = self.resolve_global_terminal_palette();
-                        let spans = crate::ansi_render::render(&data, &palette);
-                        self.viewing_session_log = Some((log_id, spans));
+                let Some(vault) = &self.vault else {
+                    return Task::none();
+                };
+                let events = match vault.get_session_events(&log_id) {
+                    Ok(ev) => ev,
+                    Err(e) => {
+                        return self.show_toast(
+                            crate::i18n::t("history_export_failed")
+                                .replace("{error}", &e.to_string()),
+                        );
+                    }
+                };
+                // The transcript wears the same colors the live pane wore:
+                // per-host terminal theme override first, then the global
+                // theme (mirrors the player and the `.cast` export).
+                let palette = self
+                    .session_logs
+                    .iter()
+                    .find(|e| e.id == log_id)
+                    .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id))
+                    .map(|c| self.resolve_terminal_palette_for_connection(c))
+                    .unwrap_or_else(|| self.resolve_global_terminal_palette());
+                match crate::state::SessionLogViewer::build(log_id, &events, palette) {
+                    Ok(viewer) => {
+                        self.viewing_session_log = Some(viewer);
                         // Mutually exclusive with the player surface.
                         self.session_player = None;
+                    }
+                    Err(e) => {
+                        return self.show_toast(
+                            crate::i18n::t("history_export_failed")
+                                .replace("{error}", &e.to_string()),
+                        );
+                    }
                 }
             }
             HistoryMessage::CloseSessionLogView => {
                 self.viewing_session_log = None;
+            }
+            HistoryMessage::ShowSessionViewerContextMenu(x, y, selection) => {
+                // Right-click scheme = Menu over the transcript body:
+                // anchor the read-only copy menu at the click point
+                // (window-absolute, same space as every menu).
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::SessionLogViewerContext(selection),
+                    x,
+                    y,
+                });
+            }
+            HistoryMessage::SessionViewerCopyAll => {
+                self.overlay = None;
+                if let Some(viewer) = &self.viewing_session_log
+                    && let Ok(state) = viewer.terminal.lock()
+                {
+                    let text = state.all_text();
+                    drop(state);
+                    if !text.is_empty()
+                        && let Ok(mut clip) = arboard::Clipboard::new()
+                    {
+                        let _ = clip.set_text(text);
+                    }
+                }
             }
             HistoryMessage::ShowSessionLogViewerMenu(idx) => {
                 use crate::state::{OverlayContent, OverlayState};
@@ -379,8 +430,8 @@ impl Oryxis {
                     }
                 }
                 // Close viewer / player if we deleted the one being shown
-                if let Some((viewed_id, _)) = &self.viewing_session_log
-                    && self.session_logs.iter().all(|s| s.id != *viewed_id) {
+                if let Some(viewer) = &self.viewing_session_log
+                    && self.session_logs.iter().all(|s| s.id != viewer.log_id) {
                         self.viewing_session_log = None;
                 }
                 if let Some(p) = &self.session_player

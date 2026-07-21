@@ -30,6 +30,13 @@ pub enum HistoryMessage {
     /// toast), `Some(Ok(path))` / `Some(Err(cause))` otherwise.
     GifExportFinished(Option<Result<String, String>>),
     CloseSessionLogView,
+    /// Right-click context menu over the transcript viewer body (scheme
+    /// = Menu): window-absolute x/y and the selection captured by the
+    /// widget at right-click. Read-only, so it only offers copy actions.
+    ShowSessionViewerContextMenu(f32, f32, Option<String>),
+    /// Copy the whole transcript from the viewer's emulator to the
+    /// clipboard (the "Copy All" item on that context menu).
+    SessionViewerCopyAll,
     /// Toggle the viewer-header `...` menu (session-log actions minus
     /// Play, which the viewer offers as its own header button).
     ShowSessionLogViewerMenu(usize),

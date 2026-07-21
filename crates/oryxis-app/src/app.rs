@@ -912,7 +912,7 @@ pub struct Oryxis {
     pub(crate) session_logs: Vec<oryxis_vault::SessionLogEntry>,
     pub(crate) session_logs_page: usize,
     pub(crate) session_logs_total: usize,
-    pub(crate) viewing_session_log: Option<(Uuid, Vec<crate::ansi_render::AnsiSpan>)>,
+    pub(crate) viewing_session_log: Option<crate::state::SessionLogViewer>,
     /// The in-app session player (issue #71), rendered as a full
     /// surface on the History view while `Some`. Mutually exclusive
     /// with `viewing_session_log` (opening either closes the other).

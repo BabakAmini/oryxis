@@ -32,11 +32,20 @@ where
                 Ok(s) => s,
                 Err(p) => p.into_inner(),
             };
-            (
-                s.render_epoch(),
-                s.search_generation(),
-                s.pending_scroll.take(),
-            )
+            // Clamp the queued target to the current scrollback extent so
+            // it stays valid after any resize/reflow between when it was
+            // queued and this draw. Lets a caller pass `i32::MAX` to mean
+            // "scroll to the very top" (the transcript viewer opens there)
+            // and resolve it against the post-reflow line count; search
+            // targets are already in range, so the clamp is a no-op for
+            // them.
+            let pending = s.pending_scroll.take().map(|target| {
+                use alacritty_terminal::grid::Dimensions;
+                let grid = s.backend.term.grid();
+                let max = grid.total_lines().saturating_sub(grid.screen_lines()) as i32;
+                target.clamp(0, max)
+            });
+            (s.render_epoch(), s.search_generation(), pending)
         };
         // A search step / open queued a scroll target (the active match's row);
         // apply it before the render key so this frame draws at that offset and

@@ -88,6 +88,20 @@ impl TerminalState {
         Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None })
     }
 
+    /// A PTY-less state with an explicit scrollback budget, for the
+    /// session-log transcript viewer: the whole recording is fed at once
+    /// (no clock), so the history must hold every line the session
+    /// scrolled past, not just the user's live `scrollback_rows`.
+    pub fn new_no_pty_with_scrollback(
+        cols: u16,
+        rows: u16,
+        scrollback: usize,
+    ) -> TerminalResult<Self> {
+        let backend = TerminalBackend::new_with_scrollback(cols, rows, scrollback);
+        let palette = TerminalPalette::default();
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None })
+    }
+
     /// Wire a remote resize sender, called from the app once an SSH
     /// session attaches to this state, so subsequent `resize()` calls
     /// also notify the server of the new viewport.
