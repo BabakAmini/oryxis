@@ -103,6 +103,12 @@ pub(crate) struct PortStat {
     /// protocol; the distinction doesn't change what the user can
     /// forward).
     pub proto: &'static str,
+    /// The address the socket is bound to, from the SERVER's point of
+    /// view. `None` = wildcard (all interfaces). A specific bind is
+    /// load-bearing for click-to-forward: a service bound to
+    /// 192.168.1.10 only answers THERE, so a `-L` target of 127.0.0.1
+    /// would dial a closed port.
+    pub bind: Option<String>,
     pub process: Option<String>,
 }
 

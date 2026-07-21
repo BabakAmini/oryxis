@@ -326,30 +326,46 @@ fn parse_listening_ports(sockets: &str) -> Vec<PortStat> {
         } else if line.contains("ESTAB") || line.contains("CONNECTED") {
             continue;
         }
-        let Some(port) = fields.clone().find_map(parse_local_port) else { continue };
+        let Some((bind, port)) = fields.clone().find_map(parse_local_addr) else { continue };
         let process = parse_process_name(line);
         if let Some(existing) = out.iter_mut().find(|p| p.port == port && p.proto == proto) {
             // Same service on a second address family: keep whichever
-            // row managed to name the process.
+            // row managed to name the process, and let a wildcard bind
+            // win over a specific one (v4 0.0.0.0 + v6 :: is ONE
+            // any-interface listener, not a bound one).
             if existing.process.is_none() {
                 existing.process = process;
             }
+            if bind.is_none() {
+                existing.bind = None;
+            }
             continue;
         }
-        out.push(PortStat { port, proto, process });
+        out.push(PortStat { port, proto, bind, process });
     }
     out.sort_by_key(|p| (p.port, p.proto));
     out
 }
 
-/// Pull the port out of a `host:port` token, rejecting the peer column's
-/// wildcard (`0.0.0.0:*`) and anything without a numeric port.
-fn parse_local_port(token: &str) -> Option<u16> {
+/// Pull `(bind address, port)` out of a `host:port` token, rejecting the
+/// peer column's wildcard (`0.0.0.0:*`) and anything without a numeric
+/// port. The bind is `None` for the any-interface forms (`0.0.0.0`,
+/// `::`, `[::]`, `*`); a specific address is kept, stripped of v6
+/// brackets and a `%iface` scope (systemd-resolved binds
+/// `127.0.0.53%lo`).
+fn parse_local_addr(token: &str) -> Option<(Option<String>, u16)> {
     let (host, port) = token.rsplit_once(':')?;
     if host.is_empty() || port == "*" {
         return None;
     }
-    port.parse::<u16>().ok().filter(|p| *p > 0)
+    let port = port.parse::<u16>().ok().filter(|p| *p > 0)?;
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let host = host.split('%').next().unwrap_or(host);
+    let bind = match host {
+        "0.0.0.0" | "::" | "*" => None,
+        h => Some(h.to_string()),
+    };
+    Some((bind, port))
 }
 
 /// `ss`: `users:(("sshd",pid=1,fd=3))`. `netstat`: `1234/sshd`.
@@ -543,6 +559,24 @@ mod tests {
                 (8080, "tcp", Some("node")),
             ]
         );
+        // Bind addresses feed click-to-forward: wildcard listeners have
+        // none, a `%lo` scope is stripped, a loopback bind is kept.
+        let binds: Vec<Option<&str>> =
+            sample.ports.iter().map(|p| p.bind.as_deref()).collect();
+        assert_eq!(binds, vec![None, Some("127.0.0.53"), Some("127.0.0.1")]);
+    }
+
+    #[test]
+    fn wildcard_bind_wins_the_v4_v6_collapse() {
+        // A specific v4 bind plus a v6 wildcard on the same port is ONE
+        // any-interface listener; the merged row must not claim the
+        // narrower bind (the forward would work, but the row would lie).
+        let ss = "tcp   LISTEN 0      128         127.0.0.1:9000      0.0.0.0:*\n\
+                  tcp   LISTEN 0      128              [::]:9000         [::]:*\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        assert_eq!(sample.ports.len(), 1);
+        assert_eq!(sample.ports[0].bind, None);
     }
 
     #[test]
@@ -570,6 +604,9 @@ mod tests {
                 (5432, "tcp", None),
             ]
         );
+        let binds: Vec<Option<&str>> =
+            sample.ports.iter().map(|p| p.bind.as_deref()).collect();
+        assert_eq!(binds, vec![None, None, Some("127.0.0.1")]);
     }
 
     #[test]

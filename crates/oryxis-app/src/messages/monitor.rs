@@ -22,6 +22,9 @@ pub enum MonitorMessage {
     TogglePorts,
     /// "Forward this port": prefill a `-L` rule for the monitored host
     /// and open the port-forward editor, so the user reviews and saves
-    /// it instead of a tunnel appearing behind their back.
-    ForwardPort(Uuid, u16),
+    /// it instead of a tunnel appearing behind their back. The `Option`
+    /// is the listener's bind address (`None` = wildcard): a service
+    /// bound to a specific address only answers there, so it becomes
+    /// the rule's target host instead of 127.0.0.1.
+    ForwardPort(Uuid, u16, Option<String>),
 }

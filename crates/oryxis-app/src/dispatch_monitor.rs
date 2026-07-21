@@ -118,11 +118,17 @@ impl Oryxis {
                 self.monitor_ports_open = !self.monitor_ports_open;
                 Task::none()
             }
-            MonitorMessage::ForwardPort(conn_id, port) => {
+            MonitorMessage::ForwardPort(conn_id, port, bind) => {
                 // Prefill a local forward onto the same port and hand the
-                // user the editor: `-L 127.0.0.1:<port>` reaching
-                // `127.0.0.1:<port>` FROM THE SERVER, which is what a
-                // service listening on the host's loopback needs.
+                // user the editor. The target is dialed FROM THE SERVER:
+                // a wildcard or loopback listener answers on 127.0.0.1,
+                // but one bound to a specific address only answers THERE,
+                // so that address becomes the target instead of a
+                // 127.0.0.1 that would dial a closed port.
+                let target = match bind.as_deref() {
+                    Some(addr) if addr != "127.0.0.1" && addr != "::1" => addr.to_string(),
+                    _ => "127.0.0.1".to_string(),
+                };
                 let label = self
                     .connections
                     .iter()
@@ -137,7 +143,7 @@ impl Oryxis {
                 self.port_forward_form.host_id = Some(conn_id);
                 self.port_forward_form.listen_host = "127.0.0.1".into();
                 self.port_forward_form.listen_port = port.to_string();
-                self.port_forward_form.target_host = "127.0.0.1".into();
+                self.port_forward_form.target_host = target;
                 self.port_forward_form.target_port = port.to_string();
                 self.port_forward_form.auto_start = false;
                 self.port_forward_form.error = None;

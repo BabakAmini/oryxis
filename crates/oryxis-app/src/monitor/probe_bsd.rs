@@ -173,12 +173,25 @@ pub(crate) fn parse_netstat_an(text: &str) -> Vec<PortStat> {
         } else if f.get(4).is_some_and(|peer| *peer != "*.*") {
             continue;
         }
-        let Some((_, port)) = f[3].rsplit_once('.') else { continue };
+        let Some((host, port)) = f[3].rsplit_once('.') else { continue };
         let Ok(port) = port.parse::<u16>() else { continue };
-        if port == 0 || out.iter().any(|p| p.port == port && p.proto == proto) {
+        if port == 0 {
             continue;
         }
-        out.push(PortStat { port, proto, process: None });
+        // `*` is the any-interface bind; a concrete address is kept
+        // (minus a v6 `%iface` scope) for the forward target.
+        let bind = match host.split('%').next().unwrap_or(host) {
+            "*" | "0.0.0.0" | "::" => None,
+            h => Some(h.to_string()),
+        };
+        if let Some(existing) = out.iter_mut().find(|p| p.port == port && p.proto == proto) {
+            // v4 + v6 collapse; wildcard wins like the Linux parser.
+            if bind.is_none() {
+                existing.bind = None;
+            }
+            continue;
+        }
+        out.push(PortStat { port, proto, bind, process: None });
     }
     out.sort_by_key(|p| (p.port, p.proto));
     out
@@ -288,6 +301,7 @@ mod tests {
                     tcp6       0      0  *.22                   *.*                    LISTEN\n\
                     tcp4       0      0  192.168.1.10.52000     93.184.216.34.443      ESTABLISHED\n\
                     tcp4       0      0  192.168.1.10.52001     93.184.216.34.443      FIN_WAIT_2\n\
+                    tcp4       0      0  192.168.1.10.8080      *.*                    LISTEN\n\
                     udp4       0      0  192.168.1.10.5353      93.184.216.34.53\n\
                     udp4       0      0  *.68                   *.*\n";
         let ports = parse_netstat_an(text);
@@ -295,8 +309,12 @@ mod tests {
         // v4 + v6 collapse; the ESTABLISHED / FIN_WAIT rows are not
         // listeners, and a CONNECTED udp socket (real peer instead of
         // `*.*`) is an in-flight query, not a forwardable port.
-        assert_eq!(got, vec![(22, "tcp"), (68, "udp")]);
+        assert_eq!(got, vec![(22, "tcp"), (68, "udp"), (8080, "tcp")]);
         assert!(ports.iter().all(|p| p.process.is_none()));
+        // Wildcard rows carry no bind; the interface-bound listener
+        // keeps its address for the forward target.
+        let binds: Vec<Option<&str>> = ports.iter().map(|p| p.bind.as_deref()).collect();
+        assert_eq!(binds, vec![None, None, Some("192.168.1.10")]);
     }
 
     #[test]

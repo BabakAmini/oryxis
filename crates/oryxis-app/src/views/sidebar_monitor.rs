@@ -156,7 +156,11 @@ impl Oryxis {
                     // no UDP mode, so a UDP row stays informational
                     // rather than offering an action that would fail.
                     let forward = (p.proto == "tcp").then(|| {
-                        Message::Monitor(MonitorMessage::ForwardPort(conn_id, p.port))
+                        Message::Monitor(MonitorMessage::ForwardPort(
+                            conn_id,
+                            p.port,
+                            p.bind.clone(),
+                        ))
                     });
                     let row = port_row(p, forward.clone());
                     body = body.push(match forward {
@@ -266,6 +270,13 @@ fn port_row<'a>(
     forward: Option<Message>,
 ) -> Element<'a, Message> {
     let name = port.process.clone().unwrap_or_else(|| "-".to_string());
+    // A specific bind is shown next to the process: it tells the user
+    // the service is NOT on every interface, and it is where the
+    // click-to-forward rule will point its target.
+    let name = match &port.bind {
+        Some(bind) => format!("{name}  {bind}"),
+        None => name,
+    };
     let content = dir_row(vec![
         text(format!("{}/{}", port.port, port.proto))
             .size(11)
