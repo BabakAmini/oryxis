@@ -182,7 +182,10 @@ impl Oryxis {
             return None;
         }
         let conn_id = self.monitor_pane_connection()?;
-        if !self.connections.iter().any(|c| c.id == conn_id && c.monitor_enabled) {
+        // Effective opt-in: the global "all hosts" OR the per-host flag.
+        let monitored = self.setting_monitor_all_hosts
+            || self.connections.iter().any(|c| c.id == conn_id && c.monitor_enabled);
+        if !monitored {
             return None;
         }
         let idx = self.active_tab?;

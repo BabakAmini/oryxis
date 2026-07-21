@@ -31,6 +31,7 @@ mod mcp;
 mod previews;
 mod proxies;
 mod security;
+mod monitoring;
 mod sftp;
 mod shortcuts;
 mod sync;
@@ -155,6 +156,7 @@ impl Oryxis {
             SettingsSection::Connection => self.view_settings_connection(),
 
             SettingsSection::Sftp => self.view_settings_sftp(),
+            SettingsSection::Monitoring => self.view_settings_monitoring(),
 
             SettingsSection::AI => self.view_settings_ai(),
 

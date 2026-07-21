@@ -194,6 +194,8 @@ pub enum SettingsMessage {
     /// Features & Plugins: master toggle for the host-monitoring feature
     /// (issue #83). Gates ALL monitoring UI.
     SettingToggleHostMonitoring,
+    /// Monitoring section: "Enable for all hosts" (issue #83).
+    SettingToggleMonitorAllHosts,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
     ToggleHostListView,

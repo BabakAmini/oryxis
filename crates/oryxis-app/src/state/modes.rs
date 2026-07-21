@@ -312,6 +312,9 @@ pub(crate) enum SettingsSection {
     /// display, connection and logging knobs.
     Connection,
     Sftp,
+    /// Host monitoring config (issue #83), shown only while the
+    /// monitoring feature is enabled in Features & Plugins.
+    Monitoring,
     AI,
     /// Visual + layout preferences. Absorbs the legacy "Theme" section
     /// and adds toggles for status bar visibility and (in later PRs)
@@ -358,6 +361,7 @@ impl SettingsSection {
             SettingsSection::Terminal => "settings-terminal-scroll",
             SettingsSection::Connection => "settings-connection-scroll",
             SettingsSection::Sftp => "settings-sftp-scroll",
+            SettingsSection::Monitoring => "settings-monitoring-scroll",
             SettingsSection::AI => "settings-ai-scroll",
             SettingsSection::Interface => "settings-interface-scroll",
             SettingsSection::Mcp => "settings-mcp-scroll",

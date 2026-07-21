@@ -33,10 +33,11 @@ impl Oryxis {
         let Some(conn_id) = self.monitor_pane_connection() else {
             return placeholder(t("monitor_requires_host"));
         };
-        let enabled = self
-            .connections
-            .iter()
-            .any(|c| c.id == conn_id && c.monitor_enabled);
+        let enabled = self.setting_monitor_all_hosts
+            || self
+                .connections
+                .iter()
+                .any(|c| c.id == conn_id && c.monitor_enabled);
         if !enabled {
             return self.monitor_opt_in(conn_id);
         }

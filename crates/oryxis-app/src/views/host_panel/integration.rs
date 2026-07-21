@@ -49,61 +49,82 @@ impl Oryxis {
         if !is_ssh || !self.setting_host_monitoring {
             return empty();
         }
-        self.panel_nav_slot(
-            crate::keynav::RowAction::activate(Message::Editor(
-                EditorMessage::EditorToggleMonitorEnabled,
-            )),
-            8.0,
-            container(
-                dir_row(vec![
-                    iced_fonts::lucide::activity()
-                        .size(14)
-                        .color(OryxisColors::t().text_muted)
-                        .into(),
-                    Space::new().width(10).into(),
-                    text(t("monitor_enable_host"))
-                        .size(13)
-                        .color(OryxisColors::t().text_secondary)
-                        .into(),
-                    Space::new().width(Length::Fill).into(),
-                    {
-                        let on = self.editor_form.monitor_enabled;
-                        let bg = if on {
-                            OryxisColors::t().success
-                        } else {
-                            OryxisColors::t().bg_hover
-                        };
-                        let fg = crate::theme::contrast_text_for(bg);
-                        button(
-                            text(if on {
-                                crate::i18n::t("toggle_on")
-                            } else {
-                                crate::i18n::t("toggle_off")
-                            })
-                            .size(12)
-                            .color(fg),
-                        )
-                        .on_press(Message::Editor(
-                            EditorMessage::EditorToggleMonitorEnabled,
-                        ))
-                        .style(move |_theme, _status| button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border {
-                                radius: Radius::from(4.0),
-                                ..Default::default()
-                            },
-                            text_color: fg,
-                            ..Default::default()
-                        })
-                        .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
-                        .into()
-                    },
-                ])
-                .align_y(iced::Alignment::Center),
-            )
-            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 })
-            .into(),
+        // "Enable for all hosts" forces this host on: the toggle renders
+        // locked (no press, muted "On", no keyboard slot) with a hint that
+        // it is controlled globally, so the state is honest but the user
+        // isn't led to click a control that does nothing.
+        let locked = self.setting_monitor_all_hosts;
+        let on = locked || self.editor_form.monitor_enabled;
+
+        let toggle: Element<'_, Message> = {
+            let bg = if on {
+                OryxisColors::t().success
+            } else {
+                OryxisColors::t().bg_hover
+            };
+            let fg = crate::theme::contrast_text_for(bg);
+            let label = text(if on {
+                crate::i18n::t("toggle_on")
+            } else {
+                crate::i18n::t("toggle_off")
+            })
+            .size(12)
+            .color(if locked { crate::theme::mix(fg, bg, 0.35) } else { fg });
+            let mut btn = button(label)
+                .style(move |_theme, _status| {
+                    // A locked toggle desaturates toward the panel so it
+                    // reads as "not editable here".
+                    let shown = if locked { Color { a: 0.5, ..bg } } else { bg };
+                    button::Style {
+                        background: Some(Background::Color(shown)),
+                        border: Border { radius: Radius::from(4.0), ..Default::default() },
+                        text_color: fg,
+                        ..Default::default()
+                    }
+                })
+                .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 });
+            if !locked {
+                btn = btn.on_press(Message::Editor(EditorMessage::EditorToggleMonitorEnabled));
+            }
+            btn.into()
+        };
+
+        let label_text = if locked {
+            crate::i18n::t("monitor_enable_host_all")
+        } else {
+            crate::i18n::t("monitor_enable_host")
+        };
+        let row = container(
+            dir_row(vec![
+                iced_fonts::lucide::activity()
+                    .size(14)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                Space::new().width(10).into(),
+                text(label_text)
+                    .size(13)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+                Space::new().width(Length::Fill).into(),
+                toggle,
+            ])
+            .align_y(iced::Alignment::Center),
         )
+        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 });
+
+        // A locked row is not a keyboard stop (nothing to activate);
+        // otherwise it records as usual.
+        if locked {
+            row.into()
+        } else {
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::Editor(
+                    EditorMessage::EditorToggleMonitorEnabled,
+                )),
+                8.0,
+                row.into(),
+            )
+        }
     }
 
     pub(super) fn hp_rd_block(&self, is_rd: bool) -> Element<'_, Message> {

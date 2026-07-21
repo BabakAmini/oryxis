@@ -1240,6 +1240,11 @@ pub struct Oryxis {
     /// defaults (the status-bar segment). Set once on first enable so a
     /// later off/on can't clobber the user's own choices.
     pub(crate) setting_host_monitoring_seeded: bool,
+    /// "Enable for all hosts" (issue #83): when on, every host with a
+    /// live session is monitored and the per-host editor toggle renders
+    /// locked-on. When off, the per-host opt-in decides. The effective
+    /// per-host value is `setting_monitor_all_hosts || conn.monitor_enabled`.
+    pub(crate) setting_monitor_all_hosts: bool,
     /// Vault navigation orientation: `"horizontal"` (default) renders the
     /// sub-sections as a pill strip beneath the top bar; `"vertical"`
     /// renders them as an icon rail on the left of the vault content. The

@@ -70,6 +70,13 @@ impl Oryxis {
                     self.monitor_ports_open = false;
                 }
             }
+            SettingsMessage::SettingToggleMonitorAllHosts => {
+                self.setting_monitor_all_hosts = !self.setting_monitor_all_hosts;
+                self.persist_setting(
+                    "monitor_all_hosts",
+                    if self.setting_monitor_all_hosts { "true" } else { "false" },
+                );
+            }
             SettingsMessage::SettingToggleTerminalSidebarLeft => {
                 self.setting_terminal_sidebar_left = !self.setting_terminal_sidebar_left;
                 self.persist_setting(

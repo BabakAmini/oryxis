@@ -175,6 +175,9 @@ impl Oryxis {
         if self.sftp_enabled {
             items.push(("SFTP", S::Sftp));
         }
+        if self.setting_host_monitoring {
+            items.push((t("settings_section_monitoring"), S::Monitoring));
+        }
         if self.sync.enabled {
             items.push((t("sync"), S::Sync));
         }

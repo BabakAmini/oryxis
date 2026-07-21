@@ -584,6 +584,7 @@ impl Oryxis {
                 setting_side_full_height: false,
                 setting_host_monitoring: false,
                 setting_host_monitoring_seeded: false,
+                setting_monitor_all_hosts: false,
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who
                 // never persisted `layout_mode` also fall through to
