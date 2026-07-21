@@ -44,10 +44,54 @@ impl Oryxis {
                 ..Default::default()
             });
 
-        let mut items: Vec<Element<'_, Message>> = vec![
-            text(status_text).size(12).color(status_color).into(),
-            Space::new().width(Length::Fill).into(),
-        ];
+        // The connection text is opt-out (issue #83 follow-up): hiding it
+        // declutters the bar and keeps the host name out of screenshots.
+        let mut items: Vec<Element<'_, Message>> = Vec::new();
+        if self.setting_status_show_connection {
+            items.push(text(status_text).size(12).color(status_color).into());
+        }
+        items.push(Space::new().width(Length::Fill).into());
+
+        // Terminal-status segments read from the focused pane: latency
+        // (the SSH RTT probe), grid size and cwd. Each is off by default
+        // and individually toggleable, so the bar only carries what the
+        // user asked for. Muted labels, so they read as ambient info.
+        if let Some(pane) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active()) {
+            if self.setting_status_show_latency
+                && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
+                && let Some(rtt) = ssh.net_quality().last_rtt
+            {
+                items.push(vital(
+                    crate::i18n::t("status_latency"),
+                    format!("{} ms", rtt.as_millis()),
+                    OryxisColors::t().text_secondary,
+                ));
+                items.push(Space::new().width(12).into());
+            }
+            if self.setting_status_show_dimensions
+                && let Ok(term) = pane.terminal.lock()
+            {
+                let (c, r) = (term.cols(), term.rows());
+                if c > 0 && r > 0 {
+                    items.push(vital(
+                        crate::i18n::t("status_dimensions"),
+                        format!("{c}×{r}"),
+                        OryxisColors::t().text_secondary,
+                    ));
+                    items.push(Space::new().width(12).into());
+                }
+            }
+            if self.setting_status_show_cwd
+                && let Some(cwd) = pane.cwd.as_deref().filter(|c| !c.is_empty())
+            {
+                items.push(vital(
+                    crate::i18n::t("status_cwd"),
+                    cwd.to_string(),
+                    OryxisColors::t().text_secondary,
+                ));
+                items.push(Space::new().width(12).into());
+            }
+        }
         // Hybrid tab mode segment (issue #61): redundant with the tab's
         // own glyph on purpose, the status bar is optional
         // (`show_status_bar`), so it can carry a switch but never THE
@@ -163,12 +207,16 @@ impl Oryxis {
             ));
             items.push(Space::new().width(10).into());
         }
-        items.push(
-            text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
-                .size(12)
-                .color(OryxisColors::t().text_muted)
-                .into(),
-        );
+        // The version is opt-out too; hidden it leaves the trailing edge
+        // clean.
+        if self.setting_status_show_version {
+            items.push(
+                text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+            );
+        }
         let bar = container(
             crate::widgets::dir_row(items)
                 .align_y(iced::Alignment::Center)

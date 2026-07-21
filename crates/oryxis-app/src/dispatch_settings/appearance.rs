@@ -26,6 +26,26 @@ impl Oryxis {
                     if self.setting_show_status_bar { "true" } else { "false" },
                 );
             }
+            SettingsMessage::SettingToggleStatusVersion => {
+                self.setting_status_show_version = !self.setting_status_show_version;
+                self.persist_setting("status_show_version", if self.setting_status_show_version { "true" } else { "false" });
+            }
+            SettingsMessage::SettingToggleStatusConnection => {
+                self.setting_status_show_connection = !self.setting_status_show_connection;
+                self.persist_setting("status_show_connection", if self.setting_status_show_connection { "true" } else { "false" });
+            }
+            SettingsMessage::SettingToggleStatusLatency => {
+                self.setting_status_show_latency = !self.setting_status_show_latency;
+                self.persist_setting("status_show_latency", if self.setting_status_show_latency { "true" } else { "false" });
+            }
+            SettingsMessage::SettingToggleStatusDimensions => {
+                self.setting_status_show_dimensions = !self.setting_status_show_dimensions;
+                self.persist_setting("status_show_dimensions", if self.setting_status_show_dimensions { "true" } else { "false" });
+            }
+            SettingsMessage::SettingToggleStatusCwd => {
+                self.setting_status_show_cwd = !self.setting_status_show_cwd;
+                self.persist_setting("status_show_cwd", if self.setting_status_show_cwd { "true" } else { "false" });
+            }
             SettingsMessage::SettingToggleMonitorStatusBar => {
                 self.setting_monitor_status_bar = !self.setting_monitor_status_bar;
                 self.persist_setting(

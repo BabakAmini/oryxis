@@ -450,6 +450,24 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("show_status_bar") {
                 self.setting_show_status_bar = v == "true";
             }
+            for (key, field) in [
+                ("status_show_version", 0usize),
+                ("status_show_connection", 1),
+                ("status_show_latency", 2),
+                ("status_show_dimensions", 3),
+                ("status_show_cwd", 4),
+            ] {
+                if let Ok(Some(v)) = vault.get_setting(key) {
+                    let on = v == "true";
+                    match field {
+                        0 => self.setting_status_show_version = on,
+                        1 => self.setting_status_show_connection = on,
+                        2 => self.setting_status_show_latency = on,
+                        3 => self.setting_status_show_dimensions = on,
+                        _ => self.setting_status_show_cwd = on,
+                    }
+                }
+            }
             if let Ok(Some(v)) = vault.get_setting("terminal_sidebar_side") {
                 self.setting_terminal_sidebar_left = v == "left";
             }

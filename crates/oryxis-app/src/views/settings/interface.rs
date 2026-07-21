@@ -353,11 +353,51 @@ impl Oryxis {
         // Status bar card: its own group with a live preview below (the
         // toggles used to hide inside the Top bar card, where "Show
         // status bar" read as a top-bar knob).
-        let status_bar_col = column![self.nav_toggle_row(
+        let mut status_bar_col = column![self.nav_toggle_row(
             crate::i18n::t("show_status_bar"),
             self.setting_show_status_bar,
             Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
         )];
+        // Per-element visibility, shown only while the bar itself is on
+        // (moot otherwise): connection text, version, and the optional
+        // latency / terminal-size / cwd segments.
+        if self.setting_show_status_bar {
+            for (label, on, msg) in [
+                (
+                    "status_show_connection",
+                    self.setting_status_show_connection,
+                    SettingsMessage::SettingToggleStatusConnection,
+                ),
+                (
+                    "status_show_version",
+                    self.setting_status_show_version,
+                    SettingsMessage::SettingToggleStatusVersion,
+                ),
+                (
+                    "status_show_latency",
+                    self.setting_status_show_latency,
+                    SettingsMessage::SettingToggleStatusLatency,
+                ),
+                (
+                    "status_show_dimensions",
+                    self.setting_status_show_dimensions,
+                    SettingsMessage::SettingToggleStatusDimensions,
+                ),
+                (
+                    "status_show_cwd",
+                    self.setting_status_show_cwd,
+                    SettingsMessage::SettingToggleStatusCwd,
+                ),
+            ] {
+                status_bar_col = status_bar_col
+                    .push(Space::new().height(8))
+                    .push(self.nav_toggle_row(
+                        crate::i18n::t(label),
+                        on,
+                        Message::Settings(msg),
+                    ));
+            }
+        }
         let status_bar_section = panel_section(status_bar_col);
 
         // ── Theme ──

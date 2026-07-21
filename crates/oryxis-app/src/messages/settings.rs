@@ -188,6 +188,12 @@ pub enum SettingsMessage {
     ToggleKeywordHighlight,
     ToggleSmartContrast,
     SettingToggleShowStatusBar,
+    /// Status-bar element visibility toggles (issue #83 follow-up).
+    SettingToggleStatusVersion,
+    SettingToggleStatusConnection,
+    SettingToggleStatusLatency,
+    SettingToggleStatusDimensions,
+    SettingToggleStatusCwd,
     /// Settings > Terminal: flip the terminal sidebar to the left edge
     /// (issue #85).
     SettingToggleTerminalSidebarLeft,

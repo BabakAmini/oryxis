@@ -1074,6 +1074,15 @@ pub struct Oryxis {
     /// Oryxis version. Off in `view_main` simply skips rendering it,
     /// reclaiming the row for the active content area.
     pub(crate) setting_show_status_bar: bool,
+    /// Status-bar element visibility (issue #83 follow-up). Version and
+    /// the connection text exist today, so they default on (hiding is
+    /// opt-in); the new latency / dimensions / cwd segments default off
+    /// so an existing bar doesn't suddenly sprout segments.
+    pub(crate) setting_status_show_version: bool,
+    pub(crate) setting_status_show_connection: bool,
+    pub(crate) setting_status_show_latency: bool,
+    pub(crate) setting_status_show_dimensions: bool,
+    pub(crate) setting_status_show_cwd: bool,
     /// Dock the terminal sidebar (Chat / Snippets / Files / Monitor /
     /// Host config) on the LEFT of the terminal instead of the right
     /// (issue #85). A physical edge like the #87 tab-bar dock, so RTL
