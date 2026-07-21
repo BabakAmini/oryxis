@@ -150,6 +150,23 @@ pub(crate) fn fuzzy_score(haystack: &str, needle: &str) -> Option<i32> {
     Some(score)
 }
 
+/// Whitespace-tokenized AND over [`fuzzy_score`]: every query word
+/// must match somewhere (scores summed), in any order. A raw
+/// subsequence match treats the query's spaces as literal characters
+/// to find IN ORDER, so "copy on select" could never hit a label
+/// whose words appear differently ordered; per-token matching is
+/// what a human means by a multi-word query. Single-word queries are
+/// exactly [`fuzzy_score`].
+pub(crate) fn tokenized_fuzzy_score(haystack: &str, needle: &str) -> Option<i32> {
+    let mut total = 0i32;
+    let mut any = false;
+    for tok in needle.split_whitespace() {
+        total += fuzzy_score(haystack, tok)?;
+        any = true;
+    }
+    if any { Some(total) } else { Some(0) }
+}
+
 impl Oryxis {
     /// The visible section list, verbatim from the Settings sidebar
     /// (feature toggles hide sections), so the palette's "Settings: X"
@@ -278,6 +295,28 @@ impl Oryxis {
             });
         }
 
+        // ── Dynamic: individual settings (search index) ────────────────
+        // Only under a query: the empty-query listing stays the curated
+        // action catalog, the whole settings index would drown it.
+        // Activation (RevealSetting) opens the section and drops the
+        // setting's label into the sidebar search so it highlights +
+        // scrolls into view.
+        if !needle.is_empty() {
+            for (entry, section_label) in self.settings_search_results(query) {
+                candidates.push(Candidate {
+                    label: format!("{section_label}: {}", t(entry.label_key)),
+                    keywords: entry.keywords,
+                    hotkey: None,
+                    category: PaletteCategory::Settings,
+                    message: Message::Settings(SettingsMessage::RevealSetting(
+                        entry.section,
+                        entry.label_key,
+                    )),
+                    enabled: true,
+                });
+            }
+        }
+
         // ── Score + rank ───────────────────────────────────────────────
         let mut scored: Vec<(i32, Candidate)> = candidates
             .into_iter()
@@ -287,8 +326,8 @@ impl Oryxis {
                 }
                 // Label match wins; a keyword-only match still qualifies
                 // but scores lower (its own score minus a penalty).
-                let label_score = fuzzy_score(&c.label, &needle);
-                let kw_score = fuzzy_score(c.keywords, &needle).map(|s| s - 20);
+                let label_score = tokenized_fuzzy_score(&c.label, &needle);
+                let kw_score = tokenized_fuzzy_score(c.keywords, &needle).map(|s| s - 20);
                 let best = match (label_score, kw_score) {
                     (Some(a), Some(b)) => Some(a.max(b)),
                     (Some(a), None) => Some(a),
@@ -358,6 +397,21 @@ mod tests {
         // "split_pane_vertical".
         assert!(fuzzy_score("split_pane_vertical", "pane").is_some());
         assert!(fuzzy_score("split_pane_vertical", "vertical").is_some());
+    }
+
+    #[test]
+    fn tokenized_matches_words_in_any_order() {
+        // Every word must hit, order-free; the raw subsequence matcher
+        // would fail on the literal space + reordered words.
+        assert!(tokenized_fuzzy_score("Select text to copy & Right click", "copy select").is_some());
+        assert!(fuzzy_score("Select text to copy & Right click", "copy select").is_none());
+        // A word with no match anywhere still kills the candidate.
+        assert!(tokenized_fuzzy_score("Select text to copy", "copy zebra").is_none());
+        // Single-word queries degrade to the plain scorer.
+        assert_eq!(
+            tokenized_fuzzy_score("Lock vault", "lock"),
+            fuzzy_score("Lock vault", "lock"),
+        );
     }
 
     #[test]

@@ -85,7 +85,8 @@ impl Oryxis {
             &self.setting_update_channel,
             |v| Message::Update(UpdateMessage::SettingUpdateChannelChanged(v)),
         );
-        let channel_picker = self.settings_nav_slot(
+        let channel_picker = self.settings_nav_slot_labeled(
+            t("update_channel"),
             crate::keynav::RowAction::picker(channel_prev, channel_next),
             10.0,
             pick_list(
@@ -104,7 +105,8 @@ impl Oryxis {
             .style(crate::widgets::rounded_pick_list_style)
             .into(),
         );
-        let check_now_btn = self.settings_nav_slot(
+        let check_now_btn = self.settings_nav_slot_labeled(
+            t("check_for_updates_now"),
             crate::keynav::RowAction::activate(Message::Update(UpdateMessage::CheckForUpdateManual)),
             6.0,
             styled_button(

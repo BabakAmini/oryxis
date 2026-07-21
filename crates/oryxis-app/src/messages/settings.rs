@@ -132,6 +132,19 @@ pub enum SettingsMessage {
     /// Flip the reveal/eye state of a secret input field.
     ToggleSecretVisibility(crate::state::SecretField),
     ChangeSettingsSection(SettingsSection),
+    /// Settings sidebar search: the query text changed (live filter).
+    SettingsSearchChanged(String),
+    /// Enter / Shift+Enter in the search: step the find-next cursor to
+    /// the next (`true`) / previous (`false`) match, crossing sections,
+    /// and scroll it into view. Find-in-page navigation.
+    SettingsSearchStep(bool),
+    /// Activate a settings-search / palette result: open the section
+    /// and reveal (ring + scroll to) the row whose label key this is.
+    RevealSetting(SettingsSection, &'static str),
+    /// Internal follow-up to a search that changed the open section:
+    /// scrolls the top match into view via a layout-reading widget
+    /// operation (draw-independent, so no retry needed).
+    RevealSettingScroll,
     /// Pick the renderer backend ("auto" / "opengl" / "software").
     /// Persisted to the vault; takes effect on the next launch (the
     /// backend is fixed at startup via WGPU_BACKEND / ICED_BACKEND).

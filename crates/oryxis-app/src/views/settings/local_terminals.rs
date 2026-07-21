@@ -27,13 +27,15 @@ impl Oryxis {
             .align_x(dir_align_x())
             .into(),
             dir_row(vec![
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("rescan_terminals"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::RescanLocalTerminals)),
                     6.0,
                     styled_button(t("rescan_terminals"), Message::Settings(SettingsMessage::RescanLocalTerminals), c.bg_selected),
                 ),
                 Space::new().width(8).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("add_terminal"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::OpenLocalTerminalAddModal)),
                     6.0,
                     styled_button(t("add_terminal"), Message::Settings(SettingsMessage::OpenLocalTerminalAddModal), c.accent),
@@ -75,7 +77,8 @@ impl Oryxis {
         .width(280)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
-        let default_picker = self.settings_nav_slot(
+        let default_picker = self.settings_nav_slot_labeled(
+            t("default_terminal_behavior"),
             crate::keynav::RowAction::picker(def_prev, def_next),
             8.0,
             default_picker.into(),

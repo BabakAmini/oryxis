@@ -950,6 +950,15 @@ pub struct Oryxis {
 
     // Settings
     pub(crate) settings_section: SettingsSection,
+    /// Live query of the Settings sidebar search. Non-empty highlights
+    /// every matching row in the open section (JetBrains style), tags
+    /// the sections that contain matches, and auto-opens the best one;
+    /// cleared when the Settings view is left.
+    pub(crate) settings_search: String,
+    /// Find-next cursor: index into `settings_ordered_matches` of the
+    /// ACTIVE match (the one Enter / Shift+Enter last landed on, ringed
+    /// accent and scrolled into view). Reset when the query changes.
+    pub(crate) settings_active_match: usize,
     /// Renderer backend selection: "auto" (default), "opengl" (force
     /// wgpu's GL backend, still GPU), or "software" (tiny-skia / CPU).
     /// `main` translates this into `WGPU_BACKEND` / `ICED_BACKEND` at

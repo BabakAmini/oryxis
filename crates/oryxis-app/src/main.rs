@@ -92,6 +92,7 @@ mod ansi_render;
 mod session_group_helpers;
 mod palette;
 mod paste_guard;
+mod settings_index;
 mod remote_desktop;
 mod session_redact;
 mod sftp_helpers;

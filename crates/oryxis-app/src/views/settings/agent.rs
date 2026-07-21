@@ -22,7 +22,8 @@ impl Oryxis {
         if let Some(socket) = crate::agent_server::listener_socket_display()
             && self.agent.enabled
         {
-            let confirm = self.settings_nav_slot(
+            let confirm = self.settings_nav_slot_labeled(
+                t("agent_server_confirm"),
                 crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentConfirmToggled(
                     !self.agent.confirm,
                 ))),
@@ -35,7 +36,8 @@ impl Oryxis {
                 ),
             );
 
-            let allow_add = self.settings_nav_slot(
+            let allow_add = self.settings_nav_slot_labeled(
+                t("agent_allow_add"),
                 crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentAllowAddToggled(
                     !self.agent.allow_add,
                 ))),
@@ -52,7 +54,8 @@ impl Oryxis {
             // unix clients point SSH_AUTH_SOCK / IdentityAgent wherever
             // they like, so the row would be dead weight there.
             let openssh_pipe: Element<'_, Message> = if cfg!(windows) {
-                let toggle = self.settings_nav_slot(
+                let toggle = self.settings_nav_slot_labeled(
+                    t("agent_openssh_pipe"),
                     crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentOpensshPipeToggled(
                         !self.agent.openssh_pipe,
                     ))),
@@ -79,7 +82,8 @@ impl Oryxis {
             };
 
             let copy_btn = |label_key: &'static str, msg: Message| -> Element<'_, Message> {
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t(label_key),
                     crate::keynav::RowAction::activate(msg.clone()),
                     6.0,
                     styled_button(t(label_key), msg, OryxisColors::t().bg_selected),

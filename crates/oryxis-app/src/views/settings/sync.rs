@@ -87,7 +87,8 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
             .into()
         };
-        let host_pick = self.settings_nav_slot(
+        let host_pick = self.settings_nav_slot_labeled(
+            t("sftp_sync_host"),
             crate::keynav::RowAction::activate(Message::Sync(SyncMessage::SftpHostPickerOpen)),
             8.0,
             button(host_trigger_inner)
@@ -113,7 +114,8 @@ impl Oryxis {
                 })
                 .into(),
         );
-        let path_input = self.settings_nav_slot(
+        let path_input = self.settings_nav_slot_labeled(
+            t("sftp_sync_path"),
             crate::keynav::RowAction::input(iced::widget::Id::new("set-sync-sftp-path")),
             10.0,
             text_input(
@@ -128,7 +130,8 @@ impl Oryxis {
             .align_x(dir_align_x())
             .into(),
         );
-        let passphrase_input = self.settings_nav_slot(
+        let passphrase_input = self.settings_nav_slot_labeled(
+            t("sftp_sync_passphrase"),
             crate::keynav::RowAction::input(iced::widget::Id::new(
                 "set-sync-sftp-passphrase",
             )),
@@ -233,7 +236,8 @@ impl Oryxis {
         .text_size(13)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
-        let transport_row = self.settings_nav_slot(
+        let transport_row = self.settings_nav_slot_labeled(
+            t("sync_transport_field"),
             crate::keynav::RowAction::picker(transport_prev, transport_next),
             8.0,
             dir_row(vec![
@@ -304,7 +308,8 @@ impl Oryxis {
         .text_size(13)
         .padding(10)
         .style(crate::widgets::rounded_pick_list_style);
-        let mode_row = self.settings_nav_slot(
+        let mode_row = self.settings_nav_slot_labeled(
+            t("sync_mode"),
             crate::keynav::RowAction::picker(mode_prev, mode_next),
             8.0,
             dir_row(vec![
@@ -348,7 +353,8 @@ impl Oryxis {
                 let sync_btn =
                     styled_button_opt(label, msg.clone(), OryxisColors::t().accent);
                 let sync_btn: Element<'_, Message> = if let Some(m) = msg {
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("sync_now"),
                         crate::keynav::RowAction::activate(m),
                         6.0,
                         sync_btn,
@@ -364,7 +370,8 @@ impl Oryxis {
                 // future in dispatch; the click drops the QUIC
                 // connection immediately.
                 let action_btn = if self.sync.in_progress {
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("sync_now"),
                         crate::keynav::RowAction::activate(Message::Sync(SyncMessage::CancelInProgress)),
                         6.0,
                         styled_button(
@@ -374,7 +381,8 @@ impl Oryxis {
                         ),
                     )
                 } else {
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("sync_now"),
                         crate::keynav::RowAction::activate(Message::Sync(SyncMessage::Now)),
                         6.0,
                         styled_button(
@@ -454,7 +462,8 @@ impl Oryxis {
     /// `sync_pairing.state`) and the paired-devices list.
     fn sync_devices_card(&self) -> Element<'_, Message> {
         // Device info
-        let device_name_input = self.settings_nav_slot(
+        let device_name_input = self.settings_nav_slot_labeled(
+            t("sync_device_name"),
             crate::keynav::RowAction::input(iced::widget::Id::new(
                 "set-sync-device-name",
             )),
@@ -488,7 +497,8 @@ impl Oryxis {
         match self.sync.pairing.state {
             crate::state::SyncPairingState::Idle => {
                 pairing_section = pairing_section.push(dir_row(vec![
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("sync_host_pairing"),
                         crate::keynav::RowAction::activate(Message::Sync(SyncMessage::StartPairing)),
                         6.0,
                         styled_button(
@@ -498,7 +508,8 @@ impl Oryxis {
                         ),
                     ),
                     Space::new().width(8).into(),
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("sync_join_pairing"),
                         crate::keynav::RowAction::activate(
                             Message::Sync(SyncMessage::JoinPairingRequested),
                         ),
@@ -787,7 +798,8 @@ impl Oryxis {
     fn sync_relay_wizard_card(&self) -> iced::widget::Column<'_, Message> {
         let w = &self.sync.relay_wizard;
         let mut wizard_col: iced::widget::Column<'_, Message> =
-            column![self.settings_nav_slot(
+            column![self.settings_nav_slot_labeled(
+                t("sync_wizard_button"),
                 crate::keynav::RowAction::activate(Message::Sync(SyncMessage::WizardToggle)),
                 6.0,
                 styled_button(
@@ -993,7 +1005,8 @@ impl Oryxis {
     /// and listen-port inputs, followed by the relay wizard.
     fn sync_advanced_card(&self) -> Element<'_, Message> {
         // Advanced
-        let signaling_input = self.settings_nav_slot(
+        let signaling_input = self.settings_nav_slot_labeled(
+            t("sync_signaling_url"),
             crate::keynav::RowAction::input(iced::widget::Id::new(
                 "set-sync-signaling-url",
             )),
@@ -1009,9 +1022,12 @@ impl Oryxis {
         // Keyboard rows (audit fix: this field recorded
         // nothing): the field, then its reveal eye.
         let signaling_token_idx = self
-            .settings_nav_record(crate::keynav::RowAction::input(
-                iced::widget::Id::new("set-sync-signaling-token"),
-            ));
+            .settings_nav_record_labeled(
+                t("sync_signaling_token"),
+                crate::keynav::RowAction::input(
+                    iced::widget::Id::new("set-sync-signaling-token"),
+                ),
+            );
         let signaling_token_input = self.settings_nav_ring_at(
             signaling_token_idx,
             10.0,
@@ -1042,7 +1058,8 @@ impl Oryxis {
             .width(300)
             .into(),
         );
-        let relay_input = self.settings_nav_slot(
+        let relay_input = self.settings_nav_slot_labeled(
+            t("sync_relay_url"),
             crate::keynav::RowAction::input(iced::widget::Id::new("set-sync-relay-url")),
             10.0,
             text_input(crate::i18n::t("sync_relay_optional"), &self.sync.relay_url)
@@ -1053,7 +1070,8 @@ impl Oryxis {
                 .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                 .into(),
         );
-        let port_input = self.settings_nav_slot(
+        let port_input = self.settings_nav_slot_labeled(
+            t("sync_listen_port"),
             crate::keynav::RowAction::input(iced::widget::Id::new(
                 "set-sync-listen-port",
             )),

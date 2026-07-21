@@ -303,7 +303,7 @@ pub(crate) enum SyncPairingState {
     Joining,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub(crate) enum SettingsSection {
     Terminal,
     /// SSH connection behaviour shared across hosts: keepalive

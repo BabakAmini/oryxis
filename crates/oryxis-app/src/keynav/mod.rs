@@ -29,7 +29,7 @@ mod tests;
 
 use std::cell::RefCell;
 
-pub(crate) use slots::{ModalNavState, ModalSurface, RowAction, SidebarRow};
+pub(crate) use slots::{ModalNavState, ModalSurface, RowAction, SidebarRow, SETTINGS_SCROLL_TARGET_ID};
 
 /// The vault-area focus zones, in Tab-cycle order. Search is "zone
 /// zero" and is represented by `KeyNavState::focus == None`.
@@ -162,6 +162,25 @@ pub(crate) struct KeyNavState {
     /// Settings content: the `RowAction` behind each recorded
     /// `NavItem::SettingsRow`, parallel to `content_rows`.
     pub(crate) settings_row_actions: RefCell<Vec<RowAction>>,
+    /// Settings search: parallel to `settings_row_actions`, `true` for
+    /// each row whose label matches the active sidebar-search query.
+    /// A matched row draws the persistent amber highlight (JetBrains
+    /// style) in `settings_nav_ring_at`. Recorded per-frame.
+    pub(crate) settings_row_highlight: RefCell<Vec<bool>>,
+    /// Settings search: the visible labels of the rows that match the
+    /// active query IN THE ACTIVE SECTION, filled by the sidebar
+    /// render (which runs before the content). The content helpers
+    /// test their label against this to decide the highlight.
+    pub(crate) settings_match_labels: RefCell<Vec<&'static str>>,
+    /// The visible label of the ACTIVE match (find-next cursor),
+    /// filled by the sidebar render from `settings_active_match`. The
+    /// content row whose label equals this gets the accent "current"
+    /// ring + becomes the scroll-into-view anchor. `None` outside search.
+    pub(crate) settings_active_label: std::cell::Cell<Option<&'static str>>,
+    /// Index into `settings_row_actions` of the active-match row this
+    /// frame, so `settings_nav_ring_at` marks exactly that row (with
+    /// `report_container_id`) as the scroll-into-view anchor.
+    pub(crate) settings_first_match_idx: std::cell::Cell<Option<usize>>,
     /// Generic content actions: the `RowAction` behind each recorded
     /// `NavItem::ContentAction` (dynamic cloud-group task list).
     pub(crate) content_actions: RefCell<Vec<RowAction>>,

@@ -139,6 +139,213 @@ pub(crate) fn bounds_reporter<'a, Message: 'a>(
     })
 }
 
+/// Transparent decorator that announces its laid-out bounds under `id`
+/// via the standard `container()` operation hook during `operate` (NOT
+/// draw). A scroll-into-view operation can then find the row's layout
+/// position even when it is scrolled far off-screen: `operate` traverses
+/// the whole widget tree, while `draw` (and thus `bounds_reporter`) is
+/// culled per child against the viewport, so the draw path can never see
+/// an off-screen row. Everything except `operate` delegates to the child,
+/// so it is layout- and paint-transparent.
+pub(crate) fn report_container_id<'a, Message: 'a>(
+    id: &'static str,
+    content: impl Into<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    use iced::advanced::widget::{tree, Id, Operation, Tree, Widget};
+    use iced::advanced::{layout, mouse, overlay, renderer, Layout, Shell};
+    use iced::{Event, Length as L, Rectangle, Size, Vector};
+
+    struct ReportId<'a, Message> {
+        content: Element<'a, Message>,
+        id: &'static str,
+    }
+
+    impl<Message> Widget<Message, Theme, iced::Renderer> for ReportId<'_, Message> {
+        fn tag(&self) -> tree::Tag {
+            self.content.as_widget().tag()
+        }
+        fn state(&self) -> tree::State {
+            self.content.as_widget().state()
+        }
+        fn diff(&mut self, tree: &mut Tree) {
+            self.content.as_widget_mut().diff(tree);
+        }
+        fn size(&self) -> Size<L> {
+            self.content.as_widget().size()
+        }
+        fn layout(
+            &mut self,
+            tree: &mut Tree,
+            renderer: &iced::Renderer,
+            limits: &layout::Limits,
+        ) -> layout::Node {
+            self.content.as_widget_mut().layout(tree, renderer, limits)
+        }
+        fn draw(
+            &self,
+            tree: &Tree,
+            renderer: &mut iced::Renderer,
+            theme: &Theme,
+            style: &renderer::Style,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+        ) {
+            self.content
+                .as_widget()
+                .draw(tree, renderer, theme, style, layout, cursor, viewport);
+        }
+        fn operate(
+            &mut self,
+            tree: &mut Tree,
+            layout: Layout<'_>,
+            renderer: &iced::Renderer,
+            operation: &mut dyn Operation,
+        ) {
+            operation.container(Some(&Id::new(self.id)), layout.bounds());
+            self.content
+                .as_widget_mut()
+                .operate(tree, layout, renderer, operation);
+        }
+        fn update(
+            &mut self,
+            tree: &mut Tree,
+            event: &Event,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            renderer: &iced::Renderer,
+            shell: &mut Shell<'_, Message>,
+            viewport: &Rectangle,
+        ) {
+            self.content.as_widget_mut().update(
+                tree, event, layout, cursor, renderer, shell, viewport,
+            );
+        }
+        fn mouse_interaction(
+            &self,
+            tree: &Tree,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+            renderer: &iced::Renderer,
+        ) -> mouse::Interaction {
+            self.content
+                .as_widget()
+                .mouse_interaction(tree, layout, cursor, viewport, renderer)
+        }
+        fn overlay<'b>(
+            &'b mut self,
+            tree: &'b mut Tree,
+            layout: Layout<'b>,
+            renderer: &iced::Renderer,
+            viewport: &Rectangle,
+            translation: Vector,
+        ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+            self.content
+                .as_widget_mut()
+                .overlay(tree, layout, renderer, viewport, translation)
+        }
+    }
+
+    Element::new(ReportId {
+        content: content.into(),
+        id,
+    })
+}
+
+/// Scroll the row marked with `target_id` (via [`report_container_id`])
+/// to `margin` px below the top of the scrollable `scroll_id`. Runs as a
+/// two-pass widget operation: pass one reads the row's and the content's
+/// layout tops during `operate` (which sees every widget, off-screen
+/// included), pass two sets the scrollable's absolute offset. No draw /
+/// timing dependency, unlike a bounds-cell estimate.
+pub(crate) fn scroll_into_view_task(
+    scroll_id: &'static str,
+    target_id: &'static str,
+    margin: f32,
+) -> iced::Task<crate::app::Message> {
+    use iced::advanced::widget::operation::scrollable::{AbsoluteOffset, Scrollable};
+    use iced::advanced::widget::operation::Outcome;
+    use iced::advanced::widget::{Id, Operation};
+    use iced::{Rectangle, Vector};
+
+    struct Measure {
+        scroll_id: Id,
+        target_id: Id,
+        margin: f32,
+        content_top: Option<f32>,
+        row_top: Option<f32>,
+    }
+    impl Operation for Measure {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+        fn container(&mut self, id: Option<&Id>, bounds: Rectangle) {
+            if id == Some(&self.target_id) {
+                self.row_top = Some(bounds.y);
+            }
+        }
+        fn scrollable(
+            &mut self,
+            id: Option<&Id>,
+            _bounds: Rectangle,
+            content_bounds: Rectangle,
+            _translation: Vector,
+            _state: &mut dyn Scrollable,
+        ) {
+            if id == Some(&self.scroll_id) {
+                self.content_top = Some(content_bounds.y);
+            }
+        }
+        fn finish(&self) -> Outcome<()> {
+            match (self.content_top, self.row_top) {
+                (Some(ct), Some(rt)) => Outcome::Chain(Box::new(DoScroll {
+                    scroll_id: self.scroll_id.clone(),
+                    // content_top is the (translated) content origin, so
+                    // row_top - content_top is the row's offset within
+                    // the content; place it `margin` below the top.
+                    target: (rt - ct - self.margin).max(0.0),
+                })),
+                _ => Outcome::None,
+            }
+        }
+    }
+
+    struct DoScroll {
+        scroll_id: Id,
+        target: f32,
+    }
+    impl Operation for DoScroll {
+        fn traverse(&mut self, operate: &mut dyn FnMut(&mut dyn Operation)) {
+            operate(self);
+        }
+        fn scrollable(
+            &mut self,
+            id: Option<&Id>,
+            _bounds: Rectangle,
+            _content_bounds: Rectangle,
+            _translation: Vector,
+            state: &mut dyn Scrollable,
+        ) {
+            if id == Some(&self.scroll_id) {
+                state.scroll_to(AbsoluteOffset {
+                    x: None,
+                    y: Some(self.target),
+                });
+            }
+        }
+    }
+
+    iced::advanced::widget::operate(Measure {
+        scroll_id: Id::new(scroll_id),
+        target_id: Id::new(target_id),
+        margin,
+        content_top: None,
+        row_top: None,
+    })
+    .discard()
+}
+
 /// Wraps `content` (a terminal pane canvas) and, while `enabled` is true,
 /// asks the runtime to turn the OS IME on for this surface. The terminal is
 /// an `iced` canvas, not a `text_input`, so nothing in its widget tree ever

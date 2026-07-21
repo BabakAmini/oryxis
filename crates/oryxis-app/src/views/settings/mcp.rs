@@ -46,7 +46,8 @@ impl Oryxis {
             dir_row(vec![
                 text(crate::i18n::t("mcp_server_desc")).size(11).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(Length::Fill).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("mcp_setup_guide"),
                     crate::keynav::RowAction::activate(if self.mcp.show_info {
                         Message::Mcp(McpMessage::HideMcpInfo)
                     } else {
@@ -362,7 +363,8 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
         ));
     }
     token_items.push(Space::new().width(6).into());
-    token_items.push(app.settings_nav_slot(
+    token_items.push(app.settings_nav_slot_labeled(
+        crate::i18n::t("mcp_token_regenerate"),
         crate::keynav::RowAction::activate(Message::Mcp(McpMessage::RegenerateMcpToken)),
         6.0,
         token_action_btn(
@@ -565,7 +567,8 @@ fn mcp_info_panel(app: &crate::app::Oryxis) -> Element<'_, Message> {
     info_col = info_col
         .push(Space::new().height(12))
         .push(crate::widgets::dir_row(vec![
-            app.settings_nav_slot(
+            app.settings_nav_slot_labeled(
+                crate::i18n::t("mcp_install_claude"),
                 crate::keynav::RowAction::activate(Message::Mcp(McpMessage::InstallMcpConfig)),
                 6.0,
                 install_btn.into(),

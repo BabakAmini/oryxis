@@ -93,7 +93,8 @@ impl Oryxis {
             Space::new().height(10),
             report_block,
             Space::new().height(10),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("copy_env_info"),
                 crate::keynav::RowAction::activate(Message::CopyToClipboard(
                     env_report.clone(),
                 )),

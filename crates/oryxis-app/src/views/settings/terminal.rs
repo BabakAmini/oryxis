@@ -79,7 +79,8 @@ impl Oryxis {
         } else {
             configured.to_string()
         };
-        let browse = self.settings_nav_slot(
+        let browse = self.settings_nav_slot_labeled(
+            t("zmodem_download_dir"),
             crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
             8.0,
             crate::widgets::styled_button_opt(
@@ -221,7 +222,8 @@ impl Oryxis {
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
             dir_row(vec![
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("word_delimiters"),
                     crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-word-delimiters")),
                     10.0,
                     text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.setting_word_delimiters)
@@ -252,7 +254,8 @@ impl Oryxis {
             text(t("setting_scrollback_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("scrollback"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-scrollback")),
                 10.0,
                 text_input("10000", &self.setting_scrollback_rows)
@@ -368,7 +371,8 @@ impl Oryxis {
         // The +/- stepper maps naturally onto the picker action:
         // Left decreases, Right increases the font size.
         let font_size_block = column![
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("terminal_font_size"),
                 crate::keynav::RowAction::picker(
                     Some(Message::Settings(SettingsMessage::TerminalFontSizeDecrease)),
                     Some(Message::Settings(SettingsMessage::TerminalFontSizeIncrease)),
@@ -494,7 +498,8 @@ impl Oryxis {
             text(t("setting_font_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("terminal_font"),
                 crate::keynav::RowAction::picker(font_prev, font_next),
                 8.0,
                 pick_list(
@@ -592,12 +597,14 @@ impl Oryxis {
             ));
         }
         // "+ New custom theme" + "Import" cards last.
-        theme_cards.push(self.settings_nav_slot(
+        theme_cards.push(self.settings_nav_slot_labeled(
+            t("theme_new_custom"),
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeEditorNew)),
             10.0,
             crate::views::settings_themes::terminal_theme_add_card(),
         ));
-        theme_cards.push(self.settings_nav_slot(
+        theme_cards.push(self.settings_nav_slot_labeled(
+            t("theme_import"),
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeImportOpen)),
             10.0,
             crate::views::settings_themes::terminal_theme_import_card(),

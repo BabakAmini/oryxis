@@ -362,7 +362,8 @@ impl Oryxis {
         // button when a password exists; otherwise replace with
         // a muted note telling the user how to enable locking.
         let lock_btn: Element<'_, Message> = if self.vault_ui.has_user_password {
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("lock_vault"),
                 crate::keynav::RowAction::activate(Message::Vault(VaultMessage::LockVault)),
                 8.0,
                 button(
@@ -401,7 +402,8 @@ impl Oryxis {
         // controls only apply once a password exists; when it does, the
         // change form drops in below the button row when opened.
         let lock_row: Element<'_, Message> = if self.vault_ui.has_user_password {
-            let update_btn = self.settings_nav_slot(
+            let update_btn = self.settings_nav_slot_labeled(
+                t("update_password"),
                 crate::keynav::RowAction::activate(Message::Vault(VaultMessage::OpenChangeVaultPassword)),
                 8.0,
                 button(
@@ -449,7 +451,8 @@ impl Oryxis {
         // Built here, before the export/import card, so the keyboard
         // recording order matches the on-screen order.
         let auto_lock_field: Element<'_, Message> = if self.vault_ui.has_user_password {
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("auto_lock_minutes"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-security-auto-lock")),
                 10.0,
                 text_input("0", &self.setting_auto_lock_minutes)
@@ -551,7 +554,8 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted),
                 )
                 .push(Space::new().height(8))
-                .push(self.settings_nav_slot(
+                .push(self.settings_nav_slot_labeled(
+                    t("privacy_always_mask_label"),
                     crate::keynav::RowAction::input(iced::widget::Id::new(
                         "set-security-privacy-always",
                     )),
@@ -587,7 +591,8 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted),
                 )
                 .push(Space::new().height(8))
-                .push(self.settings_nav_slot(
+                .push(self.settings_nav_slot_labeled(
+                    t("privacy_never_mask_label"),
                     crate::keynav::RowAction::input(iced::widget::Id::new(
                         "set-security-privacy-never",
                     )),
@@ -690,7 +695,8 @@ impl Oryxis {
             text(t("setting_log_retention_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("log_retention_label"),
                 crate::keynav::RowAction::picker(retention_prev, retention_next),
                 8.0,
                 pick_list(
@@ -725,19 +731,22 @@ impl Oryxis {
     /// the two inside one panel.
     fn security_export_import_card(&self) -> iced::widget::Column<'_, Message> {
         // Export/Import section
-        let export_btn = self.settings_nav_slot(
+        let export_btn = self.settings_nav_slot_labeled(
+            t("export_vault"),
             crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportVault)),
             6.0,
             styled_button(crate::i18n::t("export_vault"), Message::Share(ShareMessage::ExportVault), OryxisColors::t().accent),
         );
-        let import_btn = self.settings_nav_slot(
+        let import_btn = self.settings_nav_slot_labeled(
+            t("import_vault"),
             crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportVault)),
             6.0,
             styled_button(crate::i18n::t("import_vault"), Message::Share(ShareMessage::ImportVault), OryxisColors::t().text_muted),
         );
         // Restore from a remote host. Export-to-SFTP is reached from
         // inside the export dialog (it needs the password first).
-        let import_sftp_btn = self.settings_nav_slot(
+        let import_sftp_btn = self.settings_nav_slot_labeled(
+            t("import_from_sftp"),
             crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportFromSftp)),
             6.0,
             styled_button(crate::i18n::t("import_from_sftp"), Message::Share(ShareMessage::ImportFromSftp), OryxisColors::t().text_muted),
@@ -1163,7 +1172,8 @@ impl Oryxis {
     /// inside the same panel. One-shot batch importer; no preview
     /// yet.
     fn security_ssh_import_card(&self) -> iced::widget::Column<'_, Message> {
-        let ssh_config_btn = self.settings_nav_slot(
+        let ssh_config_btn = self.settings_nav_slot_labeled(
+            t("import_ssh_config_btn"),
             crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportSshConfig)),
             6.0,
             styled_button(

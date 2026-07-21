@@ -35,7 +35,8 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("monitor_interval"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-monitor-interval")),
                 10.0,
                 text_input("5", &self.setting_monitor_interval)

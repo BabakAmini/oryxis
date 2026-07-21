@@ -42,6 +42,21 @@ pub(crate) fn select_ring_opt<'a>(
     radius: f32,
     color: Option<Color>,
 ) -> Element<'a, Message> {
+    select_ring_opt_outset(el, radius, color, 0.0)
+}
+
+/// [`select_ring_opt`] with an `outset`: the border is drawn that many
+/// px OUTSIDE the content bounds (and the corner radius grows to match),
+/// so a full-bleed row gets breathing room between its content and the
+/// ring without changing layout (still shape-stable). Used by the
+/// Settings search highlight, where a tight box on an edge-to-edge
+/// toggle row read as cramped.
+pub(crate) fn select_ring_opt_outset<'a>(
+    el: Element<'a, Message>,
+    radius: f32,
+    color: Option<Color>,
+    outset: f32,
+) -> Element<'a, Message> {
     use iced::advanced::widget::{tree, Operation, Tree, Widget};
     use iced::advanced::{layout, mouse, overlay, renderer, Layout, Renderer as _, Shell};
     use iced::{Event, Length as L, Rectangle, Size, Vector};
@@ -50,6 +65,7 @@ pub(crate) fn select_ring_opt<'a>(
         content: Element<'a, Message>,
         radius: f32,
         color: Option<Color>,
+        outset: f32,
     }
 
     impl Widget<Message, Theme, iced::Renderer> for SelectRing<'_> {
@@ -87,11 +103,19 @@ pub(crate) fn select_ring_opt<'a>(
                 .as_widget()
                 .draw(tree, renderer, theme, style, layout, cursor, viewport);
             if let Some(color) = self.color {
+                let b = layout.bounds();
+                let o = self.outset;
+                let bounds = Rectangle {
+                    x: b.x - o,
+                    y: b.y - o,
+                    width: b.width + 2.0 * o,
+                    height: b.height + 2.0 * o,
+                };
                 renderer.fill_quad(
                     renderer::Quad {
-                        bounds: layout.bounds(),
+                        bounds,
                         border: Border {
-                            radius: Radius::from(self.radius),
+                            radius: Radius::from(self.radius + o),
                             color,
                             width: 2.0,
                         },
@@ -156,6 +180,7 @@ pub(crate) fn select_ring_opt<'a>(
         content: el,
         radius,
         color,
+        outset,
     })
 }
 

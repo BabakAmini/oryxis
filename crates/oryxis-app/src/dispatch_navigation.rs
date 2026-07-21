@@ -49,6 +49,12 @@ impl Oryxis {
                 // Leaving the Logs view re-arms Privacy Mode masking so a
                 // revealed timeline doesn't stay exposed on the next visit.
                 self.privacy.revealed = false;
+                // The Settings sidebar search is scoped to the visit:
+                // coming back later starts from the plain section list,
+                // not a stale filtered rail.
+                if view != View::Settings {
+                    self.settings_search.clear();
+                }
                 self.active_view = view;
                 self.active_tab = None;
                 // Drop any keyboard selection when leaving / changing the

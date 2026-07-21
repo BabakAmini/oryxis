@@ -428,7 +428,8 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("settings_cloud_auto_refresh_interval"),
                     crate::keynav::RowAction::input(iced::widget::Id::new(
                         "set-cloud-refresh-interval",
                     )),
@@ -450,7 +451,8 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("settings_cloud_orphan_archive_days"),
                     crate::keynav::RowAction::input(iced::widget::Id::new(
                         "set-cloud-orphan-days",
                     )),

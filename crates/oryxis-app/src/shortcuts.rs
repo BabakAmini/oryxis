@@ -130,7 +130,11 @@ impl Oryxis {
             View::Terminal => self
                 .sftp_surface_visible()
                 .then(|| widget::Id::new("search-sftp-remote")),
-            View::Settings | View::KnownHosts => None,
+            // The Settings sidebar search is the view's "zone zero":
+            // Ctrl+F focuses it and Tab cycles Search → sections →
+            // content like any vault view.
+            View::Settings => Some(widget::Id::new("search-settings")),
+            View::KnownHosts => None,
         }
     }
 

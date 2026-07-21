@@ -85,6 +85,20 @@ impl Oryxis {
             return None;
         };
         use keyboard::key::Named;
+        // Settings search find-next: Enter / Shift+Enter cycle the
+        // matches (find-in-page), but only while the search box owns the
+        // keyboard (focus idle) and there is a query. When the user has
+        // Tabbed into the content (focus == Content), Enter activates the
+        // selected row instead, so this can't hijack it.
+        if in_settings
+            && self.keynav.focus.is_none()
+            && !self.settings_search.trim().is_empty()
+            && matches!(named, Named::Enter)
+        {
+            return Some(self.update(Message::Settings(SettingsMessage::SettingsSearchStep(
+                !modifiers.shift(),
+            ))));
+        }
         match named {
             Named::Tab => Some(self.keynav_cycle_zones(!modifiers.shift())),
             // Desktop convention: the Menu key (and Shift+F10) opens
@@ -195,8 +209,14 @@ impl Oryxis {
             // Narrow window: the search field is folded to an icon, so
             // focusing its id would no-op. Open the floating field
             // instead (it focuses itself); when it is already open,
-            // fall through to a plain focus.
-            let (search_collapsed, _) = self.toolbar_tiers();
+            // fall through to a plain focus. The tier math describes
+            // the VAULT toolbar; Settings has no toolbar and its
+            // sidebar search never folds, so it always plain-focuses.
+            let (search_collapsed, _) = if self.active_view == View::Settings {
+                (false, false)
+            } else {
+                self.toolbar_tiers()
+            };
             let floating_open = matches!(
                 self.overlay.as_ref().map(|o| &o.content),
                 Some(crate::state::OverlayContent::ToolbarSearch)

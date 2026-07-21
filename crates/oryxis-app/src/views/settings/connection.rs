@@ -150,7 +150,8 @@ impl Oryxis {
 
         // Enter toggles the collapse from the keyboard, same as clicking
         // the header.
-        let defaults_header = self.settings_nav_slot(
+        let defaults_header = self.settings_nav_slot_labeled(
+            t("new_connection_defaults"),
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ToggleDefaultsCollapsed)),
             6.0,
             defaults_header.into(),
@@ -165,7 +166,8 @@ impl Oryxis {
                 .push(dir_row(vec![
                     text(crate::i18n::t("port")).size(13).color(OryxisColors::t().text_secondary).into(),
                     Space::new().width(Length::Fill).into(),
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("port"),
                         crate::keynav::RowAction::input(iced::widget::Id::new("set-connection-default-port")),
                         10.0,
                         text_input("22", &self.setting_default_port)
@@ -179,7 +181,8 @@ impl Oryxis {
                 .push(dir_row(vec![
                     text(crate::i18n::t("host_keepalive")).size(13).color(OryxisColors::t().text_secondary).into(),
                     Space::new().width(Length::Fill).into(),
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("host_keepalive"),
                         crate::keynav::RowAction::input(iced::widget::Id::new("set-connection-default-keepalive")),
                         10.0,
                         text_input(&self.setting_keepalive_interval, &self.setting_default_keepalive)
@@ -202,7 +205,8 @@ impl Oryxis {
                 .push(dir_row(vec![
                     text(t("username")).size(13).color(OryxisColors::t().text_secondary).into(),
                     Space::new().width(Length::Fill).into(),
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("username"),
                         crate::keynav::RowAction::input(iced::widget::Id::new("set-connection-default-username")),
                         10.0,
                         text_input("", &self.setting_default_username)
@@ -242,7 +246,8 @@ impl Oryxis {
                 .width(Length::Fill)
                 .into(),
                 Space::new().width(8).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    t("env_vars"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DefaultAddEnvVar)),
                     4.0,
                     button(text("+").size(14).color(OryxisColors::t().text_primary))
@@ -309,7 +314,8 @@ impl Oryxis {
             text(t("setting_keepalive_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("keepalive_interval"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-connection-keepalive")),
                 10.0,
                 text_input("30", &self.setting_keepalive_interval)
@@ -332,7 +338,8 @@ impl Oryxis {
             Space::new().height(8),
             text(crate::i18n::t("max_reconnect_attempts")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("max_reconnect_attempts"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-connection-max-reconnect")),
                 10.0,
                 text_input("5", &self.setting_max_reconnect_attempts)

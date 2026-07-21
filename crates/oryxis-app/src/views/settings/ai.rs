@@ -29,7 +29,8 @@ impl Oryxis {
                 &current_info.display.to_string(),
                 |v| Message::Ai(AiMessage::AiProviderChanged(v)),
             );
-            let provider_pick: Element<'_, Message> = self.settings_nav_slot(
+            let provider_pick: Element<'_, Message> = self.settings_nav_slot_labeled(
+                t("provider"),
                 crate::keynav::RowAction::picker(prov_prev, prov_next),
                 10.0,
                 pick_list(
@@ -46,7 +47,8 @@ impl Oryxis {
                 .into(),
             );
 
-            let model_input: Element<'_, Message> = self.settings_nav_slot(
+            let model_input: Element<'_, Message> = self.settings_nav_slot_labeled(
+                t("model"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-model")),
                 10.0,
                 text_input(t("ai_model_placeholder"), &self.ai.model)
@@ -66,7 +68,8 @@ impl Oryxis {
             ];
 
             if current_info.kind == crate::ai::ProviderKind::Custom {
-                let url_input: Element<'_, Message> = self.settings_nav_slot(
+                let url_input: Element<'_, Message> = self.settings_nav_slot_labeled(
+                    t("api_url"),
                     crate::keynav::RowAction::input(iced::widget::Id::new("set-ai-url")),
                     10.0,
                     text_input("https://api.example.com/v1/chat/completions", &self.ai.api_url)
@@ -98,7 +101,7 @@ impl Oryxis {
             // the Custom API-URL row, so the rows record in visual
             // order.
             let key_row_idx = self
-                .settings_nav_record(crate::keynav::RowAction::input(
+                .settings_nav_record_labeled(t("api_key"), crate::keynav::RowAction::input(
                     iced::widget::Id::new("set-ai-key"),
                 ));
             let key_input: Element<'_, Message> = self.settings_nav_ring_at(

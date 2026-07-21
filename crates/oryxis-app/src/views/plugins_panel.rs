@@ -31,7 +31,8 @@ impl Oryxis {
                 .into(),
             Space::new().height(8).into(),
             panel_section(column![
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("ai_assistant"),
                     crate::keynav::RowAction::activate(Message::Ai(AiMessage::ToggleAiEnabled)),
                     8.0,
                     toggle_row_desc(
@@ -46,7 +47,8 @@ impl Oryxis {
                 // "Oryxis MCP Server" card below), so it's activated and
                 // managed there, and its server on/off lives in the MCP
                 // settings section that appears once the plugin is present.
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("sftp"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleSftpEnabled)),
                     8.0,
                     toggle_row_desc(
@@ -57,7 +59,8 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("sync"),
                     crate::keynav::RowAction::activate(Message::Sync(SyncMessage::ToggleEnabled)),
                     8.0,
                     toggle_row_desc(
@@ -68,7 +71,8 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("remote_desktop"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleRemoteDesktop)),
                     8.0,
                     toggle_row_desc(
@@ -83,7 +87,8 @@ impl Oryxis {
                 // whole subsystem hides until enabled here (the sidebar
                 // Monitor tab, status-bar segment, per-host opt-in and
                 // interval all appear only once this is on).
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("feature_monitoring"),
                     crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleHostMonitoring)),
                     8.0,
                     toggle_row_desc(
@@ -111,7 +116,8 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("plugin_action_check_updates"),
                     crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginCheckAllUpdates)),
                     6.0,
                     pill_button(
@@ -122,7 +128,8 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().width(14).into(),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("plugins_auto_update_global"),
                     crate::keynav::RowAction::activate(Message::Plugin(PluginMessage::PluginToggleGlobalAutoUpdate(
                         !self.plugins_auto_update_global,
                     ))),
@@ -334,7 +341,8 @@ impl Oryxis {
             return Space::new().into();
         }
 
-        let toggle = self.settings_nav_slot(
+        let toggle = self.settings_nav_slot_labeled(
+            crate::i18n::t("agent_server"),
             crate::keynav::RowAction::activate(Message::Agent(AgentMessage::AgentServerToggled(!self.agent.enabled))),
             8.0,
             toggle_row_desc(

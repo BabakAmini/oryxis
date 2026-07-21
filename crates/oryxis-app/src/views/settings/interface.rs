@@ -443,12 +443,14 @@ impl Oryxis {
                 ),
             ));
         }
-        cards.push(self.settings_nav_slot(
+        cards.push(self.settings_nav_slot_labeled(
+            t("theme_new_custom"),
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeEditorNew)),
             10.0,
             crate::views::settings_ui_themes::ui_theme_add_card(),
         ));
-        cards.push(self.settings_nav_slot(
+        cards.push(self.settings_nav_slot_labeled(
+            t("theme_import"),
             crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeImportOpen)),
             10.0,
             crate::views::settings_ui_themes::ui_theme_import_card(),

@@ -20,7 +20,8 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted),
             Space::new().height(8),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                t("transfer_parallelism"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-sftp-concurrency")),
                 10.0,
                 text_input("2", &self.setting_sftp_concurrency)
@@ -48,7 +49,8 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
                 Space::new().height(8),
-                self.settings_nav_slot(
+                self.settings_nav_slot_labeled(
+                    label,
                     crate::keynav::RowAction::input(iced::widget::Id::new(id)),
                     10.0,
                     text_input("0", value)
@@ -143,7 +145,8 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted),
                 Space::new().height(8),
                 dir_row(vec![
-                    self.settings_nav_slot(
+                    self.settings_nav_slot_labeled(
+                        t("setting_default_editor"),
                         crate::keynav::RowAction::input(iced::widget::Id::new("set-sftp-editor")),
                         10.0,
                         text_input(t("setting_default_editor_placeholder"), &self.setting_sftp_default_editor)

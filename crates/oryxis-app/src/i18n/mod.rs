@@ -333,8 +333,9 @@ pub fn t(key: &str) -> &'static str {
 
 /// English lookup, independent of the active-language global. Used by
 /// coverage tests that assert a key resolves (English is the table that
-/// always returns a value, `"???"` for an unknown key).
-#[cfg(test)]
+/// always returns a value, `"???"` for an unknown key) and by the
+/// Settings search, which matches queries against the English label in
+/// addition to the active language.
 pub(crate) fn en_lookup(key: &str) -> &'static str {
     en::lookup(key)
 }

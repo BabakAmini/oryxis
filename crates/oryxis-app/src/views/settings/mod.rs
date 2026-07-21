@@ -60,11 +60,43 @@ impl Oryxis {
             // enable/disable toggles live on the Plugins screen, not here.
             // The list (with its feature gating) is shared with the
             // command palette's "Settings: X" rows via this helper.
+            // Settings has no vault toolbar, so nothing re-records the
+            // toolbar zone here: clear it so Tab can't land on ghost
+            // buttons recorded by the previous vault view.
+            self.keynav_toolbar_reset();
             let items = self.settings_section_items();
-            // Record the visible section list for the keyboard router
-            // (the SubNav zone here): the set is dynamic (feature
-            // toggles hide sections), so it must come from this exact
-            // list, not the enum.
+            // Sidebar search over the settings index (JetBrains model):
+            // the section tree STAYS; a non-empty query dims sections
+            // with no hits, badges the ones that match, auto-opens the
+            // best (in the dispatch handler), and the open section's
+            // content highlights every matching row in place.
+            let results = self.settings_search_results(&self.settings_search);
+            let searching = !self.settings_search.trim().is_empty();
+            // Per-section hit counts drive the sidebar badges + dimming.
+            let mut counts: std::collections::HashMap<SettingsSection, usize> =
+                std::collections::HashMap::new();
+            for (entry, _) in &results {
+                *counts.entry(entry.section).or_insert(0) += 1;
+            }
+            // Hand the OPEN section's matching row labels to the content
+            // render (which runs after this block) so its rows can
+            // highlight. Value-compared, so `t(label_key)` must equal
+            // the row's own `t(...)` label (true for every index key).
+            *self.keynav.settings_match_labels.borrow_mut() = results
+                .iter()
+                .filter(|(e, _)| e.section == self.settings_section)
+                .map(|(e, _)| t(e.label_key))
+                .collect();
+            // Find-next cursor: the active match's label (accent ring +
+            // scroll anchor) and the "n/total" counter come from the
+            // document-ordered list.
+            let ordered = self.settings_ordered_matches(&self.settings_search);
+            self.keynav
+                .settings_active_label
+                .set(ordered.get(self.settings_active_match).map(|(_, l)| *l));
+            // Record the section list for the keyboard router (SubNav
+            // zone): dynamic set (feature toggles hide sections), so it
+            // comes from this exact list, not the enum.
             *self.keynav.subnav_items.borrow_mut() = items
                 .iter()
                 .map(|(_, s)| crate::keynav::NavItem::SettingsSection(*s))
@@ -73,13 +105,63 @@ impl Oryxis {
                 Some(crate::keynav::NavItem::SettingsSection(s)) => Some(s),
                 _ => None,
             };
+
+            let search = text_input(t("settings_search_placeholder"), &self.settings_search)
+                // Zone zero of the Settings view: Ctrl+F and the Tab
+                // cycle land here via `active_view_search_id`.
+                .id(iced::widget::Id::new("search-settings"))
+                .on_input(|v| Message::Settings(SettingsMessage::SettingsSearchChanged(v)))
+                .padding(Padding { top: 9.0, right: 12.0, bottom: 9.0, left: 12.0 })
+                .size(13)
+                .width(Length::Fill)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x());
+
             let mut col = column![]
                 .spacing(4)
                 .padding(Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 8.0 });
+            col = col.push(
+                container(search).padding(Padding { top: 0.0, right: 0.0, bottom: 2.0, left: 0.0 }),
+            );
+            // Find-in-page counter + hint: which match Enter is on and
+            // how many there are (Enter / Shift+Enter cycle them).
+            if searching && !ordered.is_empty() {
+                let pos = (self.settings_active_match % ordered.len()) + 1;
+                col = col.push(
+                    container(
+                        text(format!(
+                            "{pos}/{}  {}",
+                            ordered.len(),
+                            t("settings_search_nav_hint")
+                        ))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                    )
+                    .padding(Padding { top: 0.0, right: 16.0, bottom: 6.0, left: 4.0 }),
+                );
+            }
+            // Gibberish query: the tree gives no signal on its own, so
+            // say it plainly.
+            if searching && results.is_empty() {
+                col = col.push(
+                    container(
+                        text(t("settings_search_no_results"))
+                            .size(12)
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .width(Length::Fill)
+                    .align_x(dir_align_x())
+                    .padding(Padding { top: 4.0, right: 16.0, bottom: 8.0, left: 16.0 }),
+                );
+            }
 
             for (label, section) in items {
                 let is_active = self.settings_section == section;
                 let kb_selected = kb_sel == Some(section);
+                let hits = counts.get(&section).copied().unwrap_or(0);
+                // Dim non-matching sections while searching so the
+                // matches pop, JetBrains-style (the node stays clickable).
+                let dimmed = searching && hits == 0;
                 let bg = if is_active {
                     Color { a: 0.15, ..OryxisColors::t().accent }
                 } else {
@@ -87,11 +169,26 @@ impl Oryxis {
                 };
                 let fg = if is_active {
                     OryxisColors::t().accent
+                } else if dimmed {
+                    OryxisColors::t().text_muted
                 } else {
                     OryxisColors::t().text_secondary
                 };
+                let mut row_items: Vec<Element<'_, Message>> =
+                    vec![text(label).size(13).color(fg).into()];
+                if searching && hits > 0 {
+                    // Match-count badge: the tree's "this section
+                    // contains matches" signal.
+                    row_items.push(Space::new().width(Length::Fill).into());
+                    row_items.push(
+                        text(hits.to_string())
+                            .size(11)
+                            .color(OryxisColors::t().accent)
+                            .into(),
+                    );
+                }
                 let btn: Element<'_, Message> = button(
-                    container(text(label).size(13).color(fg))
+                    container(dir_row(row_items).align_y(iced::Alignment::Center))
                         .width(Length::Fill)
                         .align_x(crate::widgets::dir_align_x())
                         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 }),

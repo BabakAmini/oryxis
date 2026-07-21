@@ -521,6 +521,8 @@ impl Oryxis {
                 terminal_font_size: 14.0,
                 terminal_font_name: "SauceCodePro Nerd Font".to_string(),
                 settings_section: SettingsSection::Interface,
+                settings_search: String::new(),
+                settings_active_match: 0,
                 setting_renderer_backend: "auto".to_string(),
                 renderer_active: None,
                 setting_copy_on_select: true,

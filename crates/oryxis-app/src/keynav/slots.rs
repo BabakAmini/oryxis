@@ -13,6 +13,11 @@ use std::cell::RefCell;
 
 use crate::app::{Message, NavigationMessage};
 
+/// Widget id tagged onto the ACTIVE (find-next cursor) matched settings
+/// row so the scroll-into-view operation (`scroll_into_view_task`) can
+/// locate it even when it is scrolled off-screen.
+pub(crate) const SETTINGS_SCROLL_TARGET_ID: &str = "settings-scroll-target";
+
 /// One keyboard-actionable row/button recorded during view().
 ///
 /// `activate`: dispatched by Enter / Space. `prev` / `next`: fired by
@@ -427,21 +432,43 @@ impl crate::app::Oryxis {
     /// its actionable rows through `settings_nav_slot`.
     pub(crate) fn keynav_settings_reset(&self) {
         self.keynav.settings_row_actions.borrow_mut().clear();
+        self.keynav.settings_row_highlight.borrow_mut().clear();
         self.keynav.content_rows.borrow_mut().clear();
         *self.keynav.content_section_starts.borrow_mut() = vec![0];
+        // Re-derived every render from the freshest recording.
+        self.keynav.settings_first_match_idx.set(None);
     }
 
-    /// Record one Settings content row WITHOUT wrapping an element,
-    /// for call sites whose ring wrapper must be applied later than
-    /// the recording (an inner slot records during construction, e.g.
-    /// the password reveal eye inside its field). Pair with
-    /// [`Self::settings_nav_ring_at`].
-    pub(crate) fn settings_nav_record(&self, action: RowAction) -> usize {
+    /// Whether a settings row with this visible label matches the
+    /// active sidebar-search query. The set is filled per-frame by the
+    /// sidebar render (which runs before the content) from the active
+    /// section's ranked results, so this is a cheap value compare.
+    // `contains(&label)` doesn't type-check: the stored labels are
+    // `&'static str` while `label` is a shorter-lived `&str`.
+    #[allow(clippy::manual_contains)]
+    pub(crate) fn settings_search_highlight(&self, label: &str) -> bool {
+        self.keynav
+            .settings_match_labels
+            .borrow()
+            .iter()
+            .any(|l| *l == label)
+    }
+
+    /// Record one Settings content row, tracking whether it is a
+    /// search match (drives the amber highlight) and whether it is the
+    /// ACTIVE match (find-next cursor: accent ring + scroll anchor).
+    /// Read-only rows are simply not recorded, so arrows only stop on
+    /// things Enter/Space/Left/Right can act on.
+    fn settings_nav_record_hl(&self, action: RowAction, highlight: bool, active: bool) -> usize {
         let idx = {
             let mut actions = self.keynav.settings_row_actions.borrow_mut();
             actions.push(action);
             actions.len() - 1
         };
+        self.keynav.settings_row_highlight.borrow_mut().push(highlight);
+        if active && self.keynav.settings_first_match_idx.get().is_none() {
+            self.keynav.settings_first_match_idx.set(Some(idx));
+        }
         self.keynav
             .content_rows
             .borrow_mut()
@@ -449,10 +476,27 @@ impl crate::app::Oryxis {
         idx
     }
 
+    /// Record one Settings content row WITHOUT wrapping an element,
+    /// for call sites whose ring wrapper must be applied later than
+    /// the recording (an inner slot records during construction, e.g.
+    /// the password reveal eye inside its field). Pair with
+    /// [`Self::settings_nav_ring_at`]. Not a search match (unlabeled).
+    pub(crate) fn settings_nav_record(&self, action: RowAction) -> usize {
+        self.settings_nav_record_hl(action, false, false)
+    }
+
+    /// Whether `label` is the active find-next match (accent "current"
+    /// ring + scroll anchor), filled per-frame by the sidebar render.
+    fn settings_is_active_match(&self, label: &str) -> bool {
+        self.keynav
+            .settings_active_label
+            .get()
+            .is_some_and(|a| a == label)
+    }
+
     /// Record one actionable Settings content row (single-column) and
-    /// ring it when selected. Read-only rows are simply not recorded,
-    /// so arrows only stop on things Enter/Space/Left/Right can act
-    /// on. `radius` matches the row's own corner radius.
+    /// ring it when selected. `radius` matches the row's own corner
+    /// radius. Not a search target (see the `_labeled` variants).
     pub(crate) fn settings_nav_slot<'a>(
         &self,
         action: RowAction,
@@ -463,8 +507,40 @@ impl crate::app::Oryxis {
         self.settings_nav_ring_at(idx, radius, el)
     }
 
+    /// [`Self::settings_nav_slot`] for a row whose visible `label` is
+    /// in `SETTINGS_INDEX`: the row highlights amber when it matches
+    /// the active search. `nav_toggle_row` / `nav_pick_row` do this
+    /// for free; inline index rows call this explicitly.
+    pub(crate) fn settings_nav_slot_labeled<'a>(
+        &self,
+        label: &str,
+        action: RowAction,
+        radius: f32,
+        el: iced::Element<'a, Message>,
+    ) -> iced::Element<'a, Message> {
+        let hl = self.settings_search_highlight(label);
+        let active = self.settings_is_active_match(label);
+        let idx = self.settings_nav_record_hl(action, hl, active);
+        self.settings_nav_ring_at(idx, radius, el)
+    }
+
+    /// [`Self::settings_nav_record`] for a labeled row (record-only
+    /// half, for rows whose ring is applied separately).
+    pub(crate) fn settings_nav_record_labeled(
+        &self,
+        label: &str,
+        action: RowAction,
+    ) -> usize {
+        let hl = self.settings_search_highlight(label);
+        let active = self.settings_is_active_match(label);
+        self.settings_nav_record_hl(action, hl, active)
+    }
+
     /// The ring wrapper half of [`Self::settings_nav_slot`], keyed by
-    /// an index returned from [`Self::settings_nav_record`].
+    /// an index returned from [`Self::settings_nav_record`]. Draws the
+    /// accent ring on the keynav selection / active find-next match, or
+    /// the amber highlight on a plain search match; the active match
+    /// also reports its rect so the search can scroll it into view.
     pub(crate) fn settings_nav_ring_at<'a>(
         &self,
         idx: usize,
@@ -472,14 +548,38 @@ impl crate::app::Oryxis {
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
         let item = super::NavItem::SettingsRow(idx);
-        // Always wrapped (transparent when unringed): see
-        // select_ring_opt for why the wrapper must be shape-stable.
         let ringed = self.keynav.selected_in(super::FocusZone::Content) == Some(item);
-        crate::widgets::select_ring_opt(
-            el,
-            radius,
-            ringed.then(|| crate::theme::OryxisColors::t().accent),
-        )
+        let matched = self
+            .keynav
+            .settings_row_highlight
+            .borrow()
+            .get(idx)
+            .copied()
+            .unwrap_or(false);
+        let active = self.keynav.settings_first_match_idx.get() == Some(idx);
+        // Priority: keynav selection or the ACTIVE find-next match draw
+        // the accent ring (the "current" match, distinct from its amber
+        // siblings); a plain match draws amber. An outset gives the box
+        // breathing room on edge-to-edge rows (owner feedback).
+        let color = if ringed || active {
+            Some(crate::theme::OryxisColors::t().accent)
+        } else if matched {
+            Some(crate::theme::OryxisColors::t().warning)
+        } else {
+            None
+        };
+        let outset = if matched || active { 3.0 } else { 0.0 };
+        // Always wrapped (transparent when neither): see
+        // select_ring_opt for why the wrapper must be shape-stable.
+        let el = crate::widgets::select_ring_opt_outset(el, radius, color, outset);
+        // Tag the active-match row so the scroll-into-view operation can
+        // find its layout position even when it is off-screen (operate
+        // sees culled rows; draw does not).
+        if active {
+            crate::widgets::report_container_id(SETTINGS_SCROLL_TARGET_ID, el)
+        } else {
+            el
+        }
     }
 
     /// Ring a keyboard-selected content CARD and report its on-screen
@@ -552,7 +652,8 @@ impl crate::app::Oryxis {
         value: bool,
         msg: Message,
     ) -> iced::Element<'a, Message> {
-        self.settings_nav_slot(
+        self.settings_nav_slot_labeled(
+            label,
             RowAction::activate(msg.clone()),
             8.0,
             crate::widgets::toggle_row(label, value, msg),
@@ -579,8 +680,10 @@ impl crate::app::Oryxis {
     {
         let (prev, next) = cycle_pair(&options, &selected, on_change.clone());
         // The ring hugs the pick_list itself, not the whole row: it
-        // marks WHICH control Left/Right act on (user feedback).
-        let picker = self.settings_nav_slot(
+        // marks WHICH control Left/Right act on (user feedback). The
+        // label drives the search highlight.
+        let picker = self.settings_nav_slot_labeled(
+            label,
             RowAction::picker(prev, next),
             crate::widgets::INPUT_RADIUS,
             iced::widget::pick_list(Some(selected), options, display)

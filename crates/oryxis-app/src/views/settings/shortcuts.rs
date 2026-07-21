@@ -16,7 +16,8 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted),
             Space::new().height(10),
-            self.settings_nav_slot(
+            self.settings_nav_slot_labeled(
+                crate::i18n::t("hotkey_reset_all"),
                 crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ResetAllHotkeys)),
                 6.0,
                 styled_button(
