@@ -147,6 +147,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "Önizleme",
         "theme_import" => "İçe aktar",
         "theme_import_title" => "Temayı içe aktar",
+        "theme_import_too_large" => "Dosya bir tema için çok büyük (en fazla 1 MB)",
         "theme_copy_suffix" => "kopya",
         "theme_export" => "Dışa aktar",
         "theme_export_title" => "Temayı dışa aktar",

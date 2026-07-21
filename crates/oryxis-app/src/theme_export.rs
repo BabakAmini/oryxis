@@ -52,15 +52,29 @@ const WT_ANSI_KEYS: [&str; 16] = [
     "brightPurple", "brightCyan", "brightWhite",
 ];
 
+/// Normalize a stored color for export: the vault legally holds
+/// `aabbcc` (the editor accepts hex with or without `#`), but Windows
+/// Terminal and friends require `#rrggbb`, so a verbatim dump would
+/// break the interop promise. Our own importer accepts both, so the
+/// round-trip is unaffected.
+fn norm_export_color(s: &str) -> String {
+    let t = s.trim();
+    if t.starts_with('#') {
+        t.to_string()
+    } else {
+        format!("#{t}")
+    }
+}
+
 /// A terminal theme as a pretty-printed Windows Terminal scheme object.
 pub(crate) fn terminal_theme_to_json(t: &CustomTerminalTheme) -> String {
     let mut obj = serde_json::Map::new();
     obj.insert("name".into(), t.name.clone().into());
-    obj.insert("background".into(), t.background.clone().into());
-    obj.insert("foreground".into(), t.foreground.clone().into());
-    obj.insert("cursorColor".into(), t.cursor.clone().into());
+    obj.insert("background".into(), norm_export_color(&t.background).into());
+    obj.insert("foreground".into(), norm_export_color(&t.foreground).into());
+    obj.insert("cursorColor".into(), norm_export_color(&t.cursor).into());
     for (i, key) in WT_ANSI_KEYS.iter().enumerate() {
-        obj.insert((*key).into(), t.ansi[i].clone().into());
+        obj.insert((*key).into(), norm_export_color(&t.ansi[i]).into());
     }
     // Map preserves insertion order only with the serde_json
     // `preserve_order` feature; either way the file stays valid.
@@ -72,7 +86,7 @@ pub(crate) fn terminal_theme_to_json(t: &CustomTerminalTheme) -> String {
 pub(crate) fn ui_theme_to_json(t: &CustomUiTheme) -> String {
     let mut colors = serde_json::Map::new();
     for (i, key) in UI_COLOR_KEYS.iter().enumerate() {
-        colors.insert((*key).into(), t.colors[i].clone().into());
+        colors.insert((*key).into(), norm_export_color(&t.colors[i]).into());
     }
     let mut obj = serde_json::Map::new();
     obj.insert("oryxis_ui_theme".into(), 1.into());
@@ -84,12 +98,26 @@ pub(crate) fn ui_theme_to_json(t: &CustomUiTheme) -> String {
 
 /// Seed name for a cloned theme: `"{base} ({suffix})"`, then
 /// `"{base} ({suffix} 2)"` and so on until `taken` clears. `suffix` is the
-/// localized "copy" word.
+/// localized "copy" word. Cloning a clone strips the existing tail first,
+/// so "Nord (copy)" clones to "Nord (copy 2)", never "Nord (copy) (copy)".
 pub(crate) fn unique_copy_name(
     base: &str,
     suffix: &str,
     taken: impl Fn(&str) -> bool,
 ) -> String {
+    let plain_tail = format!(" ({suffix})");
+    let numbered_head = format!(" ({suffix} ");
+    let base = if let Some(stripped) = base.strip_suffix(&plain_tail) {
+        stripped
+    } else if let Some(pos) = base.rfind(&numbered_head)
+        && let Some(num) = base[pos + numbered_head.len()..].strip_suffix(')')
+        && !num.is_empty()
+        && num.chars().all(|c| c.is_ascii_digit())
+    {
+        &base[..pos]
+    } else {
+        base
+    };
     let first = format!("{base} ({suffix})");
     if !taken(&first) {
         return first;
@@ -160,6 +188,27 @@ mod tests {
         let is_taken = |n: &str| taken.contains(&n);
         assert_eq!(unique_copy_name("Nord", "copy", |_| false), "Nord (copy)");
         assert_eq!(unique_copy_name("Nord", "copy", is_taken), "Nord (copy 3)");
+        // Cloning a clone strips the tail instead of stacking suffixes.
+        assert_eq!(unique_copy_name("Nord (copy)", "copy", is_taken), "Nord (copy 3)");
+        assert_eq!(unique_copy_name("Nord (copy 2)", "copy", is_taken), "Nord (copy 3)");
+        // A parenthesized tail that is NOT the copy suffix is content.
+        assert_eq!(
+            unique_copy_name("Nord (dark)", "copy", |_| false),
+            "Nord (dark) (copy)"
+        );
+    }
+
+    #[test]
+    fn export_normalizes_bare_hex_colors() {
+        // The editor accepts "aabbcc" (no #) and the vault stores it
+        // verbatim; the export must still emit interop-valid "#aabbcc".
+        let mut t = sample_terminal_theme();
+        t.background = "1e1e1e".into();
+        t.ansi[0] = "000000".into();
+        let json = terminal_theme_to_json(&t);
+        assert!(json.contains("\"#1e1e1e\""));
+        assert!(json.contains("\"#000000\""));
+        assert!(!json.contains("\"1e1e1e\""));
     }
 
     #[test]

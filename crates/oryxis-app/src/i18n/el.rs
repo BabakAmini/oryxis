@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "Προεπισκόπηση",
         "theme_import" => "Εισαγωγή",
         "theme_import_title" => "Εισαγωγή θέματος",
+        "theme_import_too_large" => "Το αρχείο είναι πολύ μεγάλο για θέμα (έως 1 MB)",
         "theme_copy_suffix" => "αντίγραφο",
         "theme_export" => "Εξαγωγή",
         "theme_export_title" => "Εξαγωγή θέματος",

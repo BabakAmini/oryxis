@@ -152,6 +152,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "فشل حفظ السمة.",
         "theme_import" => "استيراد",
         "theme_import_title" => "استيراد سمة",
+        "theme_import_too_large" => "الملف كبير جدًا على سمة (بحد أقصى 1 م.ب)",
         "theme_copy_suffix" => "نسخة",
         "theme_export" => "تصدير",
         "theme_export_title" => "تصدير السمة",

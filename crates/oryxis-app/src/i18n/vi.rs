@@ -147,6 +147,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "Xem trước",
         "theme_import" => "Nhập",
         "theme_import_title" => "Nhập chủ đề",
+        "theme_import_too_large" => "Tệp quá lớn đối với một chủ đề (tối đa 1 MB)",
         "theme_copy_suffix" => "bản sao",
         "theme_export" => "Xuất",
         "theme_export_title" => "Xuất chủ đề",

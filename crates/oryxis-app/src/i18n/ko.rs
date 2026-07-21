@@ -147,6 +147,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "미리보기",
         "theme_import" => "가져오기",
         "theme_import_title" => "테마 가져오기",
+        "theme_import_too_large" => "테마 파일치고 너무 큽니다 (최대 1 MB)",
         "theme_copy_suffix" => "복사본",
         "theme_export" => "내보내기",
         "theme_export_title" => "테마 내보내기",

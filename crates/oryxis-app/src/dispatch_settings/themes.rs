@@ -1,6 +1,18 @@
 //! Settings dispatch helpers: themes. Split out of dispatch_settings/mod.rs.
 
 use super::*;
+
+/// Read a picked theme file with a sanity cap: real scheme files are a
+/// few KB, and an accidental pick of a huge file would freeze the UI
+/// while `text_editor::Content` ingests it. Binary content already
+/// fails cleanly via the UTF-8 error.
+fn read_theme_file(path: &std::path::Path) -> Result<String, String> {
+    const MAX_THEME_FILE_BYTES: u64 = 1024 * 1024;
+    if std::fs::metadata(path).is_ok_and(|m| m.len() > MAX_THEME_FILE_BYTES) {
+        return Err(crate::i18n::t("theme_import_too_large").to_string());
+    }
+    std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {e}"))
+}
 impl Oryxis {
     /// Validate + persist the in-progress custom theme. Returns
     /// `Some(error_message)` on failure (shown in the editor), `None` on
@@ -12,7 +24,17 @@ impl Oryxis {
         if name.is_empty() {
             return Some(crate::i18n::t("theme_error_name_required").to_string());
         }
-        if oryxis_terminal::TerminalTheme::ALL.iter().any(|t| t.name() == name) {
+        let existing = form
+            .editing_id
+            .and_then(|id| self.custom_terminal_themes.iter().find(|t| t.id == id).cloned());
+        // A NEW builtin-colliding name is refused; a custom theme that
+        // already carries one (imported before the builtin existed) stays
+        // editable under its own name. Name resolution favors custom, so
+        // that theme, not the builtin, is what the user sees.
+        let keeps_own_name = existing.as_ref().is_some_and(|e| e.name == name);
+        if !keeps_own_name
+            && oryxis_terminal::TerminalTheme::ALL.iter().any(|t| t.name() == name)
+        {
             return Some(crate::i18n::t("theme_error_name_builtin").to_string());
         }
         if self
@@ -31,9 +53,6 @@ impl Oryxis {
             return Some(crate::i18n::t("theme_error_color_invalid").to_string());
         }
 
-        let existing = form
-            .editing_id
-            .and_then(|id| self.custom_terminal_themes.iter().find(|t| t.id == id).cloned());
         let old_name = existing.as_ref().map(|e| e.name.clone());
         let created_at = existing
             .as_ref()
@@ -87,16 +106,20 @@ impl Oryxis {
     /// Caller sets `active_app_theme_name` on a `true` result (kept `&self`
     /// so it can be called while `self.vault` is borrowed during boot).
     pub(crate) fn apply_app_theme_name(&self, name: &str) -> bool {
-        if let Some(theme) = AppTheme::ALL.iter().find(|t| t.name() == name).copied() {
-            AppTheme::set_active(theme); // also clears any active custom UI theme
-            true
-        } else if let Some(colors) = self
+        // Custom themes resolve FIRST: a homonymous custom can only
+        // predate its builtin (the editor refuses new collisions), and
+        // that user's setting meant the custom theme; a new builtin must
+        // not silently take over their vault on upgrade.
+        if let Some(colors) = self
             .custom_ui_themes
             .iter()
             .find(|t| t.name == name)
             .map(|t| t.colors.clone())
         {
             crate::theme::set_active_custom_ui(crate::theme::theme_colors_from_hex(&colors));
+            true
+        } else if let Some(theme) = AppTheme::ALL.iter().find(|t| t.name() == name).copied() {
+            AppTheme::set_active(theme); // also clears any active custom UI theme
             true
         } else {
             false
@@ -113,7 +136,14 @@ impl Oryxis {
         if name.is_empty() {
             return Some(crate::i18n::t("theme_error_name_required").to_string());
         }
-        if AppTheme::ALL.iter().any(|t| t.name() == name) {
+        let existing = form
+            .editing_id
+            .and_then(|id| self.custom_ui_themes.iter().find(|t| t.id == id).cloned());
+        // Same rule as the terminal editor: only a NEW builtin-colliding
+        // name is refused; a pre-existing homonymous custom theme stays
+        // editable (and wins name resolution).
+        let keeps_own_name = existing.as_ref().is_some_and(|e| e.name == name);
+        if !keeps_own_name && AppTheme::ALL.iter().any(|t| t.name() == name) {
             return Some(crate::i18n::t("theme_error_name_builtin").to_string());
         }
         if self
@@ -131,9 +161,6 @@ impl Oryxis {
             return Some(crate::i18n::t("theme_error_color_invalid").to_string());
         }
 
-        let existing = form
-            .editing_id
-            .and_then(|id| self.custom_ui_themes.iter().find(|t| t.id == id).cloned());
         let old_name = existing.as_ref().map(|e| e.name.clone());
         let created_at = existing
             .as_ref()
@@ -230,15 +257,16 @@ impl Oryxis {
         &self,
         name: &str,
     ) -> Option<oryxis_terminal::TerminalPalette> {
-        if let Some(theme) =
-            oryxis_terminal::TerminalTheme::ALL.iter().find(|t| t.name() == name)
-        {
-            return Some(theme.palette());
+        // Custom first, same rationale as `apply_app_theme_name`: a
+        // pre-builtin homonymous custom keeps meaning the user's palette
+        // after an upgrade ships a builtin with the same name.
+        if let Some(t) = self.custom_terminal_themes.iter().find(|t| t.name == name) {
+            return Some(custom_theme_palette(t));
         }
-        self.custom_terminal_themes
+        oryxis_terminal::TerminalTheme::ALL
             .iter()
-            .find(|t| t.name == name)
-            .map(custom_theme_palette)
+            .find(|t| t.name() == name)
+            .map(|t| t.palette())
     }
 
     /// Effective global terminal palette: explicit user override (built-in
@@ -694,8 +722,7 @@ impl Oryxis {
                             .add_filter("All files", &["*"])
                             .pick_file();
                         match file {
-                            Some(path) => std::fs::read_to_string(&path)
-                                .map_err(|e| format!("Failed to read: {e}")),
+                            Some(path) => read_theme_file(&path),
                             None => Err("cancelled".to_string()),
                         }
                     }),
@@ -825,8 +852,7 @@ impl Oryxis {
                             .add_filter("All files", &["*"])
                             .pick_file();
                         match file {
-                            Some(path) => std::fs::read_to_string(&path)
-                                .map_err(|e| format!("Failed to read: {e}")),
+                            Some(path) => read_theme_file(&path),
                             None => Err("cancelled".to_string()),
                         }
                     }),

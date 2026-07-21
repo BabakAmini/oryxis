@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "theme_preview" => "Preview",
         "theme_import" => "Import",
         "theme_import_title" => "Import theme",
+        "theme_import_too_large" => "File too large for a theme (1 MB max)",
         "theme_copy_suffix" => "copy",
         "theme_export" => "Export",
         "theme_export_title" => "Export theme",

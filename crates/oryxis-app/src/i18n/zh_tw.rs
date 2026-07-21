@@ -151,6 +151,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "儲存主題失敗。",
         "theme_import" => "匯入",
         "theme_import_title" => "匯入主題",
+        "theme_import_too_large" => "檔案過大，不是主題檔案（最大 1 MB）",
         "theme_copy_suffix" => "副本",
         "theme_export" => "匯出",
         "theme_export_title" => "匯出主題",

@@ -151,6 +151,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Не удалось сохранить тему.",
         "theme_import" => "Импорт",
         "theme_import_title" => "Импорт темы",
+        "theme_import_too_large" => "Файл слишком велик для темы (макс. 1 МБ)",
         "theme_copy_suffix" => "копия",
         "theme_export" => "Экспорт",
         "theme_export_title" => "Экспорт темы",

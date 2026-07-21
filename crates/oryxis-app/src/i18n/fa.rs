@@ -152,6 +152,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "ذخیره تم ناموفق بود.",
         "theme_import" => "وارد کردن",
         "theme_import_title" => "وارد کردن تم",
+        "theme_import_too_large" => "فایل برای یک تم بیش از حد بزرگ است (حداکثر ۱ مگابایت)",
         "theme_copy_suffix" => "کپی",
         "theme_export" => "صادر کردن",
         "theme_export_title" => "صادر کردن تم",

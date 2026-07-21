@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "תצוגה מקדימה",
         "theme_import" => "ייבוא",
         "theme_import_title" => "ייבוא ערכת נושא",
+        "theme_import_too_large" => "הקובץ גדול מדי עבור ערכת נושא (מקסימום 1 MB)",
         "theme_copy_suffix" => "עותק",
         "theme_export" => "ייצוא",
         "theme_export_title" => "ייצוא ערכת נושא",

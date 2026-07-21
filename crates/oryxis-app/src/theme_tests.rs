@@ -8,22 +8,19 @@ use super::*;
 const LARGE_TEXT_THRESHOLD: f32 = 3.0;
 const BODY_TEXT_THRESHOLD: f32 = 4.5;
 
-/// All theme tables we ship, reflects the `AppTheme::ALL` order.
+/// All theme tables we ship, DERIVED from `AppTheme::ALL` so a new
+/// built-in can never ship outside the contrast guards. A hand-kept
+/// list here once silently skipped One Dark and Solarized Dark.
 fn all_themes() -> Vec<(&'static str, &'static ThemeColors)> {
-    vec![
-        ("OryxisDark", &ORYXIS_DARK),
-        ("OryxisLight", &ORYXIS_LIGHT),
-        ("Termius", &TERMIUS),
-        ("Darcula", &DARCULA),
-        ("IslandsDark", &ISLANDS_DARK),
-        ("Dracula", &DRACULA),
-        ("Monokai", &MONOKAI),
-        ("HackerGreen", &HACKER_GREEN),
-        ("Nord", &NORD),
-        ("NordLight", &NORD_LIGHT),
-        ("SolarizedLight", &SOLARIZED_LIGHT),
-        ("PaperLight", &PAPER_LIGHT),
-    ]
+    AppTheme::ALL
+        .iter()
+        .map(|t| (t.name(), t.colors_ref()))
+        .collect()
+}
+
+#[test]
+fn contrast_suite_covers_every_builtin() {
+    assert_eq!(all_themes().len(), AppTheme::ALL.len());
 }
 
 #[test]

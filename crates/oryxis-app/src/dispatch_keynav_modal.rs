@@ -101,7 +101,12 @@ impl Oryxis {
                     // Remove (when present) is the other recorded row.
                     | Modal::CertificateViewer => SurfaceFamily::Confirm,
                     // Rename inputs (on_submit), editors, pickers with
-                    // their own model: out of this layer.
+                    // their own model: out of this layer. That includes
+                    // the theme IMPORT modals: their multiline paste
+                    // text_editor makes an Enter-confirms default row
+                    // actively harmful (Enter must insert a newline),
+                    // and iced can't report editor focus to gate on.
+                    // Esc still closes them via ESC_ORDER.
                     _ => return None,
                 };
                 return Some((ModalSurface::Modal(m), family));

@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "Náhled",
         "theme_import" => "Importovat",
         "theme_import_title" => "Importovat motiv",
+        "theme_import_too_large" => "Soubor je na motiv příliš velký (max. 1 MB)",
         "theme_copy_suffix" => "kopie",
         "theme_export" => "Exportovat",
         "theme_export_title" => "Exportovat motiv",

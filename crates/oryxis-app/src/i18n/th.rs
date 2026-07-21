@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "ตัวอย่าง",
         "theme_import" => "นำเข้า",
         "theme_import_title" => "นำเข้าธีม",
+        "theme_import_too_large" => "ไฟล์ใหญ่เกินไปสำหรับธีม (สูงสุด 1 MB)",
         "theme_copy_suffix" => "สำเนา",
         "theme_export" => "ส่งออก",
         "theme_export_title" => "ส่งออกธีม",

@@ -150,6 +150,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "प्रीव्यू",
         "theme_import" => "इंपोर्ट करें",
         "theme_import_title" => "थीम इंपोर्ट करें",
+        "theme_import_too_large" => "फ़ाइल थीम के लिए बहुत बड़ी है (अधिकतम 1 MB)",
         "theme_copy_suffix" => "कॉपी",
         "theme_export" => "एक्सपोर्ट",
         "theme_export_title" => "थीम एक्सपोर्ट करें",

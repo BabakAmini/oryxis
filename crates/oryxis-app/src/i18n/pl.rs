@@ -147,6 +147,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_preview" => "Podgląd",
         "theme_import" => "Importuj",
         "theme_import_title" => "Importuj motyw",
+        "theme_import_too_large" => "Plik jest za duży jak na motyw (maks. 1 MB)",
         "theme_copy_suffix" => "kopia",
         "theme_export" => "Eksportuj",
         "theme_export_title" => "Eksportuj motyw",
