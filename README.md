@@ -147,7 +147,7 @@ Click any thumbnail for the full-size image.
       <br><em>Hosts dashboard: card grid, groups, distro auto-detection</em>
     </td>
     <td align="center" width="50%">
-      <a href="resources/screen_9.png"><img src="resources/screen_9.png" width="390" alt="SFTP dual-pane browser, local on the left, remote on the right"></a>
+      <a href="resources/screen_2.png"><img src="resources/screen_2.png" width="390" alt="SFTP dual-pane browser, local on the left, remote on the right"></a>
       <br><em>Dual-pane SFTP: drag-and-drop, multi-select, edit-in-place</em>
     </td>
   </tr>
@@ -157,17 +157,17 @@ Click any thumbnail for the full-size image.
       <br><em>Streaming AI sidebar with per-block Copy / Play</em>
     </td>
     <td align="center">
-      <a href="resources/screen_2.png"><img src="resources/screen_2.png" width="390" alt="ECS dynamic group expanded with running container task"></a>
-      <br><em>Cloud Accounts: dynamic groups resolve to live tasks</em>
+      <a href="resources/screen_4.png"><img src="resources/screen_4.png" width="390" alt="Cloud Accounts editor with AWS provider and regions"></a>
+      <br><em>Cloud Accounts: AWS / Kubernetes providers, multi-region fan-out</em>
     </td>
   </tr>
   <tr>
     <td align="center">
-      <a href="resources/screen_4.png"><img src="resources/screen_4.png" width="390" alt="Keychain with keys and reusable identities"></a>
+      <a href="resources/screen_5.png"><img src="resources/screen_5.png" width="390" alt="Keychain with keys and reusable identities"></a>
       <br><em>Keychain: keys and reusable Identities side by side</em>
     </td>
     <td align="center">
-      <a href="resources/screen_8.png"><img src="resources/screen_8.png" width="390" alt="Terminal theme picker with palette previews"></a>
+      <a href="resources/screen_7.png"><img src="resources/screen_7.png" width="390" alt="Terminal theme picker with palette previews"></a>
       <br><em>Terminal palettes with inline previews, plus custom schemes</em>
     </td>
   </tr>
