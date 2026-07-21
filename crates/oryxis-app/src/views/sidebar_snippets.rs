@@ -382,7 +382,9 @@ impl Oryxis {
                 }
             });
             list = list.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::Snippet(SnippetMessage::OpenSidebarSnippetGroup(name))),
+                // A group card is list body: the arrow hover-entry may
+                // land here (folders-only frames have no snippet rows).
+                crate::keynav::SidebarRow::list_button(Message::Snippet(SnippetMessage::OpenSidebarSnippetGroup(name))),
                 stab,
                 8.0,
                 folder.into(),

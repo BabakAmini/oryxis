@@ -136,6 +136,11 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Task::none();
                 };
+                // Clicking a row while the path input is open is its
+                // blur: close the edit (its buffer is stale the moment
+                // the listing changes) so the header snaps back to the
+                // label + actions.
+                pane.files.path_editing = None;
                 // A manual navigation away from the shell's cwd would be
                 // undone by the next follow sync, so browsing by hand
                 // implies unpinning; the toggle re-enables it. The toast
@@ -153,6 +158,17 @@ impl Oryxis {
                     unpinned = true;
                 }
                 let pane_id = pane.id;
+                // Optimistic UI: adopt the target path on screen NOW and
+                // clear the old listing, so the click answers instantly
+                // (the roundtrip used to look like a freeze, owner QA).
+                // Clearing is also correctness: keeping the OLD rows
+                // visible under the NEW path would let a rapid second
+                // click join a stale entry name onto the wrong base.
+                // The ".." row derives from the optimistic path, so
+                // navigating up mid-load stays coherent; the listing
+                // that lands (stamp-guarded) replaces everything.
+                pane.files.path = path.clone();
+                pane.files.entries.clear();
                 pane.files.loading = true;
                 pane.files.error = None;
                 // Rapid clicks race their listings; the stamp makes the
@@ -630,6 +646,35 @@ impl Oryxis {
                     pane.files.path_editing = Some(s);
                 }
             }
+            SidebarFilesMessage::SidebarFilesEditBlur => {
+                if let Some(pane) = self.active_pane_mut() {
+                    let files = &mut pane.files;
+                    files.path_editing = None;
+                    files.rename = None;
+                    files.new_entry = None;
+                    files.path_history_open = false;
+                }
+            }
+            SidebarFilesMessage::SidebarFilesPathHistoryToggle => {
+                if let Some(pane) = self.active_pane_mut() {
+                    pane.files.path_history_open = !pane.files.path_history_open;
+                }
+            }
+            SidebarFilesMessage::SidebarFilesPathHistoryClose => {
+                if let Some(pane) = self.active_pane_mut() {
+                    pane.files.path_history_open = false;
+                }
+            }
+            SidebarFilesMessage::SidebarFilesPathHistoryPick(path) => {
+                if let Some(pane) = self.active_pane_mut() {
+                    pane.files.path_history_open = false;
+                }
+                // Navigate also closes a pending path edit, so picking
+                // from the dropdown mid-edit leaves a clean header.
+                return Task::done(Message::SidebarFiles(
+                    SidebarFilesMessage::SidebarFilesNavigate(path),
+                ));
+            }
             SidebarFilesMessage::SidebarFilesCommitPath => {
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
@@ -655,6 +700,11 @@ impl Oryxis {
                     pane.files.follow_disabled = true;
                 }
                 let pane_id = pane.id;
+                // Same optimistic adoption as SidebarFilesNavigate; the
+                // canonicalized path from the listing replaces this
+                // best-effort value when it lands.
+                pane.files.path = target.clone();
+                pane.files.entries.clear();
                 pane.files.loading = true;
                 pane.files.error = None;
                 let seq = pane.files.next_req();
@@ -697,6 +747,13 @@ impl Oryxis {
                 pane.files.mounting = false;
                 pane.files.loading = false;
                 pane.files.error = None;
+                // Adopted-directory history (issue #85): recorded only
+                // here and in Listed, i.e. once a path proved listable.
+                // Unconditional: the optimistic navigate already set
+                // `files.path`, so an equality guard would skip exactly
+                // the visits that matter (the dedupe makes re-recording
+                // the current directory a no-op).
+                pane.files.push_path_history(path.clone());
                 pane.files.path = path;
                 pane.files.entries = entries;
                 // The title-fallback cwd may be `~`-relative and only
@@ -715,6 +772,9 @@ impl Oryxis {
                 sort_entries(&mut entries);
                 pane.files.loading = false;
                 pane.files.error = None;
+                // Unconditional for the same optimistic-path reason as
+                // the Mounted arm above.
+                pane.files.push_path_history(path.clone());
                 pane.files.path = path;
                 pane.files.entries = entries;
                 // The shell may have moved again while this listing was

@@ -101,6 +101,21 @@ impl Oryxis {
         }
     }
 
+    /// Close a pending Files path edit and its history dropdown, if
+    /// any. Moving the keyboard (or the mouse, or the sidebar tab) off
+    /// the path is its blur, and while editing the header hides the
+    /// action icons so the input can take the whole width; the blur
+    /// must snap that back (owner ask). No-op on every other state.
+    pub(crate) fn close_files_path_edit(&mut self) {
+        if let Some(idx) = self.active_tab
+            && let Some(tab) = self.tabs.get_mut(idx)
+        {
+            let files = &mut tab.active_mut().files;
+            files.path_editing = None;
+            files.path_history_open = false;
+        }
+    }
+
     /// Whether the recorded row at `idx` is an input row (Tab focuses
     /// it instead of ringing it).
     fn sidebar_row_is_input(&self, idx: usize) -> bool {
@@ -144,7 +159,13 @@ impl Oryxis {
         let action = self.keynav.sidebar_items.borrow().get(next)?.action.clone();
         let step = match action.focus {
             Some(id) => iced::widget::operation::focus(id),
-            None => blur_task(),
+            None => {
+                // Walking onto a non-input row blurs whatever input had
+                // the keyboard; that blur also closes a pending Files
+                // path edit (which was holding the whole header width).
+                self.close_files_path_edit();
+                blur_task()
+            }
         };
         Some(Task::batch([step, self.sidebar_nav_scroll(next)]))
     }
@@ -263,12 +284,34 @@ impl Oryxis {
                                 | TerminalSidebarTab::Files
                         ) =>
                     {
-                        // Start on the Close button (index 0) so the move
-                        // below lands on the first BODY row going down and
-                        // wraps to the last row going up: entry must never
-                        // ring Close itself, or Enter would be one keypress
-                        // away from closing the sidebar (the same hazard
-                        // the hotkey's index-1 landing documents).
+                        // Land straight on the LIST body: first list row
+                        // going down, last going up. Header chrome (path,
+                        // search, sort, Close) stays reachable by walking
+                        // on from there, but entry must never ring it: a
+                        // ring popping up on the Files path row reads as a
+                        // plain focused text input, not as navigation
+                        // (live QA), and ringing Close would put Enter one
+                        // keypress away from closing the sidebar.
+                        let target = {
+                            let items = self.keynav.sidebar_items.borrow();
+                            if forward {
+                                items.iter().position(|r| r.list)
+                            } else {
+                                items.iter().rposition(|r| r.list)
+                            }
+                        };
+                        if let Some(t) = target {
+                            self.keynav.sidebar_selected = Some((tab, t));
+                            self.close_files_path_edit();
+                            return Some(Task::batch([
+                                blur_task(),
+                                self.sidebar_nav_scroll(t),
+                            ]));
+                        }
+                        // No list rows this frame (empty dir / group view):
+                        // start on Close so the move below lands on the
+                        // first body row going down / wraps to the last
+                        // going up.
                         0
                     }
                     None => return None,
@@ -287,6 +330,7 @@ impl Oryxis {
                     return Some(Task::none());
                 }
                 self.keynav.sidebar_selected = Some((tab, next));
+                self.close_files_path_edit();
                 Some(Task::batch([blur_task(), self.sidebar_nav_scroll(next)]))
             }
             Named::Home | Named::End => {
@@ -355,6 +399,7 @@ impl Oryxis {
                     return Some(Task::none());
                 }
                 self.keynav.sidebar_selected = Some((tab, next));
+                self.close_files_path_edit();
                 Some(Task::batch([blur_task(), self.sidebar_nav_scroll(next)]))
             }
             Named::Delete => {
@@ -386,6 +431,7 @@ impl Oryxis {
                         files.path_editing = None;
                         files.rename = None;
                         files.new_entry = None;
+                        files.path_history_open = false;
                     }
                     return Some(blur_task());
                 }

@@ -61,13 +61,19 @@ impl Oryxis {
             let path_label = if files.path.is_empty() {
                 String::from("…")
             } else {
-                truncate_path_leading(&files.path, 34)
+                files.path.clone()
             };
+            // Ellipsize the LEADING side to the actual width so the tail
+            // (the directory the user is in) stays visible; a char-count
+            // truncation can't know the width and let narrow sidebars
+            // wrap the path onto two lines.
             let label = MouseArea::new(
                 text(path_label)
                     .size(12)
                     .font(iced::Font::MONOSPACE)
                     .color(OryxisColors::t().text_secondary)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .ellipsis(iced::widget::text::Ellipsis::Start)
                     .width(Length::Fill),
             )
             .on_press(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartEditPath))
@@ -79,68 +85,104 @@ impl Oryxis {
                 label.into(),
             )
         };
-        let pin_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow)),
-            stab,
-            6.0,
-            // The pin fills with an accent wash when following (a clear
-            // toggled-on look) so it never reads as disabled while active.
-            toggle_action_btn(
-                if follow {
-                    iced_fonts::lucide::pin()
-                } else {
-                    iced_fonts::lucide::pin_off()
-                },
-                follow,
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow),
-                if follow { t("files_follow_on_tip") } else { t("files_follow_off_tip") },
-            ),
-        );
-        let hidden_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden)),
-            stab,
-            6.0,
-            toggle_action_btn(
-                if files.show_hidden {
-                    iced_fonts::lucide::eye()
-                } else {
-                    iced_fonts::lucide::eye_off()
-                },
-                files.show_hidden,
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden),
-                if files.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") },
-            ),
-        );
-        let refresh_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh)),
-            stab,
-            6.0,
-            action_btn(
-                iced_fonts::lucide::rotate_cw(),
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
-                t("refresh"),
-            ),
-        );
-        let expand_btn = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand)),
-            stab,
-            6.0,
-            action_btn(
-                iced_fonts::lucide::folder_tree(),
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand),
-                t("open_sftp_session_here"),
-            ),
-        );
+        // Combo-box arrow (issue #85, the SFTP path bar's sibling):
+        // opens the visited-directory dropdown. Only once there is
+        // somewhere to go back to, so it never opens an empty list.
+        // Present in BOTH header modes: while editing it is exactly the
+        // MobaXterm affordance (type or pick).
+        let history_arrow = (!files.path_history.is_empty()).then(|| {
+            self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(
+                    SidebarFilesMessage::SidebarFilesPathHistoryToggle,
+                )),
+                stab,
+                6.0,
+                toggle_action_btn(
+                    if files.path_history_open {
+                        iced_fonts::lucide::chevron_up()
+                    } else {
+                        iced_fonts::lucide::chevron_down()
+                    },
+                    files.path_history_open,
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesPathHistoryToggle),
+                    t("sftp_path_history"),
+                ),
+            )
+        });
+        // While the path is being edited the input takes the WHOLE
+        // header width and the four actions hide (owner ask): they
+        // return as soon as the edit ends (Enter commit, Esc, blur by
+        // walking/clicking away). Built inside the branch because a
+        // nav slot records at construction time.
+        let header_cells: Vec<Element<'_, Message>> = if files.path_editing.is_some() {
+            let mut cells = vec![path_el];
+            if let Some(arrow) = history_arrow {
+                cells.push(Space::new().width(4).into());
+                cells.push(arrow);
+            }
+            cells
+        } else {
+            let pin_btn = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow)),
+                stab,
+                6.0,
+                // The pin fills with an accent wash when following (a clear
+                // toggled-on look) so it never reads as disabled while active.
+                toggle_action_btn(
+                    if follow {
+                        iced_fonts::lucide::pin()
+                    } else {
+                        iced_fonts::lucide::pin_off()
+                    },
+                    follow,
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleFollow),
+                    if follow { t("files_follow_on_tip") } else { t("files_follow_off_tip") },
+                ),
+            );
+            let hidden_btn = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden)),
+                stab,
+                6.0,
+                toggle_action_btn(
+                    if files.show_hidden {
+                        iced_fonts::lucide::eye()
+                    } else {
+                        iced_fonts::lucide::eye_off()
+                    },
+                    files.show_hidden,
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesToggleHidden),
+                    if files.show_hidden { t("hide_hidden_files") } else { t("show_hidden_files") },
+                ),
+            );
+            let refresh_btn = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh)),
+                stab,
+                6.0,
+                action_btn(
+                    iced_fonts::lucide::rotate_cw(),
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
+                    t("refresh"),
+                ),
+            );
+            let expand_btn = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand)),
+                stab,
+                6.0,
+                action_btn(
+                    iced_fonts::lucide::folder_tree(),
+                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand),
+                    t("open_sftp_session_here"),
+                ),
+            );
+            let mut cells = vec![path_el, Space::new().width(4).into()];
+            if let Some(arrow) = history_arrow {
+                cells.push(arrow);
+            }
+            cells.extend([pin_btn, hidden_btn, refresh_btn, expand_btn]);
+            cells
+        };
         let header = container(
-            dir_row(vec![
-                path_el,
-                Space::new().width(4).into(),
-                pin_btn,
-                hidden_btn,
-                refresh_btn,
-                expand_btn,
-            ])
-            .align_y(iced::Alignment::Center),
+            dir_row(header_cells).align_y(iced::Alignment::Center),
         )
         .padding(Padding { top: 10.0, right: 10.0, bottom: 8.0, left: 12.0 })
         .width(Length::Fill);
@@ -165,8 +207,12 @@ impl Oryxis {
                 .padding(Padding { top: 8.0, right: 0.0, bottom: 0.0, left: 0.0 }),
             ]
             .into()
-        } else if files.client.is_none() || (files.loading && files.entries.is_empty()) {
+        } else if files.client.is_none() {
             sidebar_placeholder(t("files_mounting"))
+        } else if files.loading && files.entries.is_empty() {
+            // Navigation in flight (the optimistic adopt cleared the old
+            // rows): a generic Loading, not the mount copy.
+            sidebar_placeholder(t("loading"))
         } else {
             let mut list = column![]
                 .spacing(4)
@@ -301,10 +347,27 @@ impl Oryxis {
                 .into()
         };
 
-        column![header, body]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        // Clicks on dead space blur the inline edits (owner ask: "blur
+        // should exit the path input"). MouseArea only fires when no
+        // child captured the press, so the inputs, rows and buttons all
+        // keep their clicks and only true empty space lands here.
+        let content: Element<'_, Message> = MouseArea::new(
+            column![header, body].width(Length::Fill).height(Length::Fill),
+        )
+        .on_press(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEditBlur))
+        .into();
+        // Visited-directory dropdown (issue #85): stacked over the tab
+        // body, anchored under the header, scrim-closed like the SFTP
+        // pane's. Guarded on history so a stale open flag can't paint
+        // an empty menu.
+        if files.path_history_open && !files.path_history.is_empty() {
+            iced::widget::Stack::new()
+                .push(content)
+                .push(path_history_overlay(&files.path_history))
+                .into()
+        } else {
+            content
+        }
     }
 
     /// One browser row, recorded into the sidebar keynav layer (Enter =
@@ -328,10 +391,14 @@ impl Oryxis {
         let mut cells: Vec<Element<'a, Message>> = vec![
             crate::views::sftp::file_icon(name, is_dir, is_symlink).into(),
             Space::new().width(8).into(),
+            // Long names truncate with an ellipsis at the row edge
+            // instead of bleeding over the size cell and past the card
+            // (the SFTP pane's data-cell rule).
             text(name)
                 .size(12)
                 .color(c.text_primary)
                 .wrapping(iced::widget::text::Wrapping::None)
+                .ellipsis(iced::widget::text::Ellipsis::End)
                 .width(Length::Fill)
                 .into(),
         ];
@@ -392,12 +459,91 @@ impl Oryxis {
         }
 
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(primary),
+            crate::keynav::SidebarRow::list_button(primary),
             TerminalSidebarTab::Files,
             6.0,
             area.into(),
         )
     }
+}
+
+/// Visited-directory dropdown for the path combo-box (issue #85):
+/// most recent first, clicking an entry navigates there, the scrim
+/// closes it. Full sidebar width (the SFTP pane's fixed 360px would
+/// not fit here); long paths ellipsize on the LEADING side so the
+/// directory name stays readable.
+fn path_history_overlay<'a>(history: &'a [String]) -> Element<'a, Message> {
+    let mut col = column![].spacing(2).padding(4);
+    for path in history {
+        col = col.push(
+            iced::widget::button(
+                dir_row(vec![
+                    iced_fonts::lucide::history()
+                        .size(12)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(8).into(),
+                    text(path.clone())
+                        .size(12)
+                        .color(OryxisColors::t().text_primary)
+                        .wrapping(iced::widget::text::Wrapping::None)
+                        .ellipsis(iced::widget::text::Ellipsis::Start)
+                        .width(Length::Fill)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .on_press(Message::SidebarFiles(
+                SidebarFilesMessage::SidebarFilesPathHistoryPick(path.clone()),
+            ))
+            .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
+            .width(Length::Fill)
+            .style(|_, status| {
+                use iced::widget::button::Status as St;
+                let bg = match status {
+                    St::Hovered | St::Pressed => OryxisColors::t().bg_hover,
+                    _ => Color::TRANSPARENT,
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                    ..Default::default()
+                }
+            }),
+        );
+    }
+    // A long history scrolls instead of running off the sidebar.
+    let menu = container(
+        iced::widget::scrollable(col)
+            .height(Length::Fixed((history.len() as f32 * 30.0 + 8.0).min(320.0))),
+    )
+    .style(|_| container::Style {
+        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+        border: Border {
+            radius: Radius::from(8.0),
+            color: OryxisColors::t().border,
+            width: 1.0,
+        },
+        shadow: iced::Shadow {
+            color: Color::from_rgba(0.0, 0.0, 0.0, 0.25),
+            offset: iced::Vector::new(0.0, 4.0),
+            blur_radius: 12.0,
+        },
+        ..Default::default()
+    });
+    let scrim: Element<'_, Message> = MouseArea::new(
+        container(Space::new()).width(Length::Fill).height(Length::Fill),
+    )
+    .on_press(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesPathHistoryClose))
+    .into();
+    // Anchored right under the header band, full width bar the header's
+    // side padding.
+    let positioned = container(menu)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_y(iced::alignment::Vertical::Top)
+        .padding(Padding { top: 42.0, right: 10.0, bottom: 0.0, left: 12.0 });
+    iced::widget::Stack::new().push(scrim).push(positioned).into()
 }
 
 /// Centered muted text for the empty / mounting / error states.
@@ -483,22 +629,4 @@ fn action_btn<'a>(
         iced::widget::tooltip::Position::Top,
     )
     .into()
-}
-
-/// Truncate an absolute path from the LEADING side so the tail (the
-/// directory the user is in) stays visible: `…/var/www/html`.
-fn truncate_path_leading(path: &str, max_chars: usize) -> String {
-    let count = path.chars().count();
-    if count <= max_chars {
-        return path.to_string();
-    }
-    let tail: String = path
-        .chars()
-        .skip(count - max_chars.saturating_sub(1))
-        .collect();
-    // Cut at the next separator so the head component isn't half a name.
-    match tail.find('/') {
-        Some(idx) => format!("…{}", &tail[idx..]),
-        None => format!("…{tail}"),
-    }
 }

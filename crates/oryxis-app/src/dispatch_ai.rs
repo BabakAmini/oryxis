@@ -480,6 +480,10 @@ impl Oryxis {
                 // A HostConfig dropdown open when the sidebar tab swaps
                 // unmounts without on_close; drop the gate with it.
                 self.keynav.pick_open = false;
+                // Leaving the Files tab is a blur for its path edit; a
+                // stale full-width input waiting behind the tab switch
+                // would read as broken on return.
+                self.close_files_path_edit();
                 self.terminal_sidebar_tab = tab;
                 if tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();

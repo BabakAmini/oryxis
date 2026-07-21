@@ -255,6 +255,9 @@ impl Oryxis {
                         files.rename = None;
                         files.new_entry = None;
                     }
+                    // The path-history dropdown's scrim only covers the
+                    // sidebar; an outside click closes it here.
+                    files.path_history_open = false;
                 }
                 // Begin a potential internal drag if the cursor is
                 // currently on a row in the SFTP view. The drag stays

@@ -37,6 +37,15 @@ pub enum SidebarFilesMessage {
     SidebarFilesStartEditPath,
     SidebarFilesEditPath(String),
     SidebarFilesCommitPath,
+    /// Path combo-box (issue #85): toggle / close the visited-directory
+    /// dropdown, or jump straight to a picked entry.
+    SidebarFilesPathHistoryToggle,
+    SidebarFilesPathHistoryClose,
+    SidebarFilesPathHistoryPick(String),
+    /// A left click landed on the Files tab's dead space (no row, no
+    /// input, no button captured it): blur = cancel any inline edit
+    /// (path / rename / new entry) and close the history dropdown.
+    SidebarFilesEditBlur,
     /// Open (or reveal) this tab's SFTP session at the given remote
     /// directory: the sidebar ⛶, the row context menu and the expand
     /// affordances all funnel here.

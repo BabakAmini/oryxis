@@ -170,6 +170,13 @@ pub(crate) struct PaneFiles {
     /// fresh pane; the pin toggle flips it.
     pub follow_disabled: bool,
     pub show_hidden: bool,
+    /// Directories this browser actually adopted, most recent first,
+    /// deduped, capped (issue #85; the SFTP pane's `path_history`
+    /// sibling). Feeds the path combo-box dropdown. In-memory and
+    /// host-scoped: `reset_for_disconnect` clears it.
+    pub path_history: Vec<String>,
+    /// Whether the path combo-box dropdown is open.
+    pub path_history_open: bool,
 }
 
 impl PaneFiles {
@@ -194,6 +201,22 @@ impl PaneFiles {
         self.loading = false;
         self.req_seq += 1;
         self.error = None;
+        // Host-scoped: a reconnect may land on another host's tree.
+        self.path_history.clear();
+        self.path_history_open = false;
+    }
+
+    /// Record an adopted directory in the combo-box history: most
+    /// recent first, a revisit moves the entry to the top, capped so
+    /// the dropdown stays scannable (issue #85, the SFTP pane's rule).
+    pub fn push_path_history(&mut self, path: String) {
+        const PATH_HISTORY_CAP: usize = 20;
+        if path.is_empty() {
+            return;
+        }
+        self.path_history.retain(|p| p != &path);
+        self.path_history.insert(0, path);
+        self.path_history.truncate(PATH_HISTORY_CAP);
     }
 
     /// Stamp a new outgoing request (mount or listing) and return its

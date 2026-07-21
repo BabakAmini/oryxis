@@ -57,6 +57,14 @@ pub(crate) struct SidebarRow {
     pub(crate) action: RowAction,
     pub(crate) paste: Option<Message>,
     pub(crate) delete: Option<Message>,
+    /// Whether this row belongs to the tab's LIST body (a snippet,
+    /// history entry, file row, group card) rather than header chrome
+    /// (path, search, sort, the strip's Close). The arrow hover-entry
+    /// lands on the first/last list row, never on chrome: a ring
+    /// popping up on a header control reads as "nothing happened"
+    /// (live QA: the ringed Files path row looked like a plain
+    /// focused text input).
+    pub(crate) list: bool,
 }
 
 impl SidebarRow {
@@ -67,22 +75,30 @@ impl SidebarRow {
             action: RowAction::activate(run),
             paste: Some(paste),
             delete: Some(delete),
+            list: true,
         }
     }
 
     /// A plain button / toggle / card row: Enter activates.
     pub(crate) fn button(msg: Message) -> Self {
-        Self { action: RowAction::activate(msg), paste: None, delete: None }
+        Self { action: RowAction::activate(msg), paste: None, delete: None, list: false }
+    }
+
+    /// [`Self::button`] for rows that are LIST entries (file rows,
+    /// snippet group cards): same Enter-activates contract, but the
+    /// arrow hover-entry may land here.
+    pub(crate) fn list_button(msg: Message) -> Self {
+        Self { action: RowAction::activate(msg), paste: None, delete: None, list: true }
     }
 
     /// A text-input / focusable-widget row: Tab gives it real focus.
     pub(crate) fn input(id: iced::widget::Id) -> Self {
-        Self { action: RowAction::input(id), paste: None, delete: None }
+        Self { action: RowAction::input(id), paste: None, delete: None, list: false }
     }
 
     /// A stepper / cycling row: Left/Right fire prev/next.
     pub(crate) fn picker(prev: Option<Message>, next: Option<Message>) -> Self {
-        Self { action: RowAction::picker(prev, next), paste: None, delete: None }
+        Self { action: RowAction::picker(prev, next), paste: None, delete: None, list: false }
     }
 }
 
