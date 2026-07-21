@@ -54,20 +54,34 @@ impl Oryxis {
         if !tab.chat_visible || tab.files_mode {
             return None;
         }
-        let files_available = self.sftp_enabled
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
-        let active = if (self.terminal_sidebar_tab == TerminalSidebarTab::Chat
-            && !self.ai.enabled)
-            || (self.terminal_sidebar_tab == TerminalSidebarTab::Files && !files_available)
-            || (self.terminal_sidebar_tab == TerminalSidebarTab::Monitor
-                && (!self.setting_host_monitoring
-                    || tab.active().session.as_ref().and_then(|s| s.ssh()).is_none()))
-        {
-            TerminalSidebarTab::Snippets
-        } else {
-            self.terminal_sidebar_tab
-        };
-        Some(active)
+        Some(self.resolve_available_sidebar_tab(self.terminal_sidebar_tab))
+    }
+
+    /// Resolve a desired sidebar tab against what the focused pane
+    /// actually offers: Chat needs AI enabled, Files and Monitor need a
+    /// live SSH session (Monitor also the master toggle). An unavailable
+    /// tab falls back to Snippets, which is always present, so the panel
+    /// is never empty. Shared by the per-frame display resolution and
+    /// the open-to-default logic (issue #85), so a configured default of
+    /// a gated tab, or a remembered last tab that is no longer
+    /// reachable, both land somewhere valid.
+    pub(crate) fn resolve_available_sidebar_tab(
+        &self,
+        want: TerminalSidebarTab,
+    ) -> TerminalSidebarTab {
+        let has_ssh = self
+            .active_tab
+            .and_then(|i| self.tabs.get(i))
+            .and_then(|t| t.active().session.as_ref().and_then(|s| s.ssh()))
+            .is_some();
+        let files_available = self.sftp_enabled && has_ssh;
+        let monitor_available = self.setting_host_monitoring && has_ssh;
+        match want {
+            TerminalSidebarTab::Chat if !self.ai.enabled => TerminalSidebarTab::Snippets,
+            TerminalSidebarTab::Files if !files_available => TerminalSidebarTab::Snippets,
+            TerminalSidebarTab::Monitor if !monitor_available => TerminalSidebarTab::Snippets,
+            other => other,
+        }
     }
 
     /// Whether the mouse cursor currently sits over the (open)

@@ -6,6 +6,55 @@ use iced::widget::column;
 impl Oryxis {
     /// Long-command threshold pick for smart tabs, shown only while the
     /// smart-tabs toggle is on (an off feature hides all of its UI).
+    /// "Default sidebar tab" picker (issue #85). The tab options are
+    /// gated by the GLOBAL feature toggles, so the picker never offers a
+    /// tab that is switched off app-wide (Chat needs AI, Files needs
+    /// SFTP, Monitor needs the host-monitoring feature); a "Last opened"
+    /// sentinel leads the list and is the default. A pinned tab whose
+    /// gate is later turned off is kept in the list so the picker still
+    /// reflects the current choice. Per-session availability (no live
+    /// SSH) is handled at open time by `resolve_available_sidebar_tab`,
+    /// not here.
+    fn sidebar_default_tab_row(&self) -> Element<'_, Message> {
+        use crate::state::TerminalSidebarTab as STab;
+        let mut tabs: Vec<STab> = STab::ALL
+            .into_iter()
+            .filter(|t| match t {
+                STab::Chat => self.ai.enabled,
+                STab::Files => self.sftp_enabled,
+                STab::Monitor => self.setting_host_monitoring,
+                _ => true,
+            })
+            .collect();
+        if let Some(sel) = self.setting_sidebar_default_tab
+            && !tabs.contains(&sel)
+        {
+            tabs.push(sel);
+        }
+        let last = crate::i18n::t("sidebar_default_last").to_string();
+        let mut options = vec![last.clone()];
+        options.extend(tabs.iter().map(|t| crate::i18n::t(t.label_key()).to_string()));
+        let selected = match self.setting_sidebar_default_tab {
+            None => last,
+            Some(t) => crate::i18n::t(t.label_key()).to_string(),
+        };
+        column![
+            self.nav_pick_row(
+                crate::i18n::t("sidebar_default_tab"),
+                options,
+                selected,
+                |s: &String| s.clone(),
+                200.0,
+                |v| Message::Settings(SettingsMessage::SidebarDefaultTabChanged(v)),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("sidebar_default_tab_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        ]
+        .into()
+    }
+
     fn smart_tabs_threshold_row(&self) -> Element<'_, Message> {
         if !self.setting_smart_tabs {
             return Space::new().into();
@@ -366,6 +415,8 @@ impl Oryxis {
             text(crate::i18n::t("sidebar_auto_open_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+            self.sidebar_default_tab_row(),
         ];
 
         // The +/- stepper maps naturally onto the picker action:

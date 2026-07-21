@@ -443,26 +443,40 @@ impl Oryxis {
 
             // ── AI chat sidebar ──
             AiMessage::ToggleChatSidebar => {
-                let ai_enabled = self.ai.enabled;
-                let mut closing = false;
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx) {
-                        tab.chat_visible = !tab.chat_visible;
-                        closing = !tab.chat_visible;
-                        // When opening with AI off, the Chat tab is hidden, so
-                        // land on Snippets instead of an empty panel.
-                        if tab.chat_visible
-                            && !ai_enabled
-                            && self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::Chat
-                        {
-                            self.terminal_sidebar_tab = crate::state::TerminalSidebarTab::Snippets;
-                        }
+                let toggled_to = if let Some(idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get_mut(idx)
+                {
+                    tab.chat_visible = !tab.chat_visible;
+                    Some(tab.chat_visible)
+                } else {
+                    None
+                };
+                if toggled_to == Some(true) {
+                    // Opening: land on the configured default tab
+                    // (issue #85), resolved against what the pane offers
+                    // so a gated default (Files/Monitor with no SSH, Chat
+                    // with AI off) never opens an empty panel. "Last
+                    // opened" (`None`) keeps the remembered tab, only
+                    // applying the legacy Chat->Snippets fallback so the
+                    // remembered tab survives a temporary loss of its gate.
+                    use crate::state::TerminalSidebarTab;
+                    if let Some(default) = self.setting_sidebar_default_tab {
+                        self.terminal_sidebar_tab =
+                            self.resolve_available_sidebar_tab(default);
+                    } else if !self.ai.enabled
+                        && self.terminal_sidebar_tab == TerminalSidebarTab::Chat
+                    {
+                        self.terminal_sidebar_tab = TerminalSidebarTab::Snippets;
+                    }
+                    // Opening onto the Files tab: mount / catch up to the
+                    // shell's cwd (no-op on every other tab).
+                    return self.sidebar_files_sync();
                 }
-                // Closing the panel is the user's "stop it" gesture (the
-                // reported bug: a runaway tool loop kept running after the
-                // sidebar was closed). Cancel any live chat work so it
-                // doesn't keep executing commands in the background.
-                if closing {
+                if toggled_to == Some(false) {
+                    // Closing the panel is the user's "stop it" gesture (the
+                    // reported bug: a runaway tool loop kept running after the
+                    // sidebar was closed). Cancel any live chat work so it
+                    // doesn't keep executing commands in the background.
                     self.abort_active_chat_task();
                     // A closed sidebar can't keep a keynav ring: it would
                     // silently swallow Enter/arrows meant for the terminal.
@@ -470,10 +484,6 @@ impl Oryxis {
                     // open at close time unmounts without on_close.
                     self.keynav.sidebar_selected = None;
                     self.keynav.pick_open = false;
-                } else {
-                    // Opening onto the Files tab: mount / catch up to the
-                    // shell's cwd (no-op on every other tab).
-                    return self.sidebar_files_sync();
                 }
             }
             AiMessage::SelectTerminalSidebarTab(tab) => {

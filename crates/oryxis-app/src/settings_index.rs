@@ -115,6 +115,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "smart_tabs_threshold", "long command threshold alert duration seconds"),
     e(S::Terminal, "terminal_sidebar_left", "sidebar left dock position side"),
     e(S::Terminal, "sidebar_auto_open", "sidebar auto open connect show"),
+    e(S::Terminal, "sidebar_default_tab", "sidebar default tab chat snippets files monitor history last opened"),
     e(S::Terminal, "terminal_font_size", "font size zoom text scale points"),
     e(S::Terminal, "terminal_font", "font family typeface monospace nerd"),
     e(S::Terminal, "theme_new_custom", "create custom terminal theme color scheme"),

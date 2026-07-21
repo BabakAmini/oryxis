@@ -226,6 +226,7 @@ impl Oryxis {
             | SettingsMessage::ToggleScrollbackResetKeypress
             | SettingsMessage::ToggleScrollbackResetOutput
             | SettingsMessage::TerminalRightClickChanged(..)
+            | SettingsMessage::SidebarDefaultTabChanged(..)
             | SettingsMessage::ToggleCarefulPaste
             | SettingsMessage::ToggleBoldIsBright
             | SettingsMessage::ToggleTerminalAutoTitle

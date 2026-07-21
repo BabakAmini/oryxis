@@ -211,6 +211,10 @@ pub enum SettingsMessage {
     /// (issue #85).
     SettingToggleTerminalSidebarLeft,
     SettingToggleSidebarAutoOpen,
+    /// Settings > Terminal: which tab the sidebar opens onto (issue #85).
+    /// Carries the translated picker label; the handler maps it back to
+    /// a tab (or the "last opened" sentinel).
+    SidebarDefaultTabChanged(String),
     /// Features & Plugins: master toggle for the host-monitoring feature
     /// (issue #83). Gates ALL monitoring UI.
     SettingToggleHostMonitoring,

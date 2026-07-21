@@ -1100,6 +1100,11 @@ pub struct Oryxis {
     /// Open the terminal sidebar automatically when a session opens
     /// (per-host `Connection.sidebar_auto_open` overrides this).
     pub(crate) setting_sidebar_auto_open: bool,
+    /// Which tab the terminal sidebar opens onto (issue #85). `None`
+    /// keeps the last opened tab (the default, today's behavior); a
+    /// specific tab overrides on every open, resolved against the pane's
+    /// gates so an unreachable choice falls back to Snippets.
+    pub(crate) setting_sidebar_default_tab: Option<crate::state::TerminalSidebarTab>,
     /// Show the monitored host's vitals as a status-bar segment (issue
     /// #83, the MobaXterm-style bar). Off by default: it is a second,
     /// optional surface on the sidebar Monitor tab's engine, and an

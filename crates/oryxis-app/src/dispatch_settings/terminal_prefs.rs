@@ -193,6 +193,22 @@ impl Oryxis {
                     self.persist_setting("terminal_right_click", mode.code());
                 }
             }
+            SettingsMessage::SidebarDefaultTabChanged(name) => {
+                use crate::state::TerminalSidebarTab;
+                // "Last opened" (the sentinel label) clears the pin; any
+                // tab label sets it. Match against the translated labels,
+                // like the right-click picker.
+                if name == crate::i18n::t("sidebar_default_last") {
+                    self.setting_sidebar_default_tab = None;
+                    self.persist_setting("sidebar_default_tab", "last");
+                } else if let Some(tab) = TerminalSidebarTab::ALL
+                    .into_iter()
+                    .find(|t| crate::i18n::t(t.label_key()) == name)
+                {
+                    self.setting_sidebar_default_tab = Some(tab);
+                    self.persist_setting("sidebar_default_tab", tab.code());
+                }
+            }
             SettingsMessage::ToggleScrollbackResetKeypress => {
                 self.setting_scrollback_reset_keypress = !self.setting_scrollback_reset_keypress;
                 self.persist_setting(

@@ -36,6 +36,50 @@ pub enum TerminalSidebarTab {
     HostConfig,
 }
 
+impl TerminalSidebarTab {
+    /// Every tab, in strip order. Backs the "Default sidebar tab"
+    /// picker (issue #85).
+    pub const ALL: [TerminalSidebarTab; 6] = [
+        TerminalSidebarTab::Chat,
+        TerminalSidebarTab::Snippets,
+        TerminalSidebarTab::History,
+        TerminalSidebarTab::Files,
+        TerminalSidebarTab::Monitor,
+        TerminalSidebarTab::HostConfig,
+    ];
+
+    /// Stable code persisted in the `sidebar_default_tab` setting.
+    pub fn code(self) -> &'static str {
+        match self {
+            TerminalSidebarTab::Chat => "chat",
+            TerminalSidebarTab::Snippets => "snippets",
+            TerminalSidebarTab::History => "history",
+            TerminalSidebarTab::Files => "files",
+            TerminalSidebarTab::Monitor => "monitor",
+            TerminalSidebarTab::HostConfig => "hostconfig",
+        }
+    }
+
+    /// Parse a persisted code back to a tab; unknown codes (and the
+    /// "last opened" sentinel) return `None`.
+    pub fn from_code(code: &str) -> Option<TerminalSidebarTab> {
+        TerminalSidebarTab::ALL.into_iter().find(|t| t.code() == code)
+    }
+
+    /// i18n key for this tab's label, reusing the tab-strip tooltip
+    /// keys so the picker and the strip never drift.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            TerminalSidebarTab::Chat => "tab_tip_chat",
+            TerminalSidebarTab::Snippets => "snippets",
+            TerminalSidebarTab::History => "tab_tip_history",
+            TerminalSidebarTab::Files => "tab_tip_files",
+            TerminalSidebarTab::Monitor => "tab_tip_monitor",
+            TerminalSidebarTab::HostConfig => "tab_tip_host_config",
+        }
+    }
+}
+
 /// Identifies a secret text field whose reveal/eye toggle is on. One
 /// shared enum + a `HashSet` in app state instead of a bool per field,
 /// so adding the eye to a new password input is a one-variant change.
@@ -374,5 +418,24 @@ impl SettingsSection {
             SettingsSection::Advanced => "settings-advanced-scroll",
             SettingsSection::About => "settings-about-scroll",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TerminalSidebarTab;
+
+    #[test]
+    fn sidebar_tab_code_roundtrips_and_rejects_sentinels() {
+        // Every tab survives code -> from_code so the persisted
+        // `sidebar_default_tab` setting resolves back exactly (issue #85).
+        for t in TerminalSidebarTab::ALL {
+            assert_eq!(TerminalSidebarTab::from_code(t.code()), Some(t));
+        }
+        // The "last opened" sentinel and any junk resolve to None (keep
+        // the last tab), never a wrong tab.
+        assert_eq!(TerminalSidebarTab::from_code("last"), None);
+        assert_eq!(TerminalSidebarTab::from_code(""), None);
+        assert_eq!(TerminalSidebarTab::from_code("bogus"), None);
     }
 }

@@ -474,6 +474,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sidebar_auto_open") {
                 self.setting_sidebar_auto_open = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("sidebar_default_tab") {
+                // Empty / "last" / any unknown code = keep the last opened
+                // tab (the default); a known code pins that tab.
+                self.setting_sidebar_default_tab =
+                    crate::state::TerminalSidebarTab::from_code(&v);
+            }
             if let Ok(Some(v)) = vault.get_setting("monitor_status_bar") {
                 self.setting_monitor_status_bar = v == "true";
             }
