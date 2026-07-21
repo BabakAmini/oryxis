@@ -193,6 +193,11 @@ impl Oryxis {
                 // starts fresh at its default row.
                 self.keynav.focus = None;
                 self.keynav.modal.selected = None;
+                // Same rule for the terminal-sidebar ring: clicking into a
+                // sidebar input (or any row) must not leave the ring parked
+                // on whatever the Tab walk last visited (live QA: ring stuck
+                // on the Close button while the Files path input had focus).
+                self.keynav.sidebar_selected = None;
                 // A physical left press over a tab arms a potential reorder
                 // drag. Armed here (on the real button press) rather than in
                 // SelectTab, so programmatic SelectTab dispatches (the

@@ -317,18 +317,14 @@ impl Oryxis {
                 {
                     return Ok(task);
                 }
-                // When the AI chat sidebar is open and the cursor is over
-                // it, the user is interacting with the textarea, drop the
-                // event so it doesn't double-dispatch into the terminal
-                // session running underneath.
-                let cursor_in_chat_sidebar = self
-                    .active_tab
-                    .and_then(|i| self.tabs.get(i))
-                    .map(|t| t.chat_visible)
-                    .unwrap_or(false)
-                    && self.mouse_position.x
-                        > (self.window_size.width - self.chat_sidebar_width);
-                if cursor_in_chat_sidebar {
+                // When the sidebar is open and the cursor is over it, the
+                // user is interacting with its widgets (chat textarea,
+                // search fields, the Files browser), drop the event so it
+                // doesn't double-dispatch into the terminal session running
+                // underneath. `cursor_over_sidebar` honors the dock side
+                // (issue #85); the old inline right-edge math leaked every
+                // key into the PTY when the sidebar was docked left.
+                if self.cursor_over_sidebar() {
                     return Ok(Task::none());
                 }
                 // A global picker / modal (new-tab picker, tab jump,

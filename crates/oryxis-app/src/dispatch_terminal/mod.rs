@@ -493,14 +493,11 @@ impl Oryxis {
                 if text.is_empty() || self.show_host_panel || self.any_modal_blocks_input() {
                     return Task::none();
                 }
-                let cursor_in_chat_sidebar = self
-                    .active_tab
-                    .and_then(|i| self.tabs.get(i))
-                    .map(|t| t.chat_visible)
-                    .unwrap_or(false)
-                    && self.mouse_position.x
-                        > (self.window_size.width - self.chat_sidebar_width);
-                if cursor_in_chat_sidebar {
+                // `cursor_over_sidebar` honors the dock side (issue #85)
+                // and the side tab strip (issue #87); the old inline
+                // right-edge math leaked IME commits into the PTY when
+                // the sidebar was docked left.
+                if self.cursor_over_sidebar() {
                     return Task::none();
                 }
                 if let Some(tab_idx) = self.active_tab

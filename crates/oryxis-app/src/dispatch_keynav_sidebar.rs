@@ -83,11 +83,21 @@ impl Oryxis {
         if !visible {
             return false;
         }
-        // The sidebar hugs whichever edge it is docked on (issue #85).
+        // The sidebar hugs whichever edge it is docked on (issue #85),
+        // shifted inward by a side-docked tab strip (issue #87): with
+        // both on the same edge the sidebar starts AFTER the strip, and
+        // classifying the strip band as "sidebar" would let arrow keys
+        // over the strip engage the ring while the sidebar's inner edge
+        // leaked keys into the PTY.
+        let strip_left = self.side_strip_left_offset();
+        let strip_right = self.side_strip_reserve() - strip_left;
         if self.setting_terminal_sidebar_left {
-            self.mouse_position.x < self.chat_sidebar_width
+            self.mouse_position.x > strip_left
+                && self.mouse_position.x < strip_left + self.chat_sidebar_width
         } else {
-            self.mouse_position.x > self.window_size.width - self.chat_sidebar_width
+            let right_edge = self.window_size.width - strip_right;
+            self.mouse_position.x > right_edge - self.chat_sidebar_width
+                && self.mouse_position.x < right_edge
         }
     }
 
@@ -242,18 +252,24 @@ impl Oryxis {
                         cur
                     }
                     // Not engaged: only the hover gate over a LIST tab
-                    // turns a dead (already swallowed) arrow into an
-                    // entry point; Chat / Host config need the hotkey
-                    // or Tab.
+                    // (Snippets / History / Files) turns a dead (already
+                    // swallowed) arrow into an entry point; Chat / Host
+                    // config need the hotkey or Tab.
                     None if self.cursor_over_sidebar()
                         && matches!(
                             tab,
-                            TerminalSidebarTab::Snippets | TerminalSidebarTab::History
+                            TerminalSidebarTab::Snippets
+                                | TerminalSidebarTab::History
+                                | TerminalSidebarTab::Files
                         ) =>
                     {
-                        // Start one step "before" the edge so the move
-                        // below lands on the first / last row.
-                        if forward { len - 1 } else { 0 }
+                        // Start on the Close button (index 0) so the move
+                        // below lands on the first BODY row going down and
+                        // wraps to the last row going up: entry must never
+                        // ring Close itself, or Enter would be one keypress
+                        // away from closing the sidebar (the same hazard
+                        // the hotkey's index-1 landing documents).
+                        0
                     }
                     None => return None,
                 };
