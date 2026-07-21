@@ -1681,10 +1681,16 @@ impl Oryxis {
             (x.max(0.0), b.y + b.height + 2.0)
         } else {
             let pad = 24.0;
+            // A side-docked tab strip (issue #87) narrows the content
+            // band; without the offsets the fallback anchor lands under
+            // the strip on a right dock (or hugs the wrong edge on a
+            // left dock + RTL).
+            let strip_left = self.side_strip_left_offset();
+            let strip_right = self.side_strip_reserve() - strip_left;
             let x = if crate::i18n::is_rtl_layout() {
-                panel_width + pad + menu_width
+                strip_left + panel_width + pad + menu_width
             } else {
-                self.window_size.width - panel_width - pad - menu_width
+                self.window_size.width - strip_right - panel_width - pad - menu_width
             };
             (x.max(0.0), self.dashboard_dropdown_anchor_y())
         }

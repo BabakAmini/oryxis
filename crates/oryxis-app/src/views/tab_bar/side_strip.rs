@@ -140,8 +140,16 @@ impl Oryxis {
         // horizontal strip's docked-plus / scroll-mode pair; vertical
         // rows never compress, so one trigger covers both.
         let strip_top = if hide_top_bar { 0.0 } else { BAR_HEIGHT + 1.0 };
+        // The pinned dock is capped at ~40% of the window: an always-
+        // visible head that outgrew the viewport would push the list
+        // (and every unpinned tab) clean off screen with no way to
+        // reach them. Past the cap the dock scrolls on its own.
+        let pins_h_raw = pins_row_count as f32 * (SIDE_ROW_HEIGHT + TAB_SPACING);
+        let pins_h_max =
+            (self.window_size.height * 0.4).max(3.0 * (SIDE_ROW_HEIGHT + TAB_SPACING));
+        let pins_overflow = pins_h_raw > pins_h_max;
         let head_h = if hide_top_bar { BAR_HEIGHT } else { 0.0 }
-            + pins_row_count as f32 * (SIDE_ROW_HEIGHT + TAB_SPACING);
+            + pins_h_raw.min(pins_h_max);
         let viewport_h =
             (self.window_size.height - strip_top - head_h - 40.0).max(120.0);
         let content_h = (row_count as f32 + 1.0) * (SIDE_ROW_HEIGHT + TAB_SPACING);
@@ -196,9 +204,19 @@ impl Oryxis {
             if rest.is_empty() {
                 empty()
             } else {
-                iced::widget::Column::with_children(rest)
-                    .spacing(TAB_SPACING)
-                    .into()
+                let dock = iced::widget::Column::with_children(rest).spacing(TAB_SPACING);
+                if pins_overflow {
+                    scrollable(dock)
+                        .id(iced::widget::Id::new("side-pins-scroll"))
+                        .direction(scrollable::Direction::Vertical(
+                            scrollable::Scrollbar::new().width(0.0).scroller_width(0.0),
+                        ))
+                        .width(Length::Fill)
+                        .height(Length::Fixed(pins_h_max))
+                        .into()
+                } else {
+                    dock.into()
+                }
             }
         };
         let footer_slot = footer.unwrap_or_else(empty);

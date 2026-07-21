@@ -106,11 +106,11 @@ impl Oryxis {
         column![strip, hairline].width(Length::Fill).into()
     }
 
-    /// Live preview of the status bar under the current settings: the
-    /// top hairline, the connection segment and the version tag, with
-    /// the host-vitals segment (sample values) appearing when its
-    /// toggle is on. Mirrors the layout of `view_status_bar` so what
-    /// the user sees here matches the real bar.
+    /// Live preview of the status bar under the current settings, with
+    /// sample values. Mirrors `view_status_bar`'s per-element toggles
+    /// (connection, latency, grid size, cwd, vitals, version) so what
+    /// the user sees here matches the real bar; a toggle flip must move
+    /// BOTH renders or the card is lying.
     pub(crate) fn status_bar_preview(&self) -> Element<'_, Message> {
         let top_hairline = container(Space::new().height(1))
             .width(Length::Fill)
@@ -118,29 +118,44 @@ impl Oryxis {
                 background: Some(Background::Color(OryxisColors::t().border)),
                 ..Default::default()
             });
-        let mut items: Vec<Element<'_, Message>> = vec![
-            text(format!(
-                "● production-web, {}",
-                crate::i18n::t("status_bar_connected")
-            ))
-            .size(12)
-            .color(OryxisColors::t().success)
-            .into(),
-            Space::new().width(Length::Fill).into(),
-        ];
+        let vital = |label: String, value: &'static str| -> Element<'static, Message> {
+            dir_row(vec![
+                text(label).size(11).color(OryxisColors::t().text_muted).into(),
+                Space::new().width(4).into(),
+                text(value)
+                    .size(11)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
+        };
+        let mut items: Vec<Element<'_, Message>> = Vec::new();
+        if self.setting_status_show_connection {
+            items.push(
+                text(format!(
+                    "● production-web, {}",
+                    crate::i18n::t("status_bar_connected")
+                ))
+                .size(12)
+                .color(OryxisColors::t().success)
+                .into(),
+            );
+        }
+        items.push(Space::new().width(Length::Fill).into());
+        if self.setting_status_show_latency {
+            items.push(vital(crate::i18n::t("status_latency").into(), "23 ms"));
+            items.push(Space::new().width(12).into());
+        }
+        if self.setting_status_show_dimensions {
+            items.push(vital(crate::i18n::t("status_dimensions").into(), "120×32"));
+            items.push(Space::new().width(12).into());
+        }
+        if self.setting_status_show_cwd {
+            items.push(vital(crate::i18n::t("status_cwd").into(), "~/projects/api"));
+            items.push(Space::new().width(12).into());
+        }
         if self.setting_monitor_status_bar {
-            let vital = |label: String, value: &'static str| -> Element<'static, Message> {
-                dir_row(vec![
-                    text(label).size(11).color(OryxisColors::t().text_muted).into(),
-                    Space::new().width(4).into(),
-                    text(value)
-                        .size(11)
-                        .color(OryxisColors::t().text_secondary)
-                        .into(),
-                ])
-                .align_y(iced::Alignment::Center)
-                .into()
-            };
             items.push(vital(crate::i18n::t("monitor_cpu").into(), "12%"));
             items.push(Space::new().width(12).into());
             items.push(vital(crate::i18n::t("monitor_mem").into(), "38%"));
@@ -148,12 +163,14 @@ impl Oryxis {
             items.push(vital(crate::i18n::t("monitor_net").into(), "↓1.2M/s ↑340K/s"));
             items.push(Space::new().width(12).into());
         }
-        items.push(
-            text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
-                .size(12)
-                .color(OryxisColors::t().text_muted)
-                .into(),
-        );
+        if self.setting_status_show_version {
+            items.push(
+                text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+            );
+        }
         let bar = container(
             dir_row(items)
                 .align_y(iced::Alignment::Center)

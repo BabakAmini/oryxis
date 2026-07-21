@@ -189,7 +189,10 @@ impl Oryxis {
         if self.active_view_search_empty() {
             // No search at all: keep a Fill spacer so the action cluster
             // stays trailing, exactly as `vault_search_field` does.
-            return Space::new().width(Length::Fill).height(0).into();
+            // Shrink height, NEVER .height(0): a zero-FIXED axis makes the
+            // child void and the fork's push() drops it, silently deleting
+            // this Fill spacer (and un-pinning the action cluster).
+            return Space::new().width(Length::Fill).into();
         }
         // Force the icon whenever the floating field owns the input id, so
         // the inline field is never mounted at the same time (duplicate
@@ -220,7 +223,10 @@ impl Oryxis {
         // stretching and the action cluster stays pinned to the trailing
         // edge, exactly as it does when the field is present.
         if self.active_view_search_empty() {
-            return Space::new().width(Length::Fill).height(0).into();
+            // Shrink height, NEVER .height(0): a zero-FIXED axis makes the
+            // child void and the fork's push() drops it, silently deleting
+            // this Fill spacer (and un-pinning the action cluster).
+            return Space::new().width(Length::Fill).into();
         }
         // `ph_key` / `id` are static; only `value` borrows from `self`,
         // so they're kept in separate bindings (a shared tuple lifetime

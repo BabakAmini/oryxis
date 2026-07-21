@@ -357,7 +357,15 @@ impl Oryxis {
         let nav_width = self.vault_rail_width();
         let panel_open = self.cloud_discover_visible || self.show_host_panel;
         let panel_width = if panel_open { crate::app::PANEL_WIDTH } else { 0.0 };
-        let available = (self.window_size.width - nav_width - panel_width - 48.0).max(0.0);
+        // A side-docked tab strip (issue #87) narrows the content band
+        // like the other grids; without it the math yields one column
+        // too many and the card row clips at the edge.
+        let available = (self.window_size.width
+            - nav_width
+            - panel_width
+            - self.side_strip_reserve()
+            - 48.0)
+            .max(0.0);
         // List mode forces a single column; otherwise the grid reflows
         // responsively to the available width.
         let cols = if self.setting_host_list_view {

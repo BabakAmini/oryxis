@@ -616,20 +616,40 @@ impl Oryxis {
                 },
                 ..Default::default()
             });
-        // Pin the panel to the top-left, just below the tab bar
-        // (40 px tall). dir_align_x flips the anchor side under RTL
-        // so the dropdown lands under its trigger.
+        // Pin the panel just below the tab bar (40 px tall), under its
+        // trigger. dir_align_x flips the anchor side under RTL. With the
+        // top bar hidden (issue #87) the burger lives in the SIDE
+        // strip's header instead, so the anchor follows the strip: a
+        // right dock opens the menu from the right edge, a left dock
+        // shifts it past the strip band (otherwise the panel opens in
+        // the opposite corner of the window, detached from its button).
+        let strip_pos = crate::views::tab_bar::tab_bar_pos();
+        let in_strip_header = self.setting_side_hide_top_bar && strip_pos.is_side();
+        let (align, pad) = if in_strip_header {
+            let inset = crate::views::tab_bar::SIDE_STRIP_WIDTH + 8.0;
+            if strip_pos == crate::views::tab_bar::TabBarPos::Right {
+                (
+                    iced::alignment::Horizontal::Right,
+                    Padding { top: 44.0, right: inset, bottom: 0.0, left: 0.0 },
+                )
+            } else {
+                (
+                    iced::alignment::Horizontal::Left,
+                    Padding { top: 44.0, right: 0.0, bottom: 0.0, left: inset },
+                )
+            }
+        } else {
+            (
+                dir_align_x(),
+                Padding { top: 44.0, right: 6.0, bottom: 0.0, left: 6.0 },
+            )
+        };
         let pinned = container(menu_panel)
             .width(Length::Fill)
             .height(Length::Fill)
-            .align_x(dir_align_x())
+            .align_x(align)
             .align_y(iced::alignment::Vertical::Top)
-            .padding(Padding {
-                top: 44.0,
-                right: 0.0,
-                bottom: 0.0,
-                left: 6.0,
-            });
+            .padding(pad);
         // Backdrop catches outside clicks. Z-stack: backdrop on the
         // bottom, panel on top so the panel's buttons still receive
         // their own clicks.
