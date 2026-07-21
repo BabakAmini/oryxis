@@ -620,6 +620,7 @@ pub(crate) fn properties_modal<'a>(
 /// Autosave escalate the grant; No skips this save; Cancel stops
 /// watching the file.
 pub(crate) fn edit_prompt_modal<'a>(
+    app: &crate::app::Oryxis,
     session: &crate::state::EditSession,
 ) -> Element<'a, Message> {
     use crate::state::SftpEditPromptChoice as C;
@@ -634,6 +635,48 @@ pub(crate) fn edit_prompt_modal<'a>(
 
     let choice =
         |c: C| Message::Sftp(SftpMessage::SftpEditPromptChoice(c));
+
+    // Keyboard rows in visual order (Tab/arrows walk them, Enter fires
+    // the ringed row); Yes is the surface default so a bare Enter
+    // confirms the save, mirroring the click-path primary.
+    app.modal_nav_reset();
+    let buttons = crate::widgets::dir_row(vec![
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::Cancel)),
+            8.0,
+            false,
+            ghost_button(t("cancel"), choice(C::Cancel)),
+        ),
+        Space::new().width(Length::Fill).into(),
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::No)),
+            8.0,
+            false,
+            outlined_button(t("no"), choice(C::No)),
+        ),
+        Space::new().width(8).into(),
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::Autosave)),
+            8.0,
+            false,
+            outlined_button(t("sftp_edit_autosave_btn"), choice(C::Autosave)),
+        ),
+        Space::new().width(8).into(),
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::YesToAll)),
+            8.0,
+            false,
+            outlined_button(t("sftp_edit_yes_all"), choice(C::YesToAll)),
+        ),
+        Space::new().width(8).into(),
+        app.modal_nav_slot_default(
+            crate::keynav::RowAction::activate(choice(C::Yes)),
+            8.0,
+            true,
+            primary_button(t("yes"), choice(C::Yes), OryxisColors::t().accent),
+        ),
+    ])
+    .align_y(iced::Alignment::Center);
 
     let content = column![
         text(t("sftp_edit_prompt_title"))
@@ -650,18 +693,7 @@ pub(crate) fn edit_prompt_modal<'a>(
             .size(11)
             .color(OryxisColors::t().text_muted),
         Space::new().height(18),
-        row![
-            ghost_button(t("cancel"), choice(C::Cancel)),
-            Space::new().width(Length::Fill),
-            outlined_button(t("no"), choice(C::No)),
-            Space::new().width(8),
-            outlined_button(t("sftp_edit_autosave_btn"), choice(C::Autosave)),
-            Space::new().width(8),
-            outlined_button(t("sftp_edit_yes_all"), choice(C::YesToAll)),
-            Space::new().width(8),
-            primary_button(t("yes"), choice(C::Yes), OryxisColors::t().accent),
-        ]
-        .align_y(iced::Alignment::Center),
+        buttons,
     ]
     .width(Length::Fill);
 

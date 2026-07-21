@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Automatické ukládání (příště se neptat)",
         "sftp_edit_uploaded" => "{file} nahrán",
         "sftp_edit_upload_failed" => "Nahrání se nezdařilo",
+        "sftp_edit_save_retry" => "Uložte soubor znovu pro další pokus.",
         "setting_default_editor" => "Výchozí editor",
         "setting_default_editor_desc" => "Aplikace použitá pro \"Otevřít ve výchozím textovém editoru\" u vzdálených souborů.",
         "setting_default_editor_placeholder" => "Cesta ke spustitelnému souboru editoru",

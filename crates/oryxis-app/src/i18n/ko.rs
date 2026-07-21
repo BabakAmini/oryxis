@@ -1251,6 +1251,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "자동 저장(다시 묻지 않음)",
         "sftp_edit_uploaded" => "{file} 업로드됨",
         "sftp_edit_upload_failed" => "업로드 실패",
+        "sftp_edit_save_retry" => "다시 시도하려면 파일을 다시 저장하세요.",
         "setting_default_editor" => "기본 편집기",
         "setting_default_editor_desc" => "원격 파일의 \"기본 텍스트 편집기로 열기\"에 사용되는 애플리케이션입니다.",
         "setting_default_editor_placeholder" => "편집기 실행 파일 경로",

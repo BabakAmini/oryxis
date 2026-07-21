@@ -70,9 +70,11 @@ pub(crate) enum Modal {
     SftpProperties,
     SftpOverwrite,
     /// Save-confirmation for an "Open with" edit watch (issue #84): a
-    /// data-bearing decision like `SftpOverwrite`, so it blocks input
-    /// and owns its own dismissal (absent from `ESC_ORDER`; Esc must
-    /// not silently pick a side).
+    /// data-bearing decision like `SftpOverwrite`, so it blocks input.
+    /// In `ESC_ORDER`: Esc means "skip this save" (the safe default,
+    /// `close_modal` re-arms the watch so the next save prompts again),
+    /// never an accidental upload. Its buttons are keynav Confirm rows,
+    /// Enter fires the ringed choice (default Yes).
     SftpEditPrompt,
     SftpPicker,
     /// The ssh-agent per-signature confirm prompt (`agent.pending_confirm`,
@@ -150,6 +152,9 @@ impl Modal {
         // follow in the same lightweight-confirm group.
         Modal::ErrorDialog,
         Modal::ClearHistoryConfirm,
+        // Esc = skip this save (never upload by accident); the watch
+        // re-arms so the next save prompts again.
+        Modal::SftpEditPrompt,
         Modal::SshImport,
         Modal::SessionGroupPanel,
         Modal::ThemeEditor,

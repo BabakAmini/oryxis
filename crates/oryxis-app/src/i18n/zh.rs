@@ -1167,6 +1167,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "自动保存（不再询问）",
         "sftp_edit_uploaded" => "{file} 已上传",
         "sftp_edit_upload_failed" => "上传失败",
+        "sftp_edit_save_retry" => "再次保存文件以重试。",
         "setting_default_editor" => "默认编辑器",
         "setting_default_editor_desc" => "远程文件的\"用默认文本编辑器打开\"所使用的应用程序。",
         "setting_default_editor_placeholder" => "编辑器可执行文件路径",

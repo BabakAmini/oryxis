@@ -663,6 +663,11 @@ pub(crate) struct EditSession {
     /// browser ops and every `edit_watches` entry); `None` resolves the
     /// remote SFTP pane as before.
     pub client_override: Option<SftpClient>,
+    /// Pane the edit was started from. Save/reload and error reporting
+    /// resolve THIS pane, never a recomputed "the remote side" (with two
+    /// remote panes that guess picks the wrong host). Only meaningful
+    /// when `client_override` is `None`.
+    pub pane_side: SftpPaneSide,
     pub remote_path: String,
     pub temp_path: std::path::PathBuf,
     /// Display label shown in the modal, basename of the remote file.

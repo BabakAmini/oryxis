@@ -1251,6 +1251,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Simpan otomatis (jangan tanya lagi)",
         "sftp_edit_uploaded" => "{file} diunggah",
         "sftp_edit_upload_failed" => "Unggah gagal",
+        "sftp_edit_save_retry" => "Simpan file lagi untuk mencoba ulang.",
         "setting_default_editor" => "Editor default",
         "setting_default_editor_desc" => "Aplikasi untuk \"Buka dengan editor teks default\" pada file remote.",
         "setting_default_editor_placeholder" => "Path ke file editor",

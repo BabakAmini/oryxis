@@ -94,6 +94,9 @@ impl Oryxis {
                     | Modal::CloudImportConfirm
                     // Security prompt: Deny is the default-ringed action.
                     | Modal::AgentConfirm
+                    // Save-confirmation for an edit watch: Yes is the
+                    // default-ringed action, Esc skips the save.
+                    | Modal::SftpEditPrompt
                     // Read-only cert viewer: Close is the default action;
                     // Remove (when present) is the other recorded row.
                     | Modal::CertificateViewer => SurfaceFamily::Confirm,

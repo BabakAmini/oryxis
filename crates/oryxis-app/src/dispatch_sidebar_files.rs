@@ -561,18 +561,9 @@ impl Oryxis {
                 };
                 return Task::perform(
                     async move {
-                        let basename = path
-                            .rsplit('/')
-                            .find(|s| !s.is_empty())
-                            .unwrap_or(&path)
-                            .to_string();
+                        let (basename, temp_path) = crate::util::edit_temp_file(&path);
                         let bytes =
                             client.read_file(&path).await.map_err(|e| e.to_string())?;
-                        let temp_path = std::env::temp_dir().join(format!(
-                            "oryxis-{}-{}",
-                            uuid::Uuid::new_v4(),
-                            basename
-                        ));
                         tokio::fs::write(&temp_path, &bytes)
                             .await
                             .map_err(|e| format!("write temp: {e}"))?;
@@ -598,6 +589,9 @@ impl Oryxis {
                             .and_then(|m| m.modified().ok());
                         Ok::<crate::state::EditSession, String>(crate::state::EditSession {
                             client_override: Some(client.clone()),
+                            // Sidebar edits upload via client_override; the
+                            // side is never consulted.
+                            pane_side: crate::state::SftpPaneSide::Right,
                             remote_path: path,
                             temp_path,
                             label: basename,

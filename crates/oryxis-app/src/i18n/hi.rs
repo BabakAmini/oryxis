@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "ऑटोसेव (फिर न पूछें)",
         "sftp_edit_uploaded" => "{file} अपलोड हो गई",
         "sftp_edit_upload_failed" => "अपलोड विफल",
+        "sftp_edit_save_retry" => "पुनः प्रयास के लिए फ़ाइल को फिर से सहेजें।",
         "setting_default_editor" => "डिफ़ॉल्ट एडिटर",
         "setting_default_editor_desc" => "रिमोट फ़ाइलों पर \"डिफ़ॉल्ट टेक्स्ट एडिटर से खोलें\" के लिए इस्तेमाल होने वाला ऐप।",
         "setting_default_editor_placeholder" => "एडिटर की एक्ज़ीक्यूटेबल फ़ाइल का पाथ",

@@ -1251,6 +1251,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Tự động lưu (không hỏi lại)",
         "sftp_edit_uploaded" => "Đã tải lên {file}",
         "sftp_edit_upload_failed" => "Tải lên thất bại",
+        "sftp_edit_save_retry" => "Lưu tệp lần nữa để thử lại.",
         "setting_default_editor" => "Trình soạn thảo mặc định",
         "setting_default_editor_desc" => "Ứng dụng dùng cho \"Mở bằng trình soạn thảo văn bản mặc định\" trên tệp từ xa.",
         "setting_default_editor_placeholder" => "Đường dẫn tới tệp thực thi của trình soạn thảo",

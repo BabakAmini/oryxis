@@ -1251,6 +1251,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Otomatik kaydet (bir daha sorma)",
         "sftp_edit_uploaded" => "{file} yüklendi",
         "sftp_edit_upload_failed" => "Yükleme başarısız",
+        "sftp_edit_save_retry" => "Yeniden denemek için dosyayı tekrar kaydedin.",
         "setting_default_editor" => "Varsayılan düzenleyici",
         "setting_default_editor_desc" => "Uzak dosyalarda \"Varsayılan metin düzenleyiciyle aç\" için kullanılan uygulama.",
         "setting_default_editor_placeholder" => "Düzenleyici yürütülebilir dosyasının yolu",

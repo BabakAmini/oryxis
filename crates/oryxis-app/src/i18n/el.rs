@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Αυτόματη αποθήκευση (να μην ξαναρωτηθώ)",
         "sftp_edit_uploaded" => "Το {file} μεταφορτώθηκε",
         "sftp_edit_upload_failed" => "Αποτυχία μεταφόρτωσης",
+        "sftp_edit_save_retry" => "Αποθηκεύστε ξανά το αρχείο για νέα προσπάθεια.",
         "setting_default_editor" => "Προεπιλεγμένος επεξεργαστής",
         "setting_default_editor_desc" => "Η εφαρμογή του \"Άνοιγμα με τον προεπιλεγμένο επεξεργαστή κειμένου\" στα απομακρυσμένα αρχεία.",
         "setting_default_editor_placeholder" => "Διαδρομή προς το εκτελέσιμο του επεξεργαστή",

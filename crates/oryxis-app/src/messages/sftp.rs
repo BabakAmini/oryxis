@@ -183,7 +183,7 @@ pub enum SftpMessage {
     SftpRowExit,
     SftpMouseLeftPressed,
     SftpSelectRow(crate::state::SftpPaneSide, String, bool),
-    SftpStartEdit(String),
+    SftpStartEdit(crate::state::SftpPaneSide, String),
     /// Open a local file in the OS default app, no temp copy, no
     /// mtime watch. Edits land on the file directly.
     SftpOpenLocal(std::path::PathBuf),
@@ -198,7 +198,11 @@ pub enum SftpMessage {
     /// Open a remote file with a chosen local application (issue #84):
     /// downloads a temp copy, spawns the opener, and registers a
     /// background watch that confirms each save via the blocking dialog.
-    SftpStartEditWith(String, crate::state::SftpEditOpener),
+    SftpStartEditWith(
+        crate::state::SftpPaneSide,
+        String,
+        crate::state::SftpEditOpener,
+    ),
     /// The temp copy is written and the opener spawned: register the
     /// watch entry (the non-blocking sibling of `SftpEditReady`).
     SftpEditWatchReady(crate::state::EditSession),

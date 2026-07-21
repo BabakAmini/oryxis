@@ -1167,6 +1167,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "自動保存（今後確認しない）",
         "sftp_edit_uploaded" => "{file} をアップロードしました",
         "sftp_edit_upload_failed" => "アップロードに失敗しました",
+        "sftp_edit_save_retry" => "再試行するにはファイルをもう一度保存してください。",
         "setting_default_editor" => "既定のエディタ",
         "setting_default_editor_desc" => "リモートファイルの「既定のテキストエディタで開く」で使用するアプリケーション。",
         "setting_default_editor_placeholder" => "エディタ実行ファイルのパス",

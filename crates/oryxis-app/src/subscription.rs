@@ -211,16 +211,21 @@ impl Oryxis {
             );
         }
 
-        if self.sftp.edit_session.is_some()
-            || !self.sftp.edit_watches.is_empty()
-            || self
-                .sftp_tabs
-                .iter()
-                .any(|t| t.state.edit_session.is_some() || !t.state.edit_watches.is_empty())
-            || self
-                .tabs
-                .iter()
-                .any(|t| t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty())
+        // Unlocked-gated like the monitor above: the soft-lock sweep
+        // clears every watch, but the gate makes the invariant structural
+        // (no save can upload behind the lock screen even if a watch
+        // slipped past a future sweep edit).
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && (self.sftp.edit_session.is_some()
+                || !self.sftp.edit_watches.is_empty()
+                || self
+                    .sftp_tabs
+                    .iter()
+                    .any(|t| t.state.edit_session.is_some() || !t.state.edit_watches.is_empty())
+                || self
+                    .tabs
+                    .iter()
+                    .any(|t| t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty()))
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))

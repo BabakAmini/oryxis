@@ -441,7 +441,7 @@ impl Oryxis {
             // Right arrow on a file: nothing to descend into.
             Task::none()
         } else if is_remote {
-            Task::done(Message::Sftp(SftpMessage::SftpStartEdit(path)))
+            Task::done(Message::Sftp(SftpMessage::SftpStartEdit(side, path)))
         } else {
             Task::done(Message::Sftp(SftpMessage::SftpOpenLocal(std::path::PathBuf::from(path))))
         }
@@ -1317,14 +1317,17 @@ fn is_wsl_root(path: &std::path::Path) -> bool {
 /// the empty trailing entries Windows likes to add. Returns an empty
 /// list on non-Windows or if `wsl.exe` is unavailable.
 /// Whether an SFTP state carries unsaved work worth a close-guard: an
-/// in-flight transfer, or a dirty edit-session (an external-editor save
-/// whose upload hasn't landed yet). Shared by the standalone tab close
-/// guards and the hybrid Close-SFTP-session guard so the two paths can
-/// never diverge on what counts as discardable.
+/// in-flight transfer, a dirty edit-session (an external-editor save
+/// whose upload hasn't landed yet), or ANY registered watch. A clean
+/// watch counts too: the external editor is still open, and silently
+/// dropping the watch would turn its future saves into local-only
+/// writes with no upload and no warning. Shared by the standalone tab
+/// close guards and the hybrid Close-SFTP-session guard so the two
+/// paths can never diverge on what counts as discardable.
 pub(crate) fn sftp_state_has_unsaved(st: &crate::state::SftpState) -> bool {
     st.transfer.is_some()
         || st.edit_session.as_ref().is_some_and(|e| e.dirty)
-        || st.edit_watches.iter().any(|w| w.dirty || w.uploading)
+        || !st.edit_watches.is_empty()
 }
 
 fn list_wsl_distros_for_pane() -> Vec<String> {

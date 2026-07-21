@@ -16,10 +16,9 @@ impl Oryxis {
         message: SftpMessage,
     ) -> Result<Task<Message>, SftpMessage> {
         use crate::state::SftpPaneSide;
-        // Edit-in-place is a remote-pane operation; resolve the remote
-        // side for error reporting / reload. Defaults to Right when no
-        // remote pane exists (the early returns guard real use).
-        let remote_side = self.sftp.remote_side().unwrap_or(SftpPaneSide::Right);
+        // Edit-in-place arms carry their originating pane explicitly (a
+        // recomputed "remote side" picks the wrong host when both panes
+        // are remote); only local-pane conveniences resolve a default.
         let local_side = self.sftp.local_side().unwrap_or(SftpPaneSide::Left);
         match message {
             SftpMessage::SftpShowProperties(side, path, is_dir) => {
@@ -270,30 +269,20 @@ impl Oryxis {
                     ));
                 }
             }
-            SftpMessage::SftpStartEdit(remote_path) => {
+            SftpMessage::SftpStartEdit(side, remote_path) => {
                 self.sftp.row_menu = None;
-                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                let Some(client) = self.sftp.pane(side).client.clone() else {
+                    self.sftp.pane_mut(side).error = Some("Not connected to a host".into());
                     return Ok(Task::none());
                 };
                 return Ok(Task::perform(
                     async move {
-                        let basename = remote_path
-                            .rsplit('/')
-                            .find(|s| !s.is_empty())
-                            .unwrap_or(&remote_path)
-                            .to_string();
+                        let (basename, temp_path) =
+                            crate::util::edit_temp_file(&remote_path);
                         let bytes = client
                             .read_file(&remote_path)
                             .await
                             .map_err(|e| e.to_string())?;
-                        // Tag the temp filename with a uuid so concurrent
-                        // edits of similarly-named files don't collide.
-                        let temp_path = std::env::temp_dir().join(format!(
-                            "oryxis-{}-{}",
-                            uuid::Uuid::new_v4(),
-                            basename
-                        ));
                         tokio::fs::write(&temp_path, &bytes)
                             .await
                             .map_err(|e| format!("write temp: {e}"))?;
@@ -325,6 +314,7 @@ impl Oryxis {
                             .and_then(|m| m.modified().ok());
                         Ok::<crate::state::EditSession, String>(crate::state::EditSession {
                             client_override: None,
+                            pane_side: side,
                             remote_path,
                             temp_path,
                             label: basename,
@@ -336,7 +326,7 @@ impl Oryxis {
                     },
                     move |result| match result {
                         Ok(session) => Message::Sftp(SftpMessage::SftpEditReady(session)),
-                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                     },
                 ));
             }
@@ -368,12 +358,13 @@ impl Oryxis {
                         },
                     ));
                 }
-                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                let side = session.pane_side;
+                let Some(client) = self.sftp.pane(side).client.clone() else {
+                    self.sftp.pane_mut(side).error = Some("Not connected to a host".into());
                     let _ = std::fs::remove_file(&session.temp_path);
                     return Ok(Task::none());
                 };
-                let reload = self.sftp.pane(remote_side).remote_path.clone();
+                let reload = self.sftp.pane(side).remote_path.clone();
                 return Ok(Task::perform(
                     async move {
                         let bytes = tokio::fs::read(&session.temp_path)
@@ -387,8 +378,8 @@ impl Oryxis {
                         Ok::<String, String>(reload)
                     },
                     move |result| match result {
-                        Ok(reload) => Message::Sftp(SftpMessage::SftpNavigateRemote(remote_side, reload)),
-                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
+                        Ok(reload) => Message::Sftp(SftpMessage::SftpNavigateRemote(side, reload)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                     },
                 ));
             }
@@ -454,7 +445,7 @@ impl Oryxis {
                     return Ok(Task::batch(tasks));
                 }
             }
-            SftpMessage::SftpStartEditWith(remote_path, opener) => {
+            SftpMessage::SftpStartEditWith(side, remote_path, opener) => {
                 self.sftp.close_menus();
                 // The configured editor resolves NOW so an unset setting
                 // fails with guidance instead of a broken spawn later.
@@ -471,32 +462,24 @@ impl Oryxis {
                     }
                     _ => None,
                 };
-                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                let Some(client) = self.sftp.pane(side).client.clone() else {
+                    self.sftp.pane_mut(side).error = Some("Not connected to a host".into());
                     return Ok(Task::none());
                 };
                 let host = self
                     .sftp
-                    .pane(remote_side)
+                    .pane(side)
                     .host_label
                     .clone()
                     .unwrap_or_default();
                 return Ok(Task::perform(
                     async move {
-                        let basename = remote_path
-                            .rsplit('/')
-                            .find(|s| !s.is_empty())
-                            .unwrap_or(&remote_path)
-                            .to_string();
+                        let (basename, temp_path) =
+                            crate::util::edit_temp_file(&remote_path);
                         let bytes = client
                             .read_file(&remote_path)
                             .await
                             .map_err(|e| e.to_string())?;
-                        let temp_path = std::env::temp_dir().join(format!(
-                            "oryxis-{}-{}",
-                            uuid::Uuid::new_v4(),
-                            basename
-                        ));
                         tokio::fs::write(&temp_path, &bytes)
                             .await
                             .map_err(|e| format!("write temp: {e}"))?;
@@ -516,6 +499,7 @@ impl Oryxis {
                             .and_then(|m| m.modified().ok());
                         Ok::<crate::state::EditSession, String>(crate::state::EditSession {
                             client_override: Some(client),
+                            pane_side: side,
                             remote_path,
                             temp_path,
                             label: basename,
@@ -527,11 +511,26 @@ impl Oryxis {
                     },
                     move |result| match result {
                         Ok(session) => Message::Sftp(SftpMessage::SftpEditWatchReady(session)),
-                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(remote_side, e, true)),
+                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                     },
                 ));
             }
             SftpMessage::SftpEditWatchReady(session) => {
+                // A second "Open with" of the same remote file REPLACES the
+                // old watch, across every surface: two live watches for one
+                // path would race their uploads in undefined order under an
+                // autosave grant. The superseded editor stays open, its
+                // saves just stop uploading (next save via the new watch).
+                let same = |w: &crate::state::EditSession| {
+                    w.remote_path == session.remote_path && w.host == session.host
+                };
+                self.sftp.edit_watches.retain(|w| !same(w));
+                for tab in self.sftp_tabs.iter_mut() {
+                    tab.state.edit_watches.retain(|w| !same(w));
+                }
+                for tab in self.tabs.iter_mut() {
+                    tab.files_state.edit_watches.retain(|w| !same(w));
+                }
                 self.sftp.edit_watches.push(session);
             }
             SftpMessage::SftpEditPromptChoice(choice) => {
@@ -641,8 +640,15 @@ impl Oryxis {
                         }
                     }
                     Err(e) => {
+                        // The baseline was re-armed past the failed content,
+                        // so nothing retries on its own: tell the user the
+                        // way back is another save.
                         return Ok(self.show_toast_secs(
-                            format!("{}: {e}", crate::i18n::t("sftp_edit_upload_failed")),
+                            format!(
+                                "{}: {e}. {}",
+                                crate::i18n::t("sftp_edit_upload_failed"),
+                                crate::i18n::t("sftp_edit_save_retry")
+                            ),
                             6,
                         ));
                     }
@@ -692,14 +698,63 @@ fn spawn_edit_opener(
             .map_err(|e| format!("open editor: {e} (temp at {})", temp_path.display())),
         crate::state::SftpEditOpener::ConfiguredEditor => {
             let editor = editor.ok_or("no editor configured")?;
-            std::process::Command::new(editor)
+            let parts = split_command_line(editor);
+            let (program, args) = parts.split_first().ok_or("no editor configured")?;
+            std::process::Command::new(program)
+                .args(args)
                 .arg(temp_path)
                 .spawn()
-                .map(|_| ())
-                .map_err(|e| format!("spawn {editor}: {e}"))
+                .map(reap_detached)
+                .map_err(|e| format!("spawn {program}: {e}"))
         }
         crate::state::SftpEditOpener::AskOs => open_with_os_picker(temp_path),
     }
+}
+
+/// Split a configured editor command line into program + arguments,
+/// honoring single/double quotes so quoted paths with spaces work
+/// (`"C:\Program Files\VS Code\Code.exe" --wait`). Backslashes are kept
+/// literal on purpose: they are path separators on Windows, and treating
+/// them as escapes would break every configured Windows editor.
+fn split_command_line(cmd: &str) -> Vec<String> {
+    let mut parts: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    let mut in_word = false;
+    let mut quote: Option<char> = None;
+    for c in cmd.chars() {
+        match quote {
+            Some(q) if c == q => quote = None,
+            Some(_) => cur.push(c),
+            None if c == '"' || c == '\'' => {
+                quote = Some(c);
+                in_word = true;
+            }
+            None if c.is_whitespace() => {
+                if in_word {
+                    parts.push(std::mem::take(&mut cur));
+                    in_word = false;
+                }
+            }
+            None => {
+                cur.push(c);
+                in_word = true;
+            }
+        }
+    }
+    if in_word {
+        parts.push(cur);
+    }
+    parts
+}
+
+/// Hand a spawned child to a reaper thread so it never lingers as a
+/// zombie on Unix once the user closes their editor. The thread parks
+/// in `wait()` and costs nothing while the editor runs.
+fn reap_detached(child: std::process::Child) {
+    std::thread::spawn(move || {
+        let mut child = child;
+        let _ = child.wait();
+    });
 }
 
 /// OS "open with" application picker. Windows has a shell verb for it;
@@ -712,30 +767,64 @@ fn open_with_os_picker(temp_path: &std::path::Path) -> Result<(), String> {
             .arg("shell32.dll,OpenAs_RunDLL")
             .arg(temp_path)
             .spawn()
-            .map(|_| ())
+            .map(reap_detached)
             .map_err(|e| format!("open-with dialog: {e}"))
     }
     #[cfg(target_os = "macos")]
     {
         // `choose application` returns e.g. "application \"TextEdit\"";
-        // `open -a` accepts the display name.
-        let script = format!(
-            "tell application \"System Events\" to activate\n\
+        // `open -a` accepts the display name. The temp path reaches the
+        // script strictly as `argv` — the file name comes from the remote
+        // server, and interpolating it into the script source would let a
+        // hostile name break the string literal and run arbitrary
+        // AppleScript (`do shell script`) locally.
+        let script = "on run argv\n\
+             tell application \"System Events\" to activate\n\
              set theApp to name of (choose application)\n\
-             do shell script \"open -a \" & quoted form of theApp & \" \" & quoted form of \"{}\"",
-            temp_path.display()
-        );
+             do shell script \"open -a \" & quoted form of theApp & \" \" & quoted form of (item 1 of argv)\n\
+             end run";
         std::process::Command::new("osascript")
             .arg("-e")
             .arg(script)
+            .arg(temp_path)
             .spawn()
-            .map(|_| ())
+            .map(reap_detached)
             .map_err(|e| format!("open-with dialog: {e}"))
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = temp_path;
         Err("The OS application picker is not available on this platform".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::split_command_line;
+
+    #[test]
+    fn split_plain_words() {
+        assert_eq!(split_command_line("code --wait"), vec!["code", "--wait"]);
+    }
+
+    #[test]
+    fn split_keeps_quoted_spaces_and_backslashes() {
+        assert_eq!(
+            split_command_line(r#""C:\Program Files\VS Code\Code.exe" --wait"#),
+            vec![r"C:\Program Files\VS Code\Code.exe", "--wait"]
+        );
+        assert_eq!(
+            split_command_line("'my editor' -n"),
+            vec!["my editor", "-n"]
+        );
+    }
+
+    #[test]
+    fn split_empty_and_whitespace() {
+        assert!(split_command_line("").is_empty());
+        assert!(split_command_line("   ").is_empty());
+        // An empty quoted pair still yields an (empty) argument.
+        assert_eq!(split_command_line("vim \"\""), vec!["vim", ""]);
     }
 }
 

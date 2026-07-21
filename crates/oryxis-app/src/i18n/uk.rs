@@ -1251,6 +1251,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Автозбереження (більше не питати)",
         "sftp_edit_uploaded" => "{file} завантажено",
         "sftp_edit_upload_failed" => "Помилка завантаження",
+        "sftp_edit_save_retry" => "Збережіть файл ще раз, щоб повторити спробу.",
         "setting_default_editor" => "Типовий редактор",
         "setting_default_editor_desc" => "Застосунок для \"Відкрити у типовому текстовому редакторі\" на віддалених файлах.",
         "setting_default_editor_placeholder" => "Шлях до виконуваного файлу редактора",

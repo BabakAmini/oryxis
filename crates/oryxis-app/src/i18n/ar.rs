@@ -1252,6 +1252,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "حفظ تلقائي (لا تسأل مجددًا)",
         "sftp_edit_uploaded" => "تم رفع {file}",
         "sftp_edit_upload_failed" => "فشل الرفع",
+        "sftp_edit_save_retry" => "احفظ الملف مرة أخرى لإعادة المحاولة.",
         "setting_default_editor" => "المحرر الافتراضي",
         "setting_default_editor_desc" => "التطبيق المستخدم في \"فتح بمحرر النصوص الافتراضي\" للملفات البعيدة.",
         "setting_default_editor_placeholder" => "مسار الملف التنفيذي للمحرر",

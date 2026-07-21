@@ -311,7 +311,7 @@ impl Oryxis {
             // Save-confirmation for an "Open with" edit watch. Multiple
             // dirty watches queue naturally: answering one re-renders
             // with the next.
-            Some(edit_prompt_modal(watch))
+            Some(edit_prompt_modal(self, watch))
         } else if let Some(prompt) = &self.sftp.overwrite_prompt {
             Some(overwrite_modal(prompt))
         } else if let Some(props) = &self.sftp.properties {

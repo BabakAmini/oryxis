@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "שמירה אוטומטית (אל תשאל שוב)",
         "sftp_edit_uploaded" => "{file} הועלה",
         "sftp_edit_upload_failed" => "ההעלאה נכשלה",
+        "sftp_edit_save_retry" => "שמרו את הקובץ שוב כדי לנסות שוב.",
         "setting_default_editor" => "עורך ברירת מחדל",
         "setting_default_editor_desc" => "היישום המשמש את \"פתיחה בעורך הטקסט המוגדר\" בקבצים מרוחקים.",
         "setting_default_editor_placeholder" => "נתיב לקובץ ההפעלה של העורך",

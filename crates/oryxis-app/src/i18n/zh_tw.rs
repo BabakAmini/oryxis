@@ -1167,6 +1167,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "自動儲存（不再詢問）",
         "sftp_edit_uploaded" => "{file} 已上傳",
         "sftp_edit_upload_failed" => "上傳失敗",
+        "sftp_edit_save_retry" => "再次儲存檔案以重試。",
         "setting_default_editor" => "預設編輯器",
         "setting_default_editor_desc" => "遠端檔案的\"用預設文字編輯器開啟\"所使用的應用程式。",
         "setting_default_editor_placeholder" => "編輯器可執行檔路徑",

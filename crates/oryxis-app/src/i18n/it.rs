@@ -1158,6 +1158,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Salvataggio automatico (non chiedere più)",
         "sftp_edit_uploaded" => "{file} caricato",
         "sftp_edit_upload_failed" => "Caricamento non riuscito",
+        "sftp_edit_save_retry" => "Salva di nuovo il file per riprovare.",
         "setting_default_editor" => "Editor predefinito",
         "setting_default_editor_desc" => "Applicazione usata da \"Apri con editor di testo predefinito\" sui file remoti.",
         "setting_default_editor_placeholder" => "Percorso dell'eseguibile dell'editor",

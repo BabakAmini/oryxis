@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "Autozapis (nie pytaj ponownie)",
         "sftp_edit_uploaded" => "{file} przesłano",
         "sftp_edit_upload_failed" => "Przesyłanie nie powiodło się",
+        "sftp_edit_save_retry" => "Zapisz plik ponownie, aby spróbować jeszcze raz.",
         "setting_default_editor" => "Domyślny edytor",
         "setting_default_editor_desc" => "Aplikacja używana przez \"Otwórz w domyślnym edytorze tekstu\" dla zdalnych plików.",
         "setting_default_editor_placeholder" => "Ścieżka do pliku wykonywalnego edytora",

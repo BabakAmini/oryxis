@@ -339,13 +339,14 @@ pub(crate) fn row_context_menu_box<'a>(
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
+                Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
                 secondary,
             ));
             items = items.push(slot(
                 iced_fonts::lucide::pen_line(),
                 crate::i18n::t("sftp_open_with_editor").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.side,
                     menu.path.clone(),
                     crate::state::SftpEditOpener::ConfiguredEditor,
                 )),
@@ -358,6 +359,7 @@ pub(crate) fn row_context_menu_box<'a>(
                     iced_fonts::lucide::layout_grid(),
                     crate::i18n::t("sftp_open_with").to_string(),
                     Message::Sftp(SftpMessage::SftpStartEditWith(
+                        menu.side,
                         menu.path.clone(),
                         crate::state::SftpEditOpener::AskOs,
                     )),
@@ -368,6 +370,7 @@ pub(crate) fn row_context_menu_box<'a>(
                 iced_fonts::lucide::external_link(),
                 crate::i18n::t("sftp_open_with_os").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.side,
                     menu.path.clone(),
                     crate::state::SftpEditOpener::OsDefault,
                 )),
@@ -401,13 +404,14 @@ pub(crate) fn row_context_menu_box<'a>(
             items = items.push(slot(
                 iced_fonts::lucide::pencil(),
                 crate::i18n::t("edit").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEdit(menu.path.clone())),
+                Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
                 secondary,
             ));
             items = items.push(slot(
                 iced_fonts::lucide::pen_line(),
                 crate::i18n::t("sftp_open_with_editor").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.side,
                     menu.path.clone(),
                     crate::state::SftpEditOpener::ConfiguredEditor,
                 )),
@@ -420,6 +424,7 @@ pub(crate) fn row_context_menu_box<'a>(
                     iced_fonts::lucide::layout_grid(),
                     crate::i18n::t("sftp_open_with").to_string(),
                     Message::Sftp(SftpMessage::SftpStartEditWith(
+                        menu.side,
                         menu.path.clone(),
                         crate::state::SftpEditOpener::AskOs,
                     )),
@@ -430,6 +435,7 @@ pub(crate) fn row_context_menu_box<'a>(
                 iced_fonts::lucide::external_link(),
                 crate::i18n::t("sftp_open_with_os").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEditWith(
+                    menu.side,
                     menu.path.clone(),
                     crate::state::SftpEditOpener::OsDefault,
                 )),
@@ -936,13 +942,27 @@ pub(crate) fn path_history_overlay<'a>(
     .on_press(Message::Sftp(SftpMessage::SftpPathHistoryClose))
     .into();
     // Anchored under the path bar, hugging the pane's trailing edge
-    // (where the arrow that opened it sits).
+    // (where the arrow that opened it sits). The path bar is a
+    // `dir_row`, so under RTL the arrow sits on the physical LEFT and
+    // the dropdown must follow it there.
+    let rtl = crate::i18n::is_rtl_layout();
+    let (align, pad) = if rtl {
+        (
+            iced::alignment::Horizontal::Left,
+            Padding { top: 70.0, right: 0.0, bottom: 0.0, left: 14.0 },
+        )
+    } else {
+        (
+            iced::alignment::Horizontal::Right,
+            Padding { top: 70.0, right: 14.0, bottom: 0.0, left: 0.0 },
+        )
+    };
     let positioned = container(menu)
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_x(iced::alignment::Horizontal::Right)
+        .align_x(align)
         .align_y(iced::alignment::Vertical::Top)
-        .padding(Padding { top: 70.0, right: 14.0, bottom: 0.0, left: 0.0 });
+        .padding(pad);
     iced::widget::Stack::new().push(scrim).push(positioned).into()
 }
 

@@ -357,6 +357,13 @@ impl Oryxis {
             self.sftp.row_menu = None;
             return true;
         }
+        // The SFTP path-history dropdown (issue #85) is the same weight;
+        // Esc mirrors its scrim click.
+        if self.sftp.left.path_history_open || self.sftp.right.path_history_open {
+            self.sftp.left.path_history_open = false;
+            self.sftp.right.path_history_open = false;
+            return true;
+        }
         // Walk the Esc-close priority order and dismiss the first open
         // modal. `close_modal` is a compiler-checked exhaustive match, so a
         // new modal can't be added without deciding its cleanup; adding it

@@ -258,6 +258,18 @@ impl Oryxis {
                     self.sftp.delete_confirm.clear();
                     self.sftp.edit_session = None;
                     self.sftp.edit_watches.clear();
+                    // Watches parked in standalone / hybrid tab states feed
+                    // the same 2s tick; left alive they would keep uploading
+                    // local saves (under an autosave grant) behind the lock
+                    // screen, and dirty ones would re-prompt after unlock.
+                    for tab in self.sftp_tabs.iter_mut() {
+                        tab.state.edit_session = None;
+                        tab.state.edit_watches.clear();
+                    }
+                    for tab in self.tabs.iter_mut() {
+                        tab.files_state.edit_session = None;
+                        tab.files_state.edit_watches.clear();
+                    }
                     // Monitor samples are host telemetry gathered while
                     // unlocked; drop them with the rest of the sweep so a
                     // locked screen shows nothing about the fleet.

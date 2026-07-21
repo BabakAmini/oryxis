@@ -1236,6 +1236,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "ذخیره خودکار (دیگر نپرس)",
         "sftp_edit_uploaded" => "{file} بارگذاری شد",
         "sftp_edit_upload_failed" => "بارگذاری ناموفق بود",
+        "sftp_edit_save_retry" => "برای تلاش دوباره، فایل را دوباره ذخیره کنید.",
         "setting_default_editor" => "ویرایشگر پیش‌فرض",
         "setting_default_editor_desc" => "برنامه‌ای که «باز کردن با ویرایشگر متن پیش‌فرض» برای فایل‌های راه دور استفاده می‌کند.",
         "setting_default_editor_placeholder" => "مسیر فایل اجرایی ویرایشگر",

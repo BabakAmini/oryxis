@@ -1258,6 +1258,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_edit_autosave_btn" => "บันทึกอัตโนมัติ (ไม่ต้องถามอีก)",
         "sftp_edit_uploaded" => "อัปโหลด {file} แล้ว",
         "sftp_edit_upload_failed" => "อัปโหลดไม่สำเร็จ",
+        "sftp_edit_save_retry" => "บันทึกไฟล์อีกครั้งเพื่อลองใหม่",
         "setting_default_editor" => "โปรแกรมแก้ไขเริ่มต้น",
         "setting_default_editor_desc" => "แอปพลิเคชันที่ใช้กับ \"เปิดด้วยโปรแกรมแก้ไขข้อความเริ่มต้น\" สำหรับไฟล์ระยะไกล",
         "setting_default_editor_placeholder" => "พาธไปยังไฟล์เรียกทำงานของโปรแกรมแก้ไข",

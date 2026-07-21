@@ -260,8 +260,9 @@ fn sftp_state_unsaved_covers_dirty_edit_sessions() {
     // pending upload) is unsaved work, while a clean edit session is not.
     let mut st = crate::state::SftpState::default();
     assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
-    st.edit_session = Some(crate::state::EditSession {
+    let session = crate::state::EditSession {
         client_override: None,
+        pane_side: crate::state::SftpPaneSide::Right,
         remote_path: "/srv/x.conf".into(),
         temp_path: std::path::PathBuf::from("/tmp/oryxis-x.conf"),
         label: "x.conf".into(),
@@ -269,8 +270,15 @@ fn sftp_state_unsaved_covers_dirty_edit_sessions() {
         initial_mtime: None,
         dirty: false,
         uploading: false,
-    });
+    };
+    st.edit_session = Some(session.clone());
     assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
     st.edit_session.as_mut().unwrap().dirty = true;
+    assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
+    // A registered watch counts as unsaved even while CLEAN: the
+    // external editor is still open and closing would silently orphan
+    // its future saves.
+    st.edit_session = None;
+    st.edit_watches.push(session);
     assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
 }

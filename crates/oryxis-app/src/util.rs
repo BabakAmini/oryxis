@@ -15,6 +15,54 @@ pub(crate) fn sanitize_file_stem(label: &str) -> String {
     s
 }
 
+/// Display label + unique local temp path for an edit-in-place download
+/// (SFTP "Edit" / "Open with"). The label is the remote basename,
+/// verbatim. The temp file name swaps out characters that are path
+/// separators or reserved on any supported OS: a remote Unix file name
+/// may legally contain `\`, `:` or `"`, which on Windows would split the
+/// path or fail the write, and `\` would even escape the temp dir via
+/// `Path::join`. Non-ASCII stays intact so the name the editor shows
+/// remains recognizable. A UUID tag keeps concurrent edits of same-named
+/// files apart; long names truncate keeping the extension so the OS
+/// name-length limit (255) is never hit and file-type association works.
+pub(crate) fn edit_temp_file(remote_path: &str) -> (String, std::path::PathBuf) {
+    let label = remote_path
+        .rsplit('/')
+        .find(|s| !s.is_empty())
+        .unwrap_or(remote_path)
+        .to_string();
+    let mut safe: String = label
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if (c as u32) < 0x20 => '_',
+            c => c,
+        })
+        .collect();
+    const MAX_CHARS: usize = 120;
+    if safe.chars().count() > MAX_CHARS {
+        // Keep a short extension on the truncated name: the earliest dot
+        // whose suffix fits 16 bytes, so ".tar.gz" survives whole.
+        let ext: String = safe
+            .char_indices()
+            .filter(|&(_, c)| c == '.')
+            .map(|(i, _)| i)
+            .find(|&i| safe.len() - i <= 16)
+            .map(|i| safe[i..].to_string())
+            .unwrap_or_default();
+        safe = safe
+            .chars()
+            .take(MAX_CHARS - ext.chars().count())
+            .collect::<String>()
+            + &ext;
+    }
+    if safe.is_empty() {
+        safe.push('_');
+    }
+    let temp_path = std::env::temp_dir().join(format!("oryxis-{}-{}", uuid::Uuid::new_v4(), safe));
+    (label, temp_path)
+}
+
 /// Parse a comma-separated tag field: trim, drop empties, dedup
 /// case-insensitively while keeping the first spelling and the typed
 /// order. Shared by the snippet and host editors.
@@ -1025,5 +1073,36 @@ mod tests {
         // A malformed / legacy value yields an empty list, never an error.
         assert!(env_vars_from_setting("not json").is_empty());
         assert!(env_vars_from_setting("").is_empty());
+    }
+
+    #[test]
+    fn edit_temp_file_sanitizes_hostile_basenames() {
+        // The label keeps the remote name verbatim; the temp file name
+        // must not let separators or reserved characters through.
+        let (label, path) = edit_temp_file("/etc/we\"ird\\name:file.txt");
+        assert_eq!(label, "we\"ird\\name:file.txt");
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.ends_with("we_ird_name_file.txt"), "{name}");
+        // A backslash in the name must never escape the temp dir.
+        assert_eq!(path.parent().unwrap(), std::env::temp_dir());
+
+        let (_, path) = edit_temp_file("/tmp/../../x");
+        assert_eq!(path.parent().unwrap(), std::env::temp_dir());
+    }
+
+    #[test]
+    fn edit_temp_file_truncates_keeping_extension() {
+        let long = format!("/d/{}.tar.gz", "a".repeat(300));
+        let (label, path) = edit_temp_file(&long);
+        assert_eq!(label.chars().count(), 307);
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.ends_with(".tar.gz"));
+        // uuid prefix (43 chars incl. separators) + capped stem.
+        assert!(name.chars().count() <= 43 + 120 + 1);
+
+        // Unicode names survive intact.
+        let (_, path) = edit_temp_file("/srv/配置ファイル.yaml");
+        let name = path.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.ends_with("配置ファイル.yaml"));
     }
 }
