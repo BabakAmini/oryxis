@@ -108,7 +108,11 @@ binários de Windows são assinados com Authenticode.
   último toggle e todos os atalhos reconfiguráveis.
 - **Privado por padrão**: zero telemetria, mascaramento com Modo
   Privacidade, uma proteção de colagem que mostra o que você está
-  colando e 23 idiomas com suporte completo a RTL.
+  colando e [23 idiomas](docs/FEATURES.md#themes--internationalization)
+  com suporte completo a RTL: English, Português, Español, Français,
+  Deutsch, Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية,
+  עברית, 한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt,
+  Українська, ไทย, हिन्दी, Čeština, Ελληνικά.
 
 O inventário completo está no
 [tour de funcionalidades](docs/FEATURES.md) (em inglês).

@@ -127,7 +127,12 @@ matching installer. Windows binaries are Authenticode-signed (see
   switching, full keyboard navigation down to the last toggle, every
   hotkey rebindable.
 - **Private by design.** No telemetry, Privacy Mode masking, a paste guard
-  that reads what you're pasting, and 23 languages with full RTL support.
+  that reads what you're pasting, and
+  [23 languages](docs/FEATURES.md#themes--internationalization) with full
+  RTL support: English, Português, Español, Français, Deutsch, Italiano,
+  简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית, 한국어, Polski,
+  Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย, हिन्दी, Čeština,
+  Ελληνικά.
 
 The complete inventory lives in the **[feature tour](docs/FEATURES.md)**.
 

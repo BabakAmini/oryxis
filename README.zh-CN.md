@@ -105,7 +105,11 @@ Big5 编码。
 - **键盘优先**：`user@host` 快速连接（Ctrl+K）、最近标签页切换、
   覆盖到每一个开关的完整键盘导航、所有快捷键可重绑定。
 - **隐私为本**：无任何遥测、隐私模式打码、粘贴前给你确认内容的
-  粘贴保护，以及包含完整 RTL 支持的 23 种语言。
+  粘贴保护，以及包含完整 RTL 支持的
+  [23 种语言](docs/FEATURES.md#themes--internationalization)：English、
+  Português、Español、Français、Deutsch、Italiano、简体中文、繁體中文、
+  日本語、Русский、فارسی、العربية、עברית、한국어、Polski、Türkçe、
+  Bahasa Indonesia、Tiếng Việt、Українська、ไทย、हिन्दी、Čeština、Ελληνικά。
 
 完整功能清单见英文[功能一览](docs/FEATURES.md)。
 

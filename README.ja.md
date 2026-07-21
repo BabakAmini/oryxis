@@ -111,7 +111,11 @@ UI 言語を日本語に切り替えると、Noto Sans JP フォントが自動�
   ション、全ホットキーの再割り当て。
 - **プライバシーバイデザイン。** テレメトリは一切なし、プライバシー
   モードのマスキング、貼り付け内容を確認するペーストガード、完全な
-  RTL 対応を含む 23 言語。
+  RTL 対応を含む [23 言語](docs/FEATURES.md#themes--internationalization)：
+  English、Português、Español、Français、Deutsch、Italiano、简体中文、
+  繁體中文、日本語、Русский、فارسی、العربية、עברית、한국어、Polski、
+  Türkçe、Bahasa Indonesia、Tiếng Việt、Українська、ไทย、हिन्दी、
+  Čeština、Ελληνικά。
 
 全機能の一覧は英語版の[機能ツアー](docs/FEATURES.md)にあります。
 

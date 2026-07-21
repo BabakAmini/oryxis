@@ -108,7 +108,11 @@ UI 언어를 한국어로 바꾸면 Noto Sans KR 글꼴이 자동으로 다운�
   재지정 가능.
 - **설계부터 프라이버시.** 텔레메트리 전무, 프라이버시 모드
   마스킹, 붙여넣을 내용을 먼저 보여 주는 붙여넣기 가드, 완전한
-  RTL 지원을 포함한 23개 언어.
+  RTL 지원을 포함한 [23개 언어](docs/FEATURES.md#themes--internationalization):
+  English, Português, Español, Français, Deutsch, Italiano, 简体中文,
+  繁體中文, 日本語, Русский, فارسی, العربية, עברית, 한국어, Polski,
+  Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย, हिन्दी,
+  Čeština, Ελληνικά.
 
 전체 기능 목록은 영어 [기능 소개](docs/FEATURES.md)에 있습니다.
 

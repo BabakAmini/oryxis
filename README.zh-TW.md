@@ -103,7 +103,11 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
 - **鍵盤優先**：`user@host` 快速連線（Ctrl+K）、最近使用分頁切換、
   涵蓋到最後一個開關的完整鍵盤導覽、所有快速鍵皆可重新綁定。
 - **隱私至上**：沒有任何遙測、隱私模式遮罩、貼上前讓你確認內容的
-  貼上防護，以及含完整 RTL 支援的 23 種語言。
+  貼上防護，以及含完整 RTL 支援的
+  [23 種語言](docs/FEATURES.md#themes--internationalization)：English、
+  Português、Español、Français、Deutsch、Italiano、简体中文、繁體中文、
+  日本語、Русский、فارسی、العربية、עברית、한국어、Polski、Türkçe、
+  Bahasa Indonesia、Tiếng Việt、Українська、ไทย、हिन्दी、Čeština、Ελληνικά。
 
 完整功能清單見英文[功能總覽](docs/FEATURES.md)。
 
