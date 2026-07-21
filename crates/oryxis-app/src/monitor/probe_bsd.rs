@@ -30,7 +30,8 @@ pub(crate) fn parse_cp_time(text: &str) -> Option<(u64, u64)> {
     if fields.len() < 5 {
         return None;
     }
-    let total: u64 = fields.iter().sum();
+    // Saturating like the Linux parser: remote numbers are untrusted.
+    let total: u64 = fields.iter().fold(0u64, |a, f| a.saturating_add(*f));
     // CPUSTATES order: user, nice, sys, intr, idle.
     Some((total, fields[4]))
 }
@@ -67,7 +68,10 @@ pub(crate) fn parse_vm_stat(text: &str) -> Option<MemStat> {
     let active = pages("Pages active")?;
     let wired = pages("Pages wired down").unwrap_or(0);
     let compressed = pages("Pages occupied by compressor").unwrap_or(0);
-    let used = (active + wired + compressed) * page_size;
+    let used = active
+        .saturating_add(wired)
+        .saturating_add(compressed)
+        .saturating_mul(page_size);
     Some(MemStat {
         used: used.min(total),
         total,
@@ -113,8 +117,8 @@ pub(crate) fn parse_netstat_ib(text: &str) -> Option<(u64, u64)> {
         let (Ok(ib), Ok(ob)) = (f[6].parse::<u64>(), f[9].parse::<u64>()) else {
             continue;
         };
-        rx += ib;
-        tx += ob;
+        rx = rx.saturating_add(ib);
+        tx = tx.saturating_add(ob);
         saw_any = true;
     }
     saw_any.then_some((rx, tx))
@@ -158,8 +162,15 @@ pub(crate) fn parse_netstat_an(text: &str) -> Vec<PortStat> {
             "udp4" | "udp6" | "udp46" => "udp",
             _ => continue,
         };
-        // TCP rows must say LISTEN; UDP has no state column at all.
-        if proto == "tcp" && !line.contains("LISTEN") {
+        // TCP rows must say LISTEN. UDP has no state column, so tell
+        // listeners from CONNECTED sockets by the foreign address: a
+        // bound-only socket shows `*.*`, a connected one a real peer
+        // (mDNS or an in-flight DNS query is not a forwardable port).
+        if proto == "tcp" {
+            if !line.contains("LISTEN") {
+                continue;
+            }
+        } else if f.get(4).is_some_and(|peer| *peer != "*.*") {
             continue;
         }
         let Some((_, port)) = f[3].rsplit_once('.') else { continue };
@@ -192,7 +203,11 @@ pub(crate) fn parse_df_bsd(text: &str) -> Vec<DiskStat> {
         if !mount.starts_with('/') {
             continue;
         }
-        out.push(DiskStat { mount, used: used_kb * 1024, total: total_kb * 1024 });
+        out.push(DiskStat {
+            mount,
+            used: used_kb.saturating_mul(1024),
+            total: total_kb.saturating_mul(1024),
+        });
     }
     out
 }
@@ -272,10 +287,14 @@ mod tests {
                     tcp4       0      0  *.22                   *.*                    LISTEN\n\
                     tcp6       0      0  *.22                   *.*                    LISTEN\n\
                     tcp4       0      0  192.168.1.10.52000     93.184.216.34.443      ESTABLISHED\n\
+                    tcp4       0      0  192.168.1.10.52001     93.184.216.34.443      FIN_WAIT_2\n\
+                    udp4       0      0  192.168.1.10.5353      93.184.216.34.53\n\
                     udp4       0      0  *.68                   *.*\n";
         let ports = parse_netstat_an(text);
         let got: Vec<(u16, &str)> = ports.iter().map(|p| (p.port, p.proto)).collect();
-        // v4 + v6 collapse; the ESTABLISHED row is not a listener.
+        // v4 + v6 collapse; the ESTABLISHED / FIN_WAIT rows are not
+        // listeners, and a CONNECTED udp socket (real peer instead of
+        // `*.*`) is an in-flight query, not a forwardable port.
         assert_eq!(got, vec![(22, "tcp"), (68, "udp")]);
         assert!(ports.iter().all(|p| p.process.is_none()));
     }

@@ -130,11 +130,22 @@ impl SshSession {
         channel.exec(true, command).await.ok()?;
         drop(handle); // release so other tasks can use the shared handle
 
+        // Hard cap on collected output: probe payloads are a few KB, and
+        // the host side is untrusted, so an unbounded collect would let a
+        // hostile (or misconfigured) command stream hundreds of MB into
+        // memory within the timeout window. Generous headroom for a busy
+        // host's df/socket tables; excess is dropped, not an error.
+        const PROBE_STDOUT_CAP: usize = 512 * 1024;
         let mut stdout = Vec::new();
         let collect = async {
             loop {
                 match channel.wait().await {
-                    Some(russh::ChannelMsg::Data { data }) => stdout.extend_from_slice(&data),
+                    Some(russh::ChannelMsg::Data { data }) => {
+                        if stdout.len() < PROBE_STDOUT_CAP {
+                            let room = PROBE_STDOUT_CAP - stdout.len();
+                            stdout.extend_from_slice(&data[..data.len().min(room)]);
+                        }
+                    }
                     Some(russh::ChannelMsg::Eof)
                     | Some(russh::ChannelMsg::ExitStatus { .. })
                     | None => break,

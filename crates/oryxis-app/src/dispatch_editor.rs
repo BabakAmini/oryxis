@@ -354,6 +354,12 @@ impl Oryxis {
         conn.monitor_enabled = self.editor_form.protocol
             == oryxis_core::models::connection::ConnectionProtocol::Ssh
             && self.editor_form.monitor_enabled;
+        // Opting the host OUT drops its series right away: the status
+        // bar / sidebar must not keep painting the last sample as if it
+        // were live, and an in-flight probe must land dead (stamp bump).
+        if original.as_ref().is_some_and(|o| o.monitor_enabled) && !conn.monitor_enabled {
+            self.monitor_reset_host(&conn.id);
+        }
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         conn.session_logging = self.editor_form.session_logging;
         conn.terminal_theme = self.editor_form.terminal_theme.clone();

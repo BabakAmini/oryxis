@@ -85,8 +85,10 @@ impl Oryxis {
                     // Turning the feature off stops all probing and drops
                     // the in-memory samples; nothing monitoring-related
                     // renders anymore, so a stale ring would only leak.
-                    self.monitor = Default::default();
-                    self.monitor_error = None;
+                    // `monitor_reset_all` also bumps the stamp so a probe
+                    // still in flight can't repopulate (or toast) after
+                    // the toggle.
+                    self.monitor_reset_all();
                     self.monitor_ports_open = false;
                 }
             }

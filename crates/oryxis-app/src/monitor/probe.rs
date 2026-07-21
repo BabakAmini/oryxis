@@ -23,18 +23,24 @@ const SEP: &str = "---ORYXIS-MON-SEP---";
 /// yields an empty section instead of an error, and the sentinels keep
 /// the split stable regardless.
 pub(crate) fn linux_probe_command() -> String {
-    [
+    let batch = [
         // Each section falls back to its BSD / macOS equivalent when the
         // Linux source produces nothing, so ONE command serves every
         // host and no OS detection has to happen first. The parsers pick
         // the format by shape (see `probe_bsd`).
-        "cat /proc/stat 2>/dev/null | head -n1 || sysctl -n kern.cp_time 2>/dev/null",
+        //
+        // `head` reads the file DIRECTLY (never `cat | head`): a
+        // pipeline's exit status is its last command's, and `head`
+        // succeeds on empty stdin, so the pipe form would swallow the
+        // failure and the `||` fallback could never run. That exact bug
+        // kept `kern.cp_time` dead on FreeBSD.
+        "head -n1 /proc/stat 2>/dev/null || sysctl -n kern.cp_time 2>/dev/null",
         "cat /proc/meminfo 2>/dev/null || { sysctl -n hw.memsize 2>/dev/null \
-             | sed 's/^/HwMemsize: /'; vm_stat 2>/dev/null; }",
+             | sed \"s/^/HwMemsize: /\"; vm_stat 2>/dev/null; }",
         "cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null",
         "cat /proc/net/dev 2>/dev/null || netstat -ibn 2>/dev/null",
         "df -kP 2>/dev/null || df -k 2>/dev/null",
-        "cat /proc/uptime 2>/dev/null || { date +%s | sed 's/^/Now: /'; \
+        "cat /proc/uptime 2>/dev/null || { date +%s | sed \"s/^/Now: /\"; \
              sysctl -n kern.boottime 2>/dev/null; }",
         // Listening sockets. `ss` is the modern tool; `netstat` covers
         // hosts that still ship net-tools and nothing else. `-p` names
@@ -42,7 +48,15 @@ pub(crate) fn linux_probe_command() -> String {
         // unnamed ports are expected, not a failure.
         "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null || netstat -an 2>/dev/null",
     ]
-    .join(&format!("; echo '{SEP}'; "))
+    .join(&format!("; echo \"{SEP}\"; "));
+    // The exec channel hands the command to the user's LOGIN shell, and
+    // the batch is Bourne syntax (`{ }`, `||`, `2>`): csh/tcsh/fish
+    // users would fail every tick forever. Wrapping in `sh -c '...'`
+    // makes the probe shell-independent; the batch deliberately contains
+    // no single quotes (the seds use double quotes) so the wrapper needs
+    // no escaping and stays a plain quoted literal in every login shell.
+    debug_assert!(!batch.contains('\''));
+    format!("sh -c '{batch}'")
 }
 
 /// Parse a batched probe payload into a `Sample`, using `prev` (the last
@@ -137,8 +151,11 @@ fn parse_cpu_jiffies(stat: &str) -> Option<(u64, u64)> {
     if fields.len() < 4 {
         return None;
     }
-    let total: u64 = fields.iter().sum();
-    let idle = fields[3] + fields.get(4).copied().unwrap_or(0);
+    // Saturating arithmetic throughout: the numbers come from the REMOTE
+    // host (untrusted input), and forged u64::MAX-scale values must
+    // degrade instead of panicking (debug) or wrapping (release).
+    let total: u64 = fields.iter().fold(0u64, |a, f| a.saturating_add(*f));
+    let idle = fields[3].saturating_add(fields.get(4).copied().unwrap_or(0));
     Some((total, idle))
 }
 
@@ -162,16 +179,16 @@ fn parse_meminfo(meminfo: &str) -> Option<MemStat> {
             let free = kb("MemFree").unwrap_or(0);
             let buffers = kb("Buffers").unwrap_or(0);
             let cached = kb("Cached").unwrap_or(0);
-            total.saturating_sub(free + buffers + cached)
+            total.saturating_sub(free.saturating_add(buffers).saturating_add(cached))
         }
     };
     let swap_total = kb("SwapTotal").unwrap_or(0);
     let swap_free = kb("SwapFree").unwrap_or(0);
     Some(MemStat {
-        used: used_kb * 1024,
-        total: total * 1024,
-        swap_used: swap_total.saturating_sub(swap_free) * 1024,
-        swap_total: swap_total * 1024,
+        used: used_kb.saturating_mul(1024),
+        total: total.saturating_mul(1024),
+        swap_used: swap_total.saturating_sub(swap_free).saturating_mul(1024),
+        swap_total: swap_total.saturating_mul(1024),
     })
 }
 
@@ -216,8 +233,8 @@ fn parse_net_dev(netdev: &str) -> Option<(u64, u64)> {
         if fields.len() < 9 {
             continue;
         }
-        rx += fields[0];
-        tx += fields[8];
+        rx = rx.saturating_add(fields[0]);
+        tx = tx.saturating_add(fields[8]);
         saw_any = true;
     }
     saw_any.then_some((rx, tx))
@@ -248,8 +265,8 @@ fn parse_df(df: &str) -> Vec<DiskStat> {
         let mount = fields[5..].join(" ");
         out.push(DiskStat {
             mount,
-            used: used_kb * 1024,
-            total: total_kb * 1024,
+            used: used_kb.saturating_mul(1024),
+            total: total_kb.saturating_mul(1024),
         });
     }
     out
@@ -296,10 +313,17 @@ fn parse_listening_ports(sockets: &str) -> Vec<PortStat> {
             "udp" | "udp6" => "udp",
             _ => continue, // header or noise
         };
-        // netstat reports state in a later column; `ss` in the second.
-        // Either way a non-listening row (ESTABLISHED, TIME_WAIT) is not
-        // something the user can forward to.
-        if line.contains("ESTAB") || line.contains("TIME_WAIT") || line.contains("CLOSE") {
+        // Listener whitelist, not a state blacklist: the `-l` commands
+        // only print listeners, but the last fallback (`netstat -an`)
+        // prints EVERY socket, and a blacklist missed FIN_WAIT / SYN_SENT
+        // / LAST_ACK rows, turning ephemeral outbound connections into
+        // forwardable "listening ports". TCP rows must say LISTEN;
+        // stateless UDP rows pass unless they are connected sockets.
+        if proto == "tcp" {
+            if !line.contains("LISTEN") {
+                continue;
+            }
+        } else if line.contains("ESTAB") || line.contains("CONNECTED") {
             continue;
         }
         let Some(port) = fields.clone().find_map(parse_local_port) else { continue };
@@ -546,6 +570,60 @@ mod tests {
                 (5432, "tcp", None),
             ]
         );
+    }
+
+    #[test]
+    fn netstat_an_ephemeral_states_are_not_listeners() {
+        // The last fallback (`netstat -an` on a busybox host) prints
+        // EVERY socket. Ephemeral outbound states must not become
+        // forwardable "listening ports" (whitelist, not blacklist).
+        let netstat = "Proto Recv-Q Send-Q Local Address           Foreign Address         State\n\
+                       tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN\n\
+                       tcp        0      0 10.0.0.5:39112          10.0.0.9:443            FIN_WAIT1\n\
+                       tcp        0      0 10.0.0.5:39113          10.0.0.9:443            SYN_SENT\n\
+                       tcp        0      0 10.0.0.5:39114          10.0.0.9:443            LAST_ACK\n\
+                       udp        0      0 10.0.0.5:47000          10.0.0.9:53             ESTABLISHED\n\
+                       udp        0      0 0.0.0.0:68              0.0.0.0:*\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", netstat]), None, t0());
+        let got: Vec<(u16, &str)> = sample.ports.iter().map(|p| (p.port, p.proto)).collect();
+        assert_eq!(got, vec![(22, "tcp"), (68, "udp")]);
+    }
+
+    #[test]
+    fn probe_command_is_shell_wrapped_and_head_reads_directly() {
+        let cmd = linux_probe_command();
+        // The batch must reach a POSIX shell regardless of the user's
+        // login shell, and must contain no inner single quote (the
+        // wrapper relies on it).
+        assert!(cmd.starts_with("sh -c '") && cmd.ends_with('\''));
+        assert_eq!(cmd.matches('\'').count(), 2);
+        // `head file || fallback`, never `cat file | head || fallback`:
+        // the pipe form always exits 0 and kills the BSD fallback.
+        assert!(cmd.contains("head -n1 /proc/stat"));
+        assert!(!cmd.contains("| head"));
+        assert!(cmd.contains("kern.cp_time"));
+    }
+
+    #[test]
+    fn hostile_huge_counters_degrade_instead_of_panicking() {
+        // A malicious host can print any numbers it likes; sums and unit
+        // conversions must saturate, not overflow.
+        let max = u64::MAX;
+        let evil = payload([
+            &format!("cpu {max} {max} {max} {max} {max} 0 0 0"),
+            &format!("MemTotal: {max} kB\nMemFree: {max} kB\nBuffers: {max} kB\nCached: {max} kB\nSwapTotal: {max} kB\nSwapFree: 0 kB"),
+            "",
+            &format!("eth0: {max} 0 0 0 0 0 0 0 {max} 0 0 0 0 0 0 0\neth1: {max} 0 0 0 0 0 0 0 {max} 0 0 0 0 0 0 0"),
+            &format!("Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 {max} {max} 0 100% /"),
+            "",
+            "",
+        ]);
+        let (sample, snap) = parse_linux(&evil, None, t0());
+        assert_eq!(snap.cpu_total, u64::MAX);
+        assert_eq!(snap.net_rx, u64::MAX);
+        assert_eq!(sample.mem.unwrap().total, u64::MAX);
+        assert_eq!(sample.disks[0].total, u64::MAX);
     }
 
     #[test]

@@ -87,6 +87,32 @@ impl Oryxis {
                 self.hybrid_sftp_owner = None;
                 self.sftp = crate::state::SftpState::default();
             }
+            // Drop monitor series for hosts that lose their last live
+            // pane with this tab. The async SshDisconnected lands after
+            // the tab is gone and skips its reset (no pane resolves), so
+            // without this the next session to the same host would diff
+            // its first probe against the dead tab's counters and present
+            // an average over the whole offline gap as a live reading.
+            let closing_hosts: Vec<uuid::Uuid> = self.tabs[idx]
+                .pane_grid
+                .panes
+                .values()
+                .filter_map(|p| match p.origin {
+                    crate::state::PaneOrigin::Host(id) => Some(id),
+                    _ => None,
+                })
+                .collect();
+            for host in closing_hosts {
+                let still_open = self.tabs.iter().enumerate().any(|(i, t)| {
+                    i != idx
+                        && t.pane_grid.panes.values().any(|p| {
+                            matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
+                        })
+                });
+                if !still_open {
+                    self.monitor_reset_host(&host);
+                }
+            }
             // Closing a pinned tab drops it from the persisted set.
             let was_pinned = self.tabs[idx].pinned;
             self.tabs.remove(idx);

@@ -101,8 +101,12 @@ impl Oryxis {
                 if let Some(conn) = self.connections.iter_mut().find(|c| c.id == conn_id) {
                     conn.monitor_enabled = true;
                     let conn = conn.clone();
-                    if let Some(vault) = &self.vault {
-                        let _ = vault.save_connection(&conn, None);
+                    // A failed persist must be loud: the flag would work
+                    // until restart and then silently vanish.
+                    if let Some(vault) = &self.vault
+                        && let Err(e) = vault.save_connection(&conn, None)
+                    {
+                        return self.show_toast_secs(e.to_string(), 6);
                     }
                     // Probe immediately so the tab fills in instead of
                     // waiting out a whole interval on an empty card.
@@ -182,16 +186,26 @@ impl Oryxis {
             return None;
         }
         let conn_id = self.monitor_pane_connection()?;
-        // Effective opt-in: the global "all hosts" OR the per-host flag.
-        let monitored = self.setting_monitor_all_hosts
-            || self.connections.iter().any(|c| c.id == conn_id && c.monitor_enabled);
-        if !monitored {
+        if !self.monitor_host_opted_in(&conn_id) {
             return None;
         }
         let idx = self.active_tab?;
         let pane = self.tabs.get(idx)?.active();
         let ssh = pane.session.as_ref().and_then(|s| s.ssh())?;
         ssh.is_alive().then(|| (conn_id, ssh.clone()))
+    }
+
+    /// Effective monitoring opt-in for a host: the global "all hosts"
+    /// toggle OR the per-host flag. Shared by the probe target and the
+    /// status-bar segment, so switching a host's flag off stops the
+    /// RENDER as well as the probing (a lingering series must not keep
+    /// painting frozen vitals as if they were live).
+    pub(crate) fn monitor_host_opted_in(&self, conn_id: &Uuid) -> bool {
+        self.setting_monitor_all_hosts
+            || self
+                .connections
+                .iter()
+                .any(|c| c.id == *conn_id && c.monitor_enabled)
     }
 
     /// Connection id behind the focused pane, if it is a saved host.
@@ -228,6 +242,18 @@ impl Oryxis {
     /// invalidate any probe still in flight for it.
     pub(crate) fn monitor_reset_host(&mut self, conn_id: &Uuid) {
         self.monitor.forget(conn_id);
+        self.monitor_stamp = self.monitor_stamp.wrapping_add(1);
+        self.monitor_error = None;
+    }
+
+    /// Drop EVERY host's window and invalidate all in-flight probes.
+    /// Used by the feature toggle-off and the vault-lock sweeps: without
+    /// the stamp bump, a probe already in flight would land after the
+    /// sweep and repopulate the state it just cleared (and could fire a
+    /// first-sample threshold toast right after the user turned the
+    /// feature off).
+    pub(crate) fn monitor_reset_all(&mut self) {
+        self.monitor = Default::default();
         self.monitor_stamp = self.monitor_stamp.wrapping_add(1);
         self.monitor_error = None;
     }

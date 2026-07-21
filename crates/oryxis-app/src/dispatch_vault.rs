@@ -272,9 +272,10 @@ impl Oryxis {
                     }
                     // Monitor samples are host telemetry gathered while
                     // unlocked; drop them with the rest of the sweep so a
-                    // locked screen shows nothing about the fleet.
-                    self.monitor = Default::default();
-                    self.monitor_error = None;
+                    // locked screen shows nothing about the fleet. The
+                    // stamp bump inside makes a probe still in flight land
+                    // dead instead of repopulating the swept state.
+                    self.monitor_reset_all();
                     self.sftp.overwrite_prompt = None;
                     self.sftp.properties = None;
                     // A pending keyboard-interactive prompt belongs to an
@@ -396,8 +397,15 @@ impl Oryxis {
                         self.sftp.delete_confirm.clear();
                         self.sftp.edit_session = None;
                         self.sftp.edit_watches.clear();
-                        self.monitor = Default::default();
-                        self.monitor_error = None;
+                        for tab in self.sftp_tabs.iter_mut() {
+                            tab.state.edit_session = None;
+                            tab.state.edit_watches.clear();
+                        }
+                        for tab in self.tabs.iter_mut() {
+                            tab.files_state.edit_session = None;
+                            tab.files_state.edit_watches.clear();
+                        }
+                        self.monitor_reset_all();
                         self.sftp.overwrite_prompt = None;
                         self.sftp.properties = None;
                         // Cancel a pending keyboard-interactive / host-key

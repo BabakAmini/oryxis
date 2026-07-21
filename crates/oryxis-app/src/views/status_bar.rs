@@ -84,9 +84,16 @@ impl Oryxis {
             if self.setting_status_show_cwd
                 && let Some(cwd) = pane.cwd.as_deref().filter(|c| !c.is_empty())
             {
+                // Privacy Mode redacts the path like the connection label
+                // above: a home path carries the username, and the bar
+                // sits in every screenshot.
+                let cwd = self.privacy_display_label(cwd, cwd, &self.privacy_terms());
+                // Middle-truncate deep paths so the bar never overflows;
+                // the tail is the informative half of a path.
+                let shown = middle_truncate(&cwd, 60);
                 items.push(vital(
                     crate::i18n::t("status_cwd"),
-                    cwd.to_string(),
+                    shown,
                     OryxisColors::t().text_secondary,
                 ));
                 items.push(Space::new().width(12).into());
@@ -134,6 +141,11 @@ impl Oryxis {
         if self.setting_host_monitoring
             && self.setting_monitor_status_bar
             && let Some(conn_id) = self.monitor_pane_connection()
+            // Effective opt-in, not just "a series exists": after the
+            // host (or the all-hosts toggle) opts out the probing stops
+            // but the series lingers, and painting its last sample would
+            // present frozen numbers as live vitals.
+            && self.monitor_host_opted_in(&conn_id)
             && let Some(sample) = self.monitor.series.get(&conn_id).and_then(|s| s.latest())
         {
             let c = OryxisColors::t();
@@ -230,6 +242,24 @@ impl Oryxis {
 
         column![top_hairline, bar].into()
     }
+}
+
+/// Middle-truncate a path-like string to at most `max` characters,
+/// keeping the head and the (more informative) tail around a single
+/// `…`. Char-based so multibyte paths never split inside a code point.
+fn middle_truncate(s: &str, max: usize) -> String {
+    let count = s.chars().count();
+    if count <= max {
+        return s.to_string();
+    }
+    let head = max / 3;
+    let tail = max - head - 1;
+    let start: String = s.chars().take(head).collect();
+    let end: String = s
+        .chars()
+        .skip(count - tail)
+        .collect();
+    format!("{start}…{end}")
 }
 
 /// One host-vital readout in the status bar: muted label, tinted value

@@ -211,6 +211,24 @@ impl Oryxis {
             );
         }
 
+        // The latency segment reads the RTT that the in-session probe
+        // updates WITHOUT emitting a Message, so on an idle terminal the
+        // bar would freeze on the last value forever. A light tick
+        // matching the probe cadence re-renders it while visible.
+        if self.setting_show_status_bar
+            && self.setting_status_show_latency
+            && self.vault_ui.state == crate::state::VaultState::Unlocked
+            && self
+                .active_tab
+                .and_then(|i| self.tabs.get(i))
+                .and_then(|t| t.active().session.as_ref().and_then(|s| s.ssh()))
+                .is_some_and(|s| s.is_alive())
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(3)).map(|_| Message::NoOp),
+            );
+        }
+
         // Unlocked-gated like the monitor above: the soft-lock sweep
         // clears every watch, but the gate makes the invariant structural
         // (no save can upload behind the lock screen even if a watch
