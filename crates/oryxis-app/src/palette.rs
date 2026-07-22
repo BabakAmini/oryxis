@@ -90,7 +90,7 @@ fn hotkey_category(action: HotkeyAction) -> PaletteCategory {
     match action {
         ShowNewTabPicker | ShowTabJump | OpenLocalShell | NewWindow | CloseActiveTab
         | OpenSftp => PaletteCategory::Tabs,
-        OpenPortForwards | FocusViewSearch | NewHost | NewKey | NewIdentity
+        OpenPortForwards | FocusViewSearch | NewHost | ShowQuickConnect | NewKey | NewIdentity
         | VaultSectionPrev | VaultSectionNext | VaultSectionSlot => PaletteCategory::Vault,
         FontZoomIn | FontZoomOut | FontZoomReset | SplitPaneVertical | SplitPaneHorizontal
         | FocusPaneLeft | FocusPaneRight | FocusPaneUp | FocusPaneDown | FocusSidebarList

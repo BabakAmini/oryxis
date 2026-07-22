@@ -166,8 +166,9 @@ impl Oryxis {
             .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
 
         // "Jump to" pill on the left of the search row gives the modal
-        // its identity; a Ctrl+J hint on the right reinforces the
-        // shortcut so users learn it.
+        // its identity; the live shortcut hint on the right reinforces
+        // it so users learn it (resolved from the binding table, never
+        // hard-coded: the default changed once already, issue #100).
         let pill: Element<'_, Message> = container(
             text(t("jump_to"))
                 .size(11)
@@ -187,10 +188,13 @@ impl Oryxis {
             ..Default::default()
         })
         .into();
-        let shortcut_hint: Element<'_, Message> = text("Ctrl+J")
-            .size(11)
-            .color(OryxisColors::t().text_muted)
-            .into();
+        let shortcut_hint: Element<'_, Message> = text(
+            self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::ShowTabJump)
+                .unwrap_or_default(),
+        )
+        .size(11)
+        .color(OryxisColors::t().text_muted)
+        .into();
 
         let search_header = container(
             dir_row(vec![

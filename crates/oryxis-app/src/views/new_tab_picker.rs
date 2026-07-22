@@ -48,12 +48,19 @@ impl Oryxis {
             .size(14)
             .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
 
-        // Right-anchored "Ctrl+K" hint inside a styled chip so it reads
+        // Right-anchored shortcut hint inside a styled chip so it reads
         // as a keyboard affordance rather than placeholder text. Lives
         // in a Stack on top of the input, `text` has no click handler,
         // so focus-on-click still works on the wider left portion.
+        // Resolved from the live binding table (never hard-coded, the
+        // tab-jump default changed once already, issue #100).
         let ctrl_k_chip = container(
-            text("Ctrl+K").size(11).color(OryxisColors::t().text_muted),
+            text(
+                self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::ShowNewTabPicker)
+                    .unwrap_or_default(),
+            )
+            .size(11)
+            .color(OryxisColors::t().text_muted),
         )
         .padding(Padding {
             top: 2.0,

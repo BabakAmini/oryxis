@@ -996,6 +996,17 @@ impl Oryxis {
                 self.active_tab = None;
                 self.update(Message::Editor(EditorMessage::ShowNewConnection))
             }
+            // Same "+ Host" editor as NewHost, opened empty: its
+            // "Connect without saving" button is the ad-hoc session
+            // path (issue #99). A distinct action (rather than an
+            // alternate NewHost chord) so it reads as "Quick connect"
+            // in the shortcut list and the palette, and rebinds
+            // independently.
+            ShowQuickConnect => {
+                self.active_view = View::Dashboard;
+                self.active_tab = None;
+                self.update(Message::Editor(EditorMessage::ShowNewConnection))
+            }
             NewKey => self.update(Message::Keys(KeysMessage::ShowKeyPanel)),
             NewIdentity => {
                 self.active_view = View::Keys;

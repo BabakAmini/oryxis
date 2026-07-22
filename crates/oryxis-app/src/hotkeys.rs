@@ -106,6 +106,11 @@ pub enum HotkeyAction {
     /// Never persisted. Global (not `terminal_only`): the vault
     /// surfaces mask too.
     TogglePrivacyMode,
+    /// Ad-hoc quick connect (issue #99): open the "+ Host" editor
+    /// empty, where "Connect without saving" runs a session that is
+    /// never persisted. Global: unlike `NewHost`'s bare Ctrl+N this
+    /// ships with a Shift chord, so it also fires inside a terminal.
+    ShowQuickConnect,
 }
 
 impl HotkeyAction {
@@ -120,6 +125,7 @@ impl HotkeyAction {
             OpenLocalShell,
             NewWindow,
             NewHost,
+            ShowQuickConnect,
             NewKey,
             NewIdentity,
             CloseActiveTab,
@@ -192,6 +198,7 @@ impl HotkeyAction {
             VaultSectionPrev => "vault_section_prev",
             VaultSectionNext => "vault_section_next",
             NewHost => "new_host",
+            ShowQuickConnect => "show_quick_connect",
             NewKey => "new_key",
             NewIdentity => "new_identity",
             TerminalCopy => "terminal_copy",
@@ -241,6 +248,7 @@ impl HotkeyAction {
             // Reuse the vault-area button labels (already translated
             // in all 17 languages), same as the split-pane pair.
             NewHost => "new_host",
+            ShowQuickConnect => "quick_connect",
             NewKey => "import_key",
             NewIdentity => "new_identity",
             // Reuse the terminal context-menu labels (already
@@ -1068,7 +1076,13 @@ pub fn default_bindings() -> HotkeyMap {
     let primary_ctrl = !mac;
     let primary_logo = mac;
     put(&mut m, ShowNewTabPicker, primary_ctrl, false, false, primary_logo, Char('k'));
-    put(&mut m, ShowTabJump, primary_ctrl, false, false, primary_logo, Char('j'));
+    // Ctrl+Shift+J (Cmd+Shift+J on macOS), not plain Ctrl+J: a bare
+    // Ctrl+letter is a terminal control sequence (Ctrl+J IS line feed,
+    // emacs/readline accept-line) and is_terminal_control_sequence()
+    // suppresses it inside the terminal view, which is exactly where
+    // jumping between tabs is most useful (issue #100). The Shift lifts
+    // it out of that gate, same rationale as OpenLocalShell below.
+    put(&mut m, ShowTabJump, primary_ctrl, true, false, primary_logo, Char('j'));
     // Ctrl+Shift+P (Cmd+Shift+P on macOS), the VS Code convention. Plain
     // Ctrl+P is OpenPortForwards and a bare Ctrl+letter is a PTY control
     // sequence anyway; the Shift both frees it from that gate and clears
@@ -1086,6 +1100,16 @@ pub fn default_bindings() -> HotkeyMap {
     // Ctrl+letter, so inside a terminal it stays with the PTY (readline
     // next-history), like Ctrl+K / Ctrl+P above.
     put(&mut m, NewHost, primary_ctrl, false, false, primary_logo, Char('n'));
+    // Ctrl+Shift+T (Cmd+Shift+T on macOS), issue #99. NOT Q despite the
+    // "Quick" mnemonic: Cmd+Shift+Q is the macOS system Log Out chord,
+    // and every other Oryxis default teaches Cmd+Shift+<letter> muscle
+    // memory on the Mac, so a Ctrl-only exception there would invite
+    // the exact wrong-modifier slip into logout. T is safe on both
+    // sides and aligned: Ctrl+Shift+T is the terminal-world "new tab"
+    // chord (GNOME Terminal), which is what an ad-hoc session is. The
+    // Shift lifts it out of the terminal control-sequence gate so it
+    // fires from inside a live terminal too.
+    put(&mut m, ShowQuickConnect, primary_ctrl, true, false, primary_logo, Char('t'));
     // Keychain pair on Ctrl+Shift (Cmd+Shift on macOS): Shift lifts
     // both out of the terminal control-sequence gate; K mirrors the
     // key mnemonic (exact-modifier matching keeps it clear of the
