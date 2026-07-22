@@ -368,6 +368,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "แสดงความหน่วง",
         "status_show_dimensions" => "แสดงขนาดเทอร์มินัล",
         "status_show_cwd" => "แสดงไดเรกทอรีปัจจุบัน",
+        "status_bar_align_left" => "จัดเนื้อหาชิดซ้าย",
         "status_latency" => "RTT",
         "status_dimensions" => "ขนาด",
         "status_cwd" => "ไดเรกทอรี",

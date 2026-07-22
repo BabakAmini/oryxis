@@ -20,6 +20,9 @@ pub enum MonitorMessage {
     EnableHost(Uuid),
     /// Expand / collapse the listening-ports list in the Monitor tab.
     TogglePorts,
+    /// Expand / collapse the disk list in the Monitor tab (issue #83
+    /// follow-up: many mounts crowd the sidebar).
+    ToggleDisks,
     /// "Forward this port": prefill a `-L` rule for the monitored host
     /// and open the port-forward editor, so the user reviews and saves
     /// it instead of a tunnel appearing behind their back. The `Option`

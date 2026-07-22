@@ -181,6 +181,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleStatusLatency
             | SettingsMessage::SettingToggleStatusDimensions
             | SettingsMessage::SettingToggleStatusCwd
+            | SettingsMessage::SettingToggleStatusAlignLeft
             | SettingsMessage::SettingToggleTerminalSidebarLeft
             | SettingsMessage::SettingToggleSidebarAutoOpen
             | SettingsMessage::SettingToggleHostMonitoring

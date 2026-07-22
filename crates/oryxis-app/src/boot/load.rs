@@ -468,6 +468,9 @@ impl Oryxis {
                     }
                 }
             }
+            if let Ok(Some(v)) = vault.get_setting("status_bar_align_left") {
+                self.setting_status_bar_align_left = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("terminal_sidebar_side") {
                 self.setting_terminal_sidebar_left = v == "left";
             }

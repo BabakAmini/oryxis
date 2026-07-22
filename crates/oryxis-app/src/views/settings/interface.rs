@@ -412,6 +412,11 @@ impl Oryxis {
                     self.setting_status_show_cwd,
                     SettingsMessage::SettingToggleStatusCwd,
                 ),
+                (
+                    "status_bar_align_left",
+                    self.setting_status_bar_align_left,
+                    SettingsMessage::SettingToggleStatusAlignLeft,
+                ),
             ] {
                 status_bar_col = status_bar_col
                     .push(Space::new().height(8))

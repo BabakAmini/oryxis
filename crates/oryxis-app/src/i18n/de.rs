@@ -344,6 +344,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Latenz anzeigen",
         "status_show_dimensions" => "Terminalgröße anzeigen",
         "status_show_cwd" => "Aktuelles Verzeichnis anzeigen",
+        "status_bar_align_left" => "Inhalt links ausrichten",
         "status_latency" => "RTT",
         "status_dimensions" => "Größe",
         "status_cwd" => "Verz",

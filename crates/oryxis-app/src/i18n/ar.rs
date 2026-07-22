@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "إظهار زمن الوصول",
         "status_show_dimensions" => "إظهار حجم الطرفية",
         "status_show_cwd" => "إظهار المجلد الحالي",
+        "status_bar_align_left" => "محاذاة المحتوى إلى اليسار",
         "status_latency" => "RTT",
         "status_dimensions" => "الحجم",
         "status_cwd" => "المجلد",

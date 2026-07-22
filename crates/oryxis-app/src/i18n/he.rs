@@ -368,6 +368,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "הצג השהיה",
         "status_show_dimensions" => "הצג גודל מסוף",
         "status_show_cwd" => "הצג ספרייה נוכחית",
+        "status_bar_align_left" => "יישור תוכן לשמאל",
         "status_latency" => "RTT",
         "status_dimensions" => "גודל",
         "status_cwd" => "ספרייה",

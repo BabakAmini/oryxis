@@ -123,18 +123,27 @@ impl Oryxis {
             body = body.push(stat_row(t("monitor_uptime"), fmt_uptime(up)));
         }
 
+        // Disks (issue #83 follow-up): a disclosure header like the ports
+        // below, so a host with many mounts can collapse them. Starts open
+        // (`monitor_disks_open`), so the common one-or-two-mount host is
+        // unchanged; the count on the header is the affordance either way.
         if !sample.disks.is_empty() {
-            body = body.push(
-                text(t("monitor_disk"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted),
-            );
-            for disk in &sample.disks {
-                body = body.push(gauge_block(
-                    &disk.mount,
-                    disk.pct(),
-                    &format!("{} / {}", fmt_bytes(disk.used), fmt_bytes(disk.total)),
-                ));
+            body = body.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(Message::Monitor(
+                    MonitorMessage::ToggleDisks,
+                )),
+                TerminalSidebarTab::Monitor,
+                6.0,
+                disks_header(sample.disks.len(), self.monitor_disks_open),
+            ));
+            if self.monitor_disks_open {
+                for disk in &sample.disks {
+                    body = body.push(gauge_block(
+                        &disk.mount,
+                        disk.pct(),
+                        &format!("{} / {}", fmt_bytes(disk.used), fmt_bytes(disk.total)),
+                    ));
+                }
             }
         }
 
@@ -246,6 +255,48 @@ fn ports_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
         .align_y(iced::Alignment::Center),
     )
     .on_press(Message::Monitor(MonitorMessage::TogglePorts))
+    .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 2.0 })
+    .width(Length::Fill)
+    .style(|_, status| {
+        let bg = match status {
+            iced::widget::button::Status::Hovered
+            | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
+            _ => iced::Color::TRANSPARENT,
+        };
+        iced::widget::button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
+/// "Disks (N)" disclosure row (issue #83 follow-up): clicking it
+/// expands / collapses the per-mount list, mirroring `ports_header`.
+fn disks_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
+    let chevron = if open {
+        iced_fonts::lucide::chevron_down()
+    } else {
+        iced_fonts::lucide::chevron_right()
+    };
+    iced::widget::button(
+        dir_row(vec![
+            chevron.size(12).color(OryxisColors::t().text_muted).into(),
+            Space::new().width(6).into(),
+            text(t("monitor_disk"))
+                .size(11)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+            Space::new().width(6).into(),
+            text(count.to_string())
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+        ])
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(Message::Monitor(MonitorMessage::ToggleDisks))
     .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 2.0 })
     .width(Length::Fill)
     .style(|_, status| {

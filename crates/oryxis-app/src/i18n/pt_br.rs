@@ -344,6 +344,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Mostrar latência",
         "status_show_dimensions" => "Mostrar tamanho do terminal",
         "status_show_cwd" => "Mostrar diretório atual",
+        "status_bar_align_left" => "Alinhar conteúdo à esquerda",
         "status_latency" => "RTT",
         "status_dimensions" => "Tam",
         "status_cwd" => "Dir",

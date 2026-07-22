@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Gecikmeyi göster",
         "status_show_dimensions" => "Terminal boyutunu göster",
         "status_show_cwd" => "Geçerli dizini göster",
+        "status_bar_align_left" => "İçeriği sola hizala",
         "status_latency" => "RTT",
         "status_dimensions" => "Boyut",
         "status_cwd" => "Dizin",

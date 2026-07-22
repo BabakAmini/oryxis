@@ -368,6 +368,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "लेटेंसी दिखाएँ",
         "status_show_dimensions" => "टर्मिनल आकार दिखाएँ",
         "status_show_cwd" => "वर्तमान डायरेक्टरी दिखाएँ",
+        "status_bar_align_left" => "सामग्री को बाईं ओर संरेखित करें",
         "status_latency" => "RTT",
         "status_dimensions" => "आकार",
         "status_cwd" => "डायर",

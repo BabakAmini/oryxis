@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "نمایش تأخیر",
         "status_show_dimensions" => "نمایش اندازه ترمینال",
         "status_show_cwd" => "نمایش پوشه فعلی",
+        "status_bar_align_left" => "تراز کردن محتوا به چپ",
         "status_latency" => "RTT",
         "status_dimensions" => "اندازه",
         "status_cwd" => "پوشه",

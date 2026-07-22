@@ -118,6 +118,10 @@ impl Oryxis {
                 self.monitor_ports_open = !self.monitor_ports_open;
                 Task::none()
             }
+            MonitorMessage::ToggleDisks => {
+                self.monitor_disks_open = !self.monitor_disks_open;
+                Task::none()
+            }
             MonitorMessage::ForwardPort(conn_id, port, bind) => {
                 // Prefill a local forward onto the same port and hand the
                 // user the editor. The target is dialed FROM THE SERVER:

@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Pokaż opóźnienie",
         "status_show_dimensions" => "Pokaż rozmiar terminala",
         "status_show_cwd" => "Pokaż bieżący katalog",
+        "status_bar_align_left" => "Wyrównaj zawartość do lewej",
         "status_latency" => "RTT",
         "status_dimensions" => "Rozm",
         "status_cwd" => "Kat",

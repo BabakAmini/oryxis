@@ -86,6 +86,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Interface, "status_show_latency", "status bar latency ping segment"),
     e(S::Interface, "status_show_dimensions", "status bar terminal size dimensions rows columns"),
     e(S::Interface, "status_show_cwd", "status bar current directory path cwd"),
+    e(S::Interface, "status_bar_align_left", "status bar align content left leading edge alignment position"),
     e(S::Interface, "theme_new_custom", "create custom app ui theme color"),
     e(S::Interface, "theme_import", "import app ui theme json load"),
     e(S::Interface, "renderer_backend", "renderer graphics backend gpu vulkan opengl software"),

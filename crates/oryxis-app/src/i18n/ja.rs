@@ -344,6 +344,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "レイテンシを表示",
         "status_show_dimensions" => "ターミナルサイズを表示",
         "status_show_cwd" => "現在のディレクトリを表示",
+        "status_bar_align_left" => "コンテンツを左揃えにする",
         "status_latency" => "RTT",
         "status_dimensions" => "サイズ",
         "status_cwd" => "Dir",

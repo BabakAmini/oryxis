@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Tampilkan latensi",
         "status_show_dimensions" => "Tampilkan ukuran terminal",
         "status_show_cwd" => "Tampilkan direktori saat ini",
+        "status_bar_align_left" => "Ratakan konten ke kiri",
         "status_latency" => "RTT",
         "status_dimensions" => "Ukuran",
         "status_cwd" => "Dir",

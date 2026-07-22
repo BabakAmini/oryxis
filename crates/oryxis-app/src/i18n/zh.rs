@@ -344,6 +344,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "显示延迟",
         "status_show_dimensions" => "显示终端尺寸",
         "status_show_cwd" => "显示当前目录",
+        "status_bar_align_left" => "内容左对齐",
         "status_latency" => "RTT",
         "status_dimensions" => "尺寸",
         "status_cwd" => "目录",

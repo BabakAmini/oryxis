@@ -368,6 +368,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "status_show_latency" => "Show latency",
         "status_show_dimensions" => "Show terminal size",
         "status_show_cwd" => "Show current directory",
+        "status_bar_align_left" => "Align content to the left",
         "status_latency" => "RTT",
         "status_dimensions" => "Size",
         "status_cwd" => "Dir",

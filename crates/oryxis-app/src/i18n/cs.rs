@@ -368,6 +368,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Zobrazit latenci",
         "status_show_dimensions" => "Zobrazit velikost terminálu",
         "status_show_cwd" => "Zobrazit aktuální adresář",
+        "status_bar_align_left" => "Zarovnat obsah doleva",
         "status_latency" => "RTT",
         "status_dimensions" => "Vel",
         "status_cwd" => "Adr",

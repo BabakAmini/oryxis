@@ -46,11 +46,24 @@ impl Oryxis {
 
         // The connection text is opt-out (issue #83 follow-up): hiding it
         // declutters the bar and keeps the host name out of screenshots.
+        // Content alignment (issue #83 follow-up): the vitals cluster hugs
+        // the trailing edge by default; `status_bar_align_left` moves it to
+        // the leading edge instead, so it lines up with a left-docked panel
+        // layout. The lever is where the flexible spacer sits, and the whole
+        // row rides `dir_row`, so "leading" mirrors correctly under RTL.
+        let align_left = self.setting_status_bar_align_left;
         let mut items: Vec<Element<'_, Message>> = Vec::new();
         if self.setting_status_show_connection {
             items.push(text(status_text).size(12).color(status_color).into());
+            // Leading-aligned: keep a gap between the label and the cluster
+            // that the flexible spacer used to provide.
+            if align_left {
+                items.push(Space::new().width(16).into());
+            }
         }
-        items.push(Space::new().width(Length::Fill).into());
+        if !align_left {
+            items.push(Space::new().width(Length::Fill).into());
+        }
 
         // Terminal-status segments read from the focused pane: latency
         // (the SSH RTT probe), grid size and cwd. Each is off by default
@@ -189,18 +202,61 @@ impl Oryxis {
                     c.text_secondary,
                 ));
             }
-            // The busiest mount is the one worth a glance; the sidebar tab
-            // lists them all.
+            // Disks (issue #83 follow-up): the busiest mount rides the bar
+            // (the one worth a glance), a `+N` suffix marks the rest, and a
+            // hover tooltip lists every mount so the collapsed badge never
+            // hides anything. Status-bar idiom: hover reveals detail, like
+            // the terminal `icon_tooltip`.
             if let Some(disk) = sample
                 .disks
                 .iter()
                 .max_by(|a, b| a.pct().total_cmp(&b.pct()))
             {
-                seg.push(vital(
-                    &disk.mount,
-                    format!("{:.0}%", disk.pct()),
-                    tint(disk.pct()),
-                ));
+                let extra = sample.disks.len().saturating_sub(1);
+                let value = if extra > 0 {
+                    format!("{:.0}% +{extra}", disk.pct())
+                } else {
+                    format!("{:.0}%", disk.pct())
+                };
+                let badge = vital(&disk.mount, value, tint(disk.pct()));
+                if extra > 0 {
+                    let list = sample
+                        .disks
+                        .iter()
+                        .map(|d| {
+                            format!(
+                                "{}  {:.0}%  {} / {}",
+                                d.mount,
+                                d.pct(),
+                                crate::views::sidebar_monitor::fmt_bytes_short(d.used),
+                                crate::views::sidebar_monitor::fmt_bytes_short(d.total),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    seg.push(
+                        iced::widget::tooltip(
+                            badge,
+                            container(
+                                text(list).size(11).color(OryxisColors::t().text_primary),
+                            )
+                            .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 8.0 })
+                            .style(|_| container::Style {
+                                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                                border: Border {
+                                    radius: Radius::from(6.0),
+                                    color: OryxisColors::t().border,
+                                    width: 1.0,
+                                },
+                                ..Default::default()
+                            }),
+                            iced::widget::tooltip::Position::Top,
+                        )
+                        .into(),
+                    );
+                } else {
+                    seg.push(badge);
+                }
             }
             for el in seg {
                 items.push(el);
@@ -228,6 +284,11 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
             );
+        }
+        // Leading-aligned: the flexible spacer trails the cluster instead,
+        // pushing everything to the leading edge.
+        if align_left {
+            items.push(Space::new().width(Length::Fill).into());
         }
         let bar = container(
             crate::widgets::dir_row(items)

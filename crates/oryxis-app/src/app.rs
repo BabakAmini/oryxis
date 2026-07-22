@@ -809,6 +809,11 @@ pub struct Oryxis {
     /// busy host can listen on dozens of ports, so it starts collapsed
     /// behind a count.
     pub(crate) monitor_ports_open: bool,
+    /// Whether the Monitor tab's disk list is expanded (issue #83
+    /// follow-up). Starts open so the common one-or-two-mount host shows
+    /// its disks at a glance, but a host with many mounts can collapse
+    /// them behind the count, mirroring the ports disclosure.
+    pub(crate) monitor_disks_open: bool,
     /// Seconds between monitor probes, as typed in Settings. Parsed
     /// (and floored) by `monitor_interval_secs`; kept as a string so a
     /// half-typed value doesn't reset the field under the user.
@@ -1092,6 +1097,11 @@ pub struct Oryxis {
     pub(crate) setting_status_show_latency: bool,
     pub(crate) setting_status_show_dimensions: bool,
     pub(crate) setting_status_show_cwd: bool,
+    /// Align the status-bar content on the leading edge instead of the
+    /// trailing edge (issue #83 follow-up), so it lines up with a
+    /// left-docked panel layout. Default off (trailing, the original
+    /// behaviour).
+    pub(crate) setting_status_bar_align_left: bool,
     /// Dock the terminal sidebar (Chat / Snippets / Files / Monitor /
     /// Host config) on the LEFT of the terminal instead of the right
     /// (issue #85). A physical edge like the #87 tab-bar dock, so RTL

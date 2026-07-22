@@ -42,6 +42,13 @@ impl Oryxis {
                 self.setting_status_show_dimensions = !self.setting_status_show_dimensions;
                 self.persist_setting("status_show_dimensions", if self.setting_status_show_dimensions { "true" } else { "false" });
             }
+            SettingsMessage::SettingToggleStatusAlignLeft => {
+                self.setting_status_bar_align_left = !self.setting_status_bar_align_left;
+                self.persist_setting(
+                    "status_bar_align_left",
+                    if self.setting_status_bar_align_left { "true" } else { "false" },
+                );
+            }
             SettingsMessage::SettingToggleStatusCwd => {
                 self.setting_status_show_cwd = !self.setting_status_show_cwd;
                 self.persist_setting("status_show_cwd", if self.setting_status_show_cwd { "true" } else { "false" });
@@ -90,6 +97,7 @@ impl Oryxis {
                     // the toggle.
                     self.monitor_reset_all();
                     self.monitor_ports_open = false;
+                    self.monitor_disks_open = true;
                 }
             }
             SettingsMessage::SettingToggleMonitorAllHosts => {

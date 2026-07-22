@@ -207,6 +207,8 @@ pub enum SettingsMessage {
     SettingToggleStatusLatency,
     SettingToggleStatusDimensions,
     SettingToggleStatusCwd,
+    /// Align the status-bar content on the leading edge (issue #83).
+    SettingToggleStatusAlignLeft,
     /// Settings > Terminal: flip the terminal sidebar to the left edge
     /// (issue #85).
     SettingToggleTerminalSidebarLeft,

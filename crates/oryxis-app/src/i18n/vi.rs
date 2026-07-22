@@ -349,6 +349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_latency" => "Hiển thị độ trễ",
         "status_show_dimensions" => "Hiển thị kích thước terminal",
         "status_show_cwd" => "Hiển thị thư mục hiện tại",
+        "status_bar_align_left" => "Căn nội dung sang trái",
         "status_latency" => "RTT",
         "status_dimensions" => "Cỡ",
         "status_cwd" => "Thư mục",
