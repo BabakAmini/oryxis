@@ -635,6 +635,14 @@ impl Oryxis {
                 );
                 self.setting_tab_bar_position = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("inactive_tab_style")
+                && (v == "none" || v == "border" || v == "underline")
+            {
+                crate::views::tab_bar::set_inactive_tab_style(
+                    crate::views::tab_bar::InactiveTabStyle::from_setting(&v),
+                );
+                self.setting_inactive_tab_style = v;
+            }
             if let Ok(Some(v)) = vault.get_setting("pinned_tabs_top_bar") {
                 self.setting_pinned_tabs_top_bar = v == "true";
             }

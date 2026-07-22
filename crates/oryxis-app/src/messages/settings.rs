@@ -283,6 +283,8 @@ pub enum SettingsMessage {
     /// window ("top" / "bottom"). The window chrome (burger, drag area,
     /// minimize / maximize / close) stays in a slim top bar either way.
     SettingTabBarPositionChanged(String),
+    /// Inactive-tab separation style: "none" / "border" / "underline".
+    SettingInactiveTabStyleChanged(String),
     SettingTogglePinnedTabsTopBar,
     SettingToggleSideHideTopBar,
     SettingToggleSideFullHeight,

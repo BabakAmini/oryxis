@@ -1235,6 +1235,10 @@ pub struct Oryxis {
     /// (vertical tab list on that window edge, issue #87). Anything
     /// else reads as top.
     pub(crate) setting_tab_bar_position: String,
+    /// Inactive-tab separation style (issue #87): `none` / `border` /
+    /// `underline`. Mirrored into the process-wide `INACTIVE_TAB_STYLE`
+    /// gate read by the tab renderer.
+    pub(crate) setting_inactive_tab_style: String,
     /// Side dock only: pinned tabs live with the window chrome instead
     /// of scrolling inside the strip. Top bar visible: they dock next
     /// to Home up there; top bar hidden: they become a fixed group at

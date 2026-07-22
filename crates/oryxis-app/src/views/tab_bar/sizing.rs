@@ -96,6 +96,55 @@ pub(crate) fn cursor_in_tab_strip_band(
         }
     }
 }
+/// Visual treatment applied to INACTIVE tabs so they read as distinct
+/// chips instead of blending into the strip (issue #87, sosokun's
+/// "borders or underline or some kind of visual separating"). `Border`
+/// draws a full subtle outline (identical in every dock); `Underline`
+/// draws an accent hairline on each tab's INNER edge, which is what
+/// makes it adapt to the dock: bottom on a top strip, top on a bottom
+/// strip, and the content-facing side on the vertical strips.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum InactiveTabStyle {
+    #[default]
+    None,
+    Border,
+    Underline,
+}
+
+impl InactiveTabStyle {
+    pub(crate) fn from_setting(v: &str) -> Self {
+        match v {
+            "border" => Self::Border,
+            "underline" => Self::Underline,
+            _ => Self::None,
+        }
+    }
+}
+
+/// Process-wide inactive-tab-style gate, same shape + rationale as
+/// `TAB_BAR_POS`: `session_tab` is a free fn reached from every strip,
+/// so the setting rides an atomic read at render time instead of a
+/// param threaded through the whole tab-renderer family.
+static INACTIVE_TAB_STYLE: std::sync::atomic::AtomicU8 =
+    std::sync::atomic::AtomicU8::new(0);
+
+pub(crate) fn set_inactive_tab_style(style: InactiveTabStyle) {
+    let v = match style {
+        InactiveTabStyle::None => 0,
+        InactiveTabStyle::Border => 1,
+        InactiveTabStyle::Underline => 2,
+    };
+    INACTIVE_TAB_STYLE.store(v, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub(crate) fn inactive_tab_style() -> InactiveTabStyle {
+    match INACTIVE_TAB_STYLE.load(std::sync::atomic::Ordering::Relaxed) {
+        1 => InactiveTabStyle::Border,
+        2 => InactiveTabStyle::Underline,
+        _ => InactiveTabStyle::None,
+    }
+}
+
 /// Decide how much horizontal space each tab gets. Returns
 /// `(active_width, inactive_width)`. The active tab claims its natural
 /// width when it fits; inactives split whatever's left, clamped to the

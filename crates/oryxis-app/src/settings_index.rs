@@ -74,6 +74,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Interface, "tab_accent_color", "tab accent color host app source"),
     e(S::Interface, "tab_fill_style", "tab fill gradient solid background"),
     e(S::Interface, "tab_bar_position", "tab bar position top bottom left right vertical"),
+    e(S::Interface, "inactive_tab_style", "inactive tab style border underline separator none"),
     e(S::Interface, "pinned_tabs_top_bar", "pinned tabs top bar side dock"),
     e(S::Interface, "side_hide_top_bar", "hide top bar side vertical tabs"),
     e(S::Interface, "side_full_height", "full height tab strip side vertical"),

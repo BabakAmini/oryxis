@@ -272,6 +272,60 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
         .into()
 }
 
+/// The `Underline` inactive-tab-style overlay (issue #87): a 2px
+/// neutral rule pinned to the chip's inner, content-facing edge. The
+/// edge follows the strip's dock, so the same setting renders as a
+/// bottom rule on a top strip, a top rule on a bottom strip, and a
+/// side rule (right on a left dock, left on a right dock) on the
+/// vertical strips. Sized to the button box so the Stack overlay
+/// aligns exactly and never reserves layout space.
+fn inactive_edge_line<'a>(width: f32, color: Color) -> Element<'a, Message> {
+    use crate::views::tab_bar::{tab_bar_pos, TabBarPos};
+    const T: f32 = 2.0;
+    let rule = |w: Length, h: Length| -> Element<'a, Message> {
+        container(Space::new())
+            .width(w)
+            .height(h)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(color)),
+                ..Default::default()
+            })
+            .into()
+    };
+    let frame = |el: Element<'a, Message>| -> Element<'a, Message> {
+        container(el)
+            .width(Length::Fixed(width))
+            .height(Length::Fixed(TAB_HEIGHT))
+            .into()
+    };
+    match tab_bar_pos() {
+        TabBarPos::Top => frame(
+            iced::widget::Column::new()
+                .push(Space::new().height(Length::Fill))
+                .push(rule(Length::Fill, Length::Fixed(T)))
+                .into(),
+        ),
+        TabBarPos::Bottom => frame(
+            iced::widget::Column::new()
+                .push(rule(Length::Fill, Length::Fixed(T)))
+                .push(Space::new().height(Length::Fill))
+                .into(),
+        ),
+        TabBarPos::Left => frame(
+            iced::widget::Row::new()
+                .push(Space::new().width(Length::Fill))
+                .push(rule(Length::Fixed(T), Length::Fill))
+                .into(),
+        ),
+        TabBarPos::Right => frame(
+            iced::widget::Row::new()
+                .push(rule(Length::Fixed(T), Length::Fill))
+                .push(Space::new().width(Length::Fill))
+                .into(),
+        ),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn session_tab<'a>(
     idx: usize,
@@ -535,6 +589,17 @@ pub(crate) fn session_tab<'a>(
             .into()
     };
 
+    // Inactive-tab separation style (issue #87): applies only to the
+    // inactive, non-pinned chips (the active tab has its accent fill and
+    // pinned tabs their own accent outline). `Border` rides the button's
+    // own border; `Underline` is drawn as an edge overlay below.
+    let inactive_style = if is_active || pinned {
+        crate::views::tab_bar::InactiveTabStyle::None
+    } else {
+        crate::views::tab_bar::inactive_tab_style()
+    };
+    let inactive_border = inactive_style == crate::views::tab_bar::InactiveTabStyle::Border;
+
     let tab_btn = button(
         container(inner_row)
             .center_y(Length::Fixed(TAB_HEIGHT))
@@ -549,9 +614,12 @@ pub(crate) fn session_tab<'a>(
             }
             _ => bg,
         };
-        // Full-style pinned tabs get a distinct accent outline.
+        // Full-style pinned tabs get a distinct accent outline; an
+        // inactive chip under the Border style gets a subtle neutral one.
         let border = if pinned {
             Border { radius: Radius::from(6.0), color: effective_accent, width: 1.5 }
+        } else if inactive_border {
+            Border { radius: Radius::from(6.0), color: OryxisColors::t().border, width: 1.0 }
         } else {
             Border { radius: Radius::from(6.0), ..Default::default() }
         };
@@ -587,6 +655,22 @@ pub(crate) fn session_tab<'a>(
         }
         _ => tab_btn.into(),
     };
+
+    // Underline style: a neutral hairline on the chip's inner (content-
+    // facing) edge, laid over the button so it never shifts the layout.
+    // The edge is dock-aware, so the same setting reads as a bottom rule
+    // on a top strip and a side rule on the vertical strips.
+    let tab_el: Element<'_, Message> =
+        if inactive_style == crate::views::tab_bar::InactiveTabStyle::Underline {
+            iced::widget::Stack::new()
+                .width(Length::Fixed(width))
+                .height(Length::Fixed(TAB_HEIGHT))
+                .push(tab_el)
+                .push(inactive_edge_line(width, OryxisColors::t().border))
+                .into()
+        } else {
+            tab_el
+        };
 
     MouseArea::new(tab_el)
         .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))

@@ -295,6 +295,30 @@ impl Oryxis {
             text(crate::i18n::t("tab_bar_position_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.nav_pick_row(
+                crate::i18n::t("inactive_tab_style"),
+                vec![
+                    "none".to_string(),
+                    "border".to_string(),
+                    "underline".to_string(),
+                ],
+                self.setting_inactive_tab_style.clone(),
+                |s: &String| {
+                    crate::i18n::t(match s.as_str() {
+                        "border" => "inactive_tab_style_border",
+                        "underline" => "inactive_tab_style_underline",
+                        _ => "inactive_tab_style_none",
+                    })
+                    .to_string()
+                },
+                180.0,
+                |v| Message::Settings(SettingsMessage::SettingInactiveTabStyleChanged(v)),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("inactive_tab_style_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
         if matches!(self.setting_tab_bar_position.as_str(), "left" | "right") {
             top_bar_col = top_bar_col

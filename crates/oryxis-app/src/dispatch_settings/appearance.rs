@@ -244,6 +244,20 @@ impl Oryxis {
                 self.setting_tab_bar_position = normalized.into();
                 self.persist_setting("tab_bar_position", normalized);
             }
+            SettingsMessage::SettingInactiveTabStyleChanged(val) => {
+                let normalized = match val.as_str() {
+                    "border" => "border",
+                    "underline" => "underline",
+                    _ => "none",
+                };
+                // Same process-wide gate shape as `tab_bar_position`: the
+                // tab renderer reads it at draw time (issue #87).
+                crate::views::tab_bar::set_inactive_tab_style(
+                    crate::views::tab_bar::InactiveTabStyle::from_setting(normalized),
+                );
+                self.setting_inactive_tab_style = normalized.into();
+                self.persist_setting("inactive_tab_style", normalized);
+            }
             SettingsMessage::SettingTogglePinnedTabsTopBar => {
                 self.setting_pinned_tabs_top_bar = !self.setting_pinned_tabs_top_bar;
                 self.persist_setting(
