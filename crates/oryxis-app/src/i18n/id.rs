@@ -708,6 +708,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Izinkan",
         "agent_key_exposed" => "Terpapar ke agen",
         "agent_key_hidden" => "Tersembunyi dari agen",
+        "agent_vault_keys_served" => "Kunci vault yang disediakan",
+        "agent_external_keys_held" => "Kunci eksternal yang dipegang",
 
         // Export / Import
         "export_vault" => "Ekspor Vault",

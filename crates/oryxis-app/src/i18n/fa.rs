@@ -710,6 +710,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "اجازه",
         "agent_key_exposed" => "در دسترس عامل",
         "agent_key_hidden" => "پنهان از عامل",
+        "agent_vault_keys_served" => "کلیدهای گاوصندوق ارائه‌شده",
+        "agent_external_keys_held" => "کلیدهای خارجی نگه‌داشته‌شده",
 
         // Export / Import
         "export_vault" => "خروجی گرفتن از صندوقچه",

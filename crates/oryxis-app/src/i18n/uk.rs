@@ -708,6 +708,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Дозволити",
         "agent_key_exposed" => "Доступний агенту",
         "agent_key_hidden" => "Прихований від агента",
+        "agent_vault_keys_served" => "Обслуговувані ключі сховища",
+        "agent_external_keys_held" => "Утримувані зовнішні ключі",
 
         // Export / Import
         "export_vault" => "Експортувати сховище",

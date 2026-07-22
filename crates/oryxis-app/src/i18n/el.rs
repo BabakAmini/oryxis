@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Επίτρεψε",
         "agent_key_exposed" => "Εκτεθειμένο στον πράκτορα",
         "agent_key_hidden" => "Κρυμμένο από τον πράκτορα",
+        "agent_vault_keys_served" => "Παρεχόμενα κλειδιά θησαυροφυλακίου",
+        "agent_external_keys_held" => "Διατηρούμενα εξωτερικά κλειδιά",
 
         // Export / Import
         "export_vault" => "Εξαγωγή vault",

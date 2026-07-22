@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "อนุญาต",
         "agent_key_exposed" => "เปิดเผยต่อเอเจนต์",
         "agent_key_hidden" => "ซ่อนจากเอเจนต์",
+        "agent_vault_keys_served" => "คีย์วอลต์ที่ให้บริการ",
+        "agent_external_keys_held" => "คีย์ภายนอกที่ถือไว้",
 
         // Export / Import
         "export_vault" => "ส่งออก Vault",

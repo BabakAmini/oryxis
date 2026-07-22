@@ -573,6 +573,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "允许",
         "agent_key_exposed" => "已向代理公开",
         "agent_key_hidden" => "对代理隐藏",
+        "agent_vault_keys_served" => "已提供的保险库密钥",
+        "agent_external_keys_held" => "持有的外部密钥",
         "export_vault" => "导出保险库",
         "import_vault" => "导入保险库",
         // Vault export/import categories + dialog

@@ -228,6 +228,18 @@ impl EphemeralStore {
         }
     }
 
+    /// Number of live (non-expired) client-added keys. Feeds the
+    /// settings status line so "the agent is up but currently holds
+    /// zero external keys" is visible instead of a silent auth
+    /// failure (issue #98).
+    pub(crate) fn live_count(&self) -> usize {
+        let Ok(mut keys) = self.keys.lock() else {
+            return 0;
+        };
+        Self::prune(&mut keys);
+        keys.len()
+    }
+
     /// Sign with an added key if `blob` is ours; `None` hands the
     /// lookup back to the caller (a vault key or unknown).
     pub(crate) fn sign(
@@ -270,6 +282,11 @@ impl VaultKeySource {
             allow_add,
             ephemeral: EphemeralStore::default(),
         }
+    }
+
+    /// Live count of client-added keys (settings status line).
+    pub(crate) fn external_key_count(&self) -> usize {
+        self.ephemeral.live_count()
     }
 
     /// Flip the gate and lock the dedicated handle (zeroize its key) so

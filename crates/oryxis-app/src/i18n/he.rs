@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "אישור",
         "agent_key_exposed" => "חשוף לסוכן",
         "agent_key_hidden" => "מוסתר מהסוכן",
+        "agent_vault_keys_served" => "מפתחות כספת מוגשים",
+        "agent_external_keys_held" => "מפתחות חיצוניים מוחזקים",
 
         // Export / Import
         "export_vault" => "ייצוא כספת",

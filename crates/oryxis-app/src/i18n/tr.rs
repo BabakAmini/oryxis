@@ -708,6 +708,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "İzin ver",
         "agent_key_exposed" => "Aracıya açık",
         "agent_key_hidden" => "Aracıdan gizli",
+        "agent_vault_keys_served" => "Sunulan kasa anahtarları",
+        "agent_external_keys_held" => "Tutulan harici anahtarlar",
 
         // Export / Import
         "export_vault" => "Kasayı Dışa Aktar",

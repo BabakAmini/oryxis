@@ -564,6 +564,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Consenti",
         "agent_key_exposed" => "Esposta all'agente",
         "agent_key_hidden" => "Nascosta all'agente",
+        "agent_vault_keys_served" => "Chiavi del vault servite",
+        "agent_external_keys_held" => "Chiavi esterne conservate",
         "export_vault" => "Esporta Cassaforte",
         "import_vault" => "Importa Cassaforte",
         // Vault export/import categories + dialog

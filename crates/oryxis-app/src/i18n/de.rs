@@ -564,6 +564,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Erlauben",
         "agent_key_exposed" => "Für Agent sichtbar",
         "agent_key_hidden" => "Vor Agent verborgen",
+        "agent_vault_keys_served" => "Bereitgestellte Tresorschlüssel",
+        "agent_external_keys_held" => "Gehaltene externe Schlüssel",
         "export_vault" => "Tresor exportieren",
         "import_vault" => "Tresor importieren",
         // Vault export/import categories + dialog

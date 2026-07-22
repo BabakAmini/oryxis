@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Povolit",
         "agent_key_exposed" => "Zpřístupněn agentovi",
         "agent_key_hidden" => "Skryt před agentem",
+        "agent_vault_keys_served" => "Poskytované klíče trezoru",
+        "agent_external_keys_held" => "Držené externí klíče",
 
         // Export / Import
         "export_vault" => "Exportovat trezor",

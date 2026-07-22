@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Zezwól",
         "agent_key_exposed" => "Udostępniony agentowi",
         "agent_key_hidden" => "Ukryty przed agentem",
+        "agent_vault_keys_served" => "Udostępniane klucze sejfu",
+        "agent_external_keys_held" => "Przechowywane klucze zewnętrzne",
 
         // Export / Import
         "export_vault" => "Eksportuj sejf",

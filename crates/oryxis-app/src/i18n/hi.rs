@@ -714,6 +714,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "अनुमति दें",
         "agent_key_exposed" => "एजेंट को दिखाई",
         "agent_key_hidden" => "एजेंट से छिपी",
+        "agent_vault_keys_served" => "उपलब्ध कराई गई वॉल्ट कुंजियाँ",
+        "agent_external_keys_held" => "रखी गई बाहरी कुंजियाँ",
 
         // Export / Import
         "export_vault" => "वॉल्ट एक्सपोर्ट करें",

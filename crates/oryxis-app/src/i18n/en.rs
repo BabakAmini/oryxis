@@ -715,6 +715,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "agent_confirm_allow" => "Allow",
         "agent_key_exposed" => "Exposed to agent",
         "agent_key_hidden" => "Hidden from agent",
+        "agent_vault_keys_served" => "Vault keys served",
+        "agent_external_keys_held" => "External keys held",
 
         // Export / Import
         "export_vault" => "Export Vault",

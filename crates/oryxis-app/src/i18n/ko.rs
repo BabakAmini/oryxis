@@ -708,6 +708,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "허용",
         "agent_key_exposed" => "에이전트에 공개",
         "agent_key_hidden" => "에이전트에서 숨김",
+        "agent_vault_keys_served" => "제공 중인 보관함 키",
+        "agent_external_keys_held" => "보유 중인 외부 키",
 
         // Export / Import
         "export_vault" => "볼트 내보내기",

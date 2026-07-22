@@ -68,6 +68,13 @@ pub(crate) struct AgentRuntime {
 }
 
 impl AgentRuntime {
+    /// Live count of externally added keys currently held (lazily
+    /// prunes expired entries). Read by the settings status line so a
+    /// swept roster (vault lock, KeePassXC gone) is visible.
+    pub(crate) fn external_key_count(&self) -> usize {
+        self.source.external_key_count()
+    }
+
     /// Open a dedicated vault handle, bind the socket and start
     /// serving; returns a receiver of per-signature prompts the app
     /// surfaces. `confirm` prompts for every signature; even with it

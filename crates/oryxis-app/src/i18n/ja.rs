@@ -573,6 +573,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "許可",
         "agent_key_exposed" => "エージェントに公開",
         "agent_key_hidden" => "エージェントから非表示",
+        "agent_vault_keys_served" => "提供中のヴォルトの鍵",
+        "agent_external_keys_held" => "保持中の外部鍵",
         "export_vault" => "保管庫をエクスポート",
         "import_vault" => "保管庫をインポート",
         // Vault export/import categories + dialog

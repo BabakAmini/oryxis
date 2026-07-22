@@ -64,8 +64,10 @@ impl SshEngine {
                 tried.push("agent");
                 tracing::info!("Auto: trying agent auth for {}", username);
                 match self.auth_via_agent(handle, username).await {
-                    Ok(true) => return Ok(true),
-                    Ok(false) => tracing::info!("Auto: agent had no matching keys"),
+                    Ok(AgentAuthOutcome::Authenticated) => return Ok(true),
+                    Ok(AgentAuthOutcome::NoMatch(tally)) => {
+                        tracing::info!("Auto: agent had no matching keys ({tally})")
+                    }
                     Err(e) => tracing::info!("Auto: agent unavailable: {}", e),
                 }
 
@@ -230,8 +232,8 @@ impl SshEngine {
             AuthMethod::Agent => {
                 tracing::info!("Trying agent auth for {}", username);
                 match self.auth_via_agent(handle, username).await {
-                    Ok(true) => Ok(true),
-                    Ok(false) => {
+                    Ok(AgentAuthOutcome::Authenticated) => Ok(true),
+                    Ok(AgentAuthOutcome::NoMatch(tally)) => {
                         if let Some(pw) = password {
                             tracing::info!("Agent auth failed, trying password for {}", username);
                             let res = handle.authenticate_password(username, pw).await?;
@@ -239,7 +241,9 @@ impl SshEngine {
                                 return Ok(true);
                             }
                         }
-                        Err(SshError::Key("Agent auth failed, no keys matched".into()))
+                        Err(SshError::Key(format!(
+                            "Agent auth failed, no keys matched ({tally})"
+                        )))
                     }
                     Err(e) => {
                         if let Some(pw) = password {
@@ -546,52 +550,127 @@ impl SshEngine {
     }
 
     /// Authenticate and open a PTY session on the handle.
-    /// Authenticate via ssh-agent. Uses Unix socket on Linux/macOS, named pipe on Windows.
+    /// Authenticate via ssh-agent. Uses Unix sockets on Linux/macOS,
+    /// named pipes on Windows, trying EVERY discovered agent in order
+    /// (issue #98): a live Pageant-style pipe serving zero keys (a
+    /// locked KeePassXC keeps its pipe open) must not shadow the
+    /// OpenSSH pipe that holds the working key. Keys already offered
+    /// by an earlier agent are skipped so overlapping rosters can't
+    /// burn the server's MaxAuthTries, and the per-agent tally rides
+    /// the NoMatch outcome into the connection log so an empty agent
+    /// is visible instead of a bare "no keys matched".
     #[cfg(unix)]
     pub(crate) async fn auth_via_agent(
         &self,
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
-    ) -> Result<bool, SshError> {
-        match russh::keys::agent::client::AgentClient::connect_env().await {
-            Ok(mut agent) => {
-                let identities = agent
-                    .request_identities()
-                    .await
-                    .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
-                self.try_agent_identities(handle, username, identities, &mut agent)
-                    .await
-            }
-            Err(e) => Err(SshError::Key(format!("ssh-agent not available: {}", e))),
+    ) -> Result<AgentAuthOutcome, SshError> {
+        let candidates = super::agent::unix_agent_sock_candidates(
+            std::env::var("SSH_AUTH_SOCK").ok(),
+            oryxis_core::agent_paths::unix_agent_socket_path(),
+        );
+        if candidates.is_empty() {
+            return Err(SshError::Key(
+                "ssh-agent not available: SSH_AUTH_SOCK is not set".into(),
+            ));
         }
+        let mut offered: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut report: Vec<String> = Vec::new();
+        let mut connected_any = false;
+        let mut last_err: Option<String> = None;
+        for path in &candidates {
+            let display = path.display().to_string();
+            match russh::keys::agent::client::AgentClient::connect_uds(path).await {
+                Ok(mut agent) => {
+                    connected_any = true;
+                    match agent.request_identities().await {
+                        Ok(identities) => {
+                            report.push(format!("{}: {} key(s)", display, identities.len()));
+                            let fresh = filter_fresh_identities(identities, &mut offered);
+                            if fresh.is_empty() {
+                                continue;
+                            }
+                            if self
+                                .try_agent_identities(handle, username, fresh, &mut agent)
+                                .await?
+                            {
+                                return Ok(AgentAuthOutcome::Authenticated);
+                            }
+                        }
+                        Err(e) => report.push(format!("{}: error {}", display, e)),
+                    }
+                }
+                Err(e) => {
+                    report.push(format!("{}: unavailable", display));
+                    last_err = Some(format!("{}: {}", display, e));
+                }
+            }
+        }
+        if !connected_any {
+            return Err(SshError::Key(format!(
+                "ssh-agent not available: {}",
+                last_err.unwrap_or_else(|| "no agent socket found".into()),
+            )));
+        }
+        Ok(AgentAuthOutcome::NoMatch(report.join("; ")))
     }
 
-    /// Authenticate via Windows OpenSSH Agent (named pipe).
+    /// Authenticate via Windows ssh-agents (named pipes). Same
+    /// fallback-chain contract as the Unix variant above.
     #[cfg(windows)]
     pub(crate) async fn auth_via_agent(
         &self,
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
-    ) -> Result<bool, SshError> {
-        let pipe_path = windows_agent_pipe();
-        match russh::keys::agent::client::AgentClient::connect_named_pipe(&pipe_path).await {
-            Ok(mut agent) => {
-                let identities = agent
-                    .request_identities()
-                    .await
-                    .map_err(|e| SshError::Key(format!("Agent: {}", e)))?;
-                self.try_agent_identities(handle, username, identities, &mut agent)
-                    .await
+    ) -> Result<AgentAuthOutcome, SshError> {
+        let candidates = super::agent::agent_pipe_candidates();
+        let mut offered: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut report: Vec<String> = Vec::new();
+        let mut connected_any = false;
+        let mut last_err: Option<String> = None;
+        for pipe_path in &candidates {
+            // The `\\.\pipe\` prefix is noise in a user-facing tally.
+            let display = pipe_path.trim_start_matches(r"\\.\pipe\");
+            match russh::keys::agent::client::AgentClient::connect_named_pipe(pipe_path).await
+            {
+                Ok(mut agent) => {
+                    connected_any = true;
+                    match agent.request_identities().await {
+                        Ok(identities) => {
+                            report.push(format!("{}: {} key(s)", display, identities.len()));
+                            let fresh = filter_fresh_identities(identities, &mut offered);
+                            if fresh.is_empty() {
+                                continue;
+                            }
+                            if self
+                                .try_agent_identities(handle, username, fresh, &mut agent)
+                                .await?
+                            {
+                                return Ok(AgentAuthOutcome::Authenticated);
+                            }
+                        }
+                        Err(e) => report.push(format!("{}: error {}", display, e)),
+                    }
+                }
+                Err(e) => {
+                    report.push(format!("{}: unavailable", display));
+                    last_err = Some(format!("{}: {}", display, e));
+                }
             }
-            Err(e) => Err(SshError::Key(format!(
-                "Windows ssh-agent not available ({}): {}",
-                pipe_path, e
-            ))),
         }
+        if !connected_any {
+            return Err(SshError::Key(format!(
+                "Windows ssh-agent not available: {}",
+                last_err.unwrap_or_else(|| "no agent pipe found".into()),
+            )));
+        }
+        Ok(AgentAuthOutcome::NoMatch(report.join("; ")))
     }
 
     /// The shared agent-auth loop: order the identities (the host's
-    /// pinned key first, B3), then try each until one succeeds.
+    /// pinned key first, B3), then try each until one succeeds. NOTE:
+    /// callers iterate several agents (see `auth_via_agent`); this
+    /// runs one agent's roster.
     /// Certificate identities (an sk- cert loaded via `ssh-add`, or any
     /// agent-held cert) are offered as certificates; plain keys as
     /// publickey. The agent does the signing either way, so security-key
@@ -667,6 +746,42 @@ impl SshEngine {
         session.sftp_open_timeout = session_timeout;
         Ok((session, rx))
     }
+}
+
+/// Result of the multi-agent auth sweep in `auth_via_agent`. `NoMatch`
+/// carries the per-agent key tally (endpoint: N key(s), ...) so the
+/// surfaced error explains WHICH agent had nothing instead of a bare
+/// "no keys matched" (issue #98).
+pub(crate) enum AgentAuthOutcome {
+    Authenticated,
+    NoMatch(String),
+}
+
+/// Drop identities whose (kind, fingerprint) was already offered by an
+/// earlier agent in the sweep, recording the survivors. Certificates
+/// and plain keys with the same underlying key are DIFFERENT offers
+/// (cert auth vs publickey auth), hence the kind tag.
+fn filter_fresh_identities(
+    identities: Vec<russh::keys::agent::AgentIdentity>,
+    offered: &mut std::collections::HashSet<String>,
+) -> Vec<russh::keys::agent::AgentIdentity> {
+    identities
+        .into_iter()
+        .filter(|identity| {
+            let kind = match identity {
+                russh::keys::agent::AgentIdentity::Certificate { .. } => "cert",
+                russh::keys::agent::AgentIdentity::PublicKey { .. } => "key",
+            };
+            let tag = format!(
+                "{}:{}",
+                kind,
+                identity
+                    .public_key()
+                    .fingerprint(russh::keys::HashAlg::Sha256)
+            );
+            offered.insert(tag)
+        })
+        .collect()
 }
 
 /// Order agent identities so the pinned key (the host's referenced vault

@@ -564,6 +564,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Разрешить",
         "agent_key_exposed" => "Доступен агенту",
         "agent_key_hidden" => "Скрыт от агента",
+        "agent_vault_keys_served" => "Обслуживаемые ключи хранилища",
+        "agent_external_keys_held" => "Удерживаемые внешние ключи",
         "export_vault" => "Экспорт хранилища",
         "import_vault" => "Импорт хранилища",
         // Vault export/import categories + dialog

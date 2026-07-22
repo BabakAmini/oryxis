@@ -149,6 +149,80 @@ pub(crate) fn windows_agent_pipe() -> String {
     OPENSSH_PIPE.to_string()
 }
 
+/// Ordered agent endpoints for CLIENT auth, most specific first. Unlike
+/// `windows_agent_pipe` (which must pick exactly one pipe, for the
+/// forwarding bridge), authentication can and should FALL BACK: a live
+/// Pageant-style pipe can be serving zero keys (KeePassXC with its
+/// database locked keeps the pipe open) while the OpenSSH pipe holds
+/// the working key, and stopping at the first pipe turns that state
+/// into a spurious "no keys matched" (issue #98). The Oryxis agent's
+/// own pipe closes the chain so vault keys still answer when the
+/// OpenSSH alias name was squatted by the Windows agent service.
+/// Case-insensitive dedup (Win32 pipe names are case-insensitive).
+#[cfg(any(windows, test))]
+pub(crate) fn windows_agent_pipe_candidates(
+    names: &[String],
+    user: Option<&str>,
+    pageant_conf: Option<&str>,
+) -> Vec<String> {
+    const OPENSSH_PIPE: &str = r"\\.\pipe\openssh-ssh-agent";
+    let mut out: Vec<String> = Vec::new();
+    let push = |out: &mut Vec<String>, p: String| {
+        if !out.iter().any(|e| e.eq_ignore_ascii_case(&p)) {
+            out.push(p);
+        }
+    };
+    if let Some(p) = pick_pageant_pipe(names, user) {
+        push(&mut out, p);
+    }
+    if let Some(conf) = pageant_conf
+        && let Some(p) = parse_identity_agent(conf)
+    {
+        push(&mut out, p);
+    }
+    push(&mut out, OPENSSH_PIPE.to_string());
+    push(&mut out, oryxis_core::agent_paths::WINDOWS_AGENT_PIPE.to_string());
+    out
+}
+
+/// Live wrapper over `windows_agent_pipe_candidates`: enumerates the
+/// pipe namespace and reads the default `pageant.conf`, mirroring the
+/// discovery inputs of `windows_agent_pipe`.
+#[cfg(windows)]
+pub(crate) fn agent_pipe_candidates() -> Vec<String> {
+    let user = std::env::var("USERNAME").ok();
+    let conf = std::env::var_os("USERPROFILE").and_then(|profile| {
+        std::fs::read_to_string(
+            std::path::Path::new(&profile).join(".ssh").join("pageant.conf"),
+        )
+        .ok()
+    });
+    windows_agent_pipe_candidates(&list_named_pipes(), user.as_deref(), conf.as_deref())
+}
+
+/// Ordered agent sockets for CLIENT auth on Unix: `SSH_AUTH_SOCK`
+/// first (the user's stated preference), then the Oryxis agent's own
+/// socket, so vault keys answer even when the env var points at a
+/// different (or empty) agent. Same fallback rationale as the Windows
+/// candidate list above. Exact-string dedup covers the common case of
+/// `SSH_AUTH_SOCK` already pointing at the Oryxis socket.
+#[cfg(any(unix, test))]
+pub(crate) fn unix_agent_sock_candidates(
+    env_sock: Option<String>,
+    oryxis_sock: Option<std::path::PathBuf>,
+) -> Vec<std::path::PathBuf> {
+    let mut out: Vec<std::path::PathBuf> = Vec::new();
+    if let Some(p) = env_sock.filter(|p| !p.is_empty()) {
+        out.push(std::path::PathBuf::from(p));
+    }
+    if let Some(p) = oryxis_sock
+        && !out.contains(&p)
+    {
+        out.push(p);
+    }
+    out
+}
+
 /// Bridge an inbound agent-forward channel to the local ssh-agent so
 /// the remote side can use the keys held by our local agent. The remote
 /// app speaks ssh-agent protocol over the channel; we just shovel raw

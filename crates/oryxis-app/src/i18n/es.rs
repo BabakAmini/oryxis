@@ -570,6 +570,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Permitir",
         "agent_key_exposed" => "Expuesta al agente",
         "agent_key_hidden" => "Oculta del agente",
+        "agent_vault_keys_served" => "Claves del baúl servidas",
+        "agent_external_keys_held" => "Claves externas retenidas",
         "export_vault" => "Exportar Bóveda",
         "import_vault" => "Importar Bóveda",
         // Vault export/import categories + dialog

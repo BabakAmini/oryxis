@@ -708,6 +708,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Cho phép",
         "agent_key_exposed" => "Hiển thị với tác nhân",
         "agent_key_hidden" => "Ẩn khỏi tác nhân",
+        "agent_vault_keys_served" => "Khóa kho đang được cung cấp",
+        "agent_external_keys_held" => "Khóa bên ngoài đang giữ",
 
         // Export / Import
         "export_vault" => "Xuất kho",

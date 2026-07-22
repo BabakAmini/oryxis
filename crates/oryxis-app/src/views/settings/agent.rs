@@ -101,6 +101,38 @@ impl Oryxis {
             ])
             .align_y(iced::Alignment::Center);
 
+            // Live roster tally: how many vault keys the agent serves
+            // and how many externally added keys it holds right now.
+            // The external count is the #98 diagnostic: KeePassXC keys
+            // are swept on vault lock, and without this line the only
+            // symptom of an empty roster was a failed auth downstream.
+            let vault_served = self.keys.iter().filter(|k| k.expose_via_agent).count();
+            let status_row: Element<'_, Message> = {
+                let mut parts = vec![
+                    text(format!("{}: {}", t("agent_vault_keys_served"), vault_served))
+                        .size(11)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                ];
+                if self.agent.allow_add
+                    && let Some(rt) = &self.agent.runtime
+                {
+                    let held = rt.external_key_count();
+                    parts.push(Space::new().width(16).into());
+                    parts.push(
+                        text(format!("{}: {}", t("agent_external_keys_held"), held))
+                            .size(11)
+                            .color(if held == 0 {
+                                OryxisColors::t().text_muted
+                            } else {
+                                OryxisColors::t().text_secondary
+                            })
+                            .into(),
+                    );
+                }
+                dir_row(parts).into()
+            };
+
             content_col = content_col
                 .push(panel_section(column![
                     confirm,
@@ -111,6 +143,8 @@ impl Oryxis {
                 .push(Space::new().height(12))
                 .push(panel_section(column![
                     panel_field(t("agent_server_path"), path_row.into()),
+                    Space::new().height(8),
+                    status_row,
                     Space::new().height(10),
                     {
                         // `IdentityAgent` in ~/.ssh/config is the portable form and

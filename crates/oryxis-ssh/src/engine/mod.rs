@@ -445,6 +445,85 @@ mod tests {
         assert_eq!(pick_pageant_pipe(&[], Some("alice")), None);
     }
 
+    // ── Agent candidate chains (issue #98) ──
+
+    #[test]
+    fn pipe_candidates_full_chain_in_order() {
+        let names = vec!["pageant.alice.deadbeef".to_string()];
+        let conf = "IdentityAgent //./pipe/pageant.conf-pipe.abc\n";
+        assert_eq!(
+            agent::windows_agent_pipe_candidates(&names, Some("alice"), Some(conf)),
+            vec![
+                r"\\.\pipe\pageant.alice.deadbeef".to_string(),
+                r"\\.\pipe\pageant.conf-pipe.abc".to_string(),
+                r"\\.\pipe\openssh-ssh-agent".to_string(),
+                r"\\.\pipe\oryxis-ssh-agent".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn pipe_candidates_no_pageant_still_reach_fixed_pipes() {
+        // The #98 shape: no Pageant anywhere, the OpenSSH pipe (and the
+        // Oryxis agent's own pipe) must still be dialed.
+        assert_eq!(
+            agent::windows_agent_pipe_candidates(&[], Some("alice"), None),
+            vec![
+                r"\\.\pipe\openssh-ssh-agent".to_string(),
+                r"\\.\pipe\oryxis-ssh-agent".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn pipe_candidates_dedup_is_case_insensitive() {
+        // A pageant.conf naming the live pipe (or a fixed pipe) with
+        // different casing must not produce a duplicate dial.
+        let names = vec!["Pageant.Alice.ABCD".to_string()];
+        let conf = "IdentityAgent //./pipe/pageant.alice.abcd\n";
+        assert_eq!(
+            agent::windows_agent_pipe_candidates(&names, Some("alice"), Some(conf)),
+            vec![
+                r"\\.\pipe\Pageant.Alice.ABCD".to_string(),
+                r"\\.\pipe\openssh-ssh-agent".to_string(),
+                r"\\.\pipe\oryxis-ssh-agent".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn unix_sock_candidates_env_then_oryxis() {
+        let sock = std::path::PathBuf::from("/home/u/.oryxis/agent.sock");
+        assert_eq!(
+            agent::unix_agent_sock_candidates(
+                Some("/run/user/1000/keyring/ssh".to_string()),
+                Some(sock.clone()),
+            ),
+            vec![
+                std::path::PathBuf::from("/run/user/1000/keyring/ssh"),
+                sock,
+            ],
+        );
+    }
+
+    #[test]
+    fn unix_sock_candidates_dedup_and_empty_env() {
+        let sock = std::path::PathBuf::from("/home/u/.oryxis/agent.sock");
+        // SSH_AUTH_SOCK already pointing at the Oryxis socket: one dial.
+        assert_eq!(
+            agent::unix_agent_sock_candidates(
+                Some("/home/u/.oryxis/agent.sock".to_string()),
+                Some(sock.clone()),
+            ),
+            vec![sock.clone()],
+        );
+        // Empty env var is not a candidate.
+        assert_eq!(
+            agent::unix_agent_sock_candidates(Some(String::new()), Some(sock.clone())),
+            vec![sock],
+        );
+    }
+
     #[test]
     fn parse_addr_ipv6() {
         let (host, port) = parse_addr("[::1]:22").unwrap();

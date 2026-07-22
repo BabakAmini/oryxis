@@ -573,6 +573,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "Autoriser",
         "agent_key_exposed" => "Exposée à l'agent",
         "agent_key_hidden" => "Masquée de l'agent",
+        "agent_vault_keys_served" => "Clés du coffre servies",
+        "agent_external_keys_held" => "Clés externes détenues",
         "export_vault" => "Exporter le Coffre",
         "import_vault" => "Importer le Coffre",
         // Vault export/import categories + dialog

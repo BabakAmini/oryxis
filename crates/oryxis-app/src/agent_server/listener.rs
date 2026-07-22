@@ -28,9 +28,11 @@ mod unix {
     use super::super::source::AgentKeySource;
 
     /// `~/.oryxis/agent.sock`, the fixed path the user points
-    /// `SSH_AUTH_SOCK` at.
+    /// `SSH_AUTH_SOCK` at. Canonical name lives in
+    /// `oryxis_core::agent_paths` (shared with the client-side agent
+    /// candidate list in oryxis-ssh).
     pub(crate) fn agent_socket_path() -> Option<PathBuf> {
-        Some(dirs::home_dir()?.join(".oryxis").join("agent.sock"))
+        oryxis_core::agent_paths::unix_agent_socket_path()
     }
 
     /// Bind the socket and accept forever, serving each connection with
@@ -206,8 +208,10 @@ mod windows {
 
     /// The fixed pipe the user points `IdentityAgent` at. Our own name;
     /// the OpenSSH one below is only ever taken via the opt-in alias.
+    /// Canonical name lives in `oryxis_core::agent_paths` (shared with
+    /// the client-side agent candidate list in oryxis-ssh).
     pub(crate) fn agent_pipe_name() -> Option<String> {
-        Some(r"\\.\pipe\oryxis-ssh-agent".to_string())
+        Some(oryxis_core::agent_paths::WINDOWS_AGENT_PIPE.to_string())
     }
 
     /// The pipe the Windows OpenSSH agent service owns when it runs,

@@ -726,6 +726,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_confirm_allow" => "سماح",
         "agent_key_exposed" => "مكشوف للوكيل",
         "agent_key_hidden" => "مخفي عن الوكيل",
+        "agent_vault_keys_served" => "مفاتيح الخزنة المقدَّمة",
+        "agent_external_keys_held" => "المفاتيح الخارجية المحتفظ بها",
 
         // Export / Import
         "export_vault" => "تصدير الخزنة",
