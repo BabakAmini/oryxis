@@ -142,7 +142,10 @@ split-debuginfo = "packed"
 
 # zmodem2 from our fork's serial-robustness branch: PR #5 (flow control
 # + manual file acceptance/resume + ZSINIT handling) plus PR #6 (corrupt
-# subpacket recovery via ZRPOS + offset overflow guard), both in review:
+# subpacket recovery via ZRPOS + offset overflow guard), both in review.
+# PR #5 now also carries the maintainer's review fixes: the receiver
+# accepts ZEOF at an EOF resume / for empty files (was a deadlock), and
+# set_streaming_window() takes effect when set after ZRINIT.
 # https://codeberg.org/jarkko/zmodem2/pulls/5
 # https://codeberg.org/jarkko/zmodem2/compare/main...wilsonglasser:serial-robustness
 # Pinned via a GitHub mirror of the same branch (github.com/wilsonglasser/
@@ -151,4 +154,4 @@ split-debuginfo = "packed"
 # builds independent of it. Same commit, byte-identical tree. Drops out
 # entirely once upstream releases these fixes.
 [patch.crates-io]
-zmodem2 = { git = "https://github.com/wilsonglasser/zmodem2.git", rev = "8a4a0dafec2b9583b7ddbd6df779c6e7b53beb51" }
+zmodem2 = { git = "https://github.com/wilsonglasser/zmodem2.git", rev = "e0a706fa18a69d09ac7fbb66317863c7ae8eb8f8" }
