@@ -450,6 +450,27 @@ impl Oryxis {
                 }
             }
             NavigationMessage::QuickHostContinue => {
+                // Explicit connect targets (a username, a port, an IP
+                // literal) quick-connect DIRECTLY, no editor stop: the
+                // empty-state rebuild dropped the toolbar search that
+                // used to be the first-run quick-connect entry point
+                // (issue #97 regression), and this restores it. A bare
+                // name falls through to the editor below, keeping the
+                // add-your-first-host onboarding intent.
+                let input = self.quick_host_input.trim().to_string();
+                if oryxis_core::ssh_target::SshTarget::parse(&input)
+                    .is_some_and(|t| t.is_explicit())
+                    && let Some(conn) = self.quick_connect_target(&input)
+                {
+                    // The target now lives in its tab; unlike the
+                    // editor path below (where the value survives a
+                    // cancel), leaving it here would prepend itself to
+                    // the next thing typed on the empty state.
+                    self.quick_host_input.clear();
+                    return self.update(Message::Ssh(crate::messages::SshMessage::QuickConnect(
+                        Box::new(crate::state::QuickConnectEntry::bare(conn)),
+                    )));
+                }
                 // Same editor the toolbar's "+ Host" opens (shared
                 // setup: default port, editor combos, group
                 // pre-fill). An empty field still opens it: on the

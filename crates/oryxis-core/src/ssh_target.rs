@@ -75,6 +75,14 @@ impl SshTarget {
     pub fn host_is_ip_literal(&self) -> bool {
         self.host.parse::<IpAddr>().is_ok()
     }
+
+    /// Whether the input names an EXPLICIT connect target: a username,
+    /// a port, or an IP-literal host. A bare hostname is ambiguous (it
+    /// could be a saved-host search or the start of an add-host flow);
+    /// everything else can only mean "connect to this".
+    pub fn is_explicit(&self) -> bool {
+        self.username.is_some() || self.port.is_some() || self.host_is_ip_literal()
+    }
 }
 
 /// Split the post-username remainder into host and optional port.
@@ -269,5 +277,15 @@ mod tests {
         assert!(SshTarget::parse("192.168.0.1").unwrap().host_is_ip_literal());
         assert!(SshTarget::parse("::1").unwrap().host_is_ip_literal());
         assert!(!SshTarget::parse("web01").unwrap().host_is_ip_literal());
+    }
+
+    #[test]
+    fn explicit_targets() {
+        // A username, a port or an IP literal each mark the input as an
+        // unambiguous connect target; a bare hostname stays ambiguous.
+        assert!(SshTarget::parse("root@web01").unwrap().is_explicit());
+        assert!(SshTarget::parse("web01:2222").unwrap().is_explicit());
+        assert!(SshTarget::parse("10.0.0.7").unwrap().is_explicit());
+        assert!(!SshTarget::parse("web01").unwrap().is_explicit());
     }
 }

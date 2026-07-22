@@ -19,6 +19,15 @@ impl Oryxis {
         // Termius-style empty state, centered "Create host" with input
         let has_input = !self.quick_host_input.is_empty();
         let btn_bg = if has_input { OryxisColors::t().success } else { OryxisColors::t().bg_surface };
+        // An explicit connect target (user@, a port, an IP literal)
+        // makes Enter / the button quick-connect directly instead of
+        // opening the editor (issue #97, see `QuickHostContinue`), so
+        // the button must say so instead of lying with "Continue".
+        let connects_directly = oryxis_core::ssh_target::SshTarget::parse(
+            self.quick_host_input.trim(),
+        )
+        .is_some_and(|t| t.is_explicit())
+            && self.quick_connect_target(self.quick_host_input.trim()).is_some();
 
         // The toolbar's recording is from a previous frame (a host was
         // just deleted); the toolbar isn't on screen, so drop it and
@@ -68,9 +77,13 @@ impl Oryxis {
                 8.0,
                 button(
                     container(
-                        text(crate::i18n::t("continue_btn"))
-                            .size(14)
-                            .color(OryxisColors::t().text_primary),
+                        text(crate::i18n::t(if connects_directly {
+                            "connect"
+                        } else {
+                            "continue_btn"
+                        }))
+                        .size(14)
+                        .color(OryxisColors::t().text_primary),
                     )
                     .padding(Padding { top: 12.0, right: 0.0, bottom: 12.0, left: 0.0 })
                     .width(BLOCK_WIDTH)

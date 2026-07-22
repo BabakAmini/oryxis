@@ -314,10 +314,7 @@ pub(crate) fn quick_connect_offerable(
     target: &oryxis_core::ssh_target::SshTarget,
     matches_saved_host: bool,
 ) -> bool {
-    target.username.is_some()
-        || target.port.is_some()
-        || target.host_is_ip_literal()
-        || !matches_saved_host
+    target.is_explicit() || !matches_saved_host
 }
 
 #[cfg(test)]
