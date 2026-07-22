@@ -60,6 +60,42 @@ pub(crate) fn tab_bar_pos() -> TabBarPos {
         _ => TabBarPos::Top,
     }
 }
+
+/// Whether `cursor` falls inside the tab strip's geometric band for the
+/// current dock `pos`. This is the backstop that gates arming a reorder
+/// drag (issue #87): the `hovered_tab` flag is the primary signal, but
+/// its MouseArea exit can be lost when the cursor slides straight into
+/// the terminal canvas, after which any press would arm a phantom drag.
+/// The band must track the strip's actual dock, not assume the top: the
+/// original `y <= BAR_HEIGHT` guard silently disabled drag-reorder on
+/// every non-top dock (bottom / left / right), which is the reported
+/// "can't move tabs on the left side". Side docks also accept the top
+/// `BAR_HEIGHT` band, where `pinned_tabs_top_bar` parks the pinned
+/// chips (so those stay draggable), but only when that top bar is
+/// actually present, so a press into the content area on a
+/// hidden-top-bar side dock can't sneak in.
+pub(crate) fn cursor_in_tab_strip_band(
+    pos: TabBarPos,
+    cursor: iced::Point,
+    window: iced::Size,
+    pins_in_top_bar: bool,
+) -> bool {
+    match pos {
+        TabBarPos::Top => cursor.y <= BAR_HEIGHT,
+        // The bottom strip sits above the (content-sized) status bar;
+        // the slack reaches past the strip + a typical status-bar band
+        // without leaking far into the content above it.
+        TabBarPos::Bottom => cursor.y >= window.height - BAR_HEIGHT - 40.0,
+        TabBarPos::Left => {
+            cursor.x <= SIDE_STRIP_WIDTH + 2.0
+                || (pins_in_top_bar && cursor.y <= BAR_HEIGHT)
+        }
+        TabBarPos::Right => {
+            cursor.x >= window.width - SIDE_STRIP_WIDTH - 2.0
+                || (pins_in_top_bar && cursor.y <= BAR_HEIGHT)
+        }
+    }
+}
 /// Decide how much horizontal space each tab gets. Returns
 /// `(active_width, inactive_width)`. The active tab claims its natural
 /// width when it fits; inactives split whatever's left, clamped to the
@@ -183,4 +219,59 @@ pub(crate) fn active_tab_bg(accent: Color, solid_fill: bool) -> Background {
             .add_stop(0.0, start)
             .add_stop(1.0, end),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iced::{Point, Size};
+
+    const WIN: Size = Size { width: 1600.0, height: 900.0 };
+
+    #[test]
+    fn top_dock_band_is_the_top_strip_only() {
+        let p = TabBarPos::Top;
+        assert!(cursor_in_tab_strip_band(p, Point::new(800.0, 10.0), WIN, false));
+        // A press deep in the content below the strip is rejected.
+        assert!(!cursor_in_tab_strip_band(p, Point::new(800.0, 500.0), WIN, false));
+    }
+
+    #[test]
+    fn bottom_dock_band_tracks_the_bottom_edge() {
+        let p = TabBarPos::Bottom;
+        // The old `y <= BAR_HEIGHT` guard rejected this, silently
+        // breaking bottom-dock reorder; the edge-aware band accepts it.
+        assert!(cursor_in_tab_strip_band(p, Point::new(800.0, 880.0), WIN, false));
+        assert!(!cursor_in_tab_strip_band(p, Point::new(800.0, 400.0), WIN, false));
+    }
+
+    #[test]
+    fn left_dock_band_is_the_leading_column() {
+        let p = TabBarPos::Left;
+        // A tab lower down the left strip (the exact reported failure).
+        assert!(cursor_in_tab_strip_band(p, Point::new(100.0, 600.0), WIN, false));
+        // A press in the content to the right is rejected.
+        assert!(!cursor_in_tab_strip_band(p, Point::new(800.0, 600.0), WIN, false));
+    }
+
+    #[test]
+    fn right_dock_band_is_the_trailing_column() {
+        let p = TabBarPos::Right;
+        assert!(cursor_in_tab_strip_band(
+            p,
+            Point::new(WIN.width - 100.0, 600.0),
+            WIN,
+            false
+        ));
+        assert!(!cursor_in_tab_strip_band(p, Point::new(800.0, 600.0), WIN, false));
+    }
+
+    #[test]
+    fn side_dock_top_band_only_when_pins_dock_there() {
+        // Docked pins live in the top bar: a press up there must arm
+        // their drag, but only while that top bar is actually present.
+        let top = Point::new(800.0, 12.0);
+        assert!(cursor_in_tab_strip_band(TabBarPos::Left, top, WIN, true));
+        assert!(!cursor_in_tab_strip_band(TabBarPos::Left, top, WIN, false));
+    }
 }

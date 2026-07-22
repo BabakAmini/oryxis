@@ -207,11 +207,16 @@ impl Oryxis {
                 // (cursor sliding straight into the terminal canvas), after
                 // which ANY press, e.g. starting a terminal text selection,
                 // armed a phantom drag whose ghost chip then chased the
-                // cursor (field report). The tab strip lives in the
-                // top BAR_HEIGHT band, so a press below it can never be a
-                // tab press.
-                let in_tab_strip =
-                    self.mouse_position.y <= crate::views::tab_bar::BAR_HEIGHT;
+                // cursor (field report). The band must follow the strip's
+                // actual dock: a hard-coded top `y <= BAR_HEIGHT` guard
+                // silently disabled reorder on every non-top dock (issue
+                // #87, "can't move tabs on the left side").
+                let in_tab_strip = crate::views::tab_bar::cursor_in_tab_strip_band(
+                    crate::views::tab_bar::tab_bar_pos(),
+                    self.mouse_position,
+                    self.window_size,
+                    self.setting_pinned_tabs_top_bar && !self.setting_side_hide_top_bar,
+                );
                 if !in_tab_strip {
                     self.hovered_tab = None;
                     self.hovered_sftp_tab = None;
