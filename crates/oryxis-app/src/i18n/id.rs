@@ -1163,6 +1163,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Simpan Identitas",
         "update_identity" => "Perbarui Identitas",
         "totp_secret" => "Rahasia TOTP (2FA)",
+        "use_totp" => "Gunakan TOTP (2FA)",
         "totp_invalid" => "Rahasia TOTP tidak valid (gunakan kode Base32 atau tautan otpauth://)",
         "auto_lock_minutes" => "Kunci otomatis vault (menit, 0 = nonaktif)",
         "setting_auto_lock_desc" => "Mengunci vault setelah sekian menit tanpa aktivitas keyboard atau mouse. Sesi SSH yang terbuka tetap hidup di balik layar kunci dan kembali setelah vault dibuka (tombol Kunci Vault manual tetap menutupnya).",

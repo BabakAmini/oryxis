@@ -1081,6 +1081,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Enregistrer l'identité",
         "update_identity" => "Mettre à jour l'identité",
         "totp_secret" => "Secret TOTP (2FA)",
+        "use_totp" => "Utiliser TOTP (2FA)",
         "totp_invalid" => "Secret TOTP invalide (utilisez un code Base32 ou un lien otpauth://)",
         "auto_lock_minutes" => "Verrouillage automatique du coffre (minutes, 0 = désactivé)",
         "setting_auto_lock_desc" => "Verrouille le coffre après ce nombre de minutes sans activité clavier ou souris. Les sessions SSH ouvertes restent actives derrière l'écran de verrouillage et reviennent après le déverrouillage (le bouton manuel Verrouiller le Coffre les ferme toujours).",

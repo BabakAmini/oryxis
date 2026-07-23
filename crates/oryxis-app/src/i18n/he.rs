@@ -1169,6 +1169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "שמירת זהות",
         "update_identity" => "עדכון זהות",
         "totp_secret" => "סוד TOTP (אימות דו-שלבי)",
+        "use_totp" => "שימוש ב-TOTP (אימות דו-שלבי)",
         "totp_invalid" => "סוד TOTP לא תקין (השתמשו בקוד Base32 או בקישור otpauth://)",
         "auto_lock_minutes" => "נעילת כספת אוטומטית (דקות, 0 = כבוי)",
         "setting_auto_lock_desc" => "נעילת הכספת אחרי מספר זה של דקות ללא פעילות מקלדת או עכבר. סשני SSH פתוחים נשארים חיים מאחורי מסך הנעילה וחוזרים אחרי ביטול הנעילה (כפתור נעילת הכספת הידני עדיין סוגר אותם).",

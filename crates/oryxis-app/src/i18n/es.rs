@@ -1078,6 +1078,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Guardar Identidad",
         "update_identity" => "Actualizar Identidad",
         "totp_secret" => "Secreto TOTP (2FA)",
+        "use_totp" => "Usar TOTP (2FA)",
         "totp_invalid" => "Secreto TOTP no válido (usa un código Base32 o un enlace otpauth://)",
         "auto_lock_minutes" => "Bloqueo automático del cofre (minutos, 0 = desactivado)",
         "setting_auto_lock_desc" => "Bloquea el cofre tras ese número de minutos sin actividad de teclado o ratón. Las sesiones SSH abiertas siguen vivas detrás de la pantalla de bloqueo y vuelven al desbloquear (el botón manual Bloquear Cofre sigue cerrándolas).",

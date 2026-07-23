@@ -1163,6 +1163,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "ID 저장",
         "update_identity" => "ID 업데이트",
         "totp_secret" => "TOTP 시크릿 (2FA)",
+        "use_totp" => "TOTP 사용 (2FA)",
         "totp_invalid" => "잘못된 TOTP 시크릿입니다 (Base32 코드 또는 otpauth:// 링크를 사용하세요)",
         "auto_lock_minutes" => "볼트 자동 잠금 (분, 0 = 끔)",
         "setting_auto_lock_desc" => "키보드나 마우스 활동이 없는 상태로 이 시간(분)이 지나면 볼트를 잠급니다. 열려 있는 SSH 세션은 잠금 화면 뒤에서 유지되며 잠금 해제 후 다시 사용할 수 있습니다(수동 볼트 잠금 버튼은 여전히 세션을 종료합니다).",

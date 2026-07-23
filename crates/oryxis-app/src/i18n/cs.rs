@@ -1169,6 +1169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Uložit identitu",
         "update_identity" => "Aktualizovat identitu",
         "totp_secret" => "TOTP tajemství (2FA)",
+        "use_totp" => "Používat TOTP (2FA)",
         "totp_invalid" => "Neplatné TOTP tajemství (použijte kód Base32 nebo odkaz otpauth://)",
         "auto_lock_minutes" => "Automaticky zamknout trezor (minuty, 0 = vypnuto)",
         "setting_auto_lock_desc" => "Zamkne trezor po zadaném počtu minut bez aktivity klávesnice nebo myši. Otevřené SSH relace zůstávají za zamykací obrazovkou naživu a po odemčení jsou zpět (ruční tlačítko Zamknout trezor je stále ukončí).",

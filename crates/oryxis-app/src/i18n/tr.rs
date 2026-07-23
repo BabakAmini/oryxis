@@ -1163,6 +1163,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Kimliği Kaydet",
         "update_identity" => "Kimliği Güncelle",
         "totp_secret" => "TOTP sırrı (2FA)",
+        "use_totp" => "TOTP kullan (2FA)",
         "totp_invalid" => "Geçersiz TOTP sırrı (Base32 kodu veya otpauth:// bağlantısı kullanın)",
         "auto_lock_minutes" => "Kasayı otomatik kilitle (dakika, 0 = kapalı)",
         "setting_auto_lock_desc" => "Klavye veya fare etkinliği olmadan bu kadar dakika geçtikten sonra kasayı kilitler. Açık SSH oturumları kilit ekranının arkasında canlı kalır ve kilit açıldıktan sonra geri gelir (manuel Kasayı Kilitle düğmesi yine de onları kapatır).",

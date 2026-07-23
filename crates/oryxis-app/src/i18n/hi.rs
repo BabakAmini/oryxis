@@ -1169,6 +1169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "पहचान सेव करें",
         "update_identity" => "पहचान अपडेट करें",
         "totp_secret" => "TOTP सीक्रेट (2FA)",
+        "use_totp" => "TOTP उपयोग करें (2FA)",
         "totp_invalid" => "अमान्य TOTP सीक्रेट (Base32 कोड या otpauth:// लिंक उपयोग करें)",
         "auto_lock_minutes" => "वॉल्ट ऑटो-लॉक (मिनट, 0 = बंद)",
         "setting_auto_lock_desc" => "कीबोर्ड या माउस गतिविधि के बिना इतने मिनट बीतने पर वॉल्ट लॉक करें। खुले SSH सेशन लॉक स्क्रीन के पीछे चालू रहते हैं और अनलॉक के बाद वापस मिलते हैं (मैन्युअल वॉल्ट लॉक बटन उन्हें अब भी बंद करता है)।",

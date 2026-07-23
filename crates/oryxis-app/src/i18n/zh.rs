@@ -1081,6 +1081,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "保存身份",
         "update_identity" => "更新身份",
         "totp_secret" => "TOTP 密钥 (2FA)",
+        "use_totp" => "使用 TOTP (2FA)",
         "totp_invalid" => "无效的 TOTP 密钥（请使用 Base32 代码或 otpauth:// 链接）",
         "auto_lock_minutes" => "自动锁定保险库（分钟，0 = 关闭）",
         "setting_auto_lock_desc" => "在无键盘或鼠标活动达到该分钟数后锁定保险库。已打开的 SSH 会话会在锁定屏幕后保持存活，解锁后即可恢复（手动的“锁定保险库”按钮仍会关闭它们）。",

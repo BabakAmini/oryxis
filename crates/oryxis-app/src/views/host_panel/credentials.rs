@@ -201,14 +201,43 @@ impl Oryxis {
             );
         }
 
-        // TOTP secret (2FA autofill). Shown for every auth method: a
-        // keyboard-interactive second factor can follow any first factor
-        // (password, key, agent). Same masked-placeholder tri-state as
-        // the password field above. Telnet has no keyboard-interactive
-        // second factor, so the reduced form hides it.
+        // TOTP 2FA autofill, behind a "Use TOTP" disclosure so the
+        // secret field doesn't clutter hosts without 2FA. Offered for
+        // every auth method: a keyboard-interactive second factor can
+        // follow any first factor (password, key, agent). Telnet has no
+        // keyboard-interactive second factor, so the reduced form hides
+        // the whole block. The toggle row's own vertical padding
+        // provides the same 8px rhythm as the username/password gap.
         if is_ssh {
-            // Same breathing room the password row gets above.
-            cred_items = cred_items.push(Space::new().height(8));
+            cred_items = cred_items.push(self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorUseTotpToggled)),
+                8.0,
+                container(
+                    dir_row(vec![
+                        iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
+                        Space::new().width(10).into(),
+                        text(t("use_totp")).size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(Length::Fill).into(),
+                        {
+                            let on = self.editor_form.use_totp;
+                            let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                            let fg = crate::theme::contrast_text_for(bg);
+                            button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
+                                .on_press(Message::Editor(EditorMessage::EditorUseTotpToggled))
+                                .style(move |_theme, _status| button::Style {
+                                    background: Some(Background::Color(bg)),
+                                    border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                    text_color: fg,
+                                    ..Default::default()
+                                })
+                                .into()
+                        },
+                    ]).align_y(iced::Alignment::Center)
+                )
+                .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+            ));
+        }
+        if is_ssh && self.editor_form.use_totp {
             let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
                 && !self.editor_form.totp_secret.touched()
             {
@@ -223,8 +252,7 @@ impl Oryxis {
             ));
             cred_items = cred_items.push(
                 dir_row(vec![
-                    iced_fonts::lucide::shield_check().size(13).color(OryxisColors::t().text_muted).into(),
-                    Space::new().width(10).into(),
+                    Space::new().width(23).into(),
                     crate::widgets::password_input_with_eye_nav(
                         totp_placeholder,
                         self.editor_form.totp_secret.as_str(),

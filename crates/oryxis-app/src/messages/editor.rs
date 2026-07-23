@@ -108,6 +108,7 @@ pub enum EditorMessage {
     /// mirrors the password field (untouched preserves the stored secret).
     EditorTotpChanged(String),
     EditorToggleTotpVisibility,
+    EditorUseTotpToggled,
     EditorSave,
     /// Connect using the current editor form WITHOUT persisting anything:
     /// builds an ephemeral quick-connect entry (typed credentials ride in

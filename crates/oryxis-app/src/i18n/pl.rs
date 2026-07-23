@@ -1169,6 +1169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Zapisz tożsamość",
         "update_identity" => "Aktualizuj tożsamość",
         "totp_secret" => "Sekret TOTP (2FA)",
+        "use_totp" => "Użyj TOTP (2FA)",
         "totp_invalid" => "Nieprawidłowy sekret TOTP (użyj kodu Base32 lub linku otpauth://)",
         "auto_lock_minutes" => "Automatyczne blokowanie sejfu (minuty, 0 = wyłączone)",
         "setting_auto_lock_desc" => "Blokuje sejf po tylu minutach bez aktywności klawiatury lub myszy. Otwarte sesje SSH pozostają aktywne za ekranem blokady i wracają po odblokowaniu (ręczny przycisk Zablokuj sejf nadal je zamyka).",

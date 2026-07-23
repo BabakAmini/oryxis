@@ -1072,6 +1072,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Identität speichern",
         "update_identity" => "Identität aktualisieren",
         "totp_secret" => "TOTP-Geheimnis (2FA)",
+        "use_totp" => "TOTP verwenden (2FA)",
         "totp_invalid" => "Ungültiges TOTP-Geheimnis (Base32-Code oder otpauth://-Link verwenden)",
         "auto_lock_minutes" => "Tresor automatisch sperren (Minuten, 0 = aus)",
         "setting_auto_lock_desc" => "Sperrt den Tresor nach dieser Anzahl Minuten ohne Tastatur- oder Mausaktivität. Offene SSH-Sitzungen bleiben hinter dem Sperrbildschirm aktiv und sind nach dem Entsperren wieder da (die manuelle Schaltfläche Tresor Sperren beendet sie weiterhin).",

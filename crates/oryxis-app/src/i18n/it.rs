@@ -1072,6 +1072,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Salva Identità",
         "update_identity" => "Aggiorna Identità",
         "totp_secret" => "Segreto TOTP (2FA)",
+        "use_totp" => "Usa TOTP (2FA)",
         "totp_invalid" => "Segreto TOTP non valido (usa un codice Base32 o un link otpauth://)",
         "auto_lock_minutes" => "Blocco automatico del vault (minuti, 0 = disattivato)",
         "setting_auto_lock_desc" => "Blocca il vault dopo questo numero di minuti senza attività di tastiera o mouse. Le sessioni SSH aperte restano attive dietro la schermata di blocco e tornano dopo lo sblocco (il pulsante manuale Blocca Vault le chiude comunque).",

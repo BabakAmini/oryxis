@@ -1163,6 +1163,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "Lưu danh tính",
         "update_identity" => "Cập nhật danh tính",
         "totp_secret" => "Mã bí mật TOTP (2FA)",
+        "use_totp" => "Dùng TOTP (2FA)",
         "totp_invalid" => "Mã bí mật TOTP không hợp lệ (dùng mã Base32 hoặc liên kết otpauth://)",
         "auto_lock_minutes" => "Tự động khóa kho (phút, 0 = tắt)",
         "setting_auto_lock_desc" => "Khóa kho sau số phút này không có hoạt động bàn phím hoặc chuột. Các phiên SSH đang mở vẫn hoạt động phía sau màn hình khóa và trở lại sau khi mở khóa (nút Khóa kho thủ công vẫn đóng chúng).",

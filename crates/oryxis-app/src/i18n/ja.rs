@@ -1081,6 +1081,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "IDを保存",
         "update_identity" => "IDを更新",
         "totp_secret" => "TOTP シークレット (2FA)",
+        "use_totp" => "TOTP を使用 (2FA)",
         "totp_invalid" => "無効な TOTP シークレットです（Base32 コードまたは otpauth:// リンクを使用してください）",
         "auto_lock_minutes" => "ボールトの自動ロック（分、0 = 無効）",
         "setting_auto_lock_desc" => "キーボードやマウスの操作がないままこの分数が経過するとボールトをロックします。開いている SSH セッションはロック画面の背後で維持され、ロック解除後に戻ります（手動の「ボールトをロック」ボタンは引き続きセッションを閉じます）。",

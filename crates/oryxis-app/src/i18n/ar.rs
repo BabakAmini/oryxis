@@ -1169,6 +1169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "حفظ الهوية",
         "update_identity" => "تحديث الهوية",
         "totp_secret" => "سر TOTP (2FA)",
+        "use_totp" => "استخدام TOTP (2FA)",
         "totp_invalid" => "سر TOTP غير صالح (استخدم رمز Base32 أو رابط otpauth://)",
         "auto_lock_minutes" => "قفل الخزنة تلقائيًا (بالدقائق، 0 = إيقاف)",
         "setting_auto_lock_desc" => "يقفل الخزنة بعد هذا العدد من الدقائق دون نشاط للوحة المفاتيح أو الفأرة. تظل جلسات SSH المفتوحة نشطة خلف شاشة القفل وتعود بعد فتح القفل (زر قفل الخزنة اليدوي لا يزال يغلقها).",

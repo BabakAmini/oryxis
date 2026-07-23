@@ -215,6 +215,10 @@ pub(crate) struct ConnectionForm {
     pub totp_secret: SecretInput,
     pub has_existing_totp: bool,
     pub totp_visible: bool,
+    /// "Use TOTP" disclosure: the secret field only renders while this
+    /// is on. Seeded from `has_existing_totp` on edit; turning it off
+    /// clears any stored secret on save.
+    pub use_totp: bool,
     /// Per-host terminal palette override. `None` means "inherit the
     /// global pick"; `Some(name)` pins this host to the named palette.
     /// Mirrors `Connection.terminal_theme` while the editor is open.
@@ -949,6 +953,7 @@ impl Default for ConnectionForm {
             totp_secret: SecretInput::default(),
             has_existing_totp: false,
             totp_visible: false,
+            use_totp: false,
             terminal_theme: None,
             keepalive_interval: String::new(),
             auto_title: None,

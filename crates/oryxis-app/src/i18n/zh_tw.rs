@@ -1081,6 +1081,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "save_identity" => "儲存身分",
         "update_identity" => "更新身分",
         "totp_secret" => "TOTP 祕密金鑰 (2FA)",
+        "use_totp" => "使用 TOTP (2FA)",
         "totp_invalid" => "無效的 TOTP 祕密金鑰（請使用 Base32 代碼或 otpauth:// 連結）",
         "auto_lock_minutes" => "自動鎖定保險庫（分鐘，0 = 關閉）",
         "setting_auto_lock_desc" => "在沒有鍵盤或滑鼠活動達到該分鐘數後鎖定保險庫。已開啟的 SSH 工作階段會在鎖定畫面後保持運作，解鎖後即可恢復（手動的「鎖定保險庫」按鈕仍會關閉它們）。",

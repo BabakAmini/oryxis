@@ -476,8 +476,11 @@ impl Oryxis {
         }
         // Validate a newly typed TOTP secret before anything is
         // written, so a typo'd secret can't be stored and then
-        // silently fail at connect time. Cleared/untouched skip.
-        if let Some(secret) = self.editor_form.totp_secret.resolve()
+        // silently fail at connect time. Cleared/untouched skip, and a
+        // disabled "Use TOTP" hides the field, so leftover text in the
+        // buffer must not block the save (it gets cleared instead).
+        if self.editor_form.use_totp
+            && let Some(secret) = self.editor_form.totp_secret.resolve()
             && !secret.trim().is_empty()
             && let Err(e) = oryxis_core::totp::Totp::parse(secret)
         {
@@ -580,6 +583,7 @@ impl Oryxis {
             totp_secret: Default::default(),
             has_existing_totp: has_totp,
             totp_visible: false,
+            use_totp: has_totp,
             terminal_theme: conn.terminal_theme.clone(),
             keepalive_interval: conn
                 .keepalive_interval
@@ -776,6 +780,7 @@ impl Oryxis {
                 }
                 if let Some(secret) = entry.totp_secret.clone() {
                     form.totp_secret.set(secret);
+                    form.use_totp = true;
                 }
                 if let Some(pw) = entry.proxy_password.clone() {
                     form.proxy_password.set(pw);
@@ -893,6 +898,9 @@ impl Oryxis {
             }
             EditorMessage::EditorToggleTotpVisibility => {
                 self.editor_form.totp_visible = !self.editor_form.totp_visible;
+            }
+            EditorMessage::EditorUseTotpToggled => {
+                self.editor_form.use_totp = !self.editor_form.use_totp;
             }
             EditorMessage::EditorAuthMethodChanged(v) => {
                 // Localized (or English) label -> enum, shared with the
@@ -1212,10 +1220,13 @@ impl Oryxis {
                             // protocol was switched to Telnet/Serial/RDP the
                             // field is hidden, so clear any secret rather than
                             // persisting dead credential material, mirroring
-                            // the `mcp_enabled` SSH clamp above.
+                            // the `mcp_enabled` SSH clamp above. Toggling
+                            // "Use TOTP" off clears the same way: the field
+                            // is gone from the form, keeping the secret
+                            // would be surprising.
                             let is_ssh = self.editor_form.protocol
                                 == oryxis_core::models::connection::ConnectionProtocol::Ssh;
-                            if !is_ssh {
+                            if !is_ssh || !self.editor_form.use_totp {
                                 let _ = vault.set_connection_totp_secret(&conn.id, None);
                             } else if let Some(secret) =
                                 self.editor_form.totp_secret.resolve()
@@ -1277,6 +1288,7 @@ impl Oryxis {
                 let totp_secret = form
                     .totp_secret
                     .resolve()
+                    .filter(|_| form.use_totp)
                     .map(str::trim)
                     .filter(|s| !s.is_empty())
                     .map(str::to_string);

@@ -1170,6 +1170,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "save_identity" => "Save Identity",
         "update_identity" => "Update Identity",
         "totp_secret" => "TOTP secret (2FA)",
+        "use_totp" => "Use TOTP (2FA)",
         "totp_invalid" => "Invalid TOTP secret (use a Base32 code or an otpauth:// link)",
         "auto_lock_minutes" => "Auto-lock vault (minutes, 0 = off)",
         "setting_auto_lock_desc" => "Lock the vault after this many minutes without keyboard or mouse activity. Open SSH sessions stay alive behind the lock screen and are back after unlocking (the manual Lock Vault button still closes them).",
