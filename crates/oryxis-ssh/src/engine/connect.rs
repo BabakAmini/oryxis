@@ -113,8 +113,9 @@ impl SshEngine {
     }
 
     /// Step 2: Authenticate on an established handle. Configurable
-    /// timeout (default 30s) so a misbehaving server wedging mid-
-    /// handshake can't hang the connect flow forever.
+    /// timeout (default 120s, matching sshd's LoginGraceTime) so a
+    /// misbehaving server wedging mid-handshake can't hang the connect
+    /// flow forever, without cutting legitimate slow auth short.
     pub async fn do_authenticate(
         &self,
         handle: &mut SshHandle,

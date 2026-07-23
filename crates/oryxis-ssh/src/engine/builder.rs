@@ -13,7 +13,14 @@ impl SshEngine {
             rekey_limit_mb: None,
             address_family: AddressFamily::Auto,
             connect_timeout: std::time::Duration::from_secs(15),
-            auth_timeout: std::time::Duration::from_secs(30),
+            // Matches OpenSSH sshd's default LoginGraceTime (120s): the
+            // server, not the client, sets the real ceiling on how long
+            // auth may take, so a shorter client budget would cut off
+            // legitimate slow auth (confirm-gated agents, hardware-key
+            // touch, 2FA) before the server ever would. The per-agent-
+            // candidate dial timeout still bounds the agent sweep, so a
+            // wedged agent can't consume this whole window.
+            auth_timeout: std::time::Duration::from_secs(120),
             session_timeout: std::time::Duration::from_secs(10),
             agent_forwarding: false,
             x11: None,
