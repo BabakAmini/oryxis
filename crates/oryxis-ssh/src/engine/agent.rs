@@ -36,21 +36,28 @@ pub(crate) fn parse_identity_agent(contents: &str) -> Option<String> {
     None
 }
 
-/// Pick the current user's live Pageant agent pipe from a list of
-/// named-pipe names (as returned by enumerating `\\.\pipe\`).
+/// Collect EVERY live Pageant agent pipe matching the current user from
+/// a list of named-pipe names (as returned by enumerating `\\.\pipe\`),
+/// in enumeration order.
 ///
 /// Pageant (PuTTY 0.81+) / KeePassXC publish a per-launch pipe named
 /// `pageant.<user>.<guid>` where `<guid>` is randomized every run. We
-/// match the current user's entry and return the full `\\.\pipe\<name>`
-/// path the named-pipe client expects. Matching is case-insensitive
+/// match the current user's entries and return the full `\\.\pipe\<name>`
+/// paths the named-pipe client expects. Matching is case-insensitive
 /// (Win32 pipe names are), but the original name's casing is preserved
-/// in the returned path.
+/// in the returned paths.
+///
+/// ALL matches are returned, not just the first: KeePassXC (database
+/// locked, serving zero keys) and PuTTY Pageant both publish
+/// pageant-style pipes, and pipe enumeration order is arbitrary, so
+/// stopping at the first match would nondeterministically shadow the
+/// agent that actually holds the key (the issue-#98 class).
 ///
 /// When the user is unknown we fall back to any `pageant.<x>.<guid>`
 /// shaped name (single-user machines, the common case), accepting the
 /// small risk of another user's pipe over missing the keys entirely.
 #[cfg(any(windows, test))]
-pub(crate) fn pick_pageant_pipe(names: &[String], user: Option<&str>) -> Option<String> {
+pub(crate) fn pick_pageant_pipes(names: &[String], user: Option<&str>) -> Vec<String> {
     let is_match = |name: &str| -> bool {
         let lower = name.to_ascii_lowercase();
         match user {
@@ -69,8 +76,17 @@ pub(crate) fn pick_pageant_pipe(names: &[String], user: Option<&str>) -> Option<
     };
     names
         .iter()
-        .find(|n| is_match(n))
+        .filter(|n| is_match(n))
         .map(|n| format!(r"\\.\pipe\{n}"))
+        .collect()
+}
+
+/// First user-matching Pageant pipe, for callers that must pick exactly
+/// one endpoint (the agent-forwarding bridge). Authentication uses
+/// `pick_pageant_pipes` and tries every match instead.
+#[cfg(any(windows, test))]
+pub(crate) fn pick_pageant_pipe(names: &[String], user: Option<&str>) -> Option<String> {
+    pick_pageant_pipes(names, user).into_iter().next()
 }
 
 /// Enumerate the Windows named-pipe namespace (`\\.\pipe\`), returning
@@ -155,9 +171,12 @@ pub(crate) fn windows_agent_pipe() -> String {
 /// Pageant-style pipe can be serving zero keys (KeePassXC with its
 /// database locked keeps the pipe open) while the OpenSSH pipe holds
 /// the working key, and stopping at the first pipe turns that state
-/// into a spurious "no keys matched" (issue #98). The Oryxis agent's
-/// own pipe closes the chain so vault keys still answer when the
-/// OpenSSH alias name was squatted by the Windows agent service.
+/// into a spurious "no keys matched" (issue #98). EVERY live
+/// pageant-style pipe is a candidate for the same reason: two of them
+/// can coexist (locked KeePassXC next to PuTTY Pageant) and the
+/// enumeration order must not decide which one gets dialed. The Oryxis
+/// agent's own pipe closes the chain so vault keys still answer when
+/// the OpenSSH alias name was squatted by the Windows agent service.
 /// Case-insensitive dedup (Win32 pipe names are case-insensitive).
 #[cfg(any(windows, test))]
 pub(crate) fn windows_agent_pipe_candidates(
@@ -172,7 +191,7 @@ pub(crate) fn windows_agent_pipe_candidates(
             out.push(p);
         }
     };
-    if let Some(p) = pick_pageant_pipe(names, user) {
+    for p in pick_pageant_pipes(names, user) {
         push(&mut out, p);
     }
     if let Some(conf) = pageant_conf

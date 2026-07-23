@@ -451,6 +451,23 @@ mod tests {
         assert_eq!(pick_pageant_pipe(&[], Some("alice")), None);
     }
 
+    #[test]
+    fn pageant_pipes_returns_all_matches_in_order() {
+        let names = vec![
+            "pageant.alice.aaa".to_string(),
+            "openssh-ssh-agent".to_string(),
+            "Pageant.Alice.BBB".to_string(),
+            "pageant.bob.ccc".to_string(),
+        ];
+        assert_eq!(
+            pick_pageant_pipes(&names, Some("alice")),
+            vec![
+                r"\\.\pipe\pageant.alice.aaa".to_string(),
+                r"\\.\pipe\Pageant.Alice.BBB".to_string(),
+            ],
+        );
+    }
+
     // ── Agent candidate chains (issue #98) ──
 
     #[test]
@@ -462,6 +479,28 @@ mod tests {
             vec![
                 r"\\.\pipe\pageant.alice.deadbeef".to_string(),
                 r"\\.\pipe\pageant.conf-pipe.abc".to_string(),
+                r"\\.\pipe\openssh-ssh-agent".to_string(),
+                r"\\.\pipe\oryxis-ssh-agent".to_string(),
+            ],
+        );
+    }
+
+    #[test]
+    fn pipe_candidates_include_every_pageant_pipe() {
+        // A locked KeePassXC and PuTTY Pageant publish pageant-style
+        // pipes side by side; BOTH must be dialed. A first-match-only
+        // pick would let enumeration order decide which one shadows
+        // the other (the issue-#98 class, nondeterministic this time).
+        let names = vec![
+            "pageant.alice.keepassxc".to_string(),
+            "discord-ipc-0".to_string(),
+            "pageant.alice.putty".to_string(),
+        ];
+        assert_eq!(
+            agent::windows_agent_pipe_candidates(&names, Some("alice"), None),
+            vec![
+                r"\\.\pipe\pageant.alice.keepassxc".to_string(),
+                r"\\.\pipe\pageant.alice.putty".to_string(),
                 r"\\.\pipe\openssh-ssh-agent".to_string(),
                 r"\\.\pipe\oryxis-ssh-agent".to_string(),
             ],
