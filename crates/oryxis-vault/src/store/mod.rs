@@ -427,6 +427,8 @@ mod settings;
 mod snippets;
 mod sync;
 
+pub use logs::SealedSessionOutput;
+
 #[cfg(test)]
 mod tests;
 

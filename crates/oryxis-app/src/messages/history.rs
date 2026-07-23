@@ -56,4 +56,26 @@ pub enum HistoryMessage {
     /// Copy the canonical ssh:// URL of the host at this index (card
     /// context-menu action).
     CopyHostSshUrl(usize),
+    /// Toggle the "search in session content" chip inside the History
+    /// search field: matches commands + recorded output on top of the
+    /// label/hostname filter.
+    SearchContentToggled,
+    /// Debounce timer for the content search; carries the generation
+    /// it was armed for, so a newer keystroke silently retires it.
+    SearchContentDebounce(u64),
+    /// One session's output scan finished: the matched excerpt (None =
+    /// no match) for `log_id`, tagged with the generation that owns
+    /// the scan. A stale generation drops the result AND the pump.
+    SearchContentScanned {
+        generation: u64,
+        log_id: Uuid,
+        snippet: Option<String>,
+    },
+    /// Toggle the History-toolbar tag-filter dropdown.
+    ShowHistoryTagFilterMenu,
+    /// Toggle one tag in the History tag filter (multi-select, menu
+    /// stays open like the dashboard's).
+    ToggleHistoryTagFilterTag(String),
+    /// Clear the History tag filter and close the dropdown.
+    ClearHistoryTagFilter,
 }

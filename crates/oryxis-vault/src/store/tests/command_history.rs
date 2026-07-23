@@ -210,3 +210,27 @@ fn deleting_the_connection_cascades_its_history() {
         "host deletion must not leave a command trail behind"
     );
 }
+
+#[test]
+fn search_command_history_maps_commands_to_hosts() {
+    let vault = unlocked_vault();
+    let a = Uuid::new_v4();
+    let b = Uuid::new_v4();
+    let c = Uuid::new_v4();
+    vault.record_command(&a, "kubectl get pods").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    vault.record_command(&a, "kubectl logs api").unwrap();
+    vault.record_command(&b, "docker ps").unwrap();
+    vault.record_command(&c, "Kubectl drain node-1").unwrap();
+
+    // Case-insensitive, one hit per host, most recently used first.
+    let hits = vault.search_command_history("kubectl").unwrap();
+    assert_eq!(hits.len(), 2);
+    let host_a = hits.iter().find(|(id, _)| *id == a).unwrap();
+    assert_eq!(host_a.1, "kubectl logs api");
+    let host_c = hits.iter().find(|(id, _)| *id == c).unwrap();
+    assert_eq!(host_c.1, "Kubectl drain node-1");
+
+    assert!(vault.search_command_history("terraform").unwrap().is_empty());
+    assert!(vault.search_command_history("").unwrap().is_empty());
+}

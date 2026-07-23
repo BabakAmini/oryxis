@@ -416,6 +416,19 @@ impl VaultStore {
     /// Sealed chunks are opened with the session content key; chunks
     /// recorded by older versions pass through as-is.
     pub fn get_session_data(&self, id: &Uuid) -> Result<Option<Vec<u8>>, VaultError> {
+        Ok(Some(self.sealed_session_output(id)?.open()))
+    }
+
+    /// Fetch a session log's output stream still sealed, bundled with
+    /// the content key: an opaque hand-off so a caller can move the
+    /// expensive decrypt + inflate work onto a background thread (the
+    /// History content search) while the crypto itself stays inside
+    /// this crate. The SQL read here is cheap (ciphertext memcpy);
+    /// [`SealedSessionOutput::open`] does the heavy part.
+    pub fn sealed_session_output(
+        &self,
+        id: &Uuid,
+    ) -> Result<SealedSessionOutput, VaultError> {
         let id_str = id.to_string();
         let legacy: Option<Vec<u8>> = self
             .db
@@ -425,8 +438,6 @@ impl VaultStore {
                 |row| row.get(0),
             )
             .map_err(|_| VaultError::NotFound(format!("Session log {}", id)))?;
-        let key = self.session_log_key().ok();
-        let mut buf = legacy.unwrap_or_default();
         // Output chunks only: resize events ('r') are timing metadata
         // for the asciicast export, not part of the byte stream.
         let mut stmt = self.db.prepare(
@@ -436,15 +447,71 @@ impl VaultStore {
         let rows = stmt.query_map(params![id_str], |row| {
             Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?))
         })?;
+        let mut chunks = Vec::new();
         for row in rows {
-            let (chunk, comp) = row?;
+            chunks.push(row?);
+        }
+        Ok(SealedSessionOutput {
+            key: self.session_log_key().ok().map(Zeroizing::new),
+            legacy: legacy.unwrap_or_default(),
+            chunks,
+        })
+    }
+
+    /// Search the typed-command records (`kind = 'c'` chunks) of every
+    /// session log for a case-insensitive substring. Returns at most
+    /// one `(log_id, command)` pair per session (the first recorded
+    /// match), so the History search can light up the exact sessions
+    /// where a command ran without touching the output stream. The
+    /// data volume is tiny (command lines only), so this runs
+    /// synchronously. Requires the vault to be unlocked; locked rows
+    /// simply don't open and are skipped, mirroring
+    /// [`Self::get_session_commands`].
+    pub fn search_session_commands(
+        &self,
+        needle: &str,
+    ) -> Result<Vec<(Uuid, String)>, VaultError> {
+        let needle = needle.to_lowercase();
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let key = self.session_log_key().ok();
+        let mut stmt = self.db.prepare(
+            "SELECT log_id, data, comp FROM session_log_chunks
+             WHERE kind = 'c' ORDER BY id",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Vec<u8>>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })?;
+        let mut matches: Vec<(Uuid, String)> = Vec::new();
+        let mut seen: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        for row in rows {
+            let (log_id, chunk, comp) = row?;
+            let Ok(log_id) = Uuid::parse_str(&log_id) else {
+                continue;
+            };
+            if seen.contains(&log_id) {
+                continue;
+            }
             let plain = match key.as_ref().and_then(|k| Self::unseal_chunk(k, &chunk)) {
                 Some(plain) => plain,
+                // Pre-encryption rows pass through; sealed rows that
+                // don't open (locked vault) stay closed and unmatched.
                 None => chunk,
             };
-            buf.extend_from_slice(&Self::decode_chunk(plain, comp));
+            let Ok(command) = String::from_utf8(Self::decode_chunk(plain, comp)) else {
+                continue;
+            };
+            if command.to_lowercase().contains(&needle) {
+                seen.insert(log_id);
+                matches.push((log_id, command));
+            }
         }
-        Ok(Some(buf))
+        Ok(matches)
     }
 
     /// Timed event stream for the asciicast export: the legacy inline
@@ -552,4 +619,42 @@ impl VaultStore {
         Ok(())
     }
 
+}
+
+/// One session log's recorded output, still sealed, plus the content
+/// key needed to open it. Produced by
+/// [`VaultStore::sealed_session_output`] so the decrypt + inflate cost
+/// can run off the UI thread while the crypto primitives never leave
+/// this crate. The key is zeroized when the bundle drops.
+pub struct SealedSessionOutput {
+    /// `None` when the vault was locked at fetch time; sealed chunks
+    /// then stay closed (pre-encryption chunks still pass through).
+    key: Option<Zeroizing<[u8; KEY_LEN]>>,
+    /// Legacy inline blob from before the chunk migration (plaintext).
+    legacy: Vec<u8>,
+    /// `(sealed data, comp flag)` per output chunk, append order.
+    chunks: Vec<(Vec<u8>, i64)>,
+}
+
+impl SealedSessionOutput {
+    /// Open every chunk and return the concatenated output byte
+    /// stream, byte-identical to [`VaultStore::get_session_data`].
+    /// Chunks that don't unseal (locked vault, pre-encryption rows)
+    /// pass through as stored, mirroring the reader's best-effort
+    /// contract.
+    pub fn open(self) -> Vec<u8> {
+        let mut buf = self.legacy;
+        for (chunk, comp) in self.chunks {
+            let plain = match self
+                .key
+                .as_ref()
+                .and_then(|k| VaultStore::unseal_chunk(k, &chunk))
+            {
+                Some(plain) => plain,
+                None => chunk,
+            };
+            buf.extend_from_slice(&VaultStore::decode_chunk(plain, comp));
+        }
+        buf
+    }
 }

@@ -50,6 +50,10 @@ pub(crate) enum OverlayContent {
     /// Dropdown next to the dashboard sort button: pick a host tag to
     /// filter the grid by (or clear the filter).
     HostTagFilter,
+    /// Dropdown under the History-toolbar tag button: multi-select
+    /// host-tag filter over the timeline rows, mirroring
+    /// `HostTagFilter`.
+    HistoryTagFilter,
     /// Floating context menu for the Discover import modal's
     /// "Import into" combo. Carries a search input + the full list
     /// of user groups. Rendered through the modal's local Stack

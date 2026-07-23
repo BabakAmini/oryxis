@@ -435,6 +435,38 @@ pub(crate) struct PendingLegacyAlgo {
     pub retry: Box<crate::app::Message>,
 }
 
+/// Backing state for the History view's content search (the "search in
+/// session content" toggle inside the search field): matches computed
+/// asynchronously against the recorded command chunks (`kind = 'c'`),
+/// the per-host command history and the decrypted output streams. The
+/// maps always answer `needle`; the view ignores them whenever the
+/// live query has moved past it. `generation` cancels in-flight
+/// debounce timers and scan steps (a stale tick or scan result simply
+/// doesn't match and is dropped).
+#[derive(Default)]
+pub(crate) struct HistoryContentSearch {
+    pub generation: u64,
+    /// Lowercased query the maps below answer.
+    pub needle: String,
+    /// Session log id -> matched snippet: the typed command when the
+    /// hit came from a command record, or an output excerpt around
+    /// the match once the output scan reaches the session.
+    pub log_matches: std::collections::HashMap<Uuid, String>,
+    /// Host id -> matched command from the per-host command history,
+    /// covering hosts with no recorded sessions (they have no
+    /// timeline row to light up, so the view surfaces them in a
+    /// strip above the list).
+    pub conn_matches: Vec<(Uuid, String)>,
+    /// Session logs still waiting for their output scan, drained one
+    /// step at a time so results land incrementally.
+    pub queue: Vec<Uuid>,
+    /// Output-scan progress: sessions scanned so far / total queued.
+    pub scan_done: usize,
+    pub scan_total: usize,
+    /// True while an output-scan step is in flight.
+    pub scanning: bool,
+}
+
 #[cfg(test)]
 #[path = "state_tests.rs"]
 mod tests;

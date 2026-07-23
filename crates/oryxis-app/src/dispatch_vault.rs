@@ -221,6 +221,9 @@ impl Oryxis {
                     // vault after unlock anyway.
                     self.session_player = None;
                     self.viewing_session_log = None;
+                    // The History content-search results hold decrypted
+                    // command lines / output excerpts; same rule.
+                    self.history_content_reset();
                     // The ssh-agent goes dark (keys ungated) while locked;
                     // the listener stays up so a `git` sees an empty agent.
                     self.agent_on_lock();
@@ -360,6 +363,10 @@ impl Oryxis {
                         // or revealed secrets have no business surviving
                         // an explicit "I'm done").
                         self.revealed_secrets.clear();
+                        // History content-search results hold decrypted
+                        // command lines / output excerpts; sweep like the
+                        // soft lock does.
+                        self.history_content_reset();
                         self.overlay = None;
                         self.card_context_menu = None;
                         // Top-strip pickers: same reason as the soft lock,

@@ -79,7 +79,14 @@ impl Oryxis {
 
         // ── Toolbar ──
         let per_page: usize = 50;
-        let needle = self.history_search.to_lowercase();
+        let needle = self.history_search.trim().to_lowercase();
+        // Content-search results only apply when they answer the live
+        // query: typing is debounced and the output scan is async, so
+        // the maps can lag a keystroke behind; a stale needle falls
+        // back to the plain label/hostname filter until they catch up.
+        let content_ready = self.history_search_content
+            && !needle.is_empty()
+            && self.history_content.needle == needle;
 
         // Build the unified timeline. Failed log entries (auth fail,
         // transport error) stay as their own rows; everything else
@@ -102,11 +109,10 @@ impl Oryxis {
         // O(1) instead of scanning the full connection list per row on
         // every frame. `conn_by_label` keeps the first match to mirror
         // the old `find` semantics for duplicate labels.
-        let hostname_by_id: std::collections::HashMap<uuid::Uuid, &str> = self
-            .connections
-            .iter()
-            .map(|c| (c.id, c.hostname.as_str()))
-            .collect();
+        let conn_by_id: std::collections::HashMap<
+            uuid::Uuid,
+            &oryxis_core::models::connection::Connection,
+        > = self.connections.iter().map(|c| (c.id, c)).collect();
         let mut conn_by_label: std::collections::HashMap<&str, _> =
             std::collections::HashMap::new();
         for c in &self.connections {
@@ -115,7 +121,9 @@ impl Oryxis {
         for (idx, entry) in self.session_logs.iter().enumerate() {
             // Look up the connection by id so we can show its
             // hostname next to the label (matches the Termius row).
-            let hostname = hostname_by_id.get(&entry.connection_id).copied();
+            let hostname = conn_by_id
+                .get(&entry.connection_id)
+                .map(|c| c.hostname.as_str());
             rows.push(TimelineRow {
                 ts: entry.started_at,
                 label: &entry.label,
@@ -124,14 +132,48 @@ impl Oryxis {
             });
         }
 
+        // Host-tag filter first: rows resolve to their connection
+        // (session rows by id, failure rows by label) and survive when
+        // it carries any selected tag; a deleted host can't match.
+        // Composes with the search below as an AND.
+        if !self.history_filter_tags.is_empty() {
+            rows.retain(|r| {
+                let conn = match &r.kind {
+                    TimelineKind::Session { entry, .. } => {
+                        conn_by_id.get(&entry.connection_id).copied()
+                    }
+                    TimelineKind::Failure(_) => conn_by_label.get(r.label).copied(),
+                };
+                conn.is_some_and(|c| {
+                    c.tags.iter().any(|tg| {
+                        self.history_filter_tags
+                            .iter()
+                            .any(|f| f.eq_ignore_ascii_case(tg))
+                    })
+                })
+            });
+        }
+
         // Filter by the contextual sub-nav search before paginating
         // so the page counts reflect what the user actually sees.
         // Filtering before the sort also keeps the sort to the rows
-        // that survive.
+        // that survive. With the content toggle on, a session row also
+        // survives when the async search matched one of its recorded
+        // commands or its output.
         if !needle.is_empty() {
             rows.retain(|r| {
-                r.label.to_lowercase().contains(&needle)
+                if r.label.to_lowercase().contains(&needle)
                     || r.hostname.is_some_and(|h| h.to_lowercase().contains(&needle))
+                {
+                    return true;
+                }
+                content_ready
+                    && match &r.kind {
+                        TimelineKind::Session { entry, .. } => {
+                            self.history_content.log_matches.contains_key(&entry.id)
+                        }
+                        TimelineKind::Failure(_) => false,
+                    }
             });
         }
         rows.sort_by_key(|r| std::cmp::Reverse(r.ts));
@@ -228,8 +270,53 @@ impl Oryxis {
         } else {
             search_slot
         };
+        // The content-toggle chip lives INSIDE the search field
+        // (vault_search_field applies its ring); record it whenever
+        // that field is on screen, inline or in the collapsed-search
+        // overlay, so the toolbar walk reaches it.
+        let search_overlay_open = matches!(
+            self.overlay.as_ref().map(|o| &o.content),
+            Some(crate::state::OverlayContent::ToolbarSearch)
+        );
+        if !search_collapsed || search_overlay_open {
+            self.keynav_toolbar_record(crate::keynav::ToolbarItem::SearchContent);
+        }
         let mut row_items: Vec<Element<'_, Message>> =
             vec![search_slot, Space::new().width(10).into()];
+        // Output-scan progress: the command tiers answer instantly,
+        // the recorded-output pass streams in; say where it stands so
+        // a still-filling result list reads as "working", not "done".
+        if content_ready
+            && (self.history_content.scanning || !self.history_content.queue.is_empty())
+        {
+            row_items.push(
+                text(
+                    crate::i18n::t("history_scanning")
+                        .replace("{done}", &self.history_content.scan_done.to_string())
+                        .replace("{total}", &self.history_content.scan_total.to_string()),
+                )
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+            );
+            row_items.push(Space::new().width(8).into());
+        }
+        // Host-tag filter, mirroring the dashboard's: only rendered
+        // once at least one host is tagged (or a filter needs
+        // clearing); folds into the `…` menu with the other buttons.
+        if !buttons_overflow && self.history_tag_filter_available() {
+            row_items.push(self.keynav_toolbar_slot(
+                crate::keynav::ToolbarItem::TagFilter,
+                crate::widgets::bounds_reporter(
+                    crate::widgets::tag_filter_toolbar_button(
+                        self.history_filter_tags.len(),
+                        Message::History(HistoryMessage::ShowHistoryTagFilterMenu),
+                    ),
+                    self.history_tag_filter_btn_bounds.clone(),
+                ),
+            ));
+            row_items.push(Space::new().width(8).into());
+        }
         // Privacy reveal toggle, shown whenever Privacy Mode could mask
         // something in this view (global on, or any host forces it on).
         let privacy_applies = self.privacy_global_active()
@@ -311,7 +398,22 @@ impl Oryxis {
                     nav_rows.push(vec![crate::keynav::NavItem::HistoryLog(entry.id)]);
                 }
                 let conn = conn_by_label.get(row_data.label).copied();
-                row_elements.push(self.render_timeline_row(row_data, conn));
+                // The content search knows WHY a session matched (the
+                // command line, or an output excerpt); surface it on
+                // the row so the hit is self-explanatory.
+                let content_hit = if content_ready {
+                    match &row_data.kind {
+                        TimelineKind::Session { entry, .. } => self
+                            .history_content
+                            .log_matches
+                            .get(&entry.id)
+                            .map(|s| s.as_str()),
+                        TimelineKind::Failure(_) => None,
+                    }
+                } else {
+                    None
+                };
+                row_elements.push(self.render_timeline_row(row_data, conn, content_hit));
                 row_elements.push(Space::new().height(4).into());
             }
             self.keynav_set_content_rows(nav_rows);
@@ -533,7 +635,124 @@ impl Oryxis {
         // legacy below-toolbar search bar collapses to nothing.
         let search_bar: Element<'_, Message> = Space::new().into();
 
-        column![toolbar, search_bar, list]
+        // ── Hosts with matching commands (content search) ──
+        // A host whose command history matched but has no recorded
+        // session leaves no timeline row to light up; this strip keeps
+        // the "which hosts ran this command?" answer complete. Purely
+        // informational (the rows below stay the interactive surface).
+        let cmd_hosts: Element<'_, Message> = if content_ready
+            && !self.history_content.conn_matches.is_empty()
+        {
+            const MAX_SHOWN: usize = 6;
+            let mut lines: Vec<Element<'_, Message>> = Vec::new();
+            let mut shown = 0usize;
+            let mut hidden = 0usize;
+            for (conn_id, cmd) in &self.history_content.conn_matches {
+                // Deleted hosts have nothing to point at; the tag
+                // filter narrows this strip like it narrows the rows.
+                let Some(conn) = conn_by_id.get(conn_id).copied() else {
+                    continue;
+                };
+                if !self.history_filter_tags.is_empty()
+                    && !conn.tags.iter().any(|tg| {
+                        self.history_filter_tags
+                            .iter()
+                            .any(|f| f.eq_ignore_ascii_case(tg))
+                    })
+                {
+                    continue;
+                }
+                if shown >= MAX_SHOWN {
+                    hidden += 1;
+                    continue;
+                }
+                shown += 1;
+                // Privacy Mode: labels mask like the timeline rows;
+                // the command line is raw session content, redact it.
+                let mask = !self.privacy.revealed && self.privacy_active(conn);
+                let label = if mask {
+                    crate::widgets::mask_blocks(&conn.label)
+                } else {
+                    conn.label.clone()
+                };
+                let cmd_disp = if mask {
+                    crate::widgets::redact_for_display(
+                        cmd,
+                        &self.privacy_terms(),
+                        self.privacy_classes(),
+                    )
+                } else {
+                    cmd.clone()
+                };
+                lines.push(
+                    crate::widgets::dir_row(vec![
+                        text(label)
+                            .size(11)
+                            .color(OryxisColors::t().text_primary)
+                            .into(),
+                        Space::new().width(8).into(),
+                        text(cmd_disp)
+                            .size(11)
+                            .color(OryxisColors::t().text_muted)
+                            .into(),
+                    ])
+                    .align_y(iced::Alignment::Center)
+                    .into(),
+                );
+                lines.push(Space::new().height(2).into());
+            }
+            if hidden > 0 {
+                lines.push(
+                    text(format!("+{hidden}"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                );
+            }
+            if lines.is_empty() {
+                Space::new().into()
+            } else {
+                container(
+                    container(
+                        column![
+                            crate::widgets::dir_row(vec![
+                                iced_fonts::lucide::terminal()
+                                    .size(12)
+                                    .color(OryxisColors::t().accent)
+                                    .into(),
+                                Space::new().width(6).into(),
+                                text(crate::i18n::t("history_cmd_hosts"))
+                                    .size(11)
+                                    .color(OryxisColors::t().text_muted)
+                                    .into(),
+                            ])
+                            .align_y(iced::Alignment::Center),
+                            Space::new().height(6),
+                            column(lines).align_x(crate::widgets::dir_align_x()),
+                        ]
+                        .width(Length::Fill)
+                        .align_x(crate::widgets::dir_align_x()),
+                    )
+                    .padding(Padding { top: 10.0, right: 16.0, bottom: 10.0, left: 16.0 })
+                    .width(Length::Fill)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                        border: Border {
+                            radius: Radius::from(8.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }),
+                )
+                .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 })
+                .width(Length::Fill)
+                .into()
+            }
+        } else {
+            Space::new().into()
+        };
+
+        column![toolbar, search_bar, cmd_hosts, list]
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -548,6 +767,7 @@ impl Oryxis {
         &'a self,
         row: &TimelineRow<'a>,
         conn: Option<&'a oryxis_core::models::connection::Connection>,
+        content_hit: Option<&'a str>,
     ) -> Element<'a, Message> {
         use oryxis_core::models::log_entry::LogEvent;
 
@@ -747,28 +967,56 @@ impl Oryxis {
                 .into(),
         };
 
+        let mut title_col = column![
+            crate::widgets::dir_row(vec![
+                text(display_label)
+                    .size(13)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+                Space::new().width(8).into(),
+                chip.into(),
+            ])
+            .align_y(iced::Alignment::Center),
+            Space::new().height(2),
+            text(subtitle)
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        ]
+        .width(Length::Fill)
+        .align_x(crate::widgets::dir_align_x());
+        // Content-search hit: the matched command / output excerpt,
+        // so the row says WHY it survived the filter. Raw session
+        // content, so Privacy Mode redacts it like failure messages.
+        if let Some(hit) = content_hit {
+            let hit_disp = if mask {
+                crate::widgets::redact_for_display(
+                    hit,
+                    &self.privacy_terms(),
+                    self.privacy_classes(),
+                )
+            } else {
+                hit.to_string()
+            };
+            title_col = title_col.push(Space::new().height(2)).push(
+                crate::widgets::dir_row(vec![
+                    iced_fonts::lucide::search()
+                        .size(10)
+                        .color(OryxisColors::t().accent)
+                        .into(),
+                    Space::new().width(5).into(),
+                    text(hit_disp)
+                        .size(11)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center),
+            );
+        }
         let card = container(
             crate::widgets::dir_row(vec![
                 badge,
                 Space::new().width(12).into(),
-                column![
-                    crate::widgets::dir_row(vec![
-                        text(display_label)
-                            .size(13)
-                            .color(OryxisColors::t().text_primary)
-                            .into(),
-                        Space::new().width(8).into(),
-                        chip.into(),
-                    ])
-                    .align_y(iced::Alignment::Center),
-                    Space::new().height(2),
-                    text(subtitle)
-                        .size(11)
-                        .color(OryxisColors::t().text_muted),
-                ]
-                .width(Length::Fill)
-                .align_x(crate::widgets::dir_align_x())
-                .into(),
+                title_col.into(),
                 Space::new().width(12).into(),
                 trailing,
             ])

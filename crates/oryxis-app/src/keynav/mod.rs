@@ -78,6 +78,10 @@ pub(crate) enum ToolbarItem {
     Overflow,
     /// The search icon when the search field is collapsed.
     SearchIcon,
+    /// The "search in session content" toggle chip inside the History
+    /// search field (rendered whenever that field is on screen, inline
+    /// or in the collapsed-search overlay).
+    SearchContent,
     /// Context-aware dashboard primary inside a provider folder:
     /// "+ DISCOVER" for the linked cloud profile. Carries the profile
     /// id so activation needs no re-derivation of the folder link.

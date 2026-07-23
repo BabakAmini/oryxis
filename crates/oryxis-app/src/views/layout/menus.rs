@@ -27,7 +27,9 @@ impl Oryxis {
             // "Open SFTP session here" + translations on one line.
             OverlayContent::SidebarFilesRow { .. }
             | OverlayContent::SidebarFilesBackground { .. } => 220.0,
-            OverlayContent::HostTagFilter | OverlayContent::SnippetTagFilter => 200.0,
+            OverlayContent::HostTagFilter
+            | OverlayContent::SnippetTagFilter
+            | OverlayContent::HistoryTagFilter => 200.0,
             // "Exposed to agent" / "Remove certificate" must not wrap.
             OverlayContent::KeyActions(_) => 210.0,
             // "Check for updates" / "Remove downloaded files" +
@@ -68,7 +70,9 @@ impl Oryxis {
         const ITEM_H: f32 = 30.0;
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
-            OverlayContent::HostTagFilter => (self.distinct_host_tags().len() + 1) as f32,
+            OverlayContent::HostTagFilter | OverlayContent::HistoryTagFilter => {
+                (self.distinct_host_tags().len() + 1) as f32
+            }
             OverlayContent::SnippetTagFilter => (self.distinct_snippet_tags().len() + 1) as f32,
             OverlayContent::SessionLogActions(_) => 4.0,
             OverlayContent::SessionLogViewerActions(_) => 4.0,
@@ -218,6 +222,14 @@ impl Oryxis {
                 self.distinct_snippet_tags(),
                 |v| Message::Snippet(SnippetMessage::ToggleSnippetTagFilterTag(v)),
                 Message::Snippet(SnippetMessage::ClearSnippetTagFilter),
+            ),
+            // The History filter reuses the host tags: timeline rows
+            // resolve to connections, so the tag universe is the same.
+            OverlayContent::HistoryTagFilter => self.tag_filter_menu(
+                self.history_filter_tags.clone(),
+                self.distinct_host_tags(),
+                |v| Message::History(HistoryMessage::ToggleHistoryTagFilterTag(v)),
+                Message::History(HistoryMessage::ClearHistoryTagFilter),
             ),
             OverlayContent::SessionLogActions(idx) => self.build_menu_session_log_actions(*idx),
             OverlayContent::SessionLogViewerActions(idx) => {

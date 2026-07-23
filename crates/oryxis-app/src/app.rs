@@ -580,6 +580,16 @@ pub struct Oryxis {
     /// Matches against the connection label / hostname recorded in
     /// each log row.
     pub(crate) history_search: String,
+    /// History view: also search inside recorded session content
+    /// (typed commands + output), the toggle chip inside the search
+    /// field. Session-scoped UI state, not persisted.
+    pub(crate) history_search_content: bool,
+    /// Async results + scan progress for the content search above.
+    pub(crate) history_content: crate::state::HistoryContentSearch,
+    /// History view host-tag filter (multi-select, matches the host
+    /// tags of each row's connection), mirroring `host_filter_tags`;
+    /// empty = off.
+    pub(crate) history_filter_tags: Vec<String>,
 
     // Identities
     pub(crate) identities: Vec<Identity>,
@@ -725,6 +735,9 @@ pub struct Oryxis {
     /// Bounds of the Snippets-toolbar tag-filter button, same role as
     /// `host_tag_filter_btn_bounds` for the Snippets view.
     pub(crate) snippet_tag_filter_btn_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the History-toolbar tag-filter button, same role as
+    /// `host_tag_filter_btn_bounds` for the History view.
+    pub(crate) history_tag_filter_btn_bounds: crate::widgets::BoundsCell,
     /// Bounds of the active toolbar's "+ HOST ▾" / "+ ADD ▾" split
     /// group (only one renders at a time), so its dropdown anchors to
     /// the real button instead of a constant estimate that broke as

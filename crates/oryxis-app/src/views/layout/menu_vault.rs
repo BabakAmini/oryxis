@@ -824,6 +824,14 @@ impl Oryxis {
                 ));
             }
             View::History => {
+                if self.history_tag_filter_available() {
+                    col = col.push(self.menu_item(
+                        iced_fonts::lucide::tag(),
+                        crate::i18n::t("host_tag_filter"),
+                        Message::History(HistoryMessage::ShowHistoryTagFilterMenu),
+                        secondary,
+                    ));
+                }
                 col = col.push(self.menu_item(
                     iced_fonts::lucide::chevron_left(),
                     crate::i18n::t("toolbar_prev"),

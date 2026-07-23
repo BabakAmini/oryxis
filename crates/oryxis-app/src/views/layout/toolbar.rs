@@ -291,6 +291,11 @@ impl Oryxis {
         // area; wiring `.on_submit` here too would double-dispatch.
         let quick_hint = self.active_view == View::Dashboard
             && self.quick_connect_target(&self.host_search).is_some();
+        // History only: the "search in session content" toggle floats
+        // inside the field's trailing edge, so it travels with the
+        // search box (including into the collapsed-search overlay).
+        let content_chip = self.active_view == View::History;
+        let rtl = crate::i18n::is_rtl_layout();
 
         // Vertical padding tuned so the field's height matches the
         // toolbar action buttons beside it (24px content + 5px default
@@ -300,11 +305,17 @@ impl Oryxis {
             .on_input(on_input)
             .padding(Padding {
                 top: 9.0,
-                // Leave room for the floating hint chip so the typed
-                // value never slides under it.
-                right: if quick_hint { 120.0 } else { 12.0 },
+                // Leave room for the floating hint / toggle chip so the
+                // typed value never slides under it.
+                right: if quick_hint {
+                    120.0
+                } else if content_chip && !rtl {
+                    40.0
+                } else {
+                    12.0
+                },
                 bottom: 9.0,
-                left: 12.0,
+                left: if content_chip && rtl { 40.0 } else { 12.0 },
             })
             .size(13)
             .width(Length::Fill)
@@ -341,6 +352,73 @@ impl Oryxis {
                 .align_x(iced::alignment::Horizontal::Right)
                 .align_y(iced::alignment::Vertical::Center)
                 .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 0.0 });
+            stack = stack.push(chip_overlay);
+        }
+        if content_chip {
+            // Toggle chip: accent-filled while on (like the tag-filter
+            // button), hover fill + tooltip per the button convention.
+            // Ring + Enter come from the toolbar keynav item
+            // (`ToolbarItem::SearchContent`, recorded by view_history).
+            let active = self.history_search_content;
+            let icon = iced_fonts::lucide::text_search().size(14).color(
+                if active {
+                    OryxisColors::t().button_text
+                } else {
+                    OryxisColors::t().text_muted
+                },
+            );
+            let chip_btn = iced::widget::button(
+                iced::widget::container(icon).center(Length::Fixed(24.0)),
+            )
+            .padding(0)
+            .on_press(Message::History(HistoryMessage::SearchContentToggled))
+            .style(move |_, status| {
+                let bg = if active {
+                    OryxisColors::t().accent
+                } else {
+                    match status {
+                        iced::widget::button::Status::Hovered => {
+                            OryxisColors::t().bg_hover
+                        }
+                        _ => Color::TRANSPARENT,
+                    }
+                };
+                iced::widget::button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(4.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            });
+            let chip = crate::views::terminal::icon_tooltip(
+                self.keynav_toolbar_ring(
+                    crate::keynav::ToolbarItem::SearchContent,
+                    chip_btn.into(),
+                ),
+                crate::i18n::t("history_search_content"),
+            );
+            // The chip hugs the field's TRAILING edge (physical left
+            // under RTL); the Stack overlay takes no clicks outside
+            // the button, so focus-on-click keeps working below it.
+            let (align, pad) = if rtl {
+                (
+                    iced::alignment::Horizontal::Left,
+                    Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 5.0 },
+                )
+            } else {
+                (
+                    iced::alignment::Horizontal::Right,
+                    Padding { top: 0.0, right: 5.0, bottom: 0.0, left: 0.0 },
+                )
+            };
+            let chip_overlay = iced::widget::container(chip)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(align)
+                .align_y(iced::alignment::Vertical::Center)
+                .padding(pad);
             stack = stack.push(chip_overlay);
         }
         stack.into()

@@ -143,6 +143,68 @@ impl VaultStore {
         Ok(entries)
     }
 
+    /// Search every host's command history for a case-insensitive
+    /// substring. Returns at most one `(connection_id, command)` pair
+    /// per host (its most recently used match), so the History content
+    /// search can answer "which hosts ran this command" even for hosts
+    /// with no recorded sessions. Bounded by the per-host cap, so the
+    /// full-table decrypt stays trivial. Rows that don't open (locked
+    /// vault) are skipped like in [`Self::list_command_history`].
+    pub fn search_command_history(
+        &self,
+        needle: &str,
+    ) -> Result<Vec<(Uuid, String)>, VaultError> {
+        let needle = needle.to_lowercase();
+        if needle.is_empty() {
+            return Ok(Vec::new());
+        }
+        let key = self.session_log_key().ok();
+        if let Some(k) = key.as_ref() {
+            self.migrate_plaintext_command_history(k)?;
+        }
+        let mut stmt = self.db.prepare(
+            "SELECT connection_id, command, command_enc FROM command_history
+             ORDER BY last_used_at DESC",
+        )?;
+        let rows = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<Vec<u8>>>(2)?,
+            ))
+        })?;
+        let mut matches: Vec<(Uuid, String)> = Vec::new();
+        let mut seen: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        for row in rows {
+            let Ok((conn, cmd_col, enc)) = row else {
+                continue;
+            };
+            let Ok(conn) = Uuid::parse_str(&conn) else {
+                continue;
+            };
+            if seen.contains(&conn) {
+                continue;
+            }
+            let command = match &enc {
+                Some(blob) => match key
+                    .as_ref()
+                    .and_then(|k| Self::unseal_chunk(k, blob))
+                    .and_then(|plain| String::from_utf8(plain).ok())
+                {
+                    Some(text) => text,
+                    None => continue,
+                },
+                // Pre-migration row: `command` still holds the plaintext.
+                None => cmd_col,
+            };
+            if command.to_lowercase().contains(&needle) {
+                seen.insert(conn);
+                matches.push((conn, command));
+            }
+        }
+        Ok(matches)
+    }
+
     /// One-shot upgrade of rows written before command encryption existed
     /// (plaintext `command`, NULL `command_enc`): seal the text with the
     /// content key and replace `command` with the keyed dedup hash, so

@@ -41,9 +41,11 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
                 // The wipe pulled the recording out from under any open
-                // viewer / player; drop them with it.
+                // viewer / player; drop them with it, and retire any
+                // content-search results that pointed into the wiped rows.
                 self.viewing_session_log = None;
                 self.session_player = None;
+                self.history_content_reset();
             }
             HistoryMessage::LogsPageNext => {
                 let max_page = (self.logs_total.saturating_sub(1)) / 50;
@@ -482,9 +484,283 @@ impl Oryxis {
                 let url = self.host_ssh_url(conn);
                 return self.update(Message::CopyToClipboard(url));
             }
+
+            // -- Content search (commands + recorded output) --
+            HistoryMessage::SearchContentToggled => {
+                self.history_search_content = !self.history_search_content;
+                if self.history_search_content {
+                    return self.history_content_debounce();
+                }
+                // Toggled off: the maps hold decrypted session excerpts,
+                // drop them and let the plain filter take over.
+                self.history_content_reset();
+            }
+            HistoryMessage::SearchContentDebounce(generation) => {
+                // A newer keystroke re-armed the timer; this tick is stale.
+                if generation != self.history_content.generation
+                    || !self.history_search_content
+                {
+                    return Task::none();
+                }
+                return self.history_content_search_start();
+            }
+            HistoryMessage::SearchContentScanned { generation, log_id, snippet } => {
+                if generation != self.history_content.generation {
+                    // A newer search owns the pump now; drop result AND pump.
+                    return Task::none();
+                }
+                self.history_content.scan_done += 1;
+                self.history_content.scanning = false;
+                if let Some(snippet) = snippet {
+                    self.history_content.log_matches.insert(log_id, snippet);
+                }
+                return self.history_scan_step();
+            }
+
+            // -- Host-tag filter over the timeline --
+            HistoryMessage::ShowHistoryTagFilterMenu => {
+                use crate::state::{OverlayContent, OverlayState};
+                let already_open = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::HistoryTagFilter)
+                );
+                if already_open {
+                    self.overlay = None;
+                } else {
+                    // Anchor under the tag-filter button (bounds reported
+                    // every draw), mirroring the dashboard's dropdown;
+                    // cursor fallback before the first draw populates it.
+                    let b = self.history_tag_filter_btn_bounds.get();
+                    let (x, y) = if b.width > 0.0 {
+                        let lead = if crate::i18n::is_rtl_layout() {
+                            b.x + b.width
+                        } else {
+                            b.x
+                        };
+                        (lead, b.y + b.height + 6.0)
+                    } else {
+                        (self.mouse_position.x, self.mouse_position.y + 26.0)
+                    };
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::HistoryTagFilter,
+                        x,
+                        y,
+                    });
+                }
+            }
+            HistoryMessage::ToggleHistoryTagFilterTag(tag) => {
+                // Multi-select: the dropdown stays open so several tags
+                // can be picked in one visit; the backdrop closes it.
+                match self
+                    .history_filter_tags
+                    .iter()
+                    .position(|t| t.eq_ignore_ascii_case(&tag))
+                {
+                    Some(i) => {
+                        self.history_filter_tags.remove(i);
+                    }
+                    None => self.history_filter_tags.push(tag),
+                }
+                // Filter changed the visible set; drop the keyboard
+                // selection so Enter can't open a now-hidden row.
+                self.keynav.focus = None;
+            }
+            HistoryMessage::ClearHistoryTagFilter => {
+                self.history_filter_tags.clear();
+                self.overlay = None;
+                self.keynav.focus = None;
+            }
         }
         Task::none()
     }
+
+    /// Whether the History tag-filter affordance should render: at
+    /// least one host is tagged, or a (possibly dangling) filter is
+    /// active and needs a way to be cleared. Mirrors
+    /// `host_tag_filter_available`.
+    pub(crate) fn history_tag_filter_available(&self) -> bool {
+        !self.history_filter_tags.is_empty()
+            || self.connections.iter().any(|c| !c.tags.is_empty())
+    }
+
+    /// Drop every content-search result (they hold decrypted session
+    /// excerpts) while advancing the generation, so in-flight debounce
+    /// ticks and scan steps retire instead of resurrecting stale data.
+    /// Called on toggle-off, on a query too short to scan, on vault
+    /// lock and on history wipes.
+    pub(crate) fn history_content_reset(&mut self) {
+        let generation = self.history_content.generation + 1;
+        self.history_content = Default::default();
+        self.history_content.generation = generation;
+    }
+
+    /// Arm the content-search debounce for the current query: bump the
+    /// generation (retiring any previous timer or in-flight scan) and
+    /// schedule the actual search shortly, so scanning never runs per
+    /// keystroke. Called on every History search edit while the
+    /// content toggle is on, and on toggle-on itself.
+    pub(crate) fn history_content_debounce(&mut self) -> Task<Message> {
+        let needle = self.history_search.trim().to_lowercase();
+        if needle.chars().count() < 2 {
+            // Too short to scan usefully; fall back to the plain
+            // label/hostname filter.
+            self.history_content_reset();
+            return Task::none();
+        }
+        self.history_content.generation += 1;
+        let generation = self.history_content.generation;
+        Task::perform(
+            async move {
+                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            },
+            move |()| Message::History(HistoryMessage::SearchContentDebounce(generation)),
+        )
+    }
+
+    /// Run the cheap search tiers synchronously (typed-command records
+    /// per session + per-host command history, tiny data), then queue
+    /// the recorded-output scan for the sessions those tiers didn't
+    /// already answer and kick its first step.
+    fn history_content_search_start(&mut self) -> Task<Message> {
+        let needle = self.history_search.trim().to_lowercase();
+        let Some(vault) = &self.vault else {
+            return Task::none();
+        };
+        let cmd_hits = vault.search_session_commands(&needle).unwrap_or_default();
+        let host_hits = vault.search_command_history(&needle).unwrap_or_default();
+        let log_matches: std::collections::HashMap<uuid::Uuid, String> =
+            cmd_hits.into_iter().collect();
+        // Skip sessions the command tier already matched and sessions
+        // the plain filter shows anyway (label/hostname carries the
+        // match): scanning them would only spend decrypt time to
+        // restate what is already visible.
+        let hostname_by_id: std::collections::HashMap<uuid::Uuid, &str> = self
+            .connections
+            .iter()
+            .map(|c| (c.id, c.hostname.as_str()))
+            .collect();
+        let queue: Vec<uuid::Uuid> = self
+            .session_logs
+            .iter()
+            .filter(|e| {
+                !log_matches.contains_key(&e.id)
+                    && !e.label.to_lowercase().contains(&needle)
+                    && !hostname_by_id
+                        .get(&e.connection_id)
+                        .is_some_and(|h| h.to_lowercase().contains(&needle))
+            })
+            .map(|e| e.id)
+            .collect();
+        let hc = &mut self.history_content;
+        hc.needle = needle;
+        hc.log_matches = log_matches;
+        hc.conn_matches = host_hits;
+        hc.scan_total = queue.len();
+        hc.scan_done = 0;
+        hc.queue = queue;
+        hc.scanning = false;
+        self.history_scan_step()
+    }
+
+    /// Launch the next output-scan step: pop one session, read its
+    /// output still sealed (SQL only, cheap on the UI thread) and hand
+    /// the decrypt + render + match work to a blocking worker; the
+    /// result comes back through `SearchContentScanned`, which pumps
+    /// the next step. One step in flight at a time keeps the UI free
+    /// and lands results incrementally.
+    fn history_scan_step(&mut self) -> Task<Message> {
+        loop {
+            if self.history_content.queue.is_empty() {
+                self.history_content.scanning = false;
+                return Task::none();
+            }
+            let log_id = self.history_content.queue.remove(0);
+            let Some(vault) = &self.vault else {
+                // Vault gone mid-scan (lock): stop; the lock path also
+                // resets the results.
+                self.history_content.scanning = false;
+                self.history_content.queue.clear();
+                return Task::none();
+            };
+            let sealed = match vault.sealed_session_output(&log_id) {
+                Ok(sealed) => sealed,
+                Err(_) => {
+                    // Row deleted mid-scan: count it done and move on.
+                    self.history_content.scan_done += 1;
+                    continue;
+                }
+            };
+            self.history_content.scanning = true;
+            let generation = self.history_content.generation;
+            let needle = self.history_content.needle.clone();
+            let palette = self.resolve_global_terminal_palette();
+            return Task::perform(
+                async move {
+                    tokio::task::spawn_blocking(move || {
+                        let data = sealed.open();
+                        // Same pipeline as the transcript export: CR
+                        // overwrites and erase-line resolved, so the
+                        // search sees the text a human saw.
+                        let text: String = crate::ansi_render::render(&data, &palette)
+                            .iter()
+                            .map(|s| s.text.as_str())
+                            .collect();
+                        content_match_snippet(&text, &needle)
+                    })
+                    .await
+                    .ok()
+                    .flatten()
+                },
+                move |snippet| {
+                    Message::History(HistoryMessage::SearchContentScanned {
+                        generation,
+                        log_id,
+                        snippet,
+                    })
+                },
+            );
+        }
+    }
+}
+
+/// Case-insensitive search of `needle` (already lowercased) inside a
+/// rendered transcript, returning a display excerpt around the first
+/// match: the matching line, windowed with ellipses when it is long.
+/// Case folding is per-char (1:1) so excerpt offsets stay aligned with
+/// the original text; multi-char foldings (ß → ss) would shift them.
+pub(crate) fn content_match_snippet(text: &str, needle: &str) -> Option<String> {
+    fn lower1(c: char) -> char {
+        c.to_lowercase().next().unwrap_or(c)
+    }
+    let needle_chars: Vec<char> = needle.chars().map(lower1).collect();
+    if needle_chars.is_empty() {
+        return None;
+    }
+    for line in text.lines() {
+        let chars: Vec<char> = line.chars().collect();
+        let lowered: Vec<char> = chars.iter().copied().map(lower1).collect();
+        let Some(pos) = lowered
+            .windows(needle_chars.len())
+            .position(|w| w == needle_chars)
+        else {
+            continue;
+        };
+        // The match plus ~40 chars of context each side, ellipsized
+        // where the line continues.
+        const CTX: usize = 40;
+        let start = pos.saturating_sub(CTX);
+        let end = (pos + needle_chars.len() + CTX).min(chars.len());
+        let mut out = String::new();
+        if start > 0 {
+            out.push('\u{2026}');
+        }
+        out.extend(chars[start..end].iter());
+        if end < chars.len() {
+            out.push('\u{2026}');
+        }
+        return Some(out.trim().to_string());
+    }
+    None
 }
 
 /// Serialize a recorded session as an asciicast v3 document: a JSON
@@ -780,5 +1056,40 @@ mod tests {
             serde_json::from_str(cast.lines().next().unwrap()).unwrap();
         assert_eq!(header["term"]["cols"], 80);
         assert_eq!(header["term"]["rows"], 24);
+    }
+}
+
+#[cfg(test)]
+mod content_search_tests {
+    use super::content_match_snippet;
+
+    #[test]
+    fn finds_case_insensitive_and_returns_the_line() {
+        let text = "prompt$ ls\ntotal 0\nprompt$ KUBECTL get pods\nNAME READY\n";
+        assert_eq!(
+            content_match_snippet(text, "kubectl").as_deref(),
+            Some("prompt$ KUBECTL get pods"),
+        );
+        assert_eq!(content_match_snippet(text, "terraform"), None);
+        assert_eq!(content_match_snippet(text, ""), None);
+    }
+
+    #[test]
+    fn long_lines_are_windowed_with_ellipses() {
+        let line = format!("{}kubectl drain node-1{}", "x".repeat(100), "y".repeat(100));
+        let snip = content_match_snippet(&line, "kubectl drain").unwrap();
+        assert!(snip.starts_with('\u{2026}') && snip.ends_with('\u{2026}'), "{snip}");
+        assert!(snip.contains("kubectl drain node-1"));
+        // 40 chars of context each side + the match + the ellipses.
+        assert!(snip.chars().count() < 120, "{snip}");
+    }
+
+    #[test]
+    fn unicode_case_folds_without_shifting_offsets() {
+        let text = "echo Ünïcode Test";
+        assert_eq!(
+            content_match_snippet(text, "ünïcode test").as_deref(),
+            Some("echo Ünïcode Test"),
+        );
     }
 }

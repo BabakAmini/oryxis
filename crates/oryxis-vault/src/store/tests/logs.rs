@@ -386,3 +386,56 @@ fn mixed_raw_and_compressed_chunks_concatenate_in_order() {
     assert_eq!(events.len(), 3);
     assert_eq!(events[1].data, big);
 }
+
+
+#[test]
+fn search_session_commands_finds_the_right_sessions() {
+    let vault = unlocked_vault();
+    let conn_id = Uuid::new_v4();
+    let log_a = Uuid::new_v4();
+    let log_b = Uuid::new_v4();
+    let log_c = Uuid::new_v4();
+    vault.create_session_log(&log_a, &conn_id, "host-a").unwrap();
+    vault.create_session_log(&log_b, &conn_id, "host-a").unwrap();
+    vault.create_session_log(&log_c, &conn_id, "host-a").unwrap();
+    vault.append_session_command(&log_a, Some(0), "kubectl get pods").unwrap();
+    vault.append_session_command(&log_a, Some(50), "kubectl top nodes").unwrap();
+    vault.append_session_command(&log_b, Some(0), "ls -la").unwrap();
+    vault.append_session_command(&log_c, Some(0), "KUBECTL version").unwrap();
+
+    // Case-insensitive, one hit per session (the first match).
+    let mut hits = vault.search_session_commands("kubectl").unwrap();
+    hits.sort_by_key(|(id, _)| *id);
+    let mut expected = vec![
+        (log_a, "kubectl get pods".to_string()),
+        (log_c, "KUBECTL version".to_string()),
+    ];
+    expected.sort_by_key(|(id, _)| *id);
+    assert_eq!(hits, expected);
+
+    assert!(vault.search_session_commands("terraform").unwrap().is_empty());
+    assert!(vault.search_session_commands("").unwrap().is_empty());
+}
+
+
+#[test]
+fn sealed_session_output_opens_off_handle_byte_identical() {
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    let big: Vec<u8> = b"the same line over and over\n".repeat(100).to_vec();
+    vault.append_session_data(&log_id, b"before ", Some(0), false).unwrap();
+    vault.append_session_data(&log_id, &big, Some(300), true).unwrap();
+    // Command rows must stay out of the sealed output stream too.
+    vault.append_session_command(&log_id, Some(400), "secret-cmd").unwrap();
+
+    let sealed = vault.sealed_session_output(&log_id).unwrap();
+    // The whole point: the bundle is self-contained, so opening it on
+    // another thread with the handle gone must reproduce the stream.
+    drop(vault);
+    let opened = std::thread::spawn(move || sealed.open()).join().unwrap();
+    let mut expected = b"before ".to_vec();
+    expected.extend_from_slice(&big);
+    assert_eq!(opened, expected);
+}

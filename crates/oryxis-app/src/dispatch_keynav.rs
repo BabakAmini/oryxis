@@ -655,6 +655,8 @@ impl Oryxis {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::Settings(SettingsMessage::ToggleHostListView),
             (View::Dashboard, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
+            (View::History, ToolbarItem::TagFilter) => Message::History(HistoryMessage::ShowHistoryTagFilterMenu),
+            (View::History, ToolbarItem::SearchContent) => Message::History(HistoryMessage::SearchContentToggled),
             (View::Dashboard, ToolbarItem::Sort) => Message::Navigation(NavigationMessage::ToggleSortMenu(SortMenuKind::Hosts)),
             (View::Dashboard, ToolbarItem::Primary) => Message::Editor(EditorMessage::ShowNewConnection),
             (View::Dashboard, ToolbarItem::PrimaryChevron) => Message::Cloud(CloudMessage::ShowCloudProviderPicker),
