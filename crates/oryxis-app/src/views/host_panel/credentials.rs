@@ -207,6 +207,8 @@ impl Oryxis {
         // the password field above. Telnet has no keyboard-interactive
         // second factor, so the reduced form hides it.
         if is_ssh {
+            // Same breathing room the password row gets above.
+            cred_items = cred_items.push(Space::new().height(8));
             let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
                 && !self.editor_form.totp_secret.touched()
             {
