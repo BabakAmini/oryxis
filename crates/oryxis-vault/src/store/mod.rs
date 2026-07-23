@@ -427,7 +427,7 @@ mod settings;
 mod snippets;
 mod sync;
 
-pub use logs::SealedSessionOutput;
+pub use logs::{SealedSessionOutput, CONTENT_SEARCH_MAX_SCAN_BYTES};
 
 #[cfg(test)]
 mod tests;

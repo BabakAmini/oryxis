@@ -140,6 +140,16 @@ impl Oryxis {
                             unlock_tasks.push(self.take_perf_mode_toast_task());
                             // Bring the ssh-agent up if the user left it on.
                             unlock_tasks.push(self.agent_boot_task());
+                            // The lock sweep dropped the History content-search
+                            // results (decrypted excerpts must not sit behind the
+                            // lock screen) but the chip and the typed query survive,
+                            // consistent with the soft-lock promise that state comes
+                            // back. Re-arm the debounced search here so an active
+                            // chip reflects live results again instead of rendering
+                            // active over nothing until the next keystroke.
+                            if self.history_search_content {
+                                unlock_tasks.push(self.history_content_debounce());
+                            }
                             // After a manual unlock, fire any deferred
                             // `--connect <uuid>` from the launch CLI args.
                             if let Some(connect_id) = self.pending_auto_connect.take()

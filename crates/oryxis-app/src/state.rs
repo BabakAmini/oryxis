@@ -460,6 +460,11 @@ pub(crate) struct HistoryContentSearch {
     /// Session logs still waiting for their output scan, drained one
     /// step at a time so results land incrementally.
     pub queue: Vec<Uuid>,
+    /// Matched sessions the search pulled into `Oryxis::session_logs`
+    /// from beyond the loaded page window (the search covers the
+    /// whole table; the timeline needs a row to light up). Dropped
+    /// from the list again when the results retire.
+    pub extra_logs: Vec<Uuid>,
     /// Output-scan progress: sessions scanned so far / total queued.
     pub scan_done: usize,
     pub scan_total: usize,

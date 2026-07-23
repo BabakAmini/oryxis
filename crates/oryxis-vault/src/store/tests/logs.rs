@@ -419,6 +419,81 @@ fn search_session_commands_finds_the_right_sessions() {
 
 
 #[test]
+fn scan_meta_covers_every_session_newest_first() {
+    // The content search builds its output-scan queue from this
+    // projection; it must walk the WHOLE table (the UI list is a
+    // 50-row page window) and mirror the timeline's ordering.
+    let vault = unlocked_vault();
+    let conn_a = Uuid::new_v4();
+    let conn_b = Uuid::new_v4();
+    let mut ids = Vec::new();
+    for i in 0..60 {
+        let log_id = Uuid::new_v4();
+        let conn = if i % 2 == 0 { conn_a } else { conn_b };
+        vault
+            .create_session_log(&log_id, &conn, &format!("host-{i}"))
+            .unwrap();
+        ids.push(log_id);
+    }
+    let meta = vault.list_session_log_scan_meta().unwrap();
+    assert_eq!(meta.len(), 60, "every recording, not one page");
+    let listed: std::collections::HashSet<Uuid> =
+        meta.iter().map(|(id, _, _)| *id).collect();
+    assert!(ids.iter().all(|id| listed.contains(id)));
+    // Same ordering contract as the paged listing (started_at desc):
+    // rows created in one burst share a second, so assert against the
+    // full listing instead of insertion order.
+    let full: Vec<Uuid> = vault
+        .list_session_logs()
+        .unwrap()
+        .into_iter()
+        .map(|e| e.id)
+        .collect();
+    assert_eq!(
+        meta.iter().map(|(id, _, _)| *id).collect::<Vec<_>>(),
+        full
+    );
+    // The projection carries what the queue filter needs.
+    let (_, conn, label) = meta
+        .iter()
+        .find(|(id, _, _)| *id == ids[0])
+        .unwrap()
+        .clone();
+    assert_eq!(conn, conn_a);
+    assert_eq!(label, "host-0");
+}
+
+
+#[test]
+fn get_session_log_fetches_one_row_or_none() {
+    // Single-row metadata fetch used to pull a matched session from
+    // beyond the UI's page window into the timeline. Same projection
+    // as the listing, including the aggregated data size.
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "host-a").unwrap();
+    vault.append_session_data(&log_id, b"some output\n", Some(0), false).unwrap();
+    vault.end_session_log(&log_id).unwrap();
+
+    let entry = vault.get_session_log(&log_id).unwrap().expect("row exists");
+    assert_eq!(entry.id, log_id);
+    assert_eq!(entry.connection_id, conn_id);
+    assert_eq!(entry.label, "host-a");
+    assert!(entry.ended_at.is_some());
+    let listed = vault
+        .list_session_logs()
+        .unwrap()
+        .into_iter()
+        .find(|e| e.id == log_id)
+        .unwrap();
+    assert_eq!(entry.data_size, listed.data_size);
+
+    assert!(vault.get_session_log(&Uuid::new_v4()).unwrap().is_none());
+}
+
+
+#[test]
 fn sealed_session_output_opens_off_handle_byte_identical() {
     let vault = unlocked_vault();
     let log_id = Uuid::new_v4();
@@ -438,4 +513,68 @@ fn sealed_session_output_opens_off_handle_byte_identical() {
     let mut expected = b"before ".to_vec();
     expected.extend_from_slice(&big);
     assert_eq!(opened, expected);
+}
+
+
+#[test]
+fn scan_bounded_output_stops_collecting_at_the_cap() {
+    // The content search's reader must never copy a runaway recording
+    // wholesale: sealed-chunk collection stops at the cap while the
+    // full reader (exports, viewer) stays byte-complete.
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "big-host").unwrap();
+    let chunk = vec![b'x'; 1024 * 1024];
+    for _ in 0..6 {
+        vault.append_session_data(&log_id, &chunk, None, false).unwrap();
+    }
+
+    let full = vault.get_session_data(&log_id).unwrap().unwrap();
+    assert_eq!(full.len(), 6 * 1024 * 1024, "full reader stays unbounded");
+
+    let scanned = vault.sealed_session_output_scan(&log_id).unwrap().open();
+    assert_eq!(
+        scanned.len(),
+        CONTENT_SEARCH_MAX_SCAN_BYTES,
+        "scan reader stops at the cap"
+    );
+    // What survives the cap is the stream's head, decrypted intact.
+    assert!(scanned.iter().all(|b| *b == b'x'));
+}
+
+
+#[test]
+fn scan_bounded_output_caps_inflation_of_compressed_chunks() {
+    // A deflated chunk is tiny at rest but can inflate far past the
+    // ciphertext bound the fetch applied, so the plaintext cap in
+    // open() must hold on its own.
+    let vault = unlocked_vault();
+    let log_id = Uuid::new_v4();
+    let conn_id = Uuid::new_v4();
+    vault.create_session_log(&log_id, &conn_id, "compressed-host").unwrap();
+    let huge = vec![b'y'; 8 * 1024 * 1024];
+    vault.append_session_data(&log_id, &huge, None, true).unwrap();
+    // Sanity: the chunk really was stored deflated (well under the
+    // scan cap at rest), otherwise this test exercises nothing.
+    let stored: i64 = vault
+        .db
+        .query_row(
+            "SELECT LENGTH(data) FROM session_log_chunks WHERE log_id = ?1",
+            params![log_id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!((stored as usize) < CONTENT_SEARCH_MAX_SCAN_BYTES);
+
+    let scanned = vault.sealed_session_output_scan(&log_id).unwrap().open();
+    assert_eq!(
+        scanned.len(),
+        CONTENT_SEARCH_MAX_SCAN_BYTES,
+        "inflated plaintext is truncated to the cap"
+    );
+    assert!(scanned.iter().all(|b| *b == b'y'));
+    // The unbounded readers still see the whole stream.
+    let full = vault.get_session_data(&log_id).unwrap().unwrap();
+    assert_eq!(full.len(), huge.len());
 }

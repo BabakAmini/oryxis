@@ -150,6 +150,14 @@ impl VaultStore {
     /// with no recorded sessions. Bounded by the per-host cap, so the
     /// full-table decrypt stays trivial. Rows that don't open (locked
     /// vault) are skipped like in [`Self::list_command_history`].
+    ///
+    /// Case-folding note: this tier (and `search_session_commands`)
+    /// matches with full Unicode `to_lowercase()`, while the app's
+    /// output tier (`content_match_snippet`) folds 1:1 per char so
+    /// its excerpt offsets stay aligned with the rendered text.
+    /// Needles with multi-char foldings (İ, ß) can therefore match
+    /// here but not there. Intentional divergence, documented at
+    /// both sites.
     pub fn search_command_history(
         &self,
         needle: &str,

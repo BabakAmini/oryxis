@@ -397,7 +397,21 @@ impl Oryxis {
                 if let TimelineKind::Session { entry, .. } = &row_data.kind {
                     nav_rows.push(vec![crate::keynav::NavItem::HistoryLog(entry.id)]);
                 }
-                let conn = conn_by_label.get(row_data.label).copied();
+                // Resolve the row's connection by ID whenever the row
+                // carries one (session rows always do): the label is a
+                // display string, so a renamed host would miss a
+                // label lookup and everything derived from `conn`,
+                // including the Privacy Mode mask over the decrypted
+                // content excerpt below, would silently fall back to
+                // the global default. Failure rows never recorded a
+                // connection id, so the label lookup remains their
+                // best effort (mirrors the tag filter above).
+                let conn = match &row_data.kind {
+                    TimelineKind::Session { entry, .. } => {
+                        conn_by_id.get(&entry.connection_id).copied()
+                    }
+                    TimelineKind::Failure(_) => conn_by_label.get(row_data.label).copied(),
+                };
                 // The content search knows WHY a session matched (the
                 // command line, or an output excerpt); surface it on
                 // the row so the hit is self-explanatory.
@@ -773,10 +787,11 @@ impl Oryxis {
 
         // Host badge through the shared host_icon helper so per-host
         // shape + accent color are honoured here too. `conn` is the
-        // connection matching the row's label, resolved by the caller
-        // through a map built once per view call; missing connections
-        // (host deleted but log row stays) fall back to the global
-        // accent.
+        // row's connection, resolved by the caller through maps built
+        // once per view call (by id for session rows, by label for
+        // failure rows, which never carried an id); missing
+        // connections (host deleted but log row stays) fall back to
+        // the global accent.
         let icon_style = crate::widgets::resolve_host_icon_style(
             conn.and_then(|c| c.icon_style.as_deref()),
             &self.setting_default_host_icon,

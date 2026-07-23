@@ -430,6 +430,19 @@ impl Oryxis {
                             .list_session_logs_page(self.session_logs_page * 50, 50)
                             .unwrap_or_default();
                     }
+                    // The window reload above dropped any rows the
+                    // content search had pulled in from beyond it;
+                    // re-attach the survivors (the deleted one falls
+                    // out of the results here too).
+                    self.history_reattach_extra_logs();
+                    // Its decrypted excerpt must not outlive the
+                    // recording in app state; a queued scan for it is
+                    // retired as done (the fetch would only error).
+                    self.history_content.log_matches.remove(&id);
+                    let hc = &mut self.history_content;
+                    let queued = hc.queue.len();
+                    hc.queue.retain(|q| *q != id);
+                    hc.scan_done += queued - hc.queue.len();
                 }
                 // Close viewer / player if we deleted the one being shown
                 if let Some(viewer) = &self.viewing_session_log
@@ -449,6 +462,10 @@ impl Oryxis {
                 }
                 self.viewing_session_log = None;
                 self.session_player = None;
+                // Same rationale as ClearLogs: the wipe pulled the
+                // recordings out from under any content-search
+                // results still pointing at them.
+                self.history_content_reset();
             }
             HistoryMessage::SessionLogsPageNext => {
                 let max_page = self.session_logs_total.saturating_sub(1) / 50;
@@ -513,6 +530,10 @@ impl Oryxis {
                 self.history_content.scanning = false;
                 if let Some(snippet) = snippet {
                     self.history_content.log_matches.insert(log_id, snippet);
+                    // The scan covers the whole table; a hit beyond
+                    // the loaded page window needs its row pulled in
+                    // for the timeline to render it.
+                    self.history_ensure_log_loaded(log_id);
                 }
                 return self.history_scan_step();
             }
@@ -589,9 +610,57 @@ impl Oryxis {
     /// Called on toggle-off, on a query too short to scan, on vault
     /// lock and on history wipes.
     pub(crate) fn history_content_reset(&mut self) {
+        // Timeline rows loaded from beyond the page window ride out
+        // with the results that justified them.
+        self.history_drop_extra_logs();
         let generation = self.history_content.generation + 1;
         self.history_content = Default::default();
         self.history_content.generation = generation;
+    }
+
+    /// Remove the timeline rows the content search pulled into
+    /// `session_logs` from beyond the loaded page window. Called
+    /// before a new search recomputes its matches (the new needle
+    /// doesn't necessarily match them) and from
+    /// `history_content_reset`.
+    fn history_drop_extra_logs(&mut self) {
+        if self.history_content.extra_logs.is_empty() {
+            return;
+        }
+        let extra = std::mem::take(&mut self.history_content.extra_logs);
+        self.session_logs.retain(|e| !extra.contains(&e.id));
+    }
+
+    /// Make sure a matched session has a row in `session_logs` for
+    /// the timeline to render: the content search covers the whole
+    /// table, so a hit can live beyond the loaded page window. Such
+    /// rows are fetched on demand and remembered in `extra_logs` so
+    /// `history_content_reset` drops them with the results. A row
+    /// deleted since the queue was built simply stays absent.
+    fn history_ensure_log_loaded(&mut self, log_id: uuid::Uuid) {
+        if self.session_logs.iter().any(|e| e.id == log_id) {
+            return;
+        }
+        let Some(vault) = &self.vault else {
+            return;
+        };
+        let Ok(Some(entry)) = vault.get_session_log(&log_id) else {
+            return;
+        };
+        self.session_logs.push(entry);
+        self.history_content.extra_logs.push(log_id);
+    }
+
+    /// Re-attach the content-search extra rows after `session_logs`
+    /// was reloaded from the page window (a delete steps the window
+    /// under them). Rows gone from the vault drop out of the results
+    /// here; rows the reload happened to pull inside the window stop
+    /// being tracked as extras.
+    fn history_reattach_extra_logs(&mut self) {
+        let extra = std::mem::take(&mut self.history_content.extra_logs);
+        for id in extra {
+            self.history_ensure_log_loaded(id);
+        }
     }
 
     /// Arm the content-search debounce for the current query: bump the
@@ -620,9 +689,17 @@ impl Oryxis {
     /// Run the cheap search tiers synchronously (typed-command records
     /// per session + per-host command history, tiny data), then queue
     /// the recorded-output scan for the sessions those tiers didn't
-    /// already answer and kick its first step.
+    /// already answer and kick its first step. Every tier covers the
+    /// WHOLE session-log table, not just the page of rows the UI has
+    /// loaded (`session_logs` holds a 50-row window): matched sessions
+    /// beyond the window are pulled in via `history_ensure_log_loaded`
+    /// so the timeline has a row to light up, and the scan queue /
+    /// "Scanning recordings X/Y" counter account for every recording.
     fn history_content_search_start(&mut self) -> Task<Message> {
         let needle = self.history_search.trim().to_lowercase();
+        // Rows a previous query pulled in don't necessarily match this
+        // one; drop them before recomputing.
+        self.history_drop_extra_logs();
         let Some(vault) = &self.vault else {
             return Task::none();
         };
@@ -630,27 +707,32 @@ impl Oryxis {
         let host_hits = vault.search_command_history(&needle).unwrap_or_default();
         let log_matches: std::collections::HashMap<uuid::Uuid, String> =
             cmd_hits.into_iter().collect();
-        // Skip sessions the command tier already matched and sessions
-        // the plain filter shows anyway (label/hostname carries the
-        // match): scanning them would only spend decrypt time to
-        // restate what is already visible.
+        // Walk every recording (same coverage as the command tier
+        // above). Sessions the command tier already matched and
+        // sessions the plain filter answers anyway (label/hostname
+        // carries the match) skip the output scan, scanning them would
+        // only spend decrypt time to restate the same hit, but both
+        // kinds still need their row loaded when they live beyond the
+        // page window; everything else queues for the output scan.
         let hostname_by_id: std::collections::HashMap<uuid::Uuid, &str> = self
             .connections
             .iter()
             .map(|c| (c.id, c.hostname.as_str()))
             .collect();
-        let queue: Vec<uuid::Uuid> = self
-            .session_logs
-            .iter()
-            .filter(|e| {
-                !log_matches.contains_key(&e.id)
-                    && !e.label.to_lowercase().contains(&needle)
-                    && !hostname_by_id
-                        .get(&e.connection_id)
-                        .is_some_and(|h| h.to_lowercase().contains(&needle))
-            })
-            .map(|e| e.id)
-            .collect();
+        let refs = vault.list_session_log_scan_meta().unwrap_or_default();
+        let mut queue: Vec<uuid::Uuid> = Vec::new();
+        let mut surfaced: Vec<uuid::Uuid> = Vec::new();
+        for (id, connection_id, label) in &refs {
+            let plain_hit = label.to_lowercase().contains(&needle)
+                || hostname_by_id
+                    .get(connection_id)
+                    .is_some_and(|h| h.to_lowercase().contains(&needle));
+            if log_matches.contains_key(id) || plain_hit {
+                surfaced.push(*id);
+            } else {
+                queue.push(*id);
+            }
+        }
         let hc = &mut self.history_content;
         hc.needle = needle;
         hc.log_matches = log_matches;
@@ -659,6 +741,9 @@ impl Oryxis {
         hc.scan_done = 0;
         hc.queue = queue;
         hc.scanning = false;
+        for id in surfaced {
+            self.history_ensure_log_loaded(id);
+        }
         self.history_scan_step()
     }
 
@@ -682,7 +767,11 @@ impl Oryxis {
                 self.history_content.queue.clear();
                 return Task::none();
             };
-            let sealed = match vault.sealed_session_output(&log_id) {
+            // Scan-bounded reader: caps how much of one recording is
+            // copied and decrypted, so a runaway session can't balloon
+            // a search step (exports and the viewer keep the unbounded
+            // reader).
+            let sealed = match vault.sealed_session_output_scan(&log_id) {
                 Ok(sealed) => sealed,
                 Err(_) => {
                     // Row deleted mid-scan: count it done and move on.
@@ -728,16 +817,27 @@ impl Oryxis {
 /// match: the matching line, windowed with ellipses when it is long.
 /// Case folding is per-char (1:1) so excerpt offsets stay aligned with
 /// the original text; multi-char foldings (ß → ss) would shift them.
+/// The vault command tiers fold with full Unicode `to_lowercase()`
+/// instead, so such needles can match there but not here; intentional
+/// divergence, documented at both sites (see
+/// `search_session_commands` / `search_command_history`).
 pub(crate) fn content_match_snippet(text: &str, needle: &str) -> Option<String> {
     fn lower1(c: char) -> char {
         c.to_lowercase().next().unwrap_or(c)
     }
+    // Per-line work bound: rendered grid lines are terminal-width
+    // short, but the raw fallback for lines the renderer passed
+    // through can be arbitrarily long and unbroken, and each line
+    // costs two Vec<char> allocations here. A match past the cap is
+    // missed, same best-effort contract as the vault-side scan cap
+    // (CONTENT_SEARCH_MAX_SCAN_BYTES).
+    const MAX_LINE_SCAN_CHARS: usize = 4096;
     let needle_chars: Vec<char> = needle.chars().map(lower1).collect();
     if needle_chars.is_empty() {
         return None;
     }
     for line in text.lines() {
-        let chars: Vec<char> = line.chars().collect();
+        let chars: Vec<char> = line.chars().take(MAX_LINE_SCAN_CHARS).collect();
         let lowered: Vec<char> = chars.iter().copied().map(lower1).collect();
         let Some(pos) = lowered
             .windows(needle_chars.len())

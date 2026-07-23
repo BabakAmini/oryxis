@@ -1,5 +1,19 @@
 use super::*;
 
+/// Upper bound on the bytes of ONE recording the History content
+/// search will pull into memory and scan. Applied on both ends:
+/// [`VaultStore::sealed_session_output_scan`] stops collecting sealed
+/// chunks past this many ciphertext bytes, and
+/// [`SealedSessionOutput::open`] caps the inflated plaintext at the
+/// same bound (deflated chunks can expand well past their stored
+/// size). 4 MiB covers virtually every real terminal session while
+/// keeping the worst case of a single scan step (full decrypt +
+/// inflate + ANSI render, re-run per settled search query) bounded
+/// even against a multi-hundred-MB runaway recording. A match beyond
+/// the cap is deliberately missed: the scan is best-effort, same
+/// contract as rows that don't unseal under a locked vault.
+pub const CONTENT_SEARCH_MAX_SCAN_BYTES: usize = 4 * 1024 * 1024;
+
 impl VaultStore {
     // -----------------------------------------------------------------------
     // Logs CRUD
@@ -297,6 +311,28 @@ impl VaultStore {
         Ok(())
     }
 
+    /// Shared row mapper for the session-log metadata projection
+    /// (`id, connection_id, label, started_at, ended_at, size`), used
+    /// by every query that returns `SessionLogEntry` rows.
+    fn map_session_log_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionLogEntry> {
+        Ok(SessionLogEntry {
+            id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
+            connection_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
+            label: row.get(2)?,
+            started_at: row
+                .get::<_, String>(3)
+                .ok()
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+                .map(|d| d.with_timezone(&Utc))
+                .unwrap_or_else(Utc::now),
+            ended_at: row
+                .get::<_, Option<String>>(4)?
+                .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
+                .map(|d| d.with_timezone(&Utc)),
+            data_size: row.get::<_, i64>(5).unwrap_or(0) as usize,
+        })
+    }
+
     /// List all session logs (metadata only, no data blob).
     pub fn list_session_logs(&self) -> Result<Vec<SessionLogEntry>, VaultError> {
         let mut stmt = self.db.prepare(
@@ -307,24 +343,7 @@ impl VaultStore {
              FROM session_logs ORDER BY started_at DESC",
         )?;
         let logs = stmt
-            .query_map([], |row| {
-                Ok(SessionLogEntry {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
-                    connection_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
-                    label: row.get(2)?,
-                    started_at: row
-                        .get::<_, String>(3)
-                        .ok()
-                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                        .map(|d| d.with_timezone(&Utc))
-                        .unwrap_or_else(Utc::now),
-                    ended_at: row
-                        .get::<_, Option<String>>(4)?
-                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                        .map(|d| d.with_timezone(&Utc)),
-                    data_size: row.get::<_, i64>(5).unwrap_or(0) as usize,
-                })
-            })?
+            .query_map([], Self::map_session_log_row)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(logs)
     }
@@ -344,26 +363,25 @@ impl VaultStore {
              FROM session_logs ORDER BY started_at DESC LIMIT ?1 OFFSET ?2",
         )?;
         let logs = stmt
-            .query_map(params![limit as i64, offset as i64], |row| {
-                Ok(SessionLogEntry {
-                    id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
-                    connection_id: Uuid::parse_str(&row.get::<_, String>(1)?).unwrap_or_default(),
-                    label: row.get(2)?,
-                    started_at: row
-                        .get::<_, String>(3)
-                        .ok()
-                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                        .map(|d| d.with_timezone(&Utc))
-                        .unwrap_or_else(Utc::now),
-                    ended_at: row
-                        .get::<_, Option<String>>(4)?
-                        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-                        .map(|d| d.with_timezone(&Utc)),
-                    data_size: row.get::<_, i64>(5).unwrap_or(0) as usize,
-                })
-            })?
+            .query_map(params![limit as i64, offset as i64], Self::map_session_log_row)?
             .collect::<Result<Vec<_>, _>>()?;
         Ok(logs)
+    }
+
+    /// One session log's metadata (same projection as
+    /// [`Self::list_session_logs`]), or `None` when the row is gone.
+    /// The History content search uses it to pull matched sessions
+    /// that live beyond the UI's loaded page window into the timeline.
+    pub fn get_session_log(&self, id: &Uuid) -> Result<Option<SessionLogEntry>, VaultError> {
+        let mut stmt = self.db.prepare(
+            "SELECT id, connection_id, label, started_at, ended_at,
+                    LENGTH(COALESCE(data, X'')) + COALESCE(
+                        (SELECT SUM(LENGTH(c.data)) FROM session_log_chunks c
+                         WHERE c.log_id = session_logs.id), 0)
+             FROM session_logs WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query_map(params![id.to_string()], Self::map_session_log_row)?;
+        Ok(rows.next().transpose()?)
     }
 
     /// Total number of session log rows.
@@ -429,6 +447,29 @@ impl VaultStore {
         &self,
         id: &Uuid,
     ) -> Result<SealedSessionOutput, VaultError> {
+        self.sealed_session_output_inner(id, None)
+    }
+
+    /// Scan-bounded variant of [`Self::sealed_session_output`] for the
+    /// History content search: collection stops once
+    /// [`CONTENT_SEARCH_MAX_SCAN_BYTES`] of sealed bytes are gathered
+    /// (bounding the RAM copy on the UI thread) and the bundle caps
+    /// its inflated plaintext at the same bound when opened, so one
+    /// oversized recording can never balloon a search step into
+    /// gigabytes. Matches past the cap are missed by design; exports
+    /// and the viewer keep using the unbounded reader.
+    pub fn sealed_session_output_scan(
+        &self,
+        id: &Uuid,
+    ) -> Result<SealedSessionOutput, VaultError> {
+        self.sealed_session_output_inner(id, Some(CONTENT_SEARCH_MAX_SCAN_BYTES))
+    }
+
+    fn sealed_session_output_inner(
+        &self,
+        id: &Uuid,
+        scan_cap: Option<usize>,
+    ) -> Result<SealedSessionOutput, VaultError> {
         let id_str = id.to_string();
         let legacy: Option<Vec<u8>> = self
             .db
@@ -438,6 +479,12 @@ impl VaultStore {
                 |row| row.get(0),
             )
             .map_err(|_| VaultError::NotFound(format!("Session log {}", id)))?;
+        let mut legacy = legacy.unwrap_or_default();
+        if let Some(cap) = scan_cap
+            && legacy.len() > cap
+        {
+            legacy.truncate(cap);
+        }
         // Output chunks only: resize events ('r') are timing metadata
         // for the asciicast export, not part of the byte stream.
         let mut stmt = self.db.prepare(
@@ -448,14 +495,65 @@ impl VaultStore {
             Ok((row.get::<_, Vec<u8>>(0)?, row.get::<_, i64>(1)?))
         })?;
         let mut chunks = Vec::new();
+        let mut collected = legacy.len();
         for row in rows {
-            chunks.push(row?);
+            let row = row?;
+            // Scan bound: stop copying ciphertext once the cap is
+            // reached (the tail of an oversized recording is simply
+            // not searched; noted at the constant).
+            if let Some(cap) = scan_cap
+                && collected >= cap
+            {
+                tracing::debug!(
+                    "content search: session {} exceeds the {} byte scan cap, tail skipped",
+                    id,
+                    cap,
+                );
+                break;
+            }
+            collected += row.0.len();
+            chunks.push(row);
         }
         Ok(SealedSessionOutput {
             key: self.session_log_key().ok().map(Zeroizing::new),
-            legacy: legacy.unwrap_or_default(),
+            legacy,
             chunks,
+            scan_cap,
         })
+    }
+
+    /// Lightweight projection of EVERY session log for the History
+    /// content search's output-scan queue: `(id, connection_id,
+    /// label)`, newest first. Unlike the paged listing this walks the
+    /// whole table but skips the per-row chunk-size aggregation, so a
+    /// complete scan queue stays a single cheap column read even when
+    /// the timeline UI only pages 50 rows at a time.
+    pub fn list_session_log_scan_meta(
+        &self,
+    ) -> Result<Vec<(Uuid, Uuid, String)>, VaultError> {
+        let mut stmt = self.db.prepare(
+            "SELECT id, connection_id, label FROM session_logs
+             ORDER BY started_at DESC",
+        )?;
+        let rows = stmt
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, conn, label)| {
+                (
+                    Uuid::parse_str(&id).unwrap_or_default(),
+                    Uuid::parse_str(&conn).unwrap_or_default(),
+                    label,
+                )
+            })
+            .collect())
     }
 
     /// Search the typed-command records (`kind = 'c'` chunks) of every
@@ -467,6 +565,14 @@ impl VaultStore {
     /// synchronously. Requires the vault to be unlocked; locked rows
     /// simply don't open and are skipped, mirroring
     /// [`Self::get_session_commands`].
+    ///
+    /// Case-folding note: this tier (and `search_command_history`)
+    /// matches with full Unicode `to_lowercase()`, while the app's
+    /// output tier (`content_match_snippet`) folds 1:1 per char so
+    /// its excerpt offsets stay aligned with the rendered text.
+    /// Needles with multi-char foldings (İ, ß) can therefore match
+    /// here but not there. Intentional divergence, documented at
+    /// both sites.
     pub fn search_session_commands(
         &self,
         needle: &str,
@@ -634,17 +740,28 @@ pub struct SealedSessionOutput {
     legacy: Vec<u8>,
     /// `(sealed data, comp flag)` per output chunk, append order.
     chunks: Vec<(Vec<u8>, i64)>,
+    /// Plaintext bound applied while opening
+    /// ([`CONTENT_SEARCH_MAX_SCAN_BYTES`] for scan bundles, `None`
+    /// for the full readers). Enforced here too because a deflated
+    /// chunk can inflate far past the ciphertext bound the fetch
+    /// already applied.
+    scan_cap: Option<usize>,
 }
 
 impl SealedSessionOutput {
     /// Open every chunk and return the concatenated output byte
-    /// stream, byte-identical to [`VaultStore::get_session_data`].
-    /// Chunks that don't unseal (locked vault, pre-encryption rows)
-    /// pass through as stored, mirroring the reader's best-effort
+    /// stream, byte-identical to [`VaultStore::get_session_data`]
+    /// (scan bundles stop at their plaintext cap instead). Chunks
+    /// that don't unseal (locked vault, pre-encryption rows) pass
+    /// through as stored, mirroring the reader's best-effort
     /// contract.
     pub fn open(self) -> Vec<u8> {
+        let cap = self.scan_cap.unwrap_or(usize::MAX);
         let mut buf = self.legacy;
         for (chunk, comp) in self.chunks {
+            if buf.len() >= cap {
+                break;
+            }
             let plain = match self
                 .key
                 .as_ref()
@@ -654,6 +771,11 @@ impl SealedSessionOutput {
                 None => chunk,
             };
             buf.extend_from_slice(&VaultStore::decode_chunk(plain, comp));
+        }
+        // Hard bound: the last decoded chunk may have inflated past
+        // the cap. No-op on full (uncapped) bundles.
+        if buf.len() > cap {
+            buf.truncate(cap);
         }
         buf
     }
