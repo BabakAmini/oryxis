@@ -1131,6 +1131,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "Sửa nhóm",
         "new_subgroup" => "Nhóm con mới",
+        "back" => "Quay lại",
         "group_icon_color" => "Biểu tượng & màu",
         "add_key_btn" => "+ Khóa",
         "port_forwarding" => "Chuyển tiếp cổng",

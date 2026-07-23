@@ -1137,6 +1137,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "פרודקשן, סטייג'ינג...",
         "edit_group" => "עריכת קבוצה",
         "new_subgroup" => "תת-קבוצה חדשה",
+        "back" => "חזרה",
         "group_icon_color" => "אייקון וצבע",
         "add_key_btn" => "+ מפתח",
         "port_forwarding" => "העברת פורטים",

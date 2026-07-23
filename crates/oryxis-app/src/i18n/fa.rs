@@ -1122,6 +1122,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "ویرایش گروه",
         "new_subgroup" => "زیرگروه جدید",
+        "back" => "بازگشت",
         "group_icon_color" => "نماد و رنگ",
         "add_key_btn" => "+ کلید",
         "port_forwarding" => "ارسال پورت",

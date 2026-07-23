@@ -1051,6 +1051,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production、Staging...",
         "edit_group" => "編輯群組",
         "new_subgroup" => "新增子群組",
+        "back" => "返回",
         "group_icon_color" => "圖示與顏色",
         "add_key_btn" => "+ 金鑰",
         "port_forwarding" => "連接埠轉送",

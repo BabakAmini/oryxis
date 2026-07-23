@@ -1137,6 +1137,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Παραγωγή, Staging...",
         "edit_group" => "Επεξεργασία ομάδας",
         "new_subgroup" => "Νέα υποομάδα",
+        "back" => "Πίσω",
         "group_icon_color" => "Εικονίδιο & χρώμα",
         "add_key_btn" => "+ Κλειδί",
         "port_forwarding" => "Προώθηση θυρών",

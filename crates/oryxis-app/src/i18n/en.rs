@@ -1138,6 +1138,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "Edit Group",
         "new_subgroup" => "New subgroup",
+        "back" => "Back",
         "group_icon_color" => "Icon & color",
         "add_key_btn" => "+ Key",
         "port_forwarding" => "Port Forwarding",

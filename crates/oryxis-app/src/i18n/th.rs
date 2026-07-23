@@ -1138,6 +1138,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "แก้ไขกลุ่ม",
         "new_subgroup" => "กลุ่มย่อยใหม่",
+        "back" => "ย้อนกลับ",
         "group_icon_color" => "ไอคอนและสี",
         "add_key_btn" => "+ คีย์",
         "port_forwarding" => "การส่งต่อพอร์ต",

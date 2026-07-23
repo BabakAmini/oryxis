@@ -1131,6 +1131,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "Grubu düzenle",
         "new_subgroup" => "Yeni alt grup",
+        "back" => "Geri",
         "group_icon_color" => "Simge ve renk",
         "add_key_btn" => "+ Anahtar",
         "port_forwarding" => "Port Yönlendirme",

@@ -1042,6 +1042,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "Изменить группу",
         "new_subgroup" => "Новая подгруппа",
+        "back" => "Назад",
         "group_icon_color" => "Значок и цвет",
         "add_key_btn" => "+ Ключ",
         "port_forwarding" => "Перенаправление портов",

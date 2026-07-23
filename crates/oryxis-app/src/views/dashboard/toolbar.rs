@@ -16,86 +16,66 @@ impl Oryxis {
     pub(super) fn dashboard_toolbar(&self) -> Element<'_, Message> {
         // ── Toolbar ──
         let toolbar_left: Element<'_, Message> = if let Some(gid) = self.active_group {
-            // Build the parent → child breadcrumb chain so a deeply
-            // nested view (root → prod-aws → tbl-sis-web ECS) shows
-            // both ancestors. Walk parent_id pointers up; cap at 5
-            // levels to keep the layout sane and break any cycles
-            // legacy data could carry.
-            let mut chain: Vec<&oryxis_core::models::group::Group> = Vec::new();
-            let mut cursor = Some(gid);
-            for _ in 0..5 {
-                let Some(id) = cursor else { break };
-                let Some(g) = self.groups.iter().find(|g| g.id == id) else { break };
-                chain.push(g);
-                cursor = g.parent_id;
-            }
-            chain.reverse();
-
-            // Leading crumb: just "Hosts" (no arrow, no "All"), styled
-            // to match the homepage Hosts header so the breadcrumb feels
-            // like a continuation of that title rather than a separate
-            // nav element. Accent color marks it as clickable; routes
-            // back to the root view.
-            // Zero padding on every crumb button so the clickable
-            // ancestors render at the same x footprint as the
-            // unstyled-text current crumb. Gaps between crumbs come
-            // from explicit `Space::new().width(...)` separators
-            // below, not from button chrome.
-            // No leading "Hosts"/home crumb: the top Home tab already
-            // returns to the root host list (it clears the active group),
-            // so a second home here was redundant. The breadcrumb starts
-            // straight at the folder path.
-            let mut crumbs: Vec<Element<'_, Message>> = Vec::new();
-            for (idx, g) in chain.iter().enumerate() {
-                let is_last = idx == chain.len() - 1;
-                // Separator only between crumbs, not before the first.
-                // Space on both sides so the "/" never glues to the
-                // preceding crumb under RTL (`dir_row` reverses the
-                // slice).
-                if idx > 0 {
-                    crumbs.push(Space::new().width(4).into());
-                    crumbs.push(text("/").size(20).color(OryxisColors::t().text_muted).into());
-                    crumbs.push(Space::new().width(8).into());
+            // Compact folder header: a back arrow (one level up, root
+            // when the folder is top-level) + folder glyph + the
+            // current group's label. Replaced the full breadcrumb
+            // chain (owner call 2026-07-23): with nested subgroups the
+            // chain ate the toolbar's width; the arrow covers the same
+            // navigation one hop at a time, SFTP-style.
+            let current = self.groups.iter().find(|g| g.id == gid);
+            let label = current.map(|g| g.label.clone()).unwrap_or_default();
+            // A dangling parent (deleted on another device) backs out
+            // to root, matching how the grid re-homes the subtree.
+            let parent = current
+                .and_then(|g| g.parent_id)
+                .filter(|pid| self.groups.iter().any(|g| g.id == *pid));
+            let back_msg = match parent {
+                Some(pid) => Message::Navigation(NavigationMessage::OpenGroup(pid)),
+                // Top level: ChangeView(Dashboard) clears the active
+                // group (the Home-tab path), landing on the root list.
+                None => Message::Navigation(NavigationMessage::ChangeView(
+                    crate::state::View::Dashboard,
+                )),
+            };
+            // Physical direction flips under RTL ("back" points at the
+            // trailing edge there).
+            let back_glyph = if crate::i18n::is_rtl_layout() {
+                iced_fonts::lucide::arrow_right()
+            } else {
+                iced_fonts::lucide::arrow_left()
+            };
+            let back_btn = button(
+                container(back_glyph.size(16).color(OryxisColors::t().text_primary))
+                    .center_x(Length::Fixed(28.0))
+                    .center_y(Length::Fixed(28.0)),
+            )
+            .on_press(back_msg)
+            .padding(0)
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                    BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(6.0), ..Default::default() },
+                    ..Default::default()
                 }
-                crumbs.push(
-                    iced_fonts::lucide::folder().size(18).color(OryxisColors::t().accent).into(),
-                );
-                crumbs.push(Space::new().width(6).into());
-                if is_last {
-                    // Current group, plain text, no nav action.
-                    crumbs.push(
-                        text(g.label.clone())
-                            .size(20)
-                            .wrapping(iced::widget::text::Wrapping::None)
-                            .color(OryxisColors::t().text_primary)
-                            .into(),
-                    );
-                } else {
-                    // Ancestor, clickable: navigates back up. Zero
-                    // padding mirrors the leading "Hosts" button and
-                    // the unstyled current-crumb text so the row's
-                    // glyph baseline stays consistent across mixed
-                    // clickable + non-clickable crumbs.
-                    let parent_id = g.id;
-                    crumbs.push(
-                        button(
-                            text(g.label.clone())
-                                .size(20)
-                                .wrapping(iced::widget::text::Wrapping::None)
-                                .color(OryxisColors::t().accent),
-                        )
-                        .on_press(Message::Navigation(NavigationMessage::OpenGroup(parent_id)))
-                        .padding(Padding::ZERO)
-                        .style(|_, _| button::Style {
-                            background: Some(Background::Color(Color::TRANSPARENT)),
-                            border: Border::default(),
-                            ..Default::default()
-                        })
-                        .into(),
-                    );
-                }
-            }
-            dir_row(crumbs).align_y(iced::Alignment::Center).into()
+            });
+            dir_row(vec![
+                crate::views::terminal::icon_tooltip(back_btn.into(), t("back")),
+                Space::new().width(8).into(),
+                iced_fonts::lucide::folder().size(18).color(OryxisColors::t().accent).into(),
+                Space::new().width(6).into(),
+                text(label)
+                    .size(20)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
         } else {
             // Title dropped (redundant with the section nav); the search
             // field fills this slot in the toolbar instead.

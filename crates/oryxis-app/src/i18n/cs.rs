@@ -1137,6 +1137,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Produkce, Staging...",
         "edit_group" => "Upravit skupinu",
         "new_subgroup" => "Nová podskupina",
+        "back" => "Zpět",
         "group_icon_color" => "Ikona a barva",
         "add_key_btn" => "+ Klíč",
         "port_forwarding" => "Přesměrování portů",
