@@ -854,6 +854,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "أدخل كلمة المرور المستخدمة عند التصدير",
         "expose_to_mcp" => "إظهار لـ MCP / الذكاء الاصطناعي",
         "forward_ssh_agent" => "إعادة توجيه SSH Agent",
+        "forward_x11" => "إعادة توجيه X11",
         "host_address_family" => "إصدار IP",
         "host_keepalive" => "Keepalive (تجاوز)",
         "host_keepalive_desc" => "فارغ يرث الإعداد العام. 0 يعطل keepalive على هذا المضيف.",

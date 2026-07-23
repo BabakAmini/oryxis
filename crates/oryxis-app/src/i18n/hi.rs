@@ -842,6 +842,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "एक्सपोर्ट करते समय उपयोग किया गया पासवर्ड डालें",
         "expose_to_mcp" => "MCP / AI को उपलब्ध कराएं",
         "forward_ssh_agent" => "SSH एजेंट फ़ॉरवर्ड करें",
+        "forward_x11" => "X11 फ़ॉरवर्ड करें",
         "host_address_family" => "IP वर्ज़न",
         "host_keepalive" => "कीपअलाइव (ओवरराइड)",
         "host_keepalive_desc" => "खाली रहने पर ग्लोबल सेटिंग लागू होती है। 0 इस होस्ट पर कीपअलाइव बंद करता है।",

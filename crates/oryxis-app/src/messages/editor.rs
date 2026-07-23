@@ -154,6 +154,7 @@ pub enum EditorMessage {
     EditorEnvVarKeyChanged(usize, String),
     EditorEnvVarValueChanged(usize, String),
     EditorToggleAgentForwarding,
+    EditorToggleX11Forwarding,
     EditorToggleMcpEnabled,
     /// SSH > Integration: flip the per-host agentless monitoring opt-in
     /// (issue #83).

@@ -690,6 +690,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Geben Sie das beim Export verwendete Passwort ein",
         "expose_to_mcp" => "Für MCP / KI freigeben",
         "forward_ssh_agent" => "SSH-Agent weiterleiten",
+        "forward_x11" => "X11 weiterleiten",
         "host_address_family" => "IP-Version",
         "host_keepalive" => "Keepalive (überschreiben)",
         "host_keepalive_desc" => "Leer übernimmt die globale Einstellung. 0 deaktiviert Keepalive auf diesem Host.",

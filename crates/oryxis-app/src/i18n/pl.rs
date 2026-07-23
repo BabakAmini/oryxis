@@ -842,6 +842,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Wprowadź hasło użyte podczas eksportu",
         "expose_to_mcp" => "Udostępnij dla MCP / AI",
         "forward_ssh_agent" => "Przekazuj agenta SSH",
+        "forward_x11" => "Przekazuj X11",
         "host_address_family" => "Wersja IP",
         "host_keepalive" => "Keepalive (nadpisanie)",
         "host_keepalive_desc" => "Puste dziedziczy ustawienie globalne. 0 wyłącza keepalive na tym hoście.",

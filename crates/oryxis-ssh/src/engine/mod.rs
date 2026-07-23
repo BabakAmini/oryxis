@@ -133,6 +133,12 @@ pub struct SshEngine {
     /// level `auth-agent-req@openssh.com` request *and* to
     /// `ClientHandler` so we only accept forward channels we asked for.
     agent_forwarding: bool,
+    /// Resolved local X11 endpoint, set when the host opted into X11
+    /// forwarding AND a local display was found. Resolved ONCE at
+    /// builder time so the fake cookie announced in `x11-req` is the
+    /// same one the per-channel bridge verifies. `None` = no `x11-req`
+    /// is sent and inbound X11 channels are refused.
+    x11: Option<Arc<crate::x11::X11Forwarding>>,
     /// Per-host environment variables sent via `set_env` before the shell
     /// starts. `(name, value)` pairs. Non-fatal: most `sshd` only accept
     /// `LC_*` / `LANG_*` unless `AcceptEnv` is widened.

@@ -17,6 +17,10 @@ base64 = { workspace = true }
 # Per-host terminal encoding: transcode PTY bytes <-> UTF-8 for non-UTF-8
 # charsets (Big5, Shift-JIS, CP437, ...). UTF-8 hosts skip it entirely.
 encoding_rs = "0.8"
+# X11 forwarding: `dirs` locates `~/.Xauthority`, `rand` mints the fake
+# MIT-MAGIC-COOKIE-1 announced to the remote in place of the real one.
+dirs = "6"
+rand = { workspace = true }
 
 # Enumerate the named-pipe namespace to discover Pageant/KeePassXC's
 # per-launch agent pipe (windows_agent_pipe). Windows-only.
@@ -29,9 +33,14 @@ windows-sys = { version = "0.59", features = [
 [dev-dependencies]
 # Build in-process certificates for the cert-auth unit tests via
 # ssh_key's Builder (rand 0.10 = the rand_core russh/ssh_key pull).
-rand = { version = "0.10", features = ["thread_rng"] }
+# Renamed because the crate's normal `rand` dep is 0.8 (X11 cookies),
+# mirroring the same split in oryxis-app.
+rand010 = { package = "rand", version = "0.10", features = ["thread_rng"] }
 # Spin up an ephemeral OpenSSH container per test for hermetic SFTP /
 # SSH integration coverage, no real credentials, no shared state, no
 # need for a running daemon on the dev machine.
 testcontainers = "0.27"
+# Surfaces the engine's own tracing in the live X11 test, where the log
+# is the only evidence of which forwarding branch was taken.
+tracing-subscriber = { workspace = true }
 tokio = { workspace = true, features = ["full", "test-util"] }

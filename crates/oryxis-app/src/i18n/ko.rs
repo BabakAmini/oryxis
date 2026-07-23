@@ -836,6 +836,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "내보낼 때 사용한 비밀번호를 입력하세요",
         "expose_to_mcp" => "MCP / AI에 노출",
         "forward_ssh_agent" => "SSH 에이전트 전달",
+        "forward_x11" => "X11 전달",
         "host_address_family" => "IP 버전",
         "host_keepalive" => "Keepalive (재정의)",
         "host_keepalive_desc" => "비워 두면 전역 설정을 상속합니다. 0이면 이 호스트의 keepalive를 비활성화합니다.",

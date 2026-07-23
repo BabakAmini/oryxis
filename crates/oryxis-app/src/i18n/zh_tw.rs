@@ -699,6 +699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "輸入匯出時使用的密碼",
         "expose_to_mcp" => "開放給 MCP / AI",
         "forward_ssh_agent" => "轉送 SSH 代理程式",
+        "forward_x11" => "轉送 X11",
         "host_address_family" => "IP 版本",
         "host_keepalive" => "心跳（覆寫）",
         "host_keepalive_desc" => "留空則繼承全域設定。填 0 可在此主機停用心跳。",

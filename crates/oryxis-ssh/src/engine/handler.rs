@@ -10,6 +10,14 @@ pub(crate) struct ClientHandler {
     /// inbound forward channels are rejected even if the server tries
     /// to open one.
     pub(crate) agent_forwarding: bool,
+    /// Resolved local X11 endpoint, mirroring `SshEngine::x11`. Doubles
+    /// as the gate on `server_channel_open_x11`: `None` means we never
+    /// sent an `x11-req`, so an inbound X11 channel is unsolicited.
+    pub(crate) x11: Option<std::sync::Arc<crate::x11::X11Forwarding>>,
+    /// Cancellation for in-flight X11 bridges. Never fired explicitly:
+    /// the bridges observe the sender being DROPPED along with this
+    /// handler, which is exactly session teardown.
+    pub(crate) x11_cancel: tokio::sync::watch::Sender<bool>,
     /// When there is no UI ask channel (e.g. a port forward auto-started
     /// at boot, before any terminal exists), an unknown host key is
     /// *rejected* rather than blindly TOFU-accepted. Lets a backgrounded
@@ -40,6 +48,8 @@ impl ClientHandler {
             host_key_check: None,
             host_key_ask_tx: None,
             agent_forwarding: false,
+            x11: None,
+            x11_cancel: tokio::sync::watch::channel(false).0,
             strict_host_key: false,
             forwarded_channel_sink: None,
             banner_tx: None,
@@ -131,6 +141,31 @@ impl client::Handler for ClientHandler {
                 tracing::warn!("agent-forward bridge ended: {e}");
             }
         });
+        Ok(())
+    }
+
+    async fn server_channel_open_x11(
+        &mut self,
+        channel: russh::Channel<russh::client::Msg>,
+        originator_address: &str,
+        originator_port: u32,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        // One channel per X client the user launches on the remote host.
+        match &self.x11 {
+            Some(cfg) => cfg.spawn_bridge(channel, self.x11_cancel.subscribe()),
+            None => {
+                // We never sent an `x11-req`, so nothing legitimate can
+                // be opening this. Dropping the channel closes it.
+                tracing::warn!(
+                    "rejecting unsolicited X11 channel from {}:{} ({}:{})",
+                    self.hostname,
+                    self.port,
+                    originator_address,
+                    originator_port
+                );
+            }
+        }
         Ok(())
     }
 

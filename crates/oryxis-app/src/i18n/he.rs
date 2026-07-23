@@ -842,6 +842,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "הזינו את הסיסמה ששימשה בייצוא",
         "expose_to_mcp" => "חשיפה ל-MCP / AI",
         "forward_ssh_agent" => "העברת סוכן SSH",
+        "forward_x11" => "העברת X11",
         "host_address_family" => "גרסת IP",
         "host_keepalive" => "Keepalive (דריסה)",
         "host_keepalive_desc" => "ריק יורש את ההגדרה הגלובלית. 0 משבית keepalive במארח הזה.",

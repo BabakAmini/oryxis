@@ -100,6 +100,7 @@ impl Oryxis {
         let row_auth_method = self.hp_row_auth_method(is_ssh);
         let ssh_key_row = self.hp_ssh_key_row(is_ssh);
         let row_agent_fwd = self.hp_row_agent_fwd(is_ssh);
+        let row_x11_fwd = self.hp_row_x11_fwd(is_ssh);
         let row_chaining = self.hp_row_chaining(is_ssh);
         let proxy_rows: Element<'_, Message> = if is_ssh {
             self.build_proxy_rows().into()
@@ -248,6 +249,7 @@ impl Oryxis {
                 ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(k);
             }
             ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_agent_fwd);
+            ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_x11_fwd);
             // Network subgroup.
             ssh_col = ssh_col
                 .push(group_sep())

@@ -189,6 +189,9 @@ pub(crate) struct ConnectionForm {
     /// Forward the local ssh-agent socket to the remote shell. See the
     /// matching field on `Connection`.
     pub agent_forwarding: bool,
+    /// Forward X11 so remote GUI apps draw on the local display. See the
+    /// matching field on `Connection`.
+    pub x11_forwarding: bool,
     /// Per-host session-recording override. `None` follows the global
     /// setting; `Some(true)`/`Some(false)` force on/off. See the matching
     /// field on `Connection`.
@@ -930,6 +933,7 @@ impl Default for ConnectionForm {
             mcp_enabled: true,
             monitor_enabled: false,
             agent_forwarding: false,
+            x11_forwarding: false,
             session_logging: None,
             proxy_kind: ProxyKind::None,
             proxy_host: String::new(),

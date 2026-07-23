@@ -836,6 +836,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Введіть пароль, використаний під час експорту",
         "expose_to_mcp" => "Надати доступ для MCP / ШІ",
         "forward_ssh_agent" => "Прокидати SSH-агента",
+        "forward_x11" => "Прокидати X11",
         "host_address_family" => "Версія IP",
         "host_keepalive" => "Keepalive (перевизначення)",
         "host_keepalive_desc" => "Порожнє значення успадковує глобальне налаштування. 0 вимикає keepalive на цьому хості.",

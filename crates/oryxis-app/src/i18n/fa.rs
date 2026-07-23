@@ -838,6 +838,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "گذرواژه‌ای که هنگام خروجی استفاده شده را وارد کنید",
         "expose_to_mcp" => "نمایش به MCP / هوش مصنوعی",
         "forward_ssh_agent" => "ارسال SSH Agent",
+        "forward_x11" => "ارسال X11",
         "host_address_family" => "نسخه IP",
         "host_keepalive" => "Keepalive (لغو)",
         "host_keepalive_desc" => "خالی از تنظیم سراسری ارث می‌برد. 0 keepalive را در این میزبان غیرفعال می‌کند.",

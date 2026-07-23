@@ -836,6 +836,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Nhập mật khẩu đã dùng khi xuất",
         "expose_to_mcp" => "Hiển thị cho MCP / AI",
         "forward_ssh_agent" => "Chuyển tiếp SSH Agent",
+        "forward_x11" => "Chuyển tiếp X11",
         "host_address_family" => "Phiên bản IP",
         "host_keepalive" => "Keepalive (ghi đè)",
         "host_keepalive_desc" => "Để trống sẽ kế thừa cài đặt toàn cục. 0 tắt keepalive trên máy chủ này.",

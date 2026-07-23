@@ -843,6 +843,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "ป้อนรหัสผ่านที่ใช้ตอนส่งออก",
         "expose_to_mcp" => "เปิดให้ MCP / AI เข้าถึง",
         "forward_ssh_agent" => "ส่งต่อ SSH Agent",
+        "forward_x11" => "ส่งต่อ X11",
         "host_address_family" => "เวอร์ชัน IP",
         "host_keepalive" => "Keepalive (แทนที่ค่า)",
         "host_keepalive_desc" => "เว้นว่างเพื่อสืบทอดค่าส่วนกลาง 0 ปิด keepalive สำหรับโฮสต์นี้",

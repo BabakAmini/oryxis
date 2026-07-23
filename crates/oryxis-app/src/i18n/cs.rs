@@ -842,6 +842,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Zadejte heslo použité při exportu",
         "expose_to_mcp" => "Zpřístupnit pro MCP / AI",
         "forward_ssh_agent" => "Předávat SSH agenta",
+        "forward_x11" => "Předávat X11",
         "host_address_family" => "Verze IP",
         "host_keepalive" => "Keepalive (přepsání)",
         "host_keepalive_desc" => "Prázdné dědí globální nastavení. 0 vypne keepalive pro tohoto hostitele.",

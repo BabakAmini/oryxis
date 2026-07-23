@@ -109,6 +109,19 @@ pub struct Connection {
     /// `ssh hostB` from inside hostA without staging keys remotely.
     #[serde(default)]
     pub agent_forwarding: bool,
+    /// Forward X11 (OpenSSH's `ForwardX11` / `-Y`). When enabled we send
+    /// an `x11-req` before the shell starts; sshd then exports `DISPLAY`
+    /// on the remote and opens an X11 channel back to us for every GUI
+    /// app launched there, which we bridge to the local X server.
+    ///
+    /// Trusted mode: untrusted forwarding relies on the X SECURITY
+    /// extension, which denies the pointer/keyboard grabs Java toolkits
+    /// need, so enterprise GUIs fail to start under it.
+    ///
+    /// `#[serde(default)]` so payloads written before this field (sync
+    /// peers, older exports) still deserialize.
+    #[serde(default)]
+    pub x11_forwarding: bool,
     /// Opt-in agentless resource monitoring for this host (issue #83):
     /// the terminal sidebar's Monitor tab polls `/proc` over the live
     /// session. Off by default, unlike `mcp_enabled`: monitoring costs a
@@ -262,6 +275,7 @@ impl Connection {
             custom_icon: None,
             custom_color: None,
             agent_forwarding: false,
+            x11_forwarding: false,
             monitor_enabled: false,
             terminal_theme: None,
             cloud_ref: None,
@@ -541,6 +555,19 @@ mod tests {
         value.as_object_mut().unwrap().remove("monitor_enabled");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert!(!de.monitor_enabled);
+    }
+
+    /// Same contract for X11 forwarding: a sync peer or export written
+    /// before the field existed carries no `x11_forwarding` key, and it
+    /// must land OFF. Defaulting it on would silently start exposing
+    /// the local display to every previously-saved host.
+    #[test]
+    fn x11_forwarding_legacy_payload_defaults_to_false() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("x11_forwarding");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert!(!de.x11_forwarding);
     }
 
     /// Same contract for the protocol selector: a payload written

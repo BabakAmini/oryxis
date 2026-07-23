@@ -361,6 +361,12 @@ impl Oryxis {
             self.monitor_reset_host(&conn.id);
         }
         conn.agent_forwarding = self.editor_form.agent_forwarding;
+        // Same SSH clamp as `mcp_enabled` / `monitor_enabled`: `x11-req`
+        // is an SSH channel request, so a host switched to Telnet /
+        // serial / remote-desktop can't keep the flag set.
+        conn.x11_forwarding = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && self.editor_form.x11_forwarding;
         conn.session_logging = self.editor_form.session_logging;
         conn.terminal_theme = self.editor_form.terminal_theme.clone();
         conn.icon_style = self.editor_form.icon_style.clone();
@@ -532,6 +538,7 @@ impl Oryxis {
             mcp_enabled: conn.mcp_enabled,
             monitor_enabled: conn.monitor_enabled,
             agent_forwarding: conn.agent_forwarding,
+            x11_forwarding: conn.x11_forwarding,
             session_logging: conn.session_logging,
             // Saved-identity reference takes precedence over
             // an inline proxy when both are populated, mirroring
@@ -604,6 +611,9 @@ impl Oryxis {
             }
             EditorMessage::EditorToggleAgentForwarding => {
                 self.editor_form.agent_forwarding = !self.editor_form.agent_forwarding;
+            }
+            EditorMessage::EditorToggleX11Forwarding => {
+                self.editor_form.x11_forwarding = !self.editor_form.x11_forwarding;
             }
             // Cycle the per-host recording override: Default (inherit the
             // global setting) -> On -> Off -> Default.
@@ -1333,6 +1343,7 @@ impl Oryxis {
                     dup.notes = conn.notes.clone();
                     dup.color = conn.color.clone();
                     dup.agent_forwarding = conn.agent_forwarding;
+                    dup.x11_forwarding = conn.x11_forwarding;
                     if let Some(vault) = &self.vault {
                         // Copy password and proxy password to the duplicate.
                         let pw = vault.get_connection_password(&conn.id).ok().flatten();

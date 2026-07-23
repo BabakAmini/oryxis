@@ -31,6 +31,11 @@ pub struct SshConfigHost {
     /// `ForwardAgent` directive, only `yes` flips it on; missing /
     /// `no` / anything else stays off, matching OpenSSH's default.
     pub forward_agent: bool,
+    /// `ForwardX11` / `ForwardX11Trusted` directives. Either one set to
+    /// `yes` flips it on: we only implement trusted forwarding, so a host
+    /// asking for plain `ForwardX11` gets the mode that actually runs the
+    /// GUI toolkits people forward X11 for.
+    pub forward_x11: bool,
     /// `AddressFamily` directive: `inet` -> IPv4-only, `inet6` ->
     /// IPv6-only; `any`, missing, or anything else stays Auto
     /// (OpenSSH's own default is `any`).
@@ -89,6 +94,12 @@ pub fn parse(text: &str) -> Vec<SshConfigHost> {
             }
             "proxycommand" => host.proxy_command = Some(value.to_string()),
             "forwardagent" => host.forward_agent = value.eq_ignore_ascii_case("yes"),
+            // `|=`: whichever of the two directives says `yes` wins, in
+            // any order, so `ForwardX11 yes` + `ForwardX11Trusted no`
+            // still imports as enabled.
+            "forwardx11" | "forwardx11trusted" => {
+                host.forward_x11 |= value.eq_ignore_ascii_case("yes")
+            }
             "addressfamily" => {
                 use oryxis_core::models::connection::AddressFamily;
                 host.address_family = if value.eq_ignore_ascii_case("inet") {
@@ -136,6 +147,7 @@ pub fn to_connection(host: &SshConfigHost) -> Connection {
         AuthMethod::Auto
     };
     conn.agent_forwarding = host.forward_agent;
+    conn.x11_forwarding = host.forward_x11;
     conn.address_family = host.address_family;
     // ProxyCommand maps directly to our typed `Command(cmd)` proxy.
     // Linking a ProxyJump alias to an actual jump-host UUID happens in

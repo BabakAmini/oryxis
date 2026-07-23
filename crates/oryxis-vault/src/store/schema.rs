@@ -347,6 +347,9 @@ impl VaultStore {
         // sidebar on connect (NULL = follow the global setting).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sidebar_auto_open INTEGER;");
 
+        // Per-host X11 forwarding (OpenSSH `ForwardX11`), off by default.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN x11_forwarding INTEGER DEFAULT 0;");
+
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");
         let _ = self.db.execute_batch("UPDATE groups SET created_at = datetime('now'), updated_at = datetime('now') WHERE created_at IS NULL;");

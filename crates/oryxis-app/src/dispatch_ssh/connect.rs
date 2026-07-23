@@ -409,6 +409,7 @@ impl Oryxis {
                 let address_family = conn.address_family;
                 let rekey_limit_mb = conn.rekey_limit_mb;
                 let agent_forwarding = conn.agent_forwarding;
+                let x11_forwarding = conn.x11_forwarding;
                 let env_vars: Vec<(String, String)> = conn
                     .env_vars
                     .iter()
@@ -546,6 +547,7 @@ impl Oryxis {
                             .with_address_family(address_family)
                             .with_rekey_limit_mb(rekey_limit_mb)
                             .with_agent_forwarding(agent_forwarding)
+                            .with_x11_forwarding(x11_forwarding)
                             .with_env_vars(env_vars)
                             .with_encoding(encoding)
                             .with_terminal_type(terminal_type)
@@ -1147,6 +1149,7 @@ impl Oryxis {
         // vars and a custom encoding must ride the session too, otherwise a
         // split pane (or an in-place reconnect) silently drops them.
         let agent_forwarding = conn.agent_forwarding;
+        let x11_forwarding = conn.x11_forwarding;
         let env_vars: Vec<(String, String)> = conn
             .env_vars
             .iter()
@@ -1229,6 +1232,7 @@ impl Oryxis {
                 .with_address_family(address_family)
                 .with_rekey_limit_mb(rekey_limit_mb)
                 .with_agent_forwarding(agent_forwarding)
+                .with_x11_forwarding(x11_forwarding)
                 .with_env_vars(env_vars)
                 .with_encoding(encoding)
                 .with_terminal_type(terminal_type)

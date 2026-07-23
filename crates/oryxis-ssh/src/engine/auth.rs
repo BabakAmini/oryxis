@@ -848,9 +848,9 @@ mod cert_tests {
     /// A CA-signed user certificate for `user_key`, valid across `now`,
     /// as its OpenSSH public line.
     fn make_cert(user_key: &PrivateKey, valid_before: u64) -> String {
-        let ca = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let ca = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
         let mut builder = certificate::Builder::new_with_random_nonce(
-            &mut rand::rng(),
+            &mut rand010::rng(),
             user_key.public_key(),
             0, // valid_after: the beginning of time
             valid_before,
@@ -865,7 +865,7 @@ mod cert_tests {
 
     #[test]
     fn matching_cert_is_offered() {
-        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let key = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
         let cert = make_cert(&key, 4_000_000_000); // far future
         match check_certificate(&cert, &key, 1_700_000_000) {
             CertCheck::Offer { expired, .. } => assert!(!expired),
@@ -875,7 +875,7 @@ mod cert_tests {
 
     #[test]
     fn expired_cert_is_still_offered_flagged() {
-        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let key = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
         let cert = make_cert(&key, 1_000); // long past
         match check_certificate(&cert, &key, 1_700_000_000) {
             CertCheck::Offer { expired, .. } => assert!(expired, "should flag expiry"),
@@ -885,8 +885,8 @@ mod cert_tests {
 
     #[test]
     fn cert_for_another_key_is_unusable() {
-        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
-        let other = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let key = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
+        let other = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
         let cert = make_cert(&other, 4_000_000_000); // certifies `other`, not `key`
         assert!(matches!(
             check_certificate(&cert, &key, 1_700_000_000),
@@ -896,7 +896,7 @@ mod cert_tests {
 
     #[test]
     fn garbage_cert_line_is_unusable() {
-        let key = PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519).unwrap();
+        let key = PrivateKey::random(&mut rand010::rng(), Algorithm::Ed25519).unwrap();
         assert!(matches!(
             check_certificate("not a certificate", &key, 0),
             CertCheck::Unusable(_)

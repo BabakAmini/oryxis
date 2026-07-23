@@ -16,6 +16,7 @@ impl SshEngine {
             auth_timeout: std::time::Duration::from_secs(30),
             session_timeout: std::time::Duration::from_secs(10),
             agent_forwarding: false,
+            x11: None,
             env_vars: Vec::new(),
             encoding: None,
             terminal_type: None,
@@ -144,6 +145,35 @@ impl SshEngine {
     /// the shell starts on the next session opened on this engine.
     pub fn with_env_vars(mut self, vars: Vec<(String, String)>) -> Self {
         self.env_vars = vars;
+        self
+    }
+
+    /// Enable X11 forwarding for the next session opened on this engine.
+    ///
+    /// The local display is resolved HERE, not per channel, so the fake
+    /// cookie announced to the remote is the exact one the bridge later
+    /// verifies. A missing local display disables forwarding with a
+    /// warning instead of failing the connect: the same saved host may
+    /// also be opened from a headless machine, and losing the shell over
+    /// an unavailable GUI feature would be the wrong trade.
+    pub fn with_x11_forwarding(mut self, enabled: bool) -> Self {
+        self.x11 = if enabled {
+            match crate::x11::X11Forwarding::resolve() {
+                Some(f) => {
+                    tracing::info!("X11 forwarding enabled, local display {}", f.describe());
+                    Some(Arc::new(f))
+                }
+                None => {
+                    tracing::warn!(
+                        "X11 forwarding requested but no local display was found \
+                         (set DISPLAY, or start an X server); continuing without it"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
         self
     }
 
@@ -331,6 +361,11 @@ impl SshEngine {
             host_key_check: self.host_key_check.clone(),
             host_key_ask_tx: self.host_key_ask_tx.clone(),
             agent_forwarding: self.agent_forwarding,
+            x11: self.x11.clone(),
+            // Held by the handler: dropping it (i.e. tearing the session
+            // down) cancels every X11 bridge still pumping, so a closed
+            // tab can't leave a live socket to the local X server.
+            x11_cancel: tokio::sync::watch::channel(false).0,
             strict_host_key: self.strict_host_key,
             forwarded_channel_sink: self.forwarded_channel_sink.clone(),
             banner_tx: self.banner_tx.clone(),

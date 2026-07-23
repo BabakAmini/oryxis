@@ -811,6 +811,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Digite a senha usada na exportação",
         "expose_to_mcp" => "Expor ao MCP / IA",
         "forward_ssh_agent" => "Encaminhar SSH Agent",
+        "forward_x11" => "Encaminhar X11",
         "host_address_family" => "Versão de IP",
         "host_keepalive" => "Keepalive (sobrescrever)",
         "host_keepalive_desc" => "Vazio herda do global. 0 desativa keepalive neste host.",

@@ -836,6 +836,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Masukkan kata sandi yang dipakai saat mengekspor",
         "expose_to_mcp" => "Ekspos ke MCP / AI",
         "forward_ssh_agent" => "Teruskan SSH Agent",
+        "forward_x11" => "Teruskan X11",
         "host_address_family" => "Versi IP",
         "host_keepalive" => "Keepalive (timpa)",
         "host_keepalive_desc" => "Kosong mewarisi pengaturan global. 0 menonaktifkan keepalive di host ini.",

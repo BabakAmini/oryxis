@@ -699,6 +699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Entrez le mot de passe utilisé lors de l'exportation",
         "expose_to_mcp" => "Exposer au MCP / IA",
         "forward_ssh_agent" => "Transférer SSH Agent",
+        "forward_x11" => "Transférer X11",
         "host_address_family" => "Version IP",
         "host_keepalive" => "Keepalive (remplacer)",
         "host_keepalive_desc" => "Vide hérite du paramètre global. 0 désactive le keepalive sur cet hôte.",

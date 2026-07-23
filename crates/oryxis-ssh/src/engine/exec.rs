@@ -118,6 +118,36 @@ impl SshEngine {
             tracing::warn!("agent_forward request failed (non-fatal): {}", e);
         }
 
+        // Optional X11 forwarding, under the same ordering rule as
+        // `agent_forward`: sshd only exports `DISPLAY` into the launched
+        // process if the request arrived before the shell started.
+        //
+        // The cookie goes out as lower-case HEX, and it is the FAKE one
+        // (see `x11::spoof`) so the real display cookie never lands in
+        // the remote `.Xauthority`. Non-fatal, a server with
+        // `X11Forwarding no` should still yield a working shell.
+        if let Some(x11) = &self.x11 {
+            let (proto, cookie) = x11.request_args();
+            // `single_connection = false`: a desktop session opens one
+            // X11 channel per client, not one per session.
+            //
+            // Sent WITHOUT `want_reply`, like `agent_forward`: awaiting
+            // the reply here would mean reading the channel before
+            // `request_shell`, and a server that never answers would
+            // hang the connect. The cost is that a server-side refusal
+            // (`X11Forwarding no`, missing `xauth` binary) is silent,
+            // and the user only sees "cannot open display" on the
+            // remote. This log is therefore the only local evidence
+            // that the request went out at all.
+            tracing::info!("requesting X11 forwarding for {}", x11.describe());
+            if let Err(e) = channel
+                .request_x11(false, false, proto, cookie, x11.screen)
+                .await
+            {
+                tracing::warn!("x11-req failed (non-fatal): {}", e);
+            }
+        }
+
         // Per-host environment variables. Sent before `request_shell` so
         // the server can apply them to the launched process. Non-fatal:
         // most `sshd` reject anything outside `AcceptEnv` (LC_*/LANG_* by

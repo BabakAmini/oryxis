@@ -293,4 +293,42 @@ impl Oryxis {
         };
         row_agent_fwd
     }
+
+    pub(super) fn hp_row_x11_fwd(&self, is_ssh: bool) -> Element<'_, Message> {
+        // X11 forwarding (SSH > Authentication), directly under agent
+        // forwarding: both are channel requests sent before the shell
+        // starts, and users look for them together.
+        let row_x11_fwd: Element<'_, Message> = if is_ssh {
+            self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorToggleX11Forwarding)),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::monitor().size(14).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    text(t("forward_x11")).size(13).color(OryxisColors::t().text_secondary).into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let on = self.editor_form.x11_forwarding;
+                        let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") }).size(12).color(fg))
+                            .on_press(Message::Editor(EditorMessage::EditorToggleX11Forwarding))
+                            .style(move |_theme, _status| button::Style {
+                                background: Some(Background::Color(bg)),
+                                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                                text_color: fg,
+                                ..Default::default()
+                            })
+                            .into()
+                    },
+                ]).align_y(iced::Alignment::Center)
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
+            )
+        } else {
+            empty()
+        };
+        row_x11_fwd
+    }
 }

@@ -5839,9 +5839,11 @@ name = "oryxis-ssh"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
+ "dirs",
  "encoding_rs",
  "oryxis-core",
  "rand 0.10.1",
+ "rand 0.8.6",
  "russh",
  "russh-sftp",
  "testcontainers",
@@ -5849,6 +5851,7 @@ dependencies = [
  "tokio",
  "tokio-socks",
  "tracing",
+ "tracing-subscriber",
  "uuid",
  "windows-sys 0.59.0",
 ]

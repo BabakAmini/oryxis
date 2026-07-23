@@ -145,6 +145,7 @@ fn proxy_command_maps_to_command_proxy_type() {
         proxy_jump: None,
         proxy_command: Some("nc -X connect -x corp:8080 %h %p".into()),
         forward_agent: false,
+        forward_x11: false,
         address_family: Default::default(),
     };
     let conn = to_connection(&host);
@@ -221,6 +222,45 @@ Host explicit-no
     // Round-trip onto Connection, flag should propagate.
     let conn = to_connection(by_alias("with-fwd"));
     assert!(conn.agent_forwarding);
+}
+
+#[test]
+fn imports_forward_x11_directives() {
+    // Both spellings enable it; we only implement trusted forwarding,
+    // so plain `ForwardX11` maps onto the same flag.
+    let input = "
+Host plain
+    HostName a.example.com
+    ForwardX11 yes
+
+Host trusted
+    HostName b.example.com
+    ForwardX11Trusted yes
+
+Host mixed
+    HostName c.example.com
+    ForwardX11 yes
+    ForwardX11Trusted no
+
+Host off
+    HostName d.example.com
+    ForwardX11 no
+
+Host silent
+    HostName e.example.com
+";
+    let hosts = parse(input);
+    let by_alias = |a: &str| hosts.iter().find(|h| h.alias == a).unwrap();
+    assert!(by_alias("plain").forward_x11);
+    assert!(by_alias("trusted").forward_x11);
+    // `|=` semantics: an explicit `no` on the OTHER directive must not
+    // cancel a `yes`, in either order.
+    assert!(by_alias("mixed").forward_x11);
+    assert!(!by_alias("off").forward_x11);
+    assert!(!by_alias("silent").forward_x11);
+    // Round-trip onto Connection, flag should propagate.
+    assert!(to_connection(by_alias("plain")).x11_forwarding);
+    assert!(!to_connection(by_alias("silent")).x11_forwarding);
 }
 
 #[test]
@@ -340,6 +380,7 @@ proptest! {
             proxy_jump: None,
             proxy_command: None,
             forward_agent: false,
+            forward_x11: false,
             address_family: Default::default(),
         };
         let conn = to_connection(&host);

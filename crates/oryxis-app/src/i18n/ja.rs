@@ -699,6 +699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "エクスポート時に使用したパスワードを入力",
         "expose_to_mcp" => "MCP / AIに公開",
         "forward_ssh_agent" => "SSHエージェント転送",
+        "forward_x11" => "X11転送",
         "host_address_family" => "IPバージョン",
         "host_keepalive" => "キープアライブ（上書き）",
         "host_keepalive_desc" => "空白でグローバル設定を継承。0 でこのホストのキープアライブを無効化。",

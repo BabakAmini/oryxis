@@ -836,6 +836,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Dışa aktarırken kullanılan parolayı girin",
         "expose_to_mcp" => "MCP / Yapay Zekaya Aç",
         "forward_ssh_agent" => "SSH Agent'ı Yönlendir",
+        "forward_x11" => "X11'i Yönlendir",
         "host_address_family" => "IP sürümü",
         "host_keepalive" => "Keepalive (geçersiz kıl)",
         "host_keepalive_desc" => "Boş bırakmak genel ayarı devralır. 0 bu sunucuda keepalive'i devre dışı bırakır.",

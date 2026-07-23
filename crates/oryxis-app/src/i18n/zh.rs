@@ -699,6 +699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "输入导出时使用的密码",
         "expose_to_mcp" => "暴露给 MCP / AI",
         "forward_ssh_agent" => "转发 SSH 代理",
+        "forward_x11" => "转发 X11",
         "host_address_family" => "IP 版本",
         "host_keepalive" => "心跳（覆盖）",
         "host_keepalive_desc" => "留空继承全局设置。填 0 在此主机禁用心跳。",

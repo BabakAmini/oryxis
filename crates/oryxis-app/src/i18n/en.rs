@@ -843,6 +843,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "import_password_hint" => "Enter the password used when exporting",
         "expose_to_mcp" => "Expose to MCP / AI",
         "forward_ssh_agent" => "Forward SSH Agent",
+        "forward_x11" => "Forward X11",
         "host_address_family" => "IP version",
         "host_keepalive" => "Keepalive (override)",
         "host_keepalive_desc" => "Empty inherits the global setting. 0 disables keepalive on this host.",

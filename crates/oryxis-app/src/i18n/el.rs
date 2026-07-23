@@ -842,6 +842,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_password_hint" => "Εισαγάγετε τον κωδικό που χρησιμοποιήθηκε στην εξαγωγή",
         "expose_to_mcp" => "Έκθεση σε MCP / AI",
         "forward_ssh_agent" => "Προώθηση SSH Agent",
+        "forward_x11" => "Προώθηση X11",
         "host_address_family" => "Έκδοση IP",
         "host_keepalive" => "Keepalive (παράκαμψη)",
         "host_keepalive_desc" => "Κενό κληρονομεί την καθολική ρύθμιση. Το 0 απενεργοποιεί το keepalive σε αυτόν τον host.",
