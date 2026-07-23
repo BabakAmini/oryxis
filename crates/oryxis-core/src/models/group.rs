@@ -44,6 +44,51 @@ impl Group {
         set
     }
 
+    /// Walk the `parent_id` chain from `gid` and report whether it
+    /// terminates at a REAL root (a group whose `parent_id` is `None`).
+    /// Returns `false` when the chain hits a dangling parent (an id no
+    /// longer present in `groups`), revisits a group (a sync-merged
+    /// parent cycle: device A sets G1.parent = G2 while device B sets
+    /// G2.parent = G1, and LWW merges both into a loop), or exceeds a
+    /// sane depth cap. Cycle-safe: the visited set is the loop guard;
+    /// the depth cap is a belt-and-suspenders ceiling that sits far
+    /// above any real folder nesting, so it never detaches valid data.
+    ///
+    /// The dashboard root pass uses this to degrade any group whose
+    /// ancestry is broken (dangling OR cyclic) to rendering AT root, so
+    /// the group (and the hosts inside it) stay reachable, editable and
+    /// deletable instead of being trapped inside an unreachable loop.
+    /// A group with no parent is trivially root-reachable (it IS a
+    /// root); the root pass renders those at root through the plain
+    /// `parent_id.is_none()` branch, so this only distinguishes
+    /// well-nested subgroups (`true`) from broken ones (`false`).
+    pub fn is_reachable_from_root(groups: &[Group], gid: Uuid) -> bool {
+        const MAX_DEPTH: usize = 1024;
+        let mut seen = std::collections::HashSet::new();
+        let mut cursor = Some(gid);
+        let mut depth = 0usize;
+        while let Some(id) = cursor {
+            if depth >= MAX_DEPTH {
+                // Pathologically deep chain: treat as broken.
+                return false;
+            }
+            depth += 1;
+            if !seen.insert(id) {
+                // Revisited a group: the chain loops, no real root.
+                return false;
+            }
+            let Some(g) = groups.iter().find(|g| g.id == id) else {
+                // Dangling parent id: the chain never reaches a root.
+                return false;
+            };
+            match g.parent_id {
+                None => return true,
+                Some(p) => cursor = Some(p),
+            }
+        }
+        false
+    }
+
     /// Breadcrumb path of a group from its root ancestor, labels
     /// joined with " / " ("Prod / Frontend / API"). This is what the
     /// Parent Group combos display so same-named folders under
@@ -225,6 +270,77 @@ mod tests {
             Group::resolve_path_or_label(&groups, "Dyn", &std::collections::HashSet::new()),
             None
         );
+    }
+
+    #[test]
+    fn is_reachable_from_root_clean_chain() {
+        let root = Group::new("root");
+        let child = child_of("child", root.id);
+        let grandchild = child_of("grandchild", child.id);
+        let groups = vec![root.clone(), child.clone(), grandchild.clone()];
+        assert!(Group::is_reachable_from_root(&groups, root.id));
+        assert!(Group::is_reachable_from_root(&groups, child.id));
+        assert!(Group::is_reachable_from_root(&groups, grandchild.id));
+    }
+
+    #[test]
+    fn is_reachable_from_root_dangling_parent() {
+        // The parent id points at a group that no longer exists (deleted
+        // on another device before this one synced).
+        let mut orphan = Group::new("Orphan");
+        orphan.parent_id = Some(Uuid::new_v4());
+        let groups = vec![orphan.clone()];
+        assert!(!Group::is_reachable_from_root(&groups, orphan.id));
+    }
+
+    #[test]
+    fn is_reachable_from_root_two_node_cycle() {
+        // A -> B -> A, the classic concurrent-reparent merge.
+        let mut a = Group::new("a");
+        let mut b = Group::new("b");
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let groups = vec![a.clone(), b.clone()];
+        assert!(!Group::is_reachable_from_root(&groups, a.id));
+        assert!(!Group::is_reachable_from_root(&groups, b.id));
+    }
+
+    #[test]
+    fn is_reachable_from_root_three_node_cycle() {
+        // A -> B -> C -> A.
+        let mut a = Group::new("a");
+        let mut b = Group::new("b");
+        let mut c = Group::new("c");
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(c.id);
+        c.parent_id = Some(a.id);
+        let groups = vec![a.clone(), b.clone(), c.clone()];
+        assert!(!Group::is_reachable_from_root(&groups, a.id));
+        assert!(!Group::is_reachable_from_root(&groups, b.id));
+        assert!(!Group::is_reachable_from_root(&groups, c.id));
+    }
+
+    #[test]
+    fn is_reachable_from_root_self_parent() {
+        // id == parent_id: a one-node loop, also unreachable today.
+        let mut a = Group::new("a");
+        a.parent_id = Some(a.id);
+        let groups = vec![a.clone()];
+        assert!(!Group::is_reachable_from_root(&groups, a.id));
+    }
+
+    #[test]
+    fn is_reachable_from_root_node_hanging_off_a_cycle() {
+        // C -> A -> B -> A: C itself is not on the loop, but its chain
+        // never terminates at a real root, so it degrades to root too
+        // (drives the descendant-promotion decision in the grid).
+        let mut a = Group::new("a");
+        let mut b = Group::new("b");
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let c = child_of("c", a.id);
+        let groups = vec![a.clone(), b.clone(), c.clone()];
+        assert!(!Group::is_reachable_from_root(&groups, c.id));
     }
 
     #[test]

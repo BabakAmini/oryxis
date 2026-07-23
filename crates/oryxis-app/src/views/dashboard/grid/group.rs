@@ -196,12 +196,28 @@ impl Oryxis {
                     continue;
                 };
                 // A subgroup renders inside its parent folder, not at
-                // root. A dangling parent (folder deleted on another
-                // device before this one synced) degrades to root so
-                // the subtree never becomes unreachable.
-                if group
-                    .parent_id
-                    .is_some_and(|p| group_by_id.contains_key(&p))
+                // root, but ONLY when its ancestry is well-formed (the
+                // parent chain leads to a real root). It degrades to
+                // rendering at root whenever the chain is broken:
+                //   - dangling parent (a folder deleted on another
+                //     device before this one synced), or
+                //   - a parent CYCLE (two devices concurrently
+                //     re-parenting G1<->G2, LWW-merged into a loop): the
+                //     old `contains_key` check only saw that the parent
+                //     EXISTS, so every group in the loop had a live
+                //     parent and none rendered at root, hiding the whole
+                //     cycle (and its hosts) with no path to edit or
+                //     delete it.
+                // Rendering the broken group at root keeps it (and its
+                // hosts) reachable, editable and deletable, matching the
+                // dangling-parent degradation. `is_reachable_from_root`
+                // walks the chain with a visited-set guard so cyclic
+                // data can't loop here.
+                if group.parent_id.is_some()
+                    && oryxis_core::models::Group::is_reachable_from_root(
+                        &self.groups,
+                        gid,
+                    )
                 {
                     continue;
                 }
