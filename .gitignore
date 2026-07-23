@@ -36,3 +36,6 @@ nohup_x11.out
 
 # Claude Code session attachments / local scratch
 /.oxyris/
+
+# Local design / UX proposal drafts (never committed, like the plan docs)
+/UX_1.0_PROPOSAL.html
