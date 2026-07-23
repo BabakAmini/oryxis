@@ -55,8 +55,13 @@ async fn pump<S>(
 ) where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let (mut ch_r, mut ch_w) = tokio::io::split(channel.into_stream());
-    let (mut x_r, mut x_w) = tokio::io::split(stream);
+    // Keep the streams whole (not split): the steady-state pump below
+    // needs full-duplex handles so `copy_bidirectional` can half-close one
+    // direction and drain the other. Both `ChannelStream` and the local
+    // TCP/unix stream are `Unpin`, so reading/writing through `&mut` here
+    // and handing the same `&mut` to `copy_bidirectional` is fine.
+    let mut ch = channel.into_stream();
+    let mut x = stream;
 
     // Verify the fake cookie and rewrite the auth before ANY byte
     // reaches the X server. Always runs: the remote was always handed a
@@ -68,7 +73,7 @@ async fn pump<S>(
     while !rewriter.is_done() {
         let n = tokio::select! {
             _ = cancel.changed() => return,
-            r = ch_r.read(&mut buf) => match r {
+            r = ch.read(&mut buf) => match r {
                 Ok(0) => {
                     tracing::debug!("X11 forward: channel closed before the setup request");
                     return;
@@ -89,7 +94,10 @@ async fn pump<S>(
                 return;
             }
             Rewrite::Done(out) => {
-                if let Err(e) = x_w.write_all(&out).await {
+                // `out` carries the rewritten setup request AND any traffic
+                // that arrived in the same read, so nothing is stranded in
+                // the rewriter when the byte pump takes over below.
+                if let Err(e) = x.write_all(&out).await {
                     tracing::warn!("X11 forward: writing the setup request failed: {e}");
                     return;
                 }
@@ -97,12 +105,20 @@ async fn pump<S>(
         }
     }
 
-    let c2x = tokio::io::copy(&mut ch_r, &mut x_w);
-    let x2c = tokio::io::copy(&mut x_r, &mut ch_w);
-
+    // Steady state: pump both directions until BOTH reach EOF.
+    // `copy_bidirectional` half-closes the peer's write side on each EOF
+    // (a `CHANNEL_EOF` on the SSH channel, a TCP/unix FIN on the display)
+    // and keeps draining the surviving direction, so a reply still in
+    // flight when one side hangs up is delivered rather than dropped. A
+    // plain `select!` over two one-shot copies would instead cancel the
+    // survivor the moment the first direction returned, discarding both
+    // its in-flight bytes and whatever it had already buffered.
     tokio::select! {
         _ = cancel.changed() => {}
-        r = c2x => { if let Err(e) = r { tracing::debug!("X11 forward channel->display: {e}"); } }
-        r = x2c => { if let Err(e) = r { tracing::debug!("X11 forward display->channel: {e}"); } }
+        r = tokio::io::copy_bidirectional(&mut ch, &mut x) => {
+            if let Err(e) = r {
+                tracing::debug!("X11 forward pump: {e}");
+            }
+        }
     }
 }

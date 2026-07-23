@@ -27,6 +27,33 @@ pub enum X11Target {
 /// The base TCP port X servers listen on; display N is port 6000 + N.
 const X_TCP_BASE: u16 = 6000;
 
+/// Display N maps to TCP port 6000 + N, saturating so an absurd display
+/// number can't wrap the port.
+fn tcp_port(number: u32) -> u16 {
+    X_TCP_BASE.saturating_add(number.min(u32::from(u16::MAX)) as u16)
+}
+
+/// A bracketed IPv6 literal (`[::1]`, `[fe80::1]`) with the brackets
+/// stripped, ready to hand to `TcpStream::connect`, which rejects the
+/// brackets. `None` for any host that is not `[...]`-wrapped.
+fn strip_ipv6_brackets(host: &str) -> Option<&str> {
+    host.strip_prefix('[').and_then(|h| h.strip_suffix(']'))
+}
+
+/// The legacy transport-prefixed forms (`hostname/unix:N`, `unix/:N`)
+/// select the local unix socket: a `unix` transport segment anywhere in
+/// the host means "use the unix-domain socket", regardless of ordering.
+fn is_unix_transport(host: &str) -> bool {
+    host.split('/').any(|seg| seg == "unix")
+}
+
+/// The host to dial for a TCP display, dropping any `protocol/` transport
+/// prefix (`tcp/localhost` -> `localhost`) so the connect sees a bare
+/// host. A plain host with no `/` is returned unchanged.
+fn tcp_host(host: &str) -> &str {
+    host.rsplit('/').next().unwrap_or(host)
+}
+
 /// A parsed `$DISPLAY`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DisplaySpec {
@@ -70,17 +97,24 @@ impl DisplaySpec {
             None => 0,
         };
 
-        let target = if host.contains('/') {
-            // macOS / XQuartz launchd socket: the path INCLUDES the
-            // `:N` suffix, so rebuild it rather than using `host`.
+        let target = if host.starts_with('/') {
+            // macOS / XQuartz launchd socket: an ABSOLUTE path whose file
+            // name INCLUDES the `:N` suffix, so rebuild it rather than
+            // using `host`. Keyed on the leading `/` (a real launchd path
+            // is absolute), NOT on merely containing a `/`, so the legacy
+            // `hostname/unix:N` transport form below isn't mistaken for a
+            // literal socket path.
             X11Target::Unix(PathBuf::from(format!("{host}:{number}")))
-        } else if host.is_empty() || host == "unix" {
+        } else if let Some(inner) = strip_ipv6_brackets(host) {
+            // `[::1]:0` / `[fe80::1]:10.0`: strip the brackets, which
+            // `TcpStream::connect` would otherwise fail to resolve.
+            X11Target::Tcp(inner.to_string(), tcp_port(number))
+        } else if host.is_empty() || host == "unix" || is_unix_transport(host) {
             X11Target::Unix(PathBuf::from(format!("/tmp/.X11-unix/X{number}")))
         } else {
-            X11Target::Tcp(
-                host.to_string(),
-                X_TCP_BASE.saturating_add(number.min(u32::from(u16::MAX)) as u16),
-            )
+            // Bare host (`localhost`, `192.168.1.5`) or an unbracketed IPv6
+            // literal (`::1`), which `TcpStream::connect` resolves as-is.
+            X11Target::Tcp(tcp_host(host).to_string(), tcp_port(number))
         };
 
         Some(Self { target, number, screen, host: host.to_string() })
@@ -161,6 +195,48 @@ mod tests {
     fn remote_host_display() {
         let d = DisplaySpec::parse("192.168.1.5:0").unwrap();
         assert_eq!(d.target, X11Target::Tcp("192.168.1.5".into(), 6000));
+    }
+
+    /// A bracketed IPv6 literal: the brackets must be stripped for the TCP
+    /// connect, otherwise `TcpStream::connect(("[::1]", 6000))` fails to
+    /// resolve.
+    #[test]
+    fn bracketed_ipv6_loopback() {
+        let d = DisplaySpec::parse("[::1]:0").unwrap();
+        assert_eq!(d.target, X11Target::Tcp("::1".into(), 6000));
+        assert_eq!(d.number, 0);
+        assert_eq!(d.screen, 0);
+    }
+
+    /// Bracketed IPv6 with a display + screen suffix after the closing
+    /// bracket. `rsplit_once(':')` still splits at the display colon.
+    #[test]
+    fn bracketed_ipv6_with_screen() {
+        let d = DisplaySpec::parse("[fe80::1]:10.0").unwrap();
+        assert_eq!(d.target, X11Target::Tcp("fe80::1".into(), 6010));
+        assert_eq!(d.number, 10);
+        assert_eq!(d.screen, 0);
+    }
+
+    /// The unbracketed form happens to work via `rsplit_once(':')` and
+    /// must keep working: the last colon splits off the display, leaving
+    /// `::1`, which `TcpStream::connect` resolves directly.
+    #[test]
+    fn unbracketed_ipv6_still_works() {
+        let d = DisplaySpec::parse("::1:0").unwrap();
+        assert_eq!(d.target, X11Target::Tcp("::1".into(), 6000));
+        assert_eq!(d.number, 0);
+    }
+
+    /// The legacy `hostname/unix:N` transport form selects the local unix
+    /// socket. It must NOT be captured by the XQuartz absolute-path branch
+    /// (which now keys on a leading `/`) and treated as a literal socket
+    /// path.
+    #[test]
+    fn legacy_unix_transport_is_local_socket() {
+        let d = DisplaySpec::parse("myhost/unix:0").unwrap();
+        assert_eq!(d.target, unix("/tmp/.X11-unix/X0"));
+        assert_eq!(d.number, 0);
     }
 
     /// The XQuartz socket file is literally named `org.xquartz:0`, so the
