@@ -520,6 +520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Підгрупи піднімуться на рівень вище, видаляється лише тека",
         "delete_folder_with_hosts_subgroups_desc" => "Видаляє теку та її хости, підгрупи піднімуться на рівень вище",
         "folder_name" => "Назва папки",
+        "folder_delete_failed" => "Не вдалося видалити папку. Спробуйте ще раз.",
         "auto_reconnect" => "Автоперепідключення при розриві",
         "max_reconnect_attempts" => "Максимум спроб перепідключення",
         "terminal_font" => "Шрифт термінала",

@@ -522,6 +522,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "زیرگروه‌ها یک سطح بالا می‌روند، فقط پوشه حذف می‌شود",
         "delete_folder_with_hosts_subgroups_desc" => "پوشه و میزبان‌های آن حذف می‌شوند، زیرگروه‌ها یک سطح بالا می‌روند",
         "folder_name" => "نام پوشه",
+        "folder_delete_failed" => "حذف پوشه ممکن نشد. دوباره تلاش کنید.",
         "auto_reconnect" => "اتصال خودکار پس از قطع شدن",
         "max_reconnect_attempts" => "حداکثر تلاش‌های اتصال مجدد",
         "terminal_font" => "فونت ترمینال",

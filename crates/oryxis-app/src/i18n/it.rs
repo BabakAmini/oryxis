@@ -1495,6 +1495,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "I sottogruppi salgono di un livello, viene rimossa solo la cartella",
         "delete_folder_with_hosts_subgroups_desc" => "Elimina la cartella e i suoi host, i sottogruppi salgono di un livello",
         "folder_name" => "Nome della cartella",
+        "folder_delete_failed" => "Impossibile eliminare la cartella. Riprova.",
         "rename" => "Rinomina",
         "rename_folder" => "Rinomina cartella",
         "duplicate_tab" => "Duplica scheda",

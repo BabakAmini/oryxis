@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Οι υποομάδες ανεβαίνουν ένα επίπεδο, αφαιρείται μόνο ο φάκελος",
         "delete_folder_with_hosts_subgroups_desc" => "Διαγράφει τον φάκελο και τους διακομιστές του, οι υποομάδες ανεβαίνουν ένα επίπεδο",
         "folder_name" => "Όνομα φακέλου",
+        "folder_delete_failed" => "Δεν ήταν δυνατή η διαγραφή του φακέλου. Δοκιμάστε ξανά.",
         "auto_reconnect" => "Αυτόματη επανασύνδεση σε αποσύνδεση",
         "max_reconnect_attempts" => "Μέγιστες προσπάθειες επανασύνδεσης",
         "terminal_font" => "Γραμματοσειρά τερματικού",

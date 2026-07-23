@@ -778,14 +778,49 @@ impl Oryxis {
                         }
                     } else {
                         // Create mode (the folder kebab's "New subgroup").
-                        let mut group = oryxis_core::models::Group::new(trimmed);
-                        group.icon = icon;
-                        group.color = color;
-                        group.parent_id = parent_id;
-                        if let Some(vault) = &self.vault {
-                            let _ = vault.save_group(&group);
+                        // Reuse an existing manual folder with the same
+                        // (label, parent) instead of minting a
+                        // byte-identical duplicate: two "New subgroup"s
+                        // with the same name under one parent would
+                        // otherwise produce two groups with identical
+                        // breadcrumb paths, the second unselectable
+                        // (combos resolve first-match-wins) and an
+                        // indistinguishable duplicate card. Reuse mirrors
+                        // the host editor's find-or-create semantics; the
+                        // user's icon / colour edits are folded onto the
+                        // existing folder so the save isn't a silent
+                        // no-op. Navigation is intentionally left alone,
+                        // matching the fresh-create branch below.
+                        let dup = self
+                            .groups
+                            .iter()
+                            .find(|g| {
+                                g.cloud_query.is_none()
+                                    && g.parent_id == parent_id
+                                    && g.label == trimmed
+                            })
+                            .map(|g| g.id);
+                        if let Some(gid) = dup {
+                            if let Some(group) =
+                                self.groups.iter_mut().find(|g| g.id == gid)
+                            {
+                                group.icon = icon;
+                                group.color = color;
+                                group.updated_at = chrono::Utc::now();
+                                if let Some(vault) = &self.vault {
+                                    let _ = vault.save_group(group);
+                                }
+                            }
+                        } else {
+                            let mut group = oryxis_core::models::Group::new(trimmed);
+                            group.icon = icon;
+                            group.color = color;
+                            group.parent_id = parent_id;
+                            if let Some(vault) = &self.vault {
+                                let _ = vault.save_group(&group);
+                            }
+                            self.groups.push(group);
                         }
-                        self.groups.push(group);
                     }
                 }
                 self.group_edit.visible = false;
@@ -810,12 +845,25 @@ impl Oryxis {
                         .iter()
                         .find(|g| g.id == gid)
                         .and_then(|g| g.parent_id);
+                    // Track any vault write failure across the re-home
+                    // passes. A silently dropped Result here could leave
+                    // a host / subgroup pointing at a group we then
+                    // tombstone, stranding it (renders nowhere at root).
+                    // So we surface failures and skip the final delete
+                    // unless every child was re-homed successfully.
+                    let mut write_failed = false;
                     for conn in self.connections.iter_mut() {
                         if conn.group_id == Some(gid) {
                             conn.group_id = new_parent;
                             conn.updated_at = chrono::Utc::now();
-                            if let Some(vault) = &self.vault {
-                                let _ = vault.save_connection(conn, None);
+                            if let Some(vault) = &self.vault
+                                && let Err(e) = vault.save_connection(conn, None)
+                            {
+                                tracing::error!(
+                                    "delete folder {gid}: failed to re-home host {}: {e}",
+                                    conn.id
+                                );
+                                write_failed = true;
                             }
                         }
                     }
@@ -827,22 +875,48 @@ impl Oryxis {
                         if g.parent_id == Some(gid) {
                             g.parent_id = new_parent;
                             g.updated_at = chrono::Utc::now();
-                            if let Some(vault) = &self.vault {
-                                let _ = vault.save_group(g);
+                            if let Some(vault) = &self.vault
+                                && let Err(e) = vault.save_group(g)
+                            {
+                                tracing::error!(
+                                    "delete folder {gid}: failed to re-home subgroup {}: {e}",
+                                    g.id
+                                );
+                                write_failed = true;
                             }
                         }
                     }
-                    if let Some(vault) = &self.vault {
-                        let _ = vault.delete_group(&gid);
+                    // Only tombstone the folder once every child was
+                    // re-homed. On failure, abort with a toast and leave
+                    // the folder in place; the user can retry rather than
+                    // be left with orphaned hosts.
+                    let mut removed = false;
+                    if write_failed {
+                        self.set_toast(crate::i18n::t("folder_delete_failed").to_string());
+                    } else if let Some(vault) = &self.vault {
+                        if let Err(e) = vault.delete_group(&gid) {
+                            tracing::error!("delete folder {gid}: failed to delete group: {e}");
+                            self.set_toast(
+                                crate::i18n::t("folder_delete_failed").to_string(),
+                            );
+                        } else {
+                            removed = true;
+                        }
+                    } else {
+                        // No vault (should not happen for a saved
+                        // folder), keep the in-memory removal consistent.
+                        removed = true;
                     }
-                    self.groups.retain(|g| g.id != gid);
-                    if self.active_group == Some(gid) {
-                        self.active_group = new_parent;
-                    }
-                    // Don't leave the editor panel open on a deleted row.
-                    if self.group_edit.id == Some(gid) {
-                        self.group_edit.visible = false;
-                        self.group_edit.id = None;
+                    if removed {
+                        self.groups.retain(|g| g.id != gid);
+                        if self.active_group == Some(gid) {
+                            self.active_group = new_parent;
+                        }
+                        // Don't leave the editor panel open on a deleted row.
+                        if self.group_edit.id == Some(gid) {
+                            self.group_edit.visible = false;
+                            self.group_edit.id = None;
+                        }
                     }
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }
@@ -867,30 +941,75 @@ impl Oryxis {
                         .iter()
                         .find(|g| g.id == gid)
                         .and_then(|g| g.parent_id);
+                    // Track vault write failures across the re-home and
+                    // host-drop passes. A silently dropped Result could
+                    // leave a subgroup (re-home failed) or a still-live
+                    // host (delete failed) pointing at a group we then
+                    // tombstone, stranding it at root. Skip the final
+                    // group delete unless every write succeeded.
+                    let mut write_failed = false;
                     for g in self.groups.iter_mut() {
                         if g.parent_id == Some(gid) {
                             g.parent_id = new_parent;
                             g.updated_at = chrono::Utc::now();
-                            if let Some(vault) = &self.vault {
-                                let _ = vault.save_group(g);
+                            if let Some(vault) = &self.vault
+                                && let Err(e) = vault.save_group(g)
+                            {
+                                tracing::error!(
+                                    "delete folder {gid}: failed to re-home subgroup {}: {e}",
+                                    g.id
+                                );
+                                write_failed = true;
                             }
                         }
                     }
+                    let mut dropped: Vec<uuid::Uuid> = Vec::new();
                     if let Some(vault) = &self.vault {
                         for cid in &to_drop {
-                            let _ = vault.delete_connection(cid);
+                            if let Err(e) = vault.delete_connection(cid) {
+                                tracing::error!(
+                                    "delete folder {gid}: failed to delete host {cid}: {e}"
+                                );
+                                write_failed = true;
+                            } else {
+                                dropped.push(*cid);
+                            }
                         }
-                        let _ = vault.delete_group(&gid);
+                    } else {
+                        dropped = to_drop.clone();
                     }
-                    self.connections.retain(|c| !to_drop.contains(&c.id));
-                    self.groups.retain(|g| g.id != gid);
-                    if self.active_group == Some(gid) {
-                        self.active_group = new_parent;
+                    // Drop from memory only the hosts actually removed
+                    // from the vault, so a failed delete doesn't vanish
+                    // the row while its record survives on disk.
+                    self.connections.retain(|c| !dropped.contains(&c.id));
+                    // Only tombstone the folder once every child write
+                    // landed. On failure, abort with a toast and keep the
+                    // folder so nothing is stranded; the user can retry.
+                    let mut removed = false;
+                    if write_failed {
+                        self.set_toast(crate::i18n::t("folder_delete_failed").to_string());
+                    } else if let Some(vault) = &self.vault {
+                        if let Err(e) = vault.delete_group(&gid) {
+                            tracing::error!("delete folder {gid}: failed to delete group: {e}");
+                            self.set_toast(
+                                crate::i18n::t("folder_delete_failed").to_string(),
+                            );
+                        } else {
+                            removed = true;
+                        }
+                    } else {
+                        removed = true;
                     }
-                    // Don't leave the editor panel open on a deleted row.
-                    if self.group_edit.id == Some(gid) {
-                        self.group_edit.visible = false;
-                        self.group_edit.id = None;
+                    if removed {
+                        self.groups.retain(|g| g.id != gid);
+                        if self.active_group == Some(gid) {
+                            self.active_group = new_parent;
+                        }
+                        // Don't leave the editor panel open on a deleted row.
+                        if self.group_edit.id == Some(gid) {
+                            self.group_edit.visible = false;
+                            self.group_edit.id = None;
+                        }
                     }
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }

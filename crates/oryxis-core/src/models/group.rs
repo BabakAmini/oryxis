@@ -140,6 +140,94 @@ impl Group {
             .map(|g| g.id)
     }
 
+    /// Materialise a breadcrumb `path` ("Prod / NewTeam") as a group
+    /// chain, CREATING only the missing segments. This is the create
+    /// half of [`Group::resolve_path_or_label`]: callers resolve an
+    /// existing path/label first, then fall here to build a typed value
+    /// that matched nothing.
+    ///
+    /// The path is split on the " / " separator; each segment is
+    /// trimmed and empty segments are dropped. Walking from the root,
+    /// every segment reuses the first existing MANUAL group
+    /// (`cloud_query.is_none()`) with that exact label under the running
+    /// parent, or creates a fresh group parented to it. New groups are
+    /// appended to `groups` (so later segments and repeat calls see
+    /// them) AND collected into `created` for the caller to persist to
+    /// the vault. Returns the deepest segment's id, or `None` when the
+    /// path has no non-empty segment.
+    ///
+    /// Because every created group's label is a single trimmed segment,
+    /// no created label can ever contain " / ", so a group created here
+    /// can never later impersonate a real breadcrumb path (the reason a
+    /// free-text "Prod / NewTeam" must not become one root group named
+    /// with the separator inside it). Reusing existing segments by
+    /// (label, parent) also makes creating the same path twice
+    /// idempotent, so no duplicate folders accrete. Cycle-safe: the walk
+    /// only ever descends into groups it just created or matched by
+    /// label under the running parent, never following a `parent_id`
+    /// link, so cyclic sync-merged data can't loop it.
+    pub fn create_path(
+        groups: &mut Vec<Group>,
+        path: &str,
+        created: &mut Vec<Group>,
+    ) -> Option<Uuid> {
+        let mut parent: Option<Uuid> = None;
+        let mut last: Option<Uuid> = None;
+        for segment in path.split(" / ") {
+            let label = segment.trim();
+            if label.is_empty() {
+                continue;
+            }
+            // Reuse an existing manual folder at this level (same label
+            // under the running parent), else create one. Matching on
+            // the running parent (not just the label) is what makes
+            // "Prod / Web" create a NEW Web under Prod even when a
+            // root-level Web already exists.
+            let existing = groups
+                .iter()
+                .find(|g| {
+                    g.cloud_query.is_none() && g.parent_id == parent && g.label == label
+                })
+                .map(|g| g.id);
+            let id = match existing {
+                Some(id) => id,
+                None => {
+                    let mut g = Group::new(label);
+                    g.parent_id = parent;
+                    let id = g.id;
+                    created.push(g.clone());
+                    groups.push(g);
+                    id
+                }
+            };
+            parent = Some(id);
+            last = Some(id);
+        }
+        last
+    }
+
+    /// Find-or-create a group from a free-text Parent Group combo value.
+    /// Tries [`Group::resolve_path_or_label`] first (an existing full
+    /// path or bare label, no exclusions); on no match it materialises
+    /// the value as a breadcrumb PATH via [`Group::create_path`], so
+    /// "Prod / NewTeam" builds the nested chain instead of a single root
+    /// group literally named with the separator inside it (which would
+    /// then collide byte-for-byte with a genuine breadcrumb path). New
+    /// groups are appended to `groups` and collected into `created` for
+    /// the caller to persist. Returns `None` for a blank value (root).
+    pub fn resolve_or_create_path(
+        groups: &mut Vec<Group>,
+        input: &str,
+        created: &mut Vec<Group>,
+    ) -> Option<Uuid> {
+        if let Some(id) =
+            Group::resolve_path_or_label(groups, input, &std::collections::HashSet::new())
+        {
+            return Some(id);
+        }
+        Group::create_path(groups, input, created)
+    }
+
     pub fn new(label: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
         Self {
@@ -341,6 +429,119 @@ mod tests {
         let c = child_of("c", a.id);
         let groups = vec![a.clone(), b.clone(), c.clone()];
         assert!(!Group::is_reachable_from_root(&groups, c.id));
+    }
+
+    #[test]
+    fn create_path_builds_the_nested_chain() {
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created: Vec<Group> = Vec::new();
+        let id = Group::create_path(&mut groups, "Prod / NewTeam", &mut created).unwrap();
+        // Two groups created, wired parent -> child.
+        assert_eq!(created.len(), 2);
+        assert_eq!(groups.len(), 2);
+        let leaf = groups.iter().find(|g| g.id == id).unwrap();
+        assert_eq!(leaf.label, "NewTeam");
+        let parent = groups.iter().find(|g| Some(g.id) == leaf.parent_id).unwrap();
+        assert_eq!(parent.label, "Prod");
+        assert_eq!(parent.parent_id, None);
+        // The full breadcrumb path round-trips.
+        assert_eq!(Group::path_of(&groups, id), "Prod / NewTeam");
+    }
+
+    #[test]
+    fn create_path_never_puts_the_separator_in_a_label() {
+        // The whole point of MINOR-2/5: a free-text value with the
+        // separator must not become one group whose own label contains
+        // " / " (which would impersonate a real path).
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created: Vec<Group> = Vec::new();
+        Group::create_path(&mut groups, "A / B / C", &mut created);
+        assert_eq!(groups.len(), 3);
+        assert!(groups.iter().all(|g| !g.label.contains(" / ")));
+    }
+
+    #[test]
+    fn create_path_is_idempotent() {
+        // Creating the same path twice reuses every segment, no dupes.
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created = Vec::new();
+        let first = Group::create_path(&mut groups, "Prod / NewTeam", &mut created).unwrap();
+        created.clear();
+        let second = Group::create_path(&mut groups, "Prod / NewTeam", &mut created).unwrap();
+        assert_eq!(first, second);
+        assert!(created.is_empty());
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn create_path_reuses_by_parent_not_just_label() {
+        // A root "Web" exists; "Prod / Web" must create a NEW Web UNDER
+        // Prod rather than adopting the unrelated root one.
+        let root_web = Group::new("Web");
+        let root_web_id = root_web.id;
+        let mut groups = vec![root_web];
+        let mut created = Vec::new();
+        let leaf = Group::create_path(&mut groups, "Prod / Web", &mut created).unwrap();
+        assert_ne!(leaf, root_web_id);
+        let leaf_g = groups.iter().find(|g| g.id == leaf).unwrap();
+        assert_eq!(leaf_g.label, "Web");
+        let parent = groups.iter().find(|g| Some(g.id) == leaf_g.parent_id).unwrap();
+        assert_eq!(parent.label, "Prod");
+        // Prod + its Web created; the root Web is untouched.
+        assert_eq!(created.len(), 2);
+        assert_eq!(Group::path_of(&groups, root_web_id), "Web");
+        assert_eq!(Group::path_of(&groups, leaf), "Prod / Web");
+    }
+
+    #[test]
+    fn create_path_blank_and_empty_segments_yield_none() {
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created = Vec::new();
+        assert_eq!(Group::create_path(&mut groups, "   ", &mut created), None);
+        assert_eq!(Group::create_path(&mut groups, " /  / ", &mut created), None);
+        assert!(groups.is_empty());
+        assert!(created.is_empty());
+    }
+
+    #[test]
+    fn create_path_skips_empty_interior_segments() {
+        // A stray double separator collapses instead of minting a blank
+        // folder in the middle of the chain.
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created = Vec::new();
+        let id = Group::create_path(&mut groups, "Prod /  / Web", &mut created).unwrap();
+        assert_eq!(groups.len(), 2);
+        assert_eq!(Group::path_of(&groups, id), "Prod / Web");
+    }
+
+    #[test]
+    fn resolve_or_create_path_prefers_existing() {
+        let root = Group::new("Prod");
+        let child = child_of("Frontend", root.id);
+        let mut groups = vec![root.clone(), child.clone()];
+        let mut created = Vec::new();
+        // Existing full path resolves, nothing is created.
+        assert_eq!(
+            Group::resolve_or_create_path(&mut groups, "Prod / Frontend", &mut created),
+            Some(child.id)
+        );
+        assert!(created.is_empty());
+        assert_eq!(groups.len(), 2);
+        // A brand-new path is materialised as a nested chain.
+        let id =
+            Group::resolve_or_create_path(&mut groups, "Prod / Backend", &mut created).unwrap();
+        assert_eq!(Group::path_of(&groups, id), "Prod / Backend");
+        // "Prod" was reused, only "Backend" created.
+        assert_eq!(created.len(), 1);
+        assert_eq!(created[0].label, "Backend");
+    }
+
+    #[test]
+    fn resolve_or_create_path_blank_is_root() {
+        let mut groups: Vec<Group> = Vec::new();
+        let mut created = Vec::new();
+        assert_eq!(Group::resolve_or_create_path(&mut groups, "  ", &mut created), None);
+        assert!(groups.is_empty());
     }
 
     #[test]

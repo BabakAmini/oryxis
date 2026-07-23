@@ -526,6 +526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "تنتقل المجموعات الفرعية مستوى للأعلى، ويُزال المجلد فقط",
         "delete_folder_with_hosts_subgroups_desc" => "يحذف المجلد ومضيفاته، وتنتقل المجموعات الفرعية مستوى للأعلى",
         "folder_name" => "اسم المجلد",
+        "folder_delete_failed" => "تعذّر حذف المجلد. حاول مرة أخرى.",
         "auto_reconnect" => "إعادة الاتصال تلقائيًا بعد القطع",
         "max_reconnect_attempts" => "الحد الأقصى لمحاولات إعادة الاتصال",
         "terminal_font" => "خط الطرفية",

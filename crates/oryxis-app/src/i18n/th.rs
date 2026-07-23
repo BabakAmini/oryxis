@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "กลุ่มย่อยจะย้ายขึ้นหนึ่งระดับ ลบเฉพาะโฟลเดอร์เท่านั้น",
         "delete_folder_with_hosts_subgroups_desc" => "ลบโฟลเดอร์และโฮสต์ในนั้น กลุ่มย่อยจะย้ายขึ้นหนึ่งระดับ",
         "folder_name" => "ชื่อโฟลเดอร์",
+        "folder_delete_failed" => "ไม่สามารถลบโฟลเดอร์ได้ โปรดลองอีกครั้ง",
         "auto_reconnect" => "เชื่อมต่อใหม่อัตโนมัติเมื่อหลุด",
         "max_reconnect_attempts" => "จำนวนครั้งสูงสุดในการเชื่อมต่อใหม่",
         "terminal_font" => "ฟอนต์เทอร์มินัล",

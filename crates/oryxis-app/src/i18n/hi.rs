@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "उपसमूह एक स्तर ऊपर चले जाते हैं, केवल फ़ोल्डर हटाया जाता है",
         "delete_folder_with_hosts_subgroups_desc" => "फ़ोल्डर और उसके होस्ट डिलीट होते हैं, उपसमूह एक स्तर ऊपर चले जाते हैं",
         "folder_name" => "फ़ोल्डर नाम",
+        "folder_delete_failed" => "फ़ोल्डर हटाया नहीं जा सका. कृपया पुनः प्रयास करें.",
         "auto_reconnect" => "डिस्कनेक्ट होने पर अपने आप दोबारा कनेक्ट करें",
         "max_reconnect_attempts" => "दोबारा कनेक्ट करने की अधिकतम कोशिशें",
         "terminal_font" => "टर्मिनल फ़ॉन्ट",

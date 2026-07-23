@@ -1536,6 +1536,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Les sous-groupes remontent d'un niveau, seul le dossier est supprimé",
         "delete_folder_with_hosts_subgroups_desc" => "Supprime le dossier et ses hôtes, les sous-groupes remontent d'un niveau",
         "folder_name" => "Nom du dossier",
+        "folder_delete_failed" => "Impossible de supprimer le dossier. Veuillez réessayer.",
         "rename" => "Renommer",
         "rename_folder" => "Renommer le dossier",
         "duplicate_tab" => "Dupliquer l'onglet",

@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "תת-קבוצות עולות רמה אחת למעלה, רק התיקייה מוסרת",
         "delete_folder_with_hosts_subgroups_desc" => "מוחק את התיקייה ואת המארחים שבה, תת-קבוצות עולות רמה אחת",
         "folder_name" => "שם התיקייה",
+        "folder_delete_failed" => "מחיקת התיקייה נכשלה. נסה שוב.",
         "auto_reconnect" => "התחברות מחדש אוטומטית בניתוק",
         "max_reconnect_attempts" => "מספר מרבי של ניסיונות חיבור מחדש",
         "terminal_font" => "גופן הטרמינל",

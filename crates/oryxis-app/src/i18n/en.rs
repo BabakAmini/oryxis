@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "delete_folder_only_subgroups_desc" => "Subgroups move up one level, only the folder is removed",
         "delete_folder_with_hosts_subgroups_desc" => "Deletes the folder and its hosts, subgroups move up one level",
         "folder_name" => "Folder name",
+        "folder_delete_failed" => "Couldn't delete the folder. Please try again.",
         "auto_reconnect" => "Auto-reconnect on disconnect",
         "max_reconnect_attempts" => "Maximum reconnect attempts",
         "terminal_font" => "Terminal Font",

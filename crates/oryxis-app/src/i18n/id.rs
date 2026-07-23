@@ -520,6 +520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Subgrup naik satu tingkat, hanya folder yang dihapus",
         "delete_folder_with_hosts_subgroups_desc" => "Menghapus folder beserta host-nya, subgrup naik satu tingkat",
         "folder_name" => "Nama folder",
+        "folder_delete_failed" => "Tidak dapat menghapus folder. Silakan coba lagi.",
         "auto_reconnect" => "Hubungkan ulang otomatis saat terputus",
         "max_reconnect_attempts" => "Jumlah maksimum upaya hubung ulang",
         "terminal_font" => "Font Terminal",

@@ -1502,6 +1502,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Los subgrupos suben un nivel, solo se elimina la carpeta",
         "delete_folder_with_hosts_subgroups_desc" => "Elimina la carpeta y sus hosts, los subgrupos suben un nivel",
         "folder_name" => "Nombre de la carpeta",
+        "folder_delete_failed" => "No se pudo eliminar la carpeta. Inténtalo de nuevo.",
         "rename" => "Renombrar",
         "rename_folder" => "Renombrar carpeta",
         "duplicate_tab" => "Duplicar pestaña",

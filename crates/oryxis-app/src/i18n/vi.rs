@@ -520,6 +520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Nhóm con được chuyển lên một cấp, chỉ thư mục bị xóa",
         "delete_folder_with_hosts_subgroups_desc" => "Xóa thư mục và các máy chủ của nó, nhóm con được chuyển lên một cấp",
         "folder_name" => "Tên thư mục",
+        "folder_delete_failed" => "Không thể xóa thư mục. Vui lòng thử lại.",
         "auto_reconnect" => "Tự động kết nối lại khi mất kết nối",
         "max_reconnect_attempts" => "Số lần kết nối lại tối đa",
         "terminal_font" => "Phông Terminal",

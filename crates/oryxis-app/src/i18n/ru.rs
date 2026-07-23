@@ -1495,6 +1495,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Подгруппы поднимутся на уровень выше, удаляется только папка",
         "delete_folder_with_hosts_subgroups_desc" => "Удаляет папку и её хосты, подгруппы поднимутся на уровень выше",
         "folder_name" => "Имя папки",
+        "folder_delete_failed" => "Не удалось удалить папку. Повторите попытку.",
         "rename" => "Переименовать",
         "rename_folder" => "Переименовать папку",
         "duplicate_tab" => "Дублировать вкладку",

@@ -521,6 +521,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Podgrupy przechodzą poziom wyżej, usuwany jest tylko folder",
         "delete_folder_with_hosts_subgroups_desc" => "Usuwa folder i jego hosty, podgrupy przechodzą poziom wyżej",
         "folder_name" => "Nazwa folderu",
+        "folder_delete_failed" => "Nie udało się usunąć folderu. Spróbuj ponownie.",
         "auto_reconnect" => "Automatyczne ponowne łączenie po rozłączeniu",
         "max_reconnect_attempts" => "Maksymalna liczba prób ponownego łączenia",
         "terminal_font" => "Czcionka terminala",

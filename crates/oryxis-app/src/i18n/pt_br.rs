@@ -1578,6 +1578,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Subgrupos sobem um nível, apenas a pasta é removida",
         "delete_folder_with_hosts_subgroups_desc" => "Exclui a pasta e seus hosts, subgrupos sobem um nível",
         "folder_name" => "Nome da pasta",
+        "folder_delete_failed" => "Não foi possível excluir a pasta. Tente novamente.",
         "rename" => "Renomear",
         "rename_folder" => "Renomear pasta",
         "duplicate_tab" => "Duplicar aba",

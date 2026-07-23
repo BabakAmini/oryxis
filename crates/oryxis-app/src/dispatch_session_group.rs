@@ -305,22 +305,21 @@ impl Oryxis {
         };
 
         // Find or create the folder, same convention as the host
-        // editor: breadcrumb-path match first, bare label fallback, an
-        // unmatched name creates a fresh root group with that text.
+        // editor: breadcrumb-path match first, bare label fallback, and
+        // an unmatched value is materialised as a nested PATH
+        // ("Prod / NewTeam" builds the chain, reusing existing
+        // segments) so it can't mint a single group whose own label
+        // contains the separator and impersonates a real path.
         let group_id = if !form.group_name.trim().is_empty() {
             let name = form.group_name.trim().to_string();
-            match Group::resolve_path_or_label(&self.groups, &name, &Default::default()) {
-                Some(gid) => Some(gid),
-                None => {
-                    let g = Group::new(&name);
-                    let gid = g.id;
-                    if let Some(vault) = &self.vault {
-                        let _ = vault.save_group(&g);
-                    }
-                    self.groups.push(g);
-                    Some(gid)
+            let mut created = Vec::new();
+            let gid = Group::resolve_or_create_path(&mut self.groups, &name, &mut created);
+            if let Some(vault) = &self.vault {
+                for g in &created {
+                    let _ = vault.save_group(g);
                 }
             }
+            gid
         } else {
             None
         };

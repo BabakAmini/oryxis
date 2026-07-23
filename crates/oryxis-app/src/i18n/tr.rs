@@ -520,6 +520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Alt gruplar bir üst seviyeye taşınır, yalnızca klasör kaldırılır",
         "delete_folder_with_hosts_subgroups_desc" => "Klasörü ve sunucularını siler, alt gruplar bir üst seviyeye taşınır",
         "folder_name" => "Klasör adı",
+        "folder_delete_failed" => "Klasör silinemedi. Lütfen tekrar deneyin.",
         "auto_reconnect" => "Bağlantı kesilince otomatik yeniden bağlan",
         "max_reconnect_attempts" => "Maksimum yeniden bağlanma denemesi",
         "terminal_font" => "Terminal Yazı Tipi",

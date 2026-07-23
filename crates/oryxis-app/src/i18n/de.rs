@@ -1496,6 +1496,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Untergruppen rücken eine Ebene nach oben, nur der Ordner wird entfernt",
         "delete_folder_with_hosts_subgroups_desc" => "Löscht den Ordner und seine Hosts, Untergruppen rücken eine Ebene nach oben",
         "folder_name" => "Ordnername",
+        "folder_delete_failed" => "Der Ordner konnte nicht gelöscht werden. Bitte erneut versuchen.",
         "rename" => "Umbenennen",
         "rename_folder" => "Ordner umbenennen",
         "duplicate_tab" => "Tab duplizieren",

@@ -539,6 +539,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "Podskupiny se přesunou o úroveň výš, odstraní se jen složka",
         "delete_folder_with_hosts_subgroups_desc" => "Smaže složku a její hostitele, podskupiny se přesunou o úroveň výš",
         "folder_name" => "Název složky",
+        "folder_delete_failed" => "Složku se nepodařilo smazat. Zkuste to znovu.",
         "auto_reconnect" => "Automaticky znovu připojit při odpojení",
         "max_reconnect_attempts" => "Maximální počet pokusů o připojení",
         "terminal_font" => "Písmo terminálu",

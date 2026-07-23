@@ -645,25 +645,29 @@ impl Oryxis {
                     } else {
                         // Breadcrumb-path match first (the picker fills
                         // paths, so a subgroup is a valid import
-                        // target), bare label as the typed fallback.
-                        Group::resolve_path_or_label(
-                            &self.groups,
-                            &typed,
-                            &Default::default(),
-                        )
-                            .or_else(|| {
-                                let mut g = Group::new(typed.clone());
-                                // Brand glyph only when the user kept
-                                // the profile-label default. A custom
-                                // folder name gets a generic icon so
-                                // it doesn't look like an auto-folder
-                                // by accident.
-                                if typed == profile_label {
-                                    g.icon = Some(provider_id_str.clone());
-                                }
-                                let id = g.id;
-                                vault.save_group(&g).ok().map(|_| id)
-                            })
+                        // target), bare label as the typed fallback. An
+                        // unmatched value is materialised as a nested
+                        // PATH ("Prod / NewTeam" builds the chain,
+                        // reusing existing segments) so a typed folder
+                        // name with the separator can't mint a single
+                        // group that impersonates a real path.
+                        let mut created = Vec::new();
+                        let gid =
+                            Group::resolve_or_create_path(&mut self.groups, &typed, &mut created);
+                        // Brand glyph only when the user kept the
+                        // profile-label default (always a single
+                        // segment). A custom folder name / path gets a
+                        // generic icon so it doesn't look like an
+                        // auto-folder by accident.
+                        if typed == profile_label
+                            && let Some(g) = created.iter_mut().find(|g| Some(g.id) == gid)
+                        {
+                            g.icon = Some(provider_id_str.clone());
+                        }
+                        for g in &created {
+                            let _ = vault.save_group(g);
+                        }
+                        gid
                     };
 
                     for e in &selected_ec2 {

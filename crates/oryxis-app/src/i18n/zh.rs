@@ -1505,6 +1505,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "子分组上移一级，仅移除文件夹",
         "delete_folder_with_hosts_subgroups_desc" => "删除文件夹及其主机，子分组上移一级",
         "folder_name" => "文件夹名称",
+        "folder_delete_failed" => "无法删除文件夹，请重试。",
         "rename" => "重命名",
         "rename_folder" => "重命名文件夹",
         "duplicate_tab" => "复制标签页",

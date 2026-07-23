@@ -237,30 +237,24 @@ impl Oryxis {
         let port: u16 = self.editor_form.port.parse().unwrap_or(22);
 
         // Find or create group. The combo displays breadcrumb paths,
-        // so resolution tries the full path first and falls back to a
-        // bare label (typed by hand); an unmatched name still creates
-        // a fresh root group with that literal text. Skipped entirely
-        // for the connect-without-saving flow: an ad-hoc host must not
-        // write anything, not even a newly typed group.
+        // so resolution tries the full path first, then a bare label
+        // (typed by hand). An unmatched value is materialised as a
+        // breadcrumb PATH: "Prod / NewTeam" builds the nested chain
+        // (reusing existing segments), never a single root group named
+        // with the separator inside it (which would then impersonate a
+        // real path). Skipped entirely for the connect-without-saving
+        // flow: an ad-hoc host must not write anything, not even a new
+        // group.
         let group_name = self.editor_form.group_name.trim().to_string();
         let group_id = if persist_group && !group_name.is_empty() {
-            let existing = Group::resolve_path_or_label(
-                &self.groups,
-                &group_name,
-                &Default::default(),
-            );
-            match existing {
-                Some(gid) => Some(gid),
-                None => {
-                    let g = Group::new(&group_name);
-                    let gid = g.id;
-                    if let Some(vault) = &self.vault {
-                        let _ = vault.save_group(&g);
-                    }
-                    self.groups.push(g);
-                    Some(gid)
+            let mut created = Vec::new();
+            let gid = Group::resolve_or_create_path(&mut self.groups, &group_name, &mut created);
+            if let Some(vault) = &self.vault {
+                for g in &created {
+                    let _ = vault.save_group(g);
                 }
             }
+            gid
         } else {
             None
         };

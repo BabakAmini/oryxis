@@ -1507,6 +1507,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "サブグループは1つ上の階層へ移動し、フォルダーのみ削除されます",
         "delete_folder_with_hosts_subgroups_desc" => "フォルダーとそのホストを削除し、サブグループは1つ上の階層へ移動します",
         "folder_name" => "フォルダ名",
+        "folder_delete_failed" => "フォルダーを削除できませんでした。もう一度お試しください。",
         "rename" => "名前を変更",
         "rename_folder" => "フォルダ名を変更",
         "duplicate_tab" => "タブを複製",

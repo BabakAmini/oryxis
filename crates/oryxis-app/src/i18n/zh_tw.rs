@@ -1505,6 +1505,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "子群組上移一層，僅移除資料夾",
         "delete_folder_with_hosts_subgroups_desc" => "刪除資料夾及其主機，子群組上移一層",
         "folder_name" => "資料夾名稱",
+        "folder_delete_failed" => "無法刪除資料夾，請重試。",
         "rename" => "重新命名",
         "rename_folder" => "重新命名資料夾",
         "duplicate_tab" => "複製分頁",

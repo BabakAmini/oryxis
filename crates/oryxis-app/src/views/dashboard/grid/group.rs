@@ -143,7 +143,26 @@ impl Oryxis {
             for g in &self.groups {
                 if g.cloud_query.is_some() { continue }
                 if shown_groups.contains(&g.id) { continue }
-                if self.groups.iter().any(|c| c.parent_id == Some(g.id)) {
+                // Render a manual folder at root when it has nested
+                // children OR when it's an empty container that belongs
+                // at root: a top-level folder (no parent), or a subgroup
+                // whose ancestry is broken (dangling / cyclic parent,
+                // e.g. the parent was deleted on another device). Without
+                // this, an empty manual folder (created via "New
+                // subgroup" with the parent cleared, or orphaned by a
+                // remote delete) would render nowhere yet still be a
+                // pickable combo destination, a phantom folder. Empty
+                // WELL-NESTED subgroups aren't added here: they render
+                // inside their parent (which shows via its own children),
+                // so there's no double-render.
+                let has_children =
+                    self.groups.iter().any(|c| c.parent_id == Some(g.id));
+                let belongs_at_root = g.parent_id.is_none()
+                    || !oryxis_core::models::Group::is_reachable_from_root(
+                        &self.groups,
+                        g.id,
+                    );
+                if has_children || belongs_at_root {
                     shown_groups.insert(g.id);
                     roots_to_render.push(g.id);
                 }

@@ -520,6 +520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "delete_folder_only_subgroups_desc" => "하위 그룹이 한 단계 위로 이동하며 폴더만 제거됩니다",
         "delete_folder_with_hosts_subgroups_desc" => "폴더와 해당 호스트를 삭제하며 하위 그룹은 한 단계 위로 이동합니다",
         "folder_name" => "폴더 이름",
+        "folder_delete_failed" => "폴더를 삭제하지 못했습니다. 다시 시도하세요.",
         "auto_reconnect" => "연결 끊김 시 자동 재연결",
         "max_reconnect_attempts" => "최대 재연결 시도 횟수",
         "terminal_font" => "터미널 글꼴",
