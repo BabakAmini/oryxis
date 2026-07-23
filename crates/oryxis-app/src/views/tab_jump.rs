@@ -160,6 +160,7 @@ impl Oryxis {
 
         // ── Search header ──────────────────────────────────────────────
         let search_input = text_input(t("search_tabs"), &self.tab_jump_search)
+            .id(iced::widget::Id::new(crate::state::TAB_JUMP_SEARCH_ID))
             .on_input(|v| Message::Tabs(TabsMessage::TabJumpSearchChanged(v)))
             .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
             .size(13)

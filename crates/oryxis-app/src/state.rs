@@ -401,6 +401,12 @@ pub(crate) const KBI_FIRST_INPUT_ID: &str = "kbi-first-input";
 /// focus there for immediate type-to-filter.
 pub(crate) const NEW_TAB_PICKER_SEARCH_ID: &str = "new-tab-picker-search";
 
+/// Widget id of the tab-jump modal's search input, same contract as
+/// the new-tab picker's: every open path (the hotkey, the tab bar's
+/// `⋯` button) lands focus here so the modal is type-to-filter from
+/// the first keystroke.
+pub(crate) const TAB_JUMP_SEARCH_ID: &str = "tab-jump-search";
+
 /// Internal message type for SSH connection streams.
 pub(crate) enum SshStreamMsg {
     Progress(ConnectionStep, String), // (step, log message)

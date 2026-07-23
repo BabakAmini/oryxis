@@ -310,6 +310,14 @@ impl Oryxis {
             TabsMessage::ShowTabJump => {
                 self.show_tab_jump = true;
                 self.tab_jump_search.clear();
+                // Land focus on the search so the modal is
+                // type-to-filter from the first keystroke, matching the
+                // new-tab picker and the command palette. The modal's
+                // Up/Down/Enter navigation arrives via the global key
+                // subscription, so the focused input never blocks it.
+                return iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::state::TAB_JUMP_SEARCH_ID,
+                ));
             }
             TabsMessage::ToggleBurgerMenu => {
                 self.show_burger_menu = !self.show_burger_menu;

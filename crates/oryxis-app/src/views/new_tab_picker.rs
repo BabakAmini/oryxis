@@ -33,6 +33,12 @@ impl Oryxis {
         // the search's on_submit (selection-aware, see
         // NewTabPickerSubmit) so the two paths can't double-fire.
         self.modal_nav_reset();
+        // Shortcut hint, resolved from the live binding table (never
+        // hard-coded, the tab-jump default changed once already, issue
+        // #100). `None` when the action is unbound: then no chip at
+        // all, an empty styled pill reads as a rendering glitch.
+        let hotkey_hint =
+            self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::ShowNewTabPicker);
         // Internal right-padding leaves room for the floating "Ctrl+K"
         // affordance so the typed value never slides under the hint.
         let search = text_input(t("search_hosts_or_tabs"), &self.new_tab_picker_search)
@@ -41,57 +47,53 @@ impl Oryxis {
             .on_submit(Message::Tabs(TabsMessage::NewTabPickerSubmit))
             .padding(Padding {
                 top: 14.0,
-                right: 64.0,
+                right: if hotkey_hint.is_some() { 64.0 } else { 14.0 },
                 bottom: 14.0,
                 left: 14.0,
             })
             .size(14)
             .style(crate::widgets::rounded_input_style).align_x(dir_align_x());
 
+        let mut search_block = iced::widget::Stack::new()
+            .push(search)
+            .width(Length::Fill);
         // Right-anchored shortcut hint inside a styled chip so it reads
         // as a keyboard affordance rather than placeholder text. Lives
         // in a Stack on top of the input, `text` has no click handler,
         // so focus-on-click still works on the wider left portion.
-        // Resolved from the live binding table (never hard-coded, the
-        // tab-jump default changed once already, issue #100).
-        let ctrl_k_chip = container(
-            text(
-                self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::ShowNewTabPicker)
-                    .unwrap_or_default(),
+        if let Some(hint) = hotkey_hint {
+            let ctrl_k_chip = container(
+                text(hint)
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
             )
-            .size(11)
-            .color(OryxisColors::t().text_muted),
-        )
-        .padding(Padding {
-            top: 2.0,
-            right: 6.0,
-            bottom: 2.0,
-            left: 6.0,
-        })
-        .style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_hover)),
-            border: Border {
-                radius: Radius::from(4.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        });
-        let ctrl_k_overlay = container(ctrl_k_chip)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(iced::alignment::Horizontal::Right)
-            .align_y(iced::alignment::Vertical::Center)
             .padding(Padding {
-                top: 0.0,
-                right: 12.0,
-                bottom: 0.0,
-                left: 0.0,
+                top: 2.0,
+                right: 6.0,
+                bottom: 2.0,
+                left: 6.0,
+            })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_hover)),
+                border: Border {
+                    radius: Radius::from(4.0),
+                    ..Default::default()
+                },
+                ..Default::default()
             });
-
-        let search_block = iced::widget::Stack::new()
-            .push(search)
-            .push(ctrl_k_overlay)
-            .width(Length::Fill);
+            let ctrl_k_overlay = container(ctrl_k_chip)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Right)
+                .align_y(iced::alignment::Vertical::Center)
+                .padding(Padding {
+                    top: 0.0,
+                    right: 12.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                });
+            search_block = search_block.push(ctrl_k_overlay);
+        }
 
         // Split panes are SSH-only (ECS Exec / kubectl exec open full tabs),
         // so when the picker is filling a pane we hide every cloud-query

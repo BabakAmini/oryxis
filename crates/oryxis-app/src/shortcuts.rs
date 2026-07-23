@@ -962,11 +962,10 @@ impl Oryxis {
             // (which would otherwise fill the old tab's split instead of
             // opening a new tab).
             ShowNewTabPicker => Task::done(Message::Tabs(TabsMessage::ShowNewTabPicker)),
-            ShowTabJump => {
-                self.show_tab_jump = true;
-                self.tab_jump_search.clear();
-                Task::none()
-            }
+            // Route through the message so the hotkey and the tab bar's
+            // `⋯` button share one open path: search cleared and the
+            // input focused for immediate type-to-filter.
+            ShowTabJump => Task::done(Message::Tabs(TabsMessage::ShowTabJump)),
             // The palette assumes an unlocked vault (its actions do): if
             // the vault isn't unlocked, decline to open. Otherwise route
             // through the message so the query is reset + input focused.

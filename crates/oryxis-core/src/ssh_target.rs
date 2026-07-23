@@ -9,7 +9,7 @@
 //! search-box string that merely resembles a target does not connect
 //! to a mangled host.
 
-use std::net::{IpAddr, Ipv6Addr};
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// A parsed quick-connect target. `username`/`port` stay `None` when
 /// omitted so callers can apply their own defaults (local OS user, 22).
@@ -71,9 +71,12 @@ impl SshTarget {
 
     /// Whether the host is an IP literal (v4 or v6). Callers use this
     /// to offer quick connect for bare addresses without demanding an
-    /// explicit `@` or `:` marker.
+    /// explicit `@` or `:` marker. Goes through the same zone-tolerant
+    /// v6 check as `parse` (std `IpAddr` rejects `fe80::1%eth0`), so a
+    /// bracketed literal that parsed keeps counting as one here:
+    /// `[fe80::1%eth0]` and `[fe80::1%eth0]:22` must classify alike.
     pub fn host_is_ip_literal(&self) -> bool {
-        self.host.parse::<IpAddr>().is_ok()
+        self.host.parse::<Ipv4Addr>().is_ok() || is_ipv6_literal(&self.host)
     }
 
     /// Whether the input names an EXPLICIT connect target: a username,
@@ -277,6 +280,10 @@ mod tests {
         assert!(SshTarget::parse("192.168.0.1").unwrap().host_is_ip_literal());
         assert!(SshTarget::parse("::1").unwrap().host_is_ip_literal());
         assert!(!SshTarget::parse("web01").unwrap().host_is_ip_literal());
+        // Zone-id IPv6 counts too: `parse` accepts the zone, so the
+        // literal check must agree or `[fe80::1%eth0]` (no port) and
+        // `[fe80::1%eth0]:22` classify differently.
+        assert!(SshTarget::parse("[fe80::1%eth0]").unwrap().host_is_ip_literal());
     }
 
     #[test]
@@ -286,6 +293,9 @@ mod tests {
         assert!(SshTarget::parse("root@web01").unwrap().is_explicit());
         assert!(SshTarget::parse("web01:2222").unwrap().is_explicit());
         assert!(SshTarget::parse("10.0.0.7").unwrap().is_explicit());
+        // A zoned bracketed literal is explicit with or without a port.
+        assert!(SshTarget::parse("[fe80::1%eth0]").unwrap().is_explicit());
+        assert!(SshTarget::parse("[fe80::1%eth0]:22").unwrap().is_explicit());
         assert!(!SshTarget::parse("web01").unwrap().is_explicit());
     }
 }

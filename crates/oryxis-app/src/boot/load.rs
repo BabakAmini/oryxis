@@ -751,11 +751,27 @@ impl Oryxis {
             // for the clipboard pair, whose alternates (Ctrl+Insert /
             // Shift+Insert) are exactly the chords an early adopter is
             // most likely to have already bound by hand.
-            let user_chords: Vec<crate::hotkeys::HotkeyBinding> = user_bound
+            let mut user_chords: Vec<crate::hotkeys::HotkeyBinding> = user_bound
                 .iter()
                 .filter_map(|a| self.hotkey_bindings.get(a))
                 .flat_map(|binds| binds.iter().copied())
                 .collect();
+            // Per-snippet custom hotkeys are user choices too, recorded
+            // against a table that did not yet contain the new factory
+            // default (the snippet recorder refuses chords the table
+            // holds, so an existing snippet chord PROVES it predates the
+            // default). Binding-table dispatch runs before snippet
+            // dispatch, so leaving the collision in place would silently
+            // hijack the snippet's chord on upgrade; stripping it here
+            // lets the table miss and the snippet keep firing. Snippets
+            // load earlier in the boot sequence (`load_data_from_vault`
+            // order), so the list is already populated.
+            user_chords.extend(
+                self.snippets
+                    .iter()
+                    .filter_map(|sn| sn.hotkey.as_deref())
+                    .filter_map(crate::hotkeys::HotkeyBinding::parse),
+            );
             let mut emptied: Vec<crate::hotkeys::HotkeyAction> = Vec::new();
             for action in crate::hotkeys::HotkeyAction::all() {
                 if user_bound.contains(action) {
