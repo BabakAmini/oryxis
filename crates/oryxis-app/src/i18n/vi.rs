@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Không lưu được chủ đề.",
         "split_side_by_side" => "Chia cạnh nhau",
         "split_stacked" => "Chia chồng lên nhau",
+        "close_pane" => "Đóng khung",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Lưu thành nhóm",
         "edit_session_group" => "Sửa nhóm",

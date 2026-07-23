@@ -1173,6 +1173,12 @@ impl Oryxis {
                 Some(idx) => Task::done(Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx))),
                 None => Task::none(),
             },
+            // Reconnect the focused tab: same handler as the tab context
+            // menu's entry, so live tabs restart and dead ones rebuild.
+            ReconnectTab => match self.active_tab {
+                Some(idx) => Task::done(Message::Tabs(TabsMessage::ReconnectTab(idx))),
+                None => Task::none(),
+            },
             // Privacy Mode session override (issue #78): volatile
             // forced-on/off above the global setting and the per-host
             // overrides; global, works from any surface.

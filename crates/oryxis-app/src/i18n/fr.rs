@@ -164,6 +164,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "Thème importé",
         "split_side_by_side" => "Diviser côte à côte",
         "split_stacked" => "Diviser empilé",
+        "close_pane" => "Fermer le panneau",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Enregistrer comme groupe",
         "edit_session_group" => "Modifier le groupe",

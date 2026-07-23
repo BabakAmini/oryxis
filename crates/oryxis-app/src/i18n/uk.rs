@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Не вдалося зберегти тему.",
         "split_side_by_side" => "Розділити поряд",
         "split_stacked" => "Розділити одне під одним",
+        "close_pane" => "Закрити панель",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Зберегти як групу",
         "edit_session_group" => "Редагувати групу",

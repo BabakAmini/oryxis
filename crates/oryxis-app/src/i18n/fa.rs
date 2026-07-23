@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "تم وارد شده",
         "split_side_by_side" => "تقسیم کنار هم",
         "split_stacked" => "تقسیم روی هم",
+        "close_pane" => "بستن پنل",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "ذخیره به‌عنوان گروه",
         "edit_session_group" => "ویرایش گروه",

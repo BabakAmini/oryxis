@@ -299,6 +299,30 @@ impl Oryxis {
             } else {
                 None
             };
+            // A local shell has no connection to look up, but "just
+            // closed" is the wrong reading of Reconnect on it (worse now
+            // that a chord can fire this): restart the same shell from
+            // its pane origin, the way pinned-tab reopen does. An empty
+            // program means the OS-default shell, which OpenLocalShellWith
+            // cannot spawn (CommandBuilder::new("")), so that one rides
+            // the plain OpenLocalShell decision instead.
+            let local_respawn = if conn_idx.is_none() && quick_entry.is_none() {
+                match &tab.active().origin {
+                    crate::state::PaneOrigin::Local(spec) if spec.program.is_empty() => {
+                        Some(Message::Settings(SettingsMessage::OpenLocalShell))
+                    }
+                    crate::state::PaneOrigin::Local(spec) => {
+                        Some(Message::Settings(SettingsMessage::OpenLocalShellWith {
+                            program: spec.program.clone(),
+                            args: spec.args.clone(),
+                            label: spec.label.clone(),
+                        }))
+                    }
+                    _ => None,
+                }
+            } else {
+                None
+            };
             self.tabs.remove(idx);
             self.adjust_last_terminal_tab_after_remove(idx);
             if self.tabs.is_empty() {
@@ -314,7 +338,7 @@ impl Oryxis {
                 (None, Some(entry)) => {
                     Some(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))))
                 }
-                (None, None) => None,
+                (None, None) => local_respawn,
             };
             if let Some(msg) = rebuild {
                 // Toast "Reconnecting..." so the user sees feedback the

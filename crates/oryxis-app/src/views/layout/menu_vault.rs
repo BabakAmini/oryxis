@@ -894,6 +894,22 @@ impl Oryxis {
                 Message::Terminal(TerminalMessage::TerminalClearScrollback(pane_id)),
                 OryxisColors::t().text_secondary,
             ));
+        // Close this pane: only offered on split tabs (on a single
+        // pane it would just be "close tab", which the tab menu owns).
+        // ShowTerminalContextMenu already focused the right-clicked
+        // pane, so the focused-pane ClosePane targets exactly this one.
+        let is_split = self
+            .pane_tab_index(pane_id)
+            .and_then(|i| self.tabs.get(i))
+            .is_some_and(|t| t.pane_grid.panes.len() > 1);
+        if is_split {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::x(),
+                crate::i18n::t("close_pane"),
+                Message::Terminal(TerminalMessage::ClosePane),
+                OryxisColors::t().text_secondary,
+            ));
+        }
         items.into()
     }
 

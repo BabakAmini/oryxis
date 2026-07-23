@@ -168,6 +168,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "שמירת ערכת הנושא נכשלה.",
         "split_side_by_side" => "פיצול זה לצד זה",
         "split_stacked" => "פיצול זה מעל זה",
+        "close_pane" => "סגירת חלונית",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "שמירה כקבוצה",
         "edit_session_group" => "עריכת קבוצה",

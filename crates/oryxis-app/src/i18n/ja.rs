@@ -164,6 +164,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "インポートしたテーマ",
         "split_side_by_side" => "左右に分割",
         "split_stacked" => "上下に分割",
+        "close_pane" => "ペインを閉じる",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "グループとして保存",
         "edit_session_group" => "グループを編集",

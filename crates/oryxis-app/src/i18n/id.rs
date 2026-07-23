@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Gagal menyimpan tema.",
         "split_side_by_side" => "Bagi berdampingan",
         "split_stacked" => "Bagi bertumpuk",
+        "close_pane" => "Tutup panel",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Simpan sebagai grup",
         "edit_session_group" => "Edit grup",

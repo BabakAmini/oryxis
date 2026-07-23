@@ -181,6 +181,9 @@ impl Oryxis {
                 }
             }
             TerminalMessage::ClosePane => {
+                // Dismiss the terminal context menu when its "Close
+                // pane" row fired this (no-op on the hotkey path).
+                self.overlay = None;
                 let Some(tab_idx) = self.active_tab else {
                     return Task::none();
                 };

@@ -168,6 +168,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "थीम सेव करने में विफल।",
         "split_side_by_side" => "अगल-बगल स्प्लिट करें",
         "split_stacked" => "ऊपर-नीचे स्प्लिट करें",
+        "close_pane" => "पेन बंद करें",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "ग्रुप के रूप में सेव करें",
         "edit_session_group" => "ग्रुप एडिट करें",

@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "سمة مستوردة",
         "split_side_by_side" => "تقسيم جنبًا إلى جنب",
         "split_stacked" => "تقسيم مكدس",
+        "close_pane" => "إغلاق اللوحة",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "حفظ كمجموعة",
         "edit_session_group" => "تعديل المجموعة",

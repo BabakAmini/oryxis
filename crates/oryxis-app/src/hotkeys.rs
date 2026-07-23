@@ -111,6 +111,11 @@ pub enum HotkeyAction {
     /// never persisted. Global: unlike `NewHost`'s bare Ctrl+N this
     /// ships with a Shift chord, so it also fires inside a terminal.
     ShowQuickConnect,
+    /// Reconnect the focused tab's session: the tab context menu's
+    /// "Reconnect" entry on a chord. Works on live tabs too (a
+    /// "restart this host"), same handler either way. Terminal-only:
+    /// there is no focused tab to reconnect anywhere else.
+    ReconnectTab,
 }
 
 impl HotkeyAction {
@@ -128,6 +133,7 @@ impl HotkeyAction {
             ShowQuickConnect,
             NewKey,
             NewIdentity,
+            ReconnectTab,
             CloseActiveTab,
             OpenPortForwards,
             OpenSettings,
@@ -199,6 +205,7 @@ impl HotkeyAction {
             VaultSectionNext => "vault_section_next",
             NewHost => "new_host",
             ShowQuickConnect => "show_quick_connect",
+            ReconnectTab => "reconnect_tab",
             NewKey => "new_key",
             NewIdentity => "new_identity",
             TerminalCopy => "terminal_copy",
@@ -249,6 +256,8 @@ impl HotkeyAction {
             // in all 17 languages), same as the split-pane pair.
             NewHost => "new_host",
             ShowQuickConnect => "quick_connect",
+            // Reuses the tab context menu's entry label, same pattern.
+            ReconnectTab => "reconnect",
             NewKey => "import_key",
             NewIdentity => "new_identity",
             // Reuse the terminal context-menu labels (already
@@ -279,6 +288,7 @@ impl HotkeyAction {
                 | ToggleSidebar
                 | ToggleTabFiles
                 | ToggleBroadcastInput
+                | ReconnectTab
                 | TerminalCopy
                 | TerminalPaste
                 | TerminalSelectAll
@@ -1110,6 +1120,13 @@ pub fn default_bindings() -> HotkeyMap {
     // Shift lifts it out of the terminal control-sequence gate so it
     // fires from inside a live terminal too.
     put(&mut m, ShowQuickConnect, primary_ctrl, true, false, primary_logo, Char('t'));
+    // Ctrl+Shift+R (Cmd+Shift+R on macOS): reconnect the focused tab,
+    // the browser-reload mnemonic. NOT plain Ctrl+R: that is readline
+    // reverse-history-search, which the control-sequence gate rightly
+    // leaves with the PTY; the Shift lifts the chord out of that gate
+    // so it fires from inside a live terminal, where a dropped session
+    // is actually noticed.
+    put(&mut m, ReconnectTab, primary_ctrl, true, false, primary_logo, Char('r'));
     // Keychain pair on Ctrl+Shift (Cmd+Shift on macOS): Shift lifts
     // both out of the terminal control-sequence gate; K mirrors the
     // key mnemonic (exact-modifier matching keeps it clear of the

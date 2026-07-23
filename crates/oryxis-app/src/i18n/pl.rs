@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Nie udało się zapisać motywu.",
         "split_side_by_side" => "Podziel obok siebie",
         "split_stacked" => "Podziel w pionie",
+        "close_pane" => "Zamknij panel",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Zapisz jako grupę",
         "edit_session_group" => "Edytuj grupę",

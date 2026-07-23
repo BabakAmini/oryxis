@@ -168,6 +168,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Αποτυχία αποθήκευσης του θέματος.",
         "split_side_by_side" => "Διαίρεση δίπλα-δίπλα",
         "split_stacked" => "Διαίρεση σε στοίβα",
+        "close_pane" => "Κλείσιμο τμήματος",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Αποθήκευση ως ομάδα",
         "edit_session_group" => "Επεξεργασία ομάδας",

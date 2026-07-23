@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Tema kaydedilemedi.",
         "split_side_by_side" => "Yan yana böl",
         "split_stacked" => "Üst üste böl",
+        "close_pane" => "Bölmeyi kapat",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Grup olarak kaydet",
         "edit_session_group" => "Grubu düzenle",
