@@ -716,6 +716,33 @@ pub(crate) fn highlight_color_at(highlights: &[Highlight], row: u16, col: u16) -
     None
 }
 
+/// Privacy span extents with overlapping or directly adjacent spans on the
+/// same row merged into one `(row, start_col, end_col)`. The detectors
+/// overlap by design (`user@host` from the prompt scan plus the saved
+/// hostname inside it from the term scan): drawing one bar per raw
+/// highlight painted two bars, and so two eye-slashes, over what reads as
+/// a single redaction. Merging here is canonical, every consumer
+/// (bar drawing, hover reveal, pin-by-text) sees the same unified spans,
+/// so a reveal always uncovers exactly what one bar covers.
+fn merged_privacy_extents(highlights: &[Highlight]) -> Vec<(u16, u16, u16)> {
+    let mut exts: Vec<(u16, u16, u16)> = highlights
+        .iter()
+        .filter(|h| h.kind == HighlightKind::Ip || h.kind.privacy_only())
+        .map(|h| (h.row, h.start_col, h.end_col))
+        .collect();
+    exts.sort_unstable();
+    let mut merged: Vec<(u16, u16, u16)> = Vec::with_capacity(exts.len());
+    for (row, start, end) in exts {
+        match merged.last_mut() {
+            Some((mrow, _, mend)) if *mrow == row && start <= mend.saturating_add(1) => {
+                *mend = (*mend).max(end);
+            }
+            _ => merged.push((row, start, end)),
+        }
+    }
+    merged
+}
+
 /// Find the IP / `user@host` privacy span covering a cell, returning its
 /// `(row, start_col, end_col)` (inclusive). Used by the draw pass to
 /// reveal the span the cursor is over while the rest stay masked, the same
@@ -726,15 +753,9 @@ pub(crate) fn privacy_span_at(
     row: u16,
     col: u16,
 ) -> Option<(u16, u16, u16)> {
-    highlights
-        .iter()
-        .find(|h| {
-            (h.kind == HighlightKind::Ip || h.kind.privacy_only())
-                && h.row == row
-                && col >= h.start_col
-                && col <= h.end_col
-        })
-        .map(|h| (h.row, h.start_col, h.end_col))
+    merged_privacy_extents(highlights)
+        .into_iter()
+        .find(|(r, sc, ec)| *r == row && col >= *sc && col <= *ec)
 }
 
 /// Whether a cell falls inside any IP / `user@host` privacy span. The draw
@@ -759,24 +780,19 @@ pub(crate) fn is_privacy_cell(highlights: &[Highlight], row: u16, col: u16) -> b
 /// span-level redaction bar (rounded rect + eye-slash, issue #78)
 /// instead of per-cell fills.
 pub(crate) fn privacy_extents(highlights: &[Highlight]) -> Vec<(u16, u16, u16)> {
-    highlights
-        .iter()
-        .filter(|h| h.kind == HighlightKind::Ip || h.kind.privacy_only())
-        .map(|h| (h.row, h.start_col, h.end_col))
-        .collect()
+    merged_privacy_extents(highlights)
 }
 
 pub(crate) fn privacy_spans_with_text(
     highlights: &[Highlight],
     row_chars: &[(u16, Vec<(u16, char)>)],
 ) -> Vec<((u16, u16, u16), String)> {
-    highlights
-        .iter()
-        .filter(|h| h.kind == HighlightKind::Ip || h.kind.privacy_only())
-        .filter_map(|h| {
-            let (_, cells) = row_chars.iter().find(|(r, _)| *r == h.row)?;
-            let mut text = String::with_capacity((h.end_col - h.start_col + 1) as usize);
-            for col in h.start_col..=h.end_col {
+    merged_privacy_extents(highlights)
+        .into_iter()
+        .filter_map(|(row, start_col, end_col)| {
+            let (_, cells) = row_chars.iter().find(|(r, _)| *r == row)?;
+            let mut text = String::with_capacity((end_col - start_col + 1) as usize);
+            for col in start_col..=end_col {
                 text.push(
                     cells
                         .iter()
@@ -785,7 +801,7 @@ pub(crate) fn privacy_spans_with_text(
                         .unwrap_or(' '),
                 );
             }
-            Some(((h.row, h.start_col, h.end_col), text))
+            Some(((row, start_col, end_col), text))
         })
         .collect()
 }
@@ -1513,6 +1529,43 @@ mod tests {
         let terms = vec!["web01".to_string()];
         let hs = detect_highlights(&rows, &TerminalPalette::default(), false, &terms, PrivacyClasses::default());
         assert!(hs.iter().all(|h| h.kind != HighlightKind::KnownHost));
+    }
+
+    #[test]
+    fn overlapping_privacy_spans_merge_into_one_extent() {
+        // The FreeBSD prompt regression: `wilson@web01` matches the
+        // prompt-token scan (HostUser) AND `web01` is a saved hostname
+        // (KnownHost), two overlapping raw highlights. The extent set the
+        // draw pass consumes must be ONE merged span, one bar with one
+        // eye-slash, and hover / pin must resolve that same span.
+        let s = "[wilson@web01 ~]$ ";
+        let rows = rows_from(s);
+        let terms = vec!["web01".to_string()];
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &terms, PrivacyClasses::default());
+        // Both raw detectors fired.
+        assert!(hs.iter().any(|h| h.kind == HighlightKind::HostUser));
+        assert!(hs.iter().any(|h| h.kind == HighlightKind::KnownHost));
+        let start = s.find("wilson@web01").unwrap() as u16;
+        let end = start + "wilson@web01".len() as u16 - 1;
+        assert_eq!(privacy_extents(&hs), vec![(0, start, end)]);
+        // Hover anywhere in the merged span (including the KnownHost
+        // sub-span) reveals the whole span, matching the single bar.
+        for col in start..=end {
+            assert_eq!(privacy_span_at(&hs, 0, col), Some((0, start, end)));
+        }
+        // Pin-by-text keys the merged text, what the reveal shows.
+        let texts = privacy_spans_with_text(&hs, &rows);
+        assert_eq!(texts, vec![((0, start, end), "wilson@web01".to_string())]);
+    }
+
+    #[test]
+    fn separate_privacy_spans_stay_separate() {
+        // A gap of at least one unmasked cell keeps spans distinct: two
+        // addresses separated by a space remain two bars / two reveals.
+        let s = "8.8.8.8 9.9.9.9";
+        let rows = rows_from(s);
+        let hs = detect_highlights(&rows, &TerminalPalette::default(), true, &[], PrivacyClasses::default());
+        assert_eq!(privacy_extents(&hs), vec![(0, 0, 6), (0, 8, 14)]);
     }
 
     /// Texts of VersionQuad-kind highlights detected in `s`.
