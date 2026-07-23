@@ -231,10 +231,14 @@ impl Oryxis {
     }
 }
 
-/// "Ports (N)" disclosure row: clicking it expands the list.
+/// "Ports (N)" disclosure row: clicking it expands the list. The
+/// collapsed chevron points along the reading direction, so RTL flips
+/// it to the left.
 fn ports_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
     let chevron = if open {
         iced_fonts::lucide::chevron_down()
+    } else if crate::i18n::is_rtl_layout() {
+        iced_fonts::lucide::chevron_left()
     } else {
         iced_fonts::lucide::chevron_right()
     };
@@ -273,10 +277,13 @@ fn ports_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
 }
 
 /// "Disks (N)" disclosure row (issue #83 follow-up): clicking it
-/// expands / collapses the per-mount list, mirroring `ports_header`.
+/// expands / collapses the per-mount list, mirroring `ports_header`
+/// (RTL-flipped collapsed chevron included).
 fn disks_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
     let chevron = if open {
         iced_fonts::lucide::chevron_down()
+    } else if crate::i18n::is_rtl_layout() {
+        iced_fonts::lucide::chevron_left()
     } else {
         iced_fonts::lucide::chevron_right()
     };

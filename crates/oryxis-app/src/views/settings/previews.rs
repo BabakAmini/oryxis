@@ -130,7 +130,15 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
             .into()
         };
+        // Same spacer placement as the real bar: `status_bar_align_left`
+        // parks the content on the PHYSICAL left edge (not flipped by
+        // RTL, see `view_status_bar`), else the cluster trails.
+        let align_left = self.setting_status_bar_align_left;
+        let spacer_leads = align_left && crate::i18n::is_rtl_layout();
         let mut items: Vec<Element<'_, Message>> = Vec::new();
+        if spacer_leads {
+            items.push(Space::new().width(Length::Fill).into());
+        }
         if self.setting_status_show_connection {
             items.push(
                 text(format!(
@@ -141,8 +149,13 @@ impl Oryxis {
                 .color(OryxisColors::t().success)
                 .into(),
             );
+            if align_left {
+                items.push(Space::new().width(16).into());
+            }
         }
-        items.push(Space::new().width(Length::Fill).into());
+        if !align_left {
+            items.push(Space::new().width(Length::Fill).into());
+        }
         if self.setting_status_show_latency {
             items.push(vital(crate::i18n::t("status_latency").into(), "23 ms"));
             items.push(Space::new().width(12).into());
@@ -170,6 +183,9 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted)
                     .into(),
             );
+        }
+        if align_left && !spacer_leads {
+            items.push(Space::new().width(Length::Fill).into());
         }
         let bar = container(
             dir_row(items)

@@ -48,11 +48,18 @@ impl Oryxis {
         // declutters the bar and keeps the host name out of screenshots.
         // Content alignment (issue #83 follow-up): the vitals cluster hugs
         // the trailing edge by default; `status_bar_align_left` moves it to
-        // the leading edge instead, so it lines up with a left-docked panel
-        // layout. The lever is where the flexible spacer sits, and the whole
-        // row rides `dir_row`, so "leading" mirrors correctly under RTL.
+        // the PHYSICAL left edge instead, so it lines up with a left-docked
+        // panel layout. The panel dock is a physical edge that RTL does not
+        // flip, and every language's label literally promises "left", so
+        // this lever must not ride `dir_row`'s logical reversal: under RTL
+        // the flexible spacer enters the vector on the opposite (leading)
+        // side, which the reversal then lands on the physical right.
         let align_left = self.setting_status_bar_align_left;
+        let spacer_leads = align_left && crate::i18n::is_rtl_layout();
         let mut items: Vec<Element<'_, Message>> = Vec::new();
+        if spacer_leads {
+            items.push(Space::new().width(Length::Fill).into());
+        }
         if self.setting_status_show_connection {
             items.push(text(status_text).size(12).color(status_color).into());
             // Leading-aligned: keep a gap between the label and the cluster
@@ -218,7 +225,13 @@ impl Oryxis {
                 } else {
                     format!("{:.0}%", disk.pct())
                 };
-                let badge = vital(&disk.mount, value, tint(disk.pct()));
+                // Privacy Mode redacts mount paths like the cwd above:
+                // `/home/<user>` carries the username and `/srv/<project>`
+                // a company name, and the tooltip lists every mount.
+                let terms = self.privacy_terms();
+                let mount =
+                    self.privacy_display_label(&disk.mount, &disk.mount, &terms);
+                let badge = vital(&mount, value, tint(disk.pct()));
                 if extra > 0 {
                     let list = sample
                         .disks
@@ -226,7 +239,7 @@ impl Oryxis {
                         .map(|d| {
                             format!(
                                 "{}  {:.0}%  {} / {}",
-                                d.mount,
+                                self.privacy_display_label(&d.mount, &d.mount, &terms),
                                 d.pct(),
                                 crate::views::sidebar_monitor::fmt_bytes_short(d.used),
                                 crate::views::sidebar_monitor::fmt_bytes_short(d.total),
@@ -285,9 +298,10 @@ impl Oryxis {
                     .into(),
             );
         }
-        // Leading-aligned: the flexible spacer trails the cluster instead,
-        // pushing everything to the leading edge.
-        if align_left {
+        // Left-aligned: the flexible spacer trails the cluster instead,
+        // pushing everything to the physical left edge (under RTL it was
+        // pushed at the head above, `dir_row`'s reversal moves it here).
+        if align_left && !spacer_leads {
             items.push(Space::new().width(Length::Fill).into());
         }
         let bar = container(
@@ -325,8 +339,9 @@ fn middle_truncate(s: &str, max: usize) -> String {
 
 /// One host-vital readout in the status bar: muted label, tinted value
 /// (issue #83). Passive text, not a control: the sidebar Monitor tab is
-/// where the numbers are actionable.
-fn vital<'a>(label: &'a str, value: String, color: Color) -> Element<'a, Message> {
+/// where the numbers are actionable. Owns its label copy, so callers
+/// can pass short-lived strings (the privacy-masked mount below).
+fn vital(label: &str, value: String, color: Color) -> Element<'static, Message> {
     crate::widgets::dir_row(vec![
         text(label.to_string())
             .size(11)

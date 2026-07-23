@@ -1112,10 +1112,11 @@ pub struct Oryxis {
     pub(crate) setting_status_show_latency: bool,
     pub(crate) setting_status_show_dimensions: bool,
     pub(crate) setting_status_show_cwd: bool,
-    /// Align the status-bar content on the leading edge instead of the
-    /// trailing edge (issue #83 follow-up), so it lines up with a
-    /// left-docked panel layout. Default off (trailing, the original
-    /// behaviour).
+    /// Align the status-bar content on the PHYSICAL left edge instead
+    /// of the trailing edge (issue #83 follow-up), so it lines up with
+    /// a left-docked panel layout. The panel dock is a physical edge
+    /// like `setting_terminal_sidebar_left` below, so RTL does not flip
+    /// this either. Default off (trailing, the original behaviour).
     pub(crate) setting_status_bar_align_left: bool,
     /// Dock the terminal sidebar (Chat / Snippets / Files / Monitor /
     /// Host config) on the LEFT of the terminal instead of the right
