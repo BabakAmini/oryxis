@@ -200,7 +200,12 @@ pub(crate) fn windows_agent_pipe_candidates(
         push(&mut out, p);
     }
     push(&mut out, OPENSSH_PIPE.to_string());
-    push(&mut out, oryxis_core::agent_paths::WINDOWS_AGENT_PIPE.to_string());
+    // Deliberately NOT the Oryxis agent's own pipe: dialing our own
+    // in-process agent to auth our own connection is redundant (the
+    // engine already offers the connection's key directly in the
+    // publickey phase) and would trip the agent-server confirm prompt
+    // on a connection the user just initiated in this same app. External
+    // tools still reach the pipe directly; we simply don't ask ourselves.
     out
 }
 
@@ -219,27 +224,23 @@ pub(crate) fn agent_pipe_candidates() -> Vec<String> {
     windows_agent_pipe_candidates(&list_named_pipes(), user.as_deref(), conf.as_deref())
 }
 
-/// Ordered agent sockets for CLIENT auth on Unix: `SSH_AUTH_SOCK`
-/// first (the user's stated preference), then the Oryxis agent's own
-/// socket, so vault keys answer even when the env var points at a
-/// different (or empty) agent. Same fallback rationale as the Windows
-/// candidate list above. Exact-string dedup covers the common case of
-/// `SSH_AUTH_SOCK` already pointing at the Oryxis socket.
+/// Agent sockets for CLIENT auth on Unix: just `SSH_AUTH_SOCK` (empty
+/// or unset yields no candidate). Deliberately NOT the Oryxis agent's
+/// own socket: dialing our own in-process agent to auth our own
+/// connection is redundant (the engine already offers the connection's
+/// key directly in the publickey phase) and would trip the agent-server
+/// confirm prompt on a connection the user just initiated in this same
+/// app. A user who explicitly points `SSH_AUTH_SOCK` at the Oryxis
+/// socket still routes here, by their own choice.
 #[cfg(any(unix, test))]
 pub(crate) fn unix_agent_sock_candidates(
     env_sock: Option<String>,
-    oryxis_sock: Option<std::path::PathBuf>,
 ) -> Vec<std::path::PathBuf> {
-    let mut out: Vec<std::path::PathBuf> = Vec::new();
-    if let Some(p) = env_sock.filter(|p| !p.is_empty()) {
-        out.push(std::path::PathBuf::from(p));
-    }
-    if let Some(p) = oryxis_sock
-        && !out.contains(&p)
-    {
-        out.push(p);
-    }
-    out
+    env_sock
+        .filter(|p| !p.is_empty())
+        .map(std::path::PathBuf::from)
+        .into_iter()
+        .collect()
 }
 
 /// Bridge an inbound agent-forward channel to the local ssh-agent so

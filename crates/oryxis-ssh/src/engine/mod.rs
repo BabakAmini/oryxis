@@ -480,7 +480,6 @@ mod tests {
                 r"\\.\pipe\pageant.alice.deadbeef".to_string(),
                 r"\\.\pipe\pageant.conf-pipe.abc".to_string(),
                 r"\\.\pipe\openssh-ssh-agent".to_string(),
-                r"\\.\pipe\oryxis-ssh-agent".to_string(),
             ],
         );
     }
@@ -502,21 +501,18 @@ mod tests {
                 r"\\.\pipe\pageant.alice.keepassxc".to_string(),
                 r"\\.\pipe\pageant.alice.putty".to_string(),
                 r"\\.\pipe\openssh-ssh-agent".to_string(),
-                r"\\.\pipe\oryxis-ssh-agent".to_string(),
             ],
         );
     }
 
     #[test]
-    fn pipe_candidates_no_pageant_still_reach_fixed_pipes() {
-        // The #98 shape: no Pageant anywhere, the OpenSSH pipe (and the
-        // Oryxis agent's own pipe) must still be dialed.
+    fn pipe_candidates_no_pageant_still_reach_openssh_pipe() {
+        // The #98 shape: no Pageant anywhere, the OpenSSH pipe must
+        // still be dialed. The Oryxis agent's own pipe is deliberately
+        // absent (we don't dial ourselves).
         assert_eq!(
             agent::windows_agent_pipe_candidates(&[], Some("alice"), None),
-            vec![
-                r"\\.\pipe\openssh-ssh-agent".to_string(),
-                r"\\.\pipe\oryxis-ssh-agent".to_string(),
-            ],
+            vec![r"\\.\pipe\openssh-ssh-agent".to_string()],
         );
     }
 
@@ -531,42 +527,25 @@ mod tests {
             vec![
                 r"\\.\pipe\Pageant.Alice.ABCD".to_string(),
                 r"\\.\pipe\openssh-ssh-agent".to_string(),
-                r"\\.\pipe\oryxis-ssh-agent".to_string(),
             ],
         );
     }
 
     #[test]
-    fn unix_sock_candidates_env_then_oryxis() {
-        let sock = std::path::PathBuf::from("/home/u/.oryxis/agent.sock");
+    fn unix_sock_candidates_use_env_only() {
+        // Only SSH_AUTH_SOCK is dialed; the Oryxis agent's own socket is
+        // deliberately not appended (we don't dial ourselves).
         assert_eq!(
-            agent::unix_agent_sock_candidates(
-                Some("/run/user/1000/keyring/ssh".to_string()),
-                Some(sock.clone()),
-            ),
-            vec![
-                std::path::PathBuf::from("/run/user/1000/keyring/ssh"),
-                sock,
-            ],
+            agent::unix_agent_sock_candidates(Some("/run/user/1000/keyring/ssh".to_string())),
+            vec![std::path::PathBuf::from("/run/user/1000/keyring/ssh")],
         );
     }
 
     #[test]
-    fn unix_sock_candidates_dedup_and_empty_env() {
-        let sock = std::path::PathBuf::from("/home/u/.oryxis/agent.sock");
-        // SSH_AUTH_SOCK already pointing at the Oryxis socket: one dial.
-        assert_eq!(
-            agent::unix_agent_sock_candidates(
-                Some("/home/u/.oryxis/agent.sock".to_string()),
-                Some(sock.clone()),
-            ),
-            vec![sock.clone()],
-        );
-        // Empty env var is not a candidate.
-        assert_eq!(
-            agent::unix_agent_sock_candidates(Some(String::new()), Some(sock.clone())),
-            vec![sock],
-        );
+    fn unix_sock_candidates_empty_or_unset_env_is_none() {
+        // Empty env var is not a candidate, and neither is an unset one.
+        assert!(agent::unix_agent_sock_candidates(Some(String::new())).is_empty());
+        assert!(agent::unix_agent_sock_candidates(None).is_empty());
     }
 
     #[test]

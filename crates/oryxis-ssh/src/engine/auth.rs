@@ -576,10 +576,8 @@ impl SshEngine {
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
     ) -> Result<AgentAuthOutcome, SshError> {
-        let candidates = super::agent::unix_agent_sock_candidates(
-            std::env::var("SSH_AUTH_SOCK").ok(),
-            oryxis_core::agent_paths::unix_agent_socket_path(),
-        );
+        let candidates =
+            super::agent::unix_agent_sock_candidates(std::env::var("SSH_AUTH_SOCK").ok());
         if candidates.is_empty() {
             return Err(SshError::Key(
                 "ssh-agent not available: SSH_AUTH_SOCK is not set".into(),
