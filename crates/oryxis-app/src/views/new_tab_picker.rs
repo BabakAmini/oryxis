@@ -39,7 +39,7 @@ impl Oryxis {
         // all, an empty styled pill reads as a rendering glitch.
         let hotkey_hint =
             self.hotkey_label_for_action(crate::hotkeys::HotkeyAction::ShowNewTabPicker);
-        // Internal right-padding leaves room for the floating "Ctrl+K"
+        // Internal right-padding leaves room for the floating hotkey
         // affordance so the typed value never slides under the hint.
         let search = text_input(t("search_hosts_or_tabs"), &self.new_tab_picker_search)
             .id(iced::widget::Id::new(crate::state::NEW_TAB_PICKER_SEARCH_ID))

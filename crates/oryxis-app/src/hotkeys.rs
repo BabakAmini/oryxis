@@ -1085,7 +1085,14 @@ pub fn default_bindings() -> HotkeyMap {
     let mac = cfg!(target_os = "macos");
     let primary_ctrl = !mac;
     let primary_logo = mac;
-    put(&mut m, ShowNewTabPicker, primary_ctrl, false, false, primary_logo, Char('k'));
+    // Ctrl+Shift+T (Cmd+Shift+T on macOS): the terminal-world "new tab"
+    // chord (GNOME Terminal / Windows Terminal), which is exactly what
+    // the saved-host picker opens. NOT plain Ctrl+K as before: a bare
+    // Ctrl+letter is a terminal control sequence (Ctrl+K = readline
+    // kill-line) that is_terminal_control_sequence() leaves with the
+    // PTY, so the picker was unreachable from inside a live terminal.
+    // The Shift lifts it out of that gate.
+    put(&mut m, ShowNewTabPicker, primary_ctrl, true, false, primary_logo, Char('t'));
     // Ctrl+Shift+J (Cmd+Shift+J on macOS), not plain Ctrl+J: a bare
     // Ctrl+letter is a terminal control sequence (Ctrl+J IS line feed,
     // emacs/readline accept-line) and is_terminal_control_sequence()
@@ -1110,16 +1117,17 @@ pub fn default_bindings() -> HotkeyMap {
     // Ctrl+letter, so inside a terminal it stays with the PTY (readline
     // next-history), like Ctrl+K / Ctrl+P above.
     put(&mut m, NewHost, primary_ctrl, false, false, primary_logo, Char('n'));
-    // Ctrl+Shift+T (Cmd+Shift+T on macOS), issue #99. NOT Q despite the
-    // "Quick" mnemonic: Cmd+Shift+Q is the macOS system Log Out chord,
-    // and every other Oryxis default teaches Cmd+Shift+<letter> muscle
-    // memory on the Mac, so a Ctrl-only exception there would invite
-    // the exact wrong-modifier slip into logout. T is safe on both
-    // sides and aligned: Ctrl+Shift+T is the terminal-world "new tab"
-    // chord (GNOME Terminal), which is what an ad-hoc session is. The
-    // Shift lifts it out of the terminal control-sequence gate so it
-    // fires from inside a live terminal too.
-    put(&mut m, ShowQuickConnect, primary_ctrl, true, false, primary_logo, Char('t'));
+    // Ctrl+Shift+G (Cmd+Shift+G on macOS), issue #99. Moved off
+    // Ctrl+Shift+T: that is the terminal-world "new tab" chord, which
+    // the saved-host picker (the primary new-tab action) now owns; an
+    // ad-hoc quick connect is the secondary path, so "G" for "go to a
+    // host". NOT Q despite the "Quick" mnemonic: Cmd+Shift+Q is the
+    // macOS system Log Out chord, and every other Oryxis default
+    // teaches Cmd+Shift+<letter> muscle memory on the Mac, so binding
+    // Quick there would invite the exact wrong-modifier slip into
+    // logout. The Shift lifts it out of the terminal control-sequence
+    // gate so it fires from inside a live terminal too.
+    put(&mut m, ShowQuickConnect, primary_ctrl, true, false, primary_logo, Char('g'));
     // Ctrl+Shift+R (Cmd+Shift+R on macOS): reconnect the focused tab,
     // the browser-reload mnemonic. NOT plain Ctrl+R: that is readline
     // reverse-history-search, which the control-sequence gate rightly

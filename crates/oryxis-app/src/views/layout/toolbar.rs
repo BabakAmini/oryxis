@@ -329,7 +329,7 @@ impl Oryxis {
         // first keystroke where `user@host` parses).
         let mut stack = iced::widget::Stack::new().push(field).width(Length::Fill);
         if quick_hint {
-            // Same floating-chip pattern as the picker's Ctrl+K affordance:
+            // Same floating-chip pattern as the picker's hotkey affordance:
             // a Stack overlay, so the chip takes no clicks and focus-on-click
             // keeps working on the input below it.
             let chip = iced::widget::container(

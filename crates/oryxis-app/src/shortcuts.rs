@@ -956,8 +956,8 @@ impl Oryxis {
         use HotkeyAction::*;
         match action {
             // Route through the message so the new-tab intent is reset the
-            // same way the `+` button does: Ctrl+K always opens a fresh
-            // new-tab picker, never inherits a `pending_pane_split` left
+            // same way the `+` button does: the picker hotkey always opens
+            // a fresh new-tab picker, never inherits a `pending_pane_split` left
             // armed by an earlier split-picker that was dismissed with Esc
             // (which would otherwise fill the old tab's split instead of
             // opening a new tab).

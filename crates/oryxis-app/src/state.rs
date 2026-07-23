@@ -397,7 +397,7 @@ pub enum ConnectionStep {
 pub(crate) const KBI_FIRST_INPUT_ID: &str = "kbi-first-input";
 
 /// Widget id of the new-tab picker's search input, so every path that
-/// opens the picker (Ctrl+K, the `+` button, pane splits) can land
+/// opens the picker (its hotkey, the `+` button, pane splits) can land
 /// focus there for immediate type-to-filter.
 pub(crate) const NEW_TAB_PICKER_SEARCH_ID: &str = "new-tab-picker-search";
 
