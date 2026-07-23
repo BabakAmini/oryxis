@@ -796,6 +796,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Error de conexión con el registro de conexión:",
         "connecting_status" => "Conectando...",
         "disconnected_reconnecting" => "Conexión perdida. Reconectando...",
+        "reconnect_unsupported" => "Reconectar no está disponible para esta pestaña.",
         "disconnected_idle" => "Conexión perdida.",
         "start_over" => "Empezar de nuevo",
         "hk_add_question" => "¿Desea agregarlo a la lista de hosts conocidos?",

@@ -956,6 +956,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "اتصال ناموفق بود؛ گزارش اتصال:",
         "connecting_status" => "در حال اتصال...",
         "disconnected_reconnecting" => "اتصال قطع شد. در حال اتصال مجدد...",
+        "reconnect_unsupported" => "اتصال مجدد برای این برگه در دسترس نیست.",
         "disconnected_idle" => "اتصال قطع شد.",
         "start_over" => "شروع دوباره",
         "hk_add_question" => "می‌خواهید آن را به فهرست میزبان‌های شناخته‌شده اضافه کنید؟",

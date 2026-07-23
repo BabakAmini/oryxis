@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Échec de la connexion avec le journal de connexion :",
         "connecting_status" => "Connexion...",
         "disconnected_reconnecting" => "Connexion perdue. Reconnexion...",
+        "reconnect_unsupported" => "La reconnexion n'est pas disponible pour cet onglet.",
         "disconnected_idle" => "Connexion perdue.",
         "start_over" => "Recommencer",
         "hk_add_question" => "Voulez-vous l'ajouter à la liste des hôtes connus ?",

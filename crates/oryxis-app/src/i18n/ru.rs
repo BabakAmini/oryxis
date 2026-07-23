@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Сбой подключения, журнал подключения:",
         "connecting_status" => "Подключение...",
         "disconnected_reconnecting" => "Соединение потеряно. Переподключение...",
+        "reconnect_unsupported" => "Переподключение недоступно для этой вкладки.",
         "disconnected_idle" => "Соединение потеряно.",
         "start_over" => "Начать заново",
         "hk_add_question" => "Хотите добавить его в список известных хостов?",

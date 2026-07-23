@@ -242,6 +242,13 @@ pub(crate) struct Pane {
     pub terminal: Arc<Mutex<TerminalState>>,
     /// Remote transport handle (SSH or Telnet; None for local shell).
     pub session: Option<TerminalTransport>,
+    /// True while an in-place reconnect dial for this pane is in
+    /// flight, making a repeat `ReconnectTab` a no-op (a held chord or
+    /// an auto-reconnect tick racing a manual click must not stack a
+    /// second dial). Set when the reconnect spawns the dial; cleared by
+    /// every completion (`SshConnected` attach, `SshDisconnected`,
+    /// `PaneConnectError`).
+    pub connecting: bool,
     /// Session log ID for terminal recording.
     pub session_log_id: Option<Uuid>,
     /// Recorded bytes not yet flushed to the vault. PTY output appends
@@ -430,6 +437,7 @@ impl Pane {
             label,
             terminal,
             session: None,
+            connecting: false,
             session_log_id: None,
             session_log_buf: Vec::new(),
             session_log_t0: None,

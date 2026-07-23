@@ -960,6 +960,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "החיבור נכשל עם יומן החיבור הבא:",
         "connecting_status" => "מתחבר...",
         "disconnected_reconnecting" => "החיבור אבד. מתחבר מחדש...",
+        "reconnect_unsupported" => "התחברות מחדש אינה זמינה עבור כרטיסייה זו.",
         "disconnected_idle" => "החיבור אבד.",
         "start_over" => "התחלה מחדש",
         "hk_add_question" => "להוסיף אותו לרשימת המארחים המוכרים?",

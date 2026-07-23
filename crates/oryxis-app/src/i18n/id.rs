@@ -954,6 +954,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Koneksi gagal dengan log koneksi:",
         "connecting_status" => "Menghubungkan...",
         "disconnected_reconnecting" => "Koneksi terputus. Menghubungkan ulang...",
+        "reconnect_unsupported" => "Menyambung ulang tidak tersedia untuk tab ini.",
         "disconnected_idle" => "Koneksi terputus.",
         "start_over" => "Mulai dari awal",
         "hk_add_question" => "Apakah Anda ingin menambahkannya ke daftar host dikenal?",

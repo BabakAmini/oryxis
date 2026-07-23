@@ -960,6 +960,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Połączenie nieudane, dziennik połączenia:",
         "connecting_status" => "Łączenie...",
         "disconnected_reconnecting" => "Utracono połączenie. Ponowne łączenie...",
+        "reconnect_unsupported" => "Ponowne łączenie nie jest dostępne dla tej karty.",
         "disconnected_idle" => "Utracono połączenie.",
         "start_over" => "Zacznij od nowa",
         "hk_add_question" => "Czy chcesz dodać go do listy znanych hostów?",

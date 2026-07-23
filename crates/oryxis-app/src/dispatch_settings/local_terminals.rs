@@ -327,11 +327,6 @@ pub(crate) fn spawn_local_shell(
     app: &mut Oryxis,
     pick: Option<(String, Vec<String>, String)>,
 ) -> Task<Message> {
-    app.connecting = None; // Clear any pending SSH connection progress
-    let (program_label, args_label) = match &pick {
-        Some((p, a, _)) => (p.clone(), a.clone()),
-        None => ("<default-shell>".into(), Vec::new()),
-    };
     // Open in the focused pane's directory when it's a local shell that
     // reported one via OSC 7 (a remote SSH cwd wouldn't exist locally).
     let inherit_cwd = app
@@ -340,6 +335,24 @@ pub(crate) fn spawn_local_shell(
         .map(|t| t.active())
         .filter(|p| matches!(p.origin, crate::state::PaneOrigin::Local(_)))
         .and_then(|p| p.cwd.clone());
+    spawn_local_shell_in(app, pick, inherit_cwd)
+}
+
+/// `spawn_local_shell` with an explicit working directory (`None` =
+/// the process default), bypassing the focused-pane inheritance above.
+/// Used by the reconnect respawn, which runs after its tab was removed
+/// and `active_tab` repointed at a NEIGHBOR tab: inheriting at spawn
+/// time would read that neighbor's cwd instead of the dead pane's own.
+pub(crate) fn spawn_local_shell_in(
+    app: &mut Oryxis,
+    pick: Option<(String, Vec<String>, String)>,
+    inherit_cwd: Option<String>,
+) -> Task<Message> {
+    app.connecting = None; // Clear any pending SSH connection progress
+    let (program_label, args_label) = match &pick {
+        Some((p, a, _)) => (p.clone(), a.clone()),
+        None => ("<default-shell>".into(), Vec::new()),
+    };
     let result = match &pick {
         Some((program, args, _)) => TerminalState::new_with_command(
             DEFAULT_TERM_COLS as u16,

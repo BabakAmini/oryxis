@@ -126,6 +126,25 @@ impl Oryxis {
                 }
             }
             SshMessage::SshConnected(pane_id, session) => {
+                // A dial that outlived its pane: an in-place reconnect
+                // re-keyed the pane (or its tab closed) while this
+                // connect was still in flight, so no pane routes the
+                // completion. Tear the fresh session down instead of
+                // leaking it (it holds live engine tasks and any
+                // per-connection port-forward listeners), and drop a
+                // progress card still tracking this exact dial (its
+                // tab is gone).
+                if self.pane_tab_index(pane_id).is_none() {
+                    session.close();
+                    if self
+                        .connecting
+                        .as_ref()
+                        .is_some_and(|c| c.pane_id == pane_id)
+                    {
+                        self.connecting = None;
+                    }
+                    return Task::none();
+                }
                 // Terminfo fallback (issue #88): by the time the PTY is up
                 // the progress card is gone, so the timeline log alone is
                 // easy to miss; a toast tells the user why TERM differs
@@ -149,6 +168,8 @@ impl Oryxis {
                     // remote `top`/`vim` re-layout instead of overflowing.
                     if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id) {
                         pane.session = Some(session.clone());
+                        // The reconnect dial resolved; re-arm ReconnectTab.
+                        pane.connecting = false;
                         if let Ok(mut state) = pane.terminal.lock() {
                             // Serial has no viewport, so no resize sender;
                             // SSH/Telnet forward window changes to the peer.
@@ -363,6 +384,10 @@ impl Oryxis {
                         if let Some(session) = p.session.take() {
                             session.close();
                         }
+                        // A reconnect dial that ended in the stream
+                        // closing (instead of `Connected`) is over too;
+                        // re-arm ReconnectTab for this pane.
+                        p.connecting = false;
                         // A transfer in flight loses its transport here.
                         // Dropping the `ZmodemPane` drops its `wire_tx`, so
                         // the driver's `wire_in` closes, it returns an error,
@@ -523,6 +548,14 @@ impl Oryxis {
                 }
             }
             SshMessage::PaneConnectError(pane_id, msg) => {
+                // The dial for this pane is over; drop the in-flight
+                // marker so ReconnectTab works again (it is a no-op
+                // while a dial is pending).
+                if let Some(tab_idx) = self.pane_tab_index(pane_id)
+                    && let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id)
+                {
+                    pane.connecting = false;
+                }
                 // Identity / key switch on a split-pane quick connect: the
                 // error is the cancel we provoked, reconnect the same pane
                 // in place with the mutated entry.

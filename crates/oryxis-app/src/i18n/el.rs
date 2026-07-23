@@ -960,6 +960,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Η σύνδεση απέτυχε με αρχείο καταγραφής σύνδεσης:",
         "connecting_status" => "Σύνδεση...",
         "disconnected_reconnecting" => "Η σύνδεση χάθηκε. Επανασύνδεση...",
+        "reconnect_unsupported" => "Η επανασύνδεση δεν είναι διαθέσιμη για αυτήν την καρτέλα.",
         "disconnected_idle" => "Η σύνδεση χάθηκε.",
         "start_over" => "Από την αρχή",
         "hk_add_question" => "Θέλετε να προστεθεί στη λίστα των γνωστών hosts;",

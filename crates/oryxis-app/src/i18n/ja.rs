@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "接続に失敗しました。接続ログ：",
         "connecting_status" => "接続中...",
         "disconnected_reconnecting" => "接続が切れました。再接続しています...",
+        "reconnect_unsupported" => "このタブでは再接続できません",
         "disconnected_idle" => "接続が切れました。",
         "start_over" => "やり直す",
         "hk_add_question" => "既知のホストのリストに追加しますか？",

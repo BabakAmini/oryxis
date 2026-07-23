@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Verbindung fehlgeschlagen, Verbindungsprotokoll:",
         "connecting_status" => "Verbinde...",
         "disconnected_reconnecting" => "Verbindung verloren. Verbindung wird wiederhergestellt...",
+        "reconnect_unsupported" => "Erneutes Verbinden ist für diesen Tab nicht verfügbar.",
         "disconnected_idle" => "Verbindung verloren.",
         "start_over" => "Neu starten",
         "hk_add_question" => "Möchten Sie ihn zur Liste der bekannten Hosts hinzufügen?",

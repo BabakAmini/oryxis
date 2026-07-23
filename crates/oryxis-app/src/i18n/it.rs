@@ -790,6 +790,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Connessione non riuscita con log di connessione:",
         "connecting_status" => "Connessione in corso...",
         "disconnected_reconnecting" => "Connessione persa. Riconnessione...",
+        "reconnect_unsupported" => "La riconnessione non è disponibile per questa scheda.",
         "disconnected_idle" => "Connessione persa.",
         "start_over" => "Ricomincia",
         "hk_add_question" => "Vuoi aggiungerlo alla lista degli host conosciuti?",

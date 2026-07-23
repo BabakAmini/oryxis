@@ -1020,7 +1020,7 @@ impl Oryxis {
                 // tab when it's the last pane. Elsewhere there are no
                 // panes, so close the active tab directly.
                 if self.active_view == View::Terminal || self.active_tab.is_some() {
-                    Task::done(Message::Terminal(TerminalMessage::ClosePane))
+                    Task::done(Message::Terminal(TerminalMessage::ClosePane(None)))
                 } else if let Some(idx) = self.active_tab {
                     Task::done(Message::Tabs(TabsMessage::CloseTab(idx)))
                 } else {

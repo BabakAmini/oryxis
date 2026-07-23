@@ -961,6 +961,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "connection_failed_log" => "Connection failed with connection log:",
         "connecting_status" => "Connecting...",
         "disconnected_reconnecting" => "Connection lost. Reconnecting...",
+        "reconnect_unsupported" => "Reconnect is not available for this tab.",
         "disconnected_idle" => "Connection lost.",
         "start_over" => "Start over",
         "hk_add_question" => "Do you want to add it to the list of known hosts?",

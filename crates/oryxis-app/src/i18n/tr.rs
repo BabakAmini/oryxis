@@ -954,6 +954,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Bağlantı şu bağlantı kaydıyla başarısız oldu:",
         "connecting_status" => "Bağlanılıyor...",
         "disconnected_reconnecting" => "Bağlantı koptu. Yeniden bağlanılıyor...",
+        "reconnect_unsupported" => "Bu sekme için yeniden bağlanma kullanılamıyor.",
         "disconnected_idle" => "Bağlantı koptu.",
         "start_over" => "Baştan başla",
         "hk_add_question" => "Bilinen sunucular listesine eklemek ister misiniz?",

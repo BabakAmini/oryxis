@@ -960,6 +960,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "कनेक्शन विफल, कनेक्शन लॉग:",
         "connecting_status" => "कनेक्ट हो रहा है...",
         "disconnected_reconnecting" => "कनेक्शन टूट गया। दोबारा कनेक्ट हो रहा है...",
+        "reconnect_unsupported" => "इस टैब के लिए दोबारा कनेक्ट करना उपलब्ध नहीं है।",
         "disconnected_idle" => "कनेक्शन टूट गया।",
         "start_over" => "फिर से शुरू करें",
         "hk_add_question" => "क्या इसे ज्ञात होस्टों की सूची में जोड़ना चाहते हैं?",

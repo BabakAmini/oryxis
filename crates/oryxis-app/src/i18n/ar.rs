@@ -972,6 +972,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "فشل الاتصال مع سجل الاتصال:",
         "connecting_status" => "جارٍ الاتصال...",
         "disconnected_reconnecting" => "انقطع الاتصال. جاري إعادة الاتصال...",
+        "reconnect_unsupported" => "إعادة الاتصال غير متاحة لعلامة التبويب هذه.",
         "disconnected_idle" => "انقطع الاتصال.",
         "start_over" => "البدء من جديد",
         "hk_add_question" => "هل تريد إضافته إلى قائمة المضيفين المعروفين؟",

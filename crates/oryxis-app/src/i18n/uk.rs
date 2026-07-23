@@ -954,6 +954,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Підключення не вдалося, журнал підключення:",
         "connecting_status" => "Підключення...",
         "disconnected_reconnecting" => "Підключення втрачено. Перепідключення...",
+        "reconnect_unsupported" => "Перепідключення недоступне для цієї вкладки.",
         "disconnected_idle" => "Підключення втрачено.",
         "start_over" => "Почати спочатку",
         "hk_add_question" => "Бажаєте додати його до списку відомих хостів?",

@@ -961,6 +961,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "การเชื่อมต่อล้มเหลว พร้อมบันทึกการเชื่อมต่อ:",
         "connecting_status" => "กำลังเชื่อมต่อ...",
         "disconnected_reconnecting" => "การเชื่อมต่อหลุด กำลังเชื่อมต่อใหม่...",
+        "reconnect_unsupported" => "ไม่สามารถเชื่อมต่อใหม่สำหรับแท็บนี้",
         "disconnected_idle" => "การเชื่อมต่อหลุด",
         "start_over" => "เริ่มใหม่",
         "hk_add_question" => "ต้องการเพิ่มลงในรายการโฮสต์ที่รู้จักหรือไม่?",

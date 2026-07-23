@@ -954,6 +954,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "연결 로그와 함께 연결 실패:",
         "connecting_status" => "연결 중...",
         "disconnected_reconnecting" => "연결이 끊겼습니다. 재연결 중...",
+        "reconnect_unsupported" => "이 탭에서는 재연결할 수 없습니다.",
         "disconnected_idle" => "연결이 끊겼습니다.",
         "start_over" => "다시 시작",
         "hk_add_question" => "알려진 호스트 목록에 추가하시겠습니까?",

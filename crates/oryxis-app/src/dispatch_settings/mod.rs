@@ -38,6 +38,10 @@ mod advanced;
 mod appearance;
 mod defaults;
 mod local_terminals;
+// The reconnect respawn (`dispatch_tabs/lifecycle.rs`) spawns the
+// dead tab's exact shell with its captured cwd, bypassing the
+// picker / "always open X" decision flow.
+pub(crate) use local_terminals::spawn_local_shell_in;
 mod privacy;
 mod terminal_prefs;
 mod themes;

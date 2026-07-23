@@ -52,6 +52,98 @@ impl Oryxis {
         Task::none()
     }
 
+    /// Tear down `self.tabs[idx]` and remove it: final session-log
+    /// flush, active session close, chat-stream abort, stale-reference
+    /// cleanup (placeholder pin, hybrid SFTP owner), monitor series
+    /// reset, pinned-set persist, in-flight progress index adjustment
+    /// and quick-connect pruning. Shared by `handle_close_tab` and the
+    /// legacy rebuild path of `handle_reconnect_tab` so the two
+    /// teardowns can never drift apart again (the rebuild path used to
+    /// skip all of this and leak the live sessions). The caller is
+    /// responsible for repointing `active_tab` afterwards (the two
+    /// paths land on different tabs). `idx` must be in bounds.
+    fn teardown_tab_at(&mut self, idx: usize) {
+        // Persist recorded output before the tab (and its
+        // panes' buffers) are dropped.
+        self.flush_session_logs_final();
+        // Actively tear down the tab's remote sessions; the
+        // connect streams hold their own Arcs, so dropping
+        // the panes alone would leak the live sessions.
+        Self::close_tab_sessions(&self.tabs[idx]);
+        // Closing a tab that owns a live AI chat stream must
+        // cancel it (per-tab now, so any tab, not just the
+        // active one): otherwise the detached tool-followup
+        // pipeline keeps polling a terminal that's being torn
+        // down and keeps calling the model. The handle lives on
+        // the tab (dropped with it), but abort first so the
+        // detached task stops promptly rather than on next poll.
+        self.abort_chat_task_for(self.tabs[idx]._id);
+        // A pending placeholder replacement aimed at this tab
+        // would otherwise go stale and hijack the next
+        // unrelated cloud spawn.
+        if self.pin_next_plugin_tab == Some(self.tabs[idx]._id) {
+            self.pin_next_plugin_tab = None;
+        }
+        // A hybrid Files-mode owner dies with its tab: the
+        // hoisted browsing state is discarded (any transfer on
+        // it rode the session being torn down anyway).
+        if self.hybrid_sftp_owner == Some(self.tabs[idx]._id) {
+            self.hybrid_sftp_owner = None;
+            self.sftp = crate::state::SftpState::default();
+        }
+        // Drop monitor series for hosts that lose their last live
+        // pane with this tab. The async SshDisconnected lands after
+        // the tab is gone and skips its reset (no pane resolves), so
+        // without this the next session to the same host would diff
+        // its first probe against the dead tab's counters and present
+        // an average over the whole offline gap as a live reading.
+        let closing_hosts: Vec<uuid::Uuid> = self.tabs[idx]
+            .pane_grid
+            .panes
+            .values()
+            .filter_map(|p| match p.origin {
+                crate::state::PaneOrigin::Host(id) => Some(id),
+                _ => None,
+            })
+            .collect();
+        for host in closing_hosts {
+            let still_open = self.tabs.iter().enumerate().any(|(i, t)| {
+                i != idx
+                    && t.pane_grid.panes.values().any(|p| {
+                        matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
+                    })
+            });
+            if !still_open {
+                self.monitor_reset_host(&host);
+            }
+        }
+        // Closing a pinned tab drops it from the persisted set.
+        let was_pinned = self.tabs[idx].pinned;
+        self.tabs.remove(idx);
+        if was_pinned {
+            self.persist_pinned_tabs();
+        }
+        // Keep the in-flight connection progress in sync with
+        // the tab list. Closing the connecting tab clears the
+        // progress (otherwise the stale screen, including a
+        // failed/timeout state, leaks into the next session,
+        // e.g. an ECS/SSM tab that doesn't set `connecting`).
+        // Closing an earlier tab shifts the connecting tab's
+        // index down by one so `SshRetry`/`SshCloseProgress`
+        // still target the right `self.tabs[..]` entry.
+        if let Some(ref mut progress) = self.connecting {
+            match progress.tab_idx.cmp(&idx) {
+                std::cmp::Ordering::Equal => self.connecting = None,
+                std::cmp::Ordering::Greater => progress.tab_idx -= 1,
+                std::cmp::Ordering::Less => {}
+            }
+        }
+        self.adjust_last_terminal_tab_after_remove(idx);
+        // Drop quick-connect entries (and their in-memory
+        // credentials) that no pane references anymore.
+        self.prune_quick_connects();
+    }
+
     pub(super) fn handle_close_tab(&mut self, idx: usize) -> Task<Message> {
         // Also dismiss any open context menu so the menu doesn't linger
         // after the user clicks Close from it.
@@ -59,85 +151,7 @@ impl Oryxis {
         // Closing a tab dismisses the session-group editor it spawned.
         self.show_session_group_panel = false;
         if idx < self.tabs.len() {
-            // Persist recorded output before the tab (and its
-            // panes' buffers) are dropped.
-            self.flush_session_logs_final();
-            // Actively tear down the tab's remote sessions; the
-            // connect streams hold their own Arcs, so dropping
-            // the panes alone would leak the live sessions.
-            Self::close_tab_sessions(&self.tabs[idx]);
-            // Closing a tab that owns a live AI chat stream must
-            // cancel it (per-tab now, so any tab, not just the
-            // active one): otherwise the detached tool-followup
-            // pipeline keeps polling a terminal that's being torn
-            // down and keeps calling the model. The handle lives on
-            // the tab (dropped with it), but abort first so the
-            // detached task stops promptly rather than on next poll.
-            self.abort_chat_task_for(self.tabs[idx]._id);
-            // A pending placeholder replacement aimed at this tab
-            // would otherwise go stale and hijack the next
-            // unrelated cloud spawn.
-            if self.pin_next_plugin_tab == Some(self.tabs[idx]._id) {
-                self.pin_next_plugin_tab = None;
-            }
-            // A hybrid Files-mode owner dies with its tab: the
-            // hoisted browsing state is discarded (any transfer on
-            // it rode the session being torn down anyway).
-            if self.hybrid_sftp_owner == Some(self.tabs[idx]._id) {
-                self.hybrid_sftp_owner = None;
-                self.sftp = crate::state::SftpState::default();
-            }
-            // Drop monitor series for hosts that lose their last live
-            // pane with this tab. The async SshDisconnected lands after
-            // the tab is gone and skips its reset (no pane resolves), so
-            // without this the next session to the same host would diff
-            // its first probe against the dead tab's counters and present
-            // an average over the whole offline gap as a live reading.
-            let closing_hosts: Vec<uuid::Uuid> = self.tabs[idx]
-                .pane_grid
-                .panes
-                .values()
-                .filter_map(|p| match p.origin {
-                    crate::state::PaneOrigin::Host(id) => Some(id),
-                    _ => None,
-                })
-                .collect();
-            for host in closing_hosts {
-                let still_open = self.tabs.iter().enumerate().any(|(i, t)| {
-                    i != idx
-                        && t.pane_grid.panes.values().any(|p| {
-                            matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
-                        })
-                });
-                if !still_open {
-                    self.monitor_reset_host(&host);
-                }
-            }
-            // Closing a pinned tab drops it from the persisted set.
-            let was_pinned = self.tabs[idx].pinned;
-            self.tabs.remove(idx);
-            if was_pinned {
-                self.persist_pinned_tabs();
-            }
-            // Keep the in-flight connection progress in sync with
-            // the tab list. Closing the connecting tab clears the
-            // progress (otherwise the stale screen, including a
-            // failed/timeout state, leaks into the next session,
-            // e.g. an ECS/SSM tab that doesn't set `connecting`).
-            // Closing an earlier tab shifts the connecting tab's
-            // index down by one so `SshRetry`/`SshCloseProgress`
-            // still target the right `self.tabs[..]` entry.
-            if let Some(ref mut progress) = self.connecting {
-                match progress.tab_idx.cmp(&idx) {
-                    std::cmp::Ordering::Equal => self.connecting = None,
-                    std::cmp::Ordering::Greater => progress.tab_idx -= 1,
-                    std::cmp::Ordering::Less => {}
-                }
-            }
-            self.adjust_last_terminal_tab_after_remove(idx);
-            // Drop quick-connect entries (and their in-memory
-            // credentials) that no pane references anymore.
-            self.prune_quick_connects();
+            self.teardown_tab_at(idx);
             if self.tabs.is_empty() {
                 self.active_tab = None;
                 self.active_view = View::Dashboard;
@@ -162,6 +176,22 @@ impl Oryxis {
 
     pub(super) fn handle_reconnect_tab(&mut self, idx: usize) -> Task<Message> {
         self.overlay = None;
+        // A dial already in flight for this tab makes Reconnect a
+        // no-op: holding the hotkey chord (or an auto-reconnect tick
+        // racing a manual click) must not stack a second dial. Each
+        // in-place pass re-keys the pane, so every stacked dial's
+        // completion would arrive for an id no pane holds and be
+        // thrown away as an orphan.
+        if let Some(tab) = self.tabs.get(idx) {
+            let in_flight = self
+                .connecting
+                .as_ref()
+                .is_some_and(|c| c.tab_idx == idx)
+                || tab.pane_grid.panes.values().any(|p| p.connecting);
+            if in_flight {
+                return Task::none();
+            }
+        }
         // Prefer an in-place reconnect that REUSES the pane's existing
         // terminal, so the scrollback the user was looking at survives
         // the round-trip instead of being wiped by a fresh tab. Only a
@@ -196,8 +226,17 @@ impl Oryxis {
             {
                 return Some((ReuseTarget::Quick(*qid), pane_id, base_label));
             }
-            let conn_idx =
-                self.connections.iter().position(|c| c.label == base_label)?;
+            // The pane origin's stable id wins over the display label
+            // (labels collide across hosts and can be edited); the
+            // label lookup only covers panes without a host uuid. A
+            // dangling id (host deleted) resolves to nothing and rides
+            // the legacy fallback below.
+            let conn_idx = match &tab.active().origin {
+                crate::state::PaneOrigin::Host(hid) => {
+                    self.connections.iter().position(|c| c.id == *hid)?
+                }
+                _ => self.connections.iter().position(|c| c.label == base_label)?,
+            };
             let plain_ssh = self.connections[conn_idx]
                 .cloud_ref
                 .as_ref()
@@ -234,6 +273,11 @@ impl Oryxis {
                     session.close();
                 }
                 pane.id = new_pane_id;
+                // Mark the dial in flight so a repeat Reconnect (held
+                // chord, auto-tick race) is a no-op until this one
+                // resolves (SshConnected / SshDisconnected /
+                // PaneConnectError all clear it).
+                pane.connecting = true;
                 if let Ok(mut state) = pane.terminal.lock() {
                     // Dim marker so the reconnect reads as a continuation
                     // of the same pane, not a wipe. The scrollback above
@@ -281,12 +325,21 @@ impl Oryxis {
             ]);
         }
         // Legacy fallback (multi-pane, cloud transport, or a dead tab
-        // with no matching connection): remove the tab and rebuild via
-        // ConnectSsh / QuickConnect. Dead tabs (no matching connection
-        // or a pruned quick entry) are just closed.
+        // with no live in-place path): remove the tab and rebuild via
+        // ConnectSsh / QuickConnect / a local respawn / the tab's
+        // stashed relaunch message. A tab nothing can rebuild is KEPT
+        // (with a toast saying why), never silently destroyed.
         if let Some(tab) = self.tabs.get(idx) {
             let base_label = tab.label.trim_end_matches(" (disconnected)").to_string();
-            let conn_idx = self.connections.iter().position(|c| c.label == base_label);
+            // Same resolution rule as the in-place path above: the pane
+            // origin's stable host id wins, the label lookup only
+            // covers panes without one.
+            let conn_idx = match &tab.active().origin {
+                crate::state::PaneOrigin::Host(hid) => {
+                    self.connections.iter().position(|c| c.id == *hid)
+                }
+                _ => self.connections.iter().position(|c| c.label == base_label),
+            };
             // A quick-connect tab has no saved connection; rebuild it
             // from its stored entry instead of silently closing.
             let quick_entry = if conn_idx.is_none() {
@@ -302,29 +355,46 @@ impl Oryxis {
             // A local shell has no connection to look up, but "just
             // closed" is the wrong reading of Reconnect on it (worse now
             // that a chord can fire this): restart the same shell from
-            // its pane origin, the way pinned-tab reopen does. An empty
-            // program means the OS-default shell, which OpenLocalShellWith
-            // cannot spawn (CommandBuilder::new("")), so that one rides
-            // the plain OpenLocalShell decision instead.
+            // its pane origin. The spec AND the pane's last reported cwd
+            // are captured now, because the respawn only runs after the
+            // tab is removed and `active_tab` repointed, when a deferred
+            // lookup would inherit a NEIGHBOR tab's directory.
             let local_respawn = if conn_idx.is_none() && quick_entry.is_none() {
                 match &tab.active().origin {
-                    crate::state::PaneOrigin::Local(spec) if spec.program.is_empty() => {
-                        Some(Message::Settings(SettingsMessage::OpenLocalShell))
-                    }
                     crate::state::PaneOrigin::Local(spec) => {
-                        Some(Message::Settings(SettingsMessage::OpenLocalShellWith {
-                            program: spec.program.clone(),
-                            args: spec.args.clone(),
-                            label: spec.label.clone(),
-                        }))
+                        Some((spec.clone(), tab.active().cwd.clone()))
                     }
                     _ => None,
                 }
             } else {
                 None
             };
-            self.tabs.remove(idx);
-            self.adjust_last_terminal_tab_after_remove(idx);
+            // What re-opens the tab once it's gone. Ephemeral cloud tabs
+            // (ECS Exec / kubectl pod) rebuild via the relaunch message
+            // stashed at spawn time, the same way Duplicate does.
+            let rebuild = if let Some(ci) = conn_idx {
+                Some(Message::Ssh(SshMessage::ConnectSsh(ci)))
+            } else if let Some(entry) = quick_entry {
+                Some(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))))
+            } else if local_respawn.is_none() {
+                tab.relaunch.as_deref().cloned()
+            } else {
+                None
+            };
+            // Nothing can rebuild this tab (a session-group tab, a
+            // deleted host, a pruned quick entry): keep it as it is and
+            // say why nothing happened, instead of destroying a surface
+            // the user may still be reading.
+            if rebuild.is_none() && local_respawn.is_none() {
+                return self.show_toast_secs(
+                    crate::i18n::t("reconnect_unsupported").to_string(),
+                    4,
+                );
+            }
+            // Same teardown as CloseTab (shared helper), so the dying
+            // tab's sessions, port-forward listeners, chat stream and
+            // bookkeeping never leak or drift from the close path.
+            self.teardown_tab_at(idx);
             if self.tabs.is_empty() {
                 self.active_tab = None;
                 self.active_view = View::Dashboard;
@@ -333,27 +403,31 @@ impl Oryxis {
                 self.active_tab = Some(i);
                 self.remember_terminal_tab_focus(i);
             }
-            let rebuild = match (conn_idx, quick_entry) {
-                (Some(ci), _) => Some(Message::Ssh(SshMessage::ConnectSsh(ci))),
-                (None, Some(entry)) => {
-                    Some(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))))
-                }
-                (None, None) => local_respawn,
-            };
+            // Toast "Reconnecting..." so the user sees feedback the
+            // moment the attempt actually starts (not when the
+            // disconnect was first detected, up to 30s earlier).
+            self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
+            let toast_clear = Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                },
+                |_| Message::ToastClear,
+            );
+            // The local respawn spawns directly: the exact program the
+            // pane ran (or the OS default shell when the spec's program
+            // is empty), in the captured directory. Never the picker or
+            // the "always open X" preference, since the tab WAS this
+            // exact shell and the decision flow could otherwise pop a
+            // picker over an already-destroyed tab.
+            if let Some((spec, cwd)) = local_respawn {
+                let pick = (!spec.program.is_empty()).then(|| {
+                    (spec.program.clone(), spec.args.clone(), spec.label.clone())
+                });
+                let spawn = crate::dispatch_settings::spawn_local_shell_in(self, pick, cwd);
+                return Task::batch(vec![spawn, toast_clear]);
+            }
             if let Some(msg) = rebuild {
-                // Toast "Reconnecting..." so the user sees feedback the
-                // moment the attempt actually starts (not when the
-                // disconnect was first detected, up to 30s earlier).
-                self.set_toast(crate::i18n::t("disconnected_reconnecting").to_string());
-                return Task::batch(vec![
-                    Task::done(msg),
-                    Task::perform(
-                        async {
-                            tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
-                        },
-                        |_| Message::ToastClear,
-                    ),
-                ]);
+                return Task::batch(vec![Task::done(msg), toast_clear]);
             }
         }
         Task::none()

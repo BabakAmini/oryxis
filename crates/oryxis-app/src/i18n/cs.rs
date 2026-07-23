@@ -960,6 +960,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Připojení selhalo, protokol připojení:",
         "connecting_status" => "Připojování...",
         "disconnected_reconnecting" => "Spojení ztraceno. Opětovné připojování...",
+        "reconnect_unsupported" => "Opětovné připojení není pro tuto kartu k dispozici.",
         "disconnected_idle" => "Spojení ztraceno.",
         "start_over" => "Začít znovu",
         "hk_add_question" => "Chcete jej přidat do seznamu známých hostitelů?",

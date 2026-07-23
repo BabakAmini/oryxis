@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "連線失敗，連線記錄：",
         "connecting_status" => "正在連線...",
         "disconnected_reconnecting" => "連線已中斷，正在重新連線...",
+        "reconnect_unsupported" => "此分頁不支援重新連線",
         "disconnected_idle" => "連線已中斷。",
         "start_over" => "重新開始",
         "hk_add_question" => "您要將它加入已知主機清單嗎？",

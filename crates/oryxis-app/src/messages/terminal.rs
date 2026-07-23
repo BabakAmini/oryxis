@@ -49,8 +49,13 @@ pub enum TerminalMessage {
     /// Like `SplitPane` but targets a specific tab (from its right-click
     /// menu), so it works even when that tab isn't the active one.
     SplitTabPane(usize, iced::widget::pane_grid::Axis),
-    /// Close the focused pane (closes the tab if it was the last one).
-    ClosePane,
+    /// Close a pane (closes its tab if it was the tab's last one).
+    /// `Some(pane_id)` targets that exact pane, re-resolved at dispatch
+    /// time (the context-menu row: focus and the active tab can change
+    /// via hotkeys while the menu overlay is open, and the pane may be
+    /// gone entirely, a safe no-op). `None` closes the focused pane of
+    /// the active tab (the hotkey path).
+    ClosePane(Option<Uuid>),
     /// Move focus to the adjacent pane in a direction (keyboard nav).
     FocusPaneDir(iced::widget::pane_grid::Direction),
     /// Periodic flush of buffered session-log output to the vault.

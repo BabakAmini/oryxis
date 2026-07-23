@@ -180,30 +180,74 @@ impl Oryxis {
                     ));
                 }
             }
-            TerminalMessage::ClosePane => {
+            TerminalMessage::ClosePane(target_id) => {
                 // Dismiss the terminal context menu when its "Close
                 // pane" row fired this (no-op on the hotkey path).
                 self.overlay = None;
-                let Some(tab_idx) = self.active_tab else {
+                // Resolve the target at dispatch time. The context-menu
+                // row carries the right-clicked pane's id: focus and the
+                // active tab can change via hotkeys while the menu is
+                // open (the overlay is not a modal), so "the focused
+                // pane of the active tab" may no longer be the pane the
+                // user clicked. A pane that is gone entirely (its tab
+                // closed under the menu) is a safe no-op.
+                let resolved = match target_id {
+                    Some(pane_id) => {
+                        self.pane_tab_index(pane_id).and_then(|tab_idx| {
+                            self.tabs[tab_idx]
+                                .pane_grid
+                                .panes
+                                .iter()
+                                .find(|(_, p)| p.id == pane_id)
+                                .map(|(handle, _)| (tab_idx, *handle))
+                        })
+                    }
+                    // The hotkey path acts on the focused pane of the
+                    // active tab, as before.
+                    None => self
+                        .active_tab
+                        .filter(|&i| i < self.tabs.len())
+                        .map(|i| (i, self.tabs[i].focused)),
+                };
+                let Some((tab_idx, target)) = resolved else {
                     return Task::none();
                 };
                 // Last pane in the tab: closing it closes the whole tab.
+                // `tab_idx` is the pane's OWN tab by construction above,
+                // so a stale focus can never close an unrelated tab.
                 if self.tabs[tab_idx].pane_grid.panes.len() <= 1 {
                     return self.update(Message::Tabs(TabsMessage::CloseTab(tab_idx)));
                 }
                 // Persist the closing pane's recorded output before it goes.
                 self.flush_session_logs_final();
                 let tab = &mut self.tabs[tab_idx];
-                let target = tab.focused;
                 // Tear down the pane's remote session (the connect stream
-                // holds its own Arc; see close_tab_sessions).
-                if let Some(pane) = tab.pane_grid.panes.get(&target)
-                    && let Some(session) = &pane.session
-                {
-                    session.close();
+                // holds its own Arc; see close_tab_sessions) and collect
+                // the end-of-session bookkeeping targets. This must be
+                // synchronous: the `SshDisconnected` the close provokes
+                // lands after the pane is gone and resolves nothing, so
+                // deferring to it would leave the vault log row open
+                // forever and the monitor primed to diff the next
+                // session against the dead pane's counters.
+                let mut ended_log = None;
+                let mut closed_host = None;
+                if let Some(pane) = tab.pane_grid.panes.get_mut(&target) {
+                    if let Some(session) = pane.session.take() {
+                        session.close();
+                    }
+                    ended_log = pane.session_log_id.take();
+                    closed_host = match pane.origin {
+                        crate::state::PaneOrigin::Host(id) => Some(id),
+                        _ => None,
+                    };
                 }
                 if let Some((_closed, sibling)) = tab.pane_grid.close(target) {
-                    tab.focused = sibling;
+                    // Only a close of the focused pane moves focus;
+                    // closing a background pane from its context menu
+                    // must not yank the keyboard to its sibling.
+                    if tab.focused == target {
+                        tab.focused = sibling;
+                    }
                 }
                 // Back to a single pane: disarm broadcast (its control
                 // surfaces are hidden for unsplit tabs, so a lingering
@@ -213,6 +257,24 @@ impl Oryxis {
                     tab.broadcast = false;
                     for pane in tab.pane_grid.panes.values_mut() {
                         pane.broadcast_opt_out = false;
+                    }
+                }
+                if let Some(log_id) = ended_log
+                    && let Some(vault) = &self.vault
+                {
+                    let _ = vault.end_session_log(&log_id);
+                }
+                // Same rule as CloseTab: drop the monitor series only
+                // when the closed pane was the host's last live one
+                // anywhere (the closed pane is already out of the grid).
+                if let Some(host) = closed_host {
+                    let still_open = self.tabs.iter().any(|t| {
+                        t.pane_grid.panes.values().any(|p| {
+                            matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
+                        })
+                    });
+                    if !still_open {
+                        self.monitor_reset_host(&host);
                     }
                 }
                 // Drop quick-connect entries (and their in-memory

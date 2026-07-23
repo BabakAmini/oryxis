@@ -799,6 +799,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "连接失败，连接日志：",
         "connecting_status" => "正在连接...",
         "disconnected_reconnecting" => "连接已断开，正在重新连接...",
+        "reconnect_unsupported" => "此标签页不支持重新连接",
         "disconnected_idle" => "连接已断开。",
         "start_over" => "重新开始",
         "hk_add_question" => "您要将其添加到已知主机列表中吗？",

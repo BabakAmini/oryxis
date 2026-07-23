@@ -896,8 +896,9 @@ impl Oryxis {
             ));
         // Close this pane: only offered on split tabs (on a single
         // pane it would just be "close tab", which the tab menu owns).
-        // ShowTerminalContextMenu already focused the right-clicked
-        // pane, so the focused-pane ClosePane targets exactly this one.
+        // The message carries the right-clicked pane's id: focus and
+        // the active tab can change via hotkeys while the menu overlay
+        // is open, so a focused-pane close could hit the wrong pane.
         let is_split = self
             .pane_tab_index(pane_id)
             .and_then(|i| self.tabs.get(i))
@@ -906,7 +907,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::x(),
                 crate::i18n::t("close_pane"),
-                Message::Terminal(TerminalMessage::ClosePane),
+                Message::Terminal(TerminalMessage::ClosePane(Some(pane_id))),
                 OryxisColors::t().text_secondary,
             ));
         }

@@ -954,6 +954,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connection_failed_log" => "Kết nối thất bại với nhật ký kết nối:",
         "connecting_status" => "Đang kết nối...",
         "disconnected_reconnecting" => "Mất kết nối. Đang kết nối lại...",
+        "reconnect_unsupported" => "Không thể kết nối lại cho tab này.",
         "disconnected_idle" => "Mất kết nối.",
         "start_over" => "Bắt đầu lại",
         "hk_add_question" => "Bạn có muốn thêm nó vào danh sách máy chủ đã biết không?",
