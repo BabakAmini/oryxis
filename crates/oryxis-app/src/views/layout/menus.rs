@@ -45,6 +45,9 @@ impl Oryxis {
                     crate::state::GroupPickerTarget::SessionGroupFolder => {
                         self.session_group_folder_combo_bounds.get()
                     }
+                    crate::state::GroupPickerTarget::GroupEditParent => {
+                        self.group_edit_parent_combo_bounds.get()
+                    }
                 };
                 if b.width > 0.0 { b.width } else { 308.0 }
             }

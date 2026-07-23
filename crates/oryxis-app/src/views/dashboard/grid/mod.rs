@@ -74,6 +74,48 @@ pub(crate) fn group_has_visible_content(
     visible
 }
 
+/// Sibling of `group_has_visible_content`: whether the subtree holds
+/// any content from an UNINSTALLED provider (a hidden cloud host or a
+/// hidden dynamic group). Together the two classify "phantom" provider
+/// folders (hidden content, nothing visible). A genuinely empty manual
+/// folder has neither flag, so it is NOT phantom and stays pickable as
+/// a parent even while some plugin is missing. Memoised; the
+/// pre-seeded `false` doubles as cycle guard.
+pub(crate) fn group_has_hidden_content(
+    gid: Uuid,
+    groups: &[oryxis_core::models::Group],
+    has_hidden_conn: &std::collections::HashSet<Uuid>,
+    hidden_profiles: &std::collections::HashSet<Uuid>,
+    memo: &mut std::collections::HashMap<Uuid, bool>,
+) -> bool {
+    if let Some(&v) = memo.get(&gid) {
+        return v;
+    }
+    memo.insert(gid, false);
+    let mut hidden = has_hidden_conn.contains(&gid);
+    if !hidden {
+        for child in groups.iter().filter(|g| g.parent_id == Some(gid)) {
+            let child_hidden = if let Some(q) = child.cloud_query.as_ref() {
+                hidden_profiles.contains(&q.profile_id)
+            } else {
+                group_has_hidden_content(
+                    child.id,
+                    groups,
+                    has_hidden_conn,
+                    hidden_profiles,
+                    memo,
+                )
+            };
+            if child_hidden {
+                hidden = true;
+                break;
+            }
+        }
+    }
+    memo.insert(gid, hidden);
+    hidden
+}
+
 
 /// Map (card, accent-colour, nav-item) tuples to renderable cards: apply
 /// the shared `widgets::card_accent_wash` when `glass` is on, then draw
@@ -195,42 +237,69 @@ impl Oryxis {
         Some(set)
     }
 
-    /// Group ids whose subtree holds at least one visible host or
-    /// dynamic child, the same predicate the dashboard uses to decide
-    /// which folder cards to draw (`group_has_visible_content` +
-    /// `hidden_cloud_profile_ids`). Empty groups and cloud folders whose
-    /// plugin is uninstalled fall out, so a parent-group picker built
-    /// from this set stays in sync with what the user actually sees on
-    /// the dashboard (no phantom rows). Dynamic `cloud_query` groups are
-    /// excluded outright: they're auto-managed, never valid parents.
+    /// Manual group ids eligible for the parent-group pickers (host
+    /// editor combo, Settings default-group). Every manual folder
+    /// qualifies, including empty ones (a freshly created subgroup
+    /// must be a pickable destination before anything lives in it),
+    /// EXCEPT phantom provider folders: folders whose subtree holds
+    /// content from an uninstalled provider plugin and nothing
+    /// visible, which the dashboard hides too. Dynamic `cloud_query`
+    /// groups are excluded outright: they're auto-managed, never
+    /// valid parents.
     pub(crate) fn visible_group_ids(&self) -> std::collections::HashSet<Uuid> {
         let hidden_profiles = self.hidden_cloud_profile_ids();
+        let mut set: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        if hidden_profiles.is_empty() {
+            // Common case: no plugin is missing, so no folder can be
+            // phantom; every manual group is pickable.
+            for g in &self.groups {
+                if g.cloud_query.is_none() {
+                    set.insert(g.id);
+                }
+            }
+            return set;
+        }
         let mut has_visible_conn: std::collections::HashSet<Uuid> =
             std::collections::HashSet::new();
+        let mut has_hidden_conn: std::collections::HashSet<Uuid> =
+            std::collections::HashSet::new();
         for c in &self.connections {
-            if let Some(gid) = c.group_id
-                && !c
-                    .cloud_ref
+            if let Some(gid) = c.group_id {
+                if c.cloud_ref
                     .as_ref()
                     .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
-            {
-                has_visible_conn.insert(gid);
+                {
+                    has_hidden_conn.insert(gid);
+                } else {
+                    has_visible_conn.insert(gid);
+                }
             }
         }
-        let mut memo: std::collections::HashMap<Uuid, bool> =
+        let mut vis_memo: std::collections::HashMap<Uuid, bool> =
             std::collections::HashMap::new();
-        let mut set: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        let mut hid_memo: std::collections::HashMap<Uuid, bool> =
+            std::collections::HashMap::new();
         for g in &self.groups {
             if g.cloud_query.is_some() {
                 continue;
             }
-            if group_has_visible_content(
+            let visible = group_has_visible_content(
                 g.id,
                 &self.groups,
                 &has_visible_conn,
                 &hidden_profiles,
-                &mut memo,
-            ) {
+                &mut vis_memo,
+            );
+            let hidden = group_has_hidden_content(
+                g.id,
+                &self.groups,
+                &has_hidden_conn,
+                &hidden_profiles,
+                &mut hid_memo,
+            );
+            // Phantom = only-hidden content. Empty folders have
+            // neither flag and stay pickable.
+            if visible || !hidden {
                 set.insert(g.id);
             }
         }

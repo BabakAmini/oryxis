@@ -384,15 +384,17 @@ impl Oryxis {
             .cloud_discover_default_group_picker_search
             .trim()
             .to_lowercase();
+        // Rows are full breadcrumb paths so a subgroup is a pickable
+        // import target; the import side resolves paths first.
         let mut all_groups: Vec<String> = self
             .groups
             .iter()
             .filter(|g| g.cloud_query.is_none())
-            .filter(|g| {
+            .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id))
+            .filter(|path| {
                 picker_needle.is_empty()
-                    || g.label.to_lowercase().contains(&picker_needle)
+                    || path.to_lowercase().contains(&picker_needle)
             })
-            .map(|g| g.label.clone())
             .collect();
         all_groups.sort_by_key(|s| s.to_lowercase());
         all_groups.dedup();
@@ -530,15 +532,31 @@ impl Oryxis {
         let menu_outer_width = self.overlay_menu_width(overlay);
         let menu_content_width = (menu_outer_width - 8.0).max(80.0);
         let needle = self.group_picker_search.trim().to_lowercase();
+        // Re-parenting a manual group must not offer the group itself
+        // or anything below it: nesting a folder inside its own
+        // subtree would mint a parent cycle and orphan the whole
+        // branch. The Save handler enforces the same rule, this filter
+        // just keeps the invalid rows out of sight.
+        let excluded: std::collections::HashSet<uuid::Uuid> = match target {
+            crate::state::GroupPickerTarget::GroupEditParent => self
+                .group_edit
+                .id
+                .map(|gid| oryxis_core::models::Group::subtree_ids(&self.groups, gid))
+                .unwrap_or_default(),
+            _ => Default::default(),
+        };
+        // Rows are full breadcrumb paths ("Prod / Frontend") so nested
+        // folders are distinguishable; the search matches anywhere in
+        // the path, and picking fills the path into the combo (the
+        // save side resolves paths first).
         let mut all_groups: Vec<String> = self
             .groups
             .iter()
-            .filter(|g| g.cloud_query.is_none())
-            .filter(|g| {
-                needle.is_empty()
-                    || g.label.to_lowercase().contains(&needle)
+            .filter(|g| g.cloud_query.is_none() && !excluded.contains(&g.id))
+            .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id))
+            .filter(|path| {
+                needle.is_empty() || path.to_lowercase().contains(&needle)
             })
-            .map(|g| g.label.clone())
             .collect();
         all_groups.sort_by_key(|s| s.to_lowercase());
         all_groups.dedup();

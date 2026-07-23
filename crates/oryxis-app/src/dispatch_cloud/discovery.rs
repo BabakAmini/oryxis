@@ -643,10 +643,14 @@ impl Oryxis {
                     let provider_group_id: Option<uuid::Uuid> = if typed.is_empty() {
                         None
                     } else {
-                        self.groups
-                            .iter()
-                            .find(|g| g.label == typed && g.cloud_query.is_none())
-                            .map(|g| g.id)
+                        // Breadcrumb-path match first (the picker fills
+                        // paths, so a subgroup is a valid import
+                        // target), bare label as the typed fallback.
+                        Group::resolve_path_or_label(
+                            &self.groups,
+                            &typed,
+                            &Default::default(),
+                        )
                             .or_else(|| {
                                 let mut g = Group::new(typed.clone());
                                 // Brand glyph only when the user kept

@@ -6,7 +6,7 @@
 
 use iced::Color;
 
-use crate::app::{EditorMessage, CloudMessage, ShareMessage, Message, Oryxis};
+use crate::app::{EditorMessage, CloudMessage, ShareMessage, TabsMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 
@@ -47,6 +47,28 @@ impl Oryxis {
                 color: secondary,
             },
         ];
+        // Inside a manual folder the catalog leads with "New subgroup":
+        // the folder kebab offers the same action from the parent view,
+        // this covers creating one while the folder itself is open
+        // (its own card, and thus its kebab, isn't visible there).
+        // Dynamic groups derive their contents from the cloud query,
+        // so they never take manual children.
+        if let Some(gid) = self.active_group
+            && self
+                .groups
+                .iter()
+                .any(|g| g.id == gid && g.cloud_query.is_none())
+        {
+            actions.insert(
+                0,
+                AddHostAction {
+                    icon: iced_fonts::lucide::folder_plus().into(),
+                    label: crate::i18n::t("new_subgroup"),
+                    msg: Message::Tabs(TabsMessage::NewSubgroup(gid)),
+                    color: secondary,
+                },
+            );
+        }
         // Remote-desktop hosts (RDP/VNC) stay out of the light-user
         // list until the opt-in feature is enabled.
         if self.remote_desktop_enabled {

@@ -501,11 +501,15 @@ pub(crate) struct SftpBackupForm {
 pub(crate) struct GroupEditForm {
     /// Whether the edit panel is currently shown.
     pub visible: bool,
-    /// `Some` for the group being edited.
+    /// `Some` for the group being edited; `None` creates a new group
+    /// on Save (the folder kebab's "New subgroup" path).
     pub id: Option<Uuid>,
     pub label: String,
     pub icon: String,
     pub color: String,
+    /// Parent-group combo, label-matched on Save like the dynamic
+    /// group editor's `parent_label`. Empty / unmatched = root.
+    pub parent_label: String,
 }
 
 /// Edit form for a dynamic (cloud-backed) group. Opened from the ⋮ menu

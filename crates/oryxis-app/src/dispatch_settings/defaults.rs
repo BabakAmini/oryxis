@@ -75,7 +75,14 @@ impl Oryxis {
                 self.setting_default_group_id = if val == crate::i18n::t("new_default_none") {
                     None
                 } else {
-                    self.groups.iter().find(|g| g.label == val).map(|g| g.id)
+                    // The picker lists breadcrumb paths (subgroups are
+                    // valid defaults); bare labels keep working for
+                    // pre-path stored selections.
+                    oryxis_core::models::Group::resolve_path_or_label(
+                        &self.groups,
+                        &val,
+                        &Default::default(),
+                    )
                 };
                 self.persist_setting(
                     "default_group_id",

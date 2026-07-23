@@ -142,10 +142,12 @@ impl Oryxis {
                 self.cloud_dynamic_form.label = group.label.clone();
                 self.cloud_dynamic_form.color = group.color.clone().unwrap_or_default();
                 self.cloud_dynamic_form.icon = group.icon.clone().unwrap_or_default();
+                // Full breadcrumb path, matching what the shared group
+                // picker displays and what the save resolves first.
                 self.cloud_dynamic_form.parent_label = group
                     .parent_id
-                    .and_then(|pid| self.groups.iter().find(|g| g.id == pid))
-                    .map(|g| g.label.clone())
+                    .filter(|pid| self.groups.iter().any(|g| g.id == *pid))
+                    .map(|pid| oryxis_core::models::Group::path_of(&self.groups, pid))
                     .unwrap_or_default();
                 match &query.kind {
                     oryxis_core::models::cloud::CloudQueryKind::EcsTasks {
@@ -336,28 +338,22 @@ impl Oryxis {
                 } else {
                     Some(self.cloud_dynamic_form.icon.trim().to_string())
                 };
-                // Parent picker uses label matching like the host
-                // editor's `parent_group`. Empty / unmatched = root.
-                // Only a manual folder (`cloud_query.is_none()`) is a
-                // valid container, so the match skips dynamic groups,
-                // otherwise a label shared with a dynamic group (e.g.
-                // two "ECS Example" rows, one folder + one cloud group)
-                // could re-home this group under the dynamic one, where
-                // it never renders again. Mirrors the import-side filter
-                // in `dispatch_cloud/discovery.rs`.
-                let parent_trimmed = self.cloud_dynamic_form.parent_label.trim();
-                group.parent_id = if parent_trimmed.is_empty() {
-                    None
-                } else {
-                    self.groups
-                        .iter()
-                        .find(|g| {
-                            g.label == parent_trimmed
-                                && g.id != gid
-                                && g.cloud_query.is_none()
-                        })
-                        .map(|g| g.id)
-                };
+                // Parent picker resolution, shared with the host and
+                // group editors: full breadcrumb path first (what the
+                // picker fills in), bare label as the typed fallback.
+                // Empty / unmatched = root. Only a manual folder
+                // (`cloud_query.is_none()`) is a valid container, so
+                // the match skips dynamic groups, otherwise a label
+                // shared with a dynamic group (e.g. two "ECS Example"
+                // rows, one folder + one cloud group) could re-home
+                // this group under the dynamic one, where it never
+                // renders again. Mirrors the import-side filter in
+                // `dispatch_cloud/discovery.rs`.
+                group.parent_id = oryxis_core::models::Group::resolve_path_or_label(
+                    &self.groups,
+                    &self.cloud_dynamic_form.parent_label,
+                    &std::collections::HashSet::from([gid]),
+                );
                 group.updated_at = chrono::Utc::now();
                 if let Some(vault) = &self.vault
                     && vault.save_group(&group).is_ok()

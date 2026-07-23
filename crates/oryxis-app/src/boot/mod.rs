@@ -427,6 +427,7 @@ impl Oryxis {
                 editor_startup_choice: crate::state::StartupChoice::None,
                 dynamic_form_parent_combo_bounds: crate::widgets::new_bounds_cell(),
                 session_group_folder_combo_bounds: crate::widgets::new_bounds_cell(),
+                group_edit_parent_combo_bounds: crate::widgets::new_bounds_cell(),
                 plus_btn_bounds: crate::widgets::new_bounds_cell(),
                 host_tag_filter_btn_bounds: crate::widgets::new_bounds_cell(),
                 snippet_tag_filter_btn_bounds: crate::widgets::new_bounds_cell(),

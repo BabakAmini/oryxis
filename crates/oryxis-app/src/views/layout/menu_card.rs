@@ -255,6 +255,7 @@ impl Oryxis {
         // sibling). Surface the standard actions instead.
         column![
             self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Tabs(TabsMessage::EditGroup(gid)), OryxisColors::t().accent),
+            self.menu_item(iced_fonts::lucide::folder_plus(), crate::i18n::t("new_subgroup"), Message::Tabs(TabsMessage::NewSubgroup(gid)), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::Tabs(TabsMessage::StartDeleteFolder(gid)), OryxisColors::t().error),
         ].into()
     }

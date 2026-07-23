@@ -85,8 +85,8 @@ impl Oryxis {
                     form.icon_style = existing.icon_style.clone();
                     form.group_name = existing
                         .group_id
-                        .and_then(|gid| self.groups.iter().find(|g| g.id == gid))
-                        .map(|g| g.label.clone())
+                        .filter(|gid| self.groups.iter().any(|g| g.id == *gid))
+                        .map(|gid| oryxis_core::models::Group::path_of(&self.groups, gid))
                         .unwrap_or_default();
                     let stored = rows_from_layout(&existing.layout, &|_| String::new());
                     for (row, src) in form.pane_rows.iter_mut().zip(stored.iter()) {
@@ -112,8 +112,8 @@ impl Oryxis {
                     icon_style: group.icon_style.clone(),
                     group_name: group
                         .group_id
-                        .and_then(|gid| self.groups.iter().find(|g| g.id == gid))
-                        .map(|g| g.label.clone())
+                        .filter(|gid| self.groups.iter().any(|g| g.id == *gid))
+                        .map(|gid| oryxis_core::models::Group::path_of(&self.groups, gid))
                         .unwrap_or_default(),
                     source_tab: None,
                     layout: Some(group.layout.clone()),
@@ -304,11 +304,13 @@ impl Oryxis {
             return Task::none();
         };
 
-        // Find or create the folder, same convention as the host editor.
+        // Find or create the folder, same convention as the host
+        // editor: breadcrumb-path match first, bare label fallback, an
+        // unmatched name creates a fresh root group with that text.
         let group_id = if !form.group_name.trim().is_empty() {
             let name = form.group_name.trim().to_string();
-            match self.groups.iter().find(|g| g.label == name) {
-                Some(g) => Some(g.id),
+            match Group::resolve_path_or_label(&self.groups, &name, &Default::default()) {
+                Some(gid) => Some(gid),
                 None => {
                     let g = Group::new(&name);
                     let gid = g.id;

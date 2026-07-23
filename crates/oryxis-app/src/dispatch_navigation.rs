@@ -256,6 +256,9 @@ impl Oryxis {
                         GroupPickerTarget::SessionGroupFolder => {
                             self.session_group_folder_combo_bounds.get()
                         }
+                        GroupPickerTarget::GroupEditParent => {
+                            self.group_edit_parent_combo_bounds.get()
+                        }
                     };
                     self.group_picker_search.clear();
                     // 6 px gap below the combo. Falls back to mouse
@@ -287,6 +290,9 @@ impl Oryxis {
                     }
                     GroupPickerTarget::SessionGroupFolder => {
                         self.editor_session_group.group_name = label;
+                    }
+                    GroupPickerTarget::GroupEditParent => {
+                        self.group_edit.parent_label = label;
                     }
                 }
                 if matches!(

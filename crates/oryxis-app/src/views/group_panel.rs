@@ -1,14 +1,15 @@
-//! Manual host-group editor side panel: label + icon + color. Rendered
-//! in the same right-hand slot as the host / session-group editors (from
-//! `view_main::active_side_panel` when `group_edit.visible`). Folders had
-//! a rename-only modal before; this surfaces the icon/color override the
-//! `Group` model already carries.
+//! Manual host-group editor side panel: label + parent group + icon +
+//! color. Rendered in the same right-hand slot as the host /
+//! session-group editors (from `view_main::active_side_panel` when
+//! `group_edit.visible`). Doubles as the "New subgroup" creation form
+//! when `group_edit.id` is `None` (opened from the folder kebab with
+//! the parent prefilled).
 
 use iced::border::Radius;
 use iced::widget::{button, column, container, scrollable, text, text_input, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{TabsMessage, Message, Oryxis};
+use crate::app::{TabsMessage, Message, NavigationMessage, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 use crate::widgets::{dir_align_x, dir_row, panel_field, panel_section};
@@ -22,9 +23,15 @@ impl Oryxis {
         // The close (×) is not a keyboard row: Esc already owns panel
         // close, and recording it would make the header the first Down
         // target instead of the form.
+        // `id = None` is create mode (the folder kebab's "New subgroup").
+        let header_key = if self.group_edit.id.is_some() {
+            "edit_group"
+        } else {
+            "new_subgroup"
+        };
         let panel_header = container(
             dir_row(vec![
-                text(crate::i18n::t("edit_group"))
+                text(crate::i18n::t(header_key))
                     .size(16)
                     .color(OryxisColors::t().text_primary)
                     .into(),
@@ -65,23 +72,99 @@ impl Oryxis {
             ..Default::default()
         });
 
+        // Keyboard rows record in build order == display order (panel
+        // contract), so the Name field is built before the parent
+        // combo and the icon badge row is recorded last inside the
+        // section column below.
+        let name_field = panel_field(
+            crate::i18n::t("name"),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new("group-edit-name")),
+                10.0,
+                text_input(crate::i18n::t("group_placeholder"), &self.group_edit.label)
+                    .id(iced::widget::Id::new("group-edit-name"))
+                    .on_input(|v| Message::Tabs(TabsMessage::GroupEditLabelChanged(v)))
+                    .on_submit(Message::Tabs(TabsMessage::SaveGroupEdit))
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ),
+        );
+
+        // Parent Group combo, same shape as the dynamic-group editor:
+        // text input + chevron that opens the shared group picker
+        // popover (which excludes this group's own subtree). Typing a
+        // label works too; empty / unmatched = root.
+        const PARENT_COMBO_HEIGHT: f32 = 36.0;
+        let parent_input = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("group-edit-parent")),
+            10.0,
+            text_input(
+                crate::i18n::t("group_placeholder"),
+                &self.group_edit.parent_label,
+            )
+            .id(iced::widget::Id::new("group-edit-parent"))
+            .on_input(|v| Message::Tabs(TabsMessage::GroupEditParentChanged(v)))
+            .padding(10)
+            .style(crate::widgets::rounded_input_style)
+            .align_x(dir_align_x())
+            .into(),
+        );
+        let picker_toggle = Message::Navigation(NavigationMessage::ToggleGroupPicker(
+            crate::state::GroupPickerTarget::GroupEditParent,
+        ));
+        let parent_chevron = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(picker_toggle.clone()),
+            8.0,
+            button(
+                container(
+                    iced_fonts::lucide::chevron_down::<iced::Theme, iced::Renderer>()
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .center_x(Length::Fixed(32.0))
+                .center_y(Length::Fixed(PARENT_COMBO_HEIGHT)),
+            )
+            .on_press(picker_toggle)
+            .padding(0)
+            .style(|_, status| {
+                let bg = match status {
+                    button::Status::Hovered => OryxisColors::t().bg_hover,
+                    _ => OryxisColors::t().bg_surface,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        color: OryxisColors::t().border,
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        );
+        let parent_combo: Element<'_, Message> = crate::widgets::bounds_reporter(
+            dir_row(vec![
+                container(parent_input)
+                    .width(Length::Fill)
+                    .height(Length::Fixed(PARENT_COMBO_HEIGHT))
+                    .into(),
+                Space::new().width(6).into(),
+                container(parent_chevron)
+                    .height(Length::Fixed(PARENT_COMBO_HEIGHT))
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center),
+            self.group_edit_parent_combo_bounds.clone(),
+        );
+
         // ── Section: General ──
         let general_section = panel_section(column![
-            panel_field(
-                crate::i18n::t("name"),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new("group-edit-name")),
-                    10.0,
-                    text_input(crate::i18n::t("group_placeholder"), &self.group_edit.label)
-                        .id(iced::widget::Id::new("group-edit-name"))
-                        .on_input(|v| Message::Tabs(TabsMessage::GroupEditLabelChanged(v)))
-                        .on_submit(Message::Tabs(TabsMessage::SaveGroupEdit))
-                        .padding(10)
-                        .style(crate::widgets::rounded_input_style)
-                        .align_x(dir_align_x())
-                        .into(),
-                ),
-            ),
+            name_field,
+            Space::new().height(10),
+            panel_field(crate::i18n::t("parent_group"), parent_combo),
             Space::new().height(10),
             panel_field(
                 crate::i18n::t("group_icon_color"),

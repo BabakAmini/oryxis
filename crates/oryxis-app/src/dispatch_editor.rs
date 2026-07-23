@@ -41,10 +41,14 @@ impl Oryxis {
         }
         self.editor_initial_command = iced::widget::text_editor::Content::new();
         self.editor_startup_choice = crate::state::StartupChoice::None;
+        // Creating a host while inside a folder (root or subgroup)
+        // lands it there: prefill with the full breadcrumb path, which
+        // is what the combo displays and what the save resolves first.
         if let Some(gid) = self.active_group
-            && let Some(g) = self.groups.iter().find(|g| g.id == gid)
+            && self.groups.iter().any(|g| g.id == gid && g.cloud_query.is_none())
         {
-            self.editor_form.group_name = g.label.clone();
+            self.editor_form.group_name =
+                oryxis_core::models::Group::path_of(&self.groups, gid);
         }
         self.host_panel_error = None;
         self.rebuild_editor_combos();
@@ -75,7 +79,8 @@ impl Oryxis {
             .map(|k| k.label.clone());
         let default_group = self
             .setting_default_group_id
-            .and_then(|id| self.groups.iter().find(|g| g.id == id).map(|g| g.label.clone()))
+            .filter(|id| self.groups.iter().any(|g| g.id == *id))
+            .map(|id| oryxis_core::models::Group::path_of(&self.groups, id))
             .unwrap_or_default();
         // A default proxy is a saved Proxy Identity reference; inline
         // proxies are per-host by nature and aren't defaulted. Drop a
@@ -128,12 +133,16 @@ impl Oryxis {
     /// there is no free-text path (no `on_input`), so typing only
     /// filters. The current choice seeds the selection for prefill.
     pub(crate) fn rebuild_editor_combos(&mut self) {
+        // Options are full breadcrumb paths ("Prod / Frontend"), so
+        // subgroups are visibly nested and same-named folders under
+        // different parents stay distinguishable. Alphabetical sort
+        // naturally clusters a parent with its children.
         let visible = self.visible_group_ids();
         let mut labels: Vec<String> = self
             .groups
             .iter()
             .filter(|g| visible.contains(&g.id))
-            .map(|g| g.label.clone())
+            .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id))
             .collect();
         labels.sort_by_key(|s| s.to_lowercase());
         labels.dedup();
@@ -227,18 +236,23 @@ impl Oryxis {
     ) -> Result<Connection, String> {
         let port: u16 = self.editor_form.port.parse().unwrap_or(22);
 
-        // Find or create group. Skipped entirely for the
-        // connect-without-saving flow: an ad-hoc host must not write
-        // anything, not even a newly typed group.
-        let group_id = if persist_group && !self.editor_form.group_name.is_empty() {
-            let existing = self
-                .groups
-                .iter()
-                .find(|g| g.label == self.editor_form.group_name);
+        // Find or create group. The combo displays breadcrumb paths,
+        // so resolution tries the full path first and falls back to a
+        // bare label (typed by hand); an unmatched name still creates
+        // a fresh root group with that literal text. Skipped entirely
+        // for the connect-without-saving flow: an ad-hoc host must not
+        // write anything, not even a newly typed group.
+        let group_name = self.editor_form.group_name.trim().to_string();
+        let group_id = if persist_group && !group_name.is_empty() {
+            let existing = Group::resolve_path_or_label(
+                &self.groups,
+                &group_name,
+                &Default::default(),
+            );
             match existing {
-                Some(g) => Some(g.id),
+                Some(gid) => Some(gid),
                 None => {
-                    let g = Group::new(&self.editor_form.group_name);
+                    let g = Group::new(&group_name);
                     let gid = g.id;
                     if let Some(vault) = &self.vault {
                         let _ = vault.save_group(&g);
@@ -509,11 +523,13 @@ impl Oryxis {
             // SecretInput resolves to None (preserve on save).
             password: Default::default(),
             auth_method: conn.auth_method.clone(),
+            // Combo value is the full breadcrumb path (see
+            // `rebuild_editor_combos`); a dangling group id prefills
+            // empty (root), matching how the grid renders it.
             group_name: conn
                 .group_id
-                .and_then(|gid| {
-                    self.groups.iter().find(|g| g.id == gid).map(|g| g.label.clone())
-                })
+                .filter(|gid| self.groups.iter().any(|g| g.id == *gid))
+                .map(|gid| oryxis_core::models::Group::path_of(&self.groups, gid))
                 .unwrap_or_default(),
             selected_key: conn.key_id.and_then(|kid| {
                 self.keys.iter().find(|k| k.id == kid).map(|k| k.label.clone())

@@ -50,19 +50,21 @@ impl Oryxis {
             .and_then(|id| self.keys.iter().find(|k| k.id == id).map(|k| k.label.clone()))
             .unwrap_or_else(|| none_label.clone());
 
-        // Parent group: only the visible (non-phantom) groups, matching the
-        // host editor's group combo.
+        // Parent group: only the visible (non-phantom) groups, matching
+        // the host editor's group combo. Options are breadcrumb paths
+        // so subgroups are distinguishable (and pickable as defaults).
         let visible_groups = self.visible_group_ids();
         let mut group_options = vec![none_label.clone()];
         group_options.extend(
             self.groups
                 .iter()
                 .filter(|g| visible_groups.contains(&g.id))
-                .map(|g| g.label.clone()),
+                .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id)),
         );
         let group_selected = self
             .setting_default_group_id
-            .and_then(|id| self.groups.iter().find(|g| g.id == id).map(|g| g.label.clone()))
+            .filter(|id| self.groups.iter().any(|g| g.id == *id))
+            .map(|id| oryxis_core::models::Group::path_of(&self.groups, id))
             .unwrap_or_else(|| none_label.clone());
 
         let mut proxy_options = vec![none_label.clone()];

@@ -655,7 +655,43 @@ impl Oryxis {
                     self.group_edit.label = group.label.clone();
                     self.group_edit.icon = group.icon.clone().unwrap_or_default();
                     self.group_edit.color = group.color.clone().unwrap_or_default();
+                    // Resolve the stored parent id back to its full
+                    // breadcrumb path for the combo (what the picker
+                    // displays); a dangling id (deleted parent) shows
+                    // as root, matching how the grid renders it.
+                    self.group_edit.parent_label = group
+                        .parent_id
+                        .filter(|pid| self.groups.iter().any(|g| g.id == *pid))
+                        .map(|pid| oryxis_core::models::Group::path_of(&self.groups, pid))
+                        .unwrap_or_default();
                     self.group_edit.visible = true;
+                    // Mutually exclusive with the other right-hand panels.
+                    self.show_host_panel = false;
+                    self.panel_nav_clear();
+                    self.show_session_group_panel = false;
+                    self.cloud_form.visible = false;
+                    self.cloud_dynamic_form.visible = false;
+                    self.cloud_discover_visible = false;
+                }
+            }
+            TabsMessage::NewSubgroup(gid) => {
+                self.overlay = None;
+                // Only a manual folder can contain manual children
+                // (dynamic groups derive their contents from the query).
+                let parent_label = self
+                    .groups
+                    .iter()
+                    .any(|g| g.id == gid && g.cloud_query.is_none())
+                    .then(|| oryxis_core::models::Group::path_of(&self.groups, gid));
+                if let Some(parent_label) = parent_label {
+                    self.group_edit = crate::state::GroupEditForm {
+                        visible: true,
+                        id: None,
+                        label: String::new(),
+                        icon: String::new(),
+                        color: String::new(),
+                        parent_label,
+                    };
                     // Mutually exclusive with the other right-hand panels.
                     self.show_host_panel = false;
                     self.panel_nav_clear();
@@ -667,6 +703,9 @@ impl Oryxis {
             }
             TabsMessage::GroupEditLabelChanged(v) => {
                 self.group_edit.label = v;
+            }
+            TabsMessage::GroupEditParentChanged(v) => {
+                self.group_edit.parent_label = v;
             }
             TabsMessage::ShowGroupEditIconPicker => {
                 self.icon_picker.icon = if self.group_edit.icon.is_empty() {
@@ -688,26 +727,57 @@ impl Oryxis {
                 self.show_icon_picker = true;
             }
             TabsMessage::SaveGroupEdit => {
-                if let Some(gid) = self.group_edit.id {
-                    let trimmed = self.group_edit.label.trim().to_string();
-                    if !trimmed.is_empty()
-                        && let Some(group) = self.groups.iter_mut().find(|g| g.id == gid)
-                    {
-                        group.label = trimmed;
-                        group.icon = if self.group_edit.icon.is_empty() {
-                            None
-                        } else {
-                            Some(self.group_edit.icon.clone())
-                        };
-                        group.color = if self.group_edit.color.is_empty() {
-                            None
-                        } else {
-                            Some(self.group_edit.color.clone())
-                        };
-                        group.updated_at = chrono::Utc::now();
-                        if let Some(vault) = &self.vault {
-                            let _ = vault.save_group(group);
+                let trimmed = self.group_edit.label.trim().to_string();
+                if !trimmed.is_empty() {
+                    // Resolve the parent combo by label, mirroring the
+                    // dynamic-group editor: empty / unmatched = root and
+                    // only a manual folder qualifies as a container. The
+                    // edited group's own subtree is excluded so a save
+                    // can never mint a parent cycle (nesting a folder
+                    // under its own descendant would orphan the subtree).
+                    let excluded = self
+                        .group_edit
+                        .id
+                        .map(|gid| oryxis_core::models::Group::subtree_ids(&self.groups, gid))
+                        .unwrap_or_default();
+                    // Full-path match first (what the picker fills in),
+                    // bare label as the typed-by-hand fallback.
+                    let parent_id = oryxis_core::models::Group::resolve_path_or_label(
+                        &self.groups,
+                        &self.group_edit.parent_label,
+                        &excluded,
+                    );
+                    let icon = if self.group_edit.icon.is_empty() {
+                        None
+                    } else {
+                        Some(self.group_edit.icon.clone())
+                    };
+                    let color = if self.group_edit.color.is_empty() {
+                        None
+                    } else {
+                        Some(self.group_edit.color.clone())
+                    };
+                    if let Some(gid) = self.group_edit.id {
+                        if let Some(group) = self.groups.iter_mut().find(|g| g.id == gid) {
+                            group.label = trimmed;
+                            group.icon = icon;
+                            group.color = color;
+                            group.parent_id = parent_id;
+                            group.updated_at = chrono::Utc::now();
+                            if let Some(vault) = &self.vault {
+                                let _ = vault.save_group(group);
+                            }
                         }
+                    } else {
+                        // Create mode (the folder kebab's "New subgroup").
+                        let mut group = oryxis_core::models::Group::new(trimmed);
+                        group.icon = icon;
+                        group.color = color;
+                        group.parent_id = parent_id;
+                        if let Some(vault) = &self.vault {
+                            let _ = vault.save_group(&group);
+                        }
+                        self.groups.push(group);
                     }
                 }
                 self.group_edit.visible = false;
@@ -723,22 +793,31 @@ impl Oryxis {
             }
             TabsMessage::DeleteFolderKeepHosts => {
                 if let Some(gid) = self.folder_delete {
-                    // Move every host inside the folder to the root.
+                    // Deleting a folder promotes its contents one level
+                    // up (to the deleted folder's own parent; root for a
+                    // top-level folder, which preserves the pre-subgroup
+                    // behavior).
+                    let new_parent = self
+                        .groups
+                        .iter()
+                        .find(|g| g.id == gid)
+                        .and_then(|g| g.parent_id);
                     for conn in self.connections.iter_mut() {
                         if conn.group_id == Some(gid) {
-                            conn.group_id = None;
+                            conn.group_id = new_parent;
                             conn.updated_at = chrono::Utc::now();
                             if let Some(vault) = &self.vault {
                                 let _ = vault.save_connection(conn, None);
                             }
                         }
                     }
-                    // Re-home nested sub-groups (e.g. ECS / K8s dynamic
-                    // groups) to root too, so they don't dangle off the
-                    // deleted parent and vanish from every view.
+                    // Re-home nested sub-groups (manual subgroups and
+                    // ECS / K8s dynamic groups alike), so they don't
+                    // dangle off the deleted parent and vanish from
+                    // every view.
                     for g in self.groups.iter_mut() {
                         if g.parent_id == Some(gid) {
-                            g.parent_id = None;
+                            g.parent_id = new_parent;
                             g.updated_at = chrono::Utc::now();
                             if let Some(vault) = &self.vault {
                                 let _ = vault.save_group(g);
@@ -750,7 +829,12 @@ impl Oryxis {
                     }
                     self.groups.retain(|g| g.id != gid);
                     if self.active_group == Some(gid) {
-                        self.active_group = None;
+                        self.active_group = new_parent;
+                    }
+                    // Don't leave the editor panel open on a deleted row.
+                    if self.group_edit.id == Some(gid) {
+                        self.group_edit.visible = false;
+                        self.group_edit.id = None;
                     }
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }
@@ -764,13 +848,20 @@ impl Oryxis {
                         .filter(|c| c.group_id == Some(gid))
                         .map(|c| c.id)
                         .collect();
-                    // Nested sub-groups (dynamic ECS / K8s groups) aren't
-                    // "hosts": re-home them to root rather than deleting
-                    // them with the folder, so an import isn't silently
-                    // lost and nothing dangles off the removed parent.
+                    // Nested sub-groups (manual subgroups and dynamic
+                    // ECS / K8s groups) aren't "hosts": promote them to
+                    // the deleted folder's own parent rather than
+                    // deleting them with the folder, so an import isn't
+                    // silently lost and nothing dangles off the removed
+                    // parent.
+                    let new_parent = self
+                        .groups
+                        .iter()
+                        .find(|g| g.id == gid)
+                        .and_then(|g| g.parent_id);
                     for g in self.groups.iter_mut() {
                         if g.parent_id == Some(gid) {
-                            g.parent_id = None;
+                            g.parent_id = new_parent;
                             g.updated_at = chrono::Utc::now();
                             if let Some(vault) = &self.vault {
                                 let _ = vault.save_group(g);
@@ -786,7 +877,12 @@ impl Oryxis {
                     self.connections.retain(|c| !to_drop.contains(&c.id));
                     self.groups.retain(|g| g.id != gid);
                     if self.active_group == Some(gid) {
-                        self.active_group = None;
+                        self.active_group = new_parent;
+                    }
+                    // Don't leave the editor panel open on a deleted row.
+                    if self.group_edit.id == Some(gid) {
+                        self.group_edit.visible = false;
+                        self.group_edit.id = None;
                     }
                     self.close_modal(crate::state::Modal::FolderDelete);
                 }

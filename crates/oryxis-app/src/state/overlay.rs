@@ -101,6 +101,9 @@ pub(crate) enum OverlayContent {
 pub(crate) enum GroupPickerTarget {
     DynamicFormParent,
     SessionGroupFolder,
+    /// Parent combo in the manual group editor side panel. The list
+    /// excludes the edited group's own subtree (no cycles).
+    GroupEditParent,
 }
 
 /// Host editor's startup-command source. `None` runs nothing; `Snippet`

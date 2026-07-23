@@ -404,6 +404,15 @@ impl Oryxis {
             .iter()
             .filter(|c| c.group_id == Some(gid))
             .count();
+        // Nested groups (manual subgroups or cloud dynamic groups) are
+        // never deleted with the folder, they get promoted one level
+        // up; the copy below says so instead of calling the folder
+        // "empty".
+        let sub_count = self
+            .groups
+            .iter()
+            .filter(|g| g.parent_id == Some(gid))
+            .count();
         let c = OryxisColors::t();
 
         // Tinted circular warning badge anchoring the dialog.
@@ -454,6 +463,14 @@ impl Oryxis {
         self.modal_nav_reset();
         use crate::keynav::RowAction;
         let actions = if host_count == 0 {
+            // No direct hosts: one action. With nested groups inside,
+            // say they get promoted instead of calling the folder
+            // empty (the deletion itself never removes them).
+            let desc = if sub_count == 0 {
+                crate::i18n::t("delete_folder_empty_desc")
+            } else {
+                crate::i18n::t("delete_folder_only_subgroups_desc")
+            };
             column![self.modal_nav_slot_default(
                 RowAction::activate(Message::Tabs(TabsMessage::DeleteFolderWithHosts)),
                 12.0,
@@ -461,12 +478,17 @@ impl Oryxis {
                 folder_choice_card(
                     iced_fonts::lucide::trash(),
                     crate::i18n::t("delete_folder_empty"),
-                    crate::i18n::t("delete_folder_empty_desc"),
+                    desc,
                     Message::Tabs(TabsMessage::DeleteFolderWithHosts),
                     c.error,
                 ),
             )]
         } else {
+            let with_hosts_desc = if sub_count == 0 {
+                crate::i18n::t("delete_folder_with_hosts_desc")
+            } else {
+                crate::i18n::t("delete_folder_with_hosts_subgroups_desc")
+            };
             column![
                 self.modal_nav_slot_default(
                     RowAction::activate(Message::Tabs(TabsMessage::DeleteFolderKeepHosts)),
@@ -488,7 +510,7 @@ impl Oryxis {
                     folder_choice_card(
                         iced_fonts::lucide::trash(),
                         crate::i18n::t("delete_folder_with_hosts"),
-                        crate::i18n::t("delete_folder_with_hosts_desc"),
+                        with_hosts_desc,
                         Message::Tabs(TabsMessage::DeleteFolderWithHosts),
                         c.error,
                     ),

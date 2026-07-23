@@ -713,6 +713,8 @@ pub struct Oryxis {
     pub(crate) dynamic_form_parent_combo_bounds: crate::widgets::BoundsCell,
     /// Bounds of the session-group editor's Folder combo row.
     pub(crate) session_group_folder_combo_bounds: crate::widgets::BoundsCell,
+    /// Bounds of the manual group editor's Parent Group combo row.
+    pub(crate) group_edit_parent_combo_bounds: crate::widgets::BoundsCell,
     /// Bounds of the `+` tab button, so the split hover popover anchors
     /// under it at a fixed position instead of following the cursor.
     pub(crate) plus_btn_bounds: crate::widgets::BoundsCell,

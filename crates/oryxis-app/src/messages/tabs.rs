@@ -105,7 +105,12 @@ pub enum TabsMessage {
     CancelFolderModal,
     /// Open the manual host-group editor side panel for this group.
     EditGroup(Uuid),
+    /// Open the group editor in create mode with this group prefilled
+    /// as the parent (folder kebab's "New subgroup").
+    NewSubgroup(Uuid),
     GroupEditLabelChanged(String),
+    /// Parent-group combo text (label matching, empty = root).
+    GroupEditParentChanged(String),
     /// Open the icon/color picker routed to the group editor.
     ShowGroupEditIconPicker,
     SaveGroupEdit,
