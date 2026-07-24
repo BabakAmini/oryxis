@@ -697,6 +697,9 @@ struct CellData {
     fg: Color,
     bg: Color,
     flags: CellFlags,
+    /// Explicit underline color (SGR 58), already palette-resolved.
+    /// `None` = underline in the glyph's foreground, the default.
+    underline: Option<Color>,
     /// Cell carries an explicit OSC 8 hyperlink. Tinted like a detected URL so
     /// the link reads as clickable even when its label isn't URL-shaped.
     link: bool,

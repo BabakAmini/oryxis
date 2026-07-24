@@ -302,6 +302,9 @@ where
                                 fg,
                                 bg,
                                 flags: cell.flags,
+                                underline: cell
+                                    .underline_color()
+                                    .map(|uc| palette.resolve(&uc, colors)),
                                 link: cell.hyperlink().is_some(),
                             });
                         }
@@ -653,7 +656,16 @@ where
                     });
                     if cd.flags.intersects(CellFlags::ALL_UNDERLINES) || is_hovered_url {
                         let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
-                        frame.fill_rectangle(Point::new(x, y + cell_h - 2.0), Size::new(width, 1.0), fg);
+                        // SGR 58 underline color when set; the glyph's
+                        // (post-effects) foreground otherwise. The hover
+                        // underline of a URL keeps fg, it is our cue, not
+                        // the app's styling.
+                        let ul = if cd.flags.intersects(CellFlags::ALL_UNDERLINES) {
+                            cd.underline.unwrap_or(fg)
+                        } else {
+                            fg
+                        };
+                        frame.fill_rectangle(Point::new(x, y + cell_h - 2.0), Size::new(width, 1.0), ul);
                     }
 
                     // Strikethrough
