@@ -230,8 +230,9 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **Terminal:** X11 forwarding (`-X` / `-Y`) and keyword highlighting
-  with user-defined trigger actions.
+- **Terminal:** X11 forwarding (`-X` / `-Y`), keyword highlighting
+  with user-defined trigger actions, and window opacity (Linux and
+  macOS first; Windows depends on the graphics stack).
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
@@ -240,8 +241,9 @@ tracks it interactively.
 - **Quick-connect OS integration:** register as the `ssh://` URL handler
   and accept `oryxis user@host` on the CLI.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
-  importers, Wake-on-LAN, and an optional network tools panel (DNS,
-  ping / traceroute, port test, TLS check, WHOIS, RBL).
+  importers plus generic CSV import / export, Wake-on-LAN, and an
+  optional network tools panel (DNS, ping / traceroute, port test,
+  TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
   import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;
@@ -250,7 +252,8 @@ tracks it interactively.
   shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
-- **Host monitoring:** agentless CPU / memory / disk / network gauges
+- **Host monitoring:** agentless CPU / memory / disk / network / GPU
+  gauges
   over the SSH connection you already have: a per-session panel plus a
   multi-host dashboard, opt-in per host, nothing installed on servers.
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
@@ -270,6 +273,9 @@ tracks it interactively.
 - **Multi-host AI agent:** the typed-operation agent detached from a
   single tab, investigating across vault hosts over ad-hoc SSH channels,
   gated by explicit per-host opt-in.
+- **Storage browser plugins:** S3-compatible, SMB, and Chinese-cloud
+  object storage (Huawei OBS / Tencent COS / Alibaba OSS) browsing as
+  optional plugins on the existing signed-plugin pipeline.
 
 ## Building from source
 
