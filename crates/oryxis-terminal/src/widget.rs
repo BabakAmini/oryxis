@@ -131,6 +131,16 @@ pub struct TerminalWidgetState {
     /// tell whether new terminal activity landed (drives the
     /// reset-on-output behavior). `None` before the first draw.
     last_draw_epoch: std::cell::Cell<Option<u64>>,
+    /// Sub-cell pixel remainder carried across wheel events that arrive
+    /// as `ScrollDelta::Pixels` (Windows precision touchpads / high-res
+    /// wheels deliver a few pixels per notch). Truncating each event to
+    /// whole cells floored every sub-cell delta to zero, so scrollback
+    /// never moved on those devices (issue #91: the live pane hid it
+    /// behind reset-on-output, the transcript viewer had no output to
+    /// snap it back). Accumulate the pixels, emit whole cells, keep the
+    /// remainder. Reset when the sign flips so a direction change is
+    /// responsive rather than fighting a stale opposite-sign residual.
+    scroll_px_residual: std::cell::Cell<f32>,
     /// True while the cursor is somewhere over the terminal canvas. Drives
     /// the scrollbar's hover-to-reveal visibility.
     hover: bool,

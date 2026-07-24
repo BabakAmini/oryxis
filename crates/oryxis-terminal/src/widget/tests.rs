@@ -122,3 +122,81 @@
         let off = view.with_right_click_action(RightClickAction::Paste);
         assert!(!off.defers_copy_to_right_click(), "flag off never defers");
     }
+
+    /// Build a view over a terminal with `lines` rows of scrollback, so
+    /// there is somewhere to scroll to.
+    fn scrolled_view(lines: usize) -> (TerminalView<()>, TerminalWidgetState) {
+        let mut term = TerminalState::new_no_pty(80, 24).unwrap();
+        for _ in 0..lines {
+            term.process(b"line\r\n");
+        }
+        (
+            TerminalView::new(Arc::new(Mutex::new(term))),
+            TerminalWidgetState::default(),
+        )
+    }
+
+    /// A scrolled-back terminal driven only by `ScrollDelta::Pixels`
+    /// deltas smaller than one cell (Windows precision touchpads and
+    /// high-res wheels deliver a few pixels per notch): the pre-#91
+    /// handler floored each `y / cell_height` to zero, so scrollback
+    /// never moved and the transcript viewer (no output to snap it back)
+    /// was frozen. The residual accumulator now carries the sub-cell
+    /// remainder across events and emits a whole line once the pixels
+    /// cross a cell.
+    #[test]
+    fn subcell_pixel_wheel_accumulates_into_scroll() {
+        let (view, mut ws) = scrolled_view(200);
+        // Cursor over the canvas; start at the live edge (offset 0).
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        assert_eq!(ws.scroll_offset.get(), 0);
+
+        // cell_height defaults to 14.0 * 1.15 = 16.1, so a 10px notch is
+        // sub-cell: one alone must not move (correct), but the second
+        // crosses a cell boundary and advances exactly one line, where
+        // the old truncation stayed pinned at zero forever.
+        let notch = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Pixels { x: 0.0, y: 10.0 },
+        });
+        let action = view.on_event(&mut ws, &notch, bounds(), cursor);
+        assert!(action.is_some(), "the canvas consumes the wheel event");
+        assert_eq!(ws.scroll_offset.get(), 0, "one sub-cell notch must not move");
+
+        view.on_event(&mut ws, &notch, bounds(), cursor);
+        assert_eq!(ws.scroll_offset.get(), 1, "two sub-cell notches cross a cell");
+
+        // Five more keep it climbing, proving the residual never stalls.
+        for _ in 0..5 {
+            view.on_event(&mut ws, &notch, bounds(), cursor);
+        }
+        assert!(
+            ws.scroll_offset.get() >= 4,
+            "sub-cell pixel wheel keeps advancing, got {}",
+            ws.scroll_offset.get()
+        );
+    }
+
+    /// A `ScrollDelta::Lines` notch still moves whole lines and clears
+    /// any carried pixel residual, so switching devices (touchpad →
+    /// discrete wheel) can't leave a stale sub-cell fraction fighting the
+    /// next notch.
+    #[test]
+    fn line_wheel_moves_and_clears_pixel_residual() {
+        let (view, mut ws) = scrolled_view(200);
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+
+        // Leave a sub-cell residual behind from a pixel notch.
+        let px = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Pixels { x: 0.0, y: 10.0 },
+        });
+        view.on_event(&mut ws, &px, bounds(), cursor);
+        assert_ne!(ws.scroll_px_residual.get(), 0.0, "pixel notch left a residual");
+
+        // A line notch scrolls 3 lines (y * 3) and wipes the residual.
+        let ln = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Lines { x: 0.0, y: 1.0 },
+        });
+        view.on_event(&mut ws, &ln, bounds(), cursor);
+        assert_eq!(ws.scroll_offset.get(), 3, "one line notch scrolls 3 lines");
+        assert_eq!(ws.scroll_px_residual.get(), 0.0, "line notch clears the residual");
+    }

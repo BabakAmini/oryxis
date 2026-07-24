@@ -1038,9 +1038,42 @@ where
                 if cursor.position_in(bounds).is_some() =>
             {
                 let lines = match delta {
-                    mouse::ScrollDelta::Lines { y, .. } => *y as i32 * 3,
-                    mouse::ScrollDelta::Pixels { y, .. } => (*y / self.cell_height) as i32,
+                    mouse::ScrollDelta::Lines { y, .. } => {
+                        // A discrete-notch wheel: whole lines, no residual
+                        // to carry. Reset any pixel remainder so a device
+                        // switch can't leave a stale fraction behind.
+                        widget_state.scroll_px_residual.set(0.0);
+                        *y as i32 * 3
+                    }
+                    // Pixel deltas (Windows precision touchpads / high-res
+                    // wheels) arrive a few pixels at a time, below one cell
+                    // per event. Truncating each to whole cells floored
+                    // every one to zero and scrollback never moved (#91).
+                    // Accumulate into a residual, emit the whole cells it
+                    // now covers, and keep the sub-cell remainder for the
+                    // next event; a sign flip drops the stale residual so a
+                    // reversal responds at once.
+                    mouse::ScrollDelta::Pixels { y, .. } => {
+                        let prev = widget_state.scroll_px_residual.get();
+                        let acc = if prev != 0.0 && prev.signum() != y.signum() {
+                            *y
+                        } else {
+                            prev + *y
+                        };
+                        let cells = (acc / self.cell_height).trunc();
+                        widget_state
+                            .scroll_px_residual
+                            .set(acc - cells * self.cell_height);
+                        cells as i32
+                    }
                 };
+                // A pixel delta that only grew the residual (no whole cell
+                // yet) still belongs to this canvas: consume it so it can't
+                // bleed into a sibling scrollable, but skip the lock and the
+                // redraw since nothing moved.
+                if lines == 0 {
+                    return Some(CanvasAction::capture());
+                }
                 // One lock for both the alt-screen test and the scroll
                 // clamp, this handler fires for every wheel tick and
                 // locking twice doubled the contention with `process()`.
