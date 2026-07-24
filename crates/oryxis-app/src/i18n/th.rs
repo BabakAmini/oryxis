@@ -1140,6 +1140,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "แก้ไขกลุ่ม",
         "new_subgroup" => "กลุ่มย่อยใหม่",
+        "new_group" => "กลุ่มใหม่",
         "back" => "ย้อนกลับ",
         "group_icon_color" => "ไอคอนและสี",
         "add_key_btn" => "+ คีย์",

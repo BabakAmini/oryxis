@@ -709,6 +709,28 @@ impl Oryxis {
                     self.cloud_discover_visible = false;
                 }
             }
+            TabsMessage::NewGroup => {
+                self.overlay = None;
+                // Create a fresh top-level folder: empty parent = root.
+                // Symmetric counterpart to "New subgroup", so an empty
+                // group can be born from the add menu instead of only by
+                // typing a new name in the host editor's group combo.
+                self.group_edit = crate::state::GroupEditForm {
+                    visible: true,
+                    id: None,
+                    label: String::new(),
+                    icon: String::new(),
+                    color: String::new(),
+                    parent_label: String::new(),
+                };
+                // Mutually exclusive with the other right-hand panels.
+                self.show_host_panel = false;
+                self.panel_nav_clear();
+                self.show_session_group_panel = false;
+                self.cloud_form.visible = false;
+                self.cloud_dynamic_form.visible = false;
+                self.cloud_discover_visible = false;
+            }
             TabsMessage::GroupEditLabelChanged(v) => {
                 self.group_edit.label = v;
             }

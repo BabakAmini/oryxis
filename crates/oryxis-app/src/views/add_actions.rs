@@ -47,27 +47,46 @@ impl Oryxis {
                 color: secondary,
             },
         ];
-        // Inside a manual folder the catalog leads with "New subgroup":
-        // the folder kebab offers the same action from the parent view,
-        // this covers creating one while the folder itself is open
-        // (its own card, and thus its kebab, isn't visible there).
-        // Dynamic groups derive their contents from the cloud query,
-        // so they never take manual children.
-        if let Some(gid) = self.active_group
-            && self
-                .groups
-                .iter()
-                .any(|g| g.id == gid && g.cloud_query.is_none())
-        {
-            actions.insert(
-                0,
-                AddHostAction {
-                    icon: iced_fonts::lucide::folder_plus().into(),
-                    label: crate::i18n::t("new_subgroup"),
-                    msg: Message::Tabs(TabsMessage::NewSubgroup(gid)),
-                    color: secondary,
-                },
-            );
+        // Group creation, context-symmetric and always the leading
+        // entry. Inside a manual folder it's "New subgroup" (a child of
+        // the open folder): the folder kebab offers the same action from
+        // the parent view, this covers creating one while the folder
+        // itself is open (its own card, and thus its kebab, isn't
+        // visible there). At the vault root it's "New group" (a fresh
+        // top-level folder), so an empty group can be born here instead
+        // of only by typing a new name in the host editor's group combo.
+        // Dynamic groups derive their contents from the cloud query, so
+        // they take neither: no manual children, and their toolbar shows
+        // Discover rather than this add menu.
+        match self.active_group {
+            Some(gid)
+                if self
+                    .groups
+                    .iter()
+                    .any(|g| g.id == gid && g.cloud_query.is_none()) =>
+            {
+                actions.insert(
+                    0,
+                    AddHostAction {
+                        icon: iced_fonts::lucide::folder_plus().into(),
+                        label: crate::i18n::t("new_subgroup"),
+                        msg: Message::Tabs(TabsMessage::NewSubgroup(gid)),
+                        color: secondary,
+                    },
+                );
+            }
+            None => {
+                actions.insert(
+                    0,
+                    AddHostAction {
+                        icon: iced_fonts::lucide::folder_plus().into(),
+                        label: crate::i18n::t("new_group"),
+                        msg: Message::Tabs(TabsMessage::NewGroup),
+                        color: secondary,
+                    },
+                );
+            }
+            _ => {}
         }
         // Remote-desktop hosts (RDP/VNC) stay out of the light-user
         // list until the opt-in feature is enabled.

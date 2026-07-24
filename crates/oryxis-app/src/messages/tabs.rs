@@ -108,6 +108,9 @@ pub enum TabsMessage {
     /// Open the group editor in create mode with this group prefilled
     /// as the parent (folder kebab's "New subgroup").
     NewSubgroup(Uuid),
+    /// Open the group editor in create mode at the vault root (no
+    /// parent): the toolbar / empty-state "New group" button.
+    NewGroup,
     GroupEditLabelChanged(String),
     /// Parent-group combo text (label matching, empty = root).
     GroupEditParentChanged(String),

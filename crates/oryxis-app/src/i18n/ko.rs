@@ -1133,6 +1133,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "프로덕션, 스테이징...",
         "edit_group" => "그룹 편집",
         "new_subgroup" => "새 하위 그룹",
+        "new_group" => "새 그룹",
         "back" => "뒤로",
         "group_icon_color" => "아이콘 및 색상",
         "add_key_btn" => "+ 키",

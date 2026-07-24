@@ -1052,6 +1052,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production、Staging...",
         "edit_group" => "グループを編集",
         "new_subgroup" => "新しいサブグループ",
+        "new_group" => "新しいグループ",
         "back" => "戻る",
         "group_icon_color" => "アイコンと色",
         "add_key_btn" => "+ 鍵",

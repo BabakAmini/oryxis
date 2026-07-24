@@ -1052,6 +1052,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production、Staging...",
         "edit_group" => "编辑分组",
         "new_subgroup" => "新建子分组",
+        "new_group" => "新建分组",
         "back" => "返回",
         "group_icon_color" => "图标和颜色",
         "add_key_btn" => "+ 密钥",

@@ -23,9 +23,15 @@ impl Oryxis {
         // The close (×) is not a keyboard row: Esc already owns panel
         // close, and recording it would make the header the first Down
         // target instead of the form.
-        // `id = None` is create mode (the folder kebab's "New subgroup").
+        // `id = None` is create mode. The title tracks the Parent Group
+        // field live: an empty parent creates a top-level folder ("New
+        // group", the toolbar/empty-state entry), a filled one a child
+        // ("New subgroup", the folder kebab entry). Self-correcting if
+        // the user edits the parent field either way.
         let header_key = if self.group_edit.id.is_some() {
             "edit_group"
+        } else if self.group_edit.parent_label.trim().is_empty() {
+            "new_group"
         } else {
             "new_subgroup"
         };

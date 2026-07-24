@@ -1133,6 +1133,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Produksi, Staging...",
         "edit_group" => "Edit grup",
         "new_subgroup" => "Subgrup baru",
+        "new_group" => "Grup baru",
         "back" => "Kembali",
         "group_icon_color" => "Ikon & warna",
         "add_key_btn" => "+ Kunci",

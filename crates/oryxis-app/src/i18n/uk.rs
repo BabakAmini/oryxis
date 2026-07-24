@@ -1133,6 +1133,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "Редагувати групу",
         "new_subgroup" => "Нова підгрупа",
+        "new_group" => "Нова група",
         "back" => "Назад",
         "group_icon_color" => "Значок і колір",
         "add_key_btn" => "+ Ключ",

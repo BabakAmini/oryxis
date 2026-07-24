@@ -1043,6 +1043,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Produktion, Staging...",
         "edit_group" => "Gruppe bearbeiten",
         "new_subgroup" => "Neue Untergruppe",
+        "new_group" => "Neue Gruppe",
         "back" => "Zurück",
         "group_icon_color" => "Symbol & Farbe",
         "add_key_btn" => "+ Schlüssel",

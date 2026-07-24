@@ -1139,6 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_placeholder" => "Production, Staging...",
         "edit_group" => "ग्रुप एडिट करें",
         "new_subgroup" => "नया उपसमूह",
+        "new_group" => "नया समूह",
         "back" => "वापस",
         "group_icon_color" => "आइकॉन और रंग",
         "add_key_btn" => "+ कुंजी",
