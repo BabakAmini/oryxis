@@ -29,6 +29,10 @@ pub enum PortForwardMessage {
     PortForwardStarted(Uuid, Result<Arc<ForwardSession>, String>),
     /// Periodic liveness sweep; drops forwards whose connection died.
     PortForwardLivenessTick,
+    /// Periodic sweep that re-attempts `auto_start` rules that failed to
+    /// come up (or dropped): self-heals the KeePassXC-key-not-ready and
+    /// network-loss cases with a capped exponential backoff.
+    PortForwardRetryTick,
     PortForwardCardHovered(usize),
     PortForwardCardUnhovered,
     PortForwardSearchChanged(String),

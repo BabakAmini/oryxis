@@ -318,6 +318,25 @@ impl Oryxis {
             );
         }
 
+        // Port forward auto-start retry. Only mounts while at least one
+        // auto_start rule is down and pending a re-attempt, and only while
+        // unlocked (a retry needs vault credentials, and would burn attempts
+        // against a sealed vault; a soft auto-lock keeps live forwards but
+        // pauses the healer until unlock). The 15 s heartbeat just wakes the
+        // handler; the per-rule exponential backoff (15 s → 120 s ceiling)
+        // decides which rules are actually due. 15 s matches the shortest
+        // backoff, so a permanently-down forward keeps this at a gentle
+        // 4 wakes/min rather than churning the view faster than any rule
+        // could possibly be due.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && !self.port_forward_retry.is_empty()
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(15))
+                    .map(|_| Message::PortForward(PortForwardMessage::PortForwardRetryTick)),
+            );
+        }
+
         // Session-log flush ticker. Only mounts while at least one pane
         // is recording; drains the per-pane output buffers into the vault
         // every 2 s so an idle-but-trickling session still persists

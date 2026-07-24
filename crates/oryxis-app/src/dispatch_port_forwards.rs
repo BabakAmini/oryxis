@@ -12,6 +12,7 @@
 #![allow(clippy::result_large_err)]
 
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use iced::futures::SinkExt;
 use iced::Task;
@@ -32,6 +33,26 @@ enum PfStreamMsg {
         category: oryxis_ssh::NegCategory,
         server_offers: Vec<String>,
     },
+}
+
+/// Retry bookkeeping for an `auto_start` forward that is down. `next_at` is
+/// the earliest wall-clock instant to re-attempt; `attempts` is how many
+/// re-attempts have been issued so far, driving the backoff. The attempt
+/// count is never capped, only the interval is: an `auto_start` forward is
+/// meant to stay up, so it keeps trying (cheaply) until the key/network
+/// comes back, rather than giving up like the SSH-tab reconnect does.
+#[derive(Debug, Clone)]
+pub(crate) struct PfRetry {
+    pub next_at: Instant,
+    pub attempts: u32,
+}
+
+/// Backoff for the Nth retry: 15s, 30s, 60s, then a 120s ceiling. Cheap
+/// enough to poll a dead endpoint indefinitely (≤ ~720 attempts/day) yet
+/// snappy enough that a forward comes up seconds after its key lands.
+fn pf_retry_backoff(attempts: u32) -> Duration {
+    let secs = 15u64.saturating_mul(1u64 << attempts.min(3));
+    Duration::from_secs(secs.min(120))
 }
 
 impl Oryxis {
@@ -102,6 +123,7 @@ impl Oryxis {
                     // Tear down a live forward before the rule disappears.
                     self.active_forwards.remove(&id);
                     self.port_forward_starting.remove(&id);
+                    self.port_forward_retry.remove(&id);
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_port_forward_rule(&id);
                         self.show_port_forward_panel = false;
@@ -116,6 +138,10 @@ impl Oryxis {
             }
             PortForwardMessage::StopPortForward(id) => {
                 self.port_forward_starting.remove(&id);
+                // The user turned it off: stop any self-healing retry so an
+                // auto_start rule the user explicitly stopped never
+                // resurrects on the next tick.
+                self.port_forward_retry.remove(&id);
                 // Await `cancel()` so a remote (`-R`) forward also releases
                 // its server-side listener via `cancel_tcpip_forward`, not
                 // just the local tasks that Drop would stop. Dropping the
@@ -142,14 +168,28 @@ impl Oryxis {
                         // with no UI to stop (or against the user's intent).
                         if was_starting && self.port_forward_rules.iter().any(|r| r.id == id) {
                             self.active_forwards.insert(id, session);
+                            // Came up: clear any retry so a later drop starts
+                            // the backoff fresh from the shortest interval.
+                            self.port_forward_retry.remove(&id);
                             self.port_forward_form.error = None;
                         } else {
                             drop(session);
                         }
                     }
                     Err(e) => {
-                        // Toggle bounces back to off and the error surfaces.
-                        self.port_forward_form.error = Some(e);
+                        // First/foreground failure surfaces the error. An
+                        // auto_start rule additionally enters the retry loop
+                        // so a transient failure (SSH key not loaded yet,
+                        // network down) self-heals instead of staying dead.
+                        let already_retrying = self.port_forward_retry.contains_key(&id);
+                        self.pf_mark_retry_pending(id);
+                        // Stay silent on background retries: the amber
+                        // "Retrying…" chip already carries the signal, and the
+                        // single shared error field would otherwise clobber
+                        // across rows on every tick.
+                        if !already_retrying {
+                            self.port_forward_form.error = Some(e);
+                        }
                     }
                 }
             }
@@ -164,8 +204,15 @@ impl Oryxis {
                     .collect();
                 for id in dead {
                     self.active_forwards.remove(&id);
+                    // An auto_start forward that dropped should climb back
+                    // up on its own (network loss / server closed the
+                    // connection); a manual one just goes off.
+                    self.pf_mark_retry_pending(id);
                     tracing::info!("port forward {id} connection dropped, toggled off");
                 }
+            }
+            PortForwardMessage::PortForwardRetryTick => {
+                return self.handle_port_forward_retry_tick();
             }
             PortForwardMessage::PortForwardCardHovered(idx) => {
                 self.hovered_port_forward_card = Some(idx);
@@ -408,6 +455,71 @@ impl Oryxis {
             .collect()
     }
 
+    /// Mark an `auto_start` rule as failed/dropped and schedule its first
+    /// re-attempt. No-op for a rule that isn't `auto_start` (nothing opted
+    /// it into self-healing) or that already has a pending retry (`or_insert`
+    /// so a repeated failure never resets a backoff that's already climbing).
+    fn pf_mark_retry_pending(&mut self, id: Uuid) {
+        let is_auto = self
+            .port_forward_rules
+            .iter()
+            .any(|r| r.id == id && r.auto_start);
+        if !is_auto {
+            return;
+        }
+        self.port_forward_retry.entry(id).or_insert_with(|| PfRetry {
+            next_at: Instant::now() + pf_retry_backoff(0),
+            attempts: 0,
+        });
+    }
+
+    /// Re-attempt every `auto_start` rule whose backoff has elapsed. Driven
+    /// by the `PortForwardRetryTick` subscription, which only mounts while
+    /// `port_forward_retry` is non-empty and the vault is unlocked. Prunes
+    /// stale entries (rule deleted, `auto_start` cleared, or already up) so
+    /// the subscription unmounts once nothing is pending.
+    fn handle_port_forward_retry_tick(&mut self) -> Task<Message> {
+        let now = Instant::now();
+        let ids: Vec<Uuid> = self.port_forward_retry.keys().copied().collect();
+        let mut due = Vec::new();
+        for id in ids {
+            let still_auto = self
+                .port_forward_rules
+                .iter()
+                .any(|r| r.id == id && r.auto_start);
+            if !still_auto || self.active_forwards.contains_key(&id) {
+                self.port_forward_retry.remove(&id);
+                continue;
+            }
+            // An attempt is already in flight (or the connect just landed);
+            // don't stack a second one. `start_port_forward` also guards
+            // this, but skipping here keeps the backoff honest.
+            if self.port_forward_starting.contains(&id) {
+                continue;
+            }
+            if self
+                .port_forward_retry
+                .get(&id)
+                .is_some_and(|r| r.next_at <= now)
+            {
+                due.push(id);
+            }
+        }
+
+        let mut tasks = Vec::new();
+        for id in due {
+            // Advance the backoff BEFORE issuing: a failure that lands after
+            // this tick keeps climbing, and a success clears the entry.
+            if let Some(retry) = self.port_forward_retry.get_mut(&id) {
+                retry.attempts = retry.attempts.saturating_add(1);
+                retry.next_at = now + pf_retry_backoff(retry.attempts);
+            }
+            tracing::info!("retrying auto-start port forward {id}");
+            tasks.push(self.start_port_forward(id, true));
+        }
+        Task::batch(tasks)
+    }
+
     /// Resolve password + private key for a connection, preferring a linked
     /// identity over inline fields. Mirrors the terminal connect path in
     /// `dispatch_ssh.rs`.
@@ -532,5 +644,24 @@ fn parse_port(s: &str) -> Option<u16> {
     match s.trim().parse::<u16>() {
         Ok(p) if p > 0 => Some(p),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pf_retry_backoff;
+    use std::time::Duration;
+
+    #[test]
+    fn backoff_climbs_then_caps_at_120s() {
+        assert_eq!(pf_retry_backoff(0), Duration::from_secs(15));
+        assert_eq!(pf_retry_backoff(1), Duration::from_secs(30));
+        assert_eq!(pf_retry_backoff(2), Duration::from_secs(60));
+        assert_eq!(pf_retry_backoff(3), Duration::from_secs(120));
+        // The ceiling holds for every further attempt, and the bounded
+        // shift (`attempts.min(3)`) means a huge count can't overflow.
+        assert_eq!(pf_retry_backoff(4), Duration::from_secs(120));
+        assert_eq!(pf_retry_backoff(50), Duration::from_secs(120));
+        assert_eq!(pf_retry_backoff(u32::MAX), Duration::from_secs(120));
     }
 }

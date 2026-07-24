@@ -162,10 +162,17 @@ impl Oryxis {
 
             let active = self.active_forwards.contains_key(&rule.id);
             let starting = self.port_forward_starting.contains(&rule.id);
+            // Down but scheduled to be re-attempted (auto_start self-healing):
+            // distinct from a plain "off" so the user knows it's working on it.
+            let retrying =
+                !active && !starting && self.port_forward_retry.contains_key(&rule.id);
 
-            // Status dot: accent-green while up, muted while down.
+            // Status dot: accent-green while up, amber while retrying, muted
+            // while down.
             let dot_color = if active {
                 OryxisColors::t().success
+            } else if retrying {
+                OryxisColors::t().warning
             } else {
                 OryxisColors::t().text_muted
             };
@@ -191,6 +198,15 @@ impl Oryxis {
             // not also open the editor.
             let (toggle_label, toggle_msg, toggle_bg, toggle_fg) = if starting {
                 (t("pf_starting"), None, OryxisColors::t().bg_surface, OryxisColors::t().text_muted)
+            } else if retrying {
+                // Clicking cancels the self-healing retry loop (turns it off
+                // for good until the user starts it again).
+                (
+                    t("pf_retrying"),
+                    Some(Message::PortForward(PortForwardMessage::StopPortForward(rule.id))),
+                    OryxisColors::t().bg_surface,
+                    OryxisColors::t().warning,
+                )
             } else if active {
                 (
                     t("pf_on"),
@@ -488,6 +504,14 @@ impl Oryxis {
                     .text_size(12)
                     .into(),
             ));
+
+        // Document the self-healing behavior so the KeePassXC-key-not-ready
+        // ordering problem has an in-product answer.
+        if self.port_forward_form.auto_start {
+            form = form
+                .push(Space::new().height(6))
+                .push(text(t("pf_auto_start_hint")).size(11).color(OryxisColors::t().text_muted));
+        }
 
         // While editing an existing rule, Delete keeps its own
         // outlined-danger row inside the body (it is not part of the

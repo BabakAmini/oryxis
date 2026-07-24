@@ -912,6 +912,13 @@ pub struct Oryxis {
     /// Rules whose connect is in flight (drives the per-row spinner and
     /// prevents a double-start).
     pub(crate) port_forward_starting: std::collections::HashSet<Uuid>,
+    /// Auto-start rules that failed to come up (or dropped after being up)
+    /// and are scheduled to be re-attempted. Only ever holds `auto_start`
+    /// rules; a manual Stop or delete removes the entry so a rule the user
+    /// turned off never resurrects. Keyed by rule id. See
+    /// `dispatch_port_forwards::PfRetry`.
+    pub(crate) port_forward_retry:
+        std::collections::HashMap<Uuid, crate::dispatch_port_forwards::PfRetry>,
     pub(crate) show_port_forward_panel: bool,
     pub(crate) port_forward_form: crate::state::PortForwardRuleForm,
     pub(crate) hovered_port_forward_card: Option<usize>,
