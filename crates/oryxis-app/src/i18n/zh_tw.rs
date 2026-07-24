@@ -505,6 +505,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "keyboard_shortcuts" => "鍵盤快速鍵",
 
         "session_log" => "工作階段記錄",
+        "session_final_screen" => "最終畫面",
         "logs" => "歷史記錄",
         "search_logs" => "搜尋記錄...",
         "clear_all" => "全部清除",

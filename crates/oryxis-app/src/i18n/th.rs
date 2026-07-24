@@ -573,6 +573,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "บันทึกเซสชัน",
+        "session_final_screen" => "หน้าจอสุดท้าย",
         "in_progress" => "กำลังดำเนินการ",
         "clear_all" => "ล้างทั้งหมด",
         "clear_history_title" => "ล้างบันทึกทั้งหมดหรือไม่?",

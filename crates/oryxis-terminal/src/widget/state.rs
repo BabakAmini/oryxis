@@ -484,6 +484,216 @@ impl TerminalState {
         self.backend.term.grid_mut().clear_history();
     }
 
+    /// Serialize the visible screen (the active grid's viewport, no
+    /// scrollback) back into SGR-styled bytes that reproduce it when fed
+    /// to a fresh emulator: text, palette / indexed / RGB colors and the
+    /// visual attribute flags all round-trip. The session-log viewer uses
+    /// this to materialize the final alternate-screen frame (top / vim /
+    /// less left open at disconnect) into the primary buffer before
+    /// leaving the alt screen, so the frame survives as part of the
+    /// transcript instead of vanishing with the alt buffer (#91).
+    ///
+    /// Lines are emitted as hard `\r\n` rows (a frame is a visual
+    /// snapshot, so the re-fed copy may re-wrap if the grid narrows) and
+    /// trailing blank cells with no visible styling are trimmed. The
+    /// underline variants keep their exact style (`4:2`..`4:5` colon
+    /// subparameters) and color (SGR 58): the only consumer is our own
+    /// vte parser, which round-trips them all.
+    pub fn screen_as_ansi(&self) -> Vec<u8> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
+
+        // Style bits a re-fed emulator can reproduce; grid bookkeeping
+        // (wrap markers, wide-char spacers) is deliberately excluded.
+        const STYLE: CellFlags = CellFlags::INVERSE
+            .union(CellFlags::BOLD)
+            .union(CellFlags::ITALIC)
+            .union(CellFlags::DIM)
+            .union(CellFlags::HIDDEN)
+            .union(CellFlags::STRIKEOUT)
+            .union(CellFlags::ALL_UNDERLINES);
+
+        // SGR parameter selecting `color` ("31", "48;5;n", "38;2;r;g;b"),
+        // or `None` for the default fore/background (the leading reset
+        // already restores those).
+        fn color_params(color: AnsiColor, bg: bool) -> Option<String> {
+            match color {
+                AnsiColor::Named(n) => {
+                    // The dim named slots reduce to their base color; the
+                    // DIM flag travels separately.
+                    let idx = match n {
+                        NamedColor::DimBlack => 0,
+                        NamedColor::DimRed => 1,
+                        NamedColor::DimGreen => 2,
+                        NamedColor::DimYellow => 3,
+                        NamedColor::DimBlue => 4,
+                        NamedColor::DimMagenta => 5,
+                        NamedColor::DimCyan => 6,
+                        NamedColor::DimWhite => 7,
+                        _ => n as usize,
+                    };
+                    match idx {
+                        0..=7 => Some((if bg { 40 } else { 30 } + idx).to_string()),
+                        // Bright 8..=15 map to the aixterm 90/100 range.
+                        8..=15 => Some((if bg { 92 } else { 82 } + idx).to_string()),
+                        _ => None,
+                    }
+                }
+                AnsiColor::Indexed(i) => {
+                    Some(format!("{};5;{i}", if bg { 48 } else { 38 }))
+                }
+                AnsiColor::Spec(rgb) => Some(format!(
+                    "{};2;{};{};{}",
+                    if bg { 48 } else { 38 },
+                    rgb.r,
+                    rgb.g,
+                    rgb.b
+                )),
+            }
+        }
+
+        // Full SGR for a style run: reset, then every attribute, so runs
+        // never inherit stale state from their predecessor.
+        fn sgr(
+            fg: AnsiColor,
+            bg: AnsiColor,
+            flags: CellFlags,
+            underline_color: Option<AnsiColor>,
+        ) -> String {
+            let mut s = String::from("\x1b[0");
+            if flags.contains(CellFlags::BOLD) {
+                s.push_str(";1");
+            }
+            if flags.contains(CellFlags::DIM) {
+                s.push_str(";2");
+            }
+            if flags.contains(CellFlags::ITALIC) {
+                s.push_str(";3");
+            }
+            // Each underline variant keeps its exact style; the parser
+            // stores at most one per cell, so the chain is exclusive.
+            if flags.contains(CellFlags::UNDERLINE) {
+                s.push_str(";4");
+            } else if flags.contains(CellFlags::DOUBLE_UNDERLINE) {
+                s.push_str(";4:2");
+            } else if flags.contains(CellFlags::UNDERCURL) {
+                s.push_str(";4:3");
+            } else if flags.contains(CellFlags::DOTTED_UNDERLINE) {
+                s.push_str(";4:4");
+            } else if flags.contains(CellFlags::DASHED_UNDERLINE) {
+                s.push_str(";4:5");
+            }
+            if flags.contains(CellFlags::INVERSE) {
+                s.push_str(";7");
+            }
+            if flags.contains(CellFlags::HIDDEN) {
+                s.push_str(";8");
+            }
+            if flags.contains(CellFlags::STRIKEOUT) {
+                s.push_str(";9");
+            }
+            if let Some(p) = color_params(fg, false) {
+                s.push(';');
+                s.push_str(&p);
+            }
+            if let Some(p) = color_params(bg, true) {
+                s.push(';');
+                s.push_str(&p);
+            }
+            // Underline color (SGR 58). Only the indexed / RGB forms
+            // exist on the wire; a named color cannot be expressed, so
+            // it falls back to the default (the leading reset).
+            match underline_color {
+                Some(AnsiColor::Indexed(i)) => {
+                    s.push_str(&format!(";58;5;{i}"));
+                }
+                Some(AnsiColor::Spec(rgb)) => {
+                    s.push_str(&format!(";58;2;{};{};{}", rgb.r, rgb.g, rgb.b));
+                }
+                Some(AnsiColor::Named(_)) | None => {}
+            }
+            s.push('m');
+            s
+        }
+
+        let grid = self.backend.term.grid();
+        let rows = grid.screen_lines();
+        let cols = grid.columns();
+        let mut lines_out: Vec<Vec<u8>> = Vec::with_capacity(rows);
+        for r in 0..rows {
+            let row = &grid[Line(r as i32)];
+            // Last column worth emitting: trailing blanks are dropped
+            // unless something makes them visible (a colored background
+            // bar, inverse video, an underline / strikeout run).
+            let mut last: Option<usize> = None;
+            for c in (0..cols).rev() {
+                let cell = &row[Column(c)];
+                let invisible = (cell.c == ' ' || cell.c == '\0')
+                    && cell.zerowidth().is_none()
+                    && cell.bg == AnsiColor::Named(NamedColor::Background)
+                    && !cell.flags.intersects(
+                        CellFlags::INVERSE
+                            | CellFlags::STRIKEOUT
+                            | CellFlags::ALL_UNDERLINES,
+                    );
+                if !invisible {
+                    last = Some(c);
+                    break;
+                }
+            }
+            let mut out: Vec<u8> = Vec::new();
+            let mut style: Option<(AnsiColor, AnsiColor, CellFlags, Option<AnsiColor>)> =
+                None;
+            if let Some(last) = last {
+                let mut buf = [0u8; 4];
+                for c in 0..=last {
+                    let cell = &row[Column(c)];
+                    // The wide-char spacers are grid bookkeeping: the wide
+                    // glyph itself already advances two columns when
+                    // re-fed, so emitting them would shift the row.
+                    if cell.flags.intersects(
+                        CellFlags::WIDE_CHAR_SPACER
+                            | CellFlags::LEADING_WIDE_CHAR_SPACER,
+                    ) {
+                        continue;
+                    }
+                    let cur =
+                        (cell.fg, cell.bg, cell.flags & STYLE, cell.underline_color());
+                    if style != Some(cur) {
+                        out.extend_from_slice(sgr(cur.0, cur.1, cur.2, cur.3).as_bytes());
+                        style = Some(cur);
+                    }
+                    let ch = if cell.c == '\0' { ' ' } else { cell.c };
+                    out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+                    if let Some(zw) = cell.zerowidth() {
+                        for z in zw {
+                            out.extend_from_slice(z.encode_utf8(&mut buf).as_bytes());
+                        }
+                    }
+                }
+            }
+            lines_out.push(out);
+        }
+        while lines_out.last().is_some_and(|l| l.is_empty()) {
+            lines_out.pop();
+        }
+        let mut bytes = Vec::new();
+        for (i, l) in lines_out.iter().enumerate() {
+            if i > 0 {
+                bytes.extend_from_slice(b"\r\n");
+            }
+            bytes.extend_from_slice(l);
+            // Reset before the newline so a colored background can't
+            // bleed past the end of its row.
+            if !l.is_empty() {
+                bytes.extend_from_slice(b"\x1b[0m");
+            }
+        }
+        bytes
+    }
+
     /// Visible cursor cell as `(column, line)`, 0-based from the top-left of
     /// the active screen. Used to anchor the OS IME candidate window near the
     /// caret. Ignores the widget's scrollback offset (during composition the

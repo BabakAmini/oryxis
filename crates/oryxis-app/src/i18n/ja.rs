@@ -504,6 +504,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "keyboard_shortcuts" => "キーボードショートカット",
 
         "session_log" => "セッションログ",
+        "session_final_screen" => "最終画面",
         "logs" => "履歴",
         "vault" => "ボールト",
         "clear_all" => "すべてクリア",

@@ -200,3 +200,59 @@
         assert_eq!(ws.scroll_offset.get(), 3, "one line notch scrolls 3 lines");
         assert_eq!(ws.scroll_px_residual.get(), 0.0, "line notch clears the residual");
     }
+
+    /// `screen_as_ansi` must reproduce the visible screen when fed to a
+    /// fresh emulator: text, named / indexed / RGB colors, wide (CJK)
+    /// glyphs and the visual attribute flags all round-trip cell-exact.
+    /// Backs the transcript viewer's final-alt-frame materialization.
+    #[test]
+    fn screen_as_ansi_roundtrips_the_visible_screen() {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+
+        let mut a = TerminalState::new_no_pty(24, 7).unwrap();
+        a.process(b"\x1b[31mred\x1b[0m plain\r\n");
+        a.process(b"\x1b[1;44mB on blue\x1b[0m\r\n");
+        a.process(b"\x1b[38;2;1;2;3mrgb\x1b[0m \x1b[7minv\x1b[0m \x1b[38;5;123midx\x1b[0m\r\n");
+        a.process("wide 漢字 ok\r\n".as_bytes());
+        // A background bar with trailing colored blanks (the top header
+        // pattern) followed by default-styled text.
+        a.process(b"\x1b[4mu\x1b[0m\x1b[42m  \x1b[0mtail\r\n");
+        // Every underline variant, plus an RGB underline color: each
+        // must keep its exact style through the round-trip, not reduce
+        // to plain underline.
+        a.process(b"\x1b[4:2md\x1b[0m\x1b[4:3mc\x1b[0m\x1b[4:4mo\x1b[0m\x1b[4:5ma\x1b[0m\r\n");
+        a.process(b"\x1b[4m\x1b[58;2;10;20;30mUC\x1b[0m");
+
+        let bytes = a.screen_as_ansi();
+        let mut b = TerminalState::new_no_pty(24, 7).unwrap();
+        b.process(&bytes);
+
+        let style = CellFlags::INVERSE
+            | CellFlags::BOLD
+            | CellFlags::ITALIC
+            | CellFlags::DIM
+            | CellFlags::HIDDEN
+            | CellFlags::STRIKEOUT
+            | CellFlags::ALL_UNDERLINES;
+        let ga = a.backend.term.grid();
+        let gb = b.backend.term.grid();
+        assert_eq!(ga.screen_lines(), gb.screen_lines());
+        for r in 0..ga.screen_lines() as i32 {
+            for c in 0..ga.columns() {
+                let ca = &ga[Line(r)][Column(c)];
+                let cb = &gb[Line(r)][Column(c)];
+                let norm = |ch: char| if ch == '\0' { ' ' } else { ch };
+                assert_eq!(norm(ca.c), norm(cb.c), "char at {r},{c}");
+                assert_eq!(ca.fg, cb.fg, "fg at {r},{c}");
+                assert_eq!(ca.bg, cb.bg, "bg at {r},{c}");
+                assert_eq!(ca.flags & style, cb.flags & style, "flags at {r},{c}");
+                assert_eq!(
+                    ca.underline_color(),
+                    cb.underline_color(),
+                    "underline color at {r},{c}"
+                );
+            }
+        }
+    }

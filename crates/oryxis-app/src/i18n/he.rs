@@ -573,6 +573,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "יומן סשן",
+        "session_final_screen" => "המסך האחרון",
         "in_progress" => "בתהליך",
         "clear_all" => "ניקוי הכול",
         "clear_history_title" => "לנקות את כל היומנים?",

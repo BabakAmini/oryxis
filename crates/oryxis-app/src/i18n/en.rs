@@ -573,6 +573,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Session logs
         "session_log" => "Session Log",
+        "session_final_screen" => "Final screen",
         "in_progress" => "In Progress",
         "clear_all" => "Clear all",
         "clear_history_title" => "Clear all logs?",

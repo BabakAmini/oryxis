@@ -570,6 +570,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "Nhật ký phiên",
+        "session_final_screen" => "Màn hình cuối",
         "in_progress" => "Đang diễn ra",
         "entries" => "mục",
         "of" => "trên",

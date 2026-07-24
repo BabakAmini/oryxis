@@ -573,6 +573,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "Záznam relace",
+        "session_final_screen" => "Poslední obrazovka",
         "in_progress" => "Probíhá",
         "clear_all" => "Vymazat vše",
         "clear_history_title" => "Vymazat všechny protokoly?",

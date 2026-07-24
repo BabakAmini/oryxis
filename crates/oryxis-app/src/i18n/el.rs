@@ -573,6 +573,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "Καταγραφή συνεδρίας",
+        "session_final_screen" => "Τελική οθόνη",
         "in_progress" => "Σε εξέλιξη",
         "clear_all" => "Καθαρισμός όλων",
         "clear_history_title" => "Καθαρισμός όλων των καταγραφών;",

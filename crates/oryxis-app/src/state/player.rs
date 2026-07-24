@@ -148,6 +148,29 @@ impl SessionLogViewer {
                 }
             }
         }
+        // A recording that ends inside an alternate-screen app (top /
+        // less / vim / htop / tmux still open at disconnect) leaves the
+        // emulator on the alt screen, which carries no scrollback and
+        // pins the view to the live edge. The transcript would then open
+        // at the last frame with no scrollbar and dead PageUp/wheel, the
+        // whole session hidden in the primary buffer's scrollback behind
+        // it (#91, Mazwak's report). A static log is read top to bottom,
+        // so capture the app's final frame, leave the alt screen, and
+        // append the frame to the primary buffer under a dim separator:
+        // nothing is lost and the whole session scrolls. The `.cast`
+        // player stays the faithful timed replay of the app itself.
+        if state.is_alt_screen() {
+            let frame = state.screen_as_ansi();
+            // Exit every alt-screen variant the recording might have
+            // entered (47 / 1047 / 1049); alacritty no-ops the exits for
+            // the ones that were not active. The cursor lands where the
+            // app was launched, so the frame reads in session order.
+            state.process(b"\x1b[?1049l\x1b[?1047l\x1b[?47l");
+            let label = crate::i18n::t("session_final_screen");
+            state.process(format!("\r\n\x1b[0;2m── {label} ──\x1b[0m\r\n").as_bytes());
+            state.process(&frame);
+            state.process(b"\x1b[0m\r\n");
+        }
         // A recording is read like a log, top to bottom, so open at the
         // very start of the session rather than the terminal-native live
         // edge. `i32::MAX` is clamped to the real top by the draw pass, so
@@ -642,6 +665,52 @@ mod tests {
             history >= 470,
             "scrollback dropped lines: history_size = {history}"
         );
+    }
+
+    /// A recording that ends inside an alternate-screen app (top / less /
+    /// vim / htop / tmux left active at disconnect) must still be a
+    /// scrollable log. The alt screen carries no history and pins the
+    /// view to the live edge, so without leaving it the transcript opens
+    /// at the end with no scrollbar and PageUp/wheel dead (Mazwak's
+    /// report on #91): the primary scrollback with the whole session is
+    /// there but hidden behind the alt buffer. `build` must return the
+    /// primary screen so those lines are reachable, and the app's final
+    /// frame must survive as reinjected content instead of vanishing
+    /// with the alt buffer.
+    #[test]
+    fn session_log_viewer_ending_in_alt_screen_stays_scrollable() {
+        use oryxis_terminal::alacritty_terminal::grid::Dimensions;
+        let mut data = Vec::new();
+        for i in 0..500 {
+            data.extend_from_slice(format!("line {i}\r\n").as_bytes());
+        }
+        // …then the session entered `top` (alt screen) and was still
+        // there at disconnect: enter alt, paint a frame, never exit.
+        data.extend_from_slice(b"\x1b[?1049h");
+        data.extend_from_slice(b"\x1b[1;31mtop - live frame\x1b[0m");
+        let viewer = SessionLogViewer::build(
+            Uuid::nil(),
+            &[ev(Some(0), 'r', b"80x24"), ev(Some(10), 'o', &data)],
+            TerminalPalette::default(),
+        )
+        .expect("headless viewer");
+        let state = viewer.terminal.lock().unwrap();
+        assert!(
+            !state.is_alt_screen(),
+            "viewer must leave the alternate screen so the log scrolls"
+        );
+        let history = state.backend.term.grid().history_size();
+        assert!(
+            history >= 470,
+            "primary scrollback must be reachable: history_size = {history}"
+        );
+        // The final frame is appended after the log, in session order.
+        let text = state.all_text();
+        let log_tail = text.rfind("line 499").expect("log tail present");
+        let frame = text
+            .rfind("top - live frame")
+            .expect("final alt frame reinjected into the transcript");
+        assert!(frame > log_tail, "frame lands after the log tail");
     }
 
     #[test]

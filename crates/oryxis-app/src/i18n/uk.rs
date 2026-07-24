@@ -570,6 +570,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "Журнал сесії",
+        "session_final_screen" => "Останній екран",
         "in_progress" => "У процесі",
         "entries" => "записів",
         "of" => "з",

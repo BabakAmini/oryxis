@@ -570,6 +570,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "Log Sesi",
+        "session_final_screen" => "Layar terakhir",
         "in_progress" => "Berlangsung",
         "entries" => "entri",
         "of" => "dari",

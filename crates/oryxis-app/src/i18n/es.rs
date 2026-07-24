@@ -501,6 +501,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "keyboard_shortcuts" => "Atajos de Teclado",
 
         "session_log" => "Registro de Sesión",
+        "session_final_screen" => "Pantalla final",
         "logs" => "Historial",
         "vault" => "Cofre",
         "search_logs" => "Buscar registros...",

@@ -583,6 +583,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "سجل الجلسة",
+        "session_final_screen" => "الشاشة الأخيرة",
         "in_progress" => "قيد التنفيذ",
         "logs" => "السجل",
         "search_logs" => "البحث في السجلات...",

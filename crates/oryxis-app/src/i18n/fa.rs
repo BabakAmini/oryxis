@@ -572,6 +572,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Session logs
         "session_log" => "گزارش نشست",
+        "session_final_screen" => "صفحهٔ پایانی",
         "in_progress" => "در حال انجام",
         "entries" => "مورد",
         "of" => "از",
