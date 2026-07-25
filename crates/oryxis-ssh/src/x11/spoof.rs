@@ -40,6 +40,22 @@ fn pad4(n: usize) -> usize {
     (4 - (n % 4)) % 4
 }
 
+/// Constant-time byte comparison. Cookies are 16 bytes, so a
+/// hand-rolled loop is fine; pulling in `subtle` for one helper is
+/// overkill (same call as `oryxis-relay`'s bearer-token compare).
+/// The length check short-circuits: a wrong LENGTH is not secret, only
+/// the position of the first differing byte is.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut diff: u8 = 0;
+    for (x, y) in a.iter().zip(b.iter()) {
+        diff |= x ^ y;
+    }
+    diff == 0
+}
+
 /// Outcome of feeding bytes to [`SetupRewriter::push`].
 #[derive(Debug, PartialEq, Eq)]
 pub enum Rewrite {
@@ -120,9 +136,13 @@ impl SetupRewriter {
             // not the one we authorized.
             return Rewrite::Reject("X11 client offered an unexpected auth protocol");
         }
-        // Constant-time-ish compare is unnecessary here (a mismatch is
-        // fatal and unretryable), but the length check must come first.
-        if data.len() != self.fake.len() || data != self.fake.as_slice() {
+        // Constant-time, like OpenSSH's `timingsafe_bcmp` at the same
+        // point (`channels.c`, `x11_open_helper`). A mismatch kills the
+        // channel, but NOT the guessing: every X11 channel the server
+        // opens gets a fresh rewriter, and it can open them without
+        // limit, so a byte-at-a-time `memcmp` would leak the cookie to
+        // anyone with a foothold on the remote host.
+        if !constant_time_eq(data, &self.fake) {
             return Rewrite::Reject("X11 cookie mismatch");
         }
 
@@ -352,5 +372,27 @@ mod tests {
     #[test]
     fn random_cookies_differ() {
         assert_ne!(random_cookie(), random_cookie());
+    }
+
+    /// The cookie compare must agree with `==` on every shape that
+    /// reaches it: equal, differing in the first byte, differing in the
+    /// last (the case a short-circuiting compare would time-leak), and
+    /// length mismatches in both directions.
+    #[test]
+    fn constant_time_eq_matches_plain_equality() {
+        let base = vec![0xAA; COOKIE_LEN];
+        assert!(constant_time_eq(&base, &base.clone()));
+
+        let mut first_differs = base.clone();
+        first_differs[0] ^= 0xFF;
+        assert!(!constant_time_eq(&base, &first_differs));
+
+        let mut last_differs = base.clone();
+        last_differs[COOKIE_LEN - 1] ^= 0x01;
+        assert!(!constant_time_eq(&base, &last_differs));
+
+        assert!(!constant_time_eq(&base, &base[..COOKIE_LEN - 1]));
+        assert!(!constant_time_eq(&base[..COOKIE_LEN - 1], &base));
+        assert!(constant_time_eq(&[], &[]));
     }
 }
