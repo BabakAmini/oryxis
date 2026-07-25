@@ -50,7 +50,7 @@ screenshot privacy-v2-card
 # keeps root readable, the saved hostname masks, private IP masks.
 # A live PTY never quiesces, so drop the per-instruction timeout.
 timeout 500
-type ctrl+k
+type ctrl+shift+t
 settle 500
 expect "Local Shell"
 click "Local Shell"

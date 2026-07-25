@@ -8,7 +8,10 @@ mode: Zen
 # byte-level encoding + the form save/load round-trip are unit-tested
 # (util.rs vectors, the vault + core round-trip tests). The pick-list
 # option overlays aren't text-selectable, so flipping a value is left to
-# the unit tests.
+# the unit tests. The target is a bare name on purpose: an explicit one
+# (username / port / IP literal) makes the empty state quick-connect and
+# relabel the button to Connect (#97, 170654f0), so the editor never
+# opens.
 expect "Welcome to Oryxis"
 click "Skip"
 click "Continue without password"
@@ -16,7 +19,7 @@ expect "Create host"
 click "Create host"
 settle 300
 click "Type IP or Hostname"
-type "10.0.0.5"
+type "quirkshost.example.com"
 click "Continue"
 settle 500
 expect "Advanced terminal"

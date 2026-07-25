@@ -26,9 +26,10 @@ click (1140, 450)
 settle 800
 
 # Open a local shell; a live PTY never quiesces, so drop the
-# per-instruction timeout first.
+# per-instruction timeout first. The picker moved off Ctrl+K onto
+# Ctrl+Shift+T (b9c03b8b) so a plain Ctrl+K still reaches the shell.
 timeout 500
-type ctrl+k
+type ctrl+shift+t
 settle 500
 expect "Local Shell"
 click "Local Shell"
