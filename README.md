@@ -220,7 +220,7 @@ information is collected or shared as part of this process.
 
 Oryxis ships small and often (roughly weekly). This section is
 forward-looking: items land incrementally as they are ready rather than
-being tied to a specific version. Latest stable is **v0.10.0**;
+being tied to a specific version. Latest stable is **v0.11.0**;
 [CHANGELOG.md](CHANGELOG.md) has the full history, and the
 [roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 tracks it interactively.
@@ -230,9 +230,9 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **Terminal:** X11 forwarding (`-X` / `-Y`), keyword highlighting
-  with user-defined trigger actions, and window opacity (Linux and
-  macOS first; Windows depends on the graphics stack).
+- **Terminal:** keyword highlighting with user-defined trigger actions,
+  and window opacity (Linux and macOS first; Windows depends on the
+  graphics stack).
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
@@ -252,10 +252,10 @@ tracks it interactively.
   shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
-- **Host monitoring:** agentless CPU / memory / disk / network / GPU
-  gauges
-  over the SSH connection you already have: a per-session panel plus a
-  multi-host dashboard, opt-in per host, nothing installed on servers.
+- **Host monitoring:** GPU gauges next to the CPU / memory / disk /
+  network ones the per-session panel already shows, plus a multi-host
+  dashboard view. Still agentless and opt-in per host, nothing installed
+  on servers.
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
   providers, an East Asian ambiguous-width option, and terminal
   background images.

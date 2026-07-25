@@ -23,6 +23,14 @@ coming next, see the [Roadmap](../README.md#roadmap).
   and link them from any host.
 - **SSH agent forwarding.** Per-host opt-in; bridges the local ssh-agent
   socket through the channel.
+- **X11 forwarding.** Per-host opt-in (and imported from `ForwardX11` in
+  `~/.ssh/config`) so remote GUI apps draw on your local display. The
+  remote never learns your real cookie: a fake `MIT-MAGIC-COOKIE-1` is
+  minted per session, verified in constant time on every X11 channel and
+  swapped for the real one before any byte reaches the X server.
+  Resolves `$DISPLAY` across Linux/BSD unix sockets, XQuartz launchd
+  paths on macOS, and the TCP endpoint VcXsrv / Xming serve on Windows,
+  including displays that run with access control off.
 - **Rich `~/.ssh/config` import.** `ProxyCommand` and `ProxyJump` resolved
   automatically.
 - **PuTTY-grade details.** TCP_NODELAY on every socket, per-host IPv4/IPv6
@@ -93,14 +101,19 @@ coming next, see the [Roadmap](../README.md#roadmap).
   terminal resizes; any session exports as an asciicast v3 `.cast` file
   with your terminal theme embedded, or as a plain-text transcript.
   Output-only by design, so keystrokes never leak into a recording.
+- **Search inside recordings.** The History screen searches the session
+  content itself, not just titles, decrypting on demand with a bounded
+  scan, and can filter to the hosts a given command ever ran on.
 - **Pinned & reorderable tabs.** Pin tabs (restored on next launch, lazy
   reconnect), drag to reorder, rename, MRU switching with Ctrl+Tab, and an
   optional bottom tab bar.
 - **Syntax highlighting.** IPs, URLs, and file paths auto-detected and
   colored.
-- **13 terminal palettes plus custom schemes.** Picker with inline swatch
-  previews, global or per-host; build your own or import iTerm / Windows
-  Terminal / base16.
+- **15 terminal palettes plus custom schemes.** Picker with inline swatch
+  previews, global or per-host; build your own, clone a built-in as a
+  starting point, or import iTerm / Windows Terminal / base16 from a
+  pasted blob or a file. Terminal and UI themes both export back out, so
+  a scheme moves between machines without the vault.
 - **Bundled Nerd Fonts.** SauceCodePro plus a Symbols Nerd Font fallback so
   Powerline and icon glyphs always render.
 - **Paste done right.** X11-style middle-click paste, configurable
@@ -119,10 +132,36 @@ coming next, see the [Roadmap](../README.md#roadmap).
   and/or output, and an opt-in performance HUD (frame time vs budget, RTT
   and jitter on the SSH connection).
 
+## Host monitoring
+
+- **Agentless vitals.** A sidebar Monitor tab reads CPU, memory, swap,
+  disk and network off the SSH connection you already have, on an exec
+  channel multiplexed onto the live session. Nothing is installed on the
+  server; Linux `/proc` is the primary source with BSD and macOS probe
+  fallbacks.
+- **Opt-in, twice over.** The whole feature hides behind a Features &
+  Plugins toggle, and then per host, so no connection starts probing
+  behind your back. "Enable for all hosts" flips it wholesale, and the
+  probe interval is configurable.
+- **Listening ports with click-to-forward.** The panel lists what the
+  host is listening on and turns any row into a local port forward in
+  one click, honoring the listener's own bind address.
+- **Threshold alerts** when a gauge crosses a line you set, a collapsible
+  disk list for hosts with many mounts, and an optional status-bar
+  segment that keeps the headline numbers visible with the panel closed.
+- **Untrusted by construction.** Every number crossing the wire comes
+  from a machine you may not control, so all probe arithmetic saturates
+  rather than wrapping, and truncated or forged payloads degrade to
+  "unknown" instead of nonsense.
+
 ## SFTP & files
 
 - **Dual-pane layout.** Local and remote side by side, with sortable
   columns.
+- **Open with.** Hand a remote file to a specific local application,
+  with a MobaXterm-style confirmation before the edited copy goes back
+  up, and a path-history dropdown to jump back to directories you have
+  already visited.
 - **Files in every SSH tab.** A sidebar Files tab browses over the tab's
   existing connection and follows your shell's working directory as you
   `cd` (shell-integration cwd reporting with a window-title fallback;
@@ -261,10 +300,11 @@ vulnerability disclosure policy.
 - **Snippets with variables.** `{name}` and `{name:default}` placeholders
   prompt in a small dialog before the send; shell text like `${VAR}` and
   `{print $1}` is deliberately left alone.
-- **Groups, tags and shortcuts.** Grouped folder cards in the vault, a tag
-  filter on hosts and snippets, a sidebar toggle that surfaces only
-  snippets tagged like the focused host, and a recordable key combo that
-  runs a snippet straight into the focused terminal.
+- **Groups, tags and shortcuts.** Grouped folder cards in the vault
+  (nestable to any depth, see below), a tag filter on hosts and snippets,
+  a sidebar toggle that surfaces only snippets tagged like the focused
+  host, and a recordable key combo that runs a snippet straight into the
+  focused terminal.
 - **Run or paste.** Every snippet can run (with Enter) or paste (without)
   into the focused pane, from the vault or the terminal sidebar.
 
@@ -346,13 +386,33 @@ vulnerability disclosure policy.
   rebindable with a live capture mode.
 - **Workspace layout mode.** Sidebar hides when a tab is open so the
   terminal fills the canvas; Classic mode stays a one-click opt-out.
+- **Nested host folders.** Groups hold groups, to any depth. Pickers
+  show the full breadcrumb path so two folders named `prod` under
+  different parents stay distinguishable, typing a path creates the whole
+  chain at once, and deleting a folder promotes its children to the
+  grandparent instead of orphaning them.
 - **Customizable host icons.** Circular / Square / Outline / Initials,
   global or per-host, with dynamic accent on the chrome from the host's
   color.
 - **Responsive card grid.** Column count reflows to the available width;
   long labels truncate cleanly.
 - **Multi-tab sessions** with tab overflow, a scrollable strip, and a
-  `Ctrl+J` jump-to modal.
+  jump-to modal.
+- **Tab strip on any edge.** Dock the tabs top, bottom, left or right;
+  the side docks turn the strip vertical, can absorb the window chrome
+  (burger, Home, window buttons) to reclaim the top bar entirely, and run
+  full height. Inactive tabs take a separation style of your choice
+  (none, border or underline).
+- **Terminal sidebar, where you want it.** Dock it left or right, pick
+  which tab it opens on, and have it open itself on connect, globally or
+  per host.
+- **Configurable status bar.** Every segment is individually
+  toggleable, including latency, transfer size, the working directory
+  and the host vitals.
+- **Settings search.** Type in the Settings sidebar and matching rows
+  highlight in place with a hit-count badge per section; Enter and
+  Shift+Enter step through matches. English terms work in any UI
+  language.
 - **Debug affordances.** Settings > Advanced has an opt-in debug log and a
   "Copy environment info" button for bug reports.
 
@@ -362,16 +422,25 @@ Every binding is rebindable in Settings; this is the out-of-the-box set
 for the most common actions. The in-app burger menu shows the full,
 current list.
 
+Chords that a terminal application could legitimately want (a bare
+`Ctrl+K`, `Ctrl+L` or `Ctrl+J`) are deliberately left to the shell, so
+the app's own actions sit on `Ctrl+Shift`.
+
 | Shortcut | Action |
 |----------|--------|
-| `Ctrl+K` | Quick connect / new-tab picker |
-| `Ctrl+J` | Jump to tab |
-| `Ctrl+Tab` | Switch tabs (most recently used) |
+| `Ctrl+Shift+T` | New-tab picker |
+| `Ctrl+Shift+G` | Quick connect |
+| `Ctrl+Shift+J` | Jump to tab |
+| `Alt+Left` / `Alt+Right` | Cycle tabs |
 | `Ctrl+1...9` | Switch to tab 1-9 |
 | `Ctrl+Shift+C` / `Ctrl+Shift+V` | Copy / paste in the terminal |
 | `Ctrl+Shift+W` | Close tab |
+| `Ctrl+Shift+R` | Reconnect the active tab |
 | `Ctrl+Shift+F` | Toggle Files mode on an SSH tab |
 | `Ctrl+Shift+H` | Focus the terminal sidebar |
-| `Ctrl+L` | Open local terminal |
+| `Ctrl+Shift+P` | Command palette |
+| `Ctrl+Shift+L` | Open local terminal |
 | `Ctrl+N` | New host |
+| `Ctrl+F` | Search the current view / terminal scrollback |
+| `Ctrl+,` | Settings |
 | `Ctrl+= / Ctrl+- / Ctrl+0` | Terminal font size (also `Ctrl+Wheel`) |

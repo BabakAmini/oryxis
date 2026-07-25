@@ -4,6 +4,164 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-25
+
+The remote-desktop and observability release. Remote GUI applications
+draw on your local display over a cookie-spoofed X11 channel, every SSH
+tab can show live host vitals without installing anything on the server,
+host folders nest to any depth, and the tab strip and terminal sidebar
+dock wherever you want them.
+
+### Added
+- **X11 forwarding.** Per-host opt-in (also imported from `ForwardX11`
+  in `~/.ssh/config`) so remote GUI applications draw on your local X
+  display. The remote never learns your real cookie: a fake
+  `MIT-MAGIC-COOKIE-1` is minted per session and announced in
+  `x11-req`, then verified in constant time on every X11 channel the
+  server opens and swapped for the real one before a single byte
+  reaches the X server, the way OpenSSH does it. `$DISPLAY` resolution
+  covers Linux/BSD unix sockets, XQuartz launchd paths on macOS, the
+  TCP endpoint VcXsrv / Xming serve on Windows (including the no-
+  `DISPLAY` fallback), bracketed and bare IPv6 literals, and the legacy
+  `hostname/unix:N` transport form. Displays running with access
+  control off (WSLg, VcXsrv `-ac`) work too: the auth is stripped on
+  the way in rather than substituted. Trusted forwarding only
+  (OpenSSH's `-Y`); the X SECURITY extension that `-X` relies on denies
+  the pointer and keyboard grabs Java and Swing toolkits need.
+- **Host monitoring (#83).** A sidebar Monitor tab reads CPU, memory,
+  swap, disk and network off the SSH connection you already have, on an
+  exec channel multiplexed onto the live session, with nothing
+  installed on the server. Linux `/proc` is the primary source, with
+  BSD and macOS probe fallbacks. The feature hides behind a Features &
+  Plugins toggle and is then opt-in per host, with an "Enable for all
+  hosts" switch and a configurable probe interval. The panel lists the
+  host's listening ports and turns any row into a local port forward in
+  one click, honoring the listener's bind address; thresholds raise
+  alerts; a long mount list collapses; an optional status-bar segment
+  keeps the headline numbers visible with the panel closed. Every
+  number crossing the wire is treated as untrusted: the probe
+  arithmetic saturates rather than wrapping, and truncated or forged
+  payloads degrade to "unknown".
+- **Nested host folders (discussion #67).** Groups now hold groups, to
+  any depth. Pickers render the full breadcrumb path so two folders
+  named `prod` under different parents stay distinguishable, typing a
+  path creates the whole chain at once, deleting a folder promotes its
+  children to the grandparent instead of orphaning them, and a cycle
+  guard keeps a re-parent from swallowing its own subtree. A dedicated
+  "New group" button creates top-level folders from the dropdown and
+  the empty state.
+- **Tab strip on any edge (#87).** Dock the tabs top, bottom, left or
+  right. The side docks turn the strip vertical, can absorb the window
+  chrome (burger, Home, window buttons) to reclaim the top bar
+  entirely, and can run full height. Inactive tabs take a separation
+  style of your choice: none, border or underline.
+- **Terminal sidebar placement (#85).** Dock the sidebar on the left as
+  well as the right, choose which tab it opens on, and have it open
+  itself on connect, globally or overridden per host.
+- **Configurable status bar (#83).** Every segment is individually
+  toggleable, and latency, transfer size and the shell's working
+  directory join the existing ones.
+- **Settings search.** Type in the Settings sidebar and matching rows
+  highlight in place with a per-section hit-count badge; Enter and
+  Shift+Enter step through matches with a position counter. Matching
+  runs against the English labels as well as the active language, so
+  English terms work in any UI language.
+- **Search inside session recordings (discussion #67).** The History
+  screen searches the recorded content itself, not just titles,
+  decrypting on demand under a bounded scan, and can filter to the
+  hosts a given command ever ran on.
+- **Reconnect hotkey and Close pane (discussion #67).** Ctrl+Shift+R
+  reconnects the active tab; the terminal context menu gains a Close
+  pane entry on split tabs.
+- **Theme portability (#82).** Terminal and UI themes export to a file,
+  import from one, and clone a built-in as a starting point. Two new
+  built-in terminal palettes: One Dark and Gruvbox Dark.
+- **SFTP Open with (#84).** Hand a remote file to a specific local
+  application, with a MobaXterm-style confirmation before the edited
+  copy goes back up, plus a path-history dropdown in the file explorer.
+- **Self-healing port forwards.** An auto-start forward that fails to
+  bind now retries with capped backoff (15 / 30 / 60 / 120 s) and shows
+  a "Retrying" chip instead of silently staying down.
+- **SGR 58 underline color.** The terminal paints underlines in the
+  color the escape sequence asks for, live and in exported
+  transcripts, instead of reusing the glyph foreground.
+
+### Changed
+- **Terminal-safe hotkey defaults (#99, #100).** Actions that used to
+  sit on bare chords a shell application could legitimately want moved
+  onto `Ctrl+Shift`: the new-tab picker is now `Ctrl+Shift+T`, quick
+  connect `Ctrl+Shift+G`, jump-to-tab `Ctrl+Shift+J` and the local
+  shell `Ctrl+Shift+L`. A bare `Ctrl+K`, `Ctrl+L` or `Ctrl+J` reaches
+  the shell again. Existing custom bindings are untouched.
+- **Quick connect from the first-run empty state (#97).** Typing a
+  target that names itself explicitly (a username, a port or an IP
+  literal) connects directly and the button reads "Connect"; a bare
+  hostname still opens the pre-filled editor, preserving the
+  add-your-first-host flow.
+- **SSH auth timeout raised to 120 s**, matching sshd's default
+  `LoginGraceTime`, so confirm-gated agents, hardware-key touches and
+  2FA prompts are not cut off by a client that gives up before the
+  server would. The 15 s connect timeout is unchanged, so an
+  unreachable host still fails fast.
+- **TOTP secret behind a disclosure toggle.** The host editor only
+  shows the field once "Use TOTP" is on, so the form stays short for
+  the hosts that do not use it.
+- **Dashboard folder header.** A compact header with a back arrow
+  replaces the breadcrumb inside a folder.
+
+### Fixed
+- **SSH agent discovery (#98).** Oryxis tries every agent it finds
+  instead of stopping at the first pipe, sweeps all Pageant-style
+  named pipes, dedupes offers across agents so a shared key is not
+  presented twice, tries a host's pinned key first across every agent
+  before the full sweep, and bounds each candidate dial so a wedged
+  agent cannot stall the connect. A server that hangs up mid-sweep is
+  now reported as "too many authentication attempts" instead of a
+  generic failure.
+- **No self-confirm on connect.** Oryxis no longer dials its own
+  ssh-agent while connecting, which could pop a confirmation prompt
+  for its own outgoing session.
+- **Missing terminfo on the remote (#88).** The terminal type is
+  probed before the PTY request and falls back when the host has no
+  entry for it, with a toast explaining the substitution, instead of
+  leaving a session with a broken display.
+- **Session transcripts (#90, #91).** The History transcript renders
+  through the real terminal widget, scrolls with sub-cell pixel
+  wheels, and stays scrollable when the recording ends inside a
+  full-screen application.
+- **Replay sizing (#89).** The player fits the recording's font to the
+  stage instead of letting a wide recording scroll, and stops
+  rescaling on window resize.
+- **Privacy Mode redaction (#78 follow-up).** Overlapping mask spans
+  merge into a single bar instead of drawing two eye-slashes, the
+  eye-slash draws in foreground ink, masks resolve by id, and the
+  Monitor panel's mount list masks along with everything else.
+- **Group cycles from sync.** A parent cycle created by two devices
+  editing concurrently degrades to root so the affected folders stay
+  visible and editable instead of vanishing. The cycle is now also
+  repaired **on disk** rather than only worked around at render time:
+  both the sync apply path and portable import detach the folder that
+  closed the loop, picking it deterministically (newest edit wins,
+  ties broken by id) so every device repairs identically instead of
+  fighting over which link to cut. Nothing is lost, the detached
+  folder and its hosts move to the top level. A dangling parent is
+  deliberately left alone: during a transfer the parent's own record
+  may simply not have arrived yet.
+- **Tab lifecycle.** Reconnect and close now share one teardown path,
+  Close pane targets the pane you clicked, and a tab closed mid-dial
+  no longer leaves an orphan connection running.
+- **Side-dock layout (#87).** Reorder drags arm on every dock edge,
+  not just the top, and the width budgets, status-bar card and
+  layout-toggle scroll reset behave on the vertical strips.
+- **Sidebar keystrokes leaking into the PTY (#85, #87)** on non-default
+  docks.
+- **X11 channel drain.** Both directions drain on EOF so a reply in
+  flight when one side hangs up is delivered rather than dropped.
+- **RTL and Privacy in the Monitor panel**, the tab-jump search focus,
+  snippet chords surviving an upgrade, zoned IPv6 in quick connect,
+  nested folder creation from typed paths, and theme contrast coverage
+  with interop-safe export.
+
 ## [0.10.0] - 2026-07-19
 
 The advanced-authentication and terminal-power release. Oryxis serves

@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 시연: 호스트 접속, 스니펫 실행, SFTP 탐색">
 </p>
 
-> 이 문서는 v0.10.0 이후의 영어 README를 번역한 것입니다(2026-07-19 동기화).
+> 이 문서는 v0.11.0 이후의 영어 README를 번역한 것입니다(2026-07-25 동기화).
 > 상세 문서([기능 소개](docs/FEATURES.md), [아키텍처](docs/ARCHITECTURE.md))는 영어로 제공됩니다.
 
 ## Oryxis란?
@@ -145,14 +145,15 @@ ChaCha20-Poly1305), 호스트 키는 TOFU로 고정되며, 동기화 페이로�
 ## 로드맵
 
 Oryxis는 대략 매주 작은 단위로 릴리스하며, 기능은 준비되는 대로
-출시됩니다. 최신 안정 버전은 **v0.10.0**입니다. 전체 이력은
+출시됩니다. 최신 안정 버전은 **v0.11.0**입니다. 전체 이력은
 [CHANGELOG.md](CHANGELOG.md), 인터랙티브 로드맵은
 [로드맵 Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)에서
 볼 수 있습니다. 진행 중인 방향: 네이티브 FIDO2(USB / NFC로 보안
-키와 직접 통신), 터미널 강화(X11 포워딩, 트리거 동작이 있는
-키워드 하이라이트), 네이티브 Mosh 클라이언트, 설정 가져오기
-도구(PuTTY / WinSCP / mRemoteNG / Termius), 호스트 모니터링 패널,
-동아시아 모호 폭(ambiguous width) 옵션과 터미널 배경 이미지.
+키와 직접 통신), 터미널 강화(트리거 동작이 있는 키워드 하이라이트,
+창 불투명도), 네이티브 Mosh 클라이언트, 설정 가져오기
+도구(PuTTY / WinSCP / mRemoteNG / Termius), 호스트 모니터링의 GPU
+게이지와 멀티 호스트 대시보드, 동아시아 모호 폭(ambiguous width)
+옵션과 터미널 배경 이미지.
 
 ## 기여하기
 
