@@ -911,6 +911,30 @@ pub fn import_vault(
         }
     }
 
+    // Imported folders merge with folders already here, so the combined
+    // tree can loop even when neither side did on its own (the file and
+    // the vault each re-parented the other's folder). Checked once over
+    // the merged result, for the same reason the sync apply path checks
+    // once per batch: a partially-imported tree can look cyclic while
+    // the finished one is not. Detaching to root is the same
+    // degradation the dashboard already applies, made durable so the
+    // stored tree stays acyclic no matter which writer produced it.
+    if !payload.groups.is_empty() {
+        let merged = store.list_groups()?;
+        for id in Group::cycle_breakers(&merged) {
+            if let Some(group) = merged.iter().find(|g| g.id == id) {
+                let mut repaired = group.clone();
+                repaired.parent_id = None;
+                store.save_group(&repaired)?;
+                tracing::warn!(
+                    "import: parent cycle detected, detaching group {} ({}) to root",
+                    repaired.label,
+                    repaired.id
+                );
+            }
+        }
+    }
+
     // Keys (skip if exists)
     for export_key in &payload.keys {
         if existing_keys.iter().any(|k| k.id == export_key.key.id) {

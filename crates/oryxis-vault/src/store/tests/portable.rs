@@ -699,3 +699,98 @@ fn partial_import_preserves_existing_parent_link() {
     assert_eq!(conns[0].group_id, Some(g.id));
 }
 
+
+/// A cycle that exists only in the MERGE: neither the file nor the
+/// target vault loops on its own, but the import re-parents each side's
+/// folder into the other's. This is the case a per-file or per-vault
+/// check would miss, and the reason the repair runs over the merged
+/// tree after every group has landed.
+#[test]
+fn import_breaks_a_parent_cycle_created_by_the_merge() {
+    use crate::portable::{export_vault, import_vault, ExportFilter, ExportOptions, ExportSelection};
+
+    // Source vault: A is parented under B.
+    let vault = unlocked_vault();
+    let mut a = Group::new("a");
+    let mut b = Group::new("b");
+    a.updated_at = chrono::DateTime::from_timestamp(100, 0).unwrap();
+    b.updated_at = chrono::DateTime::from_timestamp(200, 0).unwrap();
+    a.parent_id = Some(b.id);
+    vault.save_group(&a).unwrap();
+
+    let data = export_vault(
+        &vault,
+        "pw",
+        ExportOptions {
+            include_private_keys: false,
+            filter: ExportFilter::All,
+            selection: ExportSelection::all(),
+        },
+    )
+    .unwrap();
+
+    // Target vault already holds B, parented under A: on its own that
+    // is a dangling parent, and only the import closes the loop.
+    let vault2 = unlocked_vault();
+    let mut b_local = b.clone();
+    b_local.parent_id = Some(a.id);
+    vault2.save_group(&b_local).unwrap();
+
+    import_vault(&vault2, &data, "pw", &ExportSelection::all()).unwrap();
+
+    let stored = vault2.list_groups().unwrap();
+    assert_eq!(stored.len(), 2, "both folders must survive the repair");
+    for g in &stored {
+        assert!(
+            g.parent_id.is_none() || Group::is_reachable_from_root(&stored, g.id),
+            "{} still cyclic after import",
+            g.label
+        );
+    }
+    // The newer edge is the detached one, same rule as the sync path.
+    assert_eq!(
+        stored.iter().find(|g| g.id == b.id).unwrap().parent_id,
+        None
+    );
+}
+
+/// A well-nested hierarchy must import untouched: the repair only fires
+/// on real loops, never on a legitimate parent chain.
+#[test]
+fn import_leaves_a_clean_hierarchy_alone() {
+    use crate::portable::{export_vault, import_vault, ExportFilter, ExportOptions, ExportSelection};
+
+    let vault = unlocked_vault();
+    let root = Group::new("root");
+    let mut child = Group::new("child");
+    child.parent_id = Some(root.id);
+    let mut grandchild = Group::new("grandchild");
+    grandchild.parent_id = Some(child.id);
+    vault.save_group(&root).unwrap();
+    vault.save_group(&child).unwrap();
+    vault.save_group(&grandchild).unwrap();
+
+    let data = export_vault(
+        &vault,
+        "pw",
+        ExportOptions {
+            include_private_keys: false,
+            filter: ExportFilter::All,
+            selection: ExportSelection::all(),
+        },
+    )
+    .unwrap();
+
+    let vault2 = unlocked_vault();
+    import_vault(&vault2, &data, "pw", &ExportSelection::all()).unwrap();
+
+    let stored = vault2.list_groups().unwrap();
+    assert_eq!(
+        stored.iter().find(|g| g.id == child.id).unwrap().parent_id,
+        Some(root.id)
+    );
+    assert_eq!(
+        stored.iter().find(|g| g.id == grandchild.id).unwrap().parent_id,
+        Some(child.id)
+    );
+}

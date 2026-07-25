@@ -658,6 +658,16 @@ pub(crate) fn apply_records(
         }
     }
 
+    // Repair any parent cycle this batch created, inside the same
+    // transaction. Checked ONCE over the final state rather than per
+    // record: a cycle is the JOINT result of several records (device A
+    // sets G1.parent = G2 while device B sets G2.parent = G1), and a
+    // mid-batch snapshot can look cyclic while the completed batch is
+    // not, so a per-record check would detach valid hierarchies.
+    if records.iter().any(|r| r.entity_type == EntityType::Group) {
+        break_group_cycles(&v);
+    }
+
     // A failed COMMIT can leave the transaction open; roll it back so
     // the next batch on this connection doesn't trip over it.
     if let Err(e) = v.commit_batch() {
@@ -666,6 +676,53 @@ pub(crate) fn apply_records(
     }
 
     Ok(())
+}
+
+/// Detach the groups that close a parent cycle, so the STORED tree is
+/// acyclic.
+///
+/// The dashboard already degrades an unreachable group to rendering at
+/// root, so this is not about what the user sees. It is about the data:
+/// a cycle left on disk is re-sent on every sync and every future
+/// consumer of the hierarchy (exporters, importers, group settings
+/// inheritance) has to carry its own loop guard or hang. Repairing at
+/// the write boundary makes acyclicity an invariant the rest of the app
+/// can rely on.
+///
+/// `updated_at` is deliberately PRESERVED on the repaired row. Bumping
+/// it would push the repair back out as a new record and, since every
+/// peer repairs the same cycle independently and deterministically,
+/// that is pure write amplification. Keeping the stamp means the peer's
+/// next copy of the cyclic record is no longer strictly newer than the
+/// local row, so the defensive LWW at the top of `apply_records` skips
+/// it and the cycle does not come back.
+///
+/// Best-effort by design, matching the per-record `warn and continue`
+/// semantics of the loop above: a failure here must not abort a batch
+/// that otherwise applied cleanly.
+fn break_group_cycles(v: &VaultStore) {
+    let groups = match v.list_groups() {
+        Ok(g) => g,
+        Err(e) => {
+            tracing::warn!("sync: cannot read groups to check for parent cycles: {e}");
+            return;
+        }
+    };
+    for id in oryxis_core::models::Group::cycle_breakers(&groups) {
+        let Some(group) = groups.iter().find(|g| g.id == id) else {
+            continue;
+        };
+        let mut repaired = group.clone();
+        repaired.parent_id = None;
+        match v.save_group(&repaired) {
+            Ok(()) => tracing::warn!(
+                "sync: parent cycle detected, detaching group {} ({}) to root",
+                repaired.label,
+                repaired.id
+            ),
+            Err(e) => tracing::warn!("sync: cannot detach cyclic group {}: {e}", repaired.id),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -842,5 +899,147 @@ mod lww_tests {
         let records = collect_records(&vault, &needed, Some(&SECRET)).unwrap();
         assert_eq!(records.len(), 1);
         assert_eq!(records[0].updated_at, ts);
+    }
+
+    /// A sealed group record, as a peer would push it.
+    fn group_record(
+        g: &oryxis_core::models::Group,
+    ) -> protocol::SyncRecord {
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let payload = cipher.encrypt(&serde_json::to_vec(g).unwrap()).unwrap();
+        protocol::SyncRecord {
+            entity_type: EntityType::Group,
+            entity_id: g.id,
+            updated_at: g.updated_at,
+            is_deleted: false,
+            payload,
+        }
+    }
+
+    fn groups_of(vault: &Arc<Mutex<VaultStore>>) -> Vec<oryxis_core::models::Group> {
+        vault.lock().unwrap().list_groups().unwrap()
+    }
+
+    /// The exact scenario the repair exists for: two peers concurrently
+    /// re-parent each other's folder, and last-writer-wins merges both
+    /// edges into a loop. After the batch the STORED tree must be
+    /// acyclic, not merely rendered as if it were.
+    #[test]
+    fn apply_records_breaks_a_parent_cycle_landed_by_lww() {
+        let vault = vault();
+        let mut a = oryxis_core::models::Group::new("a");
+        let mut b = oryxis_core::models::Group::new("b");
+        a.updated_at = Utc::now() - Duration::seconds(60);
+        b.updated_at = Utc::now();
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+
+        apply_records(&vault, &[group_record(&a), group_record(&b)], Some(&SECRET))
+            .unwrap();
+
+        let stored = groups_of(&vault);
+        assert_eq!(stored.len(), 2);
+        // The newer edge is the one detached.
+        let stored_b = stored.iter().find(|g| g.id == b.id).unwrap();
+        assert_eq!(stored_b.parent_id, None, "the newer edge must be detached");
+        // And every group can reach a root through real data now.
+        for g in &stored {
+            assert!(
+                g.parent_id.is_none()
+                    || oryxis_core::models::Group::is_reachable_from_root(&stored, g.id),
+                "{} still cyclic on disk",
+                g.label
+            );
+        }
+    }
+
+    /// The repair must not become a sync loop: because it preserves
+    /// `updated_at`, the peer's next copy of the cyclic record is no
+    /// longer strictly newer, so the defensive LWW skips it and the
+    /// cycle stays repaired.
+    #[test]
+    fn a_repeated_cyclic_push_does_not_resurrect_the_cycle() {
+        let vault = vault();
+        let mut a = oryxis_core::models::Group::new("a");
+        let mut b = oryxis_core::models::Group::new("b");
+        a.updated_at = Utc::now() - Duration::seconds(60);
+        b.updated_at = Utc::now();
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let batch = [group_record(&a), group_record(&b)];
+
+        apply_records(&vault, &batch, Some(&SECRET)).unwrap();
+        // The same peer pushes the same (still cyclic) records again.
+        apply_records(&vault, &batch, Some(&SECRET)).unwrap();
+
+        let stored = groups_of(&vault);
+        let stored_b = stored.iter().find(|g| g.id == b.id).unwrap();
+        assert_eq!(
+            stored_b.parent_id, None,
+            "a re-push must not resurrect the cycle"
+        );
+    }
+
+    /// A well-nested hierarchy arriving over sync must survive
+    /// untouched: the repair only fires on real loops.
+    #[test]
+    fn apply_records_leaves_a_clean_hierarchy_alone() {
+        let vault = vault();
+        let root = oryxis_core::models::Group::new("root");
+        let mut child = oryxis_core::models::Group::new("child");
+        child.parent_id = Some(root.id);
+        let mut grandchild = oryxis_core::models::Group::new("grandchild");
+        grandchild.parent_id = Some(child.id);
+
+        apply_records(
+            &vault,
+            &[
+                group_record(&root),
+                group_record(&child),
+                group_record(&grandchild),
+            ],
+            Some(&SECRET),
+        )
+        .unwrap();
+
+        let stored = groups_of(&vault);
+        assert_eq!(
+            stored.iter().find(|g| g.id == child.id).unwrap().parent_id,
+            Some(root.id)
+        );
+        assert_eq!(
+            stored.iter().find(|g| g.id == grandchild.id).unwrap().parent_id,
+            Some(child.id)
+        );
+    }
+
+    /// A child whose parent has not arrived yet is a DANGLING parent,
+    /// not a cycle. Detaching it would destroy the hierarchy mid
+    /// transfer, and the parent's own record repairs it moments later.
+    #[test]
+    fn apply_records_keeps_a_child_whose_parent_has_not_arrived_yet() {
+        let vault = vault();
+        let root = oryxis_core::models::Group::new("root");
+        let mut child = oryxis_core::models::Group::new("child");
+        child.parent_id = Some(root.id);
+
+        // Batch 1: only the child (its parent is still in flight).
+        apply_records(&vault, &[group_record(&child)], Some(&SECRET)).unwrap();
+        assert_eq!(
+            groups_of(&vault)
+                .iter()
+                .find(|g| g.id == child.id)
+                .unwrap()
+                .parent_id,
+            Some(root.id),
+            "a dangling parent must not be detached"
+        );
+
+        // Batch 2: the parent lands and the hierarchy is whole.
+        apply_records(&vault, &[group_record(&root)], Some(&SECRET)).unwrap();
+        let stored = groups_of(&vault);
+        assert!(oryxis_core::models::Group::is_reachable_from_root(
+            &stored, child.id
+        ));
     }
 }

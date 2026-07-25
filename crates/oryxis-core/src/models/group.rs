@@ -89,6 +89,81 @@ impl Group {
         false
     }
 
+    /// For every distinct parent CYCLE in `groups`, the id of the
+    /// member to detach in order to break it.
+    ///
+    /// Deliberately narrower than `!is_reachable_from_root`, which also
+    /// reports a dangling parent. The two are not the same kind of
+    /// broken: a dangling parent is transient and self-healing (during
+    /// a sync batch the parent's own record may simply not have arrived
+    /// yet, and the next record fixes it), while a cycle is corrupt
+    /// data that no later record can repair. Detaching on a dangling
+    /// parent would destroy a hierarchy mid-transfer; detaching on a
+    /// cycle is the only way out.
+    ///
+    /// The choice of member is DETERMINISTIC (newest `updated_at`,
+    /// ties broken by id) because every peer repairs independently: a
+    /// criterion that depended on iteration order would have two
+    /// devices break different links and then fight over the result
+    /// forever. Newest-wins also matches last-writer-wins semantics,
+    /// the edge that closed the loop is the one that loses.
+    ///
+    /// Groups merely hanging OFF a cycle are not returned: detaching
+    /// the cycle member restores their path to a root.
+    pub fn cycle_breakers(groups: &[Group]) -> Vec<Uuid> {
+        // Three-colour walk: `done` is every id whose chain has already
+        // been resolved (to a root, a dangling parent, or a cycle we
+        // recorded), so each group is walked at most once overall.
+        let mut done: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+        let mut breakers: Vec<Uuid> = Vec::new();
+
+        for start in groups {
+            if done.contains(&start.id) {
+                continue;
+            }
+            // `path` is this walk's chain, in order; `on_path` is its
+            // membership test. A hit on `on_path` closes a cycle, and
+            // the cycle is exactly the tail of `path` from that point.
+            let mut path: Vec<Uuid> = Vec::new();
+            let mut on_path: std::collections::HashSet<Uuid> =
+                std::collections::HashSet::new();
+            let mut cursor = Some(start.id);
+
+            while let Some(id) = cursor {
+                if done.contains(&id) {
+                    // Joins a chain already resolved; nothing new here.
+                    break;
+                }
+                if !on_path.insert(id) {
+                    // Closed a loop: the cycle is `path` from the first
+                    // occurrence of `id` onwards.
+                    let at = path.iter().position(|&p| p == id).unwrap_or(0);
+                    let cycle = &path[at..];
+                    if let Some(breaker) = cycle
+                        .iter()
+                        .filter_map(|cid| groups.iter().find(|g| g.id == *cid))
+                        .max_by(|a, b| {
+                            a.updated_at.cmp(&b.updated_at).then(a.id.cmp(&b.id))
+                        })
+                    {
+                        breakers.push(breaker.id);
+                    }
+                    break;
+                }
+                path.push(id);
+                let Some(g) = groups.iter().find(|g| g.id == id) else {
+                    // Dangling parent: chain ends, not a cycle.
+                    break;
+                };
+                cursor = g.parent_id;
+            }
+
+            done.extend(path);
+        }
+
+        breakers
+    }
+
     /// Breadcrumb path of a group from its root ancestor, labels
     /// joined with " / " ("Prod / Frontend / API"). This is what the
     /// Parent Group combos display so same-named folders under
@@ -253,6 +328,157 @@ mod tests {
         let mut g = Group::new(label);
         g.parent_id = Some(parent);
         g
+    }
+
+    /// `updated_at` decides which member of a cycle is detached, so the
+    /// cycle tests need to set it explicitly rather than rely on the
+    /// wall clock (`Group::new` stamps them all within the same tick).
+    fn stamped(label: &str, parent: Option<Uuid>, secs: i64) -> Group {
+        let mut g = Group::new(label);
+        g.parent_id = parent;
+        g.updated_at = chrono::DateTime::from_timestamp(secs, 0).expect("valid stamp");
+        g
+    }
+
+    #[test]
+    fn cycle_breakers_empty_on_a_clean_tree() {
+        let root = Group::new("root");
+        let child = child_of("child", root.id);
+        let grandchild = child_of("grandchild", child.id);
+        assert!(Group::cycle_breakers(&[root, child, grandchild]).is_empty());
+    }
+
+    /// A dangling parent is NOT a cycle: during a sync batch the
+    /// parent's own record may not have arrived yet, and detaching here
+    /// would destroy a hierarchy mid-transfer.
+    #[test]
+    fn cycle_breakers_ignores_a_dangling_parent() {
+        let orphan = child_of("orphan", Uuid::new_v4());
+        assert!(Group::cycle_breakers(&[orphan]).is_empty());
+    }
+
+    /// The classic sync merge: A sets G1.parent = G2 while B sets
+    /// G2.parent = G1. The NEWER edge is the one detached.
+    #[test]
+    fn cycle_breakers_detaches_the_newest_member_of_a_two_node_cycle() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let breakers = Group::cycle_breakers(&[a.clone(), b.clone()]);
+        assert_eq!(breakers, vec![b.id], "the newer edge must lose");
+    }
+
+    #[test]
+    fn cycle_breakers_handles_a_self_parent() {
+        let mut g = stamped("self", None, 100);
+        g.parent_id = Some(g.id);
+        assert_eq!(Group::cycle_breakers(&[g.clone()]), vec![g.id]);
+    }
+
+    #[test]
+    fn cycle_breakers_handles_a_three_node_cycle() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 300);
+        let mut c = stamped("c", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(c.id);
+        c.parent_id = Some(a.id);
+        assert_eq!(Group::cycle_breakers(&[a, b.clone(), c]), vec![b.id]);
+    }
+
+    /// A group hanging off a cycle is not itself cyclic: detaching the
+    /// cycle member restores its path, so it must not be detached too.
+    #[test]
+    fn cycle_breakers_leaves_groups_hanging_off_a_cycle_alone() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let hanger = child_of("hanger", a.id);
+        let breakers = Group::cycle_breakers(&[a, b.clone(), hanger.clone()]);
+        assert_eq!(breakers, vec![b.id]);
+        assert!(!breakers.contains(&hanger.id));
+    }
+
+    /// Two independent cycles both get a breaker, and a clean tree in
+    /// the same list is untouched.
+    #[test]
+    fn cycle_breakers_reports_every_disjoint_cycle() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let mut c = stamped("c", None, 300);
+        let mut d = stamped("d", None, 400);
+        c.parent_id = Some(d.id);
+        d.parent_id = Some(c.id);
+        let clean_root = Group::new("clean");
+        let clean_child = child_of("clean-child", clean_root.id);
+
+        let breakers = Group::cycle_breakers(&[
+            a, b.clone(), c, d.clone(), clean_root, clean_child,
+        ]);
+        assert_eq!(breakers.len(), 2);
+        assert!(breakers.contains(&b.id));
+        assert!(breakers.contains(&d.id));
+    }
+
+    /// The repair must be reproducible across peers: the same data in a
+    /// different order must yield the same breaker, or two devices would
+    /// detach different links and fight forever.
+    #[test]
+    fn cycle_breakers_is_order_independent() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 300);
+        let mut c = stamped("c", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(c.id);
+        c.parent_id = Some(a.id);
+
+        let forward = Group::cycle_breakers(&[a.clone(), b.clone(), c.clone()]);
+        let reversed = Group::cycle_breakers(&[c, b.clone(), a]);
+        assert_eq!(forward, reversed);
+        assert_eq!(forward, vec![b.id]);
+    }
+
+    /// Equal timestamps must still resolve to one deterministic winner,
+    /// otherwise concurrent peers could pick different members.
+    #[test]
+    fn cycle_breakers_breaks_timestamp_ties_by_id() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 100);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let expected = a.id.max(b.id);
+        assert_eq!(Group::cycle_breakers(&[a.clone(), b.clone()]), vec![expected]);
+        assert_eq!(Group::cycle_breakers(&[b, a]), vec![expected]);
+    }
+
+    /// Detaching the reported breaker must actually make every group
+    /// root-reachable again, which is the whole point of the repair.
+    #[test]
+    fn detaching_the_breaker_makes_the_tree_reachable() {
+        let mut a = stamped("a", None, 100);
+        let mut b = stamped("b", None, 200);
+        a.parent_id = Some(b.id);
+        b.parent_id = Some(a.id);
+        let hanger = child_of("hanger", a.id);
+        let mut groups = vec![a.clone(), b.clone(), hanger.clone()];
+
+        for id in Group::cycle_breakers(&groups) {
+            if let Some(g) = groups.iter_mut().find(|g| g.id == id) {
+                g.parent_id = None;
+            }
+        }
+
+        for g in &groups {
+            assert!(
+                g.parent_id.is_none() || Group::is_reachable_from_root(&groups, g.id),
+                "{} still unreachable after the repair",
+                g.label
+            );
+        }
     }
 
     #[test]
