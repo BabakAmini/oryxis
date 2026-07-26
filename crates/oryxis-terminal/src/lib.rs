@@ -1,6 +1,7 @@
 pub mod backend;
 pub mod input_tracker;
 pub mod osc;
+pub mod screen_title;
 pub mod widget;
 pub mod pty;
 pub mod colors;

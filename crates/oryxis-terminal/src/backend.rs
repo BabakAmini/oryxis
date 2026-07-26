@@ -195,6 +195,10 @@ pub struct TerminalBackend {
     /// Sniffs OSC 7/133/9 out of the byte stream (alacritty doesn't surface
     /// those as events).
     pub osc: crate::osc::OscSniffer,
+    /// Strips screen's `ESC k … ST` window-title sequences before the
+    /// emulator can print them as text (issue #88). Runs first, so the
+    /// OSC sniffer's byte offsets refer to the filtered stream.
+    screen_title: crate::screen_title::ScreenTitleFilter,
     /// OSC 133 shell-integration marks captured by `process`, each stamped
     /// with the cursor position at the moment the emulator reached the mark.
     /// Drained by `take_marks`; bounded so an undrained pane can't grow it.
@@ -231,6 +235,7 @@ impl TerminalBackend {
             rows,
             config,
             osc: crate::osc::OscSniffer::default(),
+            screen_title: crate::screen_title::ScreenTitleFilter::default(),
             marks: Vec::new(),
         }
     }
@@ -249,6 +254,16 @@ impl TerminalBackend {
 
     /// Feed raw bytes from PTY into the terminal emulator.
     pub fn process(&mut self, bytes: &[u8]) {
+        // Strip screen's `ESC k … ST` window titles first (issue #88): the
+        // emulator would print their payload as text, and everything below
+        // (OSC offsets, mark positions) must see the same stream it does.
+        let (filtered, screen_titles) = self.screen_title.filter(bytes);
+        for title in screen_titles {
+            if let Ok(mut slot) = self.event_proxy.title.lock() {
+                *slot = Some(title);
+            }
+        }
+        let bytes = filtered.as_ref();
         // Sniff OSC 7/133/9 before handing the bytes to the emulator (which
         // ignores those OSC numbers); a no-op for the common no-OSC chunk.
         let events = self.osc.feed(bytes);
