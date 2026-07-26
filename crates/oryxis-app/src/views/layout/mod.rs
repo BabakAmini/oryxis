@@ -270,9 +270,20 @@ impl Oryxis {
     pub(crate) fn view_content(&self) -> Element<'_, Message> {
         // If a terminal tab is active, show terminal
         // Otherwise show the grid view for the current nav item
-        let content: Element<'_, Message> = if self.connecting.is_some() && self.active_tab.is_some() {
+        // The connect screen belongs to the tab that is connecting, not to
+        // the window: gating on `connecting.is_some()` alone made a single
+        // in-flight (or failed-and-not-dismissed) connection paint over
+        // EVERY other tab, so switching away from it showed that tab's
+        // progress log instead of the terminal you asked for, until the
+        // connect resolved. The tab strip already scopes this correctly
+        // (`tab_bar/entry.rs`, `cp.tab_idx == Some(idx)`); match it here.
+        let connecting_here = self
+            .connecting
+            .as_ref()
+            .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab);
+        let content: Element<'_, Message> = if connecting_here {
             self.view_connection_progress()
-        } else if self.active_tab.is_some() && self.connecting.is_none() {
+        } else if self.active_tab.is_some() {
             self.view_terminal()
         } else {
             match self.active_view {
