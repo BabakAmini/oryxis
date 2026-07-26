@@ -38,9 +38,9 @@ assets = [
 
 [dependencies]
 # ssh-agent server (agent_server): key encoding + signing, pinned to
-# the same ssh-key russh 0.61 consumes (matches oryxis-vault's pin).
-ssh-key = { version = "=0.7.0-rc.10", features = ["ed25519", "std", "rand_core", "encryption", "rsa", "p256", "p384", "p521"] }
-ssh-encoding = "=0.3.0-rc.9"
+# the same ssh-key russh 0.62 consumes (matches oryxis-vault's pin).
+ssh-key = { version = "=0.7.0-rc.11", features = ["ed25519", "std", "rand_core", "encryption", "rsa", "p256", "p384", "p521"] }
+ssh-encoding = "0.3"
 # The `Signer` trait ssh-key's key data implements (raw-data signing
 # for the agent). Pinned to ssh-key 0.7's signature version.
 signature = "3"

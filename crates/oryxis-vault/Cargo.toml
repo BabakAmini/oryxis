@@ -18,7 +18,7 @@ chrono = { workspace = true }
 # Session-log chunk compression (deflate). Already present transitively
 # in the workspace tree, so this adds no new build weight.
 flate2 = "1"
-# Pinned to the same `rand` generation russh 0.61 already pulls in (its
+# Pinned to the same `rand` generation russh 0.62 already pulls in (its
 # `ThreadRng` implements `rand_core 0.10`'s `CryptoRng`, which
 # `ssh_key::PrivateKey::random` requires). Only `keygen` uses it; the
 # at-rest crypto in `store/` drives `aead::OsRng` through the
@@ -27,10 +27,11 @@ flate2 = "1"
 rand = "0.10"
 dirs = "6"
 base64 = "0.22"
-# ssh-key 0.7 is the version russh 0.61 consumes; pinning the vault to it
+# ssh-key 0.7 is the version russh 0.62 consumes; pinning the vault to it
 # collapses the duplicate 0.6 copy (and its rsa 0.9 / p256 0.13 tails)
-# down to a single crypto stack across the workspace.
-ssh-key = { version = "=0.7.0-rc.10", features = ["ed25519", "std", "rand_core", "encryption", "rsa", "p256", "p384", "p521"] }
+# down to a single crypto stack across the workspace. russh pins the exact
+# release candidate, so this pin moves in lockstep with a russh bump.
+ssh-key = { version = "=0.7.0-rc.11", features = ["ed25519", "std", "rand_core", "encryption", "rsa", "p256", "p384", "p521"] }
 rsa = "0.10.0-rc.18"
 p256 = { version = "0.14.0-rc.9", features = ["ecdsa", "pkcs8", "pem"] }
 p384 = { version = "0.14.0-rc.9", features = ["ecdsa", "pkcs8", "pem"] }

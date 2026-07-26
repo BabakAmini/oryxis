@@ -123,12 +123,14 @@ impl client::Handler for ClientHandler {
     async fn server_channel_open_agent_forward(
         &mut self,
         channel: russh::Channel<russh::client::Msg>,
+        reply: russh::client::ChannelOpenHandle,
         _session: &mut client::Session,
     ) -> Result<(), Self::Error> {
         if !self.agent_forwarding {
             // Server is trying to open a forward channel we never asked
-            // for. Drop it on the floor, `Channel` is closed when it
-            // goes out of scope.
+            // for. Decline it at the protocol level instead of letting
+            // the channel die on drop.
+            reply.reject(russh::ChannelOpenFailure::AdministrativelyProhibited).await;
             tracing::warn!(
                 "rejecting unsolicited agent-forward channel from {}:{}",
                 self.hostname,
@@ -136,6 +138,8 @@ impl client::Handler for ClientHandler {
             );
             return Ok(());
         }
+        // Confirm the open before the bridge starts pumping bytes.
+        reply.accept().await;
         tokio::spawn(async move {
             if let Err(e) = bridge_agent_channel(channel).await {
                 tracing::warn!("agent-forward bridge ended: {e}");
@@ -149,14 +153,19 @@ impl client::Handler for ClientHandler {
         channel: russh::Channel<russh::client::Msg>,
         originator_address: &str,
         originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
         _session: &mut client::Session,
     ) -> Result<(), Self::Error> {
         // One channel per X client the user launches on the remote host.
         match &self.x11 {
-            Some(cfg) => cfg.spawn_bridge(channel, self.x11_cancel.subscribe()),
+            Some(cfg) => {
+                reply.accept().await;
+                cfg.spawn_bridge(channel, self.x11_cancel.subscribe());
+            }
             None => {
                 // We never sent an `x11-req`, so nothing legitimate can
-                // be opening this. Dropping the channel closes it.
+                // be opening this.
+                reply.reject(russh::ChannelOpenFailure::AdministrativelyProhibited).await;
                 tracing::warn!(
                     "rejecting unsolicited X11 channel from {}:{} ({}:{})",
                     self.hostname,
@@ -176,18 +185,23 @@ impl client::Handler for ClientHandler {
         connected_port: u32,
         _originator_address: &str,
         _originator_port: u32,
+        reply: russh::client::ChannelOpenHandle,
         _session: &mut client::Session,
     ) -> Result<(), Self::Error> {
         // Inbound channel for a remote (`-R`) forward. Hand it to the drain
         // task that bridges to the local target; if we have no sink, we
-        // never requested a remote forward, so drop it.
+        // never requested a remote forward, so decline it.
         match &self.forwarded_channel_sink {
             Some(sink) => {
+                // Confirm before the handoff: the drain task reads the
+                // channel as soon as it arrives.
+                reply.accept().await;
                 if sink.send(channel).is_err() {
                     tracing::warn!("forwarded-tcpip drain gone, dropping channel");
                 }
             }
             None => {
+                reply.reject(russh::ChannelOpenFailure::AdministrativelyProhibited).await;
                 tracing::warn!(
                     "rejecting unsolicited forwarded-tcpip channel for {}:{}",
                     connected_address,

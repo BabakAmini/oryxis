@@ -604,10 +604,11 @@ mod tests {
 
         // REMOVE_ALL clears only the added key; REMOVE of the vault
         // key's blob is refused outright. Driven at the message layer:
-        // russh 0.61's `remove_all_identities` is broken as a client
-        // (it never patches the frame length, sending `len=0`, which
-        // this server rightly drops), so the framed path can't carry
-        // this one. `ssh-add -D` sends the correct 1-byte frame.
+        // russh's `remove_all_identities` is still broken as a client
+        // through 0.62.4 (it never patches the frame length, sending
+        // `len=0`, which this server rightly drops), so the framed path
+        // can't carry this one. `ssh-add -D` sends the correct 1-byte
+        // frame.
         assert_eq!(
             respond_sync(&[SSH_AGENTC_REMOVE_ALL_IDENTITIES], source.as_ref(), false),
             Some(vec![SSH_AGENT_SUCCESS]),

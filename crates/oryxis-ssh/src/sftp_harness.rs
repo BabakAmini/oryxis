@@ -218,10 +218,12 @@ impl russh::server::Handler for SshHarness {
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
+        reply: russh::server::ChannelOpenHandle,
         _session: &mut Session,
-    ) -> Result<bool, russh::Error> {
+    ) -> Result<(), russh::Error> {
+        reply.accept().await;
         self.channels.lock().await.insert(channel.id(), channel);
-        Ok(true)
+        Ok(())
     }
 
     async fn subsystem_request(
