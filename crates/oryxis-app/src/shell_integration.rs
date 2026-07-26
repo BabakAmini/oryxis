@@ -95,6 +95,13 @@ pub(crate) const RC_END: &str = "# <<< oryxis shell integration <<<";
 ///   makes the trap fire once per real command line without a
 ///   `bash-preexec`-style interactive-mode flag, and it means a
 ///   deliberately unrecorded command never reaches the app either.
+/// - A leading space stops the report at the source (the
+///   `HISTCONTROL=ignorespace` convention). The app enforces it too, but
+///   doing it here means the sequence is never emitted at all, which is
+///   what keeps the app's own injected lines (they are ignorespace-
+///   prefixed for exactly this) out of the stream and out of the session
+///   recording, instead of sending a 4 KB base64 blob the app then throws
+///   away.
 /// - `D` carries the exit status, which the smart-tabs timing consumes.
 /// - `A`/`B` ride the prompt string so their positions are true; a shell
 ///   whose prompt is rebuilt by a framework may lose them, which costs
@@ -125,6 +132,7 @@ __oryxis_hline() {
 }
 __oryxis_pre() {
   __oryxis_ran=1
+  case "$1" in ' '*) return ;; esac
   __oryxis_osc "633;E;$(__oryxis_esc "$1");@NONCE@"
   __oryxis_osc "133;C"
 }
@@ -183,7 +191,7 @@ pub(crate) fn session_inject(nonce: &str) -> String {
     // DECSC, run, then DECRC + step over the one echoed line + erase to the
     // end of the screen, which wipes the echo however many rows it wrapped
     // to without touching the MOTD above it.
-    format!("printf '\\x1b7'\n{}; printf '\\x1b8\\x1b[1A\\x1b[J'\n", one_liner(&snippet(nonce)))
+    format!(" printf '\\x1b7'\n {}; printf '\\x1b8\\x1b[1A\\x1b[J'\n", one_liner(&snippet(nonce)))
 }
 
 /// One line that runs [`install_script`] on the live shell. Deliberately
@@ -191,13 +199,13 @@ pub(crate) fn session_inject(nonce: &str) -> String {
 /// thing they should see happen, so the script's one-line report stays on
 /// screen.
 pub(crate) fn install_line(nonce: &str) -> String {
-    format!("{}\n", one_liner(&install_script(nonce)))
+    format!(" {}\n", one_liner(&install_script(nonce)))
 }
 
 /// One line that runs [`uninstall_script`] on the live shell, for leaving
 /// the persistent level. Visible like the install, for the same reason.
 pub(crate) fn uninstall_line() -> String {
-    format!("{}\n", one_liner(&uninstall_script()))
+    format!(" {}\n", one_liner(&uninstall_script()))
 }
 
 /// Wrap a script so it can be typed into a live interactive shell. The
@@ -233,7 +241,6 @@ case "$sh_path" in
 esac
 touch "$rc"
 if grep -qs '{nonce}' "$rc"; then
-  echo "oryxis: shell integration already current in $rc"
   exit 0
 fi
 tmp="$rc.oryxis.$$"
@@ -391,6 +398,9 @@ mod tests {
         // makes the sequence survive tmux at all.
         assert!(s.contains(r"\033Ptmux;\033\033]%s\007\033\\"));
         assert!(!s.contains("@NONCE@"));
+        // Leading-space lines are dropped before the sequence is built, so
+        // the app's own injected lines never reach the stream.
+        assert!(s.contains(r#"case "$1" in ' '*) return ;; esac"#));
     }
 
     #[test]
@@ -406,8 +416,22 @@ mod tests {
                 "non-printable byte {b:#x} would be read as a keypress"
             );
         }
-        assert!(line.starts_with("printf '\\x1b7'\n"), "saves the cursor first");
+        assert!(line.starts_with(" printf '\\x1b7'\n"), "saves the cursor first");
         assert!(line.ends_with("printf '\\x1b8\\x1b[1A\\x1b[J'\n"), "wipes its own echo");
+        // Every injected line starts with a space. Once the snippet is
+        // live, the lines that follow it are commands the shell parses and
+        // reports back, so without this the install line would land in the
+        // user's history as a 2 KB base64 blob. The space keeps it out of
+        // the shell's own history (the ignorespace convention) and, on a
+        // shell that records it anyway, out of ours (`sanitize_command`).
+        for l in [session_inject("n"), install_line("n"), uninstall_line()] {
+            for injected in l.lines().filter(|l| !l.is_empty()) {
+                assert!(
+                    injected.starts_with(' '),
+                    "injected line must be ignorespace-prefixed: {injected:.40}"
+                );
+            }
+        }
         // The payload is opaque, so quotes and newlines in the snippet
         // cannot break the line apart.
         assert_eq!(line.matches('\n').count(), 2);

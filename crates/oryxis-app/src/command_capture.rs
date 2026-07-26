@@ -71,6 +71,16 @@ pub(crate) fn observe_input(pane: &mut Pane, bytes: &[u8]) -> Vec<String> {
         match pane.prompt {
             PromptState::AtPrompt { abs_line, col } => {
                 pane.prompt = PromptState::Busy;
+                // Marks can be true while the SCREEN is not: inside tmux
+                // the prompt marks ride the passthrough but the grid is
+                // tmux's repaint of every pane, so `abs_line` addresses a
+                // row that may belong to a neighbour. Reading it is
+                // refused at the source too, but the intent belongs here:
+                // an integrated host in the alternate screen waits for
+                // the shell's own report, it never reads the screen.
+                if term.is_alt_screen() {
+                    continue;
+                }
                 match term.logical_line_from_abs(abs_line, col) {
                     Some(text) if !text.trim().is_empty() => {
                         if let Some(cmd) = sanitize_command(&text) {
