@@ -257,6 +257,11 @@ impl Oryxis {
                             pane.osc7_injected = true;
                         }
                     }
+                    // Shell integration (off / session / persistent): the
+                    // snippet that makes the shell report its own command
+                    // lines, which is the only capture path that survives
+                    // tmux (issue #92).
+                    self.apply_shell_integration(tab_idx, pane_id);
                     tracing::info!("SSH connected: {}", label);
                     if self.should_record_history()
                         && let Some(vault) = &self.vault {
@@ -404,6 +409,7 @@ impl Oryxis {
                         // the old shell, and keeping `seen` would leave this
                         // pane waiting for marks that never come.
                         p.inband = crate::state::InbandCapture::default();
+                        p.shell_integration_injected = false;
                         // The sidebar Files channel died with the session;
                         // a reconnect remounts lazily (preferences kept).
                         p.files.reset_for_disconnect();

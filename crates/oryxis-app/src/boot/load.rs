@@ -946,6 +946,13 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_force_osc7") {
                 self.setting_sftp_force_osc7 = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("shell_integration_mode") {
+                self.setting_shell_integration =
+                    crate::shell_integration::ShellIntegrationMode::from_setting(&v);
+            }
+            if let Ok(Some(v)) = vault.get_setting("shell_integration_nonce") {
+                self.shell_integration_nonce = v;
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_default_editor") {
                 self.setting_sftp_default_editor = v;
             }

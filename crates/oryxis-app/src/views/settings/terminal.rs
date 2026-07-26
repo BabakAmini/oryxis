@@ -348,6 +348,21 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
             Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("shell_integration"),
+                crate::shell_integration::ShellIntegrationMode::ALL
+                    .iter()
+                    .map(|m| crate::i18n::t(m.label_key()).to_string())
+                    .collect::<Vec<_>>(),
+                crate::i18n::t(self.setting_shell_integration.label_key()).to_string(),
+                |s: &String| s.clone(),
+                220.0,
+                |v| Message::Settings(SettingsMessage::ShellIntegrationChanged(v)),
+            ),
+            text(crate::i18n::t("shell_integration_desc"))
+                .size(11)
+                .color(crate::theme::OryxisColors::t().text_muted),
+            Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),
             Space::new().height(10),

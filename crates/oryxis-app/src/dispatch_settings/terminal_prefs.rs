@@ -183,6 +183,29 @@ impl Oryxis {
                     }
                 }
             }
+            SettingsMessage::ShellIntegrationChanged(name) => {
+                use crate::shell_integration::ShellIntegrationMode;
+                let Some(mode) = ShellIntegrationMode::ALL
+                    .into_iter()
+                    .find(|m| crate::i18n::t(m.label_key()) == name)
+                else {
+                    return Ok(iced::Task::none());
+                };
+                let was_persistent =
+                    self.setting_shell_integration == ShellIntegrationMode::Persistent;
+                self.setting_shell_integration = mode;
+                self.persist_setting("shell_integration_mode", mode.as_setting());
+                // Leaving the persistent level takes the block back out of
+                // the hosts' dotfiles: what the app wrote there is the
+                // app's to clean up.
+                if was_persistent && mode != ShellIntegrationMode::Persistent {
+                    self.remove_shell_integration_all();
+                }
+                // Applies to LIVE sessions right away, like the OSC 7
+                // inject: turning it on and seeing nothing happen until the
+                // next connect reads as broken.
+                self.apply_shell_integration_all();
+            }
             SettingsMessage::TerminalRightClickChanged(name) => {
                 use crate::util::RightClickMode;
                 if let Some(mode) = RightClickMode::ALL

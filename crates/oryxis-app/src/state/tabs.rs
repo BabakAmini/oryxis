@@ -340,6 +340,9 @@ pub(crate) struct Pane {
     pub pending_capture: Option<PendingCapture>,
     /// In-band command capture (`OSC 633 ; E`) for this pane.
     pub inband: InbandCapture,
+    /// True once the shell-integration snippet was fed to this pane's
+    /// shell, so a setting change mid-session doesn't inject a second copy.
+    pub shell_integration_injected: bool,
     /// Latest OSC 9;4 progress the shell reported, drawn as a growing border
     /// around the tab. `None` (or state 0) means no active progress.
     pub progress: Option<oryxis_terminal::Progress>,
@@ -474,6 +477,7 @@ impl Pane {
             input_tracker: oryxis_terminal::InputTracker::new(),
             pending_capture: None,
             inband: InbandCapture::default(),
+            shell_integration_injected: false,
             progress: None,
             running_cmd: None,
             last_submitted: None,
