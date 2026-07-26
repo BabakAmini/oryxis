@@ -273,12 +273,16 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
 }
 
 /// The `Underline` inactive-tab-style overlay (issue #87): a 2px
-/// neutral rule pinned to the chip's inner, content-facing edge. The
-/// edge follows the strip's dock, so the same setting renders as a
-/// bottom rule on a top strip, a top rule on a bottom strip, and a
-/// side rule (right on a left dock, left on a right dock) on the
-/// vertical strips. Sized to the button box so the Stack overlay
-/// aligns exactly and never reserves layout space.
+/// neutral rule pinned to the chip's edge, sized to the button box so
+/// the Stack overlay aligns exactly and never reserves layout space.
+///
+/// Horizontal strips put the rule on the inner, content-facing edge
+/// (bottom on a top strip, top on a bottom strip). The vertical docks
+/// deliberately do NOT rotate it: a 2px vertical tick floating in the
+/// gutter beside each chip reads as an artifact rather than as an
+/// underline, which is what the reporter saw on the left dock. Stacked
+/// chips are a list, so the rule stays horizontal and lands under each
+/// one, where it reads as the list separator it visually is.
 fn inactive_edge_line<'a>(width: f32, color: Color) -> Element<'a, Message> {
     use crate::views::tab_bar::{tab_bar_pos, TabBarPos};
     const T: f32 = 2.0;
@@ -311,16 +315,12 @@ fn inactive_edge_line<'a>(width: f32, color: Color) -> Element<'a, Message> {
                 .push(Space::new().height(Length::Fill))
                 .into(),
         ),
-        TabBarPos::Left => frame(
-            iced::widget::Row::new()
-                .push(Space::new().width(Length::Fill))
-                .push(rule(Length::Fixed(T), Length::Fill))
-                .into(),
-        ),
-        TabBarPos::Right => frame(
-            iced::widget::Row::new()
-                .push(rule(Length::Fixed(T), Length::Fill))
-                .push(Space::new().width(Length::Fill))
+        // Both vertical docks: same bottom rule as the top strip, acting
+        // as the separator between stacked chips.
+        TabBarPos::Left | TabBarPos::Right => frame(
+            iced::widget::Column::new()
+                .push(Space::new().height(Length::Fill))
+                .push(rule(Length::Fill, Length::Fixed(T)))
                 .into(),
         ),
     }
@@ -656,10 +656,10 @@ pub(crate) fn session_tab<'a>(
         _ => tab_btn.into(),
     };
 
-    // Underline style: a neutral hairline on the chip's inner (content-
-    // facing) edge, laid over the button so it never shifts the layout.
-    // The edge is dock-aware, so the same setting reads as a bottom rule
-    // on a top strip and a side rule on the vertical strips.
+    // Underline style: a neutral hairline on the chip's edge, laid over
+    // the button so it never shifts the layout. Horizontal strips put it
+    // on the content-facing edge; the vertical docks keep it horizontal
+    // (see `inactive_edge_line`), where it separates stacked chips.
     let tab_el: Element<'_, Message> =
         if inactive_style == crate::views::tab_bar::InactiveTabStyle::Underline {
             iced::widget::Stack::new()
