@@ -109,6 +109,10 @@ pub(crate) fn observe_marks(
                 }
                 *last_submitted = None;
             }
+            // The shell reported the command line it parsed. The capture
+            // stashes it into `last_submitted` before this pass runs, so
+            // there is nothing to time here.
+            ShellMark::CommandLine(_) => {}
         }
     }
     finished

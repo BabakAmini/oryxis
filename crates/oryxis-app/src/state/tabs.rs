@@ -48,6 +48,24 @@ pub(crate) struct PendingCapture {
     pub b_col: u16,
 }
 
+/// In-band command capture: what the shell itself reported it parsed, via
+/// `OSC 633 ; E`. This is the only capture path that survives a multiplexer
+/// (under tmux the app's grid is tmux's repaint of every pane, so reading
+/// the command back from it would splice the neighbouring pane's row into
+/// the text), and the only one that can't mistake a keystroke for a command:
+/// the text comes from the shell, not from the screen.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct InbandCapture {
+    /// True once this pane saw its first `E`. From then on the grid-reading
+    /// and heuristic paths are off for this pane: keeping them alongside
+    /// would double-record every command, and under tmux the outer grid's
+    /// prompt belongs to whichever pane tmux drew there last.
+    pub seen: bool,
+    /// The reported command line, held until the `OutputStart` that confirms
+    /// the shell actually ran it (a bare Enter or a Ctrl+C never reaches one).
+    pub pending: Option<String>,
+}
+
 /// The live remote transport feeding a terminal pane. SSH and Telnet
 /// expose the same session surface (write / resize / senders /
 /// is_alive / close), so every generic pane path calls through this
@@ -320,6 +338,8 @@ pub(crate) struct Pane {
     /// yet (paste with a trailing newline). Resolved when `OutputStart`
     /// arrives, at which point the echoed line is read back from the grid.
     pub pending_capture: Option<PendingCapture>,
+    /// In-band command capture (`OSC 633 ; E`) for this pane.
+    pub inband: InbandCapture,
     /// Latest OSC 9;4 progress the shell reported, drawn as a growing border
     /// around the tab. `None` (or state 0) means no active progress.
     pub progress: Option<oryxis_terminal::Progress>,
@@ -453,6 +473,7 @@ impl Pane {
             prompt: PromptState::NoIntegration,
             input_tracker: oryxis_terminal::InputTracker::new(),
             pending_capture: None,
+            inband: InbandCapture::default(),
             progress: None,
             running_cmd: None,
             last_submitted: None,

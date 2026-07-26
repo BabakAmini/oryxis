@@ -1,7 +1,16 @@
 //! Command-history capture: decides, per submitted line of input, whether it
 //! was a shell command and what its text was.
 //!
-//! Two paths, chosen by whether the host's shell emits OSC 133 marks:
+//! Three paths, in order of trust:
+//!
+//! - **In-band** (`OSC 633 ; E`): the shell reports the command line it
+//!   actually parsed, so nothing is read off the screen. This is the only
+//!   path that works under a multiplexer (inside tmux the app's grid holds
+//!   tmux's repaint of every pane, so a vertical split would splice the
+//!   neighbouring pane's row into the text), and the only one that cannot
+//!   mistake a keystroke for a command. Once a pane sees one `E`, the two
+//!   paths below are off for it: they would double-record, and under tmux
+//!   the prompt they read may belong to another pane entirely.
 //!
 //! - **Integrated** (`PromptState::AtPrompt`): input submitted at the prompt
 //!   is a command by definition; its text is read back from the grid at the
@@ -24,7 +33,7 @@
 //! Both paths honor the `HISTCONTROL=ignorespace` convention: a command
 //! starting with a space is deliberately not recorded.
 
-use crate::state::{Pane, PendingCapture, PromptState};
+use crate::state::{InbandCapture, Pane, PendingCapture, PromptState};
 use oryxis_terminal::{PositionedShellMark, ShellMark};
 
 /// Upper bound on a recorded command. Anything longer is a paste blob, not a
@@ -40,6 +49,13 @@ pub(crate) fn observe_input(pane: &mut Pane, bytes: &[u8]) -> Vec<String> {
     if lines.is_empty() {
         return Vec::new();
     }
+    // The shell reports its own command lines on this pane: the mirror keeps
+    // running (it still tracks what is on the line editor) but nothing is
+    // captured from this side, so a keystroke can never be recorded as a
+    // command and no command is recorded twice.
+    if pane.inband.seen {
+        return Vec::new();
+    }
     let Ok(term) = pane.terminal.lock() else {
         return Vec::new();
     };
@@ -52,9 +68,6 @@ pub(crate) fn observe_input(pane: &mut Pane, bytes: &[u8]) -> Vec<String> {
     // path (where `AtPrompt` consumes itself after the first submit).
     let mut heuristic_done = false;
     for line in lines {
-        if term.is_alt_screen() {
-            continue;
-        }
         match pane.prompt {
             PromptState::AtPrompt { abs_line, col } => {
                 pane.prompt = PromptState::Busy;
@@ -76,7 +89,13 @@ pub(crate) fn observe_input(pane: &mut Pane, bytes: &[u8]) -> Vec<String> {
             }
             PromptState::Busy => {}
             PromptState::NoIntegration => {
-                if heuristic_done {
+                // The classic prompt scan is the only signal on this host,
+                // and it is meaningless on the alternate screen (vim, less,
+                // a whole tmux session), where what you type is not a
+                // command line. The integrated paths above need no such
+                // gate: the marks say what is a command, and both grid
+                // reads refuse the alternate screen at the source.
+                if heuristic_done || term.is_alt_screen() {
                     continue;
                 }
                 heuristic_done = true;
@@ -114,8 +133,10 @@ pub(crate) fn observe_input(pane: &mut Pane, bytes: &[u8]) -> Vec<String> {
 pub(crate) fn observe_output_marks(
     pane_prompt: &mut PromptState,
     pending: &mut Option<PendingCapture>,
+    inband: &mut InbandCapture,
     term: &oryxis_terminal::TerminalState,
     marks: &[PositionedShellMark],
+    texts: &[(u32, String)],
 ) -> Vec<String> {
     let mut captured = Vec::new();
     for m in marks {
@@ -124,14 +145,36 @@ pub(crate) fn observe_output_marks(
                 // A fresh prompt invalidates any unresolved capture: the
                 // shell never confirmed a command ran (empty Enter, Ctrl+C).
                 *pending = None;
+                inband.pending = None;
                 *pane_prompt = PromptState::AtPrompt { abs_line: m.abs_line, col: m.col };
             }
             ShellMark::PromptStart => {
                 *pending = None;
+                inband.pending = None;
                 *pane_prompt = PromptState::Busy;
             }
+            ShellMark::CommandLine(id) => {
+                // The shell parsed a command line. Hold it until the
+                // OutputStart that proves it ran, and retire this pane's
+                // screen-reading paths for good.
+                inband.seen = true;
+                inband.pending = texts
+                    .iter()
+                    .find(|(tid, _)| *tid == id)
+                    .map(|(_, text)| text.clone());
+                *pending = None;
+            }
             ShellMark::OutputStart => {
-                if let Some(p) = pending.take()
+                // In-band wins: it is the shell's own text, so it needs no
+                // echo and no grid. The grid resolution stays for hosts
+                // whose integration emits marks but no command line.
+                if let Some(text) = inband.pending.take() {
+                    if let Some(cmd) = sanitize_command(&text) {
+                        captured.push(cmd);
+                    }
+                    *pending = None;
+                } else if let Some(p) = pending.take()
+                    && !inband.seen
                     && let Some(text) = term.logical_line_from_abs(p.b_abs, p.b_col)
                     && let Some(cmd) = sanitize_command(&text)
                 {
@@ -139,7 +182,10 @@ pub(crate) fn observe_output_marks(
                 }
                 *pane_prompt = PromptState::Busy;
             }
-            ShellMark::CommandEnd(_) => *pane_prompt = PromptState::Busy,
+            ShellMark::CommandEnd(_) => {
+                inband.pending = None;
+                *pane_prompt = PromptState::Busy;
+            }
         }
     }
     captured
@@ -191,6 +237,104 @@ pub(crate) fn strip_prompt(line: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Drive a real terminal state with `bytes` and run the output-mark pass
+    /// over what the sniffer found, exactly as the dispatcher does (process,
+    /// drain marks, drain command lines, observe).
+    fn observe(
+        term: &mut oryxis_terminal::TerminalState,
+        prompt: &mut PromptState,
+        pending: &mut Option<PendingCapture>,
+        inband: &mut InbandCapture,
+        bytes: &[u8],
+    ) -> Vec<String> {
+        term.process(bytes);
+        let marks = term.take_shell_marks();
+        let texts = term.take_shell_command_lines();
+        observe_output_marks(prompt, pending, inband, term, &marks, &texts)
+    }
+
+    #[test]
+    fn inband_command_line_is_captured_inside_the_alternate_screen() {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        let mut prompt = PromptState::NoIntegration;
+        let mut pending = None;
+        let mut inband = InbandCapture::default();
+        // What tmux looks like from outside: the outer grid is on the
+        // alternate buffer for the whole session, so no grid read could
+        // ever be trusted. The shell's own report still gets through.
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            b"\x1b[?1049h\x1b]133;A\x07\x1b]133;B\x07\
+              \x1b]633;E;systemctl restart nginx\x07\x1b]133;C\x07",
+        );
+        assert!(term.is_alt_screen(), "the test must run under the alt screen");
+        assert_eq!(cmds, vec!["systemctl restart nginx".to_string()]);
+        assert!(inband.seen);
+    }
+
+    #[test]
+    fn reported_command_line_needs_an_output_start_to_count() {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        let mut prompt = PromptState::NoIntegration;
+        let mut pending = None;
+        let mut inband = InbandCapture::default();
+        // Ctrl+C: the shell reports the line it had parsed, then draws a
+        // fresh prompt without ever running it.
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            b"\x1b]633;E;rm -rf /\x07\x1b]133;A\x07\x1b]133;B\x07",
+        );
+        assert!(cmds.is_empty(), "an unexecuted line is not history");
+        assert!(inband.pending.is_none());
+        // ... and the next real command still lands.
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            b"\x1b]633;E;uptime\x07\x1b]133;C\x07",
+        );
+        assert_eq!(cmds, vec!["uptime".to_string()]);
+    }
+
+    #[test]
+    fn inband_capture_keeps_ignorespace_and_retires_the_typed_path() {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        let mut prompt = PromptState::NoIntegration;
+        let mut pending = None;
+        let mut inband = InbandCapture::default();
+        // The shell reports leading-space commands too, so the
+        // HISTCONTROL=ignorespace convention has to be enforced on this
+        // path as well.
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            b"\x1b]633;E; curl -H 'Authorization: Bearer t0ken' x\x07\x1b]133;C\x07",
+        );
+        assert!(cmds.is_empty(), "leading space = keep out of history");
+        assert!(inband.seen, "the pane is integrated even when the line is skipped");
+
+        // Once the shell reports its own lines, the typed-input path stops
+        // capturing: it would record every command twice, and under tmux
+        // the prompt it reads may belong to a different pane.
+        let term = std::sync::Arc::new(std::sync::Mutex::new(
+            oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap(),
+        ));
+        let mut pane = crate::state::Pane::new("t".into(), term);
+        pane.prompt = PromptState::NoIntegration;
+        assert_eq!(observe_input(&mut pane, b"echo typed\r").len(), 0);
+        pane.inband.seen = true;
+        assert!(observe_input(&mut pane, b"echo typed\r").is_empty());
+    }
 
     #[test]
     fn strip_prompt_takes_earliest_marker() {

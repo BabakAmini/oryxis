@@ -316,6 +316,21 @@ impl TerminalState {
         self.backend.take_marks()
     }
 
+    /// Drain the command lines reported by `OSC 633 ; E` since the last
+    /// call, keyed by the id their [`crate::osc::ShellMark::CommandLine`]
+    /// marks carry. Drain it in the same breath as
+    /// [`Self::take_shell_marks`], so a batch's marks and texts resolve
+    /// against each other.
+    pub fn take_shell_command_lines(&mut self) -> Vec<(u32, String)> {
+        self.backend.osc.take_command_lines()
+    }
+
+    /// Require `nonce` on every `OSC 633 ; E` this pane accepts (the value
+    /// baked into the shell-integration snippet installed on the host).
+    pub fn set_shell_command_nonce(&mut self, nonce: Option<String>) {
+        self.backend.osc.set_command_nonce(nonce);
+    }
+
     /// True while the alternate screen buffer is active (vim, htop, less...).
     /// The command-history capture ignores everything typed there.
     pub fn is_alt_screen(&self) -> bool {

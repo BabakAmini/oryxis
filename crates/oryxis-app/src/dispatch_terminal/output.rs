@@ -476,11 +476,17 @@ impl Oryxis {
                         // refer to rows this very batch drew.
                         let new_marks = state.take_shell_marks();
                         if !new_marks.is_empty() {
+                            // Drained in the same breath as the marks: a
+                            // `CommandLine` mark resolves its text by id
+                            // against this very batch.
+                            let new_texts = state.take_shell_command_lines();
                             let cmds = crate::command_capture::observe_output_marks(
                                 &mut pane.prompt,
                                 &mut pane.pending_capture,
+                                &mut pane.inband,
                                 &state,
                                 &new_marks,
+                                &new_texts,
                             );
                             // A capture resolved at this batch's OutputStart
                             // (paste with trailing newline) is the command

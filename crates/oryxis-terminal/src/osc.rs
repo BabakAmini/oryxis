@@ -1,6 +1,7 @@
 //! Lightweight OSC sniffer for sequences `alacritty_terminal` does not surface
 //! as events: OSC 7 (working directory), OSC 133 (shell-integration / semantic
-//! prompt marks), and OSC 9 (notifications + progress).
+//! prompt marks), OSC 633 (VS Code's shell-integration superset, whose `E`
+//! carries the command line itself), and OSC 9 (notifications + progress).
 //!
 //! It scans the same byte stream fed to the emulator and extracts only those
 //! sequences; everything else passes through untouched. alacritty still parses
@@ -24,6 +25,13 @@ pub enum ShellMark {
     /// `OSC 133 ; D` command finished, with the exit code when the shell
     /// reports one (`D;<code>`).
     CommandEnd(Option<i32>),
+    /// `OSC 633 ; E` the shell reported the command line it parsed, carried
+    /// by id into the sniffer's text arena (drained by
+    /// [`OscSniffer::take_command_lines`]). An id rather than the `String`
+    /// itself so this enum stays `Copy` for the mark plumbing, and so a
+    /// text dropped by the arena cap can never resolve to a *different*
+    /// command than the mark meant.
+    CommandLine(u32),
 }
 
 /// A [`ShellMark`] paired with the byte offset (into the `feed` slice) just
@@ -71,8 +79,14 @@ enum Scan {
 }
 
 /// Hard cap on a single OSC payload so malformed input can't grow the buffer
-/// without bound. Real OSC 7/133/9 payloads are tiny.
+/// without bound. Real OSC 7/133/9 payloads are tiny; an OSC 633 command line
+/// is bounded by the same value, well past any real command.
 const MAX_OSC: usize = 8192;
+
+/// Hard cap on the undrained command-line arena. The host drains it once per
+/// output batch, so it normally holds zero or one entry; the cap only bounds
+/// the pathological case of a stream nobody consumes.
+const MAX_COMMAND_LINES: usize = 64;
 
 #[derive(Default)]
 pub struct OscSniffer {
@@ -81,6 +95,19 @@ pub struct OscSniffer {
     cwd: Option<String>,
     notification: Option<String>,
     progress: Option<Progress>,
+    /// Command lines reported by `OSC 633 ; E`, each with the id its
+    /// [`ShellMark::CommandLine`] carries.
+    command_lines: Vec<(u32, String)>,
+    /// Monotonic id generator for the arena. Wrapping is harmless: the arena
+    /// never holds more than [`MAX_COMMAND_LINES`] entries at a time.
+    command_seq: u32,
+    /// Nonce the shell-integration snippet must echo back in `OSC 633 ; E`.
+    /// `Some` once the app installs its own snippet, which makes command
+    /// spoofing (a hostile file printing the sequence to make the user's
+    /// history offer a command that was never run) structurally impossible.
+    /// `None` accepts any `E`, the only option for third-party integrations
+    /// whose nonce we don't know.
+    nonce: Option<String>,
 }
 
 impl OscSniffer {
@@ -163,6 +190,7 @@ impl OscSniffer {
                 }
             }
             "133" => return parse_osc133(rest),
+            "633" => return self.parse_osc633(rest),
             "9" => {
                 if let Some(p) = rest.strip_prefix("4;") {
                     if let Some(progress) = parse_progress(p) {
@@ -175,6 +203,73 @@ impl OscSniffer {
             _ => {}
         }
         None
+    }
+
+    /// Parse an OSC 633 payload, VS Code's shell-integration superset of OSC
+    /// 133. `A`/`B`/`C`/`D` mean exactly what their 133 twins mean, so they
+    /// map onto the same marks (a host may emit either family). `E` is the
+    /// one sequence no other protocol has: the command line as the SHELL
+    /// parsed it, which is the only trustworthy source of the command text
+    /// under a multiplexer, where the grid the app sees is tmux's repaint of
+    /// every pane rather than the shell's own line.
+    fn parse_osc633(&mut self, rest: &str) -> Option<ShellMark> {
+        // Every argument escapes `;` as `\x3b`, so splitting on `;` is safe.
+        let mut parts = rest.splitn(3, ';');
+        match parts.next()? {
+            "A" => Some(ShellMark::PromptStart),
+            "B" => Some(ShellMark::PromptEnd),
+            "C" => Some(ShellMark::OutputStart),
+            "D" => Some(ShellMark::CommandEnd(
+                parts.next().and_then(|c| c.parse::<i32>().ok()),
+            )),
+            "E" => {
+                let raw = parts.next()?;
+                // A configured nonce is mandatory once set: an `E` without it
+                // (or with the wrong one) did not come from our snippet.
+                if let Some(expected) = self.nonce.as_deref()
+                    && parts.next() != Some(expected)
+                {
+                    return None;
+                }
+                let text = decode_osc633_arg(raw);
+                if text.is_empty() {
+                    return None;
+                }
+                if self.command_lines.len() >= MAX_COMMAND_LINES {
+                    self.command_lines.remove(0);
+                }
+                let id = self.command_seq;
+                self.command_seq = self.command_seq.wrapping_add(1);
+                self.command_lines.push((id, text));
+                Some(ShellMark::CommandLine(id))
+            }
+            // `P;Key=Value` properties. `Cwd` is the OSC 7 equivalent, so it
+            // feeds the same field; the rest is VS Code bookkeeping.
+            "P" => {
+                if let Some(path) = parts.next().and_then(|p| p.strip_prefix("Cwd="))
+                    && path.starts_with('/')
+                {
+                    self.cwd = Some(path.to_string());
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Require `nonce` on every subsequent `OSC 633 ; E`. Called with the
+    /// value baked into the shell-integration snippet this pane installed.
+    pub fn set_command_nonce(&mut self, nonce: Option<String>) {
+        self.nonce = nonce;
+    }
+
+    /// Drain the command lines reported since the last call, each paired
+    /// with the id its [`ShellMark::CommandLine`] carries. Drain this
+    /// together with the marks: a mark whose text was already drained (or
+    /// dropped by the arena cap) resolves to nothing, never to another
+    /// command.
+    pub fn take_command_lines(&mut self) -> Vec<(u32, String)> {
+        std::mem::take(&mut self.command_lines)
     }
 
     pub fn take_cwd(&mut self) -> Option<String> {
@@ -248,6 +343,38 @@ fn parse_osc133(rest: &str) -> Option<ShellMark> {
     }
 }
 
+/// Decode an OSC 633 argument. The sender escapes `\` as `\\` and every
+/// character at 0x20 or below (plus `;`, which would otherwise split the
+/// payload) as `\xAB`, so a command line survives newlines and semicolons
+/// intact. An incomplete or malformed escape is kept literally rather than
+/// dropped: a mangled command must still read like the text it came from.
+fn decode_osc633_arg(raw: &str) -> String {
+    let b = raw.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\\' && i + 1 < b.len() {
+            if b[i + 1] == b'\\' {
+                out.push(b'\\');
+                i += 2;
+                continue;
+            }
+            if (b[i + 1] | 0x20) == b'x' && i + 3 < b.len() {
+                let hi = (b[i + 2] as char).to_digit(16);
+                let lo = (b[i + 3] as char).to_digit(16);
+                if let (Some(h), Some(l)) = (hi, lo) {
+                    out.push((h * 16 + l) as u8);
+                    i += 4;
+                    continue;
+                }
+            }
+        }
+        out.push(b[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 /// Parse an OSC 9;4 progress body (`<state>;<value>`).
 fn parse_progress(p: &str) -> Option<Progress> {
     let (st, val) = p.split_once(';').unwrap_or((p, "0"));
@@ -315,6 +442,69 @@ mod tests {
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].mark, ShellMark::PromptEnd);
         assert_eq!(events[0].offset, 2); // just past the BEL in this slice
+    }
+
+    #[test]
+    fn osc633_reports_command_line_and_maps_prompt_marks() {
+        let mut s = OscSniffer::default();
+        // The A/B/E/C/D cycle VS Code's integration emits, with a command
+        // line carrying an escaped semicolon and newline.
+        let events = s.feed(
+            b"\x1b]633;A\x07\x1b]633;B\x07\x1b]633;E;echo a\\x3b echo b\x07\x1b]633;C\x07\x1b]633;D;0\x07",
+        );
+        assert_eq!(
+            events.iter().map(|e| e.mark).collect::<Vec<_>>(),
+            vec![
+                ShellMark::PromptStart,
+                ShellMark::PromptEnd,
+                ShellMark::CommandLine(0),
+                ShellMark::OutputStart,
+                ShellMark::CommandEnd(Some(0)),
+            ]
+        );
+        assert_eq!(
+            s.take_command_lines(),
+            vec![(0, "echo a; echo b".to_string())]
+        );
+        // Drained: a second call can't hand the same text to another mark.
+        assert!(s.take_command_lines().is_empty());
+    }
+
+    #[test]
+    fn osc633_escapes_decode_and_malformed_ones_stay_literal() {
+        assert_eq!(decode_osc633_arg(r"echo a\x3b b"), "echo a; b");
+        assert_eq!(decode_osc633_arg(r"printf 'a\x0ab'"), "printf 'a\nb'");
+        assert_eq!(decode_osc633_arg(r"grep '\\' file"), r"grep '\' file");
+        // Truncated / non-hex escapes are not silently swallowed.
+        assert_eq!(decode_osc633_arg(r"tail\x"), r"tail\x");
+        assert_eq!(decode_osc633_arg(r"tail\xZZ"), r"tail\xZZ");
+        assert_eq!(decode_osc633_arg("plain"), "plain");
+    }
+
+    #[test]
+    fn osc633_nonce_gate_rejects_spoofed_command_lines() {
+        let mut s = OscSniffer::default();
+        s.set_command_nonce(Some("s3cret".to_string()));
+        // No nonce, and a wrong one: both are a hostile file printing the
+        // sequence, never our snippet.
+        let events = s.feed(b"\x1b]633;E;rm -rf /\x07\x1b]633;E;rm -rf /;wrong\x07");
+        assert!(events.is_empty());
+        assert!(s.take_command_lines().is_empty());
+        // The real snippet's sequence still lands.
+        let events = s.feed(b"\x1b]633;E;ls -la;s3cret\x07");
+        assert_eq!(events.len(), 1);
+        assert_eq!(s.take_command_lines(), vec![(0, "ls -la".to_string())]);
+    }
+
+    #[test]
+    fn osc633_property_reports_cwd_and_empty_command_is_ignored() {
+        let mut s = sniff(b"\x1b]633;P;Cwd=/srv/app\x07");
+        assert_eq!(s.take_cwd().as_deref(), Some("/srv/app"));
+        // A bare Enter at the prompt reports an empty command line, which is
+        // not a command and must not reach the arena.
+        let mut s = OscSniffer::default();
+        assert!(s.feed(b"\x1b]633;E;\x07").is_empty());
+        assert!(s.take_command_lines().is_empty());
     }
 
     #[test]
