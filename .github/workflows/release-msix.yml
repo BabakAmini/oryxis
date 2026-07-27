@@ -211,6 +211,40 @@ jobs:
               (New-Object System.Text.UTF8Encoding $false))
           }
 
+      # The manifest names `Assets\Square44x44Logo.png`, while the layout
+      # only holds its `.scale-*` / `.targetsize-*` variants. That
+      # base-name-to-variant mapping IS the resource index: without
+      # resources.pri MakeAppx demands a file with the literal name, and
+      # dropping plain copies in would make Windows ignore every scale
+      # and the unplated forms. So build the index.
+      #
+      # The generated config's <packaging> section is removed first: it
+      # tells makepri to split each qualifier into its own resource
+      # PACKAGE, which would strand the scaled assets in packages this
+      # workflow never produces.
+      - name: Index assets (makepri)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $makepri = Join-Path '${{ steps.sdk.outputs.bin }}' 'makepri.exe'
+          $cfg = Join-Path $env:RUNNER_TEMP 'priconfig.xml'
+          & $makepri createconfig /cf $cfg /dq en-US /o
+          if ($LASTEXITCODE -ne 0) { throw 'makepri createconfig failed' }
+          [xml]$conf = Get-Content $cfg
+          $packaging = $conf.resources.packaging
+          if ($packaging) {
+            $conf.resources.RemoveChild($packaging) | Out-Null
+            $conf.Save($cfg)
+          }
+          foreach ($arch in @('x64', 'arm64')) {
+            $layout = (Resolve-Path "layout\$arch").Path
+            # Written outside the layout so the index cannot index itself.
+            $pri = Join-Path $env:RUNNER_TEMP "resources-$arch.pri"
+            & $makepri new /pr $layout /cf $cfg /of $pri /o
+            if ($LASTEXITCODE -ne 0) { throw "makepri new failed for $arch" }
+            Copy-Item $pri (Join-Path $layout 'resources.pri') -Force
+          }
+
       - name: Pack + bundle
         shell: pwsh
         run: |

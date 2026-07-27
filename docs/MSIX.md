@@ -142,6 +142,15 @@ executable in release builds (the plugin dev lookup is
 `#[cfg(debug_assertions)]`), and fonts are either embedded or downloaded
 into `~/.oryxis`.
 
+The layout also gets a generated `resources.pri`. The manifest refers to
+`Assets\Square44x44Logo.png`, a name no file carries: the resource index
+is what resolves it to the right `.scale-*` / `.targetsize-*` variant per
+DPI. Packing without it fails, and "fixing" that by dropping plain
+base-name copies in would make Windows ignore every scaled and unplated
+asset. The workflow strips the `<packaging>` section from the generated
+priconfig so all variants stay in this package rather than being split
+into resource packages that are never produced.
+
 Assets in `resources/msix/Assets` are rendered from `resources/logo.svg`:
 `Square44x44Logo`, `Square150x150Logo` and `StoreLogo` at scales
 100/125/150/200/400, plus `Square44x44Logo` targetsize 16/24/32/48/256 in
