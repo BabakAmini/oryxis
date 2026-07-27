@@ -75,6 +75,9 @@ mod mcp_install;
 mod messages;
 mod mime_types;
 mod os_icon;
+// MSIX / Microsoft Store container probe. Gates the self-updater and
+// the explicit AppUserModelID, both of which are wrong inside a package.
+mod packaged;
 // Cloud-provider plugin subsystem. Inert until the cloud dispatch
 // path is rewired onto it in a later PR, the `allow` keeps the
 // clippy `-D warnings` gate green while the infra (and its public

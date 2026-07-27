@@ -19,6 +19,26 @@ impl Oryxis {
         &mut self,
         message: UpdateMessage,
     ) -> Task<Message> {
+        // Inside an MSIX package the Store services the app: WindowsApps
+        // is read-only, so running our installer would only produce a
+        // second, unpackaged copy. Settings > About hides the whole
+        // update panel there, but the boot check fires without any UI, so
+        // the check / download / install arms are refused here too. The
+        // settings-mutation arms stay reachable (harmless, and they keep
+        // the persisted preferences intact for a later unpackaged build).
+        if crate::packaged::is_packaged()
+            && matches!(
+                message,
+                UpdateMessage::CheckForUpdate
+                    | UpdateMessage::CheckForUpdateManual
+                    | UpdateMessage::UpdateCheckResult(_)
+                    | UpdateMessage::UpdateStartDownload
+                    | UpdateMessage::UpdateDownloadProgress(_)
+                    | UpdateMessage::UpdateDownloadComplete(_)
+            )
+        {
+            return Task::none();
+        }
         match message {
             UpdateMessage::SettingToggleAutoCheckUpdates => {
                 self.setting_auto_check_updates = !self.setting_auto_check_updates;

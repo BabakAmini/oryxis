@@ -34,6 +34,13 @@ pub(crate) const AUMID: &str = "io.oryxis.Oryxis";
 /// valid. No-op off Windows.
 #[cfg(target_os = "windows")]
 pub(crate) fn tag_window(handle: &dyn iced::Window) {
+    // Packaged (MSIX) processes get their AUMID from the package
+    // identity; retagging the window detaches the taskbar button from
+    // it, which breaks JumpList and toast routing at once.
+    if crate::packaged::is_packaged() {
+        return;
+    }
+
     use iced::window::raw_window_handle::RawWindowHandle;
     use windows::Win32::Foundation::HWND;
     use windows::Win32::System::Com::StructuredStorage::PROPVARIANT;
@@ -134,7 +141,15 @@ mod imp {
         unsafe {
             let list: ICustomDestinationList =
                 CoCreateInstance(&DestinationList, None, CLSCTX_INPROC_SERVER)?;
-            list.SetAppID(&HSTRING::from(super::AUMID))?;
+            // An MSIX process already carries the package AUMID
+            // (`<PackageFamilyName>!<App Id>`), which is what its taskbar
+            // button is filed under. Overriding it with our own string
+            // would file the list under an id no button carries, so it
+            // would silently never appear; without the call the list
+            // inherits the process identity and works.
+            if !crate::packaged::is_packaged() {
+                list.SetAppID(&HSTRING::from(super::AUMID))?;
+            }
 
             let mut max_slots: u32 = 0;
             let removed: IObjectArray = list.BeginList(&mut max_slots)?;

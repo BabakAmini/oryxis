@@ -217,9 +217,8 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Advanced, "perf_overlay", "performance hud overlay fps terminal frames"),
     e(S::Advanced, "copy_env_info", "copy environment info report github issue diagnostics"),
     // ── About ──────────────────────────────────────────────────────
-    e(S::About, "auto_check_updates", "update auto check startup"),
-    e(S::About, "update_channel", "update channel stable nightly"),
-    e(S::About, "check_for_updates_now", "check for updates now manual version"),
+    // (the update rows live in `update_entries()`, they don't exist in
+    // a packaged build)
     // ── Shortcuts ──────────────────────────────────────────────────
     e(S::Shortcuts, "hotkey_reset_all", "reset all shortcuts hotkeys defaults keybindings"),
     // ── Cloud ──────────────────────────────────────────────────────
@@ -237,6 +236,24 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Plugins, "plugin_action_check_updates", "plugin check updates all providers"),
     e(S::Plugins, "plugins_auto_update_global", "plugin auto update all global"),
 ];
+
+/// The self-update rows, present only in unpackaged builds. Inside an
+/// MSIX package the Microsoft Store services the app and Settings >
+/// About renders no update panel at all, so a search hit here would
+/// open a section whose row can never appear. Same rule as
+/// [`platform_entries`], gated at runtime instead of at compile time.
+fn update_entries() -> &'static [SettingsIndexEntry] {
+    static UPDATE: &[SettingsIndexEntry] = &[
+        e(S::About, "auto_check_updates", "update auto check startup"),
+        e(S::About, "update_channel", "update channel stable nightly"),
+        e(S::About, "check_for_updates_now", "check for updates now manual version"),
+    ];
+    if crate::packaged::is_packaged() {
+        &[]
+    } else {
+        UPDATE
+    }
+}
 
 /// Platform-gated entries appended to the base index: rows that only
 /// exist in some builds, so a search on the other platforms can't
@@ -331,6 +348,7 @@ impl crate::app::Oryxis {
             SETTINGS_INDEX
                 .iter()
                 .chain(platform_entries())
+                .chain(update_entries())
                 .filter_map(|entry| {
                     let pos = section_pos(entry.section)?;
                     let label = crate::i18n::t(entry.label_key);
@@ -367,6 +385,7 @@ impl crate::app::Oryxis {
         let mut out: Vec<(usize, usize, SettingsSection, &'static str)> = SETTINGS_INDEX
             .iter()
             .chain(platform_entries())
+            .chain(update_entries())
             .enumerate()
             .filter_map(|(i, entry)| {
                 let pos = sections.iter().position(|(_, v)| *v == entry.section)?;
@@ -386,7 +405,10 @@ mod tests {
     use super::*;
 
     fn all_entries() -> impl Iterator<Item = &'static SettingsIndexEntry> {
-        SETTINGS_INDEX.iter().chain(platform_entries())
+        SETTINGS_INDEX
+            .iter()
+            .chain(platform_entries())
+            .chain(update_entries())
     }
 
     #[test]
