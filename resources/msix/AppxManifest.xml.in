@@ -37,11 +37,37 @@
   </Dependencies>
 
   <Resources>
-    <!-- The app localizes itself (23 languages through `crate::i18n`),
-         it does not use MRT resource packs, so exactly one package
-         language is declared. Store listing languages are chosen in
-         Partner Center and are independent of this. -->
-    <Resource Language="en-us" />
+    <!-- Every language the app actually ships, so the Store lists them
+         as supported. These are declarations, not MRT resource packs:
+         the translations live in the binary (`crate::i18n`), which is
+         why one `resources.pri` covers them all.
+
+         Policy 10.7 ties this list to the listing: whatever is declared
+         here must also have a localized Store description. Keep the two
+         in step when a language is added or dropped. -->
+    <Resource Language="en-US" />
+    <Resource Language="pt-BR" />
+    <Resource Language="es" />
+    <Resource Language="fr" />
+    <Resource Language="de" />
+    <Resource Language="it" />
+    <Resource Language="zh-Hans" />
+    <Resource Language="ja" />
+    <Resource Language="ru" />
+    <Resource Language="fa" />
+    <Resource Language="ar" />
+    <Resource Language="ko" />
+    <Resource Language="pl" />
+    <Resource Language="tr" />
+    <Resource Language="id" />
+    <Resource Language="vi" />
+    <Resource Language="uk" />
+    <Resource Language="he" />
+    <Resource Language="zh-Hant" />
+    <Resource Language="th" />
+    <Resource Language="hi" />
+    <Resource Language="cs" />
+    <Resource Language="el" />
   </Resources>
 
   <Applications>
