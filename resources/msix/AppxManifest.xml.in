@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSIX manifest template for the Microsoft Store build. The AT-delimited
+  placeholders below are substituted by .github/workflows/release-msix.yml
+  from repository secrets, which is why the Partner Center identity is
+  nowhere in this tree; docs/MSIX.md explains where each value comes from.
+
+  There is deliberately no `windows.protocol` extension: the app has no
+  oryxis:// URI handler yet (pairing links are pasted into the sync
+  screen), and declaring a protocol that does nothing when invoked is
+  worse than not declaring it. Add it together with the handler.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 desktop rescap">
+
+  <Identity
+    Name="@IDENTITY_NAME@"
+    Publisher="@PUBLISHER@"
+    Version="@VERSION@"
+    ProcessorArchitecture="@ARCH@" />
+
+  <Properties>
+    <DisplayName>Oryxis</DisplayName>
+    <PublisherDisplayName>@PUBLISHER_DISPLAY_NAME@</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <!-- 1809 is the oldest Windows 10 servicing branch still supported;
+         the app itself needs nothing newer than what it ships with. -->
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Resources>
+    <!-- The app localizes itself (23 languages through `crate::i18n`),
+         it does not use MRT resource packs, so exactly one package
+         language is declared. Store listing languages are chosen in
+         Partner Center and are independent of this. -->
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Oryxis" Executable="oryxis.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Oryxis"
+        Description="Rust-native SSH client with an encrypted local vault."
+        BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile ShortName="Oryxis" />
+      </uap:VisualElements>
+      <Extensions>
+        <!-- Replaces the NSIS installers' PATH entry: MSIX cannot edit
+             PATH, the execution alias is the supported equivalent, so
+             `oryxis` stays callable from a shell. -->
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="oryxis.exe" EntryPoint="Windows.FullTrustApplication">
+          <uap3:AppExecutionAlias>
+            <desktop:ExecutionAlias Alias="oryxis.exe" />
+          </uap3:AppExecutionAlias>
+        </uap3:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Full-trust Win32 desktop app: raw sockets, PTY, named pipes,
+         local file access. Standard for packaged desktop apps. -->
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

@@ -1,0 +1,257 @@
+name: MSIX (Microsoft Store)
+
+# Manual only. The Store package is a distribution channel on the side of
+# the GitHub release: same binary, different container. It is NOT wired to
+# tag pushes because the Partner Center identity values are inputs, and
+# because a Store submission is a human step anyway (certification,
+# listing, age rating).
+#
+# The identity triplet comes from Partner Center > your app > Product
+# management > "View app identity details". It is NOT kept in the repo:
+# the values live in the MSIX_IDENTITY_NAME / MSIX_PUBLISHER /
+# MSIX_PUBLISHER_DISPLAY_NAME repository secrets, so a normal run needs
+# no inputs at all. The inputs exist to override them per run (a fork
+# packing under its own identity, or a dry run).
+#
+# Two artifacts come out:
+#   * oryxis-<version>.msixbundle          -> upload this to Partner
+#     Center. Deliberately UNSIGNED: the Store re-signs MSIX packages
+#     with a Microsoft certificate after certification, so no CA cert is
+#     needed (and signing it here would just be stripped).
+#   * oryxis-<version>-test-signed.msixbundle + oryxis-test-cert.cer
+#     -> sideload pair for local QA. Windows refuses to install an
+#     unsigned package, so this copy is signed with a throwaway
+#     self-signed certificate generated in the run. Never submit it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Package version X.Y.Z (defaults to the oryxis-app crate version). The Store-reserved fourth field .0 is appended.'
+        required: false
+        default: ''
+      identity_name:
+        description: 'Package/Identity/@Name from Partner Center (falls back to the MSIX_IDENTITY_NAME variable)'
+        required: false
+        default: ''
+      publisher:
+        description: 'Package/Identity/@Publisher, the literal CN=<GUID> (falls back to the MSIX_PUBLISHER variable)'
+        required: false
+        default: ''
+      publisher_display_name:
+        description: 'Publisher display name (falls back to the MSIX_PUBLISHER_DISPLAY_NAME variable)'
+        required: false
+        default: ''
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/
+            ~/.cargo/git/
+            target/
+          key: msix-${{ matrix.arch }}-${{ hashFiles('**/Cargo.lock') }}
+      - run: cargo build --release --target ${{ matrix.target }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: msix-exe-${{ matrix.arch }}
+          path: target/${{ matrix.target }}/release/oryxis.exe
+          retention-days: 1
+
+  package:
+    name: Pack + bundle
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          name: msix-exe-x64
+          path: exe/x64
+      - uses: actions/download-artifact@v8
+        with:
+          name: msix-exe-arm64
+          path: exe/arm64
+
+      # Resolve the identity triplet and fail loudly when it is missing.
+      # Packing with a wrong Publisher produces an artifact that only
+      # fails at upload time, after the human work of a submission.
+      - name: Resolve identity + version
+        id: ident
+        shell: pwsh
+        # Secrets and inputs travel as environment variables, never
+        # interpolated into the script body: a template expansion would
+        # both break on quoting and defeat the log masking.
+        env:
+          IN_IDENTITY: ${{ inputs.identity_name }}
+          IN_PUBLISHER: ${{ inputs.publisher }}
+          IN_DISPLAY: ${{ inputs.publisher_display_name }}
+          SECRET_IDENTITY: ${{ secrets.MSIX_IDENTITY_NAME }}
+          SECRET_PUBLISHER: ${{ secrets.MSIX_PUBLISHER }}
+          SECRET_DISPLAY: ${{ secrets.MSIX_PUBLISHER_DISPLAY_NAME }}
+          IN_VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $identity = if ($env:IN_IDENTITY) { $env:IN_IDENTITY } else { $env:SECRET_IDENTITY }
+          $publisher = if ($env:IN_PUBLISHER) { $env:IN_PUBLISHER } else { $env:SECRET_PUBLISHER }
+          $display = if ($env:IN_DISPLAY) { $env:IN_DISPLAY } else { $env:SECRET_DISPLAY }
+
+          $missing = @()
+          if (-not $identity) { $missing += 'identity_name / MSIX_IDENTITY_NAME' }
+          if (-not $publisher) { $missing += 'publisher / MSIX_PUBLISHER' }
+          if (-not $display) { $missing += 'publisher_display_name / MSIX_PUBLISHER_DISPLAY_NAME' }
+          if ($missing.Count -gt 0) {
+            throw ("Missing Partner Center identity values: " + ($missing -join ', ') +
+                   ". Set the repository secrets, or pass them as workflow inputs.")
+          }
+          if ($publisher -notmatch '^CN=') {
+            throw 'publisher must be the literal Partner Center string starting with CN='
+          }
+
+          # Version: input wins, else the crate version. MSIX wants a
+          # four-field quad whose last field is reserved for the Store.
+          $version = $env:IN_VERSION
+          if (-not $version) {
+            $cargo = Get-Content crates/oryxis-app/Cargo.toml -Raw
+            if ($cargo -notmatch '(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"') {
+              throw 'could not read the version from crates/oryxis-app/Cargo.toml'
+            }
+            $version = $Matches[1]
+          }
+          if ($version -notmatch '^[1-9][0-9]*\.[0-9]+\.[0-9]+$') {
+            throw "version must be X.Y.Z with a non-zero first field (got '$version')"
+          }
+          $quad = "$version.0"
+
+          # The identity travels to the later steps through the job
+          # environment (still masked in logs), only the non-sensitive
+          # version fields become step outputs, which artifact paths
+          # need to interpolate.
+          "MSIX_IDENTITY=$identity"   | Out-File $env:GITHUB_ENV -Append
+          "MSIX_PUBLISHER=$publisher" | Out-File $env:GITHUB_ENV -Append
+          "MSIX_DISPLAY=$display"     | Out-File $env:GITHUB_ENV -Append
+          "MSIX_QUAD=$quad"           | Out-File $env:GITHUB_ENV -Append
+          "version=$version" | Out-File $env:GITHUB_OUTPUT -Append
+          "quad=$quad"       | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Packing version $quad"
+
+      # MakeAppx / SignTool live in a versioned Windows SDK directory.
+      # Pick the highest installed version rather than hardcoding one.
+      - name: Locate Windows SDK tools
+        id: sdk
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $root = 'C:\Program Files (x86)\Windows Kits\10\bin'
+          $bin = Get-ChildItem $root -Directory |
+            Where-Object { $_.Name -match '^10\.' } |
+            Sort-Object { [version]$_.Name } -Descending |
+            ForEach-Object { Join-Path $_.FullName 'x64' } |
+            Where-Object { Test-Path (Join-Path $_ 'makeappx.exe') } |
+            Select-Object -First 1
+          if (-not $bin) { throw "makeappx.exe not found under $root" }
+          "bin=$bin" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Using SDK tools from $bin"
+
+      - name: Build the package layouts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $template = Get-Content resources/msix/AppxManifest.xml.in -Raw
+          foreach ($arch in @('x64', 'arm64')) {
+            $layout = "layout\$arch"
+            New-Item -ItemType Directory -Force -Path $layout | Out-Null
+            Copy-Item "exe\$arch\oryxis.exe" $layout -Force
+            Copy-Item resources\msix\Assets $layout -Recurse -Force
+            $manifest = $template.
+              Replace('@IDENTITY_NAME@', $env:MSIX_IDENTITY).
+              Replace('@PUBLISHER@', $env:MSIX_PUBLISHER).
+              Replace('@PUBLISHER_DISPLAY_NAME@', $env:MSIX_DISPLAY).
+              Replace('@VERSION@', $env:MSIX_QUAD).
+              Replace('@ARCH@', $arch)
+            if ($manifest -match '@[A-Z_]+@') {
+              throw "unsubstituted placeholder left in the manifest: $($Matches[0])"
+            }
+            # MSIX manifests must be UTF-8 without a BOM.
+            [System.IO.File]::WriteAllText(
+              (Join-Path (Resolve-Path $layout) 'AppxManifest.xml'),
+              $manifest,
+              (New-Object System.Text.UTF8Encoding $false))
+          }
+
+      - name: Pack + bundle
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $makeappx = Join-Path '${{ steps.sdk.outputs.bin }}' 'makeappx.exe'
+          # `bundle /d` takes EVERY file in the directory, so packs get
+          # their own folder with nothing else in it.
+          New-Item -ItemType Directory -Force -Path packs, out | Out-Null
+          foreach ($arch in @('x64', 'arm64')) {
+            & $makeappx pack /d "layout\$arch" /p "packs\oryxis-$arch.msix" /o
+            if ($LASTEXITCODE -ne 0) { throw "makeappx pack failed for $arch" }
+          }
+          $bundle = "out\oryxis-${{ steps.ident.outputs.version }}.msixbundle"
+          & $makeappx bundle /d packs /p $bundle /bv '${{ steps.ident.outputs.quad }}' /o
+          if ($LASTEXITCODE -ne 0) { throw 'makeappx bundle failed' }
+          Get-Item $bundle | Format-List Name, Length
+
+      # A throwaway certificate whose subject matches the manifest's
+      # Publisher, the only way to produce an installable copy for QA.
+      # The Store copy stays unsigned.
+      - name: Test-sign a sideload copy
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $signtool = Join-Path '${{ steps.sdk.outputs.bin }}' 'signtool.exe'
+          $signed = "out\oryxis-${{ steps.ident.outputs.version }}-test-signed.msixbundle"
+          Copy-Item "out\oryxis-${{ steps.ident.outputs.version }}.msixbundle" $signed -Force
+
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -Subject $env:MSIX_PUBLISHER `
+            -KeyUsage DigitalSignature `
+            -KeyAlgorithm RSA -KeyLength 2048 `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}Subject Type:End Entity')
+          $pfxPass = ConvertTo-SecureString -String ([guid]::NewGuid().ToString()) -Force -AsPlainText
+          $pfx = Join-Path $env:RUNNER_TEMP 'msix-test.pfx'
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $pfxPass | Out-Null
+          # The public half travels with the artifact: the QA machine has
+          # to trust it before Add-AppxPackage will accept the bundle.
+          Export-Certificate -Cert $cert -FilePath 'out\oryxis-test-cert.cer' | Out-Null
+
+          $plain = [System.Net.NetworkCredential]::new('', $pfxPass).Password
+          & $signtool sign /fd SHA256 /a /f $pfx /p $plain $signed
+          if ($LASTEXITCODE -ne 0) { throw 'signtool failed on the sideload copy' }
+          Remove-Item $pfx -Force
+          Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
+
+      - name: Upload the Store package
+        uses: actions/upload-artifact@v7
+        with:
+          name: oryxis-msix-store
+          path: out/oryxis-${{ steps.ident.outputs.version }}.msixbundle
+
+      - name: Upload the sideload pair
+        uses: actions/upload-artifact@v7
+        with:
+          name: oryxis-msix-sideload
+          path: |
+            out/oryxis-${{ steps.ident.outputs.version }}-test-signed.msixbundle
+            out/oryxis-test-cert.cer

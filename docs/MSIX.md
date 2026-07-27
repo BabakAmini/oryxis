@@ -1,0 +1,138 @@
+# MSIX / Microsoft Store
+
+The Store build is the same `oryxis.exe` the GitHub release ships, wrapped
+in an MSIX package instead of an NSIS installer. Nothing about the NSIS
+installers changes: `winget` keeps targeting the system setup, and the
+per-user setup stays the auto-updater's target.
+
+## Why MSIX and not the EXE submission path
+
+The Store accepts either an MSIX package or a plain `.msi` / `.exe`
+installer (policy 10.2.9). The installer path requires the binary and
+every PE inside it to be signed by a CA in the Microsoft Trusted Root
+Program. MSIX requires no code-signing certificate at all: Partner Center
+re-signs the package with a Microsoft certificate after it passes
+certification. So the Store channel is not blocked on the pending
+SignPath certificate.
+
+Consequence for this repo: the package the workflow hands to Partner
+Center is **unsigned on purpose**.
+
+## One-time setup in Partner Center
+
+1. Create the developer account. Registration is free for both individual
+   and company account types. Pick company if the publisher name reads as
+   a business entity (policy 10.14).
+2. Reserve the app name (`Oryxis`).
+3. Open **Product management > View app identity details** and copy three
+   values into repository **secrets**, so the identity never lands in the
+   source tree:
+
+   | Partner Center field                     | Secret                        | Workflow input (override) |
+   |------------------------------------------|-------------------------------|---------------------------|
+   | Package/Identity/Name                    | `MSIX_IDENTITY_NAME`          | `identity_name`           |
+   | Package/Identity/Publisher (`CN=<GUID>`) | `MSIX_PUBLISHER`              | `publisher`               |
+   | Publisher display name                   | `MSIX_PUBLISHER_DISPLAY_NAME` | `publisher_display_name`  |
+
+   ```
+   gh secret set MSIX_IDENTITY_NAME --repo <owner>/oryxis
+   gh secret set MSIX_PUBLISHER --repo <owner>/oryxis
+   gh secret set MSIX_PUBLISHER_DISPLAY_NAME --repo <owner>/oryxis
+   ```
+
+   With the secrets in place the workflow runs with every input left
+   empty. The inputs exist to pack under a different identity (a fork,
+   or a dry run) without touching the secrets. They reach the script as
+   environment variables rather than template expansions, so the values
+   stay masked in the run log.
+
+4. Fill in the submission's privacy policy URL. Policy 10.5.1 makes it
+   mandatory for Win32 / Desktop Bridge products regardless of how little
+   data the app touches.
+
+## Building the package
+
+```
+Actions > "MSIX (Microsoft Store)" > Run workflow
+```
+
+Inputs are all optional when the repo variables exist; `version` defaults
+to the `oryxis-app` crate version. The run produces two artifacts:
+
+- **`oryxis-msix-store`** contains `oryxis-<version>.msixbundle` (x64 +
+  arm64). This is what gets uploaded to Partner Center.
+- **`oryxis-msix-sideload`** contains a copy signed with a throwaway
+  self-signed certificate plus `oryxis-test-cert.cer`. Windows refuses to
+  install an unsigned package, so this pair exists purely so the build
+  can be tested on a real machine. Never submit it.
+
+Version rules the workflow enforces: `X.Y.Z` with a non-zero first field,
+packed as the quad `X.Y.Z.0`. The fourth field is reserved for the Store
+and must be left at 0.
+
+## Sideload QA (do this before submitting)
+
+On a Windows machine, with the sideload artifact unzipped:
+
+```powershell
+# Trust the throwaway certificate (Local Machine > Trusted People).
+Import-Certificate -FilePath .\oryxis-test-cert.cer `
+  -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+
+Add-AppxPackage .\oryxis-<version>-test-signed.msixbundle
+```
+
+Then verify, in this order, the things the package changes:
+
+1. The app launches and the vault lands in `%USERPROFILE%\.oryxis`.
+2. **Taskbar button groups correctly** and the JumpList shows recent
+   hosts. This proves the AUMID gate works: a packaged process must keep
+   the package identity, so `jumplist::tag_window` and the explicit
+   `SetAppID` are skipped (`crate::packaged::is_packaged`).
+3. **Settings > About has no update panel.** Inside a package the Store
+   services the app; `WindowsApps` is read-only, so running the NSIS
+   installer would only lay down a second, unpackaged copy. The panel and
+   its keynav rows are gone, and the boot check is refused in
+   `dispatch_update.rs`.
+4. `oryxis` resolves from a fresh shell (the execution alias replaces the
+   PATH entry the NSIS installers write; MSIX cannot edit PATH).
+5. The ssh-agent named pipe is reachable and a plugin download succeeds
+   (`~/.oryxis/plugins`), both of which write outside the read-only
+   package root.
+
+Finish with the **Windows App Certification Kit** against the installed
+package. It catches manifest and asset problems before certification
+does.
+
+Uninstall with `Remove-AppxPackage` (or Settings > Apps) and remove the
+test certificate from Trusted People when done.
+
+## Notes for certification (submission form)
+
+Two things are worth pre-empting in the certification notes, because a
+reviewer meeting them cold costs a rejection cycle:
+
+- **First run.** The app opens on vault creation (master password). No
+  account, no server, no credentials needed to exercise the UI.
+- **Plugins.** Cloud providers, the MCP server and the GIF exporter are
+  optional first-party components downloaded on demand into
+  `~/.oryxis/plugins`, each pinned by SHA-256 and verified against an
+  Ed25519 signature, and always user-initiated. This is the
+  add-on/extension case policy 10.1.5 permits; mention the plugin-based
+  cloud providers in the listing description as well, so the described
+  functionality covers them (policy 10.2.2).
+
+## Package contents
+
+The layout is deliberately minimal: `oryxis.exe`, `Assets\` and the
+generated `AppxManifest.xml`. The app reads nothing from beside its
+executable in release builds (the plugin dev lookup is
+`#[cfg(debug_assertions)]`), and fonts are either embedded or downloaded
+into `~/.oryxis`.
+
+Assets in `resources/msix/Assets` are rendered from `resources/logo.svg`:
+`Square44x44Logo`, `Square150x150Logo` and `StoreLogo` at scales
+100/125/150/200/400, plus `Square44x44Logo` targetsize 16/24/32/48/256 in
+both plated and `altform-unplated` variants. Regenerate them with
+`rsvg-convert -w N -h N` if the logo changes; wrong pixel dimensions pass
+packing and fail the certification kit.
