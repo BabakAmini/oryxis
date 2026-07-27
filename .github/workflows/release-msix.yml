@@ -300,6 +300,19 @@ jobs:
           Remove-Item $pfx -Force
           Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -Force
 
+          # Ship the install steps next to the package: trusting the
+          # certificate by hand is the step everyone gets wrong (a double
+          # clicked .cer lands in the CURRENT USER store, and the refusal
+          # reads as 0x800B010A rather than "wrong store"). Same template
+          # treatment as the manifest.
+          $installer = (Get-Content resources/msix/install-sideload.ps1.in -Raw).
+            Replace('@BUNDLE@', (Split-Path $signed -Leaf)).
+            Replace('@THUMBPRINT@', $cert.Thumbprint)
+          if ($installer -match '@[A-Z_]+@') {
+            throw "unsubstituted placeholder left in the installer: $($Matches[0])"
+          }
+          Set-Content -Path 'out\install-sideload.ps1' -Value $installer -Encoding UTF8
+
       - name: Upload the Store package
         uses: actions/upload-artifact@v7
         with:
@@ -313,3 +326,4 @@ jobs:
           path: |
             out/${{ steps.ident.outputs.base }}-test-signed.msixbundle
             out/oryxis-test-cert.cer
+            out/install-sideload.ps1

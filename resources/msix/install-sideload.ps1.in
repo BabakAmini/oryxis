@@ -1,0 +1,49 @@
+# Sideload install for QA. RUN AS ADMINISTRATOR.
+#
+# Package : @BUNDLE@
+# Cert    : @THUMBPRINT@
+#
+# Both are throwaway: the Store copy of this package is unsigned (Partner
+# Center re-signs it), so a self-signed certificate is minted per workflow
+# run purely so Windows will accept the package for testing. Every run
+# mints a NEW one, so uninstall (see the bottom of this file) before
+# testing a newer package.
+#
+# The step everyone gets wrong is trusting the certificate: double
+# clicking the .cer imports it into the CURRENT USER store, which
+# Add-AppxPackage does not accept, and the failure surfaces as
+# 0x800B010A "the root certificate could not be verified" rather than
+# anything mentioning the wrong store. Hence LocalMachine below, and
+# hence Administrator.
+$ErrorActionPreference = 'Stop'
+$here = Split-Path -Parent $MyInvocation.MyCommand.Path
+$cer = Join-Path $here 'oryxis-test-cert.cer'
+$bundle = Join-Path $here '@BUNDLE@'
+
+$admin = ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+  ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $admin) {
+  throw 'Run this from an elevated PowerShell: the certificate must go into the LocalMachine store.'
+}
+
+Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+
+$sig = Get-AuthenticodeSignature $bundle
+if ($sig.Status -ne 'Valid') {
+  # A self-signed certificate is its own root, and some configurations
+  # only build the chain once it is an accepted root as well.
+  Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+  $sig = Get-AuthenticodeSignature $bundle
+}
+if ($sig.Status -ne 'Valid') {
+  throw "signature still $($sig.Status): $($sig.StatusMessage)"
+}
+
+Add-AppxPackage $bundle
+Write-Host 'Installed. Launch it from the Start menu, or run: oryxis'
+Write-Host ''
+Write-Host 'To remove it afterwards:'
+Write-Host '  Get-AppxPackage *Oryxis* | Remove-AppxPackage'
+Write-Host '  Get-ChildItem Cert:\LocalMachine\TrustedPeople, Cert:\LocalMachine\Root |'
+Write-Host "    Where-Object Thumbprint -eq '@THUMBPRINT@' | Remove-Item"

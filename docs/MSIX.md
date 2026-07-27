@@ -84,15 +84,31 @@ The `version` input overrides the file for a one-off run.
 
 ## Sideload QA (do this before submitting)
 
-On a Windows machine, with the sideload artifact unzipped:
+On a Windows machine, unzip the sideload artifact and run
+`install-sideload.ps1` from an **elevated** PowerShell. It trusts the
+throwaway certificate and installs the package, and it prints the two
+lines that undo both afterwards.
+
+By hand, it is:
 
 ```powershell
-# Trust the throwaway certificate (Local Machine > Trusted People).
 Import-Certificate -FilePath .\oryxis-test-cert.cer `
   -CertStoreLocation Cert:\LocalMachine\TrustedPeople
 
-Add-AppxPackage .\oryxis-<version>-test-signed.msixbundle
+Get-AuthenticodeSignature .\oryxis-<pkg>-app<app>-test-signed.msixbundle |
+  Format-List Status, StatusMessage     # must say Valid BEFORE installing
+
+Add-AppxPackage .\oryxis-<pkg>-app<app>-test-signed.msixbundle
 ```
+
+The certificate store is where this goes wrong. It has to be the LOCAL
+MACHINE store, and either **Trusted People** or **Trusted Root
+Certification Authorities** (a self-signed certificate is its own root).
+Importing through the double-click wizard usually lands it in the current
+user's store, or in `Intermediate Certification Authorities`, and neither
+grants any trust: the install then fails with `0x800B010A` ("the root
+certificate could not be verified"), which says nothing about the store
+being wrong.
 
 Then verify, in this order, the things the package changes:
 
