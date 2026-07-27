@@ -23,6 +23,13 @@ name: MSIX (Microsoft Store)
 #     unsigned package, so this copy is signed with a throwaway
 #     self-signed certificate generated in the run. Never submit it.
 
+# Read-only token: the run checks the tree out, builds, and leaves the
+# packages as run artifacts, which ride the Actions runtime token rather
+# than GITHUB_TOKEN. Nothing here writes to the repository, and no
+# release is published from the Store channel.
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
