@@ -1,0 +1,13 @@
+# Microsoft Store PACKAGE version. NOT the app version.
+#
+# The Store refuses a package whose first version field is 0, and the app
+# is still on 0.x, so the two numbering schemes are deliberately
+# decoupled: this counter starts at 1.0.0 and is bumped once per
+# submission, while `oryxis-app`'s Cargo version keeps describing the
+# product. Say which app build a submission carries in the Partner
+# Center release notes, since the Store page will show the number below.
+#
+# Bump this in the same commit that submits, so git log is the history of
+# what was pushed to the Store. The fourth field is appended as .0 by
+# .github/workflows/release-msix.yml (reserved for the Store).
+1.0.0

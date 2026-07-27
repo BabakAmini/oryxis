@@ -2,9 +2,9 @@ name: MSIX (Microsoft Store)
 
 # Manual only. The Store package is a distribution channel on the side of
 # the GitHub release: same binary, different container. It is NOT wired to
-# tag pushes because the Partner Center identity values are inputs, and
-# because a Store submission is a human step anyway (certification,
-# listing, age rating).
+# tag pushes because a Store submission is a human step anyway
+# (certification, listing, age rating) and because the package version is
+# its own counter, bumped per submission (see package-version.txt).
 #
 # The identity triplet comes from Partner Center > your app > Product
 # management > "View app identity details". It is NOT kept in the repo:
@@ -14,11 +14,11 @@ name: MSIX (Microsoft Store)
 # packing under its own identity, or a dry run).
 #
 # Two artifacts come out:
-#   * oryxis-<version>.msixbundle          -> upload this to Partner
-#     Center. Deliberately UNSIGNED: the Store re-signs MSIX packages
-#     with a Microsoft certificate after certification, so no CA cert is
-#     needed (and signing it here would just be stripped).
-#   * oryxis-<version>-test-signed.msixbundle + oryxis-test-cert.cer
+#   * oryxis-<pkg>-app<app>.msixbundle -> upload this to Partner Center.
+#     Deliberately UNSIGNED: the Store re-signs MSIX packages with a
+#     Microsoft certificate after certification, so no CA cert is needed
+#     (and signing it here would just be stripped).
+#   * oryxis-<pkg>-app<app>-test-signed.msixbundle + oryxis-test-cert.cer
 #     -> sideload pair for local QA. Windows refuses to install an
 #     unsigned package, so this copy is signed with a throwaway
 #     self-signed certificate generated in the run. Never submit it.
@@ -27,19 +27,19 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Package version X.Y.Z (defaults to the oryxis-app crate version). The Store-reserved fourth field .0 is appended.'
+        description: 'Package version X.Y.Z, first field >= 1 (defaults to resources/msix/package-version.txt). NOT the app version; the Store rejects a leading 0.'
         required: false
         default: ''
       identity_name:
-        description: 'Package/Identity/@Name from Partner Center (falls back to the MSIX_IDENTITY_NAME variable)'
+        description: 'Package/Identity/@Name from Partner Center (falls back to the MSIX_IDENTITY_NAME secret)'
         required: false
         default: ''
       publisher:
-        description: 'Package/Identity/@Publisher, the literal CN=<GUID> (falls back to the MSIX_PUBLISHER variable)'
+        description: 'Package/Identity/@Publisher, the literal CN=<GUID> (falls back to the MSIX_PUBLISHER secret)'
         required: false
         default: ''
       publisher_display_name:
-        description: 'Publisher display name (falls back to the MSIX_PUBLISHER_DISPLAY_NAME variable)'
+        description: 'Publisher display name (falls back to the MSIX_PUBLISHER_DISPLAY_NAME secret)'
         required: false
         default: ''
 
@@ -123,20 +123,31 @@ jobs:
             throw 'publisher must be the literal Partner Center string starting with CN='
           }
 
-          # Version: input wins, else the crate version. MSIX wants a
-          # four-field quad whose last field is reserved for the Store.
+          # PACKAGE version, tracked in resources/msix/package-version.txt
+          # and independent of the app version: the Store refuses a first
+          # field of 0 and the app is still on 0.x. The input overrides
+          # the file for a one-off run.
           $version = $env:IN_VERSION
           if (-not $version) {
-            $cargo = Get-Content crates/oryxis-app/Cargo.toml -Raw
-            if ($cargo -notmatch '(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"') {
-              throw 'could not read the version from crates/oryxis-app/Cargo.toml'
-            }
-            $version = $Matches[1]
+            $version = (Get-Content resources/msix/package-version.txt |
+              Where-Object { $_ -notmatch '^\s*#' -and $_.Trim() } |
+              Select-Object -First 1).Trim()
           }
           if ($version -notmatch '^[1-9][0-9]*\.[0-9]+\.[0-9]+$') {
-            throw "version must be X.Y.Z with a non-zero first field (got '$version')"
+            throw ("package version must be X.Y.Z with a non-zero first field " +
+                   "(got '$version'). The Store rejects a leading 0; bump " +
+                   "resources/msix/package-version.txt.")
           }
+          # MSIX wants a four-field quad; the last one is the Store's.
           $quad = "$version.0"
+
+          # Which app build this package carries, for the run log and the
+          # Partner Center release notes (the Store page shows $quad).
+          $cargo = Get-Content crates/oryxis-app/Cargo.toml -Raw
+          if ($cargo -notmatch '(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"') {
+            throw 'could not read the app version from crates/oryxis-app/Cargo.toml'
+          }
+          $app = $Matches[1]
 
           # The identity travels to the later steps through the job
           # environment (still masked in logs), only the non-sensitive
@@ -148,7 +159,13 @@ jobs:
           "MSIX_QUAD=$quad"           | Out-File $env:GITHUB_ENV -Append
           "version=$version" | Out-File $env:GITHUB_OUTPUT -Append
           "quad=$quad"       | Out-File $env:GITHUB_OUTPUT -Append
-          Write-Host "Packing version $quad"
+          "app=$app"         | Out-File $env:GITHUB_OUTPUT -Append
+          # Both numbers in the filename: months later, a downloaded
+          # bundle still says which app build it carries.
+          "base=oryxis-$version-app$app" | Out-File $env:GITHUB_OUTPUT -Append
+          Write-Host "Packing package $quad carrying app $app"
+          "### MSIX package ``$quad`` (app ``$app``)" |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append
 
       # MakeAppx / SignTool live in a versioned Windows SDK directory.
       # Pick the highest installed version rather than hardcoding one.
@@ -206,7 +223,7 @@ jobs:
             & $makeappx pack /d "layout\$arch" /p "packs\oryxis-$arch.msix" /o
             if ($LASTEXITCODE -ne 0) { throw "makeappx pack failed for $arch" }
           }
-          $bundle = "out\oryxis-${{ steps.ident.outputs.version }}.msixbundle"
+          $bundle = "out\${{ steps.ident.outputs.base }}.msixbundle"
           & $makeappx bundle /d packs /p $bundle /bv '${{ steps.ident.outputs.quad }}' /o
           if ($LASTEXITCODE -ne 0) { throw 'makeappx bundle failed' }
           Get-Item $bundle | Format-List Name, Length
@@ -219,8 +236,8 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $signtool = Join-Path '${{ steps.sdk.outputs.bin }}' 'signtool.exe'
-          $signed = "out\oryxis-${{ steps.ident.outputs.version }}-test-signed.msixbundle"
-          Copy-Item "out\oryxis-${{ steps.ident.outputs.version }}.msixbundle" $signed -Force
+          $signed = "out\${{ steps.ident.outputs.base }}-test-signed.msixbundle"
+          Copy-Item "out\${{ steps.ident.outputs.base }}.msixbundle" $signed -Force
 
           $cert = New-SelfSignedCertificate `
             -Type Custom `
@@ -246,12 +263,12 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: oryxis-msix-store
-          path: out/oryxis-${{ steps.ident.outputs.version }}.msixbundle
+          path: out/${{ steps.ident.outputs.base }}.msixbundle
 
       - name: Upload the sideload pair
         uses: actions/upload-artifact@v7
         with:
           name: oryxis-msix-sideload
           path: |
-            out/oryxis-${{ steps.ident.outputs.version }}-test-signed.msixbundle
+            out/${{ steps.ident.outputs.base }}-test-signed.msixbundle
             out/oryxis-test-cert.cer

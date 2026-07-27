@@ -66,9 +66,21 @@ to the `oryxis-app` crate version. The run produces two artifacts:
   install an unsigned package, so this pair exists purely so the build
   can be tested on a real machine. Never submit it.
 
-Version rules the workflow enforces: `X.Y.Z` with a non-zero first field,
-packed as the quad `X.Y.Z.0`. The fourth field is reserved for the Store
-and must be left at 0.
+## Package version
+
+The Store rejects a package whose first version field is 0, and the app
+is on 0.x, so the two numbering schemes are decoupled. The package
+counter lives in `resources/msix/package-version.txt`, starts at `1.0.0`
+and is bumped once per submission; the workflow appends the
+Store-reserved fourth field (`1.0.0` becomes `1.0.0.0`).
+
+Bump that file in the commit that submits, so `git log` on it is the
+history of what actually reached the Store, and name the app build
+(`0.11.0`, ...) in the Partner Center release notes, since the Store page
+shows the package number, not the app's. The run log and the job summary
+print both.
+
+The `version` input overrides the file for a one-off run.
 
 ## Sideload QA (do this before submitting)
 
