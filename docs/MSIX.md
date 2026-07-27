@@ -135,6 +135,46 @@ does.
 Uninstall with `Remove-AppxPackage` (or Settings > Apps) and remove the
 test certificate from Trusted People when done.
 
+## Restricted capability justification
+
+Partner Center asks why the package declares `runFullTrust` before it will
+accept the submission. It is the standard capability for a packaged Win32
+app, but the answer has to name concrete uses or the reviewer comes back
+asking. What was submitted:
+
+> Oryxis is a native Win32 desktop application written in Rust and
+> packaged with the Desktop Bridge. runFullTrust is the standard
+> capability for any packaged full-trust Win32 application and is
+> required for it to run as an MSIX package at all.
+>
+> The product is an SSH, SFTP, Telnet and serial client, and it depends
+> on full-trust APIs that are unavailable inside the UWP sandbox:
+>
+> - Outbound TCP connections to arbitrary hosts and ports chosen by the
+>   user (SSH, SFTP, Telnet), plus loopback listening sockets for the
+>   port forwarding feature, which other local applications connect
+>   through.
+> - Serial port (COM) access for console connections to network
+>   appliances.
+> - Windows named pipes: the app implements the standard ssh-agent
+>   protocol and serves it on `\\.\pipe\oryxis-ssh-agent`, secured with a
+>   per-user DACL, so that tools like git, VS Code and WSL can
+>   authenticate using keys held in the app's encrypted vault.
+> - Reading and writing files outside the package: the encrypted vault in
+>   `%USERPROFILE%\.oryxis`, and the user's existing AWS and Kubernetes
+>   credential files when they enable those optional integrations.
+> - Launching helper processes: the operating system's remote desktop
+>   client when the user opens an RDP or VNC session over an SSH tunnel,
+>   and the optional first-party plugin executables the user chooses to
+>   install.
+>
+> The application does not install drivers or NT services, does not use
+> undocumented or unsupported APIs, and collects no user data.
+
+The closing sentence is deliberate: full trust makes a reviewer check
+policy 10.2.4 (dependency on non-Microsoft drivers or NT services), so
+the answer rules it out up front.
+
 ## Notes for certification (submission form)
 
 Two things are worth pre-empting in the certification notes, because a
