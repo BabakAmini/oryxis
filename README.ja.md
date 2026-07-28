@@ -47,6 +47,10 @@ Electron なし、webview なし、ベンダーサーバーなし。単一のネ
 
 **Windows**
 
+[![Microsoft Store から入手](https://get.microsoft.com/images/ja%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+またはターミナルから:
+
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```

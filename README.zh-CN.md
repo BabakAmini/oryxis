@@ -45,6 +45,10 @@ Oryxis 是 [Termius](https://termius.com/) 的开源替代品：一款桌面 SSH
 
 **Windows**
 
+[![从 Microsoft Store 获取](https://get.microsoft.com/images/zh-cn%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+或使用终端：
+
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```

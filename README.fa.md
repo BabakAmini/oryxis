@@ -48,6 +48,10 @@ Electron، بدون webview، بدون سرور شرکتی. فقط یک فایل
 
 **Windows**
 
+[![دریافت از Microsoft Store](https://get.microsoft.com/images/fa%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+یا از طریق ترمینال:
+
 </div>
 
 ```powershell

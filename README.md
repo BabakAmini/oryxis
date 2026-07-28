@@ -52,6 +52,10 @@ native**.
 
 **Windows**
 
+[![Get it from Microsoft](https://get.microsoft.com/images/en-us%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+or, from a terminal:
+
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```

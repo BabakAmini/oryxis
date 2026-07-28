@@ -49,6 +49,10 @@ binário nativo.
 
 **Windows**
 
+[![Baixar na Microsoft Store](https://get.microsoft.com/images/pt-br%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+ou, pelo terminal:
+
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```

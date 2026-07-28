@@ -49,6 +49,11 @@ on:
         description: 'Publisher display name (falls back to the MSIX_PUBLISHER_DISPLAY_NAME secret)'
         required: false
         default: ''
+      publish:
+        description: 'Submit the package to the Store as an update (needs the four Entra ID secrets). Leave off to only produce artifacts.'
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build:
@@ -327,3 +332,79 @@ jobs:
             out/${{ steps.ident.outputs.base }}-test-signed.msixbundle
             out/oryxis-test-cert.cer
             out/install-sideload.ps1
+
+  # Optional: hand the freshly packed bundle to the Store as an update.
+  # Off unless the run was dispatched with `publish` checked, so the normal
+  # path stays "produce artifacts and let a human decide".
+  #
+  # Requires four repository secrets from the Entra ID application that
+  # Partner Center knows (User management > Microsoft Entra applications,
+  # with the Manager role): AZURE_AD_TENANT_ID, SELLER_ID,
+  # AZURE_AD_APPLICATION_CLIENT_ID, AZURE_AD_APPLICATION_SECRET. Missing
+  # any of them fails the job rather than silently skipping, since the run
+  # was explicitly asked to publish.
+  #
+  # Microsoft supports this path for FREE products only, which is what
+  # Oryxis is. The Store also rejects a version it has already seen, so
+  # resources/msix/package-version.txt has to be bumped before a publish
+  # run; that failure surfaces here, not silently.
+  publish:
+    name: Submit to the Store
+    needs: package
+    if: inputs.publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v8
+        with:
+          name: oryxis-msix-store
+          path: submit
+
+      - name: Check the Store credentials are present
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER: ${{ secrets.SELLER_ID }}
+          CLIENT: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+          PRODUCT: ${{ secrets.MSIX_STORE_PRODUCT_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $missing = @()
+          foreach ($n in 'TENANT', 'SELLER', 'CLIENT', 'SECRET', 'PRODUCT') {
+            if (-not (Get-Item "env:$n" -ErrorAction SilentlyContinue).Value) { $missing += $n }
+          }
+          if ($missing.Count -gt 0) {
+            throw ("Publishing needs these secrets: " + ($missing -join ', ') +
+                   ". See docs/MSIX.md for where each value comes from.")
+          }
+
+      - name: Set up the Microsoft Store CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.1
+
+      - name: Authenticate
+        shell: pwsh
+        env:
+          TENANT: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER: ${{ secrets.SELLER_ID }}
+          CLIENT: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          msstore reconfigure --tenantId $env:TENANT --sellerId $env:SELLER `
+            --clientId $env:CLIENT --clientSecret $env:SECRET
+          if ($LASTEXITCODE -ne 0) { throw 'msstore reconfigure failed' }
+
+      - name: Publish the package
+        shell: pwsh
+        env:
+          PRODUCT: ${{ secrets.MSIX_STORE_PRODUCT_ID }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundle = Get-ChildItem submit\*.msixbundle | Select-Object -First 1
+          if (-not $bundle) { throw 'no .msixbundle in the downloaded artifact' }
+          Write-Host "Submitting $($bundle.Name)"
+          msstore publish $bundle.FullName -id $env:PRODUCT
+          if ($LASTEXITCODE -ne 0) { throw 'msstore publish failed' }
+          "Submitted ``$($bundle.Name)`` to the Store. Certification takes it from here." |
+            Out-File $env:GITHUB_STEP_SUMMARY -Append

@@ -47,6 +47,10 @@ Electron 없음, webview 없음, 벤더 서버 없음. 네이티브 바이너리
 
 **Windows**
 
+[![Microsoft Store에서 다운로드](https://get.microsoft.com/images/ko%20dark.svg)](https://apps.microsoft.com/detail/9NTKPPSHBTG2)
+
+또는 터미널에서:
+
 ```powershell
 winget install WilsonGlasser.Oryxis
 ```

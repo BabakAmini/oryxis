@@ -82,6 +82,41 @@ print both.
 
 The `version` input overrides the file for a one-off run.
 
+## Publishing an update from CI
+
+Run the workflow with **publish** checked and it submits the bundle it
+just built, instead of only leaving artifacts. It uses the Microsoft
+Store Developer CLI through Microsoft's own action
+(`microsoft/microsoft-store-apppublisher`), which is the supported path.
+Note the platform limitation: **Store updates via GitHub Actions work for
+free products only**, which Oryxis is.
+
+One-time setup, all in Partner Center and Entra ID:
+
+1. Associate a Microsoft Entra tenant with the Partner Center account.
+2. Register an application in Entra ID.
+3. In Partner Center, Account settings > User management > Microsoft Entra
+   applications, add that application and give it the **Manager** role.
+4. Add these repository secrets:
+
+   | Secret | Where it comes from |
+   |--------|---------------------|
+   | `AZURE_AD_TENANT_ID` | Entra admin center, Identity > Overview |
+   | `AZURE_AD_APPLICATION_CLIENT_ID` | the app registration's Application (client) ID |
+   | `AZURE_AD_APPLICATION_SECRET` | that registration's client secret (shown once) |
+   | `SELLER_ID` | Partner Center, Account settings > Identifiers |
+   | `MSIX_STORE_PRODUCT_ID` | the Store ID of the published app |
+
+A publish run fails, rather than skipping, when a secret is missing: the
+run was explicitly asked to submit. It also fails if the Store rejects the
+version, which is what happens when `package-version.txt` was not bumped,
+since the Store never accepts the same version twice.
+
+The first submission of an app cannot go through this path; it has to be
+done by hand in Partner Center (listing, age rating, capability
+justification). From the second one on, the workflow covers package
+updates. Store listing text is separate, see the import/export CSV flow.
+
 ## Sideload QA (do this before submitting)
 
 On a Windows machine, unzip the sideload artifact and run
