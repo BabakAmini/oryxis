@@ -301,10 +301,14 @@ impl Oryxis {
             }
             TabsMessage::PickLocalShell => {
                 self.show_new_tab_picker = false;
-                if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
-                    return self.local_shell_into_pane(tab_idx, target, axis);
-                }
-                // No split pending: open a local shell in a new tab.
+                // Both destinations (a pending split pane and a new tab)
+                // take the same route: the local-shell decision applies the
+                // user's curated list / "always open X" default and raises
+                // the shell picker when there is a real choice to make. The
+                // split target stays pending across that picker and is
+                // consumed by `open_local_shell_resolved` once a shell is
+                // actually chosen. Splitting used to jump straight to the
+                // OS default shell instead (issue #108).
                 return self.update(Message::Settings(SettingsMessage::OpenLocalShell));
             }
             TabsMessage::ShowTabJump => {

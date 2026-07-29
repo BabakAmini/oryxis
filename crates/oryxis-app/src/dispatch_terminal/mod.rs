@@ -259,6 +259,10 @@ impl Oryxis {
                         pane.broadcast_opt_out = false;
                     }
                 }
+                // A collapsed split has to re-anchor the tab on the pane
+                // that is left: the unsplit label comes from the TAB, which
+                // was named after the pane that just closed (issue #108).
+                tab.sync_label_to_sole_pane();
                 if let Some(log_id) = ended_log
                     && let Some(vault) = &self.vault
                 {
