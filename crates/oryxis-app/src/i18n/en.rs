@@ -226,7 +226,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hotkey_conflict_chord_removed" => "{action} lost that shortcut",
         "hotkey_scrollback_page_up" => "Scroll back one page",
         "hotkey_scrollback_page_down" => "Scroll forward one page",
-        "hotkey_terminal_copy_paste" => "Copy selection and paste",
+        "hotkey_terminal_copy_paste" => "Paste selection",
         "hotkey_show_new_tab_picker" => "Open new tab picker",
         "hotkey_show_tab_jump" => "Jump to tab",
         "hotkey_show_command_palette" => "Command palette",

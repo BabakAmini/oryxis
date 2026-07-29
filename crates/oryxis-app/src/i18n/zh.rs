@@ -208,7 +208,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_conflict_chord_removed" => "{action} 失去了该快捷键",
         "hotkey_scrollback_page_up" => "向上滚动一页",
         "hotkey_scrollback_page_down" => "向下滚动一页",
-        "hotkey_terminal_copy_paste" => "复制选区并粘贴",
+        "hotkey_terminal_copy_paste" => "粘贴选中文本",
         "hotkey_show_new_tab_picker" => "打开新标签页选择器",
         "hotkey_show_tab_jump" => "跳转到标签页",
         "hotkey_show_command_palette" => "命令面板",
