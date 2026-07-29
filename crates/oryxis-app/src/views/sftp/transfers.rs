@@ -88,35 +88,12 @@ pub(crate) fn transfer_progress_strip<'a>(
             (transfer.completed as f32 / transfer.total as f32).clamp(0.0, 1.0),
         )
     };
-    // Ratio-based progress bar: a filled portion + a remaining portion in
-    // a row so the `FillPortion` weights actually divide the track. (A lone
-    // FillPortion child fills 100% regardless of its weight, which made the
-    // bar look full even at 0%.)
-    let filled = (pct * 1000.0) as u16;
-    let remaining = 1000u16.saturating_sub(filled);
-    let bar = container(
-        row![
-            container(Space::new())
-                .width(Length::FillPortion(filled))
-                .height(Length::Fixed(4.0))
-                .style(|_| container::Style {
-                    background: Some(Background::Color(OryxisColors::t().accent)),
-                    border: Border { radius: Radius::from(2.0), ..Default::default() },
-                    ..Default::default()
-                }),
-            container(Space::new())
-                .width(Length::FillPortion(remaining))
-                .height(Length::Fixed(4.0)),
-        ]
-        .width(Length::Fill),
-    )
-    .width(Length::Fill)
-    .height(Length::Fixed(4.0))
-    .style(|_| container::Style {
-        background: Some(Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.05))),
-        border: Border { radius: Radius::from(2.0), ..Default::default() },
-        ..Default::default()
-    });
+    let bar = crate::widgets::progress_track(
+        pct,
+        4.0,
+        OryxisColors::t().accent,
+        Color::from_rgba(1.0, 1.0, 1.0, 0.05),
+    );
 
     let info = column![
         row![
