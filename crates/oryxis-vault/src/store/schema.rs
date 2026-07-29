@@ -221,6 +221,51 @@ impl VaultStore {
                 created_at      TEXT NOT NULL,
                 updated_at      TEXT NOT NULL
             );
+
+            -- Saved AI chat conversations, one row per tab conversation.
+            -- Local-only like session logs and command history: never
+            -- synced, never in the portable export.
+            --
+            -- `session_log_id` is an OPTIONAL correlation with the
+            -- recording of the same session, deliberately not a
+            -- dependency: session logging is opt-in per host, and a chat
+            -- must not silently go unsaved because recording happened to
+            -- be off. It also keeps the chat out of the `.cast` and
+            -- transcript exports, which carry terminal output only.
+            --
+            -- `connection_id` is NULL for a local shell (no saved host).
+            CREATE TABLE IF NOT EXISTS chat_conversations (
+                id             TEXT PRIMARY KEY,
+                connection_id  TEXT,
+                session_log_id TEXT,
+                label          TEXT NOT NULL,
+                provider       TEXT NOT NULL,
+                model          TEXT NOT NULL,
+                started_at     TEXT NOT NULL,
+                updated_at     TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_conversations_updated
+                ON chat_conversations(updated_at);
+
+            -- Turns of a saved conversation, append-only, ordered by the
+            -- monotonic rowid the way `session_log_chunks` is.
+            --
+            -- Both payloads are sealed with the session-log content key,
+            -- not stored in plaintext: a chat turn quotes terminal output
+            -- and command lines, which is exactly the material the session
+            -- recording treats as secret-bearing. The reasoning field is
+            -- deliberately NOT persisted: it is provider bookkeeping for a
+            -- live conversation, and saved chats are read-only.
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id              INTEGER PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                role            TEXT NOT NULL,
+                content_enc     BLOB NOT NULL,
+                tool_enc        BLOB,
+                created_at      TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_chat_messages_conv
+                ON chat_messages(conversation_id);
             ",
         )?;
 
