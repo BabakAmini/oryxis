@@ -3,15 +3,15 @@
 use std::sync::Arc;
 
 use iced::border::Radius;
-use iced::widget::{
-    button, canvas, column, container, row, scrollable, text, text_input, MouseArea, Space,
-};
 use iced::widget::button::Status as BtnStatus;
+use iced::widget::{
+    MouseArea, Space, button, canvas, column, container, row, scrollable, text, text_input,
+};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use oryxis_terminal::widget::TerminalView;
 
-use crate::app::{SettingsMessage, TerminalMessage, ZmodemMessage, AiMessage, Message, Oryxis};
+use crate::app::{AiMessage, Message, Oryxis, SettingsMessage, TerminalMessage, ZmodemMessage};
 use crate::i18n::t;
 use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
@@ -55,7 +55,8 @@ impl Oryxis {
             }
             return stack.into();
         }
-        let chat_visible = self.active_tab
+        let chat_visible = self
+            .active_tab
             .and_then(|idx| self.tabs.get(idx))
             .map(|tab| tab.chat_visible)
             .unwrap_or(false);
@@ -150,12 +151,22 @@ impl Oryxis {
                     term_with_toggle
                 }
             } else {
-                container(text(t("no_active_session")).size(14).color(OryxisColors::t().text_muted))
-                    .center(Length::Fill).into()
+                container(
+                    text(t("no_active_session"))
+                        .size(14)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .center(Length::Fill)
+                .into()
             }
         } else {
-            container(text(t("no_active_session")).size(14).color(OryxisColors::t().text_muted))
-                .center(Length::Fill).into()
+            container(
+                text(t("no_active_session"))
+                    .size(14)
+                    .color(OryxisColors::t().text_muted),
+            )
+            .center(Length::Fill)
+            .into()
         };
 
         let base = container(terminal_area)
@@ -182,8 +193,18 @@ impl Oryxis {
     /// progress, a bar (when the size is known) and a Cancel button.
     /// `None` when no transfer is active.
     fn zmodem_overlay(&self) -> Option<Element<'_, Message>> {
-        let pane = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active())?;
+        let pane = self
+            .active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t.active())?;
         let zm = pane.zmodem.as_ref()?;
+        // Only show the overlay card once a transfer has actually
+        // started (file_name is set by Progress::Started). Until
+        // then the diver is active but invisible — if lrzsz is
+        // missing the 2 s timeout will clean up without any UI flash.
+        if zm.file_name.is_none() {
+            return None;
+        }
         let pane_id = pane.id;
 
         let verb = match zm.direction {
@@ -206,7 +227,10 @@ impl Oryxis {
                 .color(OryxisColors::t().text_primary)
                 .into(),
             Space::new().width(Length::Fill).into(),
-            text(bytes_line).size(11).color(OryxisColors::t().text_muted).into(),
+            text(bytes_line)
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
         ])
         .align_y(iced::Alignment::Center);
 
@@ -215,25 +239,35 @@ impl Oryxis {
             let frac = (zm.transferred as f32 / total as f32).clamp(0.0, 1.0);
             body = body.push(iced::widget::progress_bar(0.0..=1.0, frac));
         }
-        let cancel = button(text(t("cancel")).size(11).color(OryxisColors::t().text_primary))
-            .on_press(Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)))
-            .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
-            .style(|_, status| {
-                let bg = match status {
-                    iced::widget::button::Status::Hovered
-                    | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
-                    _ => OryxisColors::t().bg_surface,
-                };
-                iced::widget::button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border {
-                        radius: Radius::from(6.0),
-                        color: OryxisColors::t().border,
-                        width: 1.0,
-                    },
-                    ..Default::default()
+        let cancel = button(
+            text(t("cancel"))
+                .size(11)
+                .color(OryxisColors::t().text_primary),
+        )
+        .on_press(Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)))
+        .padding(Padding {
+            top: 4.0,
+            right: 10.0,
+            bottom: 4.0,
+            left: 10.0,
+        })
+        .style(|_, status| {
+            let bg = match status {
+                iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => {
+                    OryxisColors::t().bg_hover
                 }
-            });
+                _ => OryxisColors::t().bg_surface,
+            };
+            iced::widget::button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }
+        });
         body = body.push(
             container(cancel)
                 .width(Length::Fill)
@@ -241,7 +275,12 @@ impl Oryxis {
         );
 
         let card = container(body)
-            .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
+            .padding(Padding {
+                top: 10.0,
+                right: 12.0,
+                bottom: 10.0,
+                left: 12.0,
+            })
             .style(|_| container::Style {
                 background: Some(Background::Color(Color {
                     a: 0.97,
@@ -279,9 +318,16 @@ impl Oryxis {
     pub(crate) fn toast_overlay(&self) -> Option<Element<'_, Message>> {
         let text_ = self.toast.as_ref()?;
         let chip = container(
-            text(text_.clone()).size(11).color(OryxisColors::t().text_primary),
+            text(text_.clone())
+                .size(11)
+                .color(OryxisColors::t().text_primary),
         )
-        .padding(Padding { top: 5.0, right: 12.0, bottom: 5.0, left: 12.0 })
+        .padding(Padding {
+            top: 5.0,
+            right: 12.0,
+            bottom: 5.0,
+            left: 12.0,
+        })
         .style(|_| container::Style {
             background: Some(Background::Color(Color {
                 a: 0.95,
@@ -337,6 +383,7 @@ impl Oryxis {
         use oryxis_terminal::widget::TerminalChordAction;
         let get = |a| self.hotkey_bindings.get(&a).cloned().unwrap_or_default();
         let copy = get(TerminalCopy);
+        let copy_paste = get(TerminalCopyPaste);
         let select_all = get(TerminalSelectAll);
         let page_up = get(ScrollbackPageUp);
         let page_down = get(ScrollbackPageDown);
@@ -350,7 +397,9 @@ impl Oryxis {
             // widget only runs with the PTY owning keys, so the gate is
             // unconditional here (no find-bar exemption to weigh).
             let live = |b: &crate::hotkeys::HotkeyBinding| !b.is_terminal_control_sequence();
-            if copy.match_event_where(key, mods, live).is_some() {
+            if copy_paste.match_event_where(key, mods, live).is_some() {
+                Some(TerminalChordAction::CopyPaste)
+            } else if copy.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::Copy)
             } else if select_all.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::SelectAll)
@@ -396,7 +445,9 @@ impl Oryxis {
             .with_word_delimiters(&self.setting_word_delimiters)
             .on_font_size_increase(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
             .on_font_size_decrease(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
-            .on_paste_request(Message::Terminal(TerminalMessage::TerminalPasteFromClipboard))
+            .on_paste_request(Message::Terminal(
+                TerminalMessage::TerminalPasteFromClipboard,
+            ))
             .on_terminal_input(|v| Message::Terminal(TerminalMessage::TerminalInput(v)))
             .on_link_opened(Message::Settings(SettingsMessage::TerminalLinkOpened));
         // The perf HUD's `net` row: link quality from the SSH session's
@@ -431,17 +482,18 @@ impl Oryxis {
         // this pane, so the widget stops emitting once HintMode::Once has
         // retired them (and never emits under Never).
         if self.setting_hint_mode.should_show(pane.mouse_hint_shown) {
-            term_view = term_view.on_mouse_capture_hint(|| Message::Terminal(TerminalMessage::TerminalMouseCaptureHint));
+            term_view = term_view.on_mouse_capture_hint(|| {
+                Message::Terminal(TerminalMessage::TerminalMouseCaptureHint)
+            });
         }
         if self.setting_hint_mode.should_show(pane.link_hint_shown) {
-            term_view = term_view.on_link_click_hint(|| Message::Terminal(TerminalMessage::TerminalLinkClickHint));
+            term_view = term_view
+                .on_link_click_hint(|| Message::Terminal(TerminalMessage::TerminalLinkClickHint));
         }
         // Wrap the canvas so the focused pane asks the OS to enable its IME.
         // The terminal is a canvas (not a text_input), so without this winit
         // keeps the IME disabled and CJK input can't be switched on.
-        let term_canvas = canvas(term_view)
-            .width(Length::Fill)
-            .height(Length::Fill);
+        let term_canvas = canvas(term_view).width(Length::Fill).height(Length::Fill);
         let host = crate::widgets::ime_host(
             term_canvas,
             is_focused,
@@ -515,7 +567,11 @@ impl Oryxis {
         let colors = OryxisColors::t();
         let (label, fg) = if link.allowed {
             let shown = if self.privacy_active_for_label(pane_label) {
-                crate::widgets::redact_for_display(&link.target, &self.privacy_terms(), self.privacy_classes())
+                crate::widgets::redact_for_display(
+                    &link.target,
+                    &self.privacy_terms(),
+                    self.privacy_classes(),
+                )
             } else {
                 link.target.clone()
             };
@@ -523,9 +579,18 @@ impl Oryxis {
         } else {
             // Attacker-controlled scheme, shown as-is but capped so a hostile
             // server can't blow up the chip; the target itself is withheld.
-            let scheme: String =
-                link.target.split(':').next().unwrap_or("").chars().take(16).collect();
-            (t("link_target_blocked").replace("{scheme}", &scheme), colors.warning)
+            let scheme: String = link
+                .target
+                .split(':')
+                .next()
+                .unwrap_or("")
+                .chars()
+                .take(16)
+                .collect();
+            (
+                t("link_target_blocked").replace("{scheme}", &scheme),
+                colors.warning,
+            )
         };
         container(
             text(label)
@@ -553,9 +618,17 @@ impl Oryxis {
     fn broadcast_chip<'a>(&self, pane: &'a crate::state::Pane) -> Element<'a, Message> {
         let muted = pane.broadcast_opt_out;
         let (glyph, color, tip) = if muted {
-            (iced_fonts::lucide::volume_x(), OryxisColors::t().text_muted, t("broadcast_pane_unmute"))
+            (
+                iced_fonts::lucide::volume_x(),
+                OryxisColors::t().text_muted,
+                t("broadcast_pane_unmute"),
+            )
         } else {
-            (iced_fonts::lucide::radio(), OryxisColors::t().warning, t("broadcast_pane_mute"))
+            (
+                iced_fonts::lucide::radio(),
+                OryxisColors::t().warning,
+                t("broadcast_pane_mute"),
+            )
         };
         let pane_id = pane.id;
         let btn = button(
@@ -564,7 +637,9 @@ impl Oryxis {
                 .center_y(Length::Fixed(22.0)),
         )
         .padding(0)
-        .on_press(Message::Terminal(TerminalMessage::TogglePaneBroadcastOptOut(pane_id)))
+        .on_press(Message::Terminal(
+            TerminalMessage::TogglePaneBroadcastOptOut(pane_id),
+        ))
         .style(move |_, status| {
             let bg = match status {
                 BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
@@ -613,7 +688,10 @@ impl Oryxis {
             input.into(),
             container(counter).center_y(Length::Fixed(28.0)).into(),
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::chevron_up(), Message::Terminal(TerminalMessage::TerminalSearchStep(false))),
+                chat_header_btn(
+                    iced_fonts::lucide::chevron_up(),
+                    Message::Terminal(TerminalMessage::TerminalSearchStep(false)),
+                ),
                 t("terminal_search_prev"),
             ),
             icon_tooltip(
@@ -624,7 +702,10 @@ impl Oryxis {
                 t("terminal_search_next"),
             ),
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::Terminal(TerminalMessage::TerminalSearchClose)),
+                chat_header_btn(
+                    iced_fonts::lucide::x(),
+                    Message::Terminal(TerminalMessage::TerminalSearchClose),
+                ),
                 t("terminal_search_close"),
             ),
         ])
@@ -644,7 +725,10 @@ impl Oryxis {
             .into()
     }
 
-    pub(crate) fn view_terminal_sidebar<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
+    pub(crate) fn view_terminal_sidebar<'a>(
+        &'a self,
+        tab: &'a TerminalTab,
+    ) -> Element<'a, Message> {
         use crate::state::TerminalSidebarTab as STab;
         // Fresh sidebar-row recording every frame, BEFORE any tab body
         // is built: each tab records its keyboard rows while rendering,
@@ -656,13 +740,23 @@ impl Oryxis {
         // their UI when off); otherwise the active tab effectively falls
         // back to Snippets. Mirrors `effective_sidebar_tab`.
         let files_available = self.sftp_enabled
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+            && tab
+                .active()
+                .session
+                .as_ref()
+                .and_then(|s| s.ssh())
+                .is_some();
         // Monitoring needs the feature enabled (Features & Plugins) AND
         // an SSH session (it reads /proc over an exec channel); the
         // per-host opt-in is handled inside the tab body, which offers
         // to enable it.
         let monitor_available = self.setting_host_monitoring
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+            && tab
+                .active()
+                .session
+                .as_ref()
+                .and_then(|s| s.ssh())
+                .is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
             || (self.terminal_sidebar_tab == STab::Files && !files_available)
             || (self.terminal_sidebar_tab == STab::Monitor && !monitor_available)
@@ -743,7 +837,10 @@ impl Oryxis {
             active,
             6.0,
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::Ai(AiMessage::ToggleChatSidebar)),
+                chat_header_btn(
+                    iced_fonts::lucide::x(),
+                    Message::Ai(AiMessage::ToggleChatSidebar),
+                ),
                 t("close"),
             ),
         ));
@@ -753,7 +850,12 @@ impl Oryxis {
                 .width(Length::Fill)
                 .align_y(iced::Alignment::Center),
         )
-        .padding(Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 8.0 })
+        .padding(Padding {
+            top: 8.0,
+            right: 8.0,
+            bottom: 8.0,
+            left: 8.0,
+        })
         .width(Length::Fill);
 
         let header_separator = container(Space::new().height(1))
@@ -799,22 +901,22 @@ impl Oryxis {
         // `view_terminal` / `toast_overlay`), not just this sidebar, so it
         // shows even when the chat panel is closed.
         let panel = container(panel_column)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_primary)),
-            ..Default::default()
-        });
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_primary)),
+                ..Default::default()
+            });
 
         // The 4 px drag handle sits on the INNER edge (the one facing the
         // terminal): the panel's left when the sidebar is docked right,
         // its right when docked left (issue #85).
-        let handle_and_panel: iced::widget::Row<'_, Message> =
-            if self.setting_terminal_sidebar_left {
-                row![panel, resize_handle]
-            } else {
-                row![resize_handle, panel]
-            };
+        let handle_and_panel: iced::widget::Row<'_, Message> = if self.setting_terminal_sidebar_left
+        {
+            row![panel, resize_handle]
+        } else {
+            row![resize_handle, panel]
+        };
         container(handle_and_panel.width(Length::Fill).height(Length::Fill))
             .width(Length::Fixed(self.chat_sidebar_width))
             .height(Length::Fill)
@@ -827,20 +929,34 @@ impl Oryxis {
     /// keyboard rows) when the Chat tab is the active one.
     fn chat_tab_body<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
         // ── Messages list ──
-        let mut messages_col = column![].spacing(8).padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 });
+        let mut messages_col = column![].spacing(8).padding(Padding {
+            top: 8.0,
+            right: 12.0,
+            bottom: 8.0,
+            left: 12.0,
+        });
 
         if tab.chat_history.is_empty() {
             messages_col = messages_col.push(
                 container(
                     column![
-                        iced_fonts::lucide::sparkles().size(24).color(OryxisColors::t().text_muted),
+                        iced_fonts::lucide::sparkles()
+                            .size(24)
+                            .color(OryxisColors::t().text_muted),
                         Space::new().height(8),
-                        text(t("ask_ai_session")).size(12).color(OryxisColors::t().text_muted),
+                        text(t("ask_ai_session"))
+                            .size(12)
+                            .color(OryxisColors::t().text_muted),
                     ]
                     .align_x(iced::Alignment::Center),
                 )
                 .center_x(Length::Fill)
-                .padding(Padding { top: 40.0, right: 0.0, bottom: 0.0, left: 0.0 }),
+                .padding(Padding {
+                    top: 40.0,
+                    right: 0.0,
+                    bottom: 0.0,
+                    left: 0.0,
+                }),
             );
         } else {
             // Markdown settings are identical for every assistant
@@ -854,9 +970,7 @@ impl Oryxis {
                 // bubble below) or a stream that ended before any text
                 // arrived (e.g. straight to a tool call). Either way,
                 // an empty padded box would just look like a glitch.
-                if msg.role == crate::state::ChatRole::Assistant
-                    && msg.content.is_empty()
-                {
+                if msg.role == crate::state::ChatRole::Assistant && msg.content.is_empty() {
                     continue;
                 }
                 let bubble = self.view_chat_message(msg, md_settings);
@@ -875,12 +989,22 @@ impl Oryxis {
         if tab.chat_loading && !actively_streaming {
             messages_col = messages_col.push(
                 container(
-                    text(t("thinking")).size(12).color(OryxisColors::t().text_muted),
+                    text(t("thinking"))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
                 )
-                .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+                .padding(Padding {
+                    top: 4.0,
+                    right: 8.0,
+                    bottom: 4.0,
+                    left: 8.0,
+                })
                 .style(|_| container::Style {
                     background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    border: Border {
+                        radius: Radius::from(8.0),
+                        ..Default::default()
+                    },
                     ..Default::default()
                 }),
             );
@@ -888,7 +1012,9 @@ impl Oryxis {
 
         let messages_scroll = scrollable(messages_col)
             .id(iced::widget::Id::new("chat-scroll"))
-            .on_scroll(|viewport| Message::Ai(AiMessage::ChatScrolled(viewport.relative_offset().y)))
+            .on_scroll(|viewport| {
+                Message::Ai(AiMessage::ChatScrolled(viewport.relative_offset().y))
+            })
             .width(Length::Fill)
             .height(Length::Fill);
 
@@ -913,7 +1039,7 @@ impl Oryxis {
             .padding(10)
             .height(Length::Shrink)
             .key_binding(|key_press| {
-                use iced::keyboard::{key::Named, Key};
+                use iced::keyboard::{Key, key::Named};
                 use iced::widget::text_editor::{Binding, KeyPress};
                 let KeyPress { key, modifiers, .. } = &key_press;
                 if matches!(key, Key::Named(Named::Enter)) && !modifiers.shift() {
@@ -961,7 +1087,12 @@ impl Oryxis {
                 .width(Length::Fill)
                 .align_y(iced::Alignment::Center),
             )
-            .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
+            .padding(Padding {
+                top: 6.0,
+                right: 12.0,
+                bottom: 0.0,
+                left: 12.0,
+            })
             .width(Length::Fill)
             .align_x(crate::widgets::dir_align_x())
         };
@@ -974,10 +1105,17 @@ impl Oryxis {
                 crate::keynav::SidebarRow::input(iced::widget::Id::new("chat-input")),
                 crate::state::TerminalSidebarTab::Chat,
                 crate::widgets::INPUT_RADIUS,
-                container(chat_editor).height(Length::Shrink.max(150.0)).into(),
+                container(chat_editor)
+                    .height(Length::Shrink.max(150.0))
+                    .into(),
             ),
         )
-        .padding(Padding { top: 8.0, right: 12.0, bottom: 12.0, left: 12.0 })
+        .padding(Padding {
+            top: 8.0,
+            right: 12.0,
+            bottom: 12.0,
+            left: 12.0,
+        })
         .width(Length::Fill);
 
         // Persistent reminder that the assistant runs commands on the
@@ -987,7 +1125,12 @@ impl Oryxis {
                 .size(10)
                 .color(OryxisColors::t().text_muted),
         )
-        .padding(Padding { top: 6.0, right: 12.0, bottom: 0.0, left: 12.0 })
+        .padding(Padding {
+            top: 6.0,
+            right: 12.0,
+            bottom: 0.0,
+            left: 12.0,
+        })
         .width(Length::Fill)
         .align_x(crate::widgets::dir_align_x());
 
@@ -1012,7 +1155,12 @@ impl Oryxis {
                 .spacing(6)
                 .align_y(iced::Alignment::Center),
             )
-            .padding(Padding { top: 5.0, right: 14.0, bottom: 5.0, left: 14.0 })
+            .padding(Padding {
+                top: 5.0,
+                right: 14.0,
+                bottom: 5.0,
+                left: 14.0,
+            })
             .on_press(Message::Ai(AiMessage::ChatStop))
             .style(|_, status| {
                 let c = OryxisColors::t();
@@ -1030,7 +1178,10 @@ impl Oryxis {
                     },
                     // A soft shadow lifts the pill off the messages behind it.
                     shadow: iced::Shadow {
-                        color: Color { a: 0.25, ..Color::BLACK },
+                        color: Color {
+                            a: 0.25,
+                            ..Color::BLACK
+                        },
                         offset: iced::Vector::new(0.0, 2.0),
                         blur_radius: 8.0,
                     },
@@ -1044,7 +1195,12 @@ impl Oryxis {
                 .height(Length::Fill)
                 .align_x(iced::alignment::Horizontal::Center)
                 .align_y(iced::alignment::Vertical::Bottom)
-                .padding(Padding { top: 0.0, right: 0.0, bottom: 10.0, left: 0.0 })
+                .padding(Padding {
+                    top: 0.0,
+                    right: 0.0,
+                    bottom: 10.0,
+                    left: 0.0,
+                })
                 .into()
         });
 
@@ -1058,10 +1214,16 @@ impl Oryxis {
             None => messages_scroll.into(),
         };
 
-        column![messages_area, input_separator, mode_row, chat_disclaimer, input_row]
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        column![
+            messages_area,
+            input_separator,
+            mode_row,
+            chat_disclaimer,
+            input_row
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
     }
 }
 
@@ -1073,7 +1235,11 @@ fn sidebar_tab_btn<'a>(
     msg: Message,
     tip: &'a str,
 ) -> Element<'a, Message> {
-    let color = if active { OryxisColors::t().accent } else { OryxisColors::t().text_muted };
+    let color = if active {
+        OryxisColors::t().accent
+    } else {
+        OryxisColors::t().text_muted
+    };
     let btn = button(
         container(icon.size(15).color(color))
             .center_x(Length::Fixed(34.0))
@@ -1085,7 +1251,10 @@ fn sidebar_tab_btn<'a>(
         // Selected tab keeps its accent tint; an unselected tab fills with
         // bg_hover on hover/press for clear pointer feedback.
         let bg = if active {
-            Color { a: 0.15, ..OryxisColors::t().accent }
+            Color {
+                a: 0.15,
+                ..OryxisColors::t().accent
+            }
         } else {
             match status {
                 BtnStatus::Hovered | BtnStatus::Pressed => OryxisColors::t().bg_hover,
@@ -1094,7 +1263,10 @@ fn sidebar_tab_btn<'a>(
         };
         button::Style {
             background: Some(Background::Color(bg)),
-            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            border: Border {
+                radius: Radius::from(6.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     });
@@ -1107,7 +1279,12 @@ pub(crate) fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Ele
     iced::widget::tooltip(
         inner,
         container(text(tip).size(11).color(OryxisColors::t().text_primary))
-            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .padding(Padding {
+                top: 4.0,
+                right: 8.0,
+                bottom: 4.0,
+                left: 8.0,
+            })
             .style(|_| container::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border {
@@ -1121,7 +1298,6 @@ pub(crate) fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Ele
     )
     .into()
 }
-
 
 /// Compact human-readable byte count for the transfer overlay
 /// (1 decimal past KB; integers stay integers).
@@ -1160,7 +1336,10 @@ pub(crate) fn chat_header_btn<'a>(
         };
         button::Style {
             background: Some(Background::Color(bg)),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            border: Border {
+                radius: Radius::from(4.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     })

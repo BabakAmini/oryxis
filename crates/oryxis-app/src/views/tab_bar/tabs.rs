@@ -34,7 +34,10 @@ pub(crate) fn area_tab<'a>(
         };
         button::Style {
             background: Some(hover_bg),
-            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            border: Border {
+                radius: Radius::from(6.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     };
@@ -73,7 +76,12 @@ pub(crate) fn area_tab<'a>(
                 .align_y(iced::Alignment::Center),
             )
             .center_y(Length::Fixed(TAB_HEIGHT))
-            .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 6.0 }),
+            .padding(Padding {
+                top: 0.0,
+                right: 10.0,
+                bottom: 0.0,
+                left: 6.0,
+            }),
         )
         .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
         .style(style)
@@ -135,14 +143,21 @@ pub(crate) fn sftp_session_tab<'a>(
     // Badge: always the folder glyph (so an SFTP tab stays recognizable as
     // SFTP, not mistaken for a terminal), tinted with the mounted host's color
     // (custom or OS-brand) so it still "inherits" the host's hue.
-    let badge = container(iced_fonts::lucide::folder_tree().size(12).color(Color::WHITE))
-        .center_x(Length::Fixed(TAB_ICON_SLOT))
-        .center_y(Length::Fixed(TAB_ICON_SLOT))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(badge_accent)),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
+    let badge = container(
+        iced_fonts::lucide::folder_tree()
+            .size(12)
+            .color(Color::WHITE),
+    )
+    .center_x(Length::Fixed(TAB_ICON_SLOT))
+    .center_y(Length::Fixed(TAB_ICON_SLOT))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(badge_accent)),
+        border: Border {
+            radius: Radius::from(4.0),
             ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
     // Always render the X inside the tab fill (no separate hover state).
     let show_close = true;
     let label_width = (width - TAB_ICON_SLOT - TAB_ICON_SLOT - 12.0).max(0.0);
@@ -157,13 +172,11 @@ pub(crate) fn sftp_session_tab<'a>(
     // tab fill. Reserves its slot even when hidden so the label doesn't jump.
     let trailing: Element<'_, Message> = if show_close {
         MouseArea::new(
-            container(
-                iced_fonts::lucide::x().size(11).color(if is_active {
-                    active_fg
-                } else {
-                    OryxisColors::t().text_secondary
-                }),
-            )
+            container(iced_fonts::lucide::x().size(11).color(if is_active {
+                active_fg
+            } else {
+                OryxisColors::t().text_secondary
+            }))
             .center_x(Length::Fixed(TAB_ICON_SLOT))
             .center_y(Length::Fixed(TAB_ICON_SLOT))
             .style(move |_| container::Style {
@@ -172,14 +185,20 @@ pub(crate) fn sftp_session_tab<'a>(
                 } else {
                     OryxisColors::t().bg_hover
                 })),
-                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                border: Border {
+                    radius: Radius::from(4.0),
+                    ..Default::default()
+                },
                 ..Default::default()
             }),
         )
         .on_press(Message::Sftp(SftpMessage::CloseSftpTab(idx)))
         .into()
     } else {
-        Space::new().width(TAB_ICON_SLOT).height(TAB_ICON_SLOT).into()
+        Space::new()
+            .width(TAB_ICON_SLOT)
+            .height(TAB_ICON_SLOT)
+            .into()
     };
     let inner_row = crate::widgets::dir_row(vec![
         badge.into(),
@@ -192,7 +211,12 @@ pub(crate) fn sftp_session_tab<'a>(
     let tab_btn = button(
         container(inner_row)
             .center_y(Length::Fixed(TAB_HEIGHT))
-            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 6.0 }),
+            .padding(Padding {
+                top: 0.0,
+                right: 4.0,
+                bottom: 0.0,
+                left: 6.0,
+            }),
     )
     .width(Length::Fixed(width))
     .on_press(Message::Sftp(SftpMessage::SelectSftpTab(idx)))
@@ -204,11 +228,22 @@ pub(crate) fn sftp_session_tab<'a>(
             _ => bg,
         };
         let border = if pinned {
-            Border { radius: Radius::from(6.0), color: effective_accent, width: 1.5 }
+            Border {
+                radius: Radius::from(6.0),
+                color: effective_accent,
+                width: 1.5,
+            }
         } else {
-            Border { radius: Radius::from(6.0), ..Default::default() }
+            Border {
+                radius: Radius::from(6.0),
+                ..Default::default()
+            }
         };
-        button::Style { background: Some(hover_bg), border, ..Default::default() }
+        button::Style {
+            background: Some(hover_bg),
+            border,
+            ..Default::default()
+        }
     });
     MouseArea::new(tab_btn)
         .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
@@ -220,17 +255,30 @@ pub(crate) fn sftp_session_tab<'a>(
 /// Compact (Chrome-style) pinned SFTP tab: icon-only folder chip at a fixed
 /// width. Select on click, right-click opens the context menu. Mirrors
 /// `pinned_tab_chip` for the SFTP side.
-pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Color, host_accent: Option<Color>, solid_fill: bool) -> Element<'a, Message> {
+pub(crate) fn sftp_pinned_chip<'a>(
+    idx: usize,
+    is_active: bool,
+    badge_accent: Color,
+    host_accent: Option<Color>,
+    solid_fill: bool,
+) -> Element<'a, Message> {
     // Folder glyph (SFTP identity) tinted with the host brand, ungated so
     // the identity survives `tab_accent_color = "app"`.
-    let badge = container(iced_fonts::lucide::folder_tree().size(12).color(Color::WHITE))
-        .center_x(Length::Fixed(TAB_ICON_SLOT))
-        .center_y(Length::Fixed(TAB_ICON_SLOT))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(badge_accent)),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
+    let badge = container(
+        iced_fonts::lucide::folder_tree()
+            .size(12)
+            .color(Color::WHITE),
+    )
+    .center_x(Length::Fixed(TAB_ICON_SLOT))
+    .center_y(Length::Fixed(TAB_ICON_SLOT))
+    .style(move |_| container::Style {
+        background: Some(Background::Color(badge_accent)),
+        border: Border {
+            radius: Radius::from(4.0),
             ..Default::default()
-        });
+        },
+        ..Default::default()
+    });
     // Contrast-validated (issue #79) so a black brand colour still
     // produces a visible "lit from above" active wash on dark themes.
     let wash_accent = host_accent.unwrap_or_else(|| OryxisColors::t().accent);
@@ -261,7 +309,10 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
         };
         button::Style {
             background: Some(hover_bg),
-            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            border: Border {
+                radius: Radius::from(6.0),
+                ..Default::default()
+            },
             ..Default::default()
         }
     });
@@ -284,7 +335,7 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
 /// chips are a list, so the rule stays horizontal and lands under each
 /// one, where it reads as the list separator it visually is.
 fn inactive_edge_line<'a>(width: f32, color: Color) -> Element<'a, Message> {
-    use crate::views::tab_bar::{tab_bar_pos, TabBarPos};
+    use crate::views::tab_bar::{TabBarPos, tab_bar_pos};
     const T: f32 = 2.0;
     let rule = |w: Length, h: Length| -> Element<'a, Message> {
         container(Space::new())
@@ -523,13 +574,22 @@ pub(crate) fn session_tab<'a>(
                 OryxisColors::t().bg_hover
             };
             let bg = match status {
-                BtnStatus::Hovered => Color { a: 0.18, ..OryxisColors::t().error },
-                BtnStatus::Pressed => Color { a: 0.34, ..OryxisColors::t().error },
+                BtnStatus::Hovered => Color {
+                    a: 0.18,
+                    ..OryxisColors::t().error
+                },
+                BtnStatus::Pressed => Color {
+                    a: 0.34,
+                    ..OryxisColors::t().error
+                },
                 _ => rest,
             };
             button::Style {
                 background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                border: Border {
+                    radius: Radius::from(4.0),
+                    ..Default::default()
+                },
                 ..Default::default()
             }
         })
@@ -556,8 +616,7 @@ pub(crate) fn session_tab<'a>(
 
     // Hybrid mode glyph: shows the tab's current surface, clicking
     // flips it (shared with the pinned chip form).
-    let mode_chip: Option<Element<'_, Message>> =
-        files_mode.map(|fm| tab_mode_chip(idx, fm, fg));
+    let mode_chip: Option<Element<'_, Message>> = files_mode.map(|fm| tab_mode_chip(idx, fm, fg));
 
     let inner_row: Element<'_, Message> = {
         let mut items: Vec<Element<'_, Message>> = vec![leading_slot];
@@ -579,7 +638,10 @@ pub(crate) fn session_tab<'a>(
             let trailing_slot: Element<'_, Message> = if show_close {
                 close_btn()
             } else {
-                Space::new().width(TAB_ICON_SLOT).height(TAB_ICON_SLOT).into()
+                Space::new()
+                    .width(TAB_ICON_SLOT)
+                    .height(TAB_ICON_SLOT)
+                    .into()
             };
             items.push(Space::new().width(4).into());
             items.push(trailing_slot);
@@ -603,7 +665,12 @@ pub(crate) fn session_tab<'a>(
     let tab_btn = button(
         container(inner_row)
             .center_y(Length::Fixed(TAB_HEIGHT))
-            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 2.0 }),
+            .padding(Padding {
+                top: 0.0,
+                right: 4.0,
+                bottom: 0.0,
+                left: 2.0,
+            }),
     )
     .width(Length::Fixed(width))
     .on_press(Message::Tabs(TabsMessage::SelectTab(idx)))
@@ -617,11 +684,22 @@ pub(crate) fn session_tab<'a>(
         // Full-style pinned tabs get a distinct accent outline; an
         // inactive chip under the Border style gets a subtle neutral one.
         let border = if pinned {
-            Border { radius: Radius::from(6.0), color: effective_accent, width: 1.5 }
+            Border {
+                radius: Radius::from(6.0),
+                color: effective_accent,
+                width: 1.5,
+            }
         } else if inactive_border {
-            Border { radius: Radius::from(6.0), color: OryxisColors::t().border, width: 1.0 }
+            Border {
+                radius: Radius::from(6.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            }
         } else {
-            Border { radius: Radius::from(6.0), ..Default::default() }
+            Border {
+                radius: Radius::from(6.0),
+                ..Default::default()
+            }
         };
         button::Style {
             background: Some(hover_bg),
@@ -636,9 +714,9 @@ pub(crate) fn session_tab<'a>(
     let tab_el: Element<'_, Message> = match progress {
         Some(p) if p.value > 0 => {
             let color = match p.state {
-                2 => OryxisColors::t().error,         // error
+                2 => OryxisColors::t().error,           // error
                 4 => Color::from_rgb(0.95, 0.66, 0.13), // warning (amber)
-                _ => effective_accent,                // normal / indeterminate
+                _ => effective_accent,                  // normal / indeterminate
             };
             let bar = iced::widget::canvas(TabProgressBorder {
                 fraction: p.value as f32 / 100.0,
@@ -697,8 +775,8 @@ impl iced::widget::canvas::Program<Message, iced::Theme> for TabProgressBorder {
         bounds: iced::Rectangle,
         _cursor: iced::mouse::Cursor,
     ) -> Vec<iced::widget::canvas::Geometry> {
-        use iced::widget::canvas::{stroke, Frame, Path, Stroke};
         use iced::Point;
+        use iced::widget::canvas::{Frame, Path, Stroke, stroke};
         use std::f32::consts::FRAC_PI_2;
 
         let mut frame = Frame::new(renderer, bounds.size());
@@ -826,7 +904,12 @@ pub(crate) fn tab_mode_chip<'a>(idx: usize, fm: bool, fg: Color) -> Element<'a, 
     iced::widget::tooltip(
         chip,
         container(text(tip).size(11).color(OryxisColors::t().text_primary))
-            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .padding(Padding {
+                top: 4.0,
+                right: 8.0,
+                bottom: 4.0,
+                left: 8.0,
+            })
             .style(|_| container::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),
                 border: Border {
@@ -861,16 +944,14 @@ fn corner_dot<'a>(
     ring: f32,
     y: iced::alignment::Vertical,
 ) -> Element<'a, Message> {
-    let disc = container(Space::new().width(size).height(size)).style(move |_| {
-        container::Style {
-            background: Some(Background::Color(color)),
-            border: Border {
-                radius: Radius::from(size),
-                color: OryxisColors::t().bg_sidebar,
-                width: ring,
-            },
-            ..Default::default()
-        }
+    let disc = container(Space::new().width(size).height(size)).style(move |_| container::Style {
+        background: Some(Background::Color(color)),
+        border: Border {
+            radius: Radius::from(size),
+            color: OryxisColors::t().bg_sidebar,
+            width: ring,
+        },
+        ..Default::default()
     });
     container(disc)
         .width(Length::Fill)
@@ -911,12 +992,21 @@ pub(crate) fn pinned_tab_chip<'a>(
     );
     let fallback = OryxisColors::t().accent;
     let (glyph, badge_color) = if let Some(name) = custom_icon {
-        (crate::os_icon::custom_icon_glyph(name), custom_color.unwrap_or(fallback))
+        (
+            crate::os_icon::custom_icon_glyph(name),
+            custom_color.unwrap_or(fallback),
+        )
     } else {
         crate::os_icon::resolve_icon(detected_os, fallback)
     };
     let glyph_el: Element<'_, Message> = glyph.view(13.0, Color::WHITE);
-    let base = crate::widgets::host_icon(host_icon_style, badge_color, "", Some(glyph_el), TAB_ICON_SLOT);
+    let base = crate::widgets::host_icon(
+        host_icon_style,
+        badge_color,
+        "",
+        Some(glyph_el),
+        TAB_ICON_SLOT,
+    );
     let badge: Element<'_, Message> = if status_dot.is_some() || attention_dot.is_some() {
         let mut stack = iced::widget::Stack::new().push(
             container(base)
@@ -942,7 +1032,11 @@ pub(crate) fn pinned_tab_chip<'a>(
     let inner: Element<'_, Message> = match files_mode {
         Some(fm) => {
             let fg = if is_active {
-                if accent_text { accent } else { OryxisColors::t().text_primary }
+                if accent_text {
+                    accent
+                } else {
+                    OryxisColors::t().text_primary
+                }
             } else {
                 OryxisColors::t().text_muted
             };
@@ -974,8 +1068,15 @@ pub(crate) fn pinned_tab_chip<'a>(
             BtnStatus::Hovered => Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.06)),
             _ => Background::Color(Color::TRANSPARENT),
         };
-        let border = Border { radius: Radius::from(6.0), ..Default::default() };
-        button::Style { background: Some(bg), border, ..Default::default() }
+        let border = Border {
+            radius: Radius::from(6.0),
+            ..Default::default()
+        };
+        button::Style {
+            background: Some(bg),
+            border,
+            ..Default::default()
+        }
     });
     MouseArea::new(btn)
         .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))

@@ -30,8 +30,7 @@ pub static AUTO_PASSWORD: OnceLock<String> = OnceLock::new();
 /// mutex. Dispatchers branch on this every TrayPoll tick to decide
 /// whether to read the IPC registry + render the unified Windows
 /// section (primary) or just publish their own state row (child).
-pub static APP_IS_PRIMARY: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(true);
+pub static APP_IS_PRIMARY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
 use crate::state::{
     ConnectionForm, ConnectionProgress, OverlayState, SettingsSection, TerminalTab, View,
@@ -40,7 +39,14 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
+pub use crate::messages::{
+    AgentMessage, AiMessage, CloudMessage, CommandHistoryMessage, EditorMessage, HistoryMessage,
+    KeysMessage, KnownHostMessage, McpMessage, Message, MonitorMessage, NavigationMessage,
+    OnboardingMessage, PlayerMessage, PluginMessage, PortForwardMessage, ProxyIdentityMessage,
+    RemoteDesktopMessage, SessionGroupMessage, SettingsMessage, SftpMessage, ShareMessage,
+    SidebarFilesMessage, SnippetMessage, SshMessage, SyncMessage, TabsMessage, TerminalMessage,
+    TrayMessage, UpdateMessage, VaultMessage, ZmodemMessage,
+};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
@@ -71,7 +77,9 @@ pub(crate) const SSM_TAB_PREFIX: &str = "SSM \u{00b7} ";
 /// resolve, cosmic-text falls back gracefully to the system default
 /// monospace.
 const TERMINAL_FONT_FALLBACK: &[&str] = &[
+    "JetBrainsMono Nerd Font",
     "SauceCodePro Nerd Font",
+    "CaskaydiaCove Nerd Font",
     "JetBrains Mono",
     "Fira Code",
     "Fira Mono",
@@ -113,8 +121,7 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
 
-        let mut names: std::collections::BTreeSet<String> =
-            std::collections::BTreeSet::new();
+        let mut names: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for face in db.faces() {
             if !face.monospaced {
                 continue;
@@ -130,14 +137,21 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
         }
 
         if names.is_empty() {
-            return TERMINAL_FONT_FALLBACK.iter().map(|s| s.to_string()).collect();
+            return TERMINAL_FONT_FALLBACK
+                .iter()
+                .map(|s| s.to_string())
+                .collect();
         }
 
         // Prepend the bundled family so it's always picker entry #1
         // regardless of what the system scan returned. cosmic-text
         // resolves it by family name, fontdb has it registered via
         // `application.font(include_bytes!(...))` in main.rs.
-        let bundled: &[&str] = &["SauceCodePro Nerd Font"];
+        let bundled: &[&str] = &[
+            "JetBrainsMono Nerd Font",
+            "SauceCodePro Nerd Font",
+            "CaskaydiaCove Nerd Font",
+        ];
         let mut out: Vec<String> = Vec::with_capacity(names.len() + bundled.len());
         for b in bundled {
             out.push((*b).to_string());
@@ -182,7 +196,7 @@ pub struct Oryxis {
 
     // UI state
     pub(crate) active_view: View,
-    pub(crate) active_group: Option<Uuid>,  // None = root, Some(id) = inside folder
+    pub(crate) active_group: Option<Uuid>, // None = root, Some(id) = inside folder
     pub(crate) host_search: String,
     /// When set, the dashboard grid hides every host / group whose
     /// cloud origin doesn't match this profile id. Activated by
@@ -203,8 +217,11 @@ pub struct Oryxis {
     /// than open a new tab: `(tab_idx, pane_to_split, axis)`. The picker's
     /// selection (host or local shell) lands in a new pane next to the
     /// target instead of a new tab. `None` = picker opens new tabs.
-    pub(crate) pending_pane_split:
-        Option<(usize, iced::widget::pane_grid::Pane, iced::widget::pane_grid::Axis)>,
+    pub(crate) pending_pane_split: Option<(
+        usize,
+        iced::widget::pane_grid::Pane,
+        iced::widget::pane_grid::Axis,
+    )>,
     /// True while the cursor is over the `+` split popover itself. Lets the
     /// hover bridge keep the menu open when moving from the `+` button into
     /// the menu, and close it shortly after the cursor leaves both.
@@ -411,6 +428,10 @@ pub struct Oryxis {
     /// Multi-line clipboard text parked by the careful-paste guard,
     /// waiting for the user to confirm or cancel the paste.
     pub(crate) pending_paste: Option<String>,
+    /// Files dropped onto the terminal canvas, buffered so a multi-file
+    /// drag-and-drop gesture becomes one ZMODEM upload session. Flushed
+    /// by `TerminalDropFlush` after a short debounce.
+    pub(crate) pending_terminal_drops: Vec<std::path::PathBuf>,
     /// Manual host-group editor side panel (label + icon + color). Open
     /// when `group_edit_visible`; `group_edit_id` is the group being
     /// edited. `group_edit_icon` / `group_edit_color` are empty strings
@@ -544,8 +565,7 @@ pub struct Oryxis {
     /// normal dispatch.
     /// Which action, and which chord of its list, the Shortcuts editor
     /// is capturing for. `None` when no capture is live.
-    pub(crate) editing_hotkey:
-        Option<(crate::hotkeys::HotkeyAction, crate::hotkeys::HotkeySlot)>,
+    pub(crate) editing_hotkey: Option<(crate::hotkeys::HotkeyAction, crate::hotkeys::HotkeySlot)>,
 
     // Keys
     pub(crate) keys: Vec<SshKey>,
@@ -677,8 +697,7 @@ pub struct Oryxis {
     /// instead of editing 10 hosts after the fact. Stored at the
     /// `Oryxis` level (not on the `OverlayState`) so the choice
     /// survives discovery refreshes.
-    pub(crate) cloud_discover_default_transport:
-        oryxis_core::models::cloud::TransportKind,
+    pub(crate) cloud_discover_default_transport: oryxis_core::models::cloud::TransportKind,
     /// Target group name for the next import. Empty string = no
     /// parent (drop at root). Otherwise the import flow finds a group
     /// with this label or creates it on the spot, so the user can
@@ -786,8 +805,7 @@ pub struct Oryxis {
         Vec<oryxis_core::models::custom_terminal_theme::CustomTerminalTheme>,
     /// User-defined chrome (UI) themes, shown in Interface alongside the
     /// built-in app themes and resolved by name.
-    pub(crate) custom_ui_themes:
-        Vec<oryxis_core::models::custom_ui_theme::CustomUiTheme>,
+    pub(crate) custom_ui_themes: Vec<oryxis_core::models::custom_ui_theme::CustomUiTheme>,
     /// Open custom-theme editor modal. `None` = closed.
     pub(crate) theme_editor: Option<crate::state::ThemeEditorForm>,
     /// Hovered custom terminal theme card (index into
@@ -883,8 +901,7 @@ pub struct Oryxis {
     pub(crate) snippet_error: Option<String>,
 
     // Port forwards (standalone entity, independent of any terminal)
-    pub(crate) port_forward_rules:
-        Vec<oryxis_core::models::port_forward_rule::PortForwardRule>,
+    pub(crate) port_forward_rules: Vec<oryxis_core::models::port_forward_rule::PortForwardRule>,
     /// Runtime-only registry of live forwards, keyed by rule id. Not
     /// persisted, the on/off state lives only here. Dropping the
     /// `ForwardSession` cancels its tasks.
@@ -897,10 +914,8 @@ pub struct Oryxis {
     /// entry (dropping the old `ForwardSession` cancels it), and vault
     /// lock / app close clears the map. The generation lets a stale
     /// self-close from a superseded tunnel skip the current entry.
-    pub(crate) remote_desktop_forwards: std::collections::HashMap<
-        Uuid,
-        (u64, std::sync::Arc<oryxis_ssh::ForwardSession>),
-    >,
+    pub(crate) remote_desktop_forwards:
+        std::collections::HashMap<Uuid, (u64, std::sync::Arc<oryxis_ssh::ForwardSession>)>,
     /// Monotonic launch counter feeding the generation in
     /// `remote_desktop_forwards`; bumped once per Open.
     pub(crate) remote_desktop_seq: u64,
@@ -1476,7 +1491,6 @@ pub struct Oryxis {
     // AI Chat settings
     pub(crate) ai: crate::state::AiState,
 
-
     /// Transient bottom-of-chat status chip, e.g. the "Copied to
     /// clipboard" feedback after a Copy button click. `Some(text)` →
     /// render the chip. Auto-dismissal is deadline-driven: every setter
@@ -1643,7 +1657,6 @@ pub struct Oryxis {
     pub(crate) show_ssh_import_dialog: bool,
 }
 
-
 // ---------------------------------------------------------------------------
 // Application
 // ---------------------------------------------------------------------------
@@ -1715,7 +1728,11 @@ impl Oryxis {
                     | View::PortForwarding
                     | View::History
             );
-        if horizontal_subnav { BASE_Y + SUBNAV_HEIGHT } else { BASE_Y }
+        if horizontal_subnav {
+            BASE_Y + SUBNAV_HEIGHT
+        } else {
+            BASE_Y
+        }
     }
 
     /// Anchor a toolbar dropdown to its trigger button's last-drawn
@@ -1827,8 +1844,6 @@ impl Oryxis {
             },
         )
     }
-
-
 }
 
 // `update`, `boot`, `subscription`, `view`, and the connect / SFTP

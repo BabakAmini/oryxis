@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec};
 
-use crate::app::{TerminalMessage, ZmodemMessage, Message, Oryxis};
+use crate::app::{Message, Oryxis, TerminalMessage, ZmodemMessage};
 use crate::state::{TerminalTransport, ZmodemPane};
 
 impl Oryxis {
@@ -49,9 +49,8 @@ impl Oryxis {
     /// raw wire); Telnet needs both halves of the raw contract, or a
     /// non-UTF-8 host's charset decoder corrupts every inbound frame.
     pub(crate) fn set_zmodem_binary_inbound(&self, pane_id: Uuid, on: bool) {
-        if let Some(TerminalTransport::Telnet(t)) = self
-            .pane_by_id(pane_id)
-            .and_then(|p| p.session.as_ref())
+        if let Some(TerminalTransport::Telnet(t)) =
+            self.pane_by_id(pane_id).and_then(|p| p.session.as_ref())
         {
             t.set_binary_inbound(on);
         }
@@ -161,10 +160,7 @@ impl Oryxis {
                         // one ZMODEM session, in order.
                         match rfd::AsyncFileDialog::new().pick_files().await {
                             Some(handles) if !handles.is_empty() => Some(TransferSpec::Upload {
-                                sources: handles
-                                    .iter()
-                                    .map(|h| h.path().to_path_buf())
-                                    .collect(),
+                                sources: handles.iter().map(|h| h.path().to_path_buf()).collect(),
                                 streaming_window,
                             }),
                             _ => {
@@ -182,18 +178,153 @@ impl Oryxis {
                         // when done, closing `progress_rx` below.
                         tokio::spawn(oryxis_zmodem::run(direction, spec, Vec::new(), io));
                         while let Some(p) = progress_rx.recv().await {
-                            if out.send(Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, p))).await.is_err() {
+                            if out
+                                .send(Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, p)))
+                                .await
+                                .is_err()
+                            {
                                 break;
                             }
                         }
                     }
                     None => {
-                        let _ = out.send(Message::Zmodem(ZmodemMessage::ZmodemProgress(pane_id, Progress::Aborted))).await;
+                        let _ = out
+                            .send(Message::Zmodem(ZmodemMessage::ZmodemProgress(
+                                pane_id,
+                                Progress::Aborted,
+                            )))
+                            .await;
                     }
                 }
             },
         );
 
+        Task::stream(stream)
+    }
+
+    /// Begin a ZMODEM upload of pre-selected local files WITHOUT
+    /// opening a file picker dialog. Used by terminal drag-and-drop.
+    /// Writes a hint line into the terminal and sends `rz -y` to
+    /// start the transfer. Callers should first verify that `rz`
+    /// exists on the remote (see `check_remote_has_rz`).
+    pub(crate) fn begin_zmodem_upload_from_paths(
+        &mut self,
+        pane_id: Uuid,
+        sources: Vec<std::path::PathBuf>,
+    ) -> Task<Message> {
+        let Some((wire_out, is_serial)) = self
+            .pane_by_id(pane_id)
+            .and_then(|p| p.session.as_ref())
+            .map(|s| {
+                let is_serial = matches!(s, TerminalTransport::Serial(_));
+                let wire_out = match s {
+                    TerminalTransport::Telnet(t) => t.raw_write_sender(),
+                    other => other.write_sender(),
+                };
+                (wire_out, is_serial)
+            })
+        else {
+            return Task::none();
+        };
+        if sources.is_empty() {
+            return Task::none();
+        }
+
+        // Send rz -y to the remote shell to start the ZMODEM receiver.
+        let _ = wire_out.send(b"rz -y\r".to_vec());
+
+        let streaming_window = if is_serial {
+            oryxis_zmodem::SERIAL_STREAMING_WINDOW
+        } else {
+            oryxis_zmodem::DEFAULT_STREAMING_WINDOW
+        };
+
+        let (wire_tx, wire_in) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
+        let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
+        let abort = Arc::new(AtomicBool::new(false));
+
+        // Arm the ZMODEM diver so protocol bytes are intercepted.
+        self.set_zmodem_binary_inbound(pane_id, true);
+        if let Some(pane) = self.pane_by_id_mut(pane_id) {
+            pane.zmodem = Some(ZmodemPane {
+                direction: Direction::Upload,
+                wire_tx,
+                abort: abort.clone(),
+                file_name: None,
+                batch: None,
+                transferred: 0,
+                total: None,
+                late: Vec::new(),
+            });
+        } else {
+            return Task::none();
+        }
+
+        let io = TransferIo {
+            wire_in,
+            wire_out: wire_out.clone(),
+            progress: progress_tx,
+            abort: abort.clone(),
+        };
+        let spec = TransferSpec::Upload {
+            sources,
+            streaming_window,
+        };
+
+        // Set the diver AFTER a short delay. This gives the shell
+        // time to print "rz: command not found" before we start
+        // intercepting output. If lrzsz is installed, the ZRINIT
+        // header will arrive within the delay window and the normal
+        // output path will have already rendered it; the diver
+        // catches the protocol bytes that follow.
+        let stream = iced::stream::channel::<Message>(
+            64,
+            move |mut out: iced::futures::channel::mpsc::Sender<Message>| async move {
+                let driver =
+                    tokio::spawn(oryxis_zmodem::run(Direction::Upload, spec, Vec::new(), io));
+                // 1-second deadline. If the driver hasn't completed by
+                // then, the remote likely has no lrzsz. The driver will
+                // be aborted and the diver cleared.
+                let deadline = tokio::time::sleep(std::time::Duration::from_secs(1));
+                tokio::pin!(deadline);
+                loop {
+                    tokio::select! {
+                        p = progress_rx.recv() => {
+                            let Some(p) = p else { break };
+                            let is_terminal = matches!(
+                                p,
+                                Progress::Completed { .. }
+                                    | Progress::Aborted
+                                    | Progress::Error(..)
+                            );
+                            if out
+                                .send(Message::Zmodem(ZmodemMessage::ZmodemProgress(
+                                    pane_id, p,
+                                )))
+                                .await
+                                .is_err()
+                            {
+                                break;
+                            }
+                            if is_terminal {
+                                break;
+                            }
+                        }
+                        _ = &mut deadline => {
+                            // Deadline reached without completion:
+                            // remote has no lrzsz (or network is dead).
+                            let _ = out
+                                .send(Message::Terminal(
+                                    TerminalMessage::TerminalNoRz(pane_id),
+                                ))
+                                .await;
+                            break;
+                        }
+                    }
+                }
+                driver.abort();
+            },
+        );
         Task::stream(stream)
     }
 
@@ -234,10 +365,20 @@ impl Oryxis {
                                 zm.total = total;
                             }
                         }
-                        Progress::FileDone { .. } => {}
+                        Progress::FileDone { .. } => {
+                            // No-op: the per-file completion line is
+                            // appended in `Completed` below so it stays
+                            // with the trailing output rather than being
+                            // overwritten by `replay = trailing`.
+                        }
                         Progress::Completed { trailing } => {
                             replay = trailing;
                             if let Some(zm) = pane.zmodem.take() {
+                                // Append the per-file completion line.
+                                if let Some(ref name) = zm.file_name {
+                                    let done_line = format!("\r\n[ZMODEM: {} uploaded]\r\n", name);
+                                    replay.extend_from_slice(done_line.as_bytes());
+                                }
                                 replay.extend(zm.late);
                             }
                             toast = Some(crate::i18n::t("zmodem_complete").to_string());
@@ -246,8 +387,15 @@ impl Oryxis {
                         Progress::Aborted => {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay = zm.late;
+                                // Only toast if a transfer actually
+                                // started. A silent abort (no file
+                                // name) means the remote never
+                                // responded — we already wrote the
+                                // hint into the terminal above.
+                                if zm.file_name.is_some() {
+                                    toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                                }
                             }
-                            toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
                             divert_closed = true;
                         }
                         Progress::Error(e) => {
@@ -273,7 +421,9 @@ impl Oryxis {
                 if replay.is_empty() {
                     Task::none()
                 } else {
-                    self.update(Message::Terminal(TerminalMessage::PtyOutput(pane_id, replay)))
+                    self.update(Message::Terminal(TerminalMessage::PtyOutput(
+                        pane_id, replay,
+                    )))
                 }
             }
             ZmodemMessage::PickZmodemDownloadDir => Task::perform(
@@ -301,12 +451,6 @@ impl Oryxis {
                 if let Some(pane) = self.pane_by_id_mut(pane_id)
                     && let Some(zm) = pane.zmodem.as_ref()
                 {
-                    // Cooperative cancel: raise the flag, then wake the
-                    // driver with an empty wire chunk in case it is
-                    // parked on a silent peer's recv (an empty chunk is
-                    // the driver's documented wake-up). It sends the
-                    // CANCEL sequence and ends with `Aborted`, which
-                    // clears the divert.
                     zm.abort.store(true, Ordering::Relaxed);
                     let _ = zm.wire_tx.send(Vec::new());
                 }

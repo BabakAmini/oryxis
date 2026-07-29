@@ -71,7 +71,10 @@ impl Oryxis {
         items = items.push(self.menu_item(
             iced_fonts::lucide::cog(),
             crate::i18n::t("properties"),
-            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(path.clone(), is_dir)),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(
+                path.clone(),
+                is_dir,
+            )),
             secondary,
         ));
         items = items.push(self.menu_item(
@@ -93,7 +96,10 @@ impl Oryxis {
         items = items.push(self.menu_item(
             iced_fonts::lucide::trash(),
             crate::i18n::t("delete"),
-            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDelete(path.clone(), is_dir)),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDelete(
+                path.clone(),
+                is_dir,
+            )),
             OryxisColors::t().error,
         ));
         items.into()
@@ -105,13 +111,17 @@ impl Oryxis {
             self.menu_item(
                 iced_fonts::lucide::folder_plus(),
                 crate::i18n::t("new_folder"),
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::Folder)),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(
+                    crate::state::SftpEntryKind::Folder
+                )),
                 secondary,
             ),
             self.menu_item(
                 iced_fonts::lucide::file_plus(),
                 crate::i18n::t("new_file"),
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::File)),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(
+                    crate::state::SftpEntryKind::File
+                )),
                 secondary,
             ),
             self.menu_item(
@@ -138,23 +148,61 @@ impl Oryxis {
 
     pub(crate) fn build_menu_tab_actions(&self, idx: usize) -> Element<'_, Message> {
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitTabPane(idx, iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::Tabs(TabsMessage::DuplicateTab(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(
+                iced_fonts::lucide::pen_line(),
+                crate::i18n::t("rename_tab"),
+                Message::Tabs(TabsMessage::StartRenameTab(idx)),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                iced_fonts::lucide::columns_two(),
+                crate::i18n::t("split_side_by_side"),
+                Message::Terminal(TerminalMessage::SplitTabPane(
+                    idx,
+                    iced::widget::pane_grid::Axis::Vertical
+                )),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                iced_fonts::lucide::rows_two(),
+                crate::i18n::t("split_stacked"),
+                Message::Terminal(TerminalMessage::SplitTabPane(
+                    idx,
+                    iced::widget::pane_grid::Axis::Horizontal
+                )),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                iced_fonts::lucide::copy(),
+                crate::i18n::t("duplicate_tab"),
+                Message::Tabs(TabsMessage::DuplicateTab(idx)),
+                OryxisColors::t().text_secondary
+            ),
         ];
         // Broadcast input across the tab's panes (C2): a check glyph +
         // warning tint mark the armed state, matching the pane borders and
         // status segment. Only offered on split tabs (broadcast is inert on
         // a single pane; arming is refused there anyway).
-        if self.tabs.get(idx).is_some_and(|t| t.pane_grid.panes.len() >= 2) {
+        if self
+            .tabs
+            .get(idx)
+            .is_some_and(|t| t.pane_grid.panes.len() >= 2)
+        {
             let broadcasting = self.tabs.get(idx).map(|t| t.broadcast).unwrap_or(false);
             let (bc_glyph, bc_color) = if broadcasting {
                 (iced_fonts::lucide::check(), OryxisColors::t().warning)
             } else {
-                (iced_fonts::lucide::radio(), OryxisColors::t().text_secondary)
+                (
+                    iced_fonts::lucide::radio(),
+                    OryxisColors::t().text_secondary,
+                )
             };
-            items = items.push(self.menu_item(bc_glyph, crate::i18n::t("broadcast_input"), Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx)), bc_color));
+            items = items.push(self.menu_item(
+                bc_glyph,
+                crate::i18n::t("broadcast_input"),
+                Message::Terminal(TerminalMessage::ToggleTabBroadcast(idx)),
+                bc_color,
+            ));
         }
         // Open an SFTP tab for this host: offered when the SFTP
         // feature is on AND the tab has a live SSH session to reuse
@@ -162,20 +210,23 @@ impl Oryxis {
         // local-shell tabs where it would no-op).
         let can_sftp = self.sftp_enabled
             && self
-            .tabs
-            .get(idx)
-            .map(|t| {
-                let base = t.label.trim_end_matches(" (disconnected)");
-                // Telnet transports (and Telnet-protocol saved
-                // hosts) carry no SSH handle to mount SFTP on.
-                t.active().session.as_ref().is_some_and(|s| s.ssh().is_some())
-                    || self.connections.iter().any(|c| {
-                        c.label == base
-                            && c.protocol
-                                == oryxis_core::models::connection::ConnectionProtocol::Ssh
-                    })
-            })
-            .unwrap_or(false);
+                .tabs
+                .get(idx)
+                .map(|t| {
+                    let base = t.label.trim_end_matches(" (disconnected)");
+                    // Telnet transports (and Telnet-protocol saved
+                    // hosts) carry no SSH handle to mount SFTP on.
+                    t.active()
+                        .session
+                        .as_ref()
+                        .is_some_and(|s| s.ssh().is_some())
+                        || self.connections.iter().any(|c| {
+                            c.label == base
+                                && c.protocol
+                                    == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                        })
+                })
+                .unwrap_or(false);
         // Hybrid SFTP session (issue #61, owner QA 2026-07-05):
         // SFTP is the tab's own session, not a separate tab. No
         // session yet = "Open SFTP session" (creates + shows it,
@@ -193,28 +244,57 @@ impl Oryxis {
             .unwrap_or(false);
         if can_sftp || in_files {
             let (glyph, label) = if in_files {
-                (iced_fonts::lucide::terminal(), crate::i18n::t("tab_show_terminal"))
+                (
+                    iced_fonts::lucide::terminal(),
+                    crate::i18n::t("tab_show_terminal"),
+                )
             } else if has_session {
-                (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_show_files"))
+                (
+                    iced_fonts::lucide::folder_tree(),
+                    crate::i18n::t("tab_show_files"),
+                )
             } else {
-                (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_open_sftp_session"))
+                (
+                    iced_fonts::lucide::folder_tree(),
+                    crate::i18n::t("tab_open_sftp_session"),
+                )
             };
-            items = items.push(self.menu_item(glyph, label, Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                glyph,
+                label,
+                Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
         if has_session && self.sftp_enabled {
             // Promote the tab's SFTP session to a standalone tab
             // (the server-to-server dual-remote surface).
-            items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("tab_detach_sftp"), Message::Tabs(TabsMessage::DetachTabSftp(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("tab_detach_sftp"),
+                Message::Tabs(TabsMessage::DetachTabSftp(idx)),
+                OryxisColors::t().text_secondary,
+            ));
             // Close just the SFTP session, back to a plain
             // terminal tab (the terminal keeps running).
-            items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("tab_close_sftp_session"), Message::Tabs(TabsMessage::CloseTabSftpSession(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::x(),
+                crate::i18n::t("tab_close_sftp_session"),
+                Message::Tabs(TabsMessage::CloseTabSftpSession(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
         // Quick-connect tab: offer to persist the ad-hoc host into
         // the vault (opens the editor prefilled as a new host).
         if let Some(crate::state::PaneOrigin::QuickHost(qid)) =
             self.tabs.get(idx).map(|t| &t.active().origin)
         {
-            items = items.push(self.menu_item(iced_fonts::lucide::save(), crate::i18n::t("quick_connect_save_host"), Message::Editor(EditorMessage::SaveQuickHost(*qid)), OryxisColors::t().accent));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::save(),
+                crate::i18n::t("quick_connect_save_host"),
+                Message::Editor(EditorMessage::SaveQuickHost(*qid)),
+                OryxisColors::t().accent,
+            ));
         }
         // Save the whole arrangement (panes + splits + per-pane
         // scripts) as a reusable session group, or edit it if this
@@ -223,7 +303,9 @@ impl Oryxis {
         // Already-saved groups keep the "Edit" entry so they stay
         // editable even if pruned down to one pane.
         let tab_ref = self.tabs.get(idx);
-        let is_group = tab_ref.map(|t| t.session_group_id.is_some()).unwrap_or(false);
+        let is_group = tab_ref
+            .map(|t| t.session_group_id.is_some())
+            .unwrap_or(false);
         let is_split = tab_ref.map(|t| t.pane_count() > 1).unwrap_or(false);
         if is_split || is_group {
             let sg_label = if is_group {
@@ -231,7 +313,12 @@ impl Oryxis {
             } else {
                 crate::i18n::t("save_session_group")
             };
-            items = items.push(self.menu_item(iced_fonts::lucide::boxes(), sg_label, Message::SessionGroup(SessionGroupMessage::ShowSaveSessionGroup(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::boxes(),
+                sg_label,
+                Message::SessionGroup(SessionGroupMessage::ShowSaveSessionGroup(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
         // Pin / unpin: pinned tabs render first and restore on launch.
         // The restore spec captures only a single pane's origin, so
@@ -245,7 +332,12 @@ impl Oryxis {
             } else {
                 (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
             };
-            items = items.push(self.menu_item(pin_icon, pin_label, Message::Tabs(TabsMessage::ToggleTabPin(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                pin_icon,
+                pin_label,
+                Message::Tabs(TabsMessage::ToggleTabPin(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
         // "Duplicate in New Window" spawns a fresh process that
         // can only re-open hosts saved in the vault. ECS Exec /
@@ -259,12 +351,57 @@ impl Oryxis {
             .map(|t| t.relaunch.is_none())
             .unwrap_or(true);
         if new_window_ok {
-            items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("duplicate_new_window"), Message::Tabs(TabsMessage::DuplicateInNewWindow(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("duplicate_new_window"),
+                Message::Tabs(TabsMessage::DuplicateInNewWindow(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
-        items = items.push(self.menu_item(iced_fonts::lucide::rotate_cw(), crate::i18n::t("reconnect"), Message::Tabs(TabsMessage::ReconnectTab(idx)), OryxisColors::t().accent));
-        items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Tabs(TabsMessage::CloseTab(idx)), OryxisColors::t().text_secondary));
-        items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Tabs(TabsMessage::CloseOtherTabs(idx)), OryxisColors::t().text_secondary));
-        items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_all_tabs"), Message::Tabs(TabsMessage::CloseAllTabs), OryxisColors::t().error));
+        // Copy the hostname / IP of this tab's focused pane.
+        if self
+            .tabs
+            .get(idx)
+            .and_then(|t| {
+                crate::dispatch_ssh::pane_to_connection(
+                    &self.connections,
+                    &self.quick_connects,
+                    &t.active().origin,
+                )
+            })
+            .is_some()
+        {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::clipboard_copy(),
+                crate::i18n::t("copy_ip_address"),
+                Message::Tabs(TabsMessage::CopyTabHostname(idx)),
+                OryxisColors::t().text_secondary,
+            ));
+        }
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::rotate_cw(),
+            crate::i18n::t("reconnect"),
+            Message::Tabs(TabsMessage::ReconnectTab(idx)),
+            OryxisColors::t().accent,
+        ));
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::x(),
+            crate::i18n::t("close_tab"),
+            Message::Tabs(TabsMessage::CloseTab(idx)),
+            OryxisColors::t().text_secondary,
+        ));
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::x(),
+            crate::i18n::t("close_other_tabs"),
+            Message::Tabs(TabsMessage::CloseOtherTabs(idx)),
+            OryxisColors::t().text_secondary,
+        ));
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::x(),
+            crate::i18n::t("close_all_tabs"),
+            Message::Tabs(TabsMessage::CloseAllTabs),
+            OryxisColors::t().error,
+        ));
         items.into()
     }
 
@@ -276,26 +413,75 @@ impl Oryxis {
             (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
         };
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::Sftp(SftpMessage::NewSftpTab), OryxisColors::t().text_secondary),
+            self.menu_item(
+                iced_fonts::lucide::plus(),
+                crate::i18n::t("new_tab"),
+                Message::Sftp(SftpMessage::NewSftpTab),
+                OryxisColors::t().text_secondary
+            ),
             // Terminal for the mounted host (owner QA 2026-07-05:
             // the SFTP tab had no path back to a shell). Focuses
             // a live terminal tab on that host, else connects.
-            self.menu_item(iced_fonts::lucide::terminal(), crate::i18n::t("open_terminal"), Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameSftpTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(pin_icon, pin_label, Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Sftp(SftpMessage::CloseSftpTab(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(
+                iced_fonts::lucide::terminal(),
+                crate::i18n::t("open_terminal"),
+                Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                iced_fonts::lucide::pen_line(),
+                crate::i18n::t("rename_tab"),
+                Message::Tabs(TabsMessage::StartRenameSftpTab(idx)),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                pin_icon,
+                pin_label,
+                Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)),
+                OryxisColors::t().text_secondary
+            ),
+            self.menu_item(
+                iced_fonts::lucide::x(),
+                crate::i18n::t("close_tab"),
+                Message::Sftp(SftpMessage::CloseSftpTab(idx)),
+                OryxisColors::t().text_secondary
+            ),
         ];
         if self.sftp_tabs.len() > 1 {
-            items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::x(),
+                crate::i18n::t("close_other_tabs"),
+                Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)),
+                OryxisColors::t().text_secondary,
+            ));
         }
         items.into()
     }
 
     pub(crate) fn build_menu_split(&self) -> Element<'_, Message> {
         let items = column![
-            context_menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::Tabs(TabsMessage::ShowNewTabPicker), OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
+            context_menu_item(
+                iced_fonts::lucide::plus(),
+                crate::i18n::t("new_tab"),
+                Message::Tabs(TabsMessage::ShowNewTabPicker),
+                OryxisColors::t().text_secondary
+            ),
+            context_menu_item(
+                iced_fonts::lucide::columns_two(),
+                crate::i18n::t("split_side_by_side"),
+                Message::Terminal(TerminalMessage::SplitPane(
+                    iced::widget::pane_grid::Axis::Vertical
+                )),
+                OryxisColors::t().text_secondary
+            ),
+            context_menu_item(
+                iced_fonts::lucide::rows_two(),
+                crate::i18n::t("split_stacked"),
+                Message::Terminal(TerminalMessage::SplitPane(
+                    iced::widget::pane_grid::Axis::Horizontal
+                )),
+                OryxisColors::t().text_secondary
+            ),
         ];
         // Keep the popover open while the cursor is over it (hover
         // bridge from the `+` button into the menu).
@@ -325,9 +511,7 @@ impl Oryxis {
             container(Space::new().width(Length::Fill).height(1))
                 .width(Length::Fill)
                 .style(|_| container::Style {
-                    background: Some(Background::Color(
-                        OryxisColors::t().border,
-                    )),
+                    background: Some(Background::Color(OryxisColors::t().border)),
                     ..Default::default()
                 }),
         )
@@ -391,10 +575,7 @@ impl Oryxis {
             .iter()
             .filter(|g| g.cloud_query.is_none())
             .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id))
-            .filter(|path| {
-                picker_needle.is_empty()
-                    || path.to_lowercase().contains(&picker_needle)
-            })
+            .filter(|path| picker_needle.is_empty() || path.to_lowercase().contains(&picker_needle))
             .collect();
         all_groups.sort_by_key(|s| s.to_lowercase());
         all_groups.dedup();
@@ -415,9 +596,11 @@ impl Oryxis {
             crate::i18n::t("search_groups"),
             &self.cloud_discover_default_group_picker_search,
         )
-        .on_input(
-            |v| Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v)),
-        )
+        .on_input(|v| {
+            Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(
+                v,
+            ))
+        })
         .padding(8)
         .width(Length::Fixed(menu_content_width))
         .style(|_theme: &iced::Theme, status| {
@@ -441,7 +624,10 @@ impl Oryxis {
                 icon: palette.text_muted,
                 placeholder: palette.text_muted,
                 value: palette.text_primary,
-                selection: Color { a: 0.30, ..palette.accent },
+                selection: Color {
+                    a: 0.30,
+                    ..palette.accent
+                },
             }
         });
         let list_el: Element<'_, Message> = if all_groups.is_empty() {
@@ -466,28 +652,22 @@ impl Oryxis {
             for label in all_groups {
                 let display = label.clone();
                 let row = iced::widget::button(
-                    container(
-                        text(display)
-                            .size(12)
-                            .color(OryxisColors::t().text_primary),
-                    )
-                    .padding(Padding {
-                        top: 6.0,
-                        right: 10.0,
-                        bottom: 6.0,
-                        left: 10.0,
-                    })
-                    .width(Length::Fill),
+                    container(text(display).size(12).color(OryxisColors::t().text_primary))
+                        .padding(Padding {
+                            top: 6.0,
+                            right: 10.0,
+                            bottom: 6.0,
+                            left: 10.0,
+                        })
+                        .width(Length::Fill),
                 )
-                .on_press(
-                    Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(label.clone())),
-                )
+                .on_press(Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(
+                    label.clone(),
+                )))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let bg = match status {
-                        iced::widget::button::Status::Hovered => {
-                            OryxisColors::t().bg_hover
-                        }
+                        iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
                         _ => Color::TRANSPARENT,
                     };
                     iced::widget::button::Style {
@@ -500,9 +680,9 @@ impl Oryxis {
                     }
                 });
                 items = items.push(self.modal_nav_slot(
-                    crate::keynav::RowAction::activate(
-                        Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPick(label)),
-                    ),
+                    crate::keynav::RowAction::activate(Message::Cloud(
+                        CloudMessage::CloudDiscoverDefaultGroupPick(label),
+                    )),
                     4.0,
                     false,
                     row.into(),
@@ -554,43 +734,42 @@ impl Oryxis {
             .iter()
             .filter(|g| g.cloud_query.is_none() && !excluded.contains(&g.id))
             .map(|g| oryxis_core::models::Group::path_of(&self.groups, g.id))
-            .filter(|path| {
-                needle.is_empty() || path.to_lowercase().contains(&needle)
-            })
+            .filter(|path| needle.is_empty() || path.to_lowercase().contains(&needle))
             .collect();
         all_groups.sort_by_key(|s| s.to_lowercase());
         all_groups.dedup();
-        let search_input = iced::widget::text_input(
-            crate::i18n::t("search_groups"),
-            &self.group_picker_search,
-        )
-        .on_input(|v| Message::Navigation(NavigationMessage::GroupPickerSearchChanged(v)))
-        .padding(8)
-        .width(Length::Fixed(menu_content_width))
-        .style(|_theme: &iced::Theme, status| {
-            let palette = OryxisColors::t();
-            let bg = match status {
-                iced::widget::text_input::Status::Focused { .. }
-                | iced::widget::text_input::Status::Hovered => palette.bg_hover,
-                _ => palette.bg_selected,
-            };
-            let border_color = match status {
-                iced::widget::text_input::Status::Focused { .. } => palette.accent,
-                _ => palette.border,
-            };
-            iced::widget::text_input::Style {
-                background: Background::Color(bg),
-                border: Border {
-                    radius: Radius::from(6.0),
-                    color: border_color,
-                    width: 1.0,
-                },
-                icon: palette.text_muted,
-                placeholder: palette.text_muted,
-                value: palette.text_primary,
-                selection: Color { a: 0.30, ..palette.accent },
-            }
-        });
+        let search_input =
+            iced::widget::text_input(crate::i18n::t("search_groups"), &self.group_picker_search)
+                .on_input(|v| Message::Navigation(NavigationMessage::GroupPickerSearchChanged(v)))
+                .padding(8)
+                .width(Length::Fixed(menu_content_width))
+                .style(|_theme: &iced::Theme, status| {
+                    let palette = OryxisColors::t();
+                    let bg = match status {
+                        iced::widget::text_input::Status::Focused { .. }
+                        | iced::widget::text_input::Status::Hovered => palette.bg_hover,
+                        _ => palette.bg_selected,
+                    };
+                    let border_color = match status {
+                        iced::widget::text_input::Status::Focused { .. } => palette.accent,
+                        _ => palette.border,
+                    };
+                    iced::widget::text_input::Style {
+                        background: Background::Color(bg),
+                        border: Border {
+                            radius: Radius::from(6.0),
+                            color: border_color,
+                            width: 1.0,
+                        },
+                        icon: palette.text_muted,
+                        placeholder: palette.text_muted,
+                        value: palette.text_primary,
+                        selection: Color {
+                            a: 0.30,
+                            ..palette.accent
+                        },
+                    }
+                });
         let list_el: Element<'_, Message> = if all_groups.is_empty() {
             container(
                 text(crate::i18n::t("cloud_discover_no_matches"))
@@ -609,26 +788,23 @@ impl Oryxis {
             for label in all_groups {
                 let display = label.clone();
                 let row = iced::widget::button(
-                    container(
-                        text(display)
-                            .size(12)
-                            .color(OryxisColors::t().text_primary),
-                    )
-                    .padding(Padding {
-                        top: 6.0,
-                        right: 10.0,
-                        bottom: 6.0,
-                        left: 10.0,
-                    })
-                    .width(Length::Fill),
+                    container(text(display).size(12).color(OryxisColors::t().text_primary))
+                        .padding(Padding {
+                            top: 6.0,
+                            right: 10.0,
+                            bottom: 6.0,
+                            left: 10.0,
+                        })
+                        .width(Length::Fill),
                 )
-                .on_press(Message::Navigation(NavigationMessage::GroupPickerPick(target, label.clone())))
+                .on_press(Message::Navigation(NavigationMessage::GroupPickerPick(
+                    target,
+                    label.clone(),
+                )))
                 .width(Length::Fill)
                 .style(|_, status| {
                     let bg = match status {
-                        iced::widget::button::Status::Hovered => {
-                            OryxisColors::t().bg_hover
-                        }
+                        iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
                         _ => Color::TRANSPARENT,
                     };
                     iced::widget::button::Style {
@@ -641,9 +817,9 @@ impl Oryxis {
                     }
                 });
                 items = items.push(self.modal_nav_slot(
-                    crate::keynav::RowAction::activate(
-                        Message::Navigation(NavigationMessage::GroupPickerPick(target, label)),
-                    ),
+                    crate::keynav::RowAction::activate(Message::Navigation(
+                        NavigationMessage::GroupPickerPick(target, label),
+                    )),
                     4.0,
                     false,
                     row.into(),
@@ -689,9 +865,7 @@ impl Oryxis {
                                 self.groups
                                     .iter()
                                     .filter(|g| g.parent_id == Some(gid))
-                                    .find_map(|g| {
-                                        g.cloud_query.as_ref().map(|q| q.profile_id)
-                                    })
+                                    .find_map(|g| g.cloud_query.as_ref().map(|q| q.profile_id))
                             });
                         if let Some(pid) = linked {
                             col = col.push(self.menu_item(
@@ -738,7 +912,10 @@ impl Oryxis {
                         crate::i18n::t("toolbar_view_grid"),
                     )
                 } else {
-                    (iced_fonts::lucide::list(), crate::i18n::t("toolbar_view_list"))
+                    (
+                        iced_fonts::lucide::list(),
+                        crate::i18n::t("toolbar_view_list"),
+                    )
                 };
                 col = col.push(self.menu_item(
                     icon,
@@ -776,8 +953,7 @@ impl Oryxis {
                 ));
             }
             View::Snippets => {
-                if !self.distinct_snippet_tags().is_empty()
-                    || !self.snippet_filter_tags.is_empty()
+                if !self.distinct_snippet_tags().is_empty() || !self.snippet_filter_tags.is_empty()
                 {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::tag(),

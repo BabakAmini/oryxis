@@ -344,6 +344,10 @@ fn hash_pinned(set: &std::collections::HashSet<String>) -> u64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalChordAction {
     Copy,
+    /// Copy the selection to the clipboard AND paste it into the
+    /// terminal (via the `on_paste_request` hook). The selection is
+    /// cleared after the paste so the highlight disappears.
+    CopyPaste,
     SelectAll,
     ScrollPageUp,
     ScrollPageDown,

@@ -14,7 +14,10 @@ mod window;
 
 use iced::Task;
 
-use crate::app::{SettingsMessage, TabsMessage, TerminalMessage, SshMessage, CloudMessage, NavigationMessage, Message, Oryxis};
+use crate::app::{
+    CloudMessage, Message, NavigationMessage, Oryxis, SettingsMessage, SshMessage, TabsMessage,
+    TerminalMessage,
+};
 use crate::state::{OverlayContent, OverlayState, View};
 
 /// Smallest gap between two `WindowDrag` / `WindowResizeDrag`
@@ -42,10 +45,7 @@ impl Oryxis {
         allow
     }
 
-    pub(crate) fn handle_tabs(
-        &mut self,
-        message: TabsMessage,
-    ) -> Task<Message> {
+    pub(crate) fn handle_tabs(&mut self, message: TabsMessage) -> Task<Message> {
         match message {
             // -- Card interactions --
             TabsMessage::CardHovered(idx) => {
@@ -91,15 +91,14 @@ impl Oryxis {
                 // monitor layout puts a window beyond -8000 on both
                 // axes at once).
                 let minimized_sentinel = pos.x <= -8000.0 && pos.y <= -8000.0;
-                if !self.window_maximized
-                    && !self.window_fullscreen
-                    && !minimized_sentinel
-                {
+                if !self.window_maximized && !self.window_fullscreen && !minimized_sentinel {
                     self.window_windowed_pos = Some(pos);
                 }
             }
             TabsMessage::WindowEnsureOnScreen => return self.handle_window_ensure_on_screen(),
-            TabsMessage::WindowFocusChanged(focused) => return self.handle_window_focus_changed(focused),
+            TabsMessage::WindowFocusChanged(focused) => {
+                return self.handle_window_focus_changed(focused);
+            }
             TabsMessage::SsmKeepaliveTick => {
                 // Toggle each SSM/ECS terminal between `base` and
                 // `base - 1` rows. Every tick is therefore a genuine size
@@ -230,8 +229,28 @@ impl Oryxis {
             TabsMessage::SelectTab(idx) => return self.handle_select_tab(idx),
             TabsMessage::ToggleTabFilesMode(idx) => return self.handle_toggle_tab_files_mode(idx),
             TabsMessage::DetachTabSftp(idx) => return self.handle_detach_tab_sftp(idx),
-            TabsMessage::CloseTabSftpSession(idx) => return self.handle_close_tab_sftp_session(idx),
-            TabsMessage::OpenTerminalForSftpTab(idx) => return self.handle_open_terminal_for_sftp_tab(idx),
+            TabsMessage::CloseTabSftpSession(idx) => {
+                return self.handle_close_tab_sftp_session(idx);
+            }
+            TabsMessage::OpenTerminalForSftpTab(idx) => {
+                return self.handle_open_terminal_for_sftp_tab(idx);
+            }
+            TabsMessage::CopyTabHostname(idx) => {
+                self.overlay = None;
+                // Read the focused pane's origin connection hostname.
+                let hostname = self.tabs.get(idx).and_then(|t| {
+                    let pane = t.active();
+                    crate::dispatch_ssh::pane_to_connection(
+                        &self.connections,
+                        &self.quick_connects,
+                        &pane.origin,
+                    )
+                    .map(|c| c.hostname.clone())
+                });
+                if let Some(host) = hostname {
+                    return Task::done(Message::CopyToClipboard(host));
+                }
+            }
             TabsMessage::TabHovered(idx) => {
                 self.hovered_tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).
@@ -356,9 +375,9 @@ impl Oryxis {
                 self.palette.open = true;
                 self.palette.query.clear();
                 // Focus the query input so the user types immediately.
-                return iced::widget::operation::focus(
-                    iced::widget::Id::new(crate::palette::PALETTE_INPUT_ID),
-                );
+                return iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::palette::PALETTE_INPUT_ID,
+                ));
             }
             TabsMessage::HideCommandPalette => {
                 self.palette.open = false;
@@ -375,16 +394,17 @@ impl Oryxis {
                 return Task::done(*inner);
             }
             TabsMessage::RunHotkeyAction(action) => {
-                return self.dispatch_hotkey_action(
-                    action,
-                    crate::hotkeys::FamilyMatch::Plain,
-                );
+                return self.dispatch_hotkey_action(action, crate::hotkeys::FamilyMatch::Plain);
             }
             TabsMessage::OpenSettingsSection(section) => {
                 // Switch to Settings AND select the section:
                 // ChangeSettingsSection alone assumes the view is open.
-                let t1 = self.update(Message::Navigation(NavigationMessage::ChangeView(View::Settings)));
-                let t2 = self.update(Message::Settings(SettingsMessage::ChangeSettingsSection(section)));
+                let t1 = self.update(Message::Navigation(NavigationMessage::ChangeView(
+                    View::Settings,
+                )));
+                let t2 = self.update(Message::Settings(SettingsMessage::ChangeSettingsSection(
+                    section,
+                )));
                 return Task::batch([t1, t2]);
             }
 
@@ -406,8 +426,7 @@ impl Oryxis {
                         return self.update(msg);
                     }
                 }
-                if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search)
-                {
+                if let Some(conn) = self.quick_connect_target(&self.new_tab_picker_search) {
                     return self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
                         crate::state::QuickConnectEntry::bare(conn),
                     ))));
@@ -604,8 +623,7 @@ impl Oryxis {
                         .display_label(auto)
                         .trim_end_matches(" (disconnected)")
                         .to_string();
-                    self.tab_rename =
-                        Some((crate::state::TabRef::Terminal(tab._id), current));
+                    self.tab_rename = Some((crate::state::TabRef::Terminal(tab._id), current));
                     // Drop the keyboard straight into the input, mirroring
                     // the SFTP inline rename.
                     return iced::widget::operation::focus(iced::widget::Id::new(
@@ -633,20 +651,15 @@ impl Oryxis {
                     let trimmed = name.trim();
                     // Empty clears the custom name: the automatic label
                     // (host / group / OSC title) takes over again.
-                    let new_name =
-                        (!trimmed.is_empty()).then(|| trimmed.to_string());
+                    let new_name = (!trimmed.is_empty()).then(|| trimmed.to_string());
                     match tab_ref {
                         crate::state::TabRef::Terminal(id) => {
-                            if let Some(tab) =
-                                self.tabs.iter_mut().find(|t| t._id == id)
-                            {
+                            if let Some(tab) = self.tabs.iter_mut().find(|t| t._id == id) {
                                 tab.custom_name = new_name;
                             }
                         }
                         crate::state::TabRef::Sftp(id) => {
-                            if let Some(tab) =
-                                self.sftp_tabs.iter_mut().find(|t| t.id == id)
-                            {
+                            if let Some(tab) = self.sftp_tabs.iter_mut().find(|t| t.id == id) {
                                 tab.custom_name = new_name;
                             }
                         }
@@ -823,9 +836,7 @@ impl Oryxis {
                             })
                             .map(|g| g.id);
                         if let Some(gid) = dup {
-                            if let Some(group) =
-                                self.groups.iter_mut().find(|g| g.id == gid)
-                            {
+                            if let Some(group) = self.groups.iter_mut().find(|g| g.id == gid) {
                                 group.icon = icon;
                                 group.color = color;
                                 group.updated_at = chrono::Utc::now();
@@ -918,9 +929,7 @@ impl Oryxis {
                     } else if let Some(vault) = &self.vault {
                         if let Err(e) = vault.delete_group(&gid) {
                             tracing::error!("delete folder {gid}: failed to delete group: {e}");
-                            self.set_toast(
-                                crate::i18n::t("folder_delete_failed").to_string(),
-                            );
+                            self.set_toast(crate::i18n::t("folder_delete_failed").to_string());
                         } else {
                             removed = true;
                         }
@@ -1013,9 +1022,7 @@ impl Oryxis {
                     } else if let Some(vault) = &self.vault {
                         if let Err(e) = vault.delete_group(&gid) {
                             tracing::error!("delete folder {gid}: failed to delete group: {e}");
-                            self.set_toast(
-                                crate::i18n::t("folder_delete_failed").to_string(),
-                            );
+                            self.set_toast(crate::i18n::t("folder_delete_failed").to_string());
                         } else {
                             removed = true;
                         }

@@ -19,7 +19,7 @@ mod output;
 
 use iced::Task;
 
-use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage, TabsMessage, TerminalMessage};
 
 impl Oryxis {
     /// Tear down every remote session (SSH or Telnet) in a tab.
@@ -50,10 +50,8 @@ impl Oryxis {
         // careful paste parks multi-line text; the paste guard parks
         // suspicious CONTENT (bidi/invisible chars, raw control bytes,
         // curl|sh one-liners, homograph tokens) even on one line.
-        if (self.setting_careful_paste
-            && (text.contains('\n') || text.contains('\r')))
-            || (self.setting_paste_guard
-                && !crate::paste_guard::paste_warnings(text).is_empty())
+        if (self.setting_careful_paste && (text.contains('\n') || text.contains('\r')))
+            || (self.setting_paste_guard && !crate::paste_guard::paste_warnings(text).is_empty())
         {
             self.pending_paste = Some(text.to_string());
             return;
@@ -98,10 +96,7 @@ impl Oryxis {
     /// the remaining small arms match inline. Exhaustive on purpose: a
     /// new `TerminalMessage` variant fails to compile until it gets an
     /// arm, so it can never be silently dropped.
-    pub(crate) fn handle_terminal(
-        &mut self,
-        message: TerminalMessage,
-    ) -> Task<Message> {
+    pub(crate) fn handle_terminal(&mut self, message: TerminalMessage) -> Task<Message> {
         match message {
             TerminalMessage::PtyOutput(..) => {
                 return self
@@ -192,16 +187,14 @@ impl Oryxis {
                 // user clicked. A pane that is gone entirely (its tab
                 // closed under the menu) is a safe no-op.
                 let resolved = match target_id {
-                    Some(pane_id) => {
-                        self.pane_tab_index(pane_id).and_then(|tab_idx| {
-                            self.tabs[tab_idx]
-                                .pane_grid
-                                .panes
-                                .iter()
-                                .find(|(_, p)| p.id == pane_id)
-                                .map(|(handle, _)| (tab_idx, *handle))
-                        })
-                    }
+                    Some(pane_id) => self.pane_tab_index(pane_id).and_then(|tab_idx| {
+                        self.tabs[tab_idx]
+                            .pane_grid
+                            .panes
+                            .iter()
+                            .find(|(_, p)| p.id == pane_id)
+                            .map(|(handle, _)| (tab_idx, *handle))
+                    }),
                     // The hotkey path acts on the focused pane of the
                     // active tab, as before.
                     None => self
@@ -315,9 +308,9 @@ impl Oryxis {
                             // for the new deadline instead of flushing
                             // mid-update, matching alacritty's behavior.
                             Some(deadline) if deadline > std::time::Instant::now() => {
-                                reschedule = Some(deadline.saturating_duration_since(
-                                    std::time::Instant::now(),
-                                ));
+                                reschedule = Some(
+                                    deadline.saturating_duration_since(std::time::Instant::now()),
+                                );
                             }
                             // Deadline reached, update still open: force the
                             // buffered frame onto the grid.
@@ -572,6 +565,45 @@ impl Oryxis {
                     self.write_input_to_tab(tab_idx, &bytes);
                 }
             }
+            // Flush buffered terminal drag-and-drop files into one
+            // ZMODEM upload session (or one SFTP batch for folders).
+            TerminalMessage::TerminalDropFlush => {
+                let paths = std::mem::take(&mut self.pending_terminal_drops);
+                if paths.is_empty() {
+                    return Task::none();
+                }
+                if let Some(tab_idx) = self.active_tab
+                    && let Some(tab) = self.tabs.get(tab_idx)
+                {
+                    // Snapshot before mutable borrow below.
+                    let pane_id = tab.active().id;
+                    // Separate files and folders: ZMODEM for flat files,
+                    // SFTP batch for folders (ZMODEM only streams file
+                    // contents, it can't create directory trees).
+                    let (files, folders): (Vec<_>, Vec<_>) =
+                        paths.into_iter().partition(|p| p.is_file());
+                    // Folders route to the SFTP pipeline (one by one).
+                    for f in folders {
+                        let _ = self.handle_sftp_transfers(SftpMessage::SftpUploadFolder(f));
+                    }
+                    if !files.is_empty() {
+                        return self.begin_zmodem_upload_from_paths(pane_id, files);
+                    }
+                }
+                return Task::none();
+            }
+            TerminalMessage::TerminalNoRz(pane_id) => {
+                // Tear down the ZMODEM diver so the pane resumes normal
+                // input/output. Then show toast + terminal hint.
+                if let Some(pane) = self.pane_by_id_mut(pane_id) {
+                    pane.zmodem = None;
+                }
+                self.set_zmodem_binary_inbound(pane_id, false);
+                return self.update(Message::Terminal(TerminalMessage::PtyOutput(
+                    pane_id,
+                    b"\r\n[ZMODEM: lrzsz not installed]\r\n".to_vec(),
+                )));
+            }
         }
         Task::none()
     }
@@ -593,7 +625,10 @@ impl Oryxis {
     }
 
     /// Find a pane by its stable id across every tab (mutable).
-    pub(crate) fn pane_by_id_mut(&mut self, pane_id: uuid::Uuid) -> Option<&mut crate::state::Pane> {
+    pub(crate) fn pane_by_id_mut(
+        &mut self,
+        pane_id: uuid::Uuid,
+    ) -> Option<&mut crate::state::Pane> {
         self.tabs
             .iter_mut()
             .flat_map(|t| t.pane_grid.panes.values_mut())

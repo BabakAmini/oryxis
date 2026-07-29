@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub enum TerminalMessage {
-    PtyOutput(Uuid, Vec<u8>),  // (pane_id, bytes)
+    PtyOutput(Uuid, Vec<u8>), // (pane_id, bytes)
     /// One-shot wake-up that force-flushes a stalled DEC `?2026`
     /// synchronized update on the given pane (`pane_id`). Armed by the
     /// `PtyOutput` handler when output stops mid-update; without it an app
@@ -81,6 +81,12 @@ pub enum TerminalMessage {
     /// selected instead of opening. Shows the "hold Ctrl and click to
     /// open" toast; under `HintMode::Once` it fires at most once per pane.
     TerminalLinkClickHint,
+    /// Flush buffered terminal drag-and-drop files: all paths collected
+    /// during a multi-file drop gesture are uploaded in one ZMODEM
+    /// session (or one SFTP batch for folders).
+    TerminalDropFlush,
+    /// lrzsz not installed on the remote — show a toast and terminal hint.
+    TerminalNoRz(Uuid),
     /// Open the terminal context menu for a pane at a window-absolute
     /// point (right-click scheme = Menu). `(pane_id, x, y, selection)`,
     /// where `selection` is the live selection's text captured by the

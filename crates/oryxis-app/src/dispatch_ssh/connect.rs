@@ -7,8 +7,8 @@
 
 #![allow(clippy::result_large_err)]
 
-use iced::futures::SinkExt;
 use iced::Task;
+use iced::futures::SinkExt;
 
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -17,7 +17,9 @@ use oryxis_core::models::cloud::TransportKind;
 use oryxis_ssh::{SshEngine, SshSession};
 use oryxis_terminal::widget::TerminalState;
 
-use crate::app::{TerminalMessage, SshMessage, Message, Oryxis, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS};
+use crate::app::{
+    DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis, SshMessage, TerminalMessage,
+};
 use crate::state::{ConnectionProgress, ConnectionStep, SshStreamMsg, TerminalTab};
 
 /// Items streamed from a per-pane SSH connect (split-into-host). Mirrors
@@ -99,20 +101,23 @@ impl Oryxis {
             let mut proxies = std::collections::HashMap::new();
             for jid in &conn.jump_chain {
                 if let Some(vault) = &self.vault
-                    && let Ok(Some(pw)) = vault.get_connection_password(jid) {
-                        passwords.insert(*jid, pw);
-                    }
+                    && let Ok(Some(pw)) = vault.get_connection_password(jid)
+                {
+                    passwords.insert(*jid, pw);
+                }
                 // Get jump host's key (and its cert) if it uses key auth
                 if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
-                    && let Some(kid) = jconn.key_id {
-                        if let Some(vault) = &self.vault
-                            && let Ok(Some(pk)) = vault.get_key_private(&kid) {
-                                keys.insert(*jid, pk);
-                            }
-                        if let Some(cert) = self.key_certificate(&kid) {
-                            certificates.insert(*jid, cert);
-                        }
+                    && let Some(kid) = jconn.key_id
+                {
+                    if let Some(vault) = &self.vault
+                        && let Ok(Some(pk)) = vault.get_key_private(&kid)
+                    {
+                        keys.insert(*jid, pk);
                     }
+                    if let Some(cert) = self.key_certificate(&kid) {
+                        certificates.insert(*jid, cert);
+                    }
+                }
                 // Resolve effective proxy (inline or identity-based)
                 // for this jump host. Only the first jump's entry
                 // matters at connect-time, but we hydrate all of
@@ -223,8 +228,7 @@ impl Oryxis {
                 // anyway when the user later switches
                 // themes, but starting on the right
                 // palette avoids a one-frame flash.
-                state.palette =
-                    self.resolve_terminal_palette_for_connection(&conn);
+                state.palette = self.resolve_terminal_palette_for_connection(&conn);
                 let label = conn.label.clone();
                 let hostname = format!("SSH {}:{}", conn.hostname, conn.port);
                 let terminal = Arc::new(Mutex::new(state));
@@ -236,9 +240,7 @@ impl Oryxis {
                 let session_log_id = if self.should_record_session(Some(&conn)) {
                     if let Some(vault) = &self.vault {
                         let log_id = Uuid::new_v4();
-                        if let Err(e) =
-                            vault.create_session_log(&log_id, &conn.id, &conn.label)
-                        {
+                        if let Err(e) = vault.create_session_log(&log_id, &conn.id, &conn.label) {
                             tracing::warn!("session log create failed: {e}");
                         }
                         // Keep the in-memory count live so the
@@ -253,10 +255,7 @@ impl Oryxis {
                     None
                 };
 
-                let mut new_tab = TerminalTab::new_single(
-                    label.clone(),
-                    Arc::clone(&terminal),
-                );
+                let mut new_tab = TerminalTab::new_single(label.clone(), Arc::clone(&terminal));
                 new_tab.active_mut().session_log_id = session_log_id;
                 // Referenceable by id, so a session group saved
                 // from this tab can reconnect this pane. Quick hosts get
@@ -278,9 +277,7 @@ impl Oryxis {
                     crate::state::ProgressOrigin::Saved(_) => conn
                         .sidebar_auto_open
                         .unwrap_or(self.setting_sidebar_auto_open),
-                    crate::state::ProgressOrigin::Quick(_) => {
-                        self.setting_sidebar_auto_open
-                    }
+                    crate::state::ProgressOrigin::Quick(_) => self.setting_sidebar_auto_open,
                 };
                 // C5: resolve this host's terminal quirks once, on the hot
                 // key path + widget read from `pane.quirks` thereafter. The
@@ -289,8 +286,10 @@ impl Oryxis {
                 let resolved_quirks = self.resolve_quirks(&conn);
                 new_tab.active_mut().quirks = resolved_quirks;
                 if let Ok(term) = new_tab.active().terminal.lock() {
-                    let (w, r) =
-                        resolved_quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None));
+                    let (w, r) = resolved_quirks
+                        .osc52
+                        .map(|o| o.overrides())
+                        .unwrap_or((None, None));
                     term.set_osc52_override(w, r);
                 }
                 if let crate::state::ProgressOrigin::Quick(id) = origin
@@ -299,8 +298,9 @@ impl Oryxis {
                     // Relaunch message so Duplicate Tab can recreate this
                     // ad-hoc session. "Duplicate in New Window" auto-hides
                     // on it (a child process cannot resolve an unsaved id).
-                    new_tab.relaunch =
-                        Some(Box::new(Message::Ssh(SshMessage::QuickConnect(Box::new(entry.clone())))));
+                    new_tab.relaunch = Some(Box::new(Message::Ssh(SshMessage::QuickConnect(
+                        Box::new(entry.clone()),
+                    ))));
                 }
                 // Stable id of this tab's pane: PTY output and
                 // session events route to it, so the right pane
@@ -330,60 +330,72 @@ impl Oryxis {
                 self.remember_terminal_tab_focus(tab_idx);
 
                 // Host key verification: check callback + ask channel
-                let known_hosts_snapshot: Arc<Mutex<Vec<oryxis_core::models::known_host::KnownHost>>> =
-                    Arc::new(Mutex::new(self.known_hosts.clone()));
+                let known_hosts_snapshot: Arc<
+                    Mutex<Vec<oryxis_core::models::known_host::KnownHost>>,
+                > = Arc::new(Mutex::new(self.known_hosts.clone()));
                 let kh_ref = known_hosts_snapshot.clone();
-                let host_key_check: oryxis_ssh::HostKeyCheckCallback = Arc::new(move |host, port, key_type, fingerprint| {
-                    // Tolerate a poisoned mutex (some other lock-holder panicked)
-                    // by recovering the inner data rather than panicking the SSH
-                    // verification callback, better to fall back to "Unknown" and
-                    // re-prompt the user than to crash mid-connect.
-                    let hosts = match kh_ref.lock() {
-                        Ok(guard) => guard,
-                        Err(poison) => poison.into_inner(),
-                    };
-                    // Match on key type too: a server legitimately
-                    // offering a different algorithm than the one
-                    // stored is an "Unknown" (verify and accept),
-                    // not a scary "Changed" MITM warning, which
-                    // must stay reserved for a real fingerprint
-                    // mismatch on the same key type.
-                    if let Some(existing) = hosts.iter().find(|h| {
-                        h.hostname == host && h.port == port && h.key_type == key_type
-                    }) {
-                        if existing.fingerprint != fingerprint {
-                            return oryxis_ssh::HostKeyStatus::Changed {
-                                old_fingerprint: existing.fingerprint.clone(),
-                            };
+                let host_key_check: oryxis_ssh::HostKeyCheckCallback =
+                    Arc::new(move |host, port, key_type, fingerprint| {
+                        // Tolerate a poisoned mutex (some other lock-holder panicked)
+                        // by recovering the inner data rather than panicking the SSH
+                        // verification callback, better to fall back to "Unknown" and
+                        // re-prompt the user than to crash mid-connect.
+                        let hosts = match kh_ref.lock() {
+                            Ok(guard) => guard,
+                            Err(poison) => poison.into_inner(),
+                        };
+                        // Match on key type too: a server legitimately
+                        // offering a different algorithm than the one
+                        // stored is an "Unknown" (verify and accept),
+                        // not a scary "Changed" MITM warning, which
+                        // must stay reserved for a real fingerprint
+                        // mismatch on the same key type.
+                        if let Some(existing) = hosts.iter().find(|h| {
+                            h.hostname == host && h.port == port && h.key_type == key_type
+                        }) {
+                            if existing.fingerprint != fingerprint {
+                                return oryxis_ssh::HostKeyStatus::Changed {
+                                    old_fingerprint: existing.fingerprint.clone(),
+                                };
+                            }
+                            return oryxis_ssh::HostKeyStatus::Known;
                         }
-                        return oryxis_ssh::HostKeyStatus::Known;
-                    }
-                    oryxis_ssh::HostKeyStatus::Unknown
-                });
+                        oryxis_ssh::HostKeyStatus::Unknown
+                    });
 
                 // Channel for the SSH engine to ask the UI about host keys
-                let (hk_ask_tx, mut hk_ask_rx) = tokio::sync::mpsc::channel::<(oryxis_ssh::HostKeyQuery, tokio::sync::oneshot::Sender<bool>)>(1);
+                let (hk_ask_tx, mut hk_ask_rx) = tokio::sync::mpsc::channel::<(
+                    oryxis_ssh::HostKeyQuery,
+                    tokio::sync::oneshot::Sender<bool>,
+                )>(1);
                 // Channel for the UI to send responses back
                 let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
                 self.host_key_response_tx = Some(hk_resp_tx);
 
                 // Same ask/answer pair for keyboard-interactive
                 // (2FA / OTP) prompts when auth method is Interactive.
-                let (kbi_ask_tx, mut kbi_ask_rx) = tokio::sync::mpsc::channel::<(oryxis_ssh::KbiQuery, tokio::sync::oneshot::Sender<Option<Vec<String>>>)>(1);
-                let (kbi_resp_tx, mut kbi_resp_rx) = tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
+                let (kbi_ask_tx, mut kbi_ask_rx) = tokio::sync::mpsc::channel::<(
+                    oryxis_ssh::KbiQuery,
+                    tokio::sync::oneshot::Sender<Option<Vec<String>>>,
+                )>(1);
+                let (kbi_resp_tx, mut kbi_resp_rx) =
+                    tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
                 // Pre-auth banner sink (one-way): the engine forwards RFC
                 // 4252 banners here; a bridge below surfaces them on the
                 // progress card + the tab's terminal.
-                let (banner_tx, mut banner_rx) =
-                    tokio::sync::mpsc::unbounded_channel::<String>();
+                let (banner_tx, mut banner_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
                 self.kbi_response_tx = Some(kbi_resp_tx);
 
                 let conn_host = conn.hostname.clone();
                 let conn_port = conn.port;
-                let username = conn.username.clone()
+                let username = conn
+                    .username
+                    .clone()
                     .or_else(|| {
                         conn.identity_id.and_then(|iid| {
-                            self.identities.iter().find(|i| i.id == iid)
+                            self.identities
+                                .iter()
+                                .find(|i| i.id == iid)
                                 .and_then(|i| i.username.clone())
                         })
                     })
@@ -434,8 +446,7 @@ impl Oryxis {
                 // its smallest variant, otherwise clippy
                 // flags the variant disparity.
                 struct InstanceConnectRun {
-                    provider:
-                        std::sync::Arc<dyn oryxis_cloud::CloudProvider>,
+                    provider: std::sync::Arc<dyn oryxis_cloud::CloudProvider>,
                     profile: oryxis_core::models::cloud_profile::CloudProfile,
                     region: String,
                     instance_id: String,
@@ -472,9 +483,7 @@ impl Oryxis {
                     // present; fold the can't-happen "not registered"
                     // case into MissingProfile rather than adding a
                     // variant (and an i18n key in 11 languages) for it.
-                    let Some(provider) =
-                        self.cloud_provider_registry.get(&profile.provider)
-                    else {
+                    let Some(provider) = self.cloud_provider_registry.get(&profile.provider) else {
                         return InstanceConnectPlan::MissingProfile;
                     };
                     let key_id = conn.key_id.or_else(|| {
@@ -523,109 +532,124 @@ impl Oryxis {
                 // entry; the handler reuses it by id, so in-place mutations
                 // (expanded algorithms) survive the round trip.
                 let retry_msg = match origin {
-                    crate::state::ProgressOrigin::Saved(i) => Message::Ssh(SshMessage::ConnectSsh(i)),
+                    crate::state::ProgressOrigin::Saved(i) => {
+                        Message::Ssh(SshMessage::ConnectSsh(i))
+                    }
                     crate::state::ProgressOrigin::Quick(id) => {
                         Message::Ssh(SshMessage::QuickConnect(Box::new(
-                            self.quick_connects.get(&id).cloned().unwrap_or_else(
-                                || crate::state::QuickConnectEntry::bare(conn.clone()),
-                            ),
+                            self.quick_connects.get(&id).cloned().unwrap_or_else(|| {
+                                crate::state::QuickConnectEntry::bare(conn.clone())
+                            }),
                         )))
                     }
                 };
-                let stream = iced::stream::channel::<SshStreamMsg>(128, move |mut sender: iced::futures::channel::mpsc::Sender<SshStreamMsg>| {
-                    async move {
-                        let engine = SshEngine::new()
-                            .with_host_key_check(host_key_check)
-                            .with_host_key_ask(hk_ask_tx)
-                            .with_kbi_ask(kbi_ask_tx)
-                            .with_totp_secret(totp_secret.as_deref())
-                            .with_password_prompt_labels(
-                                crate::i18n::t("auth_password_prompt_title").to_string(),
-                                crate::i18n::t("password").to_string(),
-                            )
-                            .with_keepalive(keepalive)
-                            .with_address_family(address_family)
-                            .with_rekey_limit_mb(rekey_limit_mb)
-                            .with_agent_forwarding(agent_forwarding)
-                            .with_x11_forwarding(x11_forwarding)
-                            .with_env_vars(env_vars)
-                            .with_encoding(encoding)
-                            .with_terminal_type(terminal_type)
-                            .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
-                            .with_banner_sink(banner_tx)
-                            .with_pinned_agent_key(pinned_agent.as_deref())
-                        .with_auto_interactive_fallback(is_quick);
+                let stream = iced::stream::channel::<SshStreamMsg>(
+                    128,
+                    move |mut sender: iced::futures::channel::mpsc::Sender<SshStreamMsg>| {
+                        async move {
+                            let engine = SshEngine::new()
+                                .with_host_key_check(host_key_check)
+                                .with_host_key_ask(hk_ask_tx)
+                                .with_kbi_ask(kbi_ask_tx)
+                                .with_totp_secret(totp_secret.as_deref())
+                                .with_password_prompt_labels(
+                                    crate::i18n::t("auth_password_prompt_title").to_string(),
+                                    crate::i18n::t("password").to_string(),
+                                )
+                                .with_keepalive(keepalive)
+                                .with_address_family(address_family)
+                                .with_rekey_limit_mb(rekey_limit_mb)
+                                .with_agent_forwarding(agent_forwarding)
+                                .with_x11_forwarding(x11_forwarding)
+                                .with_env_vars(env_vars)
+                                .with_encoding(encoding)
+                                .with_terminal_type(terminal_type)
+                                .with_algorithm_overrides(
+                                    algo_ciphers,
+                                    algo_kex,
+                                    algo_macs,
+                                    algo_host_keys,
+                                )
+                                .with_banner_sink(banner_tx)
+                                .with_pinned_agent_key(pinned_agent.as_deref())
+                                .with_auto_interactive_fallback(is_quick);
 
-                        // One-way banner bridge (no response leg): pre-auth
-                        // banners surface on the progress card + terminal.
-                        let mut banner_sender = sender.clone();
-                        let _banner_bridge = tokio::spawn(async move {
-                            while let Some(text) = banner_rx.recv().await {
-                                let _ = banner_sender.send(SshStreamMsg::Banner(text)).await;
-                            }
-                        });
+                            // One-way banner bridge (no response leg): pre-auth
+                            // banners surface on the progress card + terminal.
+                            let mut banner_sender = sender.clone();
+                            let _banner_bridge = tokio::spawn(async move {
+                                while let Some(text) = banner_rx.recv().await {
+                                    let _ = banner_sender.send(SshStreamMsg::Banner(text)).await;
+                                }
+                            });
 
-                        // Spawn a bridge task: receives host key queries from the SSH engine,
-                        // forwards to iced stream, and waits for UI response
-                        let mut sender_clone = sender.clone();
-                        let _hk_bridge = tokio::spawn(async move {
-                            while let Some((query, resp_tx)) = hk_ask_rx.recv().await {
-                                // Send query to iced UI
-                                let _ = sender_clone.send(SshStreamMsg::HostKeyVerify(query)).await;
-                                // Wait for UI response
-                                let accepted = hk_resp_rx.recv().await.unwrap_or(false);
-                                let _ = resp_tx.send(accepted);
-                            }
-                        });
+                            // Spawn a bridge task: receives host key queries from the SSH engine,
+                            // forwards to iced stream, and waits for UI response
+                            let mut sender_clone = sender.clone();
+                            let _hk_bridge = tokio::spawn(async move {
+                                while let Some((query, resp_tx)) = hk_ask_rx.recv().await {
+                                    // Send query to iced UI
+                                    let _ =
+                                        sender_clone.send(SshStreamMsg::HostKeyVerify(query)).await;
+                                    // Wait for UI response
+                                    let accepted = hk_resp_rx.recv().await.unwrap_or(false);
+                                    let _ = resp_tx.send(accepted);
+                                }
+                            });
 
-                        // Same bridge for keyboard-interactive prompts.
-                        // A dropped response channel resolves to `None`
-                        // (cancel), which the engine treats as a clean
-                        // auth abort rather than a hang.
-                        let mut kbi_sender_clone = sender.clone();
-                        let _kbi_bridge = tokio::spawn(async move {
-                            while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
-                                let _ = kbi_sender_clone.send(SshStreamMsg::KbiPrompt(query)).await;
-                                let answers = kbi_resp_rx.recv().await.unwrap_or(None);
-                                let _ = resp_tx.send(answers);
-                            }
-                        });
+                            // Same bridge for keyboard-interactive prompts.
+                            // A dropped response channel resolves to `None`
+                            // (cancel), which the engine treats as a clean
+                            // auth abort rather than a hang.
+                            let mut kbi_sender_clone = sender.clone();
+                            let _kbi_bridge = tokio::spawn(async move {
+                                while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
+                                    let _ =
+                                        kbi_sender_clone.send(SshStreamMsg::KbiPrompt(query)).await;
+                                    let answers = kbi_resp_rx.recv().await.unwrap_or(None);
+                                    let _ = resp_tx.send(answers);
+                                }
+                            });
 
-                        tracing::info!(
-                            target = "oryxis::dispatch_ssh",
-                            plan = match &instance_connect_plan {
-                                InstanceConnectPlan::Skip => "skip (no cloud_ref or transport != InstanceConnect)",
-                                InstanceConnectPlan::Run(_) => "run (push key via SendSSHPublicKey)",
-                                InstanceConnectPlan::MissingKey => "abort (no SSH key linked)",
-                                InstanceConnectPlan::MissingProfile => "abort (cloud profile gone)",
-                                InstanceConnectPlan::MissingRegion => "abort (region missing on cloud_ref)",
-                            },
-                            "Instance Connect pre-step decision"
-                        );
+                            tracing::info!(
+                                target = "oryxis::dispatch_ssh",
+                                plan = match &instance_connect_plan {
+                                    InstanceConnectPlan::Skip =>
+                                        "skip (no cloud_ref or transport != InstanceConnect)",
+                                    InstanceConnectPlan::Run(_) =>
+                                        "run (push key via SendSSHPublicKey)",
+                                    InstanceConnectPlan::MissingKey => "abort (no SSH key linked)",
+                                    InstanceConnectPlan::MissingProfile =>
+                                        "abort (cloud profile gone)",
+                                    InstanceConnectPlan::MissingRegion =>
+                                        "abort (region missing on cloud_ref)",
+                                },
+                                "Instance Connect pre-step decision"
+                            );
 
-                        // Pre-step: EC2 Instance Connect.
-                        // AWS injects the public key into
-                        // the instance's authorized_keys
-                        // for ~60s; we have that window
-                        // to dial. Setup misconfigurations
-                        // (missing key / profile / region)
-                        // bail loudly here instead of
-                        // silently degrading to plain SSH
-                        //, that path would just confuse
-                        // the user into wondering why the
-                        // transport pick didn't take.
-                        match instance_connect_plan {
-                            InstanceConnectPlan::Skip => {}
-                            InstanceConnectPlan::Run(run) => {
-                                let InstanceConnectRun {
-                                    provider,
-                                    profile,
-                                    region,
-                                    instance_id,
-                                    os_user,
-                                    public_key,
-                                } = *run;
-                                let _ = sender
+                            // Pre-step: EC2 Instance Connect.
+                            // AWS injects the public key into
+                            // the instance's authorized_keys
+                            // for ~60s; we have that window
+                            // to dial. Setup misconfigurations
+                            // (missing key / profile / region)
+                            // bail loudly here instead of
+                            // silently degrading to plain SSH
+                            //, that path would just confuse
+                            // the user into wondering why the
+                            // transport pick didn't take.
+                            match instance_connect_plan {
+                                InstanceConnectPlan::Skip => {}
+                                InstanceConnectPlan::Run(run) => {
+                                    let InstanceConnectRun {
+                                        provider,
+                                        profile,
+                                        region,
+                                        instance_id,
+                                        os_user,
+                                        public_key,
+                                    } = *run;
+                                    let _ = sender
                                     .send(SshStreamMsg::Progress(
                                         ConnectionStep::Connecting,
                                         format!(
@@ -633,205 +657,264 @@ impl Oryxis {
                                         ),
                                     ))
                                     .await;
-                                if let Err(e) = provider
-                                    .push_instance_connect_key(
-                                        &profile,
-                                        &region,
-                                        &instance_id,
-                                        &os_user,
-                                        &public_key,
-                                    )
-                                    .await
-                                {
+                                    if let Err(e) = provider
+                                        .push_instance_connect_key(
+                                            &profile,
+                                            &region,
+                                            &instance_id,
+                                            &os_user,
+                                            &public_key,
+                                        )
+                                        .await
+                                    {
+                                        let _ = sender
+                                            .send(SshStreamMsg::Error(format!(
+                                                "EC2 Instance Connect push failed: {e}"
+                                            )))
+                                            .await;
+                                        return;
+                                    }
+                                }
+                                InstanceConnectPlan::MissingKey => {
                                     let _ = sender
-                                        .send(SshStreamMsg::Error(format!(
-                                            "EC2 Instance Connect push failed: {e}"
-                                        )))
+                                        .send(SshStreamMsg::Error(
+                                            crate::i18n::t("ic_err_missing_key").into(),
+                                        ))
+                                        .await;
+                                    return;
+                                }
+                                InstanceConnectPlan::MissingProfile => {
+                                    let _ = sender
+                                        .send(SshStreamMsg::Error(
+                                            crate::i18n::t("ic_err_missing_profile").into(),
+                                        ))
+                                        .await;
+                                    return;
+                                }
+                                InstanceConnectPlan::MissingRegion => {
+                                    let _ = sender
+                                        .send(SshStreamMsg::Error(
+                                            crate::i18n::t("ic_err_missing_region").into(),
+                                        ))
                                         .await;
                                     return;
                                 }
                             }
-                            InstanceConnectPlan::MissingKey => {
+
+                            // Route context up front: the dial happens inside
+                            // `establish_transport`, so jump chains and proxies
+                            // are announced here or never.
+                            if !conn.jump_chain.is_empty() {
+                                let n = conn.jump_chain.len();
                                 let _ = sender
-                                    .send(SshStreamMsg::Error(
-                                        crate::i18n::t("ic_err_missing_key").into(),
+                                    .send(SshStreamMsg::Progress(
+                                        ConnectionStep::Connecting,
+                                        format!(
+                                            "Routing through {} jump host{}",
+                                            n,
+                                            if n == 1 { "" } else { "s" }
+                                        ),
                                     ))
                                     .await;
-                                return;
                             }
-                            InstanceConnectPlan::MissingProfile => {
+                            if let Some(ref proxy) = conn.proxy {
+                                // A command proxy's line is user-authored and can
+                                // embed credentials, so only its type is logged.
+                                let via = match proxy.proxy_type {
+                                    oryxis_core::models::connection::ProxyType::Socks5 => {
+                                        format!("Using SOCKS5 proxy {}:{}", proxy.host, proxy.port)
+                                    }
+                                    oryxis_core::models::connection::ProxyType::Socks4 => {
+                                        format!("Using SOCKS4 proxy {}:{}", proxy.host, proxy.port)
+                                    }
+                                    oryxis_core::models::connection::ProxyType::Http => {
+                                        format!("Using HTTP proxy {}:{}", proxy.host, proxy.port)
+                                    }
+                                    oryxis_core::models::connection::ProxyType::Command(_) => {
+                                        "Using command proxy".to_string()
+                                    }
+                                };
                                 let _ = sender
-                                    .send(SshStreamMsg::Error(
-                                        crate::i18n::t("ic_err_missing_profile").into(),
-                                    ))
+                                    .send(SshStreamMsg::Progress(ConnectionStep::Connecting, via))
                                     .await;
-                                return;
                             }
-                            InstanceConnectPlan::MissingRegion => {
-                                let _ = sender
-                                    .send(SshStreamMsg::Error(
-                                        crate::i18n::t("ic_err_missing_region").into(),
-                                    ))
-                                    .await;
-                                return;
-                            }
-                        }
 
-                        // Route context up front: the dial happens inside
-                        // `establish_transport`, so jump chains and proxies
-                        // are announced here or never.
-                        if !conn.jump_chain.is_empty() {
-                            let n = conn.jump_chain.len();
-                            let _ = sender.send(SshStreamMsg::Progress(
-                                ConnectionStep::Connecting,
-                                format!(
-                                    "Routing through {} jump host{}",
-                                    n,
-                                    if n == 1 { "" } else { "s" }
-                                ),
-                            )).await;
-                        }
-                        if let Some(ref proxy) = conn.proxy {
-                            // A command proxy's line is user-authored and can
-                            // embed credentials, so only its type is logged.
-                            let via = match proxy.proxy_type {
-                                oryxis_core::models::connection::ProxyType::Socks5 =>
-                                    format!("Using SOCKS5 proxy {}:{}", proxy.host, proxy.port),
-                                oryxis_core::models::connection::ProxyType::Socks4 =>
-                                    format!("Using SOCKS4 proxy {}:{}", proxy.host, proxy.port),
-                                oryxis_core::models::connection::ProxyType::Http =>
-                                    format!("Using HTTP proxy {}:{}", proxy.host, proxy.port),
-                                oryxis_core::models::connection::ProxyType::Command(_) =>
-                                    "Using command proxy".to_string(),
-                            };
-                            let _ = sender.send(SshStreamMsg::Progress(
-                                ConnectionStep::Connecting,
-                                via,
-                            )).await;
-                        }
+                            // Step 1: TCP connection + SSH handshake + host key verification
+                            let _ = sender
+                                .send(SshStreamMsg::Progress(
+                                    ConnectionStep::Connecting,
+                                    format!(
+                                        "Resolving address and connecting to \"{}\" port {}...",
+                                        conn_host, conn_port
+                                    ),
+                                ))
+                                .await;
 
-                        // Step 1: TCP connection + SSH handshake + host key verification
-                        let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::Connecting,
-                            format!(
-                                "Resolving address and connecting to \"{}\" port {}...",
-                                conn_host, conn_port
-                            ),
-                        )).await;
-
-                        let mut handle = match engine.establish_transport(&conn, resolver.as_ref()).await {
-                            Ok(h) => {
-                                let _ = sender.send(SshStreamMsg::Progress(
+                            let mut handle = match engine
+                                .establish_transport(&conn, resolver.as_ref())
+                                .await
+                            {
+                                Ok(h) => {
+                                    let _ = sender.send(SshStreamMsg::Progress(
                                     ConnectionStep::Handshake,
                                     "Connection established, SSH handshake complete and host key verified".to_string(),
                                 )).await;
-                                h
-                            }
-                            Err(e) => {
-                                // A "no common algorithm" failure becomes a
-                                // legacy-fallback offer instead of a dead end.
-                                if let Some(nf) = e.negotiation_failure() {
-                                    let _ = sender.send(SshStreamMsg::NoCommonAlgo {
-                                        category: nf.category,
-                                        server_offers: nf.server_offers,
-                                    }).await;
-                                } else {
-                                    // The engine error repeats the layers this
-                                    // line already states ("Connection failed:"
-                                    // + "host:port:"); strip them so the log
-                                    // reads as one sentence, not three nested
-                                    // prefixes.
-                                    let raw = e.to_string();
-                                    let mut root = raw.as_str();
-                                    if let Some(s) = root.strip_prefix("Connection failed: ") {
-                                        root = s;
-                                    }
-                                    let addr_prefix = format!("{}:{}: ", conn_host, conn_port);
-                                    if let Some(s) = root.strip_prefix(&addr_prefix) {
-                                        root = s;
-                                    }
-                                    let _ = sender.send(SshStreamMsg::Error(
-                                        format!("Connection to \"{}\" port {} failed: {}", conn_host, conn_port, root),
-                                    )).await;
+                                    h
                                 }
+                                Err(e) => {
+                                    // A "no common algorithm" failure becomes a
+                                    // legacy-fallback offer instead of a dead end.
+                                    if let Some(nf) = e.negotiation_failure() {
+                                        let _ = sender
+                                            .send(SshStreamMsg::NoCommonAlgo {
+                                                category: nf.category,
+                                                server_offers: nf.server_offers,
+                                            })
+                                            .await;
+                                    } else {
+                                        // The engine error repeats the layers this
+                                        // line already states ("Connection failed:"
+                                        // + "host:port:"); strip them so the log
+                                        // reads as one sentence, not three nested
+                                        // prefixes.
+                                        let raw = e.to_string();
+                                        let mut root = raw.as_str();
+                                        if let Some(s) = root.strip_prefix("Connection failed: ") {
+                                            root = s;
+                                        }
+                                        let addr_prefix = format!("{}:{}: ", conn_host, conn_port);
+                                        if let Some(s) = root.strip_prefix(&addr_prefix) {
+                                            root = s;
+                                        }
+                                        let _ = sender
+                                            .send(SshStreamMsg::Error(format!(
+                                                "Connection to \"{}\" port {} failed: {}",
+                                                conn_host, conn_port, root
+                                            )))
+                                            .await;
+                                    }
+                                    return;
+                                }
+                            };
+
+                            // Step 2: Authentication
+                            let _ = sender
+                                .send(SshStreamMsg::Progress(
+                                    ConnectionStep::Authenticating,
+                                    format!(
+                                        "Authenticating as \"{}\" using {}...",
+                                        username, auth_method_label
+                                    ),
+                                ))
+                                .await;
+
+                            let auth_material = private_key.as_deref().map(|pem| {
+                                oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())
+                            });
+                            if let Err(e) = engine
+                                .do_authenticate(
+                                    &mut handle,
+                                    &conn,
+                                    password.as_deref(),
+                                    auth_material,
+                                )
+                                .await
+                            {
+                                let _ = sender
+                                    .send(SshStreamMsg::Error(format!(
+                                        "Authentication failed for \"{}\": {}",
+                                        username, e
+                                    )))
+                                    .await;
                                 return;
                             }
-                        };
 
-                        // Step 2: Authentication
-                        let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::Authenticating,
-                            format!("Authenticating as \"{}\" using {}...", username, auth_method_label),
-                        )).await;
+                            let _ = sender
+                                .send(SshStreamMsg::Progress(
+                                    ConnectionStep::Authenticated,
+                                    format!("Authenticated as \"{}\"", username),
+                                ))
+                                .await;
 
-                        let auth_material = private_key
-                            .as_deref()
-                            .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref()));
-                        if let Err(e) = engine.do_authenticate(&mut handle, &conn, password.as_deref(), auth_material).await {
-                            let _ = sender.send(SshStreamMsg::Error(
-                                format!("Authentication failed for \"{}\": {}", username, e),
-                            )).await;
-                            return;
-                        }
-
-                        let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::Authenticated,
-                            format!("Authenticated as \"{}\"", username),
-                        )).await;
-
-                        // Step 3: Open PTY session (+ port forwards)
-                        if !conn.port_forwards.is_empty() {
-                            let fwd_summary: Vec<String> = conn.port_forwards.iter()
-                                .map(|pf| format!("{}:{}:{}", pf.local_port, pf.remote_host, pf.remote_port))
-                                .collect();
-                            let _ = sender.send(SshStreamMsg::Progress(
-                                ConnectionStep::OpeningSession,
-                                format!("Port forwards: {}", fwd_summary.join(", ")),
-                            )).await;
-                        }
-                        let _ = sender.send(SshStreamMsg::Progress(
-                            ConnectionStep::OpeningSession,
-                            "Opening terminal session and requesting a PTY...".to_string(),
-                        )).await;
-                        match engine.open_session(handle, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, &conn.port_forwards).await {
-                            Ok((session, mut rx)) => {
-                                // Terminfo fallback (issue #88): the probe
-                                // found the configured TERM missing on the
-                                // host; log what was actually requested so
-                                // the timeline explains the differing TERM.
-                                if let Some(fb) = session.term_fallback() {
-                                    let line = match fb.used.as_deref() {
-                                        Some(used) => format!(
-                                            "Host has no terminfo entry for \"{}\"; using \"{}\" for this session",
-                                            fb.requested, used
-                                        ),
-                                        None => format!(
-                                            "Host has no terminfo entry for \"{}\" and no fallback was found; full-screen apps may misbehave",
-                                            fb.requested
-                                        ),
-                                    };
-                                    let _ = sender.send(SshStreamMsg::Progress(
+                            // Step 3: Open PTY session (+ port forwards)
+                            if !conn.port_forwards.is_empty() {
+                                let fwd_summary: Vec<String> = conn
+                                    .port_forwards
+                                    .iter()
+                                    .map(|pf| {
+                                        format!(
+                                            "{}:{}:{}",
+                                            pf.local_port, pf.remote_host, pf.remote_port
+                                        )
+                                    })
+                                    .collect();
+                                let _ = sender
+                                    .send(SshStreamMsg::Progress(
                                         ConnectionStep::OpeningSession,
-                                        line,
-                                    )).await;
-                                }
-                                let session = Arc::new(session);
-                                let _ = sender.send(SshStreamMsg::Connected(session.clone())).await;
-                                while let Some(data) = rx.recv().await {
-                                    if sender.send(SshStreamMsg::Data(data)).await.is_err() {
-                                        break;
-                                    }
-                                }
-                                let _ = sender.send(SshStreamMsg::Disconnected).await;
+                                        format!("Port forwards: {}", fwd_summary.join(", ")),
+                                    ))
+                                    .await;
                             }
-                            Err(e) => {
-                                let _ = sender.send(SshStreamMsg::Error(
-                                    format!("Terminal session setup failed: {}", e),
-                                )).await;
+                            let _ = sender
+                                .send(SshStreamMsg::Progress(
+                                    ConnectionStep::OpeningSession,
+                                    "Opening terminal session and requesting a PTY...".to_string(),
+                                ))
+                                .await;
+                            match engine
+                                .open_session(
+                                    handle,
+                                    DEFAULT_TERM_COLS,
+                                    DEFAULT_TERM_ROWS,
+                                    &conn.port_forwards,
+                                )
+                                .await
+                            {
+                                Ok((session, mut rx)) => {
+                                    // Terminfo fallback (issue #88): the probe
+                                    // found the configured TERM missing on the
+                                    // host; log what was actually requested so
+                                    // the timeline explains the differing TERM.
+                                    if let Some(fb) = session.term_fallback() {
+                                        let line = match fb.used.as_deref() {
+                                            Some(used) => format!(
+                                                "Host has no terminfo entry for \"{}\"; using \"{}\" for this session",
+                                                fb.requested, used
+                                            ),
+                                            None => format!(
+                                                "Host has no terminfo entry for \"{}\" and no fallback was found; full-screen apps may misbehave",
+                                                fb.requested
+                                            ),
+                                        };
+                                        let _ = sender
+                                            .send(SshStreamMsg::Progress(
+                                                ConnectionStep::OpeningSession,
+                                                line,
+                                            ))
+                                            .await;
+                                    }
+                                    let session = Arc::new(session);
+                                    let _ =
+                                        sender.send(SshStreamMsg::Connected(session.clone())).await;
+                                    while let Some(data) = rx.recv().await {
+                                        if sender.send(SshStreamMsg::Data(data)).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    let _ = sender.send(SshStreamMsg::Disconnected).await;
+                                }
+                                Err(e) => {
+                                    let _ = sender
+                                        .send(SshStreamMsg::Error(format!(
+                                            "Terminal session setup failed: {}",
+                                            e
+                                        )))
+                                        .await;
+                                }
                             }
                         }
-                    }
-                });
+                    },
+                );
 
                 return Task::batch(vec![
                     self.tab_scroll_to_active(),
@@ -854,14 +937,15 @@ impl Oryxis {
                         }
                         SshStreamMsg::Banner(text) => Message::Ssh(SshMessage::SshBanner(text)),
                         SshStreamMsg::Error(err) => Message::Ssh(SshMessage::SshError(err)),
-                        SshStreamMsg::NoCommonAlgo { category, server_offers } => {
-                            Message::Ssh(SshMessage::SshNoCommonAlgo {
-                                conn_id: map_conn_id,
-                                category,
-                                server_offers,
-                                retry: Box::new(retry_msg.clone()),
-                            })
-                        }
+                        SshStreamMsg::NoCommonAlgo {
+                            category,
+                            server_offers,
+                        } => Message::Ssh(SshMessage::SshNoCommonAlgo {
+                            conn_id: map_conn_id,
+                            category,
+                            server_offers,
+                            retry: Box::new(retry_msg.clone()),
+                        }),
                         SshStreamMsg::Disconnected => {
                             Message::Ssh(SshMessage::SshDisconnected(pane_id))
                         }
@@ -923,7 +1007,8 @@ impl Oryxis {
         };
         self.active_tab = Some(tab_idx);
         let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-        Task::stream(stream).map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pane_id, bytes)))
+        Task::stream(stream)
+            .map(move |bytes| Message::Terminal(TerminalMessage::PtyOutput(pane_id, bytes)))
     }
 
     /// Resolve the `Connection` a pane was opened from, via its `PaneOrigin`
@@ -939,15 +1024,7 @@ impl Oryxis {
             .flat_map(|t| t.pane_grid.panes.values())
             .find(|p| p.id == pane_id)
             .map(|p| &p.origin)?;
-        match origin {
-            crate::state::PaneOrigin::Host(id) => {
-                self.connections.iter().find(|c| c.id == *id)
-            }
-            crate::state::PaneOrigin::QuickHost(id) => {
-                self.quick_connects.get(id).map(|e| &e.conn)
-            }
-            _ => None,
-        }
+        pane_to_connection(&self.connections, &self.quick_connects, origin)
     }
 
     /// Connect a saved host into a new split pane. Uses the one-shot
@@ -984,8 +1061,11 @@ impl Oryxis {
         };
         term.set_palette(self.resolve_terminal_palette_for_connection(&conn));
         term.process(
-            format!("Connecting to {} ({}:{})...\r\n", conn.label, conn.hostname, conn.port)
-                .as_bytes(),
+            format!(
+                "Connecting to {} ({}:{})...\r\n",
+                conn.label, conn.hostname, conn.port
+            )
+            .as_bytes(),
         );
         let terminal = Arc::new(Mutex::new(term));
         let Some(pane_id) = self.make_split_pane(
@@ -1022,8 +1102,11 @@ impl Oryxis {
         };
         term.set_palette(self.resolve_terminal_palette_for_connection(&conn));
         term.process(
-            format!("Connecting to {} ({}:{})...\r\n", conn.label, conn.hostname, conn.port)
-                .as_bytes(),
+            format!(
+                "Connecting to {} ({}:{})...\r\n",
+                conn.label, conn.hostname, conn.port
+            )
+            .as_bytes(),
         );
         let terminal = Arc::new(Mutex::new(term));
         let Some(pane_id) = self.make_split_pane(
@@ -1107,7 +1190,10 @@ impl Oryxis {
         {
             pane.quirks = quirks;
             if let Ok(term) = pane.terminal.lock() {
-                { let (w, r) = quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None)); term.set_osc52_override(w, r); };
+                {
+                    let (w, r) = quirks.osc52.map(|o| o.overrides()).unwrap_or((None, None));
+                    term.set_osc52_override(w, r);
+                };
             }
         }
         // Telnet / Serial hosts take their own thin connect paths (no
@@ -1218,90 +1304,94 @@ impl Oryxis {
         // progress card, so banners go straight to the pane's terminal.
         let (banner_tx, mut banner_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
 
-        let stream = iced::stream::channel::<PaneConnMsg>(128, move |mut sender: iced::futures::channel::mpsc::Sender<PaneConnMsg>| async move {
-            let engine = SshEngine::new()
-                .with_host_key_check(host_key_check)
-                .with_host_key_ask(hk_ask_tx)
-                .with_kbi_ask(kbi_ask_tx)
-                .with_totp_secret(totp_secret.as_deref())
-                .with_password_prompt_labels(
-                    crate::i18n::t("auth_password_prompt_title").to_string(),
-                    crate::i18n::t("password").to_string(),
-                )
-                .with_keepalive(keepalive)
-                .with_address_family(address_family)
-                .with_rekey_limit_mb(rekey_limit_mb)
-                .with_agent_forwarding(agent_forwarding)
-                .with_x11_forwarding(x11_forwarding)
-                .with_env_vars(env_vars)
-                .with_encoding(encoding)
-                .with_terminal_type(terminal_type)
-                .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
-                .with_banner_sink(banner_tx)
-                .with_pinned_agent_key(pinned_agent.as_deref())
-                .with_auto_interactive_fallback(is_quick);
+        let stream = iced::stream::channel::<PaneConnMsg>(
+            128,
+            move |mut sender: iced::futures::channel::mpsc::Sender<PaneConnMsg>| async move {
+                let engine = SshEngine::new()
+                    .with_host_key_check(host_key_check)
+                    .with_host_key_ask(hk_ask_tx)
+                    .with_kbi_ask(kbi_ask_tx)
+                    .with_totp_secret(totp_secret.as_deref())
+                    .with_password_prompt_labels(
+                        crate::i18n::t("auth_password_prompt_title").to_string(),
+                        crate::i18n::t("password").to_string(),
+                    )
+                    .with_keepalive(keepalive)
+                    .with_address_family(address_family)
+                    .with_rekey_limit_mb(rekey_limit_mb)
+                    .with_agent_forwarding(agent_forwarding)
+                    .with_x11_forwarding(x11_forwarding)
+                    .with_env_vars(env_vars)
+                    .with_encoding(encoding)
+                    .with_terminal_type(terminal_type)
+                    .with_algorithm_overrides(algo_ciphers, algo_kex, algo_macs, algo_host_keys)
+                    .with_banner_sink(banner_tx)
+                    .with_pinned_agent_key(pinned_agent.as_deref())
+                    .with_auto_interactive_fallback(is_quick);
 
-            let mut sender_clone = sender.clone();
-            let _bridge = tokio::spawn(async move {
-                while let Some((query, resp_tx)) = hk_ask_rx.recv().await {
-                    let _ = sender_clone.send(PaneConnMsg::HostKey(query)).await;
-                    let accepted = hk_resp_rx.recv().await.unwrap_or(false);
-                    let _ = resp_tx.send(accepted);
-                }
-            });
-
-            let mut banner_sender = sender.clone();
-            let _banner_bridge = tokio::spawn(async move {
-                while let Some(text) = banner_rx.recv().await {
-                    let _ = banner_sender.send(PaneConnMsg::Banner(text)).await;
-                }
-            });
-
-            let mut kbi_sender_clone = sender.clone();
-            let _kbi_bridge = tokio::spawn(async move {
-                while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
-                    let _ = kbi_sender_clone.send(PaneConnMsg::Kbi(query)).await;
-                    let answers = kbi_resp_rx.recv().await.unwrap_or(None);
-                    let _ = resp_tx.send(answers);
-                }
-            });
-
-            match engine
-                .connect_with_resolver(
-                    &conn,
-                    password.as_deref(),
-                    private_key
-                        .as_deref()
-                        .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
-                    DEFAULT_TERM_COLS,
-                    DEFAULT_TERM_ROWS,
-                    resolver.as_ref(),
-                )
-                .await
-            {
-                Ok((session, mut rx)) => {
-                    let session = Arc::new(session);
-                    let _ = sender.send(PaneConnMsg::Connected(session.clone())).await;
-                    while let Some(data) = rx.recv().await {
-                        if sender.send(PaneConnMsg::Data(data)).await.is_err() {
-                            break;
-                        }
+                let mut sender_clone = sender.clone();
+                let _bridge = tokio::spawn(async move {
+                    while let Some((query, resp_tx)) = hk_ask_rx.recv().await {
+                        let _ = sender_clone.send(PaneConnMsg::HostKey(query)).await;
+                        let accepted = hk_resp_rx.recv().await.unwrap_or(false);
+                        let _ = resp_tx.send(accepted);
                     }
-                    let _ = sender.send(PaneConnMsg::Disconnected).await;
+                });
+
+                let mut banner_sender = sender.clone();
+                let _banner_bridge = tokio::spawn(async move {
+                    while let Some(text) = banner_rx.recv().await {
+                        let _ = banner_sender.send(PaneConnMsg::Banner(text)).await;
+                    }
+                });
+
+                let mut kbi_sender_clone = sender.clone();
+                let _kbi_bridge = tokio::spawn(async move {
+                    while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
+                        let _ = kbi_sender_clone.send(PaneConnMsg::Kbi(query)).await;
+                        let answers = kbi_resp_rx.recv().await.unwrap_or(None);
+                        let _ = resp_tx.send(answers);
+                    }
+                });
+
+                match engine
+                    .connect_with_resolver(
+                        &conn,
+                        password.as_deref(),
+                        private_key
+                            .as_deref()
+                            .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
+                        DEFAULT_TERM_COLS,
+                        DEFAULT_TERM_ROWS,
+                        resolver.as_ref(),
+                    )
+                    .await
+                {
+                    Ok((session, mut rx)) => {
+                        let session = Arc::new(session);
+                        let _ = sender.send(PaneConnMsg::Connected(session.clone())).await;
+                        while let Some(data) = rx.recv().await {
+                            if sender.send(PaneConnMsg::Data(data)).await.is_err() {
+                                break;
+                            }
+                        }
+                        let _ = sender.send(PaneConnMsg::Disconnected).await;
+                    }
+                    Err(e) => {
+                        let _ = sender.send(PaneConnMsg::Error(e.to_string())).await;
+                    }
                 }
-                Err(e) => {
-                    let _ = sender.send(PaneConnMsg::Error(e.to_string())).await;
-                }
-            }
-        });
+            },
+        );
 
         Task::stream(stream).map(move |m| match m {
             PaneConnMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
             PaneConnMsg::Kbi(q) => Message::Ssh(SshMessage::SshKbiPrompt(quick_id, q)),
             PaneConnMsg::Banner(text) => Message::Ssh(SshMessage::SshPaneBanner(pane_id, text)),
-            PaneConnMsg::Connected(s) => {
-                Message::Ssh(SshMessage::SshConnected(pane_id, crate::state::TerminalTransport::Ssh(s)))
-            }
+            PaneConnMsg::Connected(s) => Message::Ssh(SshMessage::SshConnected(
+                pane_id,
+                crate::state::TerminalTransport::Ssh(s),
+            )),
             PaneConnMsg::Data(d) => Message::Terminal(TerminalMessage::PtyOutput(pane_id, d)),
             PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
             PaneConnMsg::Error(e) => Message::Ssh(SshMessage::PaneConnectError(pane_id, e)),
@@ -1326,4 +1416,20 @@ pub(crate) fn certificate_is_expired(cert_line: &str) -> bool {
     }
     let now = chrono::Utc::now().timestamp().max(0) as u64;
     now > before
+}
+
+/// Resolve a [`PaneOrigin`] to its [`Connection`] (hostname, port, etc).
+/// Shared by the tab context-menu "Copy IP Address" row and the
+/// dispatcher's `pane_origin_connection`. Returns `None` for local
+/// / ephemeral panes or a dangling vault reference.
+pub(crate) fn pane_to_connection<'a>(
+    connections: &'a [oryxis_core::models::Connection],
+    quick_connects: &'a std::collections::HashMap<Uuid, crate::state::QuickConnectEntry>,
+    origin: &'a crate::state::PaneOrigin,
+) -> Option<&'a oryxis_core::models::Connection> {
+    match origin {
+        crate::state::PaneOrigin::Host(id) => connections.iter().find(|c| c.id == *id),
+        crate::state::PaneOrigin::QuickHost(id) => quick_connects.get(id).map(|e| &e.conn),
+        _ => None,
+    }
 }

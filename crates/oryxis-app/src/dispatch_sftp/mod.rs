@@ -34,7 +34,7 @@ mod tabs;
 
 use iced::Task;
 
-use crate::app::{SftpMessage, Message, Oryxis};
+use crate::app::{Message, Oryxis, SftpMessage, TerminalMessage};
 use crate::sftp_helpers::parent_path;
 
 /// First listing of a freshly mounted SFTP client: try the caller's
@@ -52,7 +52,10 @@ pub(crate) async fn initial_remote_listing(
     {
         return Ok((path, entries));
     }
-    let path = client.canonicalize(".").await.unwrap_or_else(|_| "/".to_string());
+    let path = client
+        .canonicalize(".")
+        .await
+        .unwrap_or_else(|_| "/".to_string());
     let entries = client.list_dir(&path).await.map_err(|e| e.to_string())?;
     Ok((path, entries))
 }
@@ -120,7 +123,11 @@ impl Oryxis {
             Task::perform(
                 async move { client.rename(&from, &dest).await.map_err(|e| e.to_string()) },
                 move |result| match result {
-                    Ok(()) => Message::Sftp(SftpMessage::SftpRenamed(side, reload_path.clone(), new_name.clone())),
+                    Ok(()) => Message::Sftp(SftpMessage::SftpRenamed(
+                        side,
+                        reload_path.clone(),
+                        new_name.clone(),
+                    )),
                     Err(e) => Message::Sftp(SftpMessage::SftpOpResult(side, e, true)),
                 },
             )
@@ -135,18 +142,35 @@ impl Oryxis {
     /// dropped. `route_sftp_async` re-dispatches through
     /// `dispatch_message`, which lands here.
     pub(crate) fn handle_sftp_domain(&mut self, message: SftpMessage) -> Task<Message> {
+        // File drag-and-drop events are global (not tied to any SFTP
+        // tab). Handle them before the owner check so terminal uploads
+        // work even without an active SFTP surface.
+        match &message {
+            SftpMessage::SftpFileHovered => {
+                self.sftp.drop_active = true;
+                return Task::none();
+            }
+            SftpMessage::SftpFilesHoveredLeft => {
+                self.sftp.drop_active = false;
+                return Task::none();
+            }
+            SftpMessage::SftpFileDropped(path) => {
+                return self.handle_terminal_file_drop(path.clone());
+            }
+            _ => {}
+        }
         match message {
             // Transfers legitimately decline every message when no SFTP tab
             // owns the continuation (tab closed mid-transfer): quiet drop,
             // matching the old chain's fall-through.
             m @ (SftpMessage::SftpToggleTransferPanel
             | SftpMessage::SftpTransferTick
-            | SftpMessage::SftpUpload(..)
-            | SftpMessage::SftpDownload(..)
-            | SftpMessage::SftpDuplicate(..)
             | SftpMessage::SftpFileHovered
             | SftpMessage::SftpFilesHoveredLeft
             | SftpMessage::SftpFileDropped(..)
+            | SftpMessage::SftpUpload(..)
+            | SftpMessage::SftpDownload(..)
+            | SftpMessage::SftpDuplicate(..)
             | SftpMessage::SftpDropFlush
             | SftpMessage::SftpUploadFolder(..)
             | SftpMessage::SftpDownloadFolder(..)
@@ -287,5 +311,35 @@ impl Oryxis {
                 .handle_sftp_selection(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
         }
+    }
+
+    /// Handle an OS file drop when there's no SFTP tab active.
+    /// Routes to terminal upload (ZMODEM / local-shell path typing).
+    fn handle_terminal_file_drop(&mut self, path: std::path::PathBuf) -> Task<Message> {
+        if let Some(tab_idx) = self.active_tab
+            && let Some(tab) = self.tabs.get(tab_idx)
+        {
+            let pane = tab.active();
+            if pane.session.as_ref().and_then(|s| s.ssh()).is_some() {
+                // SSH session: buffer for ZMODEM upload.
+                if self.pending_terminal_drops.is_empty() {
+                    self.pending_terminal_drops.push(path);
+                    return Task::perform(
+                        async {
+                            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+                        },
+                        |_| Message::Terminal(TerminalMessage::TerminalDropFlush),
+                    );
+                }
+                self.pending_terminal_drops.push(path);
+                return Task::none();
+            }
+            // Local shell: type the file path.
+            let path_str = path.display().to_string();
+            self.write_input_to_tab(tab_idx, path_str.as_bytes());
+            self.write_input_to_tab(tab_idx, b" ");
+            return Task::none();
+        }
+        Task::none()
     }
 }

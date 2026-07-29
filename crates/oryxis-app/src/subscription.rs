@@ -5,9 +5,12 @@ use std::sync::atomic::{AtomicI32, Ordering};
 
 use iced::Subscription;
 
-use crate::app::{SftpMessage, SettingsMessage, TabsMessage, TerminalMessage, CloudMessage, PortForwardMessage, AiMessage, SyncMessage, PlayerMessage, Message, Oryxis};
 #[cfg(target_os = "windows")]
 use crate::app::TrayMessage;
+use crate::app::{
+    AiMessage, CloudMessage, Message, Oryxis, PlayerMessage, PortForwardMessage, SettingsMessage,
+    SftpMessage, SyncMessage, TabsMessage, TerminalMessage,
+};
 
 // Coarse-grained record of the last cursor position forwarded to the
 // message loop. The subscription closure quantises to a 4 px grid and
@@ -32,8 +35,7 @@ static LAST_MOUSE_Y: AtomicI32 = AtomicI32::new(i32::MIN);
 // hover (buttons, tooltips, the terminal canvas) rides iced's internal
 // event path and keeps working regardless; this gate only affects the
 // app-message lane.
-static MOUSE_INTEREST: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+static MOUSE_INTEREST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 // The live (raw, unsnapped) cursor position, updated on every
 // CursorMoved even while `MOUSE_INTEREST` is off, stored as f32 bits.
@@ -65,15 +67,17 @@ impl Oryxis {
     pub fn subscription(&self) -> Subscription<Message> {
         let events = iced::event::listen_with(|event, _status, _window| {
             match event {
-                iced::event::Event::Keyboard(ke) => Some(Message::Terminal(TerminalMessage::KeyboardEvent(ke))),
+                iced::event::Event::Keyboard(ke) => {
+                    Some(Message::Terminal(TerminalMessage::KeyboardEvent(ke)))
+                }
                 // Text committed by the OS IME (composed CJK characters,
                 // etc.). Routed to the active PTY in dispatch_terminal,
                 // behind the same focus guards as KeyboardEvent. Preedit /
                 // open / close phases are handled by the OS overlay; only
                 // the final commit needs forwarding.
-                iced::event::Event::InputMethod(
-                    iced::advanced::input_method::Event::Commit(text),
-                ) => Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text))),
+                iced::event::Event::InputMethod(iced::advanced::input_method::Event::Commit(
+                    text,
+                )) => Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text))),
                 iced::event::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     // Always record the raw position (cheap, no message):
                     // `update()` syncs `self.mouse_position` from these on
@@ -163,11 +167,7 @@ impl Oryxis {
         // 100 ms tick that drives the pulsing "loading" ring on the active
         // connection step. Only runs while a connection is in progress and
         // hasn't failed, no perpetual re-renders on idle.
-        let is_connecting = self
-            .connecting
-            .as_ref()
-            .map(|p| !p.failed)
-            .unwrap_or(false);
+        let is_connecting = self.connecting.as_ref().map(|p| !p.failed).unwrap_or(false);
         if is_connecting {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(100))
@@ -204,10 +204,8 @@ impl Oryxis {
             && self.monitor_target().is_some()
         {
             subs.push(
-                iced::time::every(std::time::Duration::from_secs(
-                    self.monitor_interval_secs(),
-                ))
-                .map(|_| Message::Monitor(crate::app::MonitorMessage::Tick)),
+                iced::time::every(std::time::Duration::from_secs(self.monitor_interval_secs()))
+                    .map(|_| Message::Monitor(crate::app::MonitorMessage::Tick)),
             );
         }
 
@@ -224,9 +222,7 @@ impl Oryxis {
                 .and_then(|t| t.active().session.as_ref().and_then(|s| s.ssh()))
                 .is_some_and(|s| s.is_alive())
         {
-            subs.push(
-                iced::time::every(std::time::Duration::from_secs(3)).map(|_| Message::NoOp),
-            );
+            subs.push(iced::time::every(std::time::Duration::from_secs(3)).map(|_| Message::NoOp));
         }
 
         // Unlocked-gated like the monitor above: the soft-lock sweep
@@ -240,10 +236,9 @@ impl Oryxis {
                     .sftp_tabs
                     .iter()
                     .any(|t| t.state.edit_session.is_some() || !t.state.edit_watches.is_empty())
-                || self
-                    .tabs
-                    .iter()
-                    .any(|t| t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty()))
+                || self.tabs.iter().any(|t| {
+                    t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty()
+                }))
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
@@ -344,10 +339,12 @@ impl Oryxis {
         // the vault is locked (the log key is zeroized, a drain would
         // discard data): buffers accumulate and flush after unlock.
         if self.vault_ui.state == crate::state::VaultState::Unlocked
-            && self
-                .tabs
-                .iter()
-                .any(|t| t.pane_grid.panes.values().any(|p| p.session_log_id.is_some()))
+            && self.tabs.iter().any(|t| {
+                t.pane_grid
+                    .panes
+                    .values()
+                    .any(|p| p.session_log_id.is_some())
+            })
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))
@@ -382,9 +379,7 @@ impl Oryxis {
         // default even allowing for a missed tick; users who lowered the
         // SSM idle timeout below ~5 min would need the server-side
         // setting raised instead.
-        if !self.window_focused
-            && self.tabs.iter().any(|t| t.ssm_keepalive)
-        {
+        if !self.window_focused && self.tabs.iter().any(|t| t.ssm_keepalive) {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(240))
                     .map(|_| Message::Tabs(TabsMessage::SsmKeepaliveTick)),

@@ -1202,7 +1202,7 @@ impl Oryxis {
             // because their chords are PTY-inert. Scrollback does not:
             // Shift+PageUp really does encode to ESC[5~, which is why it
             // is gated in the router loop above rather than here.
-            TerminalCopy | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown => {
+            TerminalCopy | TerminalCopyPaste | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown => {
                 Task::none()
             }
             // Vault section cycling: neighbor of the active view in the
