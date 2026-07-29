@@ -416,6 +416,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "מראה",
         "shortcuts" => "קיצורי דרך",
         "ai_assistant" => "עוזר AI",
+        "ai_reasoning" => "חשיבה",
+        "ai_reasoning_desc" => "מאפשר למודלים בעלי חשיבה לחשוב לפני שהם עונים. החשיבה מחויבת בתשלום אך לעולם אינה מוצגת, וחלק מהספקים דורשים לשלוח אותה מחדש עם כל הודעה נוספת.",
         "language" => "שפה",
         "language_auto_os" => "אוטומטי (מערכת)",
 

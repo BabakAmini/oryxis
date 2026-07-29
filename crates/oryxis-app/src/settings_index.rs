@@ -186,6 +186,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::AI, "model", "ai model name gpt claude llama"),
     e(S::AI, "api_url", "ai custom api url endpoint base"),
     e(S::AI, "api_key", "ai api key secret token"),
+    e(S::AI, "ai_reasoning", "ai reasoning thinking chain of thought deepseek gemini cost tokens"),
     e(S::AI, "additional_system_prompt", "ai system prompt instructions custom persona"),
     // ── MCP ────────────────────────────────────────────────────────
     e(S::Mcp, "mcp_server", "mcp server enable model context protocol port"),

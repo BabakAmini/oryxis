@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Görünüm",
         "shortcuts" => "Kısayollar",
         "ai_assistant" => "Yapay Zeka Asistanı",
+        "ai_reasoning" => "Akıl yürütme",
+        "ai_reasoning_desc" => "Akıl yürütme modellerinin yanıt vermeden önce düşünmesini sağlar. Akıl yürütme ücretlendirilir ama hiçbir zaman gösterilmez ve bazı sağlayıcılar bunun sonraki her mesajla yeniden gönderilmesini ister.",
         "language" => "Dil",
         "language_auto_os" => "Otomatik (sistem)",
 

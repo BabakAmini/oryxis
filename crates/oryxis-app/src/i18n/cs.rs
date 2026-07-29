@@ -416,6 +416,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Vzhled",
         "shortcuts" => "Zkratky",
         "ai_assistant" => "AI asistent",
+        "ai_reasoning" => "Uvažování",
+        "ai_reasoning_desc" => "Nechá modely s uvažováním přemýšlet před odpovědí. Uvažování se účtuje, ale nikdy se nezobrazuje, a někteří poskytovatelé vyžadují jeho opětovné odeslání s každou další zprávou.",
         "language" => "Jazyk",
         "language_auto_os" => "Automaticky (systém)",
 

@@ -193,6 +193,11 @@ pub(crate) struct ToolExchange {
     /// Captured terminal output. `None` while the command is still
     /// running (rendered + sent as flat text until it resolves).
     pub output: Option<String>,
+    /// Gemini's opaque per-call `thoughtSignature`, kept so the replay can
+    /// echo it back; Gemini 2.5+ rejects a function call that returns
+    /// without one. `None` on every other provider. See
+    /// `crate::ai::ToolUseMsg::thought_signature`.
+    pub thought_signature: Option<String>,
 }
 
 /// A single message in the AI chat sidebar.

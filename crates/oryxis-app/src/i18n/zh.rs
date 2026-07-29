@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "外观",
         "shortcuts" => "快捷键",
         "ai_assistant" => "AI 助手",
+        "ai_reasoning" => "推理",
+        "ai_reasoning_desc" => "让推理模型在回答前先思考。推理内容会计费但永远不会显示，部分服务商还要求在之后的每条消息中重新发送。",
         "language" => "语言",
         "language_auto_os" => "自动（跟随系统）",
 

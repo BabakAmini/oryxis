@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "ظاهر",
         "shortcuts" => "میانبرها",
         "ai_assistant" => "دستیار هوش مصنوعی",
+        "ai_reasoning" => "استدلال",
+        "ai_reasoning_desc" => "به مدل‌های استدلالی اجازه می‌دهد پیش از پاسخ دادن فکر کنند. هزینه استدلال محاسبه می‌شود اما هرگز نمایش داده نمی‌شود، و برخی ارائه‌دهندگان لازم دارند که با هر پیام بعدی دوباره ارسال شود.",
         "language" => "زبان",
         "language_auto_os" => "خودکار (سیستم‌عامل)",
 

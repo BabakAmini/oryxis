@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Giao diện",
         "shortcuts" => "Phím tắt",
         "ai_assistant" => "Trợ lý AI",
+        "ai_reasoning" => "Suy luận",
+        "ai_reasoning_desc" => "Cho phép các mô hình suy luận suy nghĩ trước khi trả lời. Phần suy luận vẫn bị tính phí nhưng không bao giờ được hiển thị, và một số nhà cung cấp yêu cầu gửi lại nó trong mọi tin nhắn sau đó.",
         "language" => "Ngôn ngữ",
         "language_auto_os" => "Tự động (hệ thống)",
 

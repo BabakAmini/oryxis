@@ -416,6 +416,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "รูปลักษณ์",
         "shortcuts" => "ทางลัด",
         "ai_assistant" => "ผู้ช่วย AI",
+        "ai_reasoning" => "การให้เหตุผล",
+        "ai_reasoning_desc" => "ให้โมเดลที่ให้เหตุผลได้คิดก่อนตอบ การให้เหตุผลจะถูกคิดค่าใช้จ่ายแต่จะไม่แสดงให้เห็น และผู้ให้บริการบางรายกำหนดให้ส่งซ้ำในทุกข้อความถัดไป",
         "language" => "ภาษา",
         "language_auto_os" => "อัตโนมัติ (ตามระบบ)",
 

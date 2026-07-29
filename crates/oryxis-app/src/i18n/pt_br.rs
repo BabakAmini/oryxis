@@ -392,6 +392,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Aparência",
         "shortcuts" => "Atalhos",
         "ai_assistant" => "Assistente IA",
+        "ai_reasoning" => "Raciocínio",
+        "ai_reasoning_desc" => "Deixa os modelos de raciocínio pensarem antes de responder. O raciocínio é cobrado mas nunca exibido, e alguns provedores exigem que ele seja reenviado a cada mensagem seguinte.",
         "language" => "Idioma",
         "language_auto_os" => "Automático (sistema)",
 

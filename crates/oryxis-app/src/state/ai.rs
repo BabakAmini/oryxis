@@ -79,6 +79,13 @@ pub(crate) struct AiState {
     /// Editable system-prompt buffer. `text_editor::Content` is not `Clone`,
     /// so it lives here rather than in a cloneable form struct.
     pub(crate) system_prompt: text_editor::Content,
+    /// Let reasoning models think before answering. Off by default because
+    /// the chain-of-thought is billed to the user and never shown: it is
+    /// output tokens on the turn that produces it, and input tokens on
+    /// every later request of the conversation, since providers like
+    /// DeepSeek require it replayed (see `ChatMsg::reasoning`). Turning it
+    /// on simply lets each provider's own default stand.
+    pub(crate) reasoning: bool,
 }
 
 impl Default for AiState {
@@ -91,6 +98,7 @@ impl Default for AiState {
             api_key_set: false,
             api_url: String::new(),
             system_prompt: text_editor::Content::new(),
+            reasoning: false,
         }
     }
 }

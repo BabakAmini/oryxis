@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Tampilan",
         "shortcuts" => "Pintasan",
         "ai_assistant" => "Asisten AI",
+        "ai_reasoning" => "Penalaran",
+        "ai_reasoning_desc" => "Biarkan model penalaran berpikir sebelum menjawab. Penalaran tetap ditagih tetapi tidak pernah ditampilkan, dan beberapa penyedia mewajibkan pengirimannya ulang pada setiap pesan berikutnya.",
         "language" => "Bahasa",
         "language_auto_os" => "Otomatis (sistem)",
 

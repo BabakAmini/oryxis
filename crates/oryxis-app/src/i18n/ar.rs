@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "المظهر",
         "shortcuts" => "الاختصارات",
         "ai_assistant" => "المساعد الذكي",
+        "ai_reasoning" => "الاستدلال",
+        "ai_reasoning_desc" => "يتيح لنماذج الاستدلال التفكير قبل الإجابة. تتم محاسبة الاستدلال لكنه لا يُعرض أبدًا، وبعض المزودين يشترطون إعادة إرساله مع كل رسالة لاحقة.",
         "language" => "اللغة",
         "language_auto_os" => "تلقائي (نظام التشغيل)",
 

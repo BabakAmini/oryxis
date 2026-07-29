@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "Darstellung",
         "shortcuts" => "Tastenkürzel",
         "ai_assistant" => "KI-Assistent",
+        "ai_reasoning" => "Denkprozess",
+        "ai_reasoning_desc" => "Lässt Reasoning-Modelle vor der Antwort nachdenken. Der Denkprozess wird berechnet, aber nie angezeigt, und manche Anbieter verlangen, dass er mit jeder weiteren Nachricht erneut gesendet wird.",
         "language" => "Sprache",
         "language_auto_os" => "Automatisch (System)",
 

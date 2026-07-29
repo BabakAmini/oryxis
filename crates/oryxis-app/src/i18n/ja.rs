@@ -397,6 +397,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "外観",
         "shortcuts" => "ショートカット",
         "ai_assistant" => "AIアシスタント",
+        "ai_reasoning" => "推論",
+        "ai_reasoning_desc" => "推論モデルが回答する前に思考できるようにします。推論は課金されますが表示されることはなく、以降のメッセージごとに再送信を求めるプロバイダーもあります。",
         "language" => "言語",
         "language_auto_os" => "自動（システムに従う）",
 

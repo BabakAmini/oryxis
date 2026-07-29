@@ -416,6 +416,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "terminal_group_appearance" => "Appearance",
         "shortcuts" => "Shortcuts",
         "ai_assistant" => "AI Assistant",
+        "ai_reasoning" => "Reasoning",
+        "ai_reasoning_desc" => "Let reasoning models think before answering. The reasoning is billed but never shown, and some providers require it resent with every later message.",
         "language" => "Language",
         "language_auto_os" => "Auto (OS)",
 

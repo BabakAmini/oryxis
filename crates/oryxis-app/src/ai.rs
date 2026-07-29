@@ -16,6 +16,11 @@ pub struct AiConfig {
     pub api_key: String,
     pub api_url: Option<String>,
     pub system_prompt: Option<String>, // additional system instructions
+    /// Let reasoning models think before answering. `false` (the default)
+    /// asks the providers that support it to skip thinking; see
+    /// [`disable_thinking_field`] for which ones can be told and why the
+    /// rest are left alone.
+    pub reasoning: bool,
 }
 
 // ---------------------------------------------------------------------------
@@ -219,6 +224,18 @@ pub struct ToolUseMsg {
     pub id: String,
     pub command: String,
     pub risk: String,
+    /// Gemini's opaque `thoughtSignature`, the sibling key of the
+    /// `functionCall` part that produced this call.
+    ///
+    /// Same class of requirement as [`ChatMsg::reasoning`], but keyed to the
+    /// tool call rather than the turn: Gemini 2.5+ thinking models sign each
+    /// function call, and the signature must be echoed back verbatim on the
+    /// next request or the API answers `400 "Function call is missing a
+    /// thought_signature in functionCall parts"`. We rebuild the call from
+    /// its name and args, so without this field the signature was dropped on
+    /// every replay. Opaque by design: never parse it, never synthesise one.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub thought_signature: Option<String>,
 }
 
 /// The output of a prior [`ToolUseMsg`], carried on a `tool` turn.
@@ -300,7 +317,14 @@ pub enum StreamChunk {
     /// that mutates state). The dispatch handler uses `risk` to
     /// decide whether to auto-execute or surface a confirmation
     /// prompt to the user.
-    ToolUse { command: String, risk: String },
+    ToolUse {
+        command: String,
+        risk: String,
+        /// Gemini's per-call `thoughtSignature`, when the provider signed
+        /// this call. Carried through so the replay can echo it back; see
+        /// [`ToolUseMsg::thought_signature`]. `None` everywhere else.
+        thought_signature: Option<String>,
+    },
     /// Stream completed cleanly. No more chunks will follow.
     Done,
     /// Provider/network error. User-facing message; stream stops here.
@@ -765,6 +789,7 @@ async fn stream_anthropic(
                         let _ = tx.send(StreamChunk::ToolUse {
                             command: cmd.to_string(),
                             risk,
+                            thought_signature: None,
                         });
                         tool_emitted = true;
                     }
@@ -824,6 +849,35 @@ fn openai_messages(system_prompt: &str, messages: &[ChatMsg]) -> Vec<serde_json:
         json
     }))
     .collect()
+}
+
+/// The request field that turns thinking OFF for an OpenAI-compatible
+/// provider, or `None` when we have no documented way to ask.
+///
+/// Deliberately a per-provider allow-list rather than a blanket parameter.
+/// The audit behind it (2026-07-29), across the providers Oryxis ships:
+///
+/// - **DeepSeek**: `thinking: {type: "disabled"}`. The v4 models think by
+///   default, which is what made issue #105 visible in the first place.
+/// - **Anthropic**: left alone. `thinking: {type: "enabled"}` is rejected
+///   with a 400 on Claude 4.7 and later (our default model is
+///   `claude-sonnet-5`), and the adaptive mode that replaced it has no
+///   "off": depth is steered with `output_config.effort`, which is a
+///   different knob from "do not think" and would change answer shape.
+/// - **xAI Grok**: left alone. Grok 4 is reasoning-first with no documented
+///   off switch; `reasoning_effort` is rejected on it.
+/// - **Everyone else** (OpenAI, OpenRouter, Groq, Together, Mistral,
+///   Perplexity, Fireworks, Cerebras, Custom): left alone. Either the model
+///   does not think, or thinking is selected by picking a reasoning model,
+///   which the user did on purpose.
+///
+/// Sending an unknown field to a provider that does not expect it risks a
+/// 400 on a path the user cannot debug, so silence is the safe default.
+fn disable_thinking_field(provider: &str) -> Option<(&'static str, serde_json::Value)> {
+    match provider {
+        "deepseek" => Some(("thinking", serde_json::json!({ "type": "disabled" }))),
+        _ => None,
+    }
 }
 
 /// Attach a turn's chain-of-thought to its already-shaped JSON message.
@@ -888,6 +942,14 @@ async fn stream_openai_at(
     // `max_completion_tokens` on the official OpenAI host (its reasoning
     // models reject `max_tokens`); `max_tokens` on third-party compat hosts.
     body[openai_max_tokens_field(url)] = serde_json::json!(4096);
+    // Reasoning off: ask the providers that document a switch to skip
+    // thinking. The user pays for a chain-of-thought they never see, twice
+    // over once it starts riding the history back (see `ChatMsg::reasoning`).
+    if !config.reasoning
+        && let Some((field, value)) = disable_thinking_field(&config.provider)
+    {
+        body[field] = value;
+    }
     let resp = client
         .post(url)
         .header("Authorization", format!("Bearer {}", config.api_key))
@@ -959,6 +1021,7 @@ async fn stream_openai_at(
                         let _ = tx.send(StreamChunk::ToolUse {
                             command: cmd.to_string(),
                             risk,
+                            thought_signature: None,
                         });
                         tool_emitted = true;
                         break;
@@ -1001,12 +1064,23 @@ fn gemini_contents(messages: &[ChatMsg]) -> Vec<serde_json::Value> {
                 if !text.is_empty() {
                     parts.push(serde_json::json!({ "text": text }));
                 }
-                parts.push(serde_json::json!({
+                let mut call = serde_json::json!({
                     "functionCall": {
                         "name": "execute_command",
                         "args": { "command": tu.command, "risk": tu.risk },
                     }
-                }));
+                });
+                // Echo the signature back verbatim as a sibling of
+                // `functionCall`. Gemini 2.5+ rejects the request without it.
+                if let Some(sig) = &tu.thought_signature
+                    && let Some(obj) = call.as_object_mut()
+                {
+                    obj.insert(
+                        "thoughtSignature".into(),
+                        serde_json::Value::String(sig.clone()),
+                    );
+                }
+                parts.push(call);
                 serde_json::json!({ "role": "model", "parts": parts })
             } else {
                 let role = if m.role == "assistant" { "model" } else { "user" };
@@ -1027,7 +1101,7 @@ async fn stream_gemini(
         .system_prompt
         .as_deref()
         .unwrap_or(DEFAULT_SYSTEM_PROMPT);
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "contents": gemini_contents,
         "systemInstruction": { "parts": [{ "text": system_prompt }] },
         "tools": [{
@@ -1049,6 +1123,17 @@ async fn stream_gemini(
             }]
         }]
     });
+    // Gemini 2.5+ thinks by default and bills the thoughts. `thinkingBudget:
+    // 0` is its documented off switch; the models that cannot disable
+    // thinking ignore it rather than failing, so this is safe across the
+    // family. Note this does NOT stop thought signatures from coming back
+    // on function calls, which are a correctness requirement, not a cost
+    // one, and are replayed regardless (see `gemini_contents`).
+    if !config.reasoning {
+        body["generationConfig"] = serde_json::json!({
+            "thinkingConfig": { "thinkingBudget": 0 }
+        });
+    }
 
     // The streaming endpoint mirrors generateContent but ends in
     // streamGenerateContent and accepts `alt=sse` for text/event-stream
@@ -1103,9 +1188,15 @@ async fn stream_gemini(
                     .as_str()
                     .unwrap_or("risky")
                     .to_string();
+                // Sibling of `functionCall`, not nested inside it. Required
+                // back on the next request; see `ToolUseMsg`.
+                let thought_signature = part["thoughtSignature"]
+                    .as_str()
+                    .map(str::to_string);
                 let _ = tx.send(StreamChunk::ToolUse {
                     command: cmd.to_string(),
                     risk,
+                    thought_signature,
                 });
                 tool_emitted = true;
             }
@@ -1301,6 +1392,7 @@ mod tests {
             id: "toolu_1".into(),
             command: "df -h".into(),
             risk: "safe".into(),
+            thought_signature: None,
         });
         vec![
             ChatMsg::text("user", "how much disk is free?"),
@@ -1379,6 +1471,7 @@ mod tests {
             id: "x".into(),
             command: "ls".into(),
             risk: "safe".into(),
+            thought_signature: None,
         });
         let anth = anthropic_messages(&[a.clone()]);
         let blocks = anth[0]["content"].as_array().unwrap();
@@ -1428,6 +1521,7 @@ mod tests {
             id: "toolu_1".into(),
             command: "ls".into(),
             risk: "safe".into(),
+            thought_signature: None,
         });
         a.reasoning = Some("I should list the directory".into());
         let oai = openai_messages("SYS", &[a]);
@@ -1443,6 +1537,73 @@ mod tests {
         a.reasoning = Some(String::new());
         let oai = openai_messages("SYS", &[a]);
         assert!(oai[1].get("reasoning_content").is_none());
+    }
+
+    /// Gemini 2.5+ signs every function call and rejects the next request
+    /// with `400 "Function call is missing a thought_signature in
+    /// functionCall parts"` when the signature does not come back. We
+    /// rebuild the call from its name and args, so the signature only
+    /// survives if it is carried on the turn and re-attached here, as a
+    /// SIBLING of `functionCall` (not nested inside it).
+    #[test]
+    fn gemini_echoes_the_thought_signature_beside_its_function_call() {
+        let mut a = ChatMsg::text("assistant", "checking");
+        a.tool_use = Some(ToolUseMsg {
+            id: "toolu_1".into(),
+            command: "df -h".into(),
+            risk: "safe".into(),
+            thought_signature: Some("Cs8BAVKm".into()),
+        });
+        let gem = gemini_contents(&[a]);
+        let parts = gem[0]["parts"].as_array().unwrap();
+        // [0] the preamble text, [1] the signed call.
+        let call = &parts[1];
+        assert_eq!(call["functionCall"]["name"], "execute_command");
+        assert_eq!(
+            call["thoughtSignature"], "Cs8BAVKm",
+            "the signature is a sibling of functionCall, echoed verbatim"
+        );
+        assert!(
+            call["functionCall"]["thoughtSignature"].is_null(),
+            "it must NOT be nested inside functionCall"
+        );
+    }
+
+    /// An unsigned call (any provider that is not Gemini, or a Gemini model
+    /// that did not sign) must not grow an empty key: the API validates the
+    /// part shape and a null signature is not what it handed us.
+    #[test]
+    fn an_unsigned_gemini_call_carries_no_signature_key() {
+        let mut a = ChatMsg::text("assistant", "");
+        a.tool_use = Some(ToolUseMsg {
+            id: "toolu_1".into(),
+            command: "ls".into(),
+            risk: "safe".into(),
+            thought_signature: None,
+        });
+        let gem = gemini_contents(&[a]);
+        let parts = gem[0]["parts"].as_array().unwrap();
+        assert!(parts[0].get("thoughtSignature").is_none());
+    }
+
+    /// The reasoning toggle is a per-provider allow-list, not a blanket
+    /// parameter: sending an unknown field to a provider that does not
+    /// expect it risks a 400 the user cannot debug. Only DeepSeek documents
+    /// an off switch we can speak today.
+    #[test]
+    fn only_documented_providers_are_told_to_stop_thinking() {
+        assert_eq!(
+            disable_thinking_field("deepseek"),
+            Some(("thinking", serde_json::json!({ "type": "disabled" })))
+        );
+        // Anthropic: `thinking.type=enabled` is a 400 on Claude 4.7+, and
+        // adaptive thinking has no "off". xAI Grok 4 is reasoning-first.
+        for provider in ["anthropic", "xai", "openai", "openrouter", "groq", "custom"] {
+            assert!(
+                disable_thinking_field(provider).is_none(),
+                "{provider} must be left alone"
+            );
+        }
     }
 
     /// The field is OpenAI-shaped only. Anthropic and Gemini have no such

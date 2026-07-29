@@ -180,6 +180,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("ai_enabled") {
                 self.ai.enabled = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("ai_reasoning") {
+                self.ai.reasoning = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("ai_provider") {
                 self.ai.provider = v;
             }

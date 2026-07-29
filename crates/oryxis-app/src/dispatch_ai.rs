@@ -102,6 +102,10 @@ fn build_provider_messages(history: &[ChatMessage]) -> Vec<crate::ai::ChatMsg> {
                             id: tx.id.clone(),
                             command: tx.command.clone(),
                             risk: tx.risk.clone(),
+                            // Gemini signs each function call and demands the
+                            // signature back on the next request; we rebuild
+                            // the call from name+args, so it has to ride here.
+                            thought_signature: tx.thought_signature.clone(),
                         };
                         // Merge into the preceding assistant text turn if any,
                         // else emit a standalone assistant tool_use turn.
@@ -126,6 +130,28 @@ fn build_provider_messages(history: &[ChatMessage]) -> Vec<crate::ai::ChatMsg> {
         }
     }
     out
+}
+
+/// A bubble asking the user to approve a proposed command.
+///
+/// It carries the proposed call, not just its text, so Gemini's per-call
+/// `thoughtSignature` survives the wait for an answer: the approve paths
+/// rebuild the exchange from this bubble, and a signature lost here would
+/// 400 the request AFTER the command already ran. `build_provider_messages`
+/// skips `PendingTool` entirely, so nothing here reaches a request until the
+/// command actually executes.
+fn pending_tool_bubble(command: String, thought_signature: Option<String>) -> ChatMessage {
+    let mut bubble = ChatMessage::text(ChatRole::PendingTool, command.clone());
+    bubble.tool = Some(crate::state::ToolExchange {
+        // The real id is minted when the command runs; this bubble is only
+        // ever read for its command + signature.
+        id: String::new(),
+        command,
+        risk: "risky".into(),
+        output: None,
+        thought_signature,
+    });
+    bubble
 }
 
 /// Flags that decide how a proposed AI tool call is gated. Pulled out of
@@ -325,6 +351,7 @@ impl Oryxis {
                 Some(self.ai.api_url.clone())
             },
             system_prompt: extra_prompt,
+            reasoning: self.ai.reasoning,
         };
 
         // Snapshot the last ~50 lines of terminal output for context,
@@ -368,8 +395,13 @@ impl Oryxis {
                 crate::ai::StreamChunk::Reasoning(delta) => {
                     Message::Ai(AiMessage::ChatStreamReasoning { tab_id, delta })
                 }
-                crate::ai::StreamChunk::ToolUse { command, risk } => {
-                    Message::Ai(AiMessage::ChatToolProposed { tab_id, command, risk })
+                crate::ai::StreamChunk::ToolUse { command, risk, thought_signature } => {
+                    Message::Ai(AiMessage::ChatToolProposed {
+                        tab_id,
+                        command,
+                        risk,
+                        thought_signature,
+                    })
                 }
                 crate::ai::StreamChunk::Done => Message::Ai(AiMessage::ChatStreamDone { tab_id }),
                 crate::ai::StreamChunk::Error(error) => Message::Ai(AiMessage::ChatError { tab_id, error }),
@@ -389,6 +421,15 @@ impl Oryxis {
                 self.ai.enabled = !self.ai.enabled;
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("ai_enabled", if self.ai.enabled { "true" } else { "false" });
+                }
+            }
+            AiMessage::ToggleAiReasoning => {
+                self.ai.reasoning = !self.ai.reasoning;
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting(
+                        "ai_reasoning",
+                        if self.ai.reasoning { "true" } else { "false" },
+                    );
                 }
             }
             AiMessage::AiProviderChanged(provider) => {
@@ -840,7 +881,7 @@ impl Oryxis {
                 let stream_task = self.spawn_chat_stream_for(idx);
                 return Task::batch(vec![chat_scroll_to_end(), stream_task]);
             }
-            AiMessage::ChatToolProposed { tab_id, command, risk } => {
+            AiMessage::ChatToolProposed { tab_id, command, risk, thought_signature } => {
                 // Gate the tool call against the ORIGIN tab (routed by id, so
                 // switching tabs mid-stream can't run a command on the wrong
                 // host). Mode + allow-list + loop guards all read from that
@@ -883,14 +924,23 @@ impl Oryxis {
                 match gate {
                     // Allow-listed simple command under the streak cap: run now.
                     ToolGate::AutoExec => {
-                        return Task::done(Message::Ai(AiMessage::ChatToolExec { tab_id, command, risk }));
+                        return Task::done(Message::Ai(AiMessage::ChatToolExec {
+                            tab_id,
+                            command,
+                            risk,
+                            thought_signature,
+                        }));
                     }
                     // Loop guard tripped, or the deterministic destructive
                     // floor fired: surface it for explicit approval instead of
                     // running it unattended. This is what stops the reported
                     // runaway loop on its own.
                     ToolGate::Confirm => {
-                        return Task::done(Message::Ai(AiMessage::ChatToolGuardBlocked { tab_id, command }));
+                        return Task::done(Message::Ai(AiMessage::ChatToolGuardBlocked {
+                            tab_id,
+                            command,
+                            thought_signature,
+                        }));
                     }
                     // Model-claimed `safe` and nothing above objected: hand to
                     // the independent auto-exec judge, which can only escalate
@@ -911,10 +961,13 @@ impl Oryxis {
                                 Some(self.ai.api_url.clone())
                             },
                             system_prompt: None,
+                            reasoning: self.ai.reasoning,
                         };
                         self.tabs[idx].chat_loading = true;
                         let cmd_for_judge = command.clone();
                         let risk_for_exec = risk.clone();
+                        let sig_for_exec = thought_signature.clone();
+                        let sig_for_block = thought_signature.clone();
                         let judge = Task::perform(
                             crate::ai::judge_auto_exec(config, cmd_for_judge),
                             move |allow| {
@@ -923,11 +976,13 @@ impl Oryxis {
                                         tab_id,
                                         command: command.clone(),
                                         risk: risk_for_exec.clone(),
+                                        thought_signature: sig_for_exec.clone(),
                                     })
                                 } else {
                                     Message::Ai(AiMessage::ChatToolGuardBlocked {
                                         tab_id,
                                         command: command.clone(),
+                                        thought_signature: sig_for_block.clone(),
                                     })
                                 }
                             },
@@ -950,13 +1005,13 @@ impl Oryxis {
                 }
                 self.tabs[idx]
                     .chat_history
-                    .push(ChatMessage::text(ChatRole::PendingTool, command));
+                    .push(pending_tool_bubble(command, thought_signature));
                 self.tabs[idx].chat_loading = false;
                 if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
-            AiMessage::ChatToolGuardBlocked { tab_id, command } => {
+            AiMessage::ChatToolGuardBlocked { tab_id, command, thought_signature } => {
                 // A mode / loop guard or the independent judge declined to
                 // auto-run this command, so surface it on the origin tab for
                 // explicit approval exactly like a risky one.
@@ -971,7 +1026,7 @@ impl Oryxis {
                 }
                 self.tabs[idx]
                     .chat_history
-                    .push(ChatMessage::text(ChatRole::PendingTool, command));
+                    .push(pending_tool_bubble(command, thought_signature));
                 self.tabs[idx].chat_loading = false;
                 if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
                     return chat_scroll_to_end();
@@ -987,11 +1042,16 @@ impl Oryxis {
                     return Task::none();
                 };
                 let tab_id = self.tabs.get(idx).map(|t| t._id);
+                // Lift the proposal's signature off the bubble before it goes:
+                // Gemini needs it back on the request that follows the run.
+                let mut thought_signature = None;
                 if let Some(tab) = self.tabs.get_mut(idx)
                     && let Some(last) = tab.chat_history.last()
                     && last.role == ChatRole::PendingTool
                     && last.content == command
                 {
+                    thought_signature =
+                        last.tool.as_ref().and_then(|t| t.thought_signature.clone());
                     tab.chat_history.pop();
                 }
                 // The user just retook control, so a command they approve
@@ -1005,6 +1065,7 @@ impl Oryxis {
                         tab_id,
                         command,
                         risk: "risky".into(),
+                        thought_signature,
                     }));
                 }
             }
@@ -1018,6 +1079,7 @@ impl Oryxis {
                     .next()
                     .unwrap_or("")
                     .to_string();
+                let mut thought_signature = None;
                 if let Some(tab) = self.tabs.get_mut(idx) {
                     if !first_token.is_empty()
                         && !tab
@@ -1031,6 +1093,10 @@ impl Oryxis {
                         && last.role == ChatRole::PendingTool
                         && last.content == command
                     {
+                        // Same lift as the RUN path: the signature has to
+                        // outlive the bubble that carried it.
+                        thought_signature =
+                            last.tool.as_ref().and_then(|t| t.thought_signature.clone());
                         tab.chat_history.pop();
                     }
                     // User retook control: start a fresh auto-exec chain.
@@ -1042,6 +1108,7 @@ impl Oryxis {
                         tab_id,
                         command,
                         risk: "risky".into(),
+                        thought_signature,
                     }));
                 }
             }
@@ -1066,7 +1133,7 @@ impl Oryxis {
                     tab.chat_loading = false;
                 }
             }
-            AiMessage::ChatToolExec { tab_id, command, risk } => {
+            AiMessage::ChatToolExec { tab_id, command, risk, thought_signature } => {
                 // Run a command in the ORIGIN tab's terminal (routed by id so
                 // a tool call can never land in another session). We record a
                 // *running* Tool exchange now; the poll delivers `ChatToolResult`
@@ -1152,6 +1219,7 @@ impl Oryxis {
                         command: command.clone(),
                         risk,
                         output: None,
+                        thought_signature,
                     }),
                 });
                 tab.chat_loading = true;
@@ -1427,6 +1495,7 @@ mod tests {
                 command: command.into(),
                 risk: risk.into(),
                 output: output.map(str::to_string),
+                thought_signature: None,
             }),
         }
     }

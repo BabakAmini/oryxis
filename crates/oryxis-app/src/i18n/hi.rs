@@ -416,6 +416,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_group_appearance" => "दिखावट",
         "shortcuts" => "शॉर्टकट",
         "ai_assistant" => "AI असिस्टेंट",
+        "ai_reasoning" => "रीज़निंग",
+        "ai_reasoning_desc" => "रीज़निंग मॉडल को उत्तर देने से पहले सोचने दें। रीज़निंग का शुल्क लगता है लेकिन यह कभी दिखाई नहीं देती, और कुछ प्रदाता इसे हर अगले संदेश के साथ दोबारा भेजना अनिवार्य करते हैं।",
         "language" => "भाषा",
         "language_auto_os" => "ऑटो (सिस्टम)",
 
