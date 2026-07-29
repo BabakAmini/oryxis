@@ -197,6 +197,20 @@ pub struct ChatMsg {
     pub tool_use: Option<ToolUseMsg>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub tool_result: Option<ToolResultMsg>,
+    /// Chain-of-thought the model emitted alongside this assistant turn,
+    /// when the provider exposes one (DeepSeek's thinking mode streams it
+    /// as `delta.reasoning_content`).
+    ///
+    /// This is not decoration: DeepSeek REQUIRES it back in the messages
+    /// array on every later request of the same conversation, and answers
+    /// `400 "The reasoning_content in the thinking mode must be passed
+    /// back to the API."` when it is missing. OpenAI-compatible clients
+    /// normally drop unknown response fields while rebuilding history,
+    /// which is exactly how the second turn of a `deepseek-v4-*` chat used
+    /// to fail (issue #105). Only the OpenAI-shaped path replays it;
+    /// Anthropic and Gemini have no such field and ignore it.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub reasoning: Option<String>,
 }
 
 /// A bash-tool invocation carried on an assistant turn.
@@ -222,6 +236,7 @@ impl ChatMsg {
             content: serde_json::Value::String(content.into()),
             tool_use: None,
             tool_result: None,
+            reasoning: None,
         }
     }
 
@@ -232,6 +247,7 @@ impl ChatMsg {
             content: serde_json::Value::String(String::new()),
             tool_use: None,
             tool_result: Some(result),
+            reasoning: None,
         }
     }
 
@@ -273,6 +289,11 @@ fn bash_tool() -> serde_json::Value {
 pub enum StreamChunk {
     /// Append this slice to the current assistant message.
     Text(String),
+    /// Append this slice to the current assistant turn's chain-of-thought
+    /// (DeepSeek thinking mode). Kept apart from `Text` because it must not
+    /// be rendered as the answer, but must be replayed to the provider:
+    /// see [`ChatMsg::reasoning`].
+    Reasoning(String),
     /// Model committed to running the bash tool. `command` is the
     /// bash to execute; `risk` is the model's self-classification
     /// (`safe` for read-only / introspection, `risky` for anything
@@ -774,7 +795,7 @@ fn openai_messages(system_prompt: &str, messages: &[ChatMsg]) -> Vec<serde_json:
         "content": system_prompt
     }))
     .chain(messages.iter().map(|m| {
-        if let Some(tr) = &m.tool_result {
+        let mut json = if let Some(tr) = &m.tool_result {
             serde_json::json!({
                 "role": "tool",
                 "tool_call_id": tr.id,
@@ -798,9 +819,30 @@ fn openai_messages(system_prompt: &str, messages: &[ChatMsg]) -> Vec<serde_json:
             })
         } else {
             serde_json::json!({ "role": m.role, "content": m.content })
-        }
+        };
+        attach_reasoning(&mut json, m.reasoning.as_ref());
+        json
     }))
     .collect()
+}
+
+/// Attach a turn's chain-of-thought to its already-shaped JSON message.
+///
+/// DeepSeek's thinking mode rejects the whole request with a 400 when a
+/// prior assistant turn comes back without its `reasoning_content`
+/// (issue #105). Every other OpenAI-compatible provider ignores the extra
+/// field, so this is unconditional rather than provider-gated: the field
+/// only exists on turns that produced one.
+fn attach_reasoning(json: &mut serde_json::Value, reasoning: Option<&String>) {
+    let Some(reasoning) = reasoning.filter(|r| !r.is_empty()) else {
+        return;
+    };
+    if let Some(obj) = json.as_object_mut() {
+        obj.insert(
+            "reasoning_content".into(),
+            serde_json::Value::String(reasoning.clone()),
+        );
+    }
 }
 
 async fn stream_openai_at(
@@ -882,6 +924,14 @@ async fn stream_openai_at(
             && !content.is_empty()
         {
             let _ = tx.send(StreamChunk::Text(content.to_string()));
+        }
+        // DeepSeek thinking mode streams the chain-of-thought in its own
+        // field. Capturing it is not optional: the provider demands it back
+        // on the next request of the conversation (issue #105).
+        if let Some(reasoning) = delta["reasoning_content"].as_str()
+            && !reasoning.is_empty()
+        {
+            let _ = tx.send(StreamChunk::Reasoning(reasoning.to_string()));
         }
         if let Some(tcs) = delta["tool_calls"].as_array() {
             for tc in tcs {
@@ -1336,5 +1386,75 @@ mod tests {
         assert_eq!(blocks[0]["type"], "tool_use");
         let oai = openai_messages("SYS", &[a]);
         assert!(oai[1]["content"].is_null()); // content omitted as null
+    }
+
+    /// DeepSeek thinking mode (issue #105): an assistant turn that carried a
+    /// chain-of-thought must be replayed WITH it, or the provider answers
+    /// `400 "The reasoning_content in the thinking mode must be passed back
+    /// to the API."` on the conversation's second request. Dropping unknown
+    /// response fields while rebuilding history is exactly how every
+    /// OpenAI-compatible client hits this.
+    #[test]
+    fn openai_replays_reasoning_content_on_the_turn_that_produced_it() {
+        let mut a = ChatMsg::text("assistant", "4");
+        a.reasoning = Some("2+2 is 4".into());
+        let msgs = vec![ChatMsg::text("user", "2+2?"), a, ChatMsg::text("user", "and +1?")];
+        let oai = openai_messages("SYS", &msgs);
+
+        // [0] system, [1] user, [2] assistant, [3] user
+        assert_eq!(oai[2]["role"], "assistant");
+        assert_eq!(
+            oai[2]["reasoning_content"], "2+2 is 4",
+            "the assistant turn must carry its chain-of-thought back"
+        );
+        // Turns that never produced one must not grow an empty field: the
+        // API validates the shape, and a stray null/"" is not what it saw.
+        for i in [0, 1, 3] {
+            assert!(
+                oai[i].get("reasoning_content").is_none(),
+                "message {i} ({}) must not carry reasoning_content",
+                oai[i]["role"]
+            );
+        }
+    }
+
+    /// A tool-calling assistant turn is the case DeepSeek is strictest
+    /// about, and it takes a different branch of the shaping (`tool_calls`),
+    /// so it needs its own guard: the reasoning must survive that branch too.
+    #[test]
+    fn reasoning_survives_the_tool_call_branch() {
+        let mut a = ChatMsg::text("assistant", "let me look");
+        a.tool_use = Some(ToolUseMsg {
+            id: "toolu_1".into(),
+            command: "ls".into(),
+            risk: "safe".into(),
+        });
+        a.reasoning = Some("I should list the directory".into());
+        let oai = openai_messages("SYS", &[a]);
+        assert!(oai[1]["tool_calls"].is_array(), "still the tool_calls shape");
+        assert_eq!(oai[1]["reasoning_content"], "I should list the directory");
+    }
+
+    /// An empty chain-of-thought is the same as none: send no field rather
+    /// than an empty string.
+    #[test]
+    fn an_empty_reasoning_is_not_sent() {
+        let mut a = ChatMsg::text("assistant", "hi");
+        a.reasoning = Some(String::new());
+        let oai = openai_messages("SYS", &[a]);
+        assert!(oai[1].get("reasoning_content").is_none());
+    }
+
+    /// The field is OpenAI-shaped only. Anthropic and Gemini have no such
+    /// concept and would reject (or silently mangle) an unknown key, so the
+    /// other two builders must ignore it.
+    #[test]
+    fn reasoning_never_leaks_into_anthropic_or_gemini_payloads() {
+        let mut a = ChatMsg::text("assistant", "hi");
+        a.reasoning = Some("thinking".into());
+        let anth = serde_json::to_string(&anthropic_messages(&[a.clone()])).unwrap();
+        assert!(!anth.contains("reasoning"), "anthropic payload: {anth}");
+        let gem = serde_json::to_string(&gemini_contents(&[a])).unwrap();
+        assert!(!gem.contains("reasoning"), "gemini payload: {gem}");
     }
 }

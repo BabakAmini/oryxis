@@ -37,6 +37,11 @@ pub enum AiMessage {
     /// started the stream, not `active_tab`, so switching tabs mid-stream
     /// can't corrupt another conversation or run a command on the wrong host.
     ChatStreamChunk { tab_id: Uuid, delta: String },
+    /// Incremental chain-of-thought delta (DeepSeek thinking mode), routed
+    /// like `ChatStreamChunk` but accumulated apart from the answer: it is
+    /// never rendered, and exists because the provider demands it back on
+    /// the conversation's next request (issue #105).
+    ChatStreamReasoning { tab_id: Uuid, delta: String },
     /// Terminal sentinel for `ChatStreamChunk`, clears the loading
     /// state and finalises the message (markdown re-parse, scroll snap)
     /// on the origin tab.

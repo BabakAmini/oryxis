@@ -76,7 +76,14 @@ fn build_provider_messages(history: &[ChatMessage]) -> Vec<crate::ai::ChatMsg> {
             ChatRole::Error | ChatRole::PendingTool => {}
             ChatRole::Assistant => {
                 if !m.content.is_empty() {
-                    out.push(ChatMsg::text("assistant", &m.content));
+                    let mut a = ChatMsg::text("assistant", &m.content);
+                    // Carry the turn's chain-of-thought back to the
+                    // provider; DeepSeek's thinking mode 400s the request
+                    // when a prior assistant turn arrives without it (#105).
+                    if !m.reasoning.is_empty() {
+                        a.reasoning = Some(m.reasoning.clone());
+                    }
+                    out.push(a);
                 }
             }
             ChatRole::User | ChatRole::System => {
@@ -358,6 +365,9 @@ impl Oryxis {
         let stream_task = Task::stream(crate::ai::send_chat_stream(config, messages)).map(
             move |chunk| match chunk {
                 crate::ai::StreamChunk::Text(delta) => Message::Ai(AiMessage::ChatStreamChunk { tab_id, delta }),
+                crate::ai::StreamChunk::Reasoning(delta) => {
+                    Message::Ai(AiMessage::ChatStreamReasoning { tab_id, delta })
+                }
                 crate::ai::StreamChunk::ToolUse { command, risk } => {
                     Message::Ai(AiMessage::ChatToolProposed { tab_id, command, risk })
                 }
@@ -723,6 +733,18 @@ impl Oryxis {
                 // on screen; a background stream must not yank the view.
                 if is_active && self.chat_scroll_at_bottom {
                     return chat_scroll_to_end();
+                }
+            }
+            AiMessage::ChatStreamReasoning { tab_id, delta } => {
+                // Accumulate onto the same assistant bubble the text deltas
+                // feed, but in its own field: this is not part of the answer
+                // and is never rendered. No markdown re-parse and no scroll
+                // follow, so a long chain-of-thought costs nothing on screen.
+                if let Some(idx) = self.chat_tab_index(tab_id)
+                    && let Some(last) = self.tabs[idx].chat_history.last_mut()
+                    && last.role == ChatRole::Assistant
+                {
+                    last.reasoning.push_str(&delta);
                 }
             }
             AiMessage::ChatStreamDone { tab_id } => {
@@ -1124,6 +1146,7 @@ impl Oryxis {
                     role: ChatRole::Tool,
                     content: format!("$ {}", command),
                     parsed_md: Vec::new(),
+                    reasoning: String::new(),
                     tool: Some(crate::state::ToolExchange {
                         id: tool_id.clone(),
                         command: command.clone(),
@@ -1398,6 +1421,7 @@ mod tests {
             role: ChatRole::Tool,
             content: format!("$ {command}"),
             parsed_md: Vec::new(),
+            reasoning: String::new(),
             tool: Some(ToolExchange {
                 id: id.into(),
                 command: command.into(),

@@ -206,6 +206,12 @@ pub(crate) struct ChatMessage {
     pub parsed_md: Vec<iced::widget::markdown::Item>,
     /// Structured tool data, `Some` only for [`ChatRole::Tool`] messages.
     pub tool: Option<ToolExchange>,
+    /// Chain-of-thought streamed alongside an assistant reply, when the
+    /// provider emits one (DeepSeek thinking mode). Never rendered: it is
+    /// kept because DeepSeek requires it back in the history on the next
+    /// request and answers 400 without it (issue #105). Empty for every
+    /// other provider and for non-assistant roles.
+    pub reasoning: String,
 }
 
 impl ChatMessage {
@@ -217,6 +223,7 @@ impl ChatMessage {
             content: content.into(),
             parsed_md: Vec::new(),
             tool: None,
+            reasoning: String::new(),
         }
     }
 }
