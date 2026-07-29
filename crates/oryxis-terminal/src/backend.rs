@@ -488,4 +488,57 @@ mod tests {
         assert_eq!(cell0(&backend), 'Z');
         assert!(backend.sync_timeout().is_none());
     }
+
+    /// Read a rendered row back as text, trailing blanks trimmed. Asserting
+    /// on the grid (not on the filter's output) is the point: it is the only
+    /// way to prove the payload never became visible cells.
+    fn line(backend: &TerminalBackend, row: usize) -> String {
+        let grid = backend.term.grid();
+        let cols = grid.columns();
+        let mut s = String::with_capacity(cols);
+        for col in 0..cols {
+            s.push(grid[Line(row as i32)][Column(col)].c);
+        }
+        s.trim_end().to_string()
+    }
+
+    /// Issue #88 follow-up (Mazwak, CentOS 7). On a `screen*` TERM the stock
+    /// `/etc/bashrc` sets
+    /// `PROMPT_COMMAND='printf "\033k%s@%s:%s\033\\" ...'`, so every prompt is
+    /// preceded by screen's window-title sequence. vte dispatches `ESC k` as an
+    /// unhandled escape and PRINTS the payload, which is what rendered the
+    /// prompt twice: `root@oldserver:~[root@oldserver ~]#`. The grid must carry
+    /// the shell's prompt alone, and the title must arrive as a title.
+    #[test]
+    fn centos_screen_prompt_command_does_not_paint_a_second_prompt() {
+        let mut backend = TerminalBackend::new(40, 5);
+        // Byte for byte what bash emits on that host.
+        backend.process(b"\x1bkroot@oldserver:~\x1b\\[root@oldserver ~]# ");
+        assert_eq!(
+            line(&backend, 0),
+            "[root@oldserver ~]#",
+            "the window title must not reach the grid as text"
+        );
+        let title = backend.event_proxy.title.lock().unwrap().clone();
+        assert_eq!(title.as_deref(), Some("root@oldserver:~"), "title is surfaced");
+    }
+
+    /// The second half of the same report: with the payload occupying real
+    /// columns, readline's Ctrl+R redraw (which returns to column 0 and
+    /// overwrites) could not cover the stale prompt, leaving its tail visible
+    /// (`(reverse-i-search)`':ot@oldserver ~]#`). With the sequence stripped
+    /// the redraw covers the whole prompt, exactly as it does on xterm-256color.
+    #[test]
+    fn reverse_search_redraw_covers_the_whole_prompt() {
+        let mut backend = TerminalBackend::new(60, 5);
+        backend.process(b"\x1bkroot@oldserver:~\x1b\\[root@oldserver ~]# ");
+        // Ctrl+R: bash returns to column 0 and paints the search prompt over
+        // whatever was there.
+        backend.process(b"\r(reverse-i-search)`': ");
+        assert_eq!(
+            line(&backend, 0),
+            "(reverse-i-search)`':",
+            "no tail of the old prompt may survive the redraw"
+        );
+    }
 }
