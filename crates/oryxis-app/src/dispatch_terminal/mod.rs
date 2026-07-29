@@ -469,6 +469,22 @@ impl Oryxis {
                     let _ = clip.set_text(text);
                 }
             }
+            TerminalMessage::TerminalCopySelectionAndPaste(text) => {
+                self.overlay = None;
+                // Copy the selection to the clipboard, then paste it
+                // into the active session.
+                if !text.is_empty()
+                    && let Ok(mut clip) = arboard::Clipboard::new()
+                {
+                    let _ = clip.set_text(text);
+                }
+                if let Ok(mut clip) = arboard::Clipboard::new()
+                    && let Ok(clip_text) = clip.get_text()
+                    && !clip_text.is_empty()
+                {
+                    self.paste_text_into_active(&clip_text);
+                }
+            }
             TerminalMessage::TerminalCopyAll(pane_id) => {
                 self.overlay = None;
                 if let Some(pane) = self.pane_by_id(pane_id)

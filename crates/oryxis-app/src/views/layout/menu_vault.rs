@@ -1065,6 +1065,14 @@ impl Oryxis {
                 OryxisColors::t().text_secondary,
             ))
             .push(self.menu_item(
+                iced_fonts::lucide::clipboard_list(),
+                crate::i18n::t("hotkey_terminal_copy_paste"),
+                Message::Terminal(TerminalMessage::TerminalCopySelectionAndPaste(
+                    selection.clone().unwrap_or_default(),
+                )),
+                OryxisColors::t().accent,
+            ))
+            .push(self.menu_item(
                 iced_fonts::lucide::eraser(),
                 crate::i18n::t("terminal_clear_scrollback"),
                 Message::Terminal(TerminalMessage::TerminalClearScrollback(pane_id)),

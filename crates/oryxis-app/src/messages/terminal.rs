@@ -95,6 +95,9 @@ pub enum TerminalMessage {
     /// Copy the captured selection text to the clipboard (context-menu
     /// "Copy").
     TerminalCopySelection(String),
+    /// Copy the selection text to the clipboard AND paste it into the
+    /// active pane. From the terminal right-click context menu.
+    TerminalCopySelectionAndPaste(String),
     /// Copy the whole buffer (scrollback + screen) of a pane to the
     /// clipboard (context-menu "Copy All"). `pane_id`.
     TerminalCopyAll(Uuid),
