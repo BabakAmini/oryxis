@@ -202,7 +202,11 @@ pub struct TerminalBackend {
     /// OSC 133 shell-integration marks captured by `process`, each stamped
     /// with the cursor position at the moment the emulator reached the mark.
     /// Drained by `take_marks`; bounded so an undrained pane can't grow it.
-    marks: Vec<crate::osc::PositionedShellMark>,
+    /// A deque so evicting the oldest mark at the cap is O(1): `process`
+    /// runs on the UI thread, and a mark flood paying a 4096-element
+    /// shift per mark is exactly the silent per-batch cost class #104
+    /// hunts.
+    marks: std::collections::VecDeque<crate::osc::PositionedShellMark>,
 }
 
 impl TerminalBackend {
@@ -236,7 +240,7 @@ impl TerminalBackend {
             config,
             osc: crate::osc::OscSniffer::default(),
             screen_title: crate::screen_title::ScreenTitleFilter::default(),
-            marks: Vec::new(),
+            marks: std::collections::VecDeque::new(),
         }
     }
 
@@ -285,9 +289,9 @@ impl TerminalBackend {
                 let abs_line =
                     self.term.grid().history_size() as i64 + i64::from(point.line.0);
                 if self.marks.len() >= 4096 {
-                    self.marks.remove(0);
+                    self.marks.pop_front();
                 }
-                self.marks.push(crate::osc::PositionedShellMark {
+                self.marks.push_back(crate::osc::PositionedShellMark {
                     mark: ev.mark,
                     abs_line,
                     col: point.column.0 as u16,
@@ -302,7 +306,7 @@ impl TerminalBackend {
 
     /// Drain the OSC 133 marks captured since the last call.
     pub fn take_marks(&mut self) -> Vec<crate::osc::PositionedShellMark> {
-        std::mem::take(&mut self.marks)
+        std::mem::take(&mut self.marks).into()
     }
 
     /// Deadline at which an open synchronized update (DEC `?2026`) must be
