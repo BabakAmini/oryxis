@@ -149,6 +149,17 @@ impl Oryxis {
         });
         let mut subs = vec![events];
 
+        // Stall-watchdog pacemaker (#104): while debug logging is on, a
+        // 500 ms NoOp keeps the update heartbeat beating on an idle app,
+        // which is what lets the watchdog thread tell "idle" from "the
+        // event loop died". Costs nothing with the toggle off.
+        if crate::logging::is_enabled() {
+            subs.push(
+                iced::time::every(std::time::Duration::from_millis(500))
+                    .map(|_| Message::NoOp),
+            );
+        }
+
         // 30-second poll for silent auto-reconnect of disconnected SSH
         // tabs. Unmounted while the vault is locked (soft auto-lock keeps
         // sessions alive): a reconnect needs credentials from the sealed

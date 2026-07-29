@@ -67,6 +67,7 @@ mod i18n;
 mod key_encode;
 mod keynav;
 mod logging;
+mod stall_watchdog;
 mod agent_server;
 mod dispatch_agent;
 mod net_mirror;

@@ -34,6 +34,10 @@ pub(crate) fn unrouted<M: std::fmt::Debug>(message: M) -> Task<Message> {
 
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Stall watchdog (#104): heartbeat + in-flight marker for this
+        // message, dropped on every exit path. No-op unless the debug
+        // logging toggle is on.
+        let _stall_guard = crate::stall_watchdog::message_guard(&message);
         // Sync the cursor position from the event listener's atomics.
         // CursorMoved is only forwarded as a message while something
         // consumes continuous positions (see `mouse_interest` below), so
