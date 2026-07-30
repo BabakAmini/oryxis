@@ -46,7 +46,8 @@ pub(crate) async fn render(
     cast_body: String,
     output: PathBuf,
 ) -> Result<String, String> {
-    let cast_path = std::env::temp_dir().join(format!("oryxis-gif-{}.cast", uuid::Uuid::new_v4()));
+    let cast_path = std::env::temp_dir()
+        .join(format!("oryxis-gif-{}.cast", uuid::Uuid::new_v4()));
     tokio::fs::write(&cast_path, cast_body)
         .await
         .map_err(|e| format!("temp cast write: {e}"))?;
@@ -58,15 +59,16 @@ pub(crate) async fn render(
     result.map(|()| output.display().to_string())
 }
 
-async fn run_plugin(binary: &PathBuf, cast: &PathBuf, output: &PathBuf) -> Result<(), String> {
+async fn run_plugin(
+    binary: &PathBuf,
+    cast: &PathBuf,
+    output: &PathBuf,
+) -> Result<(), String> {
     let mut cmd = tokio::process::Command::new(binary);
     cmd.arg(cast).arg(output);
     #[cfg(windows)]
     {
         // No console flash over the GUI while the renderer runs.
-        // `CommandExt` is only available on Windows; allow the import
-        // to suppress the unused-import lint on other platforms.
-        #[allow(unused_imports)]
         use std::os::windows::process::CommandExt as _;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);

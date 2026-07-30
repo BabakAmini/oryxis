@@ -82,11 +82,7 @@ where
                 )
             }),
             hovered_osc8: hash_osc8(&widget_state.hovered_osc8),
-            hovered_cell: if self.privacy {
-                widget_state.hovered_cell
-            } else {
-                None
-            },
+            hovered_cell: if self.privacy { widget_state.hovered_cell } else { None },
             hover: widget_state.hover,
             scrollbar_dragging: widget_state.scrollbar_drag.is_some(),
             selecting: widget_state.selecting,
@@ -95,11 +91,7 @@ where
             performance: self.performance,
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
-            privacy_terms_hash: if self.privacy {
-                hash_terms(&self.privacy_terms)
-            } else {
-                0
-            },
+            privacy_terms_hash: if self.privacy { hash_terms(&self.privacy_terms) } else { 0 },
             privacy_classes: if self.privacy {
                 self.privacy_classes
             } else {
@@ -135,787 +127,741 @@ where
         // tracks the real work done rather than just our gate decision.
         let mut built = false;
 
-        let grid_geometry =
-            widget_state
-                .geometry_cache
-                .draw(renderer, bounds.size(), |frame| {
-                    built = true;
-                    let selection = &widget_state.selection;
+        let grid_geometry = widget_state.geometry_cache.draw(
+            renderer,
+            bounds.size(),
+            |frame| {
+                built = true;
+                let selection = &widget_state.selection;
 
-                    let mut cells: Vec<CellData> = DRAW_CELLS.take();
-                    cells.clear();
-                    let mut row_chars: Vec<(u16, Vec<(u16, char)>)> = Vec::new();
-                    // Buffer-search match spans clipped to the visible window, in
-                    // (visible_row, start_col, end_col_inclusive, is_active) form.
-                    // Snapshot under the lock so pass 2 can fill each match's cells
-                    // with a highlight background without re-touching the state.
-                    let mut search_spans: Vec<(u16, u16, u16, bool)> = Vec::new();
+                let mut cells: Vec<CellData> = DRAW_CELLS.take();
+                cells.clear();
+                let mut row_chars: Vec<(u16, Vec<(u16, char)>)> = Vec::new();
+                // Buffer-search match spans clipped to the visible window, in
+                // (visible_row, start_col, end_col_inclusive, is_active) form.
+                // Snapshot under the lock so pass 2 can fill each match's cells
+                // with a highlight background without re-touching the state.
+                let mut search_spans: Vec<(u16, u16, u16, bool)> = Vec::new();
 
-                    // --- Snapshot phase, the only part that holds the state mutex ---
-                    // Everything draw needs (resolved cells, cursor, sizes, palette)
-                    // is copied out here and the lock is dropped before any text /
-                    // quad geometry is built, so drawing doesn't contend with
-                    // `process()` on the output path (see the typing-lag note on
-                    // `hovered_cell`).
-                    let lock_start = perf_on.then(std::time::Instant::now);
-                    let (
-                        palette,
+                // --- Snapshot phase, the only part that holds the state mutex ---
+                // Everything draw needs (resolved cells, cursor, sizes, palette)
+                // is copied out here and the lock is dropped before any text /
+                // quad geometry is built, so drawing doesn't contend with
+                // `process()` on the output path (see the typing-lag note on
+                // `hovered_cell`).
+                let lock_start = perf_on.then(std::time::Instant::now);
+                let (
+                    palette,
+                    term_cursor,
+                    screen_lines,
+                    total_lines,
+                    in_alt_screen,
+                    scroll_offset,
+                ) = {
+                    let mut state = match self.state.lock() {
+                        Ok(s) => s,
+                        Err(poisoned) => poisoned.into_inner(),
+                    };
+                    lock_dur = lock_start.map(|t| t.elapsed()).unwrap_or_default();
+
+                    // Auto-resize. A fixed grid (replay surfaces) keeps the
+                    // backend's geometry: the recording drives resizes, and
+                    // the host sizes the canvas to match via
+                    // `grid_pixel_size`, so fitting bounds here would fight
+                    // the recorded resize events and reflow the replay.
+                    if !self.fixed_grid {
+                        let (new_cols, new_rows) = self.grid_size(bounds.width, bounds.height);
+                        state.resize(new_cols, new_rows);
+                    }
+
+                    // Alt-screen apps (top, vim, less, htop, …) own the entire
+                    // viewport with cursor positioning, there's no scrollback to
+                    // page through. Force scroll_offset=0 so the user can't get
+                    // stuck looking at stale history while the app keeps redrawing.
+                    let in_alt_screen = state
+                        .backend
+                        .term
+                        .mode()
+                        .contains(alacritty_terminal::term::TermMode::ALT_SCREEN);
+
+                    // Clamp scroll offset against the current grid bounds, resizes
+                    // between frames can shrink history, so the offset stored in
+                    // widget_state may exceed the new max.
+                    let scroll_offset = if in_alt_screen {
+                        0
+                    } else {
+                        let grid = state.backend.term.grid();
+                        let max_scroll = grid.total_lines().saturating_sub(grid.screen_lines()) as i32;
+                        widget_state.scroll_offset.get().clamp(0, max_scroll)
+                    };
+
+                    let term = &state.backend.term;
+                    let palette = &state.palette;
+                    let colors = term.colors();
+
+                    let term_cursor = term.renderable_content().cursor;
+                    let grid = term.grid();
+                    let screen_lines = grid.screen_lines();
+                    let cols_count = grid.columns();
+                    let total_lines = grid.total_lines();
+                    let topmost = grid.topmost_line();
+                    let bottommost = grid.bottommost_line();
+
+                    // --- Buffer-search overlay spans ---
+                    // Translate each match's grid lines to visible rows
+                    // (visible_row = grid_line + scroll_offset) and clip to the
+                    // screen window. A match may wrap across grid lines, so a
+                    // multi-line hit yields one span per covered row with the
+                    // proper leading / middle / trailing column bounds.
+                    if let Some(search) = state.search.as_ref() {
+                        let last_col = cols_count.saturating_sub(1) as u16;
+                        for (i, m) in search.matches.iter().enumerate() {
+                            let active = i == search.active;
+                            for line in m.start_line..=m.end_line {
+                                let vrow = line + scroll_offset;
+                                if vrow < 0 || vrow >= screen_lines as i32 {
+                                    continue;
+                                }
+                                let sc = if line == m.start_line { m.start_col } else { 0 };
+                                let ec = if line == m.end_line { m.end_col } else { last_col };
+                                search_spans.push((vrow as u16, sc, ec, active));
+                            }
+                        }
+                    }
+
+                    // --- Pass 1: collect cell data and build row character map ---
+                    // Iterate the grid manually using `scroll_offset` as a row offset
+                    // instead of mutating alacritty's `display_offset` via
+                    // `scroll_display`. The previous approach yielded `display_iter`
+                    // entries with negative `point.line.0` for scrollback rows, which
+                    // when cast to `u16` wrapped to enormous numbers, those cells
+                    // ended up rendered far off-screen, leaving blank rows in their
+                    // place. Manual indexing keeps the math sane.
+                    let cells_start = perf_on.then(std::time::Instant::now);
+                    cells.reserve(screen_lines * cols_count);
+                    row_chars.reserve(screen_lines);
+
+                    // Flags that keep an otherwise blank default cell visible:
+                    // INVERSE swaps the background in, underlines / strikeout
+                    // paint rules over it.
+                    let blank_visible_flags =
+                        CellFlags::INVERSE | CellFlags::ALL_UNDERLINES | CellFlags::STRIKEOUT;
+
+                    for visible_row in 0..screen_lines {
+                        let line =
+                            alacritty_terminal::index::Line(visible_row as i32 - scroll_offset);
+                        if line < topmost || line > bottommost {
+                            continue;
+                        }
+                        let row_data = &grid[line];
+                        let mut chars: Vec<(u16, char)> = Vec::new();
+                        for col_i in 0..cols_count {
+                            let cell = &row_data[alacritty_terminal::index::Column(col_i)];
+
+                            if cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                                continue;
+                            }
+
+                            let col = col_i as u16;
+                            let row = visible_row as u16;
+                            let c = cell.c;
+
+                            // Skip cells that produce zero geometry: a blank glyph
+                            // on the default background with no visible flags and
+                            // no selection overlap. On a mostly empty screen this
+                            // is the vast majority of the grid. (The cursor is
+                            // painted independently of the cell snapshot, so a
+                            // blank cell under it can be skipped too.)
+                            if (c == ' ' || c == '\0')
+                                && cell.bg == AnsiColor::Named(NamedColor::Background)
+                                && !cell.flags.intersects(blank_visible_flags)
+                                && !selection
+                                    .as_ref()
+                                    .is_some_and(|s| Self::is_in_selection(s, col, line.0))
+                            {
+                                continue;
+                            }
+
+                            let effective_fg =
+                                if cell.flags.contains(CellFlags::BOLD) && self.bold_is_bright {
+                                    brighten_named(&cell.fg)
+                                } else {
+                                    cell.fg
+                                };
+                            let fg = palette.resolve(&effective_fg, colors);
+                            let bg = palette.resolve(&cell.bg, colors);
+
+                            if c != ' ' && c != '\0' {
+                                chars.push((col, c));
+                            }
+
+                            cells.push(CellData {
+                                col,
+                                row,
+                                c,
+                                fg,
+                                bg,
+                                flags: cell.flags,
+                                underline: cell
+                                    .underline_color()
+                                    .map(|uc| palette.resolve(&uc, colors)),
+                                link: cell.hyperlink().is_some(),
+                            });
+                        }
+                        if !chars.is_empty() {
+                            row_chars.push((visible_row as u16, chars));
+                        }
+                    }
+
+                    cells_dur = cells_start.map(|t| t.elapsed()).unwrap_or_default();
+
+                    (
+                        state.palette.clone(),
                         term_cursor,
                         screen_lines,
                         total_lines,
                         in_alt_screen,
                         scroll_offset,
-                    ) = {
-                        let mut state = match self.state.lock() {
-                            Ok(s) => s,
-                            Err(poisoned) => poisoned.into_inner(),
-                        };
-                        lock_dur = lock_start.map(|t| t.elapsed()).unwrap_or_default();
+                    )
+                };
+                let palette = &palette;
 
-                        // Auto-resize. A fixed grid (replay surfaces) keeps the
-                        // backend's geometry: the recording drives resizes, and
-                        // the host sizes the canvas to match via
-                        // `grid_pixel_size`, so fitting bounds here would fight
-                        // the recorded resize events and reflow the replay.
-                        if !self.fixed_grid {
-                            let (new_cols, new_rows) = self.grid_size(bounds.width, bounds.height);
-                            state.resize(new_cols, new_rows);
-                        }
+                frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background);
 
-                        // Alt-screen apps (top, vim, less, htop, …) own the entire
-                        // viewport with cursor positioning, there's no scrollback to
-                        // page through. Force scroll_offset=0 so the user can't get
-                        // stuck looking at stale history while the app keeps redrawing.
-                        let in_alt_screen = state
-                            .backend
-                            .term
-                            .mode()
-                            .contains(alacritty_terminal::term::TermMode::ALT_SCREEN);
+                // --- Detect syntax highlights ---
+                // Runs when keyword tinting OR Privacy Mode is on; the latter needs
+                // the IP / user@host spans to mask even when tinting is off.
+                // Performance mode suppresses the tinting scan, but NOT when
+                // privacy is active: killing the scan there would unmask every
+                // IP / user@host, so privacy always wins over the perf skip.
+                let highlights_start = perf_on.then(std::time::Instant::now);
+                let scan_for_tint = self.keyword_highlight && !self.performance;
+                let highlights = if scan_for_tint || self.privacy {
+                    detect_highlights(
+                        &row_chars,
+                        palette,
+                        self.privacy,
+                        &self.privacy_terms,
+                        self.privacy_classes,
+                    )
+                } else {
+                    Vec::new()
+                };
+                highlights_dur = highlights_start.map(|t| t.elapsed()).unwrap_or_default();
 
-                        // Clamp scroll offset against the current grid bounds, resizes
-                        // between frames can shrink history, so the offset stored in
-                        // widget_state may exceed the new max.
-                        let scroll_offset = if in_alt_screen {
-                            0
-                        } else {
-                            let grid = state.backend.term.grid();
-                            let max_scroll =
-                                grid.total_lines().saturating_sub(grid.screen_lines()) as i32;
-                            widget_state.scroll_offset.get().clamp(0, max_scroll)
-                        };
+                // Privacy Mode: the IP / user@host span the cursor is over right
+                // now (from the last hovered cell), revealed while the rest stay
+                // masked. Mirrors `hovered_url_extent` but keyed off `hovered_cell`
+                // so it works without the cursor being over a clickable link.
+                let hovered_privacy_extent: Option<(u16, u16, u16)> = if self.privacy {
+                    widget_state
+                        .hovered_cell
+                        .and_then(|(col, vrow)| privacy_span_at(&highlights, vrow, col))
+                } else {
+                    None
+                };
 
-                        let term = &state.backend.term;
-                        let palette = &state.palette;
-                        let colors = term.colors();
-
-                        let term_cursor = term.renderable_content().cursor;
-                        let grid = term.grid();
-                        let screen_lines = grid.screen_lines();
-                        let cols_count = grid.columns();
-                        let total_lines = grid.total_lines();
-                        let topmost = grid.topmost_line();
-                        let bottommost = grid.bottommost_line();
-
-                        // --- Buffer-search overlay spans ---
-                        // Translate each match's grid lines to visible rows
-                        // (visible_row = grid_line + scroll_offset) and clip to the
-                        // screen window. A match may wrap across grid lines, so a
-                        // multi-line hit yields one span per covered row with the
-                        // proper leading / middle / trailing column bounds.
-                        if let Some(search) = state.search.as_ref() {
-                            let last_col = cols_count.saturating_sub(1) as u16;
-                            for (i, m) in search.matches.iter().enumerate() {
-                                let active = i == search.active;
-                                for line in m.start_line..=m.end_line {
-                                    let vrow = line + scroll_offset;
-                                    if vrow < 0 || vrow >= screen_lines as i32 {
-                                        continue;
-                                    }
-                                    let sc = if line == m.start_line { m.start_col } else { 0 };
-                                    let ec = if line == m.end_line {
-                                        m.end_col
-                                    } else {
-                                        last_col
-                                    };
-                                    search_spans.push((vrow as u16, sc, ec, active));
-                                }
-                            }
-                        }
-
-                        // --- Pass 1: collect cell data and build row character map ---
-                        // Iterate the grid manually using `scroll_offset` as a row offset
-                        // instead of mutating alacritty's `display_offset` via
-                        // `scroll_display`. The previous approach yielded `display_iter`
-                        // entries with negative `point.line.0` for scrollback rows, which
-                        // when cast to `u16` wrapped to enormous numbers, those cells
-                        // ended up rendered far off-screen, leaving blank rows in their
-                        // place. Manual indexing keeps the math sane.
-                        let cells_start = perf_on.then(std::time::Instant::now);
-                        cells.reserve(screen_lines * cols_count);
-                        row_chars.reserve(screen_lines);
-
-                        // Flags that keep an otherwise blank default cell visible:
-                        // INVERSE swaps the background in, underlines / strikeout
-                        // paint rules over it.
-                        let blank_visible_flags =
-                            CellFlags::INVERSE | CellFlags::ALL_UNDERLINES | CellFlags::STRIKEOUT;
-
-                        for visible_row in 0..screen_lines {
-                            let line =
-                                alacritty_terminal::index::Line(visible_row as i32 - scroll_offset);
-                            if line < topmost || line > bottommost {
-                                continue;
-                            }
-                            let row_data = &grid[line];
-                            let mut chars: Vec<(u16, char)> = Vec::new();
-                            for col_i in 0..cols_count {
-                                let cell = &row_data[alacritty_terminal::index::Column(col_i)];
-
-                                if cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
-                                    continue;
-                                }
-
-                                let col = col_i as u16;
-                                let row = visible_row as u16;
-                                let c = cell.c;
-
-                                // Skip cells that produce zero geometry: a blank glyph
-                                // on the default background with no visible flags and
-                                // no selection overlap. On a mostly empty screen this
-                                // is the vast majority of the grid. (The cursor is
-                                // painted independently of the cell snapshot, so a
-                                // blank cell under it can be skipped too.)
-                                if (c == ' ' || c == '\0')
-                                    && cell.bg == AnsiColor::Named(NamedColor::Background)
-                                    && !cell.flags.intersects(blank_visible_flags)
-                                    && !selection
-                                        .as_ref()
-                                        .is_some_and(|s| Self::is_in_selection(s, col, line.0))
-                                {
-                                    continue;
-                                }
-
-                                let effective_fg = if cell.flags.contains(CellFlags::BOLD)
-                                    && self.bold_is_bright
-                                {
-                                    brighten_named(&cell.fg)
-                                } else {
-                                    cell.fg
-                                };
-                                let fg = palette.resolve(&effective_fg, colors);
-                                let bg = palette.resolve(&cell.bg, colors);
-
-                                if c != ' ' && c != '\0' {
-                                    chars.push((col, c));
-                                }
-
-                                cells.push(CellData {
-                                    col,
-                                    row,
-                                    c,
-                                    fg,
-                                    bg,
-                                    flags: cell.flags,
-                                    underline: cell
-                                        .underline_color()
-                                        .map(|uc| palette.resolve(&uc, colors)),
-                                    link: cell.hyperlink().is_some(),
-                                });
-                            }
-                            if !chars.is_empty() {
-                                row_chars.push((visible_row as u16, chars));
-                            }
-                        }
-
-                        cells_dur = cells_start.map(|t| t.elapsed()).unwrap_or_default();
-
-                        (
-                            state.palette.clone(),
-                            term_cursor,
-                            screen_lines,
-                            total_lines,
-                            in_alt_screen,
-                            scroll_offset,
-                        )
-                    };
-                    let palette = &palette;
-
-                    frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background);
-
-                    // --- Detect syntax highlights ---
-                    // Runs when keyword tinting OR Privacy Mode is on; the latter needs
-                    // the IP / user@host spans to mask even when tinting is off.
-                    // Performance mode suppresses the tinting scan, but NOT when
-                    // privacy is active: killing the scan there would unmask every
-                    // IP / user@host, so privacy always wins over the perf skip.
-                    let highlights_start = perf_on.then(std::time::Instant::now);
-                    let scan_for_tint = self.keyword_highlight && !self.performance;
-                    let highlights = if scan_for_tint || self.privacy {
-                        detect_highlights(
-                            &row_chars,
-                            palette,
-                            self.privacy,
-                            &self.privacy_terms,
-                            self.privacy_classes,
-                        )
+                // Spans whose value the user click-pinned visible, resolved per
+                // frame against the pinned set so every occurrence of the value
+                // (including re-prints and scrolled copies) stays revealed until
+                // clicked again.
+                let pinned_extents: Vec<(u16, u16, u16)> =
+                    if self.privacy && !widget_state.pinned_privacy.is_empty() {
+                        privacy_spans_with_text(&highlights, &row_chars)
+                            .into_iter()
+                            .filter(|(_, text)| widget_state.pinned_privacy.contains(text))
+                            .map(|(ext, _)| ext)
+                            .collect()
                     } else {
                         Vec::new()
                     };
-                    highlights_dur = highlights_start.map(|t| t.elapsed()).unwrap_or_default();
 
-                    // Privacy Mode: the IP / user@host span the cursor is over right
-                    // now (from the last hovered cell), revealed while the rest stay
-                    // masked. Mirrors `hovered_url_extent` but keyed off `hovered_cell`
-                    // so it works without the cursor being over a clickable link.
-                    let hovered_privacy_extent: Option<(u16, u16, u16)> = if self.privacy {
-                        widget_state
-                            .hovered_cell
-                            .and_then(|(col, vrow)| privacy_span_at(&highlights, vrow, col))
-                    } else {
-                        None
-                    };
+                // Resolve which URL (if any) the cursor is over right now,
+                // re-derived from the hovered cursor pixel position. We can't
+                // trust the column we cached on hover because the grid may
+                // have re-flowed since (resize, scroll). Drives the
+                // "underline only the hovered URL" rule.
+                let hovered_url_extent: Option<(u16, u16, u16)> = if let Some((_, pos)) =
+                    widget_state.hovered_url
+                {
+                    let col = ((pos.x - TERM_PAD) / cell_w).max(0.0) as u16;
+                    let row = ((pos.y - TERM_PAD_TOP) / cell_h).max(0.0) as u16;
+                    hovered_url_range(&highlights, row, col)
+                } else {
+                    None
+                };
+                // An OSC 8 link's run was captured at hover time (it isn't in the
+                // regex highlight scan); underline every wrapped row the same way.
+                let hovered_osc8 = &widget_state.hovered_osc8;
 
-                    // Spans whose value the user click-pinned visible, resolved per
-                    // frame against the pinned set so every occurrence of the value
-                    // (including re-prints and scrolled copies) stays revealed until
-                    // clicked again.
-                    let pinned_extents: Vec<(u16, u16, u16)> =
-                        if self.privacy && !widget_state.pinned_privacy.is_empty() {
-                            privacy_spans_with_text(&highlights, &row_chars)
-                                .into_iter()
-                                .filter(|(_, text)| widget_state.pinned_privacy.contains(text))
-                                .map(|(ext, _)| ext)
-                                .collect()
-                        } else {
-                            Vec::new()
-                        };
+                // --- Pass 2: draw cells with highlight overrides ---
+                // Consecutive plain ASCII glyphs in a row that share the same
+                // foreground (and the base font) are merged into one fill_text
+                // run, one String + one shaping pass per run instead of per
+                // glyph. This leans on the monospace advance matching the cell
+                // width; runs are kept short and re-anchored to the grid so a
+                // font whose advance is off by a hair can only drift
+                // sub-pixel within one run. Wide chars, PUA symbols and
+                // non-ASCII glyphs keep per-cell positioning because their
+                // glyphs (often from a fallback font) need not advance by one
+                // cell.
+                struct GlyphRun {
+                    row: u16,
+                    start_col: u16,
+                    next_col: u16,
+                    fg: Color,
+                    content: String,
+                }
+                // Re-anchor at most every 32 cells; bounds intra-run drift.
+                const MAX_RUN_LEN: usize = 32;
+                // Bridge small gaps (skipped blank cells) with spaces so a row
+                // of short tokens still coalesces into few runs.
+                const MAX_RUN_GAP: u16 = 4;
+                let mut run: Option<GlyphRun> = None;
+                let font_size = self.font_size;
+                let base_font = self.font;
+                let flush_run = |frame: &mut Frame, run: GlyphRun| {
+                    frame.fill_text(CanvasText {
+                        content: run.content,
+                        position: Point::new(
+                            run.start_col as f32 * cell_w + TERM_PAD,
+                            run.row as f32 * cell_h + TERM_PAD_TOP,
+                        ),
+                        color: run.fg,
+                        size: Pixels(font_size),
+                        font: base_font,
+                        align_x: alignment::Horizontal::Left.into(),
+                        align_y: alignment::Vertical::Top,
+                        ..Default::default()
+                    });
+                };
+                for cd in &cells {
+                    let x = cd.col as f32 * cell_w + TERM_PAD;
+                    let y = cd.row as f32 * cell_h + TERM_PAD_TOP;
 
-                    // Resolve which URL (if any) the cursor is over right now,
-                    // re-derived from the hovered cursor pixel position. We can't
-                    // trust the column we cached on hover because the grid may
-                    // have re-flowed since (resize, scroll). Drives the
-                    // "underline only the hovered URL" rule.
-                    let hovered_url_extent: Option<(u16, u16, u16)> =
-                        if let Some((_, pos)) = widget_state.hovered_url {
-                            let col = ((pos.x - TERM_PAD) / cell_w).max(0.0) as u16;
-                            let row = ((pos.y - TERM_PAD_TOP) / cell_h).max(0.0) as u16;
-                            hovered_url_range(&highlights, row, col)
-                        } else {
-                            None
-                        };
-                    // An OSC 8 link's run was captured at hover time (it isn't in the
-                    // regex highlight scan); underline every wrapped row the same way.
-                    let hovered_osc8 = &widget_state.hovered_osc8;
+                    let mut fg = cd.fg;
+                    let mut bg = cd.bg;
+                    // The glyph actually drawn for this cell. Privacy Mode swaps it
+                    // for a block below; everything else draws the real character.
+                    let mut glyph = cd.c;
 
-                    // --- Pass 2: draw cells with highlight overrides ---
-                    // Consecutive plain ASCII glyphs in a row that share the same
-                    // foreground (and the base font) are merged into one fill_text
-                    // run, one String + one shaping pass per run instead of per
-                    // glyph. This leans on the monospace advance matching the cell
-                    // width; runs are kept short and re-anchored to the grid so a
-                    // font whose advance is off by a hair can only drift
-                    // sub-pixel within one run. Wide chars, PUA symbols and
-                    // non-ASCII glyphs keep per-cell positioning because their
-                    // glyphs (often from a fallback font) need not advance by one
-                    // cell.
-                    struct GlyphRun {
-                        row: u16,
-                        start_col: u16,
-                        next_col: u16,
-                        fg: Color,
-                        content: String,
+                    if cd.flags.contains(CellFlags::INVERSE) {
+                        std::mem::swap(&mut fg, &mut bg);
                     }
-                    // Re-anchor at most every 32 cells; bounds intra-run drift.
-                    const MAX_RUN_LEN: usize = 32;
-                    // Bridge small gaps (skipped blank cells) with spaces so a row
-                    // of short tokens still coalesces into few runs.
-                    const MAX_RUN_GAP: u16 = 4;
-                    let mut run: Option<GlyphRun> = None;
-                    let font_size = self.font_size;
-                    let base_font = self.font;
-                    let flush_run = |frame: &mut Frame, run: GlyphRun| {
-                        frame.fill_text(CanvasText {
-                            content: run.content,
-                            position: Point::new(
-                                run.start_col as f32 * cell_w + TERM_PAD,
-                                run.row as f32 * cell_h + TERM_PAD_TOP,
-                            ),
-                            color: run.fg,
-                            size: Pixels(font_size),
-                            font: base_font,
-                            align_x: alignment::Horizontal::Left.into(),
-                            align_y: alignment::Vertical::Top,
-                            shaping: iced::advanced::text::Shaping::Basic,
-                            ..Default::default()
+                    if cd.flags.contains(CellFlags::DIM) {
+                        fg = Color::from_rgba(fg.r * 0.66, fg.g * 0.66, fg.b * 0.66, fg.a);
+                    }
+
+                    // Syntax highlight override (only when text has default/foreground
+                    // color). Gated on `keyword_highlight` so Privacy Mode, which also
+                    // populates `highlights`, doesn't tint tokens when tinting is off.
+                    if self.keyword_highlight
+                        && let Some(hl_color) = highlight_color_at(&highlights, cd.row, cd.col)
+                    {
+                        // Only override if the cell isn't already colored by the application
+                        let fg_is_default =
+                            (fg.r - palette.foreground.r).abs() < 0.02
+                            && (fg.g - palette.foreground.g).abs() < 0.02
+                            && (fg.b - palette.foreground.b).abs() < 0.02;
+                        if fg_is_default {
+                            fg = hl_color;
+                        }
+                    }
+
+                    // Explicit OSC 8 hyperlink: tint with the URL color (ansi blue),
+                    // same as a detected URL, but only when the app left the text at
+                    // the default foreground (don't fight an app that colored its own
+                    // link). Persistent, the hover underline is added separately.
+                    if cd.link {
+                        let fg_is_default = (fg.r - palette.foreground.r).abs() < 0.02
+                            && (fg.g - palette.foreground.g).abs() < 0.02
+                            && (fg.b - palette.foreground.b).abs() < 0.02;
+                        if fg_is_default {
+                            fg = palette.ansi[4];
+                        }
+                    }
+
+                    // Selection highlight, convert visible row to grid-line so
+                    // the selection follows scrolled content instead of staying
+                    // glued to viewport coordinates.
+                    let cell_line = Self::visible_row_to_line(cd.row, scroll_offset);
+                    let is_selected = selection
+                        .as_ref()
+                        .map(|s| Self::is_in_selection(s, cd.col, cell_line))
+                        .unwrap_or(false);
+
+                    if is_selected {
+                        bg = Color::from_rgba(0.133, 0.60, 0.569, 0.35);
+                        fg = Color::WHITE;
+                    }
+
+                    // Buffer-search match background. Selection wins when both
+                    // cover a cell (the user can't be selecting and searching the
+                    // same cell in practice, but keep selection authoritative).
+                    // The active match gets a stronger amber; the rest a muted
+                    // one, matching the find-bar counter's "N of M" cue.
+                    if !is_selected && !search_spans.is_empty() {
+                        let hit = search_spans.iter().find(|&&(r, sc, ec, _)| {
+                            cd.row == r && cd.col >= sc && cd.col <= ec
                         });
-                    };
-                    for cd in &cells {
-                        let x = cd.col as f32 * cell_w + TERM_PAD;
-                        let y = cd.row as f32 * cell_h + TERM_PAD_TOP;
-
-                        let mut fg = cd.fg;
-                        let mut bg = cd.bg;
-                        // The glyph actually drawn for this cell. Privacy Mode swaps it
-                        // for a block below; everything else draws the real character.
-                        let mut glyph = cd.c;
-
-                        if cd.flags.contains(CellFlags::INVERSE) {
-                            std::mem::swap(&mut fg, &mut bg);
-                        }
-                        if cd.flags.contains(CellFlags::DIM) {
-                            fg = Color::from_rgba(fg.r * 0.66, fg.g * 0.66, fg.b * 0.66, fg.a);
-                        }
-
-                        // Syntax highlight override (only when text has default/foreground
-                        // color). Gated on `keyword_highlight` so Privacy Mode, which also
-                        // populates `highlights`, doesn't tint tokens when tinting is off.
-                        if self.keyword_highlight
-                            && let Some(hl_color) = highlight_color_at(&highlights, cd.row, cd.col)
-                        {
-                            // Only override if the cell isn't already colored by the application
-                            let fg_is_default = (fg.r - palette.foreground.r).abs() < 0.02
-                                && (fg.g - palette.foreground.g).abs() < 0.02
-                                && (fg.b - palette.foreground.b).abs() < 0.02;
-                            if fg_is_default {
-                                fg = hl_color;
-                            }
-                        }
-
-                        // Explicit OSC 8 hyperlink: tint with the URL color (ansi blue),
-                        // same as a detected URL, but only when the app left the text at
-                        // the default foreground (don't fight an app that colored its own
-                        // link). Persistent, the hover underline is added separately.
-                        if cd.link {
-                            let fg_is_default = (fg.r - palette.foreground.r).abs() < 0.02
-                                && (fg.g - palette.foreground.g).abs() < 0.02
-                                && (fg.b - palette.foreground.b).abs() < 0.02;
-                            if fg_is_default {
-                                fg = palette.ansi[4];
-                            }
-                        }
-
-                        // Selection highlight, convert visible row to grid-line so
-                        // the selection follows scrolled content instead of staying
-                        // glued to viewport coordinates.
-                        let cell_line = Self::visible_row_to_line(cd.row, scroll_offset);
-                        let is_selected = selection
-                            .as_ref()
-                            .map(|s| Self::is_in_selection(s, cd.col, cell_line))
-                            .unwrap_or(false);
-
-                        if is_selected {
-                            bg = Color::from_rgba(0.133, 0.60, 0.569, 0.35);
-                            fg = Color::WHITE;
-                        }
-
-                        // Buffer-search match background. Selection wins when both
-                        // cover a cell (the user can't be selecting and searching the
-                        // same cell in practice, but keep selection authoritative).
-                        // The active match gets a stronger amber; the rest a muted
-                        // one, matching the find-bar counter's "N of M" cue.
-                        if !is_selected && !search_spans.is_empty() {
-                            let hit = search_spans.iter().find(|&&(r, sc, ec, _)| {
-                                cd.row == r && cd.col >= sc && cd.col <= ec
-                            });
-                            if let Some(&(_, _, _, active)) = hit {
-                                bg = if active {
-                                    Color::from_rgba(0.98, 0.70, 0.10, 0.75)
-                                } else {
-                                    Color::from_rgba(0.85, 0.62, 0.12, 0.35)
-                                };
-                                if active {
-                                    fg = Color::from_rgb(0.08, 0.07, 0.05);
-                                }
-                            }
-                        }
-
-                        // Smart contrast, when an app picks a colour pair that
-                        // renders too close to disappear (PowerShell's
-                        // `$PSStyle.FileInfo.Directory` blue-on-blue, LS_COLORS'
-                        // `ow` green-on-green over a green palette), swap the
-                        // foreground for white or near-black depending on the
-                        // background's luminance. Only kicks in when the cell
-                        // actually has a non-default background, preserves
-                        // colour-precise output everywhere else.
-                        if self.smart_contrast && !is_selected {
-                            let bg_overrides_default = (bg.r - palette.background.r).abs() >= 0.01
-                                || (bg.g - palette.background.g).abs() >= 0.01
-                                || (bg.b - palette.background.b).abs() >= 0.01;
-                            if bg_overrides_default && contrast_ratio(fg, bg) < 2.5 {
-                                fg = if relative_luminance(bg) >= 0.4 {
-                                    Color::from_rgb(0.05, 0.06, 0.07)
-                                } else {
-                                    Color::WHITE
-                                };
-                            }
-                        }
-
-                        // Privacy Mode masking: cells inside a privacy span (IP,
-                        // user@host, home-dir username, saved hostname) suppress
-                        // their glyph. Every cell of the span is masked,
-                        // separators included: a visible `.` / `@` / `:` would
-                        // reveal the value's shape (octet count, username
-                        // length). The redaction bar itself is drawn once per
-                        // SPAN after the cell loop (rounded rect + eye-slash,
-                        // issue #78), not per cell. The span the cursor hovers is
-                        // revealed (same hover-reveal as links), and click-pinned
-                        // values stay revealed.
-                        if self.privacy && is_privacy_cell(&highlights, cd.row, cd.col) {
-                            let in_extent = |&(r, sc, ec): &(u16, u16, u16)| {
-                                cd.row == r && cd.col >= sc && cd.col <= ec
-                            };
-                            let revealed = hovered_privacy_extent.as_ref().is_some_and(in_extent)
-                                || pinned_extents.iter().any(in_extent);
-                            if !revealed {
-                                glyph = ' ';
-                            }
-                        }
-
-                        // Draw background
-                        let is_default_bg = !is_selected
-                            && (bg.r - palette.background.r).abs() < 0.01
-                            && (bg.g - palette.background.g).abs() < 0.01
-                            && (bg.b - palette.background.b).abs() < 0.01;
-
-                        if !is_default_bg {
-                            let width = if cd.flags.contains(CellFlags::WIDE_CHAR) {
-                                cell_w * 2.0
+                        if let Some(&(_, _, _, active)) = hit {
+                            bg = if active {
+                                Color::from_rgba(0.98, 0.70, 0.10, 0.75)
                             } else {
-                                cell_w
+                                Color::from_rgba(0.85, 0.62, 0.12, 0.35)
                             };
-                            frame.fill_rectangle(Point::new(x, y), Size::new(width, cell_h), bg);
+                            if active {
+                                fg = Color::from_rgb(0.08, 0.07, 0.05);
+                            }
                         }
+                    }
 
-                        // Draw character. Codepoints in the Unicode Private Use
-                        // Areas are forced through the bundled SauceCodePro Nerd
-                        // Font: cosmic-text's auto-fallback tends to pick CJK
-                        // fonts (which use the PUA for user-defined chars) before
-                        // our Nerd Font for the F0xx range, so prompts with
-                        // Powerline / Font Awesome / Devicons would render as
-                        // tofu or wrong-script glyphs. Forcing the symbol font
-                        // here is what alacritty/wezterm call a "symbol_map",
-                        // hard-coded to the bundled family since we ship it in
-                        // the binary.
-                        //
-                        // `\t` is a marker the emulator parks at the *start* of a
-                        // tab span (see alacritty's `put_tab` in `term/mod.rs`)
-                        // so clipboard copy can recover the original TAB. It's
-                        // not a glyph: GNU `ls` in TTY column mode pads with tabs,
-                        // so rendering it would tofu after every filename.
-                        if glyph != ' ' && glyph != '\0' && glyph != '\t' {
-                            let cp = glyph as u32;
-                            // Both Private Use Areas: BMP PUA covers Powerline,
-                            // Font Awesome, Devicons, Octicons, Codicons and the
-                            // rest of the legacy Nerd Font ranges; SMP PUA is
-                            // where Nerd Font v3+ stuffed the Material Design
-                            // Icons. Regular fonts don't use either area, so we
-                            // can safely force the bundled Nerd Font across both.
-                            let is_pua = (0xE000..=0xF8FF).contains(&cp)
-                                || (0xF0000..=0xFFFFD).contains(&cp);
-                            let is_wide = cd.flags.contains(CellFlags::WIDE_CHAR);
-                            if !is_pua && !is_wide && glyph.is_ascii_graphic() {
-                                // Batchable glyph: extend the open run when it lines
-                                // up (same row, same color, contiguous or within a
-                                // short bridgeable gap), otherwise start a new one.
-                                let fits = run.as_ref().is_some_and(|r| {
-                                    r.row == cd.row
-                                        && r.fg == fg
-                                        && cd.col >= r.next_col
-                                        && cd.col - r.next_col <= MAX_RUN_GAP
-                                        && r.content.len() < MAX_RUN_LEN
-                                });
-                                if fits {
-                                    let r = run.as_mut().expect("checked by fits");
-                                    for _ in r.next_col..cd.col {
-                                        r.content.push(' ');
-                                    }
-                                    r.content.push(glyph);
-                                    r.next_col = cd.col + 1;
-                                } else {
-                                    if let Some(r) = run.take() {
-                                        flush_run(frame, r);
-                                    }
-                                    run = Some(GlyphRun {
-                                        row: cd.row,
-                                        start_col: cd.col,
-                                        next_col: cd.col + 1,
-                                        fg,
-                                        content: glyph.to_string(),
-                                    });
+                    // Smart contrast, when an app picks a colour pair that
+                    // renders too close to disappear (PowerShell's
+                    // `$PSStyle.FileInfo.Directory` blue-on-blue, LS_COLORS'
+                    // `ow` green-on-green over a green palette), swap the
+                    // foreground for white or near-black depending on the
+                    // background's luminance. Only kicks in when the cell
+                    // actually has a non-default background, preserves
+                    // colour-precise output everywhere else.
+                    if self.smart_contrast && !is_selected {
+                        let bg_overrides_default = (bg.r - palette.background.r).abs() >= 0.01
+                            || (bg.g - palette.background.g).abs() >= 0.01
+                            || (bg.b - palette.background.b).abs() >= 0.01;
+                        if bg_overrides_default && contrast_ratio(fg, bg) < 2.5 {
+                            fg = if relative_luminance(bg) >= 0.4 {
+                                Color::from_rgb(0.05, 0.06, 0.07)
+                            } else {
+                                Color::WHITE
+                            };
+                        }
+                    }
+
+                    // Privacy Mode masking: cells inside a privacy span (IP,
+                    // user@host, home-dir username, saved hostname) suppress
+                    // their glyph. Every cell of the span is masked,
+                    // separators included: a visible `.` / `@` / `:` would
+                    // reveal the value's shape (octet count, username
+                    // length). The redaction bar itself is drawn once per
+                    // SPAN after the cell loop (rounded rect + eye-slash,
+                    // issue #78), not per cell. The span the cursor hovers is
+                    // revealed (same hover-reveal as links), and click-pinned
+                    // values stay revealed.
+                    if self.privacy && is_privacy_cell(&highlights, cd.row, cd.col) {
+                        let in_extent = |&(r, sc, ec): &(u16, u16, u16)| {
+                            cd.row == r && cd.col >= sc && cd.col <= ec
+                        };
+                        let revealed = hovered_privacy_extent.as_ref().is_some_and(in_extent)
+                            || pinned_extents.iter().any(in_extent);
+                        if !revealed {
+                            glyph = ' ';
+                        }
+                    }
+
+                    // Draw background
+                    let is_default_bg = !is_selected
+                        && (bg.r - palette.background.r).abs() < 0.01
+                        && (bg.g - palette.background.g).abs() < 0.01
+                        && (bg.b - palette.background.b).abs() < 0.01;
+
+                    if !is_default_bg {
+                        let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
+                        frame.fill_rectangle(Point::new(x, y), Size::new(width, cell_h), bg);
+                    }
+
+                    // Draw character. Codepoints in the Unicode Private Use
+                    // Areas are forced through the bundled SauceCodePro Nerd
+                    // Font: cosmic-text's auto-fallback tends to pick CJK
+                    // fonts (which use the PUA for user-defined chars) before
+                    // our Nerd Font for the F0xx range, so prompts with
+                    // Powerline / Font Awesome / Devicons would render as
+                    // tofu or wrong-script glyphs. Forcing the symbol font
+                    // here is what alacritty/wezterm call a "symbol_map",
+                    // hard-coded to the bundled family since we ship it in
+                    // the binary.
+                    //
+                    // `\t` is a marker the emulator parks at the *start* of a
+                    // tab span (see alacritty's `put_tab` in `term/mod.rs`)
+                    // so clipboard copy can recover the original TAB. It's
+                    // not a glyph: GNU `ls` in TTY column mode pads with tabs,
+                    // so rendering it would tofu after every filename.
+                    if glyph != ' ' && glyph != '\0' && glyph != '\t' {
+                        let cp = glyph as u32;
+                        // Both Private Use Areas: BMP PUA covers Powerline,
+                        // Font Awesome, Devicons, Octicons, Codicons and the
+                        // rest of the legacy Nerd Font ranges; SMP PUA is
+                        // where Nerd Font v3+ stuffed the Material Design
+                        // Icons. Regular fonts don't use either area, so we
+                        // can safely force the bundled Nerd Font across both.
+                        let is_pua =
+                            (0xE000..=0xF8FF).contains(&cp) || (0xF0000..=0xFFFFD).contains(&cp);
+                        let is_wide = cd.flags.contains(CellFlags::WIDE_CHAR);
+                        if !is_pua && !is_wide && glyph.is_ascii_graphic() {
+                            // Batchable glyph: extend the open run when it lines
+                            // up (same row, same color, contiguous or within a
+                            // short bridgeable gap), otherwise start a new one.
+                            let fits = run.as_ref().is_some_and(|r| {
+                                r.row == cd.row
+                                    && r.fg == fg
+                                    && cd.col >= r.next_col
+                                    && cd.col - r.next_col <= MAX_RUN_GAP
+                                    && r.content.len() < MAX_RUN_LEN
+                            });
+                            if fits {
+                                let r = run.as_mut().expect("checked by fits");
+                                for _ in r.next_col..cd.col {
+                                    r.content.push(' ');
                                 }
+                                r.content.push(glyph);
+                                r.next_col = cd.col + 1;
                             } else {
                                 if let Some(r) = run.take() {
                                     flush_run(frame, r);
                                 }
-                                let font = if is_pua { NERD_FONT } else { self.font };
-                                frame.fill_text(CanvasText {
+                                run = Some(GlyphRun {
+                                    row: cd.row,
+                                    start_col: cd.col,
+                                    next_col: cd.col + 1,
+                                    fg,
                                     content: glyph.to_string(),
-                                    position: Point::new(x, y),
-                                    color: fg,
-                                    size: Pixels(self.font_size),
-                                    font,
-                                    align_x: alignment::Horizontal::Left.into(),
-                                    align_y: alignment::Vertical::Top,
-                                    shaping: iced::advanced::text::Shaping::Basic,
-                                    ..Default::default()
                                 });
                             }
-                        }
-
-                        // Underline, from explicit ANSI SGR flags, or for URL
-                        // cells that the cursor is currently hovering over (the
-                        // visual cue paired with the Pointer cursor).
-                        // Other URLs in the viewport stay un-underlined to avoid
-                        // looking like every link is independently clickable.
-                        let is_hovered_url = hovered_url_extent
-                            .is_some_and(|(r, sc, ec)| cd.row == r && cd.col >= sc && cd.col <= ec)
-                            || hovered_osc8
-                                .iter()
-                                .any(|&(r, sc, ec)| cd.row == r && cd.col >= sc && cd.col <= ec);
-                        if cd.flags.intersects(CellFlags::ALL_UNDERLINES) || is_hovered_url {
-                            let width = if cd.flags.contains(CellFlags::WIDE_CHAR) {
-                                cell_w * 2.0
-                            } else {
-                                cell_w
-                            };
-                            // SGR 58 underline color when set; the glyph's
-                            // (post-effects) foreground otherwise. The hover
-                            // underline of a URL keeps fg, it is our cue, not
-                            // the app's styling.
-                            let ul = if cd.flags.intersects(CellFlags::ALL_UNDERLINES) {
-                                cd.underline.unwrap_or(fg)
-                            } else {
-                                fg
-                            };
-                            frame.fill_rectangle(
-                                Point::new(x, y + cell_h - 2.0),
-                                Size::new(width, 1.0),
-                                ul,
-                            );
-                        }
-
-                        // Strikethrough
-                        if cd.flags.contains(CellFlags::STRIKEOUT) {
-                            let width = if cd.flags.contains(CellFlags::WIDE_CHAR) {
-                                cell_w * 2.0
-                            } else {
-                                cell_w
-                            };
-                            frame.fill_rectangle(
-                                Point::new(x, y + cell_h / 2.0),
-                                Size::new(width, 1.0),
-                                fg,
-                            );
-                        }
-                    }
-                    if let Some(r) = run.take() {
-                        flush_run(frame, r);
-                    }
-
-                    // Privacy redaction bars, one per span (issue #78): a rounded
-                    // bar reads as a deliberate censor mark instead of legitimate
-                    // reverse-video content, and spans wide enough carry a vector
-                    // eye-slash cut out of the bar, the "this is masked, hover to
-                    // peek" affordance no font glyph could give (the canvas draws
-                    // raw geometry, so there is no bundled-font dependency).
-                    // Masked cells drew no glyph above, so painting after the
-                    // text pass covers nothing. The vertical inset keeps stacked
-                    // masked lines from merging into a wall.
-                    if self.privacy {
-                        // Opaque tone blended toward the background, then
-                        // desaturated to neutral grey: keeping the theme hue makes
-                        // the mask mimic reverse-video content (on a teal theme it
-                        // reads as a highlight banner, not a censor mark).
-                        // Brightness is kept by re-encoding the blend's linear
-                        // luminance to sRGB.
-                        let blend = Color {
-                            r: palette.foreground.r * 0.45 + palette.background.r * 0.55,
-                            g: palette.foreground.g * 0.45 + palette.background.g * 0.55,
-                            b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
-                            a: 1.0,
-                        };
-                        let lum = relative_luminance(blend);
-                        let grey = if lum <= 0.003_130_8 {
-                            lum * 12.92
                         } else {
-                            1.055 * lum.powf(1.0 / 2.4) - 0.055
-                        };
-                        let bar_color = Color {
-                            r: grey,
-                            g: grey,
-                            b: grey,
-                            a: 1.0,
-                        };
-                        let mut any_masked = false;
-                        for ext in privacy_extents(&highlights) {
-                            let (row, start_col, end_col) = ext;
-                            let revealed = hovered_privacy_extent == Some(ext)
-                                || pinned_extents.contains(&ext);
-                            if revealed {
-                                continue;
+                            if let Some(r) = run.take() {
+                                flush_run(frame, r);
                             }
-                            any_masked = true;
-                            let inset = (cell_h * 0.12).clamp(1.0, 3.0);
-                            let bx = start_col as f32 * cell_w + TERM_PAD;
-                            let by = row as f32 * cell_h + TERM_PAD_TOP + inset;
-                            let bw = (end_col - start_col + 1) as f32 * cell_w;
-                            let bh = (cell_h - inset * 2.0).max(1.0);
-                            let radius = (bh * 0.30).clamp(2.0, 5.0);
+                            let font = if is_pua { NERD_FONT } else { self.font };
+                            frame.fill_text(CanvasText {
+                                content: glyph.to_string(),
+                                position: Point::new(x, y),
+                                color: fg,
+                                size: Pixels(self.font_size),
+                                font,
+                                align_x: alignment::Horizontal::Left.into(),
+                                align_y: alignment::Vertical::Top,
+                                ..Default::default()
+                            });
+                        }
+                    }
+
+                    // Underline, from explicit ANSI SGR flags, or for URL
+                    // cells that the cursor is currently hovering over (the
+                    // visual cue paired with the Pointer cursor).
+                    // Other URLs in the viewport stay un-underlined to avoid
+                    // looking like every link is independently clickable.
+                    let is_hovered_url = hovered_url_extent.is_some_and(|(r, sc, ec)| {
+                        cd.row == r && cd.col >= sc && cd.col <= ec
+                    }) || hovered_osc8.iter().any(|&(r, sc, ec)| {
+                        cd.row == r && cd.col >= sc && cd.col <= ec
+                    });
+                    if cd.flags.intersects(CellFlags::ALL_UNDERLINES) || is_hovered_url {
+                        let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
+                        // SGR 58 underline color when set; the glyph's
+                        // (post-effects) foreground otherwise. The hover
+                        // underline of a URL keeps fg, it is our cue, not
+                        // the app's styling.
+                        let ul = if cd.flags.intersects(CellFlags::ALL_UNDERLINES) {
+                            cd.underline.unwrap_or(fg)
+                        } else {
+                            fg
+                        };
+                        frame.fill_rectangle(Point::new(x, y + cell_h - 2.0), Size::new(width, 1.0), ul);
+                    }
+
+                    // Strikethrough
+                    if cd.flags.contains(CellFlags::STRIKEOUT) {
+                        let width = if cd.flags.contains(CellFlags::WIDE_CHAR) { cell_w * 2.0 } else { cell_w };
+                        frame.fill_rectangle(Point::new(x, y + cell_h / 2.0), Size::new(width, 1.0), fg);
+                    }
+                }
+                if let Some(r) = run.take() {
+                    flush_run(frame, r);
+                }
+
+                // Privacy redaction bars, one per span (issue #78): a rounded
+                // bar reads as a deliberate censor mark instead of legitimate
+                // reverse-video content, and spans wide enough carry a vector
+                // eye-slash cut out of the bar, the "this is masked, hover to
+                // peek" affordance no font glyph could give (the canvas draws
+                // raw geometry, so there is no bundled-font dependency).
+                // Masked cells drew no glyph above, so painting after the
+                // text pass covers nothing. The vertical inset keeps stacked
+                // masked lines from merging into a wall.
+                if self.privacy {
+                    // Opaque tone blended toward the background, then
+                    // desaturated to neutral grey: keeping the theme hue makes
+                    // the mask mimic reverse-video content (on a teal theme it
+                    // reads as a highlight banner, not a censor mark).
+                    // Brightness is kept by re-encoding the blend's linear
+                    // luminance to sRGB.
+                    let blend = Color {
+                        r: palette.foreground.r * 0.45 + palette.background.r * 0.55,
+                        g: palette.foreground.g * 0.45 + palette.background.g * 0.55,
+                        b: palette.foreground.b * 0.45 + palette.background.b * 0.55,
+                        a: 1.0,
+                    };
+                    let lum = relative_luminance(blend);
+                    let grey = if lum <= 0.003_130_8 {
+                        lum * 12.92
+                    } else {
+                        1.055 * lum.powf(1.0 / 2.4) - 0.055
+                    };
+                    let bar_color = Color { r: grey, g: grey, b: grey, a: 1.0 };
+                    let mut any_masked = false;
+                    for ext in privacy_extents(&highlights) {
+                        let (row, start_col, end_col) = ext;
+                        let revealed = hovered_privacy_extent == Some(ext)
+                            || pinned_extents.contains(&ext);
+                        if revealed {
+                            continue;
+                        }
+                        any_masked = true;
+                        let inset = (cell_h * 0.12).clamp(1.0, 3.0);
+                        let bx = start_col as f32 * cell_w + TERM_PAD;
+                        let by = row as f32 * cell_h + TERM_PAD_TOP + inset;
+                        let bw = (end_col - start_col + 1) as f32 * cell_w;
+                        let bh = (cell_h - inset * 2.0).max(1.0);
+                        let radius = (bh * 0.30).clamp(2.0, 5.0);
+                        frame.fill(
+                            &canvas::Path::rounded_rectangle(
+                                Point::new(bx, by),
+                                Size::new(bw, bh),
+                                radius.into(),
+                            ),
+                            bar_color,
+                        );
+                        // Eye-slash, centered, in the theme's text color: the
+                        // bar leans toward the background, so the foreground
+                        // is the side with contrast headroom on every theme
+                        // (a background-colored cutout went near-invisible on
+                        // near-black themes, issue #78 follow-up). Only when
+                        // the span has room; short spans keep the bare bar.
+                        if bw >= cell_w * 5.0 && bh >= 8.0 {
+                            let (cx, cy) = (bx + bw / 2.0, by + bh / 2.0);
+                            let eye_h = bh * 0.28;
+                            let eye_w = (eye_h * 2.6).min(bw * 0.5);
+                            let ink = canvas::Stroke {
+                                style: canvas::stroke::Style::Solid(palette.foreground),
+                                width: (bh * 0.10).clamp(1.0, 1.6),
+                                line_cap: canvas::stroke::LineCap::Round,
+                                ..canvas::Stroke::default()
+                            };
+                            let almond = canvas::Path::new(|b| {
+                                b.move_to(Point::new(cx - eye_w / 2.0, cy));
+                                b.quadratic_curve_to(
+                                    Point::new(cx, cy - eye_h * 2.0),
+                                    Point::new(cx + eye_w / 2.0, cy),
+                                );
+                                b.quadratic_curve_to(
+                                    Point::new(cx, cy + eye_h * 2.0),
+                                    Point::new(cx - eye_w / 2.0, cy),
+                                );
+                            });
+                            frame.stroke(&almond, ink);
                             frame.fill(
-                                &canvas::Path::rounded_rectangle(
-                                    Point::new(bx, by),
-                                    Size::new(bw, bh),
-                                    radius.into(),
+                                &canvas::Path::circle(
+                                    Point::new(cx, cy),
+                                    (eye_h * 0.45).max(1.0),
                                 ),
-                                bar_color,
+                                palette.foreground,
                             );
-                            // Eye-slash, centered, in the theme's text color: the
-                            // bar leans toward the background, so the foreground
-                            // is the side with contrast headroom on every theme
-                            // (a background-colored cutout went near-invisible on
-                            // near-black themes, issue #78 follow-up). Only when
-                            // the span has room; short spans keep the bare bar.
-                            if bw >= cell_w * 5.0 && bh >= 8.0 {
-                                let (cx, cy) = (bx + bw / 2.0, by + bh / 2.0);
-                                let eye_h = bh * 0.28;
-                                let eye_w = (eye_h * 2.6).min(bw * 0.5);
-                                let ink = canvas::Stroke {
-                                    style: canvas::stroke::Style::Solid(palette.foreground),
-                                    width: (bh * 0.10).clamp(1.0, 1.6),
-                                    line_cap: canvas::stroke::LineCap::Round,
-                                    ..canvas::Stroke::default()
-                                };
-                                let almond = canvas::Path::new(|b| {
-                                    b.move_to(Point::new(cx - eye_w / 2.0, cy));
-                                    b.quadratic_curve_to(
-                                        Point::new(cx, cy - eye_h * 2.0),
-                                        Point::new(cx + eye_w / 2.0, cy),
-                                    );
-                                    b.quadratic_curve_to(
-                                        Point::new(cx, cy + eye_h * 2.0),
-                                        Point::new(cx - eye_w / 2.0, cy),
-                                    );
-                                });
-                                frame.stroke(&almond, ink);
-                                frame.fill(
-                                    &canvas::Path::circle(
-                                        Point::new(cx, cy),
-                                        (eye_h * 0.45).max(1.0),
-                                    ),
-                                    palette.foreground,
-                                );
-                                let slash = canvas::Path::line(
-                                    Point::new(cx - eye_w * 0.62, cy + eye_h * 1.5),
-                                    Point::new(cx + eye_w * 0.62, cy - eye_h * 1.5),
-                                );
-                                frame.stroke(&slash, ink);
-                            }
-                        }
-                        // First-mask signal for the app's one-shot hint toast
-                        // (issue #78): the draw pass has no message path, so a
-                        // process-wide flag the app swaps on its update loop is
-                        // the channel, same spirit as the bounds-reporter slots.
-                        if any_masked {
-                            PRIVACY_MASK_DRAWN.store(true, std::sync::atomic::Ordering::Relaxed);
-                        }
-                        // Cache for `mouse_interaction`: pointer over a masked
-                        // (or just revealed) span signals "click pins the
-                        // reveal", the same affordance links get.
-                        widget_state
-                            .hovered_privacy
-                            .set(hovered_privacy_extent.is_some());
-                    }
-
-                    // Hand the cell snapshot buffer back so its capacity is reused
-                    // by the next frame.
-                    DRAW_CELLS.set(cells);
-
-                    // Cursor, only render when its visible row falls inside the
-                    // viewport. When the user scrolls into history, the cursor sits
-                    // below the visible area and shouldn't be drawn.
-                    let cursor = term_cursor;
-                    let visible_cursor_row = cursor.point.line.0 + scroll_offset;
-                    if (0..screen_lines as i32).contains(&visible_cursor_row) {
-                        let cx = cursor.point.column.0 as f32 * cell_w + TERM_PAD;
-                        let cy = visible_cursor_row as f32 * cell_h + TERM_PAD_TOP;
-                        match cursor.shape {
-                            CursorShape::Block => {
-                                frame.fill_rectangle(
-                                    Point::new(cx, cy),
-                                    Size::new(cell_w, cell_h),
-                                    Color {
-                                        a: 0.7,
-                                        ..palette.cursor
-                                    },
-                                );
-                            }
-                            CursorShape::Beam => {
-                                frame.fill_rectangle(
-                                    Point::new(cx, cy),
-                                    Size::new(2.0, cell_h),
-                                    palette.cursor,
-                                );
-                            }
-                            CursorShape::Underline => {
-                                frame.fill_rectangle(
-                                    Point::new(cx, cy + cell_h - 2.0),
-                                    Size::new(cell_w, 2.0),
-                                    palette.cursor,
-                                );
-                            }
-                            _ => {
-                                frame.fill_rectangle(
-                                    Point::new(cx, cy),
-                                    Size::new(cell_w, cell_h),
-                                    Color {
-                                        a: 0.5,
-                                        ..palette.cursor
-                                    },
-                                );
-                            }
+                            let slash = canvas::Path::line(
+                                Point::new(cx - eye_w * 0.62, cy + eye_h * 1.5),
+                                Point::new(cx + eye_w * 0.62, cy - eye_h * 1.5),
+                            );
+                            frame.stroke(&slash, ink);
                         }
                     }
-
-                    // Scrollbar, only painted while the cursor is over the canvas
-                    // (or actively dragging), there's actual history to scroll, and
-                    // we're not in alt-screen mode (no scrollback there).
-                    // Keep the scrollbar visible during an active text-selection drag
-                    // too, even if the cursor leaves the widget (hover goes false), so
-                    // it doesn't blink out while auto-scrolling at the edge.
-                    let visible_scrollbar = !in_alt_screen
-                        && (widget_state.hover
-                            || widget_state.scrollbar_drag.is_some()
-                            || widget_state.selecting);
-                    if visible_scrollbar
-                        && let Some(sb) =
-                            scrollbar_geom(bounds, total_lines, screen_lines, scroll_offset)
-                    {
-                        // Track, faint background gutter so the user has a visible
-                        // hit target when clicking above/below the thumb.
-                        frame.fill_rectangle(
-                            Point::new(sb.track_x, sb.track_y),
-                            Size::new(sb.track_w, sb.track_h),
-                            Color {
-                                a: 0.08,
-                                ..palette.foreground
-                            },
-                        );
-                        // Thumb, pops out a little when dragging.
-                        let thumb_alpha = if widget_state.scrollbar_drag.is_some() {
-                            0.55
-                        } else {
-                            0.35
-                        };
-                        frame.fill_rectangle(
-                            Point::new(sb.track_x, sb.thumb_y),
-                            Size::new(sb.track_w, sb.thumb_h),
-                            Color {
-                                a: thumb_alpha,
-                                ..palette.foreground
-                            },
-                        );
+                    // First-mask signal for the app's one-shot hint toast
+                    // (issue #78): the draw pass has no message path, so a
+                    // process-wide flag the app swaps on its update loop is
+                    // the channel, same spirit as the bounds-reporter slots.
+                    if any_masked {
+                        PRIVACY_MASK_DRAWN.store(true, std::sync::atomic::Ordering::Relaxed);
                     }
-                });
+                    // Cache for `mouse_interaction`: pointer over a masked
+                    // (or just revealed) span signals "click pins the
+                    // reveal", the same affordance links get.
+                    widget_state
+                        .hovered_privacy
+                        .set(hovered_privacy_extent.is_some());
+                }
+
+                // Hand the cell snapshot buffer back so its capacity is reused
+                // by the next frame.
+                DRAW_CELLS.set(cells);
+
+                // Cursor, only render when its visible row falls inside the
+                // viewport. When the user scrolls into history, the cursor sits
+                // below the visible area and shouldn't be drawn.
+                let cursor = term_cursor;
+                let visible_cursor_row = cursor.point.line.0 + scroll_offset;
+                if (0..screen_lines as i32).contains(&visible_cursor_row) {
+                    let cx = cursor.point.column.0 as f32 * cell_w + TERM_PAD;
+                    let cy = visible_cursor_row as f32 * cell_h + TERM_PAD_TOP;
+                    match cursor.shape {
+                        CursorShape::Block => {
+                            frame.fill_rectangle(
+                                Point::new(cx, cy),
+                                Size::new(cell_w, cell_h),
+                                Color { a: 0.7, ..palette.cursor },
+                            );
+                        }
+                        CursorShape::Beam => {
+                            frame.fill_rectangle(Point::new(cx, cy), Size::new(2.0, cell_h), palette.cursor);
+                        }
+                        CursorShape::Underline => {
+                            frame.fill_rectangle(
+                                Point::new(cx, cy + cell_h - 2.0),
+                                Size::new(cell_w, 2.0),
+                                palette.cursor,
+                            );
+                        }
+                        _ => {
+                            frame.fill_rectangle(
+                                Point::new(cx, cy),
+                                Size::new(cell_w, cell_h),
+                                Color { a: 0.5, ..palette.cursor },
+                            );
+                        }
+                    }
+                }
+
+                // Scrollbar, only painted while the cursor is over the canvas
+                // (or actively dragging), there's actual history to scroll, and
+                // we're not in alt-screen mode (no scrollback there).
+                // Keep the scrollbar visible during an active text-selection drag
+                // too, even if the cursor leaves the widget (hover goes false), so
+                // it doesn't blink out while auto-scrolling at the edge.
+                let visible_scrollbar = !in_alt_screen
+                    && (widget_state.hover
+                        || widget_state.scrollbar_drag.is_some()
+                        || widget_state.selecting);
+                if visible_scrollbar
+                    && let Some(sb) = scrollbar_geom(
+                        bounds,
+                        total_lines,
+                        screen_lines,
+                        scroll_offset,
+                    )
+                {
+                    // Track, faint background gutter so the user has a visible
+                    // hit target when clicking above/below the thumb.
+                    frame.fill_rectangle(
+                        Point::new(sb.track_x, sb.track_y),
+                        Size::new(sb.track_w, sb.track_h),
+                        Color { a: 0.08, ..palette.foreground },
+                    );
+                    // Thumb, pops out a little when dragging.
+                    let thumb_alpha = if widget_state.scrollbar_drag.is_some() { 0.55 } else { 0.35 };
+                    frame.fill_rectangle(
+                        Point::new(sb.track_x, sb.thumb_y),
+                        Size::new(sb.track_w, sb.thumb_h),
+                        Color { a: thumb_alpha, ..palette.foreground },
+                    );
+                }
+            },
+        );
 
         let mut geometries = vec![grid_geometry];
 
@@ -1024,8 +970,9 @@ where
             let total_tint = |d: std::time::Duration| tint(d > FRAME_WARN, d > FRAME_BUDGET);
             // Lock time is the typing-lag signal (draw contending with
             // the SSH output path), so it gets its own, tighter bar.
-            let lock_tint =
-                |d: std::time::Duration| tint(d.as_secs_f32() > 0.002, d.as_secs_f32() > 0.008);
+            let lock_tint = |d: std::time::Duration| {
+                tint(d.as_secs_f32() > 0.002, d.as_secs_f32() > 0.008)
+            };
             type Seg = (String, Color);
             let metrics = |t: std::time::Duration, l, c, h| -> Vec<Seg> {
                 if wide {
@@ -1148,21 +1095,13 @@ where
                 Size::new(panel.width, panel.height),
                 hud_bg,
             );
-            hud.fill_rectangle(
-                Point::new(panel.x, panel.y),
-                Size::new(panel.width, 1.0),
-                border,
-            );
+            hud.fill_rectangle(Point::new(panel.x, panel.y), Size::new(panel.width, 1.0), border);
             hud.fill_rectangle(
                 Point::new(panel.x, panel.y + panel.height - 1.0),
                 Size::new(panel.width, 1.0),
                 border,
             );
-            hud.fill_rectangle(
-                Point::new(panel.x, panel.y),
-                Size::new(1.0, panel.height),
-                border,
-            );
+            hud.fill_rectangle(Point::new(panel.x, panel.y), Size::new(1.0, panel.height), border);
             hud.fill_rectangle(
                 Point::new(panel.x + panel.width - 1.0, panel.y),
                 Size::new(1.0, panel.height),
@@ -1223,10 +1162,7 @@ where
                     hud_fg
                 };
                 hud.fill_rectangle(
-                    Point::new(
-                        spark_x + spark_w - (n - i) as f32 * bar_w,
-                        spark_y + SPARK_H - h,
-                    ),
+                    Point::new(spark_x + spark_w - (n - i) as f32 * bar_w, spark_y + SPARK_H - h),
                     Size::new((bar_w - 0.5).max(0.5), h),
                     Color { a: 0.65, ..color },
                 );
@@ -1253,10 +1189,7 @@ where
             flash.fill_rectangle(
                 Point::new(0.0, 0.0),
                 bounds.size(),
-                Color {
-                    a: 0.18,
-                    ..flash_color
-                },
+                Color { a: 0.18, ..flash_color },
             );
             geometries.push(flash.into_geometry());
         }
@@ -1266,9 +1199,7 @@ where
 
 /// For bold text, promote standard ANSI colors (0-7) to their bright variant (8-15).
 /// This makes bold text colorful like in other terminal emulators.
-fn brighten_named(
-    color: &alacritty_terminal::vte::ansi::Color,
-) -> alacritty_terminal::vte::ansi::Color {
+fn brighten_named(color: &alacritty_terminal::vte::ansi::Color) -> alacritty_terminal::vte::ansi::Color {
     use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
     match color {
         AnsiColor::Named(named) => {

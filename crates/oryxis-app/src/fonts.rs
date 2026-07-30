@@ -76,12 +76,8 @@ pub static BUNDLED_FONTS: &[&[u8]] = &[
     include_bytes!("../../../resources/fonts/NotoSansDevanagari-Bold.ttf"),
     include_bytes!("../../../resources/fonts/MenuCJK.ttf"),
     include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Regular.ttf"),
-    include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Bold.ttf"),
+    include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Medium.ttf"),
     include_bytes!("../../../resources/fonts/SymbolsNerdFont-Regular.ttf"),
-    include_bytes!("../../../resources/fonts/JetBrainsMonoNerdFont-Regular.ttf"),
-    include_bytes!("../../../resources/fonts/JetBrainsMonoNerdFont-Bold.ttf"),
-    include_bytes!("../../../resources/fonts/CaskaydiaCoveNerdFont-Regular.ttf"),
-    include_bytes!("../../../resources/fonts/CaskaydiaCoveNerdFont-Bold.ttf"),
 ];
 
 /// One downloadable CJK font, keyed by language. Each is a Noto Sans
@@ -218,12 +214,7 @@ async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
     let mut resp = None;
     let mut last_err = String::new();
     for url in crate::net_mirror::candidates(asset.url) {
-        match client
-            .get(&url)
-            .send()
-            .await
-            .and_then(|r| r.error_for_status())
-        {
+        match client.get(&url).send().await.and_then(|r| r.error_for_status()) {
             Ok(r) => {
                 resp = Some(r);
                 break;
@@ -305,11 +296,15 @@ mod tests {
 
     fn db_with_noto() -> Database {
         let mut db = Database::new();
-        db.load_font_data(include_bytes!("../../../resources/fonts/NotoSans-Regular.ttf").to_vec());
+        db.load_font_data(
+            include_bytes!("../../../resources/fonts/NotoSans-Regular.ttf").to_vec(),
+        );
         db.load_font_data(
             include_bytes!("../../../resources/fonts/NotoSans-SemiBold.ttf").to_vec(),
         );
-        db.load_font_data(include_bytes!("../../../resources/fonts/NotoSans-Bold.ttf").to_vec());
+        db.load_font_data(
+            include_bytes!("../../../resources/fonts/NotoSans-Bold.ttf").to_vec(),
+        );
         db
     }
 
@@ -349,7 +344,8 @@ mod tests {
     /// fonts memory note).
     #[test]
     fn menu_cjk_covers_picker_names() {
-        let data = include_bytes!("../../../resources/fonts/MenuCJK.ttf").as_slice();
+        let data =
+            include_bytes!("../../../resources/fonts/MenuCJK.ttf").as_slice();
         let face = ttf_parser::Face::parse(data, 0).expect("MenuCJK parses");
         for lang in [
             Language::Chinese,

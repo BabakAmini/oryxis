@@ -120,8 +120,7 @@ impl Oryxis {
             // identity is the badge's job, like the terminal OS
             // badge). `tab_accent_color = "app"` only pins the gated
             // accent that drives text / wash / border.
-            let brand = self
-                .connections
+            let brand = self.connections
                 .iter()
                 .find(|c| c.label == tab.label)
                 .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
@@ -137,11 +136,16 @@ impl Oryxis {
             // hovering the tab reveals it, mirroring the card
             // address. The width is computed from the same string
             // that renders so truncation stays consistent.
-            let display_label = if self.hovered_sftp_tab == Some(idx) {
-                tab.display_label().to_string()
-            } else {
-                self.privacy_display_label(&tab.label, tab.display_label(), &ctx.privacy_terms)
-            };
+            let display_label =
+                if self.hovered_sftp_tab == Some(idx) {
+                    tab.display_label().to_string()
+                } else {
+                    self.privacy_display_label(
+                        &tab.label,
+                        tab.display_label(),
+                        &ctx.privacy_terms,
+                    )
+                };
             // Width mirrors the terminal model: NATURAL when active,
             // content-hugged otherwise, uniform during a drag; the
             // vertical strip pins every row to its uniform width.
@@ -162,26 +166,12 @@ impl Oryxis {
                 .map(|d| d.from_id == tab.id)
                 .unwrap_or(false);
             if is_dragging {
-                let gap_w = if ctx.compact_pins && tab.pinned {
-                    CHIP_W
-                } else {
-                    width
-                };
+                let gap_w = if ctx.compact_pins && tab.pinned { CHIP_W } else { width };
                 return Space::new().width(gap_w).height(TAB_HEIGHT).into();
             } else if ctx.compact_pins && tab.pinned {
                 return sftp_pinned_chip(idx, is_active, badge_accent, host_accent, ctx.solid_fill);
             }
-            return sftp_session_tab(
-                idx,
-                &display_label,
-                is_active,
-                width,
-                badge_accent,
-                host_accent,
-                self.setting_tab_accent_text,
-                tab.pinned,
-                ctx.solid_fill,
-            );
+            return sftp_session_tab(idx, &display_label, is_active, width, badge_accent, host_accent, self.setting_tab_accent_text, tab.pinned, ctx.solid_fill);
         }
         let tab = &self.tabs[idx];
         let is_active = active_idx == Some(idx);
@@ -237,39 +227,36 @@ impl Oryxis {
             // in the strip (fill, text, borders fall back to the app
             // accent); the badge below keeps its brand colour.
             None
-        } else {
-            self.connections
-                .iter()
-                .find(|c| c.label == base_label)
-                // `custom_color` is what the icon picker writes (the
-                // user-chosen accent). The legacy `color` field is a
-                // dead column today but stays as a fallback so any
-                // future code path that fills it still works.
-                .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
-                .and_then(crate::widgets::parse_hex_color)
-                // Auto mode (no custom color): fall back to the detected
-                // OS brand color so an Ubuntu tab "breathes" orange,
-                // matching the OS badge glyph and the dashboard card.
-                // Mirrors the SFTP tab above.
-                .or_else(|| {
-                    detected_os.as_deref().map(|os| {
-                        crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
-                    })
+        } else { self.connections.iter()
+            .find(|c| c.label == base_label)
+            // `custom_color` is what the icon picker writes (the
+            // user-chosen accent). The legacy `color` field is a
+            // dead column today but stays as a fallback so any
+            // future code path that fills it still works.
+            .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))
+            .and_then(crate::widgets::parse_hex_color)
+            // Auto mode (no custom color): fall back to the detected
+            // OS brand color so an Ubuntu tab "breathes" orange,
+            // matching the OS badge glyph and the dashboard card.
+            // Mirrors the SFTP tab above.
+            .or_else(|| {
+                detected_os.as_deref().map(|os| {
+                    crate::os_icon::resolve_icon(Some(os), OryxisColors::t().accent).1
                 })
-                // Cloud-transport tabs (`ECS · ...`, `SSM · ...`,
-                // `K8s · ...`) don't match any saved Connection by
-                // label, so the per-host color lookup above returns
-                // None and the active-tab gradient falls back to the
-                // global accent. Derive a brand-coloured accent from
-                // the tab label prefix instead so the tab "breathes"
-                // the parent dynamic-group color (AWS orange / K8s
-                // blue / etc.) the same way a per-host accent does.
-                .or_else(|| {
-                    crate::os_icon::tab_label_cloud_brand(base_label).map(|brand| {
-                        crate::os_icon::provider_icon(brand, OryxisColors::t().accent).1
-                    })
+            })
+            // Cloud-transport tabs (`ECS · ...`, `SSM · ...`,
+            // `K8s · ...`) don't match any saved Connection by
+            // label, so the per-host color lookup above returns
+            // None and the active-tab gradient falls back to the
+            // global accent. Derive a brand-coloured accent from
+            // the tab label prefix instead so the tab "breathes"
+            // the parent dynamic-group color (AWS orange / K8s
+            // blue / etc.) the same way a per-host accent does.
+            .or_else(|| {
+                crate::os_icon::tab_label_cloud_brand(base_label).map(|brand| {
+                    crate::os_icon::provider_icon(brand, OryxisColors::t().accent).1
                 })
-        };
+            }) };
         // Tabs always render the badge as a rounded square,
         // independent of the per-host override and the global
         // `default_host_icon` setting. Circular badges read as
@@ -314,9 +301,15 @@ impl Oryxis {
                 .filter_map(|p| p.attention)
                 .max()
                 .map(|a| match a {
-                    crate::smart_tabs::TabAttention::Activity => OryxisColors::t().accent,
-                    crate::smart_tabs::TabAttention::FinishedOk => OryxisColors::t().success,
-                    crate::smart_tabs::TabAttention::FinishedFail => OryxisColors::t().error,
+                    crate::smart_tabs::TabAttention::Activity => {
+                        OryxisColors::t().accent
+                    }
+                    crate::smart_tabs::TabAttention::FinishedOk => {
+                        OryxisColors::t().success
+                    }
+                    crate::smart_tabs::TabAttention::FinishedFail => {
+                        OryxisColors::t().error
+                    }
                 })
         } else {
             None
@@ -336,7 +329,8 @@ impl Oryxis {
         // Settings card, which wins over the OS hint so the tab chip
         // reflects what the user picked. Session-group icon/color still
         // take precedence (a grouped tab is the group's identity).
-        let is_local_pane = matches!(tab.active().origin, crate::state::PaneOrigin::Local(_));
+        let is_local_pane =
+            matches!(tab.active().origin, crate::state::PaneOrigin::Local(_));
         let lt_entry = if is_local_pane {
             self.local_terminals
                 .as_deref()
@@ -370,7 +364,10 @@ impl Oryxis {
             } else {
                 width
             };
-            Space::new().width(gap_w).height(TAB_HEIGHT).into()
+            Space::new()
+                .width(gap_w)
+                .height(TAB_HEIGHT)
+                .into()
         } else if tab.pinned && ctx.compact_pins {
             // Chrome-style: icon-only chip, fixed width, stuck left.
             // A hybrid chip widens to carry the mode glyph (owner QA:
@@ -476,22 +473,12 @@ impl Oryxis {
                 .unwrap_or_else(|| OryxisColors::t().accent);
             let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
             Some((
-                drag_ghost(
-                    base_label,
-                    detected_os,
-                    compact,
-                    ghost_w,
-                    accent,
-                    self.setting_tab_accent_text,
-                    sg_icon,
-                    sg_color,
-                ),
+                drag_ghost(base_label, detected_os, compact, ghost_w, accent, self.setting_tab_accent_text, sg_icon, sg_color),
                 ghost_w,
             ))
         } else if let Some(sftp_tab) = self.sftp_tabs.iter().find(|t| t.id == drag.from_id) {
             let detected_os = self.tab_detected_os(&sftp_tab.label);
-            let brand = self
-                .connections
+            let brand = self.connections
                 .iter()
                 .find(|c| c.label == sftp_tab.label)
                 .and_then(|c| c.custom_color.as_deref().or(c.color.as_deref()))

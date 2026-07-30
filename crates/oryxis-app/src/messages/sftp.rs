@@ -1,9 +1,9 @@
 //! SFTP surface: dual-pane browser, tabs, columns, transfers, zip browsing,
 //! properties, rename/new-entry, per-owner routing (see `SftpFor`).
 
-use oryxis_ssh::SshSession;
 use std::sync::Arc;
 use uuid::Uuid;
+use oryxis_ssh::SshSession;
 
 /// SFTP async-completion messages that ride the `SftpFor` owner-routing
 /// envelope (`route_sftp_async`). Grouped into their own enum so
@@ -48,12 +48,7 @@ pub enum SftpMessage {
     /// and stale (post-remount) results are dropped.
     ArchiveDone(crate::state::ArchiveDone),
     SftpPickHost(usize),
-    SftpRemoteLoaded(
-        crate::state::SftpPaneSide,
-        u64,
-        String,
-        Vec<oryxis_ssh::SftpEntry>,
-    ),
+    SftpRemoteLoaded(crate::state::SftpPaneSide, u64, String, Vec<oryxis_ssh::SftpEntry>),
     /// Navigate a *remote* pane to a POSIX path.
     SftpNavigateRemote(crate::state::SftpPaneSide, String),
     /// Navigate a *local* pane to a filesystem path.
@@ -292,10 +287,6 @@ pub enum SftpMessage {
     SftpFileHovered,
     SftpFilesHoveredLeft,
     SftpFileDropped(std::path::PathBuf),
-    /// Flush buffered OS drops (debounced multi-file burst). Now only
-    /// reached from the SFTP-panel path; terminal drops use a separate
-    /// buffer and `TerminalDropFlush`.
-    #[allow(dead_code)]
     SftpDropFlush,
     SftpUploadFolder(std::path::PathBuf),
     SftpDownloadFolder(String),
@@ -307,12 +298,7 @@ pub enum SftpMessage {
     SftpUploadSelection,
     SftpDownloadSelection,
     SftpDuplicateSelection,
-    SftpTransferConflict(
-        Uuid,
-        crate::state::OverwritePrompt,
-        crate::state::TransferItem,
-        u8,
-    ),
+    SftpTransferConflict(Uuid, crate::state::OverwritePrompt, crate::state::TransferItem, u8),
     SftpTransferQueueReady(Uuid, crate::state::TransferState),
     /// Pop one item and dispatch to whichever slot is free. The Next
     /// handler picks the slot itself instead of carrying it in the

@@ -68,14 +68,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_gcp_project_hint" => "留空则使用 gcloud 的当前项目。",
         "cloud_k8s_kubeconfig_path" => "Kubeconfig 文件",
         "cloud_k8s_kubeconfig_ph" => "~/.kube/config（留空使用默认）",
-        "cloud_k8s_kubeconfig_hint" => {
-            "kubeconfig 文件路径。留空则使用 kubectl 的默认值（$KUBECONFIG 或 ~/.kube/config）。"
-        }
+        "cloud_k8s_kubeconfig_hint" => "kubeconfig 文件路径。留空则使用 kubectl 的默认值（$KUBECONFIG 或 ~/.kube/config）。",
         "cloud_k8s_context" => "上下文",
         "cloud_k8s_context_ph" => "留空使用 current-context",
-        "cloud_k8s_context_hint" => {
-            "使用 kubeconfig 中的哪个上下文。留空则使用其 current-context。"
-        }
+        "cloud_k8s_context_hint" => "使用 kubeconfig 中的哪个上下文。留空则使用其 current-context。",
         "cloud_k8s_workloads" => "Kubernetes 工作负载",
         "cloud_gke_clusters" => "GKE 集群",
         "cloud_gke_add" => "添加",
@@ -95,9 +91,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_k8s_selector_hint" => "以逗号分隔的 key=value 对。解析为带有这些标签的 Pod。",
         "cloud_k8s_name_hint" => "资源名称。解析为该工作负载的 Pod，或指定的单个 Pod。",
         "k8s_kubectl_missing_title" => "未找到 kubectl",
-        "k8s_kubectl_missing_body" => {
-            "Oryxis 通过运行 kubectl 打开 Pod 终端。请安装 kubectl 并确保它在 PATH 中，然后重试。"
-        }
+        "k8s_kubectl_missing_body" => "Oryxis 通过运行 kubectl 打开 Pod 终端。请安装 kubectl 并确保它在 PATH 中，然后重试。",
         "cloud_aws_access_key_id" => "Access Key ID",
         "cloud_aws_access_key_secret" => "Secret Access Key",
         "cloud_aws_access_key_secret_ph" => "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -108,9 +102,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cloud_aws_sso_region" => "SSO 区域",
         "cloud_aws_sso_account_id" => "账户 ID",
         "cloud_aws_sso_role_name" => "角色名",
-        "cloud_aws_sso_hint" => {
-            "先运行 `aws sso login` 填充 token 缓存。原生浏览器流程在下个版本。"
-        }
+        "cloud_aws_sso_hint" => "先运行 `aws sso login` 填充 token 缓存。原生浏览器流程在下个版本。",
         "initial_command_label" => "初始命令 / 代码片段",
         "startup_none" => "无",
         "startup_custom" => "自定义命令",
@@ -166,13 +158,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_exported" => "主题已导出",
         "theme_export_failed" => "导出失败",
         "theme_import_browse" => "从文件加载",
-        "theme_import_ui_hint" => {
-            "粘贴 Oryxis 界面主题（JSON）或从文件加载。颜色将在编辑器中打开以供检查和保存。"
-        }
+        "theme_import_ui_hint" => "粘贴 Oryxis 界面主题（JSON）或从文件加载。颜色将在编辑器中打开以供检查和保存。",
         "theme_import_failed" => "导入失败",
-        "theme_import_hint" => {
-            "粘贴 iTerm (.itermcolors)、Windows Terminal (JSON) 或 base16 方案。颜色将在编辑器中打开以供查看和保存。"
-        }
+        "theme_import_hint" => "粘贴 iTerm (.itermcolors)、Windows Terminal (JSON) 或 base16 方案。颜色将在编辑器中打开以供查看和保存。",
         "theme_imported_default" => "导入的主题",
         "split_side_by_side" => "并排拆分",
         "split_stacked" => "上下拆分",
@@ -208,7 +196,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_conflict_chord_removed" => "{action} 失去了该快捷键",
         "hotkey_scrollback_page_up" => "向上滚动一页",
         "hotkey_scrollback_page_down" => "向下滚动一页",
-        "hotkey_terminal_copy_paste" => "粘贴选中文本",
         "hotkey_show_new_tab_picker" => "打开新标签页选择器",
         "hotkey_show_tab_jump" => "跳转到标签页",
         "hotkey_show_command_palette" => "命令面板",
@@ -252,9 +239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "cancel" => "取消",
         "close" => "关闭",
         "plugin_missing_title" => "未找到 AWS Session Manager 插件",
-        "plugin_missing_body" => {
-            "ECS Exec 和 SSM Session 需要您系统中安装 AWS 的 session-manager-plugin 二进制文件。请按照 AWS 文档进行安装，然后重试。"
-        }
+        "plugin_missing_body" => "ECS Exec 和 SSM Session 需要您系统中安装 AWS 的 session-manager-plugin 二进制文件。请按照 AWS 文档进行安装，然后重试。",
         "error_dialog_open_aws_docs" => "打开 AWS 文档",
         "ssm_start_failed_title" => "SSM Session 启动失败",
         "ecs_exec_start_failed_title" => "ECS Exec 启动失败",
@@ -262,15 +247,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ecs_exec_connect_current" => "连接到当前任务",
         "ecs_exec_no_running_tasks" => "在此分组中未找到正在运行的任务。请检查任务列表后重试。",
         "plugin_spawn_failed_title" => "session-manager-plugin 启动失败",
-        "ic_err_missing_key" => {
-            "EC2 Instance Connect 需要将一个 SSH 密钥关联到此主机。打开主机编辑器并在凭据下选择一个密钥。"
-        }
-        "ic_err_missing_profile" => {
-            "EC2 Instance Connect 找不到导入此主机所用的云配置文件。该配置文件可能已被删除，请重新导入此主机。"
-        }
-        "ic_err_missing_region" => {
-            "EC2 Instance Connect 需要设置主机的区域 (cloud_ref.region)。请重新导入此主机以记录区域。"
-        }
+        "ic_err_missing_key" => "EC2 Instance Connect 需要将一个 SSH 密钥关联到此主机。打开主机编辑器并在凭据下选择一个密钥。",
+        "ic_err_missing_profile" => "EC2 Instance Connect 找不到导入此主机所用的云配置文件。该配置文件可能已被删除，请重新导入此主机。",
+        "ic_err_missing_region" => "EC2 Instance Connect 需要设置主机的区域 (cloud_ref.region)。请重新导入此主机以记录区域。",
         "delete" => "删除",
         "edit" => "编辑",
         "connect" => "连接",
@@ -319,9 +298,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_gateway" => "SSH 网关",
         "remote_desktop_direct" => "直连（无 SSH）",
         "add_remote_desktop" => "添加远程桌面",
-        "remote_desktop_enable_desc" => {
-            "添加通过 SSH 网关连接的 RDP/VNC 主机。默认关闭以保持界面简洁。"
-        }
+        "remote_desktop_enable_desc" => "添加通过 SSH 网关连接的 RDP/VNC 主机。默认关闭以保持界面简洁。",
         "stop_remote_desktop" => "停止远程桌面",
         "remote_desktop_opening" => "正在端口 {port} 上打开远程桌面",
         "remote_desktop_no_client" => "未找到远程桌面客户端；请安装以下之一",
@@ -373,23 +350,15 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_dimensions" => "尺寸",
         "status_cwd" => "目录",
         "terminal_sidebar_left" => "将侧边栏停靠在左侧",
-        "terminal_sidebar_left_desc" => {
-            "将侧边栏（聊天 / 代码片段 / 文件 / 监控）显示在终端左侧而非右侧。"
-        }
+        "terminal_sidebar_left_desc" => "将侧边栏（聊天 / 代码片段 / 文件 / 监控）显示在终端左侧而非右侧。",
         "sidebar_auto_open" => "连接时打开侧边栏",
-        "sidebar_auto_open_desc" => {
-            "打开会话时自动打开终端侧边栏。每台主机可在其编辑器中覆盖此设置。"
-        }
+        "sidebar_auto_open_desc" => "打开会话时自动打开终端侧边栏。每台主机可在其编辑器中覆盖此设置。",
         "sidebar_default_tab" => "默认侧边栏标签页",
-        "sidebar_default_tab_desc" => {
-            "终端侧边栏打开时显示哪个标签页。“上次打开”会保留你最近使用的标签页；指定标签页则每次都打开它。"
-        }
+        "sidebar_default_tab_desc" => "终端侧边栏打开时显示哪个标签页。“上次打开”会保留你最近使用的标签页；指定标签页则每次都打开它。",
         "sidebar_default_last" => "上次打开",
         "system_tray" => "系统托盘",
         "close_to_tray" => "关闭到托盘",
-        "close_to_tray_desc" => {
-            "点击关闭按钮会将 Oryxis 隐藏到系统托盘而不是退出。使用托盘图标恢复。仅 Windows。"
-        }
+        "close_to_tray_desc" => "点击关闭按钮会将 Oryxis 隐藏到系统托盘而不是退出。使用托盘图标恢复。仅 Windows。",
         "minimize_to_tray" => "最小化到托盘",
         "minimize_to_tray_desc" => "最小化窗口时将其从任务栏隐藏，仅托盘图标可见。仅 Windows。",
         "tray_quit" => "退出",
@@ -412,9 +381,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_icon_style_desc" => "为此主机在卡片和标签中的图标覆盖全局默认设置。",
         "terminal_font_size" => "终端字体大小",
         "terminal_theme" => "终端主题",
-        "terminal_theme_desc" => {
-            "选择终端会话使用的调色板。默认跟随应用主题；按主机的覆盖优先生效。"
-        }
+        "terminal_theme_desc" => "选择终端会话使用的调色板。默认跟随应用主题；按主机的覆盖优先生效。",
         "terminal_theme_follow_app" => "跟随应用主题",
         "terminal_theme_inherit_global" => "使用全局主题",
         "host_terminal_theme_desc" => "为该主机的会话覆盖全局主题。",
@@ -444,8 +411,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_copy" => "复制",
         "terminal_copy_all" => "全部复制",
         "terminal_paste" => "粘贴",
-        "copy_ip_address" => "复制 IP 地址",
-        "terminal_drop_no_remote" => "拖放目标不是远程主机",
         "terminal_clear_scrollback" => "清除回滚",
         "terminal_search_placeholder" => "在缓冲区中查找",
         "terminal_search_count" => "{current} / {total}",
@@ -461,27 +426,19 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "broadcast_needs_split_hint" => "广播需要拆分窗格。请先拆分此标签页。",
         "hotkey_toggle_broadcast_input" => "切换广播输入",
         "renderer_backend" => "图形渲染器",
-        "renderer_backend_desc" => {
-            "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。"
-        }
+        "renderer_backend_desc" => "自动会选择最佳 GPU 路径（优先 Vulkan）。OpenGL 是针对 Vulkan/DX12 驱动损坏的 GPU 的兼容选项；软件（CPU）始终正确渲染。重启后生效。",
         "renderer_active" => "当前渲染器",
         "renderer_auto" => "自动（GPU）",
         "renderer_opengl" => "OpenGL（兼容）",
         "renderer_software" => "软件 (CPU)",
         "renderer_restart_title" => "重启以更换渲染器",
-        "renderer_restart_body" => {
-            "图形渲染器仅在应用重启时更改。现在重启以应用（这会关闭已打开的终端会话），或关闭此提示继续工作，它将在下次打开 Oryxis 时生效。"
-        }
+        "renderer_restart_body" => "图形渲染器仅在应用重启时更改。现在重启以应用（这会关闭已打开的终端会话），或关闭此提示继续工作，它将在下次打开 Oryxis 时生效。",
         "renderer_restart_now" => "立即重启",
         "performance_mode" => "性能模式",
-        "performance_mode_desc" => {
-            "在渲染缓慢或使用软件渲染时，以视觉效果换取速度。关闭终端的实时关键字 / URL / IP 高亮和活动标签页的渐变。隐私模式的遮罩不受影响。"
-        }
+        "performance_mode_desc" => "在渲染缓慢或使用软件渲染时，以视觉效果换取速度。关闭终端的实时关键字 / URL / IP 高亮和活动标签页的渐变。隐私模式的遮罩不受影响。",
         "perf_mode_auto_toast" => "已为此显卡自动启用性能模式。你可以在设置 > 界面中关闭它。",
         "perf_overlay" => "终端性能 HUD",
-        "perf_overlay_desc" => {
-            "在每个终端的角落显示一个小的帧时间和 FPS 叠加层，用于诊断渲染卡顿。报告性能问题时请附上截图。"
-        }
+        "perf_overlay_desc" => "在每个终端的角落显示一个小的帧时间和 FPS 叠加层，用于诊断渲染卡顿。报告性能问题时请附上截图。",
         "copy_requires_right_click" => "需要右键点击才能复制",
         "bold_bright" => "粗体文本使用高亮颜色",
         "keyword_highlight" => "关键词高亮",
@@ -524,17 +481,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "thinking" => "思考中...",
         "chat_stop" => "停止",
         "enable_ai" => "启用 AI 对话",
-        "ai_enable_warning" => {
-            "AI 助手可以在你连接的服务器上执行命令，其中一些可能会自动运行。请始终检查它的操作。使用风险自负；本软件不提供任何担保。"
-        }
+        "ai_enable_warning" => "AI 助手可以在你连接的服务器上执行命令，其中一些可能会自动运行。请始终检查它的操作。使用风险自负；本软件不提供任何担保。",
         "ai_chat_disclaimer" => "AI 可以在此服务器上执行命令。批准前请先检查。",
         "enable_sftp" => "启用 SFTP",
         "provider" => "服务商",
         "model" => "模型",
         "api_key_saved" => "API 密钥已保存",
-        "ai_key_saved_placeholder" => {
-            "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} 已保存，输入以替换"
-        }
+        "ai_key_saved_placeholder" => "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} 已保存，输入以替换",
 
         "welcome" => "欢迎使用 Oryxis",
         "create_vault" => "创建保险库",
@@ -542,9 +495,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "enter_password" => "输入主密码以解锁。",
         "forgot_password" => "忘记密码？重置保险库",
         "destroy_vault" => "确认销毁保险库",
-        "vault_destroy_confirm" => {
-            "这将永久删除一切内容：主机、密钥、身份、代码片段、日志和设置。应用将重置为首次运行状态。"
-        }
+        "vault_destroy_confirm" => "这将永久删除一切内容：主机、密钥、身份、代码片段、日志和设置。应用将重置为首次运行状态。",
         "vault" => "保险库",
         "vault_already_has_password" => "此保险库已设有密码。请在上方输入以解锁。",
         "password_too_short" => "密码至少需要 4 个字符",
@@ -608,9 +559,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_target_label" => "目标：",
         "mcp_target_native" => "原生",
         "mcp_target_wsl" => "WSL",
-        "mcp_info_vault_password_note" => {
-            "如果保险库有密码，请将 ORYXIS_VAULT_PASSWORD 添加到 env 块中。"
-        }
+        "mcp_info_vault_password_note" => "如果保险库有密码，请将 ORYXIS_VAULT_PASSWORD 添加到 env 块中。",
         "mcp_info_copy" => "复制 JSON",
         "mcp_info_close" => "关闭",
         "mcp_install_claude" => "安装到 Claude Code",
@@ -627,13 +576,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_server_snippet_env" => "复制 SSH_AUTH_SOCK",
         "agent_server_snippet_ssh_config" => "复制 IdentityAgent",
         "agent_allow_add" => "接受其他应用添加的密钥",
-        "agent_allow_add_desc" => {
-            "允许 KeePassXC 等工具通过 agent 协议添加密钥。添加的密钥仅保留在内存中，保险库锁定或 Oryxis 关闭后即消失"
-        }
+        "agent_allow_add_desc" => "允许 KeePassXC 等工具通过 agent 协议添加密钥。添加的密钥仅保留在内存中，保险库锁定或 Oryxis 关闭后即消失",
         "agent_openssh_pipe" => "使用标准 OpenSSH agent 管道",
-        "agent_openssh_pipe_desc" => {
-            "当系统级 OpenSSH agent 管道空闲时也在其上应答，让工具无需额外配置即可找到此 agent"
-        }
+        "agent_openssh_pipe_desc" => "当系统级 OpenSSH agent 管道空闲时也在其上应答，让工具无需额外配置即可找到此 agent",
         "agent_confirm_title" => "允许使用密钥？",
         "agent_confirm_body" => "某个程序请求使用您保险库中的一个密钥进行签名。",
         "agent_confirm_key" => "密钥",
@@ -672,9 +617,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "algo_custom" => "自定义",
         "legacy_algo_unsupported" => "服务器需要 Oryxis 不支持的算法。",
         "legacy_algo_title" => "服务器需要旧版算法",
-        "legacy_algo_desc" => {
-            "{host} 仅提供旧版 {category} 算法，Oryxis 默认禁用这些算法。连接将为该主机启用它们并削弱其安全性。"
-        }
+        "legacy_algo_desc" => "{host} 仅提供旧版 {category} 算法，Oryxis 默认禁用这些算法。连接将为该主机启用它们并削弱其安全性。",
         "legacy_algo_offers" => "服务器提供：",
         "legacy_algo_connect_once" => "连接一次",
         "legacy_algo_always" => "始终允许",
@@ -692,9 +635,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "local_terminal_config_title" => "本地终端",
         "local_terminal_config_subtitle" => "这里没有已保存的主机。为打开的本地终端选择一个主题。",
         "local_terminal_save_global" => "保存为全局默认",
-        "local_terminal_config_note" => {
-            "临时设置，仅用于本次会话的本地 shell。保存后将成为所有终端的默认值。"
-        }
+        "local_terminal_config_note" => "临时设置，仅用于本次会话的本地 shell。保存后将成为所有终端的默认值。",
         "tab_tip_chat" => "AI 聊天",
         "tab_tip_host_config" => "主机配置",
         "tab_tip_history" => "命令历史",
@@ -704,9 +645,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "history_unavailable" => "命令历史仅适用于已保存的主机",
         "command_history_capture" => "捕获命令历史",
         "shell_integration" => "Shell 集成",
-        "shell_integration_desc" => {
-            "让远程 shell 主动报告它执行的命令行，这样命令历史在 tmux 中也能继续工作；在 tmux 里屏幕由 tmux 掌控，无法读取。关闭时不会改动主机上的任何内容。仅本次会话会在每次连接时把代码片段发给 shell，不留任何痕迹。安装到主机会写入 ~/.bashrc 或 ~/.zshrc，并在 ~/.tmux.conf 中开启 allow-passthrough。仅支持 bash/zsh。"
-        }
+        "shell_integration_desc" => "让远程 shell 主动报告它执行的命令行，这样命令历史在 tmux 中也能继续工作；在 tmux 里屏幕由 tmux 掌控，无法读取。关闭时不会改动主机上的任何内容。仅本次会话会在每次连接时把代码片段发给 shell，不留任何痕迹。安装到主机会写入 ~/.bashrc 或 ~/.zshrc，并在 ~/.tmux.conf 中开启 allow-passthrough。仅支持 bash/zsh。",
         "shell_integration_off" => "关闭",
         "shell_integration_session" => "仅本次会话",
         "shell_integration_persistent" => "安装到主机",
@@ -742,9 +681,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "snippet_hotkey" => "快捷键",
         "paste_guard_bidi" => "包含不可见或双向控制字符",
         "paste_guard_label" => "粘贴防护（可疑内容）",
-        "paste_guard_desc" => {
-            "对包含不可见字符、控制序列、管道到 shell 的单行命令或形近字母的单行粘贴也进行确认。"
-        }
+        "paste_guard_desc" => "对包含不可见字符、控制序列、管道到 shell 的单行命令或形近字母的单行粘贴也进行确认。",
         "paste_guard_control" => "包含原始终端控制序列",
         "paste_guard_pipe" => "下载并直接通过管道送入 shell",
         "paste_guard_homograph" => "混用不同字母表的形近字符",
@@ -762,9 +699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_config_terminal_type" => "终端类型",
         "host_config_reconnect_note" => "主题为实时预览。编码和终端类型将在下次连接时生效。",
         "sync_how_title" => "同步如何工作",
-        "sync_how_body" => {
-            "同步是可选的，且为点对点。默认情况下，它会在同一局域网中找到你的其他设备，并在它们之间直接传输数据，端到端加密，中间没有任何 Oryxis 服务器。\n\n要跨网络同步（例如家里和办公室），请运行你自己的信令/中继服务器（oryxis-relay），并在“高级”中填写其 URL；Oryxis 不托管任何服务器。然后用一次性代码或二维码配对两台设备。\n\n如果你只想备份，则完全不需要同步：使用“安全”选项卡中的导出/导入，一个加密文件，可保存在本地或通过 SFTP 发送。"
-        }
+        "sync_how_body" => "同步是可选的，且为点对点。默认情况下，它会在同一局域网中找到你的其他设备，并在它们之间直接传输数据，端到端加密，中间没有任何 Oryxis 服务器。\n\n要跨网络同步（例如家里和办公室），请运行你自己的信令/中继服务器（oryxis-relay），并在“高级”中填写其 URL；Oryxis 不托管任何服务器。然后用一次性代码或二维码配对两台设备。\n\n如果你只想备份，则完全不需要同步：使用“安全”选项卡中的导出/导入，一个加密文件，可保存在本地或通过 SFTP 发送。",
         "import_from_sftp" => "从 SFTP 导入",
         "export_to_sftp" => "到 SFTP",
         "backup_to_sftp" => "备份到远程主机",
@@ -813,9 +748,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "高级",
         "download_mirror" => "下载镜像",
-        "download_mirror_desc" => {
-            "当你的网络无法访问 GitHub 或速度很慢时（中国大陆网络常见），通过镜像下载字体、插件和更新。所有下载仍经过 SHA-256 或 Ed25519 校验，因此无需信任镜像本身。自动模式优先使用 GitHub，无法访问时回退到项目镜像。"
-        }
+        "download_mirror_desc" => "当你的网络无法访问 GitHub 或速度很慢时（中国大陆网络常见），通过镜像下载字体、插件和更新。所有下载仍经过 SHA-256 或 Ed25519 校验，因此无需信任镜像本身。自动模式优先使用 GitHub，无法访问时回退到项目镜像。",
         "download_mirror_auto" => "自动",
         "download_mirror_github" => "仅 GitHub",
         "download_mirror_custom" => "自定义镜像",
@@ -838,9 +771,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "keygen_copy_public" => "复制公钥",
         "keygen_save_pub" => "保存 .pub 文件",
         "keygen_export_private" => "导出私钥",
-        "keygen_export_desc" => {
-            "私钥始终加密保存在保险库中。仅当其他工具需要时才导出副本；设置密码短语后将以 OpenSSH 加密格式写出。"
-        }
+        "keygen_export_desc" => "私钥始终加密保存在保险库中。仅当其他工具需要时才导出副本；设置密码短语后将以 OpenSSH 加密格式写出。",
         "keygen_export_passphrase" => "密码短语",
         "keygen_export_passphrase_confirm" => "确认密码短语",
         "keygen_export_plaintext_warn" => "未设置密码短语：导出的文件将不加密。",
@@ -850,9 +781,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "public_key" => "公钥",
         "done" => "完成",
         "debug_logging" => "调试日志",
-        "debug_logging_desc" => {
-            "将应用诊断信息写入日志文件以帮助排查问题。绝不会记录密码和密钥。报告问题时请附上该文件。"
-        }
+        "debug_logging_desc" => "将应用诊断信息写入日志文件以帮助排查问题。绝不会记录密码和密钥。报告问题时请附上该文件。",
         "debug_log_file" => "日志文件",
         "debug_log_clear" => "清空日志",
         "debug_log_cleared" => "日志文件已清空",
@@ -883,12 +812,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "no_stored_password" => "此主机没有保存的密码",
         "host_encoding" => "编码",
         "host_terminal_type" => "终端类型 (TERM)",
-        "term_fallback_toast" => {
-            "此主机没有 \"{requested}\" 的 terminfo 条目，已改用 \"{used}\" 连接；建议修改此主机的终端类型。"
-        }
-        "term_missing_toast" => {
-            "此主机没有 \"{requested}\" 的 terminfo 条目，也未找到可用替代。全屏应用可能显示异常；请尝试为此主机选择其他终端类型。"
-        }
+        "term_fallback_toast" => "此主机没有 \"{requested}\" 的 terminfo 条目，已改用 \"{used}\" 连接；建议修改此主机的终端类型。",
+        "term_missing_toast" => "此主机没有 \"{requested}\" 的 terminfo 条目，也未找到可用替代。全屏应用可能显示异常；请尝试为此主机选择其他终端类型。",
         "host_encoding_desc" => "此主机终端的字符集。默认 UTF-8。",
         "connection_failed_log" => "连接失败，连接日志：",
         "connecting_status" => "正在连接...",
@@ -929,9 +854,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "proxy_type_identity_fallback" => "已保存的代理",
         "proxy_type_identity_deleted" => "（已删除的代理）",
         "proxy_identity_err_label_required" => "标签为必填项",
-        "proxy_identity_err_command_unsupported" => {
-            "Command 类型的代理必须在主机上内联配置，不能作为保存的身份"
-        }
+        "proxy_identity_err_command_unsupported" => "Command 类型的代理必须在主机上内联配置，不能作为保存的身份",
         "proxy_identity_err_invalid_kind" => "保存的身份不支持此代理类型",
 
         // Sync passwords toggle
@@ -941,13 +864,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "card_accent_glass_label" => "强调玻璃卡片",
         "card_accent_glass_desc" => "卡片按各自颜色渐隐的轻微叠加（主机/分组颜色）。",
         "show_host_address_label" => "显示主机地址",
-        "show_host_address_desc" => {
-            "在卡片上显示 user@host:port。默认关闭，使地址不出现在截图中。端口 22 始终省略。"
-        }
+        "show_host_address_desc" => "在卡片上显示 user@host:port。默认关闭，使地址不出现在截图中。端口 22 始终省略。",
         "privacy_mode_label" => "隐私模式",
-        "privacy_mode_desc" => {
-            "自动将敏感数据（主机、IP、用户、端口、代理）隐藏在暗淡的色块后面，悬停时显示。在终端中，IP 和提示符中的 user@host 标记也会被遮盖。默认关闭。可在主机编辑器中按主机设置。"
-        }
+        "privacy_mode_desc" => "自动将敏感数据（主机、IP、用户、端口、代理）隐藏在暗淡的色块后面，悬停时显示。在终端中，IP 和提示符中的 user@host 标记也会被遮盖。默认关闭。可在主机编辑器中按主机设置。",
         "privacy_class_public_ips" => "遮蔽公网 IP 地址",
         "privacy_class_private_ips" => "遮蔽内网和回环 IP",
         "privacy_class_usernames" => "遮蔽用户名",
@@ -959,13 +878,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "privacy_toast_session_off" => "本次会话已强制关闭隐私模式",
         "privacy_toast_follow" => "隐私模式恢复跟随设置",
         "privacy_always_mask_label" => "始终遮蔽这些词",
-        "privacy_always_mask_desc" => {
-            "以逗号分隔。出现在任何位置都会被遮蔽（终端、会话日志、标签），与已保存的主机名相同。至少 4 个字符。"
-        }
+        "privacy_always_mask_desc" => "以逗号分隔。出现在任何位置都会被遮蔽（终端、会话日志、标签），与已保存的主机名相同。至少 4 个字符。",
         "privacy_never_mask_label" => "从不遮蔽这些用户名",
-        "privacy_never_mask_desc" => {
-            "以逗号分隔。已保存连接的用户名会被遮蔽，此列表中的除外。已预填常见用户名（root、ubuntu 等），保证日常输出可读。"
-        }
+        "privacy_never_mask_desc" => "以逗号分隔。已保存连接的用户名会被遮蔽，此列表中的除外。已预填常见用户名（root、ubuntu 等），保证日常输出可读。",
         "host_privacy_mode" => "隐私模式",
         "quirks_section_title" => "高级终端",
         "quirks_applies_next_connect" => "将在下次连接到此主机时应用。",
@@ -998,14 +913,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_privacy_mode_off" => "关闭",
         "privacy_reveal" => "显示",
         "privacy_hide" => "隐藏",
-        "flatten_hosts_desc" => {
-            "启用后，仪表盘根目录会显示分组部分以及包含所有主机的扁平列表。关闭后，分组的主机仅在打开文件夹时显示。"
-        }
+        "flatten_hosts_desc" => "启用后，仪表盘根目录会显示分组部分以及包含所有主机的扁平列表。关闭后，分组的主机仅在打开文件夹时显示。",
 
         "sync_passwords" => "在设备之间同步密码",
-        "sync_passwords_desc" => {
-            "启用后，连接 / 身份 / 代理的密码将镜像到配对的设备。关闭则保持本地。"
-        }
+        "sync_passwords_desc" => "启用后，连接 / 身份 / 代理的密码将镜像到配对的设备。关闭则保持本地。",
         "sync" => "同步",
         "sync_device" => "设备",
         "sync_device_name" => "设备名称",
@@ -1026,17 +937,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sync_listen_port" => "监听端口",
         "sync_health_lan" => "台设备已在此网络中被发现",
         "sync_wizard_button" => "搭建您自己的中继",
-        "sync_wizard_intro" => {
-            "在您掌控的服务器上运行开源的 oryxis-relay。填写您的域名，在服务器上运行生成的文件，然后测试连接；测试通过后，端点会保存到上方字段中。"
-        }
+        "sync_wizard_intro" => "在您掌控的服务器上运行开源的 oryxis-relay。填写您的域名，在服务器上运行生成的文件，然后测试连接；测试通过后，端点会保存到上方字段中。",
         "sync_wizard_domain" => "域名",
         "sync_wizard_public_port" => "公网 HTTPS 端口",
         "sync_wizard_token" => "访问令牌",
         "sync_wizard_regen" => "重新生成令牌",
         "sync_wizard_files" => "服务器文件",
-        "sync_wizard_steps" => {
-            "1. 将域名的 DNS 指向您的服务器。  2. 在服务器上运行上面的文件。  3. 在前面配置 TLS（Caddy 会自动处理；使用 nginx 时请将 proxy_read_timeout 保持在 150s 以上）。  4. 在下方测试。"
-        }
+        "sync_wizard_steps" => "1. 将域名的 DNS 指向您的服务器。  2. 在服务器上运行上面的文件。  3. 在前面配置 TLS（Caddy 会自动处理；使用 nginx 时请将 proxy_read_timeout 保持在 150s 以上）。  4. 在下方测试。",
         "sync_wizard_test" => "测试并保存",
         "sync_wizard_test_ok" => "中继可达。此设备现已使用该中继。",
         "sync_wizard_test_err" => "无法连接中继",
@@ -1063,9 +970,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_sync_done" => "SFTP 同步完成 (已拉取 {n} 条记录)",
         "sftp_sync_note_group" => "请在组内的每台设备上使用相同的口令和相同的文件。",
         "sftp_sync_note_bridge" => "点对点设备与 SFTP 设备之间不会相互同步。",
-        "sftp_sync_note_hostkey" => {
-            "在运行后台同步之前，请先以交互方式连接此主机一次以信任其密钥。"
-        }
+        "sftp_sync_note_hostkey" => "在运行后台同步之前，请先以交互方式连接此主机一次以信任其密钥。",
         "sync_status_syncing" => "同步中...",
         "sync_status_done" => "已同步",
         "sync_status_failed" => "同步失败",
@@ -1129,9 +1034,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "background_color" => "背景颜色",
         "icon_search" => "搜索图标",
         "custom_icon" => "自定义图标",
-        "custom_icon_desc" => {
-            "覆盖自动检测的图标和颜色。使用\u{201c}重置为自动\u{201d}让操作系统检测重新接管。"
-        }
+        "custom_icon_desc" => "覆盖自动检测的图标和颜色。使用\u{201c}重置为自动\u{201d}让操作系统检测重新接管。",
         "reset_to_auto" => "重置为自动",
         "new_tab" => "新标签",
         "tabs" => "标签",
@@ -1185,14 +1088,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "private_key" => "私钥",
         "key_passphrase_label" => "密钥口令",
         "key_passphrase_placeholder" => "口令",
-        "key_passphrase_hint" => {
-            "此密钥已加密。请输入一次口令：它将用于解密密钥，然后被丢弃。解密后的密钥存储在保险库中，保险库已由主密码保护。"
-        }
+        "key_passphrase_hint" => "此密钥已加密。请输入一次口令：它将用于解密密钥，然后被丢弃。解密后的密钥存储在保险库中，保险库已由主密码保护。",
         "key_passphrase_wrong" => "口令错误，请重试。",
         "key_passphrase_required_msg" => "请输入密钥口令以继续。",
-        "key_unsupported_kind" => {
-            "不支持的密钥类型：{kind}。请使用 Ed25519、RSA 或 ECDSA（P-256 或 P-384）。"
-        }
+        "key_unsupported_kind" => "不支持的密钥类型：{kind}。请使用 Ed25519、RSA 或 ECDSA（P-256 或 P-384）。",
         "key_not_found" => "未找到密钥。",
         "key_certificate_removed" => "证书已移除",
         "key_select_file_first" => "请先选择密钥文件",
@@ -1205,9 +1104,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "use_totp" => "使用 TOTP (2FA)",
         "totp_invalid" => "无效的 TOTP 密钥（请使用 Base32 代码或 otpauth:// 链接）",
         "auto_lock_minutes" => "自动锁定保险库（分钟，0 = 关闭）",
-        "setting_auto_lock_desc" => {
-            "在无键盘或鼠标活动达到该分钟数后锁定保险库。已打开的 SSH 会话会在锁定屏幕后保持存活，解锁后即可恢复（手动的“锁定保险库”按钮仍会关闭它们）。"
-        }
+        "setting_auto_lock_desc" => "在无键盘或鼠标活动达到该分钟数后锁定保险库。已打开的 SSH 会话会在锁定屏幕后保持存活，解锁后即可恢复（手动的“锁定保险库”按钮仍会关闭它们）。",
         "biometric_unlock" => "使用生物识别解锁",
         "biometric_unlock_windows" => "使用 Windows Hello 解锁",
         "biometric_unlock_macos" => "使用 Touch ID 解锁",
@@ -1220,9 +1117,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setup_biometric_linux" => "同时启用登录密钥环解锁",
         "biometric_unlock_subtitle" => "确认是您本人以解锁。",
         "use_master_password" => "改用主密码",
-        "biometric_unlock_desc" => {
-            "使用设备的生物识别（Windows Hello、Touch ID）解锁此应用，在 Linux 上则使用登录密钥环。您的主密码存储在操作系统的受保护密钥库中。Windows 和 macOS 仅在通过在场检查（生物识别或 PIN）后才会释放它；在 Linux 上，只要登录密钥环处于解锁状态，您的会话即可获取它。这仅解锁应用，并非 SSH 身份验证，保险库无论如何都会继续使用您的密码加密。"
-        }
+        "biometric_unlock_desc" => "使用设备的生物识别（Windows Hello、Touch ID）解锁此应用，在 Linux 上则使用登录密钥环。您的主密码存储在操作系统的受保护密钥库中。Windows 和 macOS 仅在通过在场检查（生物识别或 PIN）后才会释放它；在 Linux 上，只要登录密钥环处于解锁状态，您的会话即可获取它。这仅解锁应用，并非 SSH 身份验证，保险库无论如何都会继续使用您的密码加密。",
         "biometric_unlock_failed" => "生物识别解锁已取消或不可用。请输入您的主密码。",
         "api_url" => "API 地址",
         "loaded_bytes" => "已加载（{bytes} 字节）",
@@ -1309,15 +1204,11 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_disk" => "磁盘",
         "monitor_sampling" => "采样中...",
         "monitor_enable_host" => "监控此主机",
-        "monitor_opt_in_hint" => {
-            "监控通过已打开的会话读取该主机的 CPU、内存、负载和磁盘使用情况。不会在服务器上安装任何东西。"
-        }
+        "monitor_opt_in_hint" => "监控通过已打开的会话读取该主机的 CPU、内存、负载和磁盘使用情况。不会在服务器上安装任何东西。",
         "monitor_requires_host" => "仅已保存的主机支持监控。",
         "monitor_probe_failed" => "探测失败",
         "monitor_status_bar" => "状态栏显示主机资源",
-        "monitor_status_bar_desc" => {
-            "显示受监控主机的 CPU、内存、网络和最满的磁盘。需要在该主机上启用监控。"
-        }
+        "monitor_status_bar_desc" => "显示受监控主机的 CPU、内存、网络和最满的磁盘。需要在该主机上启用监控。",
         "monitor_ports" => "监听端口",
         "monitor_forward_port" => "将此端口转发到本地",
         "monitor_interval" => "监控间隔（秒）",
@@ -1338,9 +1229,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_default_editor_desc" => "远程文件的\"用默认文本编辑器打开\"所使用的应用程序。",
         "setting_default_editor_placeholder" => "编辑器可执行文件路径",
         "setting_edit_autosave_toggle" => "自动上传已编辑的文件",
-        "setting_edit_autosave_desc" => {
-            "本地临时文件每次保存后自动上传远程副本，不再询问。对话框中的自动保存按钮会开启此项。"
-        }
+        "setting_edit_autosave_desc" => "本地临时文件每次保存后自动上传远程副本，不再询问。对话框中的自动保存按钮会开启此项。",
         "transfer_relaying" => "正在转发",
         "sftp_local_machine" => "本机",
         "download_to_local" => "下载到本地",
@@ -1354,9 +1243,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "files_follow_on_tip" => "正在跟随终端目录。点击停止。",
         "files_follow_off_tip" => "跟随终端目录",
         "setting_sftp_force_osc7" => "强制精确跟随目录（OSC 7）",
-        "setting_sftp_force_osc7_desc" => {
-            "终端文件侧栏会跟随 shell 的目录。当 shell 通过 OSC 7 报告时，跟随是精确的；否则 Oryxis 回退到解析窗口标题，这在某些提示符下会失败。此选项在连接时注入一小段设置，使 shell 始终报告 OSC 7。仅限 bash/zsh；它会追加到 shell 的 PROMPT_COMMAND 并清理自身输出，因此屏幕上不会显示任何内容。"
-        }
+        "setting_sftp_force_osc7_desc" => "终端文件侧栏会跟随 shell 的目录。当 shell 通过 OSC 7 报告时，跟随是精确的；否则 Oryxis 回退到解析窗口标题，这在某些提示符下会失败。此选项在连接时注入一小段设置，使 shell 始终报告 OSC 7。仅限 bash/zsh；它会追加到 shell 的 PROMPT_COMMAND 并清理自身输出，因此屏幕上不会显示任何内容。",
         "setting_sftp_force_osc7_toggle" => "连接时注入 OSC 7 发射器",
         "files_mounting" => "正在打开 SFTP…",
         "files_empty" => "空文件夹",
@@ -1443,20 +1330,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Settings
         "setting_keepalive_desc" => "多久（秒）发送一次 SSH keepalive 包。0 表示禁用。",
         "setting_scrollback_desc" => "限制终端行数。0 表示最大值。",
-        "setting_font_desc" => {
-            "SauceCodePro Nerd Font 已内置（Source Code Pro 加上 Powerline、Font Awesome、Devicons 和 Material）；其他字体依赖系统, 如果字体未安装，OS 会回退到默认等宽字体。"
-        }
-        "setting_update_check_desc" => {
-            "启动时查询 GitHub 检查新版本。会出现包含跳过、稍后或安装选项的弹窗。"
-        }
-        "setting_os_detect_desc" => {
-            "首次成功 SSH 连接后，静默执行（`cat /etc/os-release; uname -s`）以检测远程 OS 并切换图标。"
-        }
+        "setting_font_desc" => "SauceCodePro Nerd Font 已内置（Source Code Pro 加上 Powerline、Font Awesome、Devicons 和 Material）；其他字体依赖系统, 如果字体未安装，OS 会回退到默认等宽字体。",
+        "setting_update_check_desc" => "启动时查询 GitHub 检查新版本。会出现包含跳过、稍后或安装选项的弹窗。",
+        "setting_os_detect_desc" => "首次成功 SSH 连接后，静默执行（`cat /etc/os-release; uname -s`）以检测远程 OS 并切换图标。",
         "setting_reconnect_desc" => "每 30 秒静默重试断开的 SSH 会话，直到下方限制。",
         "transfer_parallelism" => "传输并发",
-        "setting_sftp_concurrency_desc" => {
-            "每会话并发 SFTP 传输数（1–8）。每个槽位打开自己的子系统通道, 更高 = 批量传输更快，带宽压力更大。"
-        }
+        "setting_sftp_concurrency_desc" => "每会话并发 SFTP 传输数（1–8）。每个槽位打开自己的子系统通道, 更高 = 批量传输更快，带宽压力更大。",
         "ai_model_placeholder" => "模型名称...",
         "no_api_key" => "未设置 API 密钥",
         "ai_system_prompt_desc" => "可选。添加到包含终端上下文和 bash 工具说明的默认系统提示中。",
@@ -1470,22 +1349,16 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_protected_note" => "您的保险库受主密码保护。",
         "vault_protected_title" => "您的保险库已受保护",
         "vault_remove_confirm_title" => "移除主密码？",
-        "vault_remove_confirm_desc" => {
-            "您的保险库将不再在静态时加密。任何能访问这台计算机的人都将能够读取您存储的密钥和凭据。"
-        }
+        "vault_remove_confirm_desc" => "您的保险库将不再在静态时加密。任何能访问这台计算机的人都将能够读取您存储的密钥和凭据。",
         "update_password" => "更新密码",
         "change_password_title" => "更改主密码",
         "current_master_password_placeholder" => "当前主密码...",
         "current_password_incorrect" => "当前密码不正确",
         "password_updated" => "主密码已更新",
         "vault_importance_title" => "为什么要设置主密码？",
-        "vault_importance_desc" => {
-            "您的保险库存储 SSH 密钥、主机密码和其他凭据。没有主密码，任何能访问这台计算机的人都能读取它们。设置主密码后，保险库在静态时会被加密，只能用您的密码打开。"
-        }
+        "vault_importance_desc" => "您的保险库存储 SSH 密钥、主机密码和其他凭据。没有主密码，任何能访问这台计算机的人都能读取它们。设置主密码后，保险库在静态时会被加密，只能用您的密码打开。",
         "ssh_config_import" => "SSH config 导入",
-        "ssh_config_import_desc" => {
-            "选择 OpenSSH 配置文件（默认 ~/.ssh/config）。每个 `Host` 块成为一个连接记录；通配符和已存在的标签会被跳过。"
-        }
+        "ssh_config_import_desc" => "选择 OpenSSH 配置文件（默认 ~/.ssh/config）。每个 `Host` 块成为一个连接记录；通配符和已存在的标签会被跳过。",
         "import_ssh_config_btn" => "导入 ~/.ssh/config",
         "export_hosts" => "导出主机",
         "export_groups" => "要包含的文件夹",
@@ -1510,9 +1383,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "channel_open_timeout" => "通道打开超时（秒）",
         "channel_open_timeout_desc" => "单个 SFTP / PTY 通道打开允许的时长，超时则错误。默认 10。",
         "operation_timeout" => "操作超时（秒）",
-        "operation_timeout_desc" => {
-            "每次请求的限制（list、read、write、rename）。当远程停止响应时限制\"加载中…\"状态。默认 30。"
-        }
+        "operation_timeout_desc" => "每次请求的限制（list、read、write、rename）。当远程停止响应时限制\"加载中…\"状态。默认 30。",
         "sync_mode_auto" => "自动",
         "sync_mode_manual" => "手动",
         "built_with" => "构建于",
@@ -1527,14 +1398,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "feature_ai_desc" => "终端内的 AI 聊天，可在已连接的服务器上运行命令。",
         "feature_sftp_desc" => "通过 SSH 用双面板管理器浏览和传输文件。",
         "feature_monitoring" => "主机监控",
-        "feature_monitoring_desc" => {
-            "通过已打开的会话实时读取主机的 CPU、内存、磁盘、网络和监听端口。会添加一个侧边栏监控标签页和一个可选的状态栏读数。"
-        }
+        "feature_monitoring_desc" => "通过已打开的会话实时读取主机的 CPU、内存、磁盘、网络和监听端口。会添加一个侧边栏监控标签页和一个可选的状态栏读数。",
         "settings_section_monitoring" => "监控",
         "monitor_all_hosts" => "为所有主机启用",
-        "monitor_all_hosts_desc" => {
-            "监控每个有活动会话的主机，无需逐个启用。开启后，主机编辑器中的单主机开关将被锁定。"
-        }
+        "monitor_all_hosts_desc" => "监控每个有活动会话的主机，无需逐个启用。开启后，主机编辑器中的单主机开关将被锁定。",
         "monitor_enable_host_all" => "已监控（所有主机）",
         "feature_sync_desc" => "在你的设备之间加密点对点同步保险库。",
         "feature_remote_desktop_desc" => "RDP/VNC 主机，直连或通过 SSH 网关。",
@@ -1557,9 +1424,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_uninstall_confirm_title" => "移除插件？",
         "log_delete_confirm_title" => "删除录制？",
         "log_retention_label" => "自动删除日志",
-        "setting_log_retention_desc" => {
-            "自动删除早于所选期限的连接事件和已结束的会话录制。进行中的录制不会被删除。"
-        }
+        "setting_log_retention_desc" => "自动删除早于所选期限的连接事件和已结束的会话录制。进行中的录制不会被删除。",
         "log_retention_off" => "从不",
         "log_retention_1d" => "1 天",
         "log_retention_3d" => "3 天",
@@ -1571,19 +1436,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "known_host_remove_confirm_title" => "移除主机密钥？",
         "known_host_remove_confirm_body" => "该主机密钥将被移除；下次连接时需要重新验证。",
         "known_hosts_clear_confirm_title" => "重新验证所有主机？",
-        "known_hosts_clear_confirm_body" => {
-            "所有已保存的主机密钥将被移除；下次连接时需要重新验证每个主机。"
-        }
-        "plugin_uninstall_confirm_body" => {
-            "已下载的二进制文件将从本机删除。您可以随时从此面板重新安装。"
-        }
+        "known_hosts_clear_confirm_body" => "所有已保存的主机密钥将被移除；下次连接时需要重新验证每个主机。",
+        "plugin_uninstall_confirm_body" => "已下载的二进制文件将从本机删除。您可以随时从此面板重新安装。",
         "plugin_action_check_updates" => "检查更新",
         "plugin_action_retry" => "重试",
         "plugin_pinned" => "固定到",
         "plugin_install_modal_title" => "安装",
-        "plugin_install_modal_body" => {
-            "将插件二进制文件下载到本地缓存。可独立于应用进行更新或卸载。"
-        }
+        "plugin_install_modal_body" => "将插件二进制文件下载到本地缓存。可独立于应用进行更新或卸载。",
         "plugin_install_modal_size" => "下载大小",
         "plugin_install_modal_unknown_size" => "大小不可用（无法访问插件主机）。",
         "plugin_changelog" => "更新内容",
@@ -1600,9 +1459,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_err_download" => "插件下载失败。请检查网络连接。",
         "plugin_err_integrity" => "插件完整性校验失败。已拒绝安装。",
         "plugin_err_io" => "安装插件时发生磁盘错误。",
-        "plugin_err_needs_update" => {
-            "存在插件版本，但它需要更新版本的 Oryxis。请更新应用以安装它。"
-        }
+        "plugin_err_needs_update" => "存在插件版本，但它需要更新版本的 Oryxis。请更新应用以安装它。",
         "toggle_on" => "开",
         "toggle_off" => "关",
 
@@ -1613,34 +1470,24 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mcp_token_hide" => "隐藏",
         "mcp_token_copy" => "复制",
         "mcp_token_regenerate" => "重新生成",
-        "mcp_token_desc" => {
-            "每个 MCP 客户端都需要。重新生成会使旧值失效，请再次运行安装以刷新 Claude Code 配置。"
-        }
-        "mcp_vault_pw_note" => {
-            "此保险库设有主密码。MCP 服务器需要它（环境变量 ORYXIS_VAULT_PASSWORD），否则会在启动时退出，客户端将报告连接失败。"
-        }
+        "mcp_token_desc" => "每个 MCP 客户端都需要。重新生成会使旧值失效，请再次运行安装以刷新 Claude Code 配置。",
+        "mcp_vault_pw_note" => "此保险库设有主密码。MCP 服务器需要它（环境变量 ORYXIS_VAULT_PASSWORD），否则会在启动时退出，客户端将报告连接失败。",
         "mcp_vault_pw_include" => "包含保险库密码",
         "mcp_vault_pw_confirm_prompt" => "输入主密码以将其写入配置：",
         "mcp_vault_pw_placeholder" => "主密码",
         "mcp_vault_pw_confirm" => "确认",
         "mcp_vault_pw_wrong" => "密码错误",
         "mcp_vault_pw_included" => "保险库密码已包含在配置中。",
-        "mcp_vault_pw_plaintext_warning" => {
-            "密码以明文写入；任何能读取该配置文件的人都能解锁您的保险库。"
-        }
+        "mcp_vault_pw_plaintext_warning" => "密码以明文写入；任何能读取该配置文件的人都能解锁您的保险库。",
         "mcp_vault_pw_removed" => "已从客户端配置中移除保险库密码。",
         "mcp_vault_pw_remove_failed" => "无法从配置中移除密码：",
 
         // Cloud Accounts 中插件缺失横幅
         "cloud_plugin_missing_title" => "AWS 插件未安装",
         "cloud_plugin_missing_title_suffix" => "插件未安装",
-        "cloud_plugin_missing_body" => {
-            "测试凭据和发现主机需要此提供商的插件。请安装它以使用此账户。"
-        }
+        "cloud_plugin_missing_body" => "测试凭据和发现主机需要此提供商的插件。请安装它以使用此账户。",
         "cloud_no_provider_title" => "未安装云提供商",
-        "cloud_no_provider_desc" => {
-            "云账户可从 AWS 和 Kubernetes 等提供商发现并导入主机。请安装提供商插件以添加账户。"
-        }
+        "cloud_no_provider_desc" => "云账户可从 AWS 和 Kubernetes 等提供商发现并导入主机。请安装提供商插件以添加账户。",
         "cloud_no_provider_btn" => "打开插件",
 
         // 排序菜单
@@ -1666,15 +1513,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pf_target_host" => "目标主机",
         "pf_target_port" => "目标端口",
         "pf_auto_start" => "启动时自动开启",
-        "pf_auto_start_hint" => {
-            "如果无法连接，它会持续重试（例如在 SSH 密钥尚未加载时），并在隧道断开时自动重新连接。"
-        }
-        "gateway_ports_hint" => {
-            "绑定 0.0.0.0 需要在服务器的 sshd_config 中设置 \"GatewayPorts yes\"。"
-        }
-        "socks_open_proxy_hint" => {
-            "动态 SOCKS 转发没有身份验证。绑定到非回环地址时，它会成为通往远程网络的开放代理，任何能访问此机器的人都可使用。除非你打算共享，否则请使用 127.0.0.1。"
-        }
+        "pf_auto_start_hint" => "如果无法连接，它会持续重试（例如在 SSH 密钥尚未加载时），并在隧道断开时自动重新连接。",
+        "gateway_ports_hint" => "绑定 0.0.0.0 需要在服务器的 sshd_config 中设置 \"GatewayPorts yes\"。",
+        "socks_open_proxy_hint" => "动态 SOCKS 转发没有身份验证。绑定到非回环地址时，它会成为通往远程网络的开放代理，任何能访问此机器的人都可使用。除非你打算共享，否则请使用 127.0.0.1。",
         "pf_on" => "ON",
         "pf_off" => "OFF",
         "pf_starting" => "...",
@@ -1705,9 +1546,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "update_channel" => "更新通道",
         "update_channel_stable" => "稳定版",
         "update_channel_nightly" => "每夜版",
-        "update_channel_nightly_warning" => {
-            "每夜版在每次提交到 main 时更新。可能不稳定；更新无需安装程序，就地安装。"
-        }
+        "update_channel_nightly_warning" => "每夜版在每次提交到 main 时更新。可能不稳定；更新无需安装程序，就地安装。",
         "auto_reconnect" => "断开时自动重连",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "关闭此 SFTP 标签页？",
@@ -1718,25 +1557,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "terminal_font" => "终端字体",
         "os_detection" => "连接后检测远程操作系统",
         "session_logging" => "会话记录",
-        "setting_session_logging_desc" => {
-            "将 SSH 会话的终端输出记录到保险库。单个主机的设置可覆盖此项。"
-        }
+        "setting_session_logging_desc" => "将 SSH 会话的终端输出记录到保险库。单个主机的设置可覆盖此项。",
         "session_log_full" => "详细录制（回放）",
-        "setting_session_log_full_desc" => {
-            "保存输出时序和终端尺寸变化，以便将会话导出为 asciicast (.cast) 回放。关闭时仅记录纯输出日志。"
-        }
+        "setting_session_log_full_desc" => "保存输出时序和终端尺寸变化，以便将会话导出为 asciicast (.cast) 回放。关闭时仅记录纯输出日志。",
         "session_log_compress" => "压缩录制内容",
         "setting_session_log_compress_desc" => "在加密前压缩录制的输出。长会话仅占用一小部分空间。",
         "connection_history" => "连接历史",
-        "setting_connection_history_desc" => {
-            "将连接事件（连接、断开、认证失败、错误）记录到保险库。"
-        }
+        "setting_connection_history_desc" => "将连接事件（连接、断开、认证失败、错误）记录到保险库。",
         "session_log_default" => "默认",
         "shell_default" => "默认",
         "local_terminals" => "本地终端",
-        "local_terminals_desc" => {
-            "在此设备上找到的终端。仅扫描一次并缓存；可自由编辑列表，或重新扫描以刷新。"
-        }
+        "local_terminals_desc" => "在此设备上找到的终端。仅扫描一次并缓存；可自由编辑列表，或重新扫描以刷新。",
         "local_terminals_empty" => "暂无终端。请手动添加或重新扫描。",
         "add_terminal" => "添加终端",
         "add_manually" => "手动添加",
@@ -1753,6 +1584,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "session_log_on" => "开启",
         "session_log_off" => "关闭",
         "share" => "分享",
+
 
         "cjk_font_downloading" => "正在下载语言字体...",
         "cjk_font_failed" => "无法下载语言字体，将使用系统字体。",
@@ -1771,9 +1603,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "line_count_one" => "1 行",
         "line_count_other" => "行",
         "careful_paste_label" => "粘贴多行前警告",
-        "careful_paste_desc" => {
-            "粘贴含换行的文本前显示预览并要求确认，防止隐藏的末尾换行直接执行命令。"
-        }
+        "careful_paste_desc" => "粘贴含换行的文本前显示预览并要求确认，防止隐藏的末尾换行直接执行命令。",
         "careful_paste_title" => "粘贴多行内容？",
         "careful_paste_trailing" => "以换行结尾，最后一行将立即执行。",
         "careful_paste_confirm" => "粘贴",
@@ -1785,49 +1615,31 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tab_bar_position_bottom" => "底部",
         "tab_bar_position_left" => "左侧",
         "tab_bar_position_right" => "右侧",
-        "tab_bar_position_desc" => {
-            "底部会把标签栏停靠在状态栏上方；左侧 / 右侧会把它作为垂直标签列表停靠在该侧。窗口按钮保留在顶部的细条中。"
-        }
+        "tab_bar_position_desc" => "底部会把标签栏停靠在状态栏上方；左侧 / 右侧会把它作为垂直标签列表停靠在该侧。窗口按钮保留在顶部的细条中。",
         "inactive_tab_style" => "非活动标签样式",
         "inactive_tab_style_none" => "无",
         "inactive_tab_style_border" => "边框",
         "inactive_tab_style_underline" => "下划线",
-        "inactive_tab_style_desc" => {
-            "非活动标签的区分方式。边框会为每个标签描边；下划线会在标签内侧边缘画一条线，并跟随标签栏（顶部标签栏时在底部，垂直标签栏时在侧边）。"
-        }
+        "inactive_tab_style_desc" => "非活动标签的区分方式。边框会为每个标签描边；下划线会在标签内侧边缘画一条线，并跟随标签栏（顶部标签栏时在底部，垂直标签栏时在侧边）。",
         "pinned_tabs_top_bar" => "固定标签放在顶栏",
-        "pinned_tabs_top_bar_desc" => {
-            "固定标签停靠在顶栏的主页旁。若顶栏被隐藏，它们会变成标签列表顶部的固定分组。"
-        }
+        "pinned_tabs_top_bar_desc" => "固定标签停靠在顶栏的主页旁。若顶栏被隐藏，它们会变成标签列表顶部的固定分组。",
         "side_hide_top_bar" => "隐藏顶栏",
-        "side_hide_top_bar_desc" => {
-            "窗口按钮和主页移入标签栏；其空白区域可拖动窗口，双击可最大化。"
-        }
+        "side_hide_top_bar_desc" => "窗口按钮和主页移入标签栏；其空白区域可拖动窗口，双击可最大化。",
         "side_full_height" => "标签栏占满全高",
         "side_full_height_desc" => "标签栏延伸到窗口底边；状态栏仅覆盖内容区域。",
         "import_summary_imported" => "已导入主机：",
         "import_summary_skipped" => "已跳过，标签已存在",
-        "ecs_exec_group_missing" => {
-            "此会话背后的云分组已不存在。请取消固定标签页并从仪表盘重新连接。"
-        }
+                "ecs_exec_group_missing" => "此会话背后的云分组已不存在。请取消固定标签页并从仪表盘重新连接。",
         "cloud_session_ended" => "会话已结束",
         "cloud_session_ended_hint" => "会话已结束，再次选择此标签页即可重新连接",
         "onboarding_welcome_title" => "欢迎使用 Oryxis",
-        "onboarding_welcome_body" => {
-            "一款原生 SSH 客户端,同时也是用于存放连接、密钥和机密信息的加密保险库。让我们快速了解一下。"
-        }
+        "onboarding_welcome_body" => "一款原生 SSH 客户端,同时也是用于存放连接、密钥和机密信息的加密保险库。让我们快速了解一下。",
         "onboarding_vault_title" => "你的加密保险库",
-        "onboarding_vault_body" => {
-            "主机密码、SSH 密钥和代理凭据都集中存放在一个本地保险库中,使用 Argon2id 和 ChaCha20-Poly1305 加密。本地优先:除非你选择同步,否则任何数据都不会离开你的设备。"
-        }
+        "onboarding_vault_body" => "主机密码、SSH 密钥和代理凭据都集中存放在一个本地保险库中,使用 Argon2id 和 ChaCha20-Poly1305 加密。本地优先:除非你选择同步,否则任何数据都不会离开你的设备。",
         "onboarding_connect_title" => "连接一切",
-        "onboarding_connect_body" => {
-            "在内置终端中打开主机,支持跳板链、SFTP、端口转发以及一键云目标(AWS、Kubernetes)。"
-        }
+        "onboarding_connect_body" => "在内置终端中打开主机,支持跳板链、SFTP、端口转发以及一键云目标(AWS、Kubernetes)。",
         "onboarding_sync_title" => "同步与 AI",
-        "onboarding_sync_body" => {
-            "可选启用的点对点同步让你的保险库在各设备间保持一致,而每个会话的 AI 助手就在终端中为你提供帮助。"
-        }
+        "onboarding_sync_body" => "可选启用的点对点同步让你的保险库在各设备间保持一致,而每个会话的 AI 助手就在终端中为你提供帮助。",
         "onboarding_password_title" => "保护你的保险库",
         "onboarding_back" => "上一步",
         "onboarding_skip" => "跳过",
@@ -1848,9 +1660,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_b3" => "13 款终端主题、RTL 支持和 23 种界面语言",
         // SSH certificate auth (B2)
         "certificate" => "证书",
-        "certificate_desc" => {
-            "可选的已签名用户证书（OpenSSH 的 -cert.pub 行），在公钥认证期间提供。"
-        }
+        "certificate_desc" => "可选的已签名用户证书（OpenSSH 的 -cert.pub 行），在公钥认证期间提供。",
         "cert_attach" => "已附加证书",
         "cert_browse" => "浏览...",
         "cert_detected_hint" => "在密钥文件旁检测到证书",
@@ -1881,13 +1691,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_public_key" => "导入公钥",
         "key_badge_security_key" => "安全密钥",
         "preferred_agent_key" => "可选：连接时优先提供此密钥的代理身份。",
-        "pkcs11_help" => {
-            "硬件密钥通过 ssh-add 加载到代理：-K 加载 FIDO2 常驻密钥，-s <module> 加载 PKCS#11 智能卡。"
-        }
-        "sk_agent_hint" => {
-            "安全密钥身份必须先加载到操作系统的 ssh-agent（插入令牌后运行 ssh-add -K）。"
-        }
+        "pkcs11_help" => "硬件密钥通过 ssh-add 加载到代理：-K 加载 FIDO2 常驻密钥，-s <module> 加载 PKCS#11 智能卡。",
+        "sk_agent_hint" => "安全密钥身份必须先加载到操作系统的 ssh-agent（插入令牌后运行 ssh-add -K）。",
         "public_key_only_error" => "这看起来是私钥内容；请将其粘贴到私钥字段中。",
-        _ => return None,
+_ => return None,
     })
 }

@@ -8,9 +8,7 @@ use iced::{Point, Task};
 
 use oryxis_vault::VaultStore;
 
-use crate::app::{
-    AUTO_CONNECT, AUTO_PASSWORD, Message, Oryxis, SshMessage, TabsMessage, UpdateMessage,
-};
+use crate::app::{TabsMessage, SshMessage, UpdateMessage, Message, Oryxis, AUTO_CONNECT, AUTO_PASSWORD};
 use crate::state::{ConnectionForm, SettingsSection, VaultState, View};
 
 mod load;
@@ -181,9 +179,10 @@ impl Oryxis {
                 restored_window_size =
                     iced::Size::new(w.clamp(800.0, 16384.0), h.clamp(500.0, 16384.0));
             }
-            if let (Ok(Some(x)), Ok(Some(y))) =
-                (v.get_setting("window_pos_x"), v.get_setting("window_pos_y"))
-                && let (Ok(x), Ok(y)) = (x.parse::<f32>(), y.parse::<f32>())
+            if let (Ok(Some(x)), Ok(Some(y))) = (
+                v.get_setting("window_pos_x"),
+                v.get_setting("window_pos_y"),
+            ) && let (Ok(x), Ok(y)) = (x.parse::<f32>(), y.parse::<f32>())
                 && x.is_finite()
                 && y.is_finite()
             {
@@ -205,10 +204,14 @@ impl Oryxis {
         // the install path can call rebind after `cache::set_current`).
         // Both fields point at the SAME Arc so a rebind through the
         // concrete map propagates to the registered trait object.
-        let aws_provider = std::sync::Arc::new(crate::plugins::PluginProvider::new("aws"));
-        let k8s_provider = std::sync::Arc::new(crate::plugins::PluginProvider::new("k8s"));
-        let gcp_provider = std::sync::Arc::new(crate::plugins::PluginProvider::new("gcp"));
-        let azure_provider = std::sync::Arc::new(crate::plugins::PluginProvider::new("azure"));
+        let aws_provider =
+            std::sync::Arc::new(crate::plugins::PluginProvider::new("aws"));
+        let k8s_provider =
+            std::sync::Arc::new(crate::plugins::PluginProvider::new("k8s"));
+        let gcp_provider =
+            std::sync::Arc::new(crate::plugins::PluginProvider::new("gcp"));
+        let azure_provider =
+            std::sync::Arc::new(crate::plugins::PluginProvider::new("azure"));
         let plugin_providers = {
             let mut m: std::collections::HashMap<
                 String,
@@ -245,9 +248,7 @@ impl Oryxis {
                 // corruption seen on GNOME Wayland fractional scaling. Both
                 // handles share the one asset; the SVG scales to each call
                 // site's box.
-                logo_handle: svg::Handle::from_memory(
-                    include_bytes!("../../../../resources/logo.svg").as_slice(),
-                ),
+                logo_handle: svg::Handle::from_memory(include_bytes!("../../../../resources/logo.svg").as_slice()),
                 connections: Vec::new(),
                 quick_connects: std::collections::HashMap::new(),
                 groups: Vec::new(),
@@ -321,7 +322,6 @@ impl Oryxis {
                 folder_rename: None,
                 tab_rename: None,
                 pending_paste: None,
-                pending_terminal_drops: Vec::new(),
                 group_edit: crate::state::GroupEditForm::default(),
                 folder_delete: None,
                 pending_auto_connect,
@@ -419,7 +419,8 @@ impl Oryxis {
                 cloud_discover_selected_k8s: std::collections::HashSet::new(),
                 cloud_discover_filter: String::new(),
                 cloud_discover_collapsed: std::collections::HashSet::new(),
-                cloud_discover_default_transport: oryxis_core::models::cloud::TransportKind::Ssh,
+                cloud_discover_default_transport:
+                    oryxis_core::models::cloud::TransportKind::Ssh,
                 cloud_discover_default_group_name: String::new(),
                 editor_parent_combo: iced::widget::combo_box::State::new(Vec::new()),
                 editor_startup_combo: iced::widget::combo_box::State::new(Vec::new()),
@@ -529,7 +530,7 @@ impl Oryxis {
                 terminal_theme_override: None,
                 local_terminal_theme: None,
                 terminal_font_size: 14.0,
-                terminal_font_name: "JetBrainsMono Nerd Font".to_string(),
+                terminal_font_name: "SauceCodePro Nerd Font".to_string(),
                 settings_section: SettingsSection::Interface,
                 settings_search: String::new(),
                 settings_active_match: 0,
@@ -621,7 +622,8 @@ impl Oryxis {
                 setting_default_keepalive: String::new(),
                 setting_default_terminal_type: "xterm-256color".into(),
                 setting_default_username: String::new(),
-                setting_default_auth_method: oryxis_core::models::connection::AuthMethod::Auto,
+                setting_default_auth_method:
+                    oryxis_core::models::connection::AuthMethod::Auto,
                 setting_default_identity_id: None,
                 setting_default_key_id: None,
                 setting_default_group_id: None,
@@ -642,8 +644,8 @@ impl Oryxis {
                 setting_hint_mode: crate::util::HintMode::default(),
                 setting_sftp_concurrency: "2".into(),
                 setting_sftp_force_osc7: false,
-                setting_shell_integration: crate::shell_integration::ShellIntegrationMode::default(
-                ),
+                setting_shell_integration:
+                    crate::shell_integration::ShellIntegrationMode::default(),
                 shell_integration_nonce: String::new(),
                 setting_sftp_connect_timeout: "15".into(),
                 setting_sftp_auth_timeout: "30".into(),
@@ -730,10 +732,7 @@ impl Oryxis {
         // already open (no master password), kick off the connect right
         // after boot. When the vault is locked, we defer until VaultUnlock
         // succeeds (handled in that branch).
-        let mut tasks = vec![
-            task,
-            Task::done(Message::Update(UpdateMessage::CheckForUpdate)),
-        ];
+        let mut tasks = vec![task, Task::done(Message::Update(UpdateMessage::CheckForUpdate))];
         // A Windows nightly self-replace that fails after the app has
         // exited has no UI left to report to; the helper leaves a marker
         // in TEMP instead. Surface it here so a failed swap is never
@@ -749,7 +748,10 @@ impl Oryxis {
         }
         if app.vault_ui.state == VaultState::Unlocked
             && let Some(connect_id) = app.pending_auto_connect.take()
-            && let Some(idx) = app.connections.iter().position(|c| c.id == connect_id)
+            && let Some(idx) = app
+                .connections
+                .iter()
+                .position(|c| c.id == connect_id)
         {
             tasks.push(Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))));
         }
@@ -811,7 +813,10 @@ impl Oryxis {
         // Not needed while maximized / fullscreen: the OS resolves those
         // against a real monitor on its own, and the check would compare
         // the *windowed* rectangle nobody is looking at.
-        if app.window_windowed_pos.is_some() && !app.window_maximized && !app.window_fullscreen {
+        if app.window_windowed_pos.is_some()
+            && !app.window_maximized
+            && !app.window_fullscreen
+        {
             tasks.push(Task::perform(
                 async {
                     tokio::time::sleep(std::time::Duration::from_millis(250)).await;

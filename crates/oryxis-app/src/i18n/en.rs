@@ -6,9 +6,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "expand" => "Expand",
         "collapse" => "Collapse",
         "nav_orientation" => "Navigation",
-        "nav_orientation_desc" => {
-            "Horizontal shows the vault sections as a pill strip below the top bar; Vertical shows them as an icon rail on the left."
-        }
+        "nav_orientation_desc" => "Horizontal shows the vault sections as a pill strip below the top bar; Vertical shows them as an icon rail on the left.",
         "nav_orientation_horizontal" => "Horizontal (pills)",
         "nav_orientation_vertical" => "Vertical (rail)",
         "hosts" => "Hosts",
@@ -29,9 +27,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_auth_method" => "Authentication",
         "cloud_aws_profile_name" => "AWS Profile Name",
         "cloud_aws_regions" => "Regions",
-        "cloud_aws_regions_hint" => {
-            "Press Enter to add. First region is the default; others are used to fan out discovery."
-        }
+        "cloud_aws_regions_hint" => "Press Enter to add. First region is the default; others are used to fan out discovery.",
         "cloud_discover_import_into" => "Import into",
         "cloud_discover_import_into_placeholder" => "Group name (existing or new)",
         "search_groups" => "Search groups…",
@@ -60,9 +56,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_dynamic_form_service" => "Service",
         "cloud_dynamic_form_container" => "Container",
         "cloud_dynamic_form_container_ph" => "app (leave empty for all containers)",
-        "cloud_dynamic_form_query_hint" => {
-            "Changing these fields repoints the group at a different upstream collection."
-        }
+        "cloud_dynamic_form_query_hint" => "Changing these fields repoints the group at a different upstream collection.",
         "cloud_test_credentials" => "Test Credentials",
         "cloud_test_running" => "Testing…",
         "cloud_test_ok" => "Credentials valid",
@@ -78,14 +72,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_gcp_project_hint" => "Blank uses gcloud's active project.",
         "cloud_k8s_kubeconfig_path" => "Kubeconfig file",
         "cloud_k8s_kubeconfig_ph" => "~/.kube/config (leave blank for default)",
-        "cloud_k8s_kubeconfig_hint" => {
-            "Path to a kubeconfig file. Blank uses kubectl's default ($KUBECONFIG or ~/.kube/config)."
-        }
+        "cloud_k8s_kubeconfig_hint" => "Path to a kubeconfig file. Blank uses kubectl's default ($KUBECONFIG or ~/.kube/config).",
         "cloud_k8s_context" => "Context",
         "cloud_k8s_context_ph" => "leave blank for current-context",
-        "cloud_k8s_context_hint" => {
-            "Which kubeconfig context to use. Blank uses its current-context."
-        }
+        "cloud_k8s_context_hint" => "Which kubeconfig context to use. Blank uses its current-context.",
         "cloud_k8s_workloads" => "Kubernetes Workloads",
         "cloud_gke_clusters" => "GKE clusters",
         "cloud_gke_add" => "Add",
@@ -102,16 +92,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_aks_add_failed" => "Failed to add AKS cluster",
         "cloud_k8s_namespace" => "Namespace",
         "cloud_k8s_selector" => "Label selector",
-        "cloud_k8s_selector_hint" => {
-            "Comma-separated key=value pairs. Resolves to the pods carrying these labels."
-        }
-        "cloud_k8s_name_hint" => {
-            "The resource name. Resolves to that workload's pods, or the single named pod."
-        }
+        "cloud_k8s_selector_hint" => "Comma-separated key=value pairs. Resolves to the pods carrying these labels.",
+        "cloud_k8s_name_hint" => "The resource name. Resolves to that workload's pods, or the single named pod.",
         "k8s_kubectl_missing_title" => "kubectl not found",
-        "k8s_kubectl_missing_body" => {
-            "Oryxis opens a pod shell by running kubectl. Install kubectl and make sure it is on your PATH, then try again."
-        }
+        "k8s_kubectl_missing_body" => "Oryxis opens a pod shell by running kubectl. Install kubectl and make sure it is on your PATH, then try again.",
         "cloud_aws_access_key_id" => "Access Key ID",
         "cloud_aws_access_key_secret" => "Secret Access Key",
         "cloud_aws_access_key_secret_ph" => "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
@@ -122,9 +106,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_aws_sso_region" => "SSO Region",
         "cloud_aws_sso_account_id" => "Account ID",
         "cloud_aws_sso_role_name" => "Role Name",
-        "cloud_aws_sso_hint" => {
-            "Run `aws sso login` first so the SSO token cache exists. Native browser flow comes in a follow-up release."
-        }
+        "cloud_aws_sso_hint" => "Run `aws sso login` first so the SSO token cache exists. Native browser flow comes in a follow-up release.",
         "initial_command_label" => "Initial Command / Snippet",
         "startup_none" => "None",
         "startup_custom" => "Custom command",
@@ -145,9 +127,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cloud_dynamic_group_no_tasks" => "No running tasks right now",
         "cloud_dynamic_form_title" => "Edit Cloud Group",
         "cloud_import_confirm_title" => "Import hosts",
-        "cloud_import_transport_hint" => {
-            "Applied to every selected EC2 host. Change later in the host editor."
-        }
+        "cloud_import_transport_hint" => "Applied to every selected EC2 host. Change later in the host editor.",
         "import_btn_label" => "Import",
         "cloud_dynamic_form_transport" => "Transport",
         "cloud_dynamic_form_initial_command" => "Initial Command",
@@ -177,13 +157,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "theme_exported" => "Theme exported",
         "theme_export_failed" => "Export failed",
         "theme_import_browse" => "Load from file",
-        "theme_import_ui_hint" => {
-            "Paste an Oryxis UI theme (JSON), or load the file. The colors open in the editor to review and save."
-        }
+        "theme_import_ui_hint" => "Paste an Oryxis UI theme (JSON), or load the file. The colors open in the editor to review and save.",
         "theme_import_failed" => "Import failed",
-        "theme_import_hint" => {
-            "Paste an iTerm (.itermcolors), Windows Terminal (JSON) or base16 scheme. The colors open in the editor to review and save."
-        }
+        "theme_import_hint" => "Paste an iTerm (.itermcolors), Windows Terminal (JSON) or base16 scheme. The colors open in the editor to review and save.",
         "theme_imported_default" => "Imported theme",
         "theme_error_name_required" => "Give the theme a name.",
         "theme_error_name_builtin" => "That name belongs to a built-in theme. Pick another.",
@@ -219,14 +195,11 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hotkey_press_a_key" => "Press a key…",
         "hotkey_unbound" => "(unbound)",
         "hotkey_reset" => "Reset",
-        "hotkey_must_have_modifier" => {
-            "Shortcut needs at least one modifier (Ctrl/Shift/Alt) or a function key"
-        }
+        "hotkey_must_have_modifier" => "Shortcut needs at least one modifier (Ctrl/Shift/Alt) or a function key",
         "hotkey_conflict_unbound" => "{action} is now unbound",
         "hotkey_conflict_chord_removed" => "{action} lost that shortcut",
         "hotkey_scrollback_page_up" => "Scroll back one page",
         "hotkey_scrollback_page_down" => "Scroll forward one page",
-        "hotkey_terminal_copy_paste" => "Paste selection",
         "hotkey_show_new_tab_picker" => "Open new tab picker",
         "hotkey_show_tab_jump" => "Jump to tab",
         "hotkey_show_command_palette" => "Command palette",
@@ -266,9 +239,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "detecting_shells" => "Detecting shells…",
         "shell_default" => "default",
         "local_terminals" => "Local terminals",
-        "local_terminals_desc" => {
-            "Terminals found on this machine. Scanned once and cached; edit the list freely or re-scan to refresh."
-        }
+        "local_terminals_desc" => "Terminals found on this machine. Scanned once and cached; edit the list freely or re-scan to refresh.",
         "local_terminals_empty" => "No terminals yet. Add one manually or re-scan.",
         "add_terminal" => "Add terminal",
         "add_manually" => "Add manually",
@@ -289,29 +260,17 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "cancel" => "Cancel",
         "close" => "Close",
         "plugin_missing_title" => "AWS Session Manager plugin not found",
-        "plugin_missing_body" => {
-            "ECS Exec and SSM Session need the AWS session-manager-plugin binary installed on your system. Install it following the AWS docs and try again."
-        }
+        "plugin_missing_body" => "ECS Exec and SSM Session need the AWS session-manager-plugin binary installed on your system. Install it following the AWS docs and try again.",
         "error_dialog_open_aws_docs" => "Open AWS docs",
         "ssm_start_failed_title" => "SSM Session failed to start",
         "ecs_exec_start_failed_title" => "ECS Exec failed to start",
-        "ecs_exec_retry_hint" => {
-            "The task may have been recycled by its service. You can connect to the task currently running instead."
-        }
+        "ecs_exec_retry_hint" => "The task may have been recycled by its service. You can connect to the task currently running instead.",
         "ecs_exec_connect_current" => "Connect to current task",
-        "ecs_exec_no_running_tasks" => {
-            "No running task was found in this group. Check the task list and try again."
-        }
+        "ecs_exec_no_running_tasks" => "No running task was found in this group. Check the task list and try again.",
         "plugin_spawn_failed_title" => "Failed to launch session-manager-plugin",
-        "ic_err_missing_key" => {
-            "EC2 Instance Connect needs an SSH key linked to this host. Open the host editor and pick a key under Credentials."
-        }
-        "ic_err_missing_profile" => {
-            "EC2 Instance Connect can't find the cloud profile this host was imported from. The profile may have been deleted, re-import the host."
-        }
-        "ic_err_missing_region" => {
-            "EC2 Instance Connect needs the host's region (cloud_ref.region) to be set. Re-import this host so the region is recorded."
-        }
+        "ic_err_missing_key" => "EC2 Instance Connect needs an SSH key linked to this host. Open the host editor and pick a key under Credentials.",
+        "ic_err_missing_profile" => "EC2 Instance Connect can't find the cloud profile this host was imported from. The profile may have been deleted, re-import the host.",
+        "ic_err_missing_region" => "EC2 Instance Connect needs the host's region (cloud_ref.region) to be set. Re-import this host so the region is recorded.",
         "delete" => "Delete",
         "edit" => "Edit",
         "connect" => "Connect",
@@ -338,9 +297,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "ssh" => "SSH",
         "telnet" => "Telnet",
         "protocol" => "Protocol",
-        "telnet_cleartext_note" => {
-            "Telnet sends everything, including your password, in cleartext."
-        }
+        "telnet_cleartext_note" => "Telnet sends everything, including your password, in cleartext.",
         "serial" => "Serial",
         "serial_line" => "Serial line",
         "serial_port_path_ph" => "Port path (COM3, /dev/ttyUSB0)",
@@ -363,9 +320,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "remote_desktop_gateway" => "SSH gateway",
         "remote_desktop_direct" => "Direct (no SSH)",
         "add_remote_desktop" => "Add remote desktop",
-        "remote_desktop_enable_desc" => {
-            "Adds RDP/VNC hosts that connect through an SSH gateway. Off by default to keep the interface simple."
-        }
+        "remote_desktop_enable_desc" => "Adds RDP/VNC hosts that connect through an SSH gateway. Off by default to keep the interface simple.",
         "stop_remote_desktop" => "Stop remote desktop",
         "remote_desktop_opening" => "Opening remote desktop on port {port}",
         "remote_desktop_no_client" => "No remote-desktop client found; install one of",
@@ -377,9 +332,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "password" => "Password",
         "host_chaining" => "Host Chaining",
         "add_a_host" => "Add a Host",
-        "chain_editor_desc" => {
-            "Each hop is tunneled through the previous one, in order, before reaching this host."
-        }
+        "chain_editor_desc" => "Each hop is tunneled through the previous one, in order, before reaching this host.",
         "chain_editor_empty" => "No jump hosts yet. Add one to tunnel through it.",
         "unknown" => "Unknown",
         "chain_hop_missing" => "Host deleted",
@@ -421,27 +374,17 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "status_dimensions" => "Size",
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Dock the sidebar on the left",
-        "terminal_sidebar_left_desc" => {
-            "Show the Chat / Snippets / Files / Monitor sidebar on the left of the terminal instead of the right."
-        }
+        "terminal_sidebar_left_desc" => "Show the Chat / Snippets / Files / Monitor sidebar on the left of the terminal instead of the right.",
         "sidebar_auto_open" => "Open sidebar on connect",
-        "sidebar_auto_open_desc" => {
-            "Automatically open the terminal sidebar when a session opens. Each host can override this in its editor."
-        }
+        "sidebar_auto_open_desc" => "Automatically open the terminal sidebar when a session opens. Each host can override this in its editor.",
         "sidebar_default_tab" => "Default sidebar tab",
-        "sidebar_default_tab_desc" => {
-            "Which tab the terminal sidebar opens onto. \"Last opened\" keeps the tab you used most recently; a specific tab opens onto it every time."
-        }
+        "sidebar_default_tab_desc" => "Which tab the terminal sidebar opens onto. \"Last opened\" keeps the tab you used most recently; a specific tab opens onto it every time.",
         "sidebar_default_last" => "Last opened",
         "system_tray" => "System tray",
         "close_to_tray" => "Close to tray",
-        "close_to_tray_desc" => {
-            "Clicking the window's close button hides Oryxis to the system tray instead of quitting. Use the tray icon to bring it back. Windows only."
-        }
+        "close_to_tray_desc" => "Clicking the window's close button hides Oryxis to the system tray instead of quitting. Use the tray icon to bring it back. Windows only.",
         "minimize_to_tray" => "Minimize to tray",
-        "minimize_to_tray_desc" => {
-            "Minimizing the window hides it from the taskbar; only the tray icon stays visible. Windows only."
-        }
+        "minimize_to_tray_desc" => "Minimizing the window hides it from the taskbar; only the tray icon stays visible. Windows only.",
         "tray_quit" => "Quit",
         "tray_active_sessions" => "Active sessions",
         "tray_recent_hosts" => "Recent hosts",
@@ -459,9 +402,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "icon_initials" => "Initials",
         "icon_use_default" => "Use default",
         "host_icon_style" => "Icon shape",
-        "host_icon_style_desc" => {
-            "Override the global default for this host's badge in cards and tabs."
-        }
+        "host_icon_style_desc" => "Override the global default for this host's badge in cards and tabs.",
         "terminal_font_size" => "Terminal Font Size",
         "vault_stats" => "Vault Statistics",
         "security" => "Security",
@@ -490,8 +431,6 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "terminal_copy" => "Copy",
         "terminal_copy_all" => "Copy All",
         "terminal_paste" => "Paste",
-        "copy_ip_address" => "Copy IP Address",
-        "terminal_drop_no_remote" => "Drop target is not a remote host",
         "terminal_clear_scrollback" => "Clear Scrollback",
         "terminal_search_placeholder" => "Find in buffer",
         "terminal_search_count" => "{current} / {total}",
@@ -507,29 +446,19 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "broadcast_needs_split_hint" => "Broadcast needs split panes. Split this tab first.",
         "hotkey_toggle_broadcast_input" => "Toggle broadcast input",
         "renderer_backend" => "Graphics renderer",
-        "renderer_backend_desc" => {
-            "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply."
-        }
+        "renderer_backend_desc" => "Automatic picks the best GPU path (Vulkan first). OpenGL is a compatibility pin for GPUs with broken Vulkan/DX12 drivers; Software (CPU) always renders correctly. Restart to apply.",
         "renderer_active" => "Active renderer",
         "renderer_auto" => "Automatic (GPU)",
         "renderer_opengl" => "OpenGL (compatibility)",
         "renderer_software" => "Software (CPU)",
         "renderer_restart_title" => "Restart to change renderer",
-        "renderer_restart_body" => {
-            "The graphics renderer only changes when the app restarts. Restart now to apply it (this closes your open terminal sessions), or close this and keep working, and it will apply the next time you open Oryxis."
-        }
+        "renderer_restart_body" => "The graphics renderer only changes when the app restarts. Restart now to apply it (this closes your open terminal sessions), or close this and keep working, and it will apply the next time you open Oryxis.",
         "renderer_restart_now" => "Restart now",
         "performance_mode" => "Performance mode",
-        "performance_mode_desc" => {
-            "Trade visual niceties for speed on slow or software rendering. Turns off the terminal's live keyword / URL / IP highlighting and the active-tab gradient. Privacy Mode masking is unaffected."
-        }
-        "perf_mode_auto_toast" => {
-            "Performance mode was enabled automatically for this graphics hardware. You can turn it off in Settings > Interface."
-        }
+        "performance_mode_desc" => "Trade visual niceties for speed on slow or software rendering. Turns off the terminal's live keyword / URL / IP highlighting and the active-tab gradient. Privacy Mode masking is unaffected.",
+        "perf_mode_auto_toast" => "Performance mode was enabled automatically for this graphics hardware. You can turn it off in Settings > Interface.",
         "perf_overlay" => "Terminal performance HUD",
-        "perf_overlay_desc" => {
-            "Draw a small frame-timing and FPS overlay in the corner of every terminal, to diagnose rendering slowness. Attach a screenshot when reporting a performance issue."
-        }
+        "perf_overlay_desc" => "Draw a small frame-timing and FPS overlay in the corner of every terminal, to diagnose rendering slowness. Attach a screenshot when reporting a performance issue.",
         "copy_requires_right_click" => "Requires a right click to copy",
         "bold_bright" => "Use bright colours for bold text",
         "keyword_highlight" => "Keyword highlighting",
@@ -564,9 +493,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "scrollback_reset_keypress" => "Reset scrollback on keypress",
         "scrollback_reset_output" => "Reset scrollback on display activity",
         "word_delimiters" => "Word delimiters",
-        "setting_word_delimiters_desc" => {
-            "Characters that separate words when double-clicking to select. Triple-click always selects the whole line."
-        }
+        "setting_word_delimiters_desc" => "Characters that separate words when double-clicking to select. Triple-click always selects the whole line.",
         "word_delimiters_reset" => "Reset to default",
         "vault_password" => "Vault Password",
 
@@ -575,9 +502,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "thinking" => "Thinking...",
         "chat_stop" => "Stop",
         "enable_ai" => "Enable AI Chat",
-        "ai_enable_warning" => {
-            "The AI assistant can run commands on your connected servers, and may run some automatically. Always review its actions. Use at your own risk; the software is provided without warranty."
-        }
+        "ai_enable_warning" => "The AI assistant can run commands on your connected servers, and may run some automatically. Always review its actions. Use at your own risk; the software is provided without warranty.",
         "ai_chat_disclaimer" => "AI can run commands on this server. Review before approving.",
         "enable_sftp" => "Enable SFTP",
         "provider" => "Provider",
@@ -591,9 +516,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "enter_password" => "Enter your master password to unlock.",
         "forgot_password" => "Forgot password? Reset vault",
         "destroy_vault" => "Yes, destroy vault",
-        "vault_destroy_confirm" => {
-            "This permanently deletes everything: hosts, keys, identities, snippets, logs and settings. The app resets to first run."
-        }
+        "vault_destroy_confirm" => "This permanently deletes everything: hosts, keys, identities, snippets, logs and settings. The app resets to first run.",
 
         // Terminal shortcuts
         "close_tab" => "Close Tab",
@@ -605,9 +528,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "rename" => "Rename",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Close this SFTP tab?",
-        "sftp_close_guard_detail" => {
-            "A transfer or unsaved edit is in progress. Closing it will be lost."
-        }
+        "sftp_close_guard_detail" => "A transfer or unsaved edit is in progress. Closing it will be lost.",
         "close_anyway" => "Close anyway",
         "rename_folder" => "Rename folder",
         "delete_folder_question" => "Delete this folder?",
@@ -617,43 +538,27 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "delete_folder_with_hosts_desc" => "Permanently deletes the folder and everything inside",
         "delete_folder_empty" => "Delete folder",
         "delete_folder_empty_desc" => "This folder is empty, only the folder is removed",
-        "delete_folder_only_subgroups_desc" => {
-            "Subgroups move up one level, only the folder is removed"
-        }
-        "delete_folder_with_hosts_subgroups_desc" => {
-            "Deletes the folder and its hosts, subgroups move up one level"
-        }
+        "delete_folder_only_subgroups_desc" => "Subgroups move up one level, only the folder is removed",
+        "delete_folder_with_hosts_subgroups_desc" => "Deletes the folder and its hosts, subgroups move up one level",
         "folder_name" => "Folder name",
         "folder_delete_failed" => "Couldn't delete the folder. Please try again.",
         "auto_reconnect" => "Auto-reconnect on disconnect",
         "max_reconnect_attempts" => "Maximum reconnect attempts",
         "terminal_font" => "Terminal Font",
         "terminal_theme" => "Terminal Theme",
-        "terminal_theme_desc" => {
-            "Pick the palette used for terminal sessions. Defaults to follow the app theme; per-host overrides take precedence."
-        }
+        "terminal_theme_desc" => "Pick the palette used for terminal sessions. Defaults to follow the app theme; per-host overrides take precedence.",
         "terminal_theme_follow_app" => "Follow app theme",
         "terminal_theme_inherit_global" => "Use global theme",
-        "host_terminal_theme_desc" => {
-            "Override the global terminal theme for sessions to this host."
-        }
+        "host_terminal_theme_desc" => "Override the global terminal theme for sessions to this host.",
         "os_detection" => "Detect remote OS after connect",
         "session_logging" => "Session logging",
-        "setting_session_logging_desc" => {
-            "Record terminal output of SSH sessions to the vault. A per-host setting can override this."
-        }
+        "setting_session_logging_desc" => "Record terminal output of SSH sessions to the vault. A per-host setting can override this.",
         "session_log_full" => "Detailed recording (replay)",
-        "setting_session_log_full_desc" => {
-            "Store output timing and terminal resizes so sessions can be exported as asciicast (.cast) replays. Off records a plain output log."
-        }
+        "setting_session_log_full_desc" => "Store output timing and terminal resizes so sessions can be exported as asciicast (.cast) replays. Off records a plain output log.",
         "session_log_compress" => "Compress recordings",
-        "setting_session_log_compress_desc" => {
-            "Compress recorded output before it is encrypted. Long sessions take a fraction of the space."
-        }
+        "setting_session_log_compress_desc" => "Compress recorded output before it is encrypted. Long sessions take a fraction of the space.",
         "connection_history" => "Connection history",
-        "setting_connection_history_desc" => {
-            "Record connection events (connects, disconnects, auth failures, errors) to the vault."
-        }
+        "setting_connection_history_desc" => "Record connection events (connects, disconnects, auth failures, errors) to the vault.",
         "session_log_default" => "Default",
         "session_log_on" => "On",
         "session_log_off" => "Off",
@@ -661,9 +566,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "update_channel" => "Update channel",
         "update_channel_stable" => "Stable",
         "update_channel_nightly" => "Nightly",
-        "update_channel_nightly_warning" => {
-            "Nightly builds update on every commit to main. Expect rough edges; updates install in place without an installer."
-        }
+        "update_channel_nightly_warning" => "Nightly builds update on every commit to main. Expect rough edges; updates install in place without an installer.",
         "font_zoom_in" => "Increase Font Size",
         "font_zoom_out" => "Decrease Font Size",
         "font_zoom_reset" => "Reset Font Size",
@@ -676,9 +579,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "in_progress" => "In Progress",
         "clear_all" => "Clear all",
         "clear_history_title" => "Clear all logs?",
-        "clear_history_confirm" => {
-            "This permanently deletes every session recording and connection event."
-        }
+        "clear_history_confirm" => "This permanently deletes every session recording and connection event.",
         "entries" => "entries",
         "of" => "of",
         "no_activity" => "No activity yet",
@@ -711,17 +612,13 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sync_listen_port" => "Listen Port",
         "sync_health_lan" => "device(s) discovered on this network",
         "sync_wizard_button" => "Set up your own relay",
-        "sync_wizard_intro" => {
-            "Run the open-source oryxis-relay on a server you control. Fill in your domain, run the generated file on the server, then test the connection; passing the test saves the endpoint into the fields above."
-        }
+        "sync_wizard_intro" => "Run the open-source oryxis-relay on a server you control. Fill in your domain, run the generated file on the server, then test the connection; passing the test saves the endpoint into the fields above.",
         "sync_wizard_domain" => "Domain",
         "sync_wizard_public_port" => "Public HTTPS port",
         "sync_wizard_token" => "Access token",
         "sync_wizard_regen" => "Regenerate token",
         "sync_wizard_files" => "Server file",
-        "sync_wizard_steps" => {
-            "1. Point the domain's DNS at your server.  2. Run the file above on it.  3. Put TLS in front (Caddy does it automatically; with nginx keep proxy_read_timeout above 150s).  4. Test below."
-        }
+        "sync_wizard_steps" => "1. Point the domain's DNS at your server.  2. Run the file above on it.  3. Put TLS in front (Caddy does it automatically; with nginx keep proxy_read_timeout above 150s).  4. Test below.",
         "sync_wizard_test" => "Test & save",
         "sync_wizard_test_ok" => "Relay reachable. This device now uses it.",
         "sync_wizard_test_err" => "Relay not reachable",
@@ -746,15 +643,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sftp_sync_running" => "Syncing over SFTP...",
         "sftp_sync_active_label" => "SFTP sync active",
         "sftp_sync_done" => "SFTP sync done ({n} records pulled)",
-        "sftp_sync_note_group" => {
-            "Use the same passphrase and the same file on every device in the group."
-        }
-        "sftp_sync_note_bridge" => {
-            "A peer-to-peer device and an SFTP device don't sync with each other."
-        }
-        "sftp_sync_note_hostkey" => {
-            "Connect to this host once interactively to trust its key before background sync runs."
-        }
+        "sftp_sync_note_group" => "Use the same passphrase and the same file on every device in the group.",
+        "sftp_sync_note_bridge" => "A peer-to-peer device and an SFTP device don't sync with each other.",
+        "sftp_sync_note_hostkey" => "Connect to this host once interactively to trust its key before background sync runs.",
         "sync_status_syncing" => "Syncing...",
         "sync_status_done" => "Synced",
         "sync_status_failed" => "Sync failed",
@@ -763,9 +654,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sync_status_signaling_registered" => "Signaling registered",
         "sync_status_signaling_failed" => "Signaling failed",
         "sync_status_version_mismatch" => "Version mismatch",
-        "sync_status_peer_stale" => {
-            "Peer hasn't synced in a while; bring it online to keep deletes in sync"
-        }
+        "sync_status_peer_stale" => "Peer hasn't synced in a while; bring it online to keep deletes in sync",
         "sync_paired_devices" => "Paired devices",
         "sync_status_disabled" => "Sync is disabled",
         "sync_paired_with" => "Paired with",
@@ -799,15 +688,11 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mcp_info_title" => "MCP Server Setup",
         "mcp_info_desc" => "Add the following JSON to your AI assistant's MCP configuration:",
         "mcp_info_path_label" => "Configuration file:",
-        "mcp_info_note_wsl" => {
-            "This path is for a client running inside WSL (Claude Code, Cursor)."
-        }
+        "mcp_info_note_wsl" => "This path is for a client running inside WSL (Claude Code, Cursor).",
         "mcp_target_label" => "Target:",
         "mcp_target_native" => "Native",
         "mcp_target_wsl" => "WSL",
-        "mcp_info_vault_password_note" => {
-            "If your vault is password-protected, add ORYXIS_VAULT_PASSWORD to the env block."
-        }
+        "mcp_info_vault_password_note" => "If your vault is password-protected, add ORYXIS_VAULT_PASSWORD to the env block.",
         "mcp_info_copy" => "Copy JSON",
         "mcp_info_close" => "Close",
         "mcp_install_claude" => "Install to Claude Code",
@@ -817,9 +702,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // SSH agent server (B1)
         "agent_server" => "SSH Agent",
-        "agent_server_desc" => {
-            "Serve your unlocked vault keys to git, VS Code and other tools over a local agent socket"
-        }
+        "agent_server_desc" => "Serve your unlocked vault keys to git, VS Code and other tools over a local agent socket",
         "agent_server_confirm" => "Confirm each use",
         "agent_server_confirm_desc" => "Ask for approval before signing with a key",
         "agent_server_path" => "Agent socket",
@@ -827,13 +710,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "agent_server_snippet_env" => "Copy SSH_AUTH_SOCK",
         "agent_server_snippet_ssh_config" => "Copy IdentityAgent",
         "agent_allow_add" => "Accept keys from other apps",
-        "agent_allow_add_desc" => {
-            "Let tools like KeePassXC add keys over the agent protocol. Added keys stay in memory only and are gone when the vault locks or Oryxis closes"
-        }
+        "agent_allow_add_desc" => "Let tools like KeePassXC add keys over the agent protocol. Added keys stay in memory only and are gone when the vault locks or Oryxis closes",
         "agent_openssh_pipe" => "Use the standard OpenSSH agent pipe",
-        "agent_openssh_pipe_desc" => {
-            "Also answer on the system-wide OpenSSH agent pipe when it is free, so tools find this agent without extra setup"
-        }
+        "agent_openssh_pipe_desc" => "Also answer on the system-wide OpenSSH agent pipe when it is free, so tools find this agent without extra setup",
         "agent_confirm_title" => "Allow key use?",
         "agent_confirm_body" => "A program is asking to sign with one of your vault keys.",
         "agent_confirm_key" => "Key",
@@ -874,17 +753,13 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "algo_custom" => "Custom",
         "legacy_algo_unsupported" => "Server requires an algorithm Oryxis does not support.",
         "legacy_algo_title" => "Server requires legacy algorithms",
-        "legacy_algo_desc" => {
-            "{host} only offers legacy {category} algorithms, which Oryxis disables by default. Connecting enables them for this host and weakens its security."
-        }
+        "legacy_algo_desc" => "{host} only offers legacy {category} algorithms, which Oryxis disables by default. Connecting enables them for this host and weakens its security.",
         "legacy_algo_offers" => "Server offers:",
         "legacy_algo_connect_once" => "Connect once",
         "legacy_algo_always" => "Always allow",
         "legacy_algo_cancelled" => "Legacy connection cancelled",
         "algo_overrides" => "Legacy algorithms",
-        "algo_overrides_desc" => {
-            "Pin specific SSH algorithms to reach old servers. Auto keeps the safe defaults."
-        }
+        "algo_overrides_desc" => "Pin specific SSH algorithms to reach old servers. Auto keeps the safe defaults.",
         "algo_ciphers" => "Ciphers",
         "algo_kex" => "Key exchange",
         "algo_macs" => "MACs",
@@ -894,13 +769,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "host_config_global_note" => "Font and these toggles apply to all terminals.",
         "chat_reset_tip" => "New conversation",
         "local_terminal_config_title" => "Local terminal",
-        "local_terminal_config_subtitle" => {
-            "No saved host here. Pick a theme for the open local terminals."
-        }
+        "local_terminal_config_subtitle" => "No saved host here. Pick a theme for the open local terminals.",
         "local_terminal_save_global" => "Save as global default",
-        "local_terminal_config_note" => {
-            "Temporary, for this session's local shells. Save to make it the default for all terminals."
-        }
+        "local_terminal_config_note" => "Temporary, for this session's local shells. Save to make it the default for all terminals.",
         "tab_tip_chat" => "AI Chat",
         "tab_tip_host_config" => "Host config",
         "tab_tip_history" => "Command history",
@@ -910,9 +781,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "history_unavailable" => "Command history is available for saved hosts",
         "command_history_capture" => "Capture command history",
         "shell_integration" => "Shell integration",
-        "shell_integration_desc" => {
-            "Teaches the remote shell to report the command line it runs, so command history keeps working inside tmux, where the screen belongs to tmux and cannot be read. Off touches nothing on the host. This session only feeds the snippet to each shell as it connects and leaves no trace. Install on the host writes it into ~/.bashrc or ~/.zshrc and turns on allow-passthrough in ~/.tmux.conf. bash/zsh only."
-        }
+        "shell_integration_desc" => "Teaches the remote shell to report the command line it runs, so command history keeps working inside tmux, where the screen belongs to tmux and cannot be read. Off touches nothing on the host. This session only feeds the snippet to each shell as it connects and leaves no trace. Install on the host writes it into ~/.bashrc or ~/.zshrc and turns on allow-passthrough in ~/.tmux.conf. bash/zsh only.",
         "shell_integration_off" => "Off",
         "shell_integration_session" => "This session only",
         "shell_integration_persistent" => "Install on the host",
@@ -932,9 +801,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "export_transcript_tip" => "Export transcript (.txt)",
         "export_commands_tip" => "Export typed commands (.txt)",
         "session_export_commands_empty" => "No typed commands recorded in this session",
-        "session_export_privacy_note" => {
-            "Exports carry the raw recording; Privacy Mode masking is display-only."
-        }
+        "session_export_privacy_note" => "Exports carry the raw recording; Privacy Mode masking is display-only.",
         "history_export_done" => "Exported to {path}",
         "history_export_failed" => "Export failed: {error}",
         "cmd_history_file" => "Append commands to a text file",
@@ -950,9 +817,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "snippet_hotkey" => "Shortcut",
         "paste_guard_bidi" => "Contains invisible or bidirectional characters",
         "paste_guard_label" => "Paste guard (suspicious content)",
-        "paste_guard_desc" => {
-            "Also confirm single-line pastes containing invisible characters, control sequences, pipe-to-shell one-liners or look-alike letters."
-        }
+        "paste_guard_desc" => "Also confirm single-line pastes containing invisible characters, control sequences, pipe-to-shell one-liners or look-alike letters.",
         "paste_guard_control" => "Contains raw terminal control sequences",
         "paste_guard_pipe" => "Downloads and pipes straight into a shell",
         "paste_guard_homograph" => "Mixes look-alike characters from different alphabets",
@@ -968,20 +833,14 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "host_config_subtitle" => "Changes save instantly to this host.",
         "host_config_encoding" => "Encoding",
         "host_config_terminal_type" => "Terminal type",
-        "host_config_reconnect_note" => {
-            "Theme previews live. Encoding and terminal type apply on the next connection."
-        }
+        "host_config_reconnect_note" => "Theme previews live. Encoding and terminal type apply on the next connection.",
         "sync_how_title" => "How sync works",
-        "sync_how_body" => {
-            "Sync is optional and peer-to-peer. By default it finds your other devices on the same local network and sends data directly between them, end-to-end encrypted, with no Oryxis server in the middle.\n\nTo sync across networks (home and office, say), run your own signaling/relay server (oryxis-relay) and set its URL under Advanced; Oryxis hosts none. Then pair two devices with the one-time code or QR.\n\nIf you only want a backup, you don't need sync at all: use Export / Import in the Security tab, a single encrypted file you can keep locally or send over SFTP."
-        }
+        "sync_how_body" => "Sync is optional and peer-to-peer. By default it finds your other devices on the same local network and sends data directly between them, end-to-end encrypted, with no Oryxis server in the middle.\n\nTo sync across networks (home and office, say), run your own signaling/relay server (oryxis-relay) and set its URL under Advanced; Oryxis hosts none. Then pair two devices with the one-time code or QR.\n\nIf you only want a backup, you don't need sync at all: use Export / Import in the Security tab, a single encrypted file you can keep locally or send over SFTP.",
         "import_from_sftp" => "Import from SFTP",
         "export_to_sftp" => "To SFTP",
         "backup_to_sftp" => "Back up to a remote host",
         "restore_from_sftp" => "Restore from a remote host",
-        "sftp_backup_hint" => {
-            "Write the encrypted backup to (or read it from) a saved host over SFTP."
-        }
+        "sftp_backup_hint" => "Write the encrypted backup to (or read it from) a saved host over SFTP.",
         "sftp_backup_host" => "Host",
         "sftp_backup_remote_path" => "Remote path",
         "sftp_backup_confirm" => "Back up",
@@ -1002,9 +861,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "forward_x11" => "Forward X11",
         "host_address_family" => "IP version",
         "host_keepalive" => "Keepalive (override)",
-        "host_keepalive_desc" => {
-            "Empty inherits the global setting. 0 disables keepalive on this host."
-        }
+        "host_keepalive_desc" => "Empty inherits the global setting. 0 disables keepalive on this host.",
         "host_auto_title" => "Tab title from shell",
         "host_auto_title_default" => "Default",
         "host_auto_title_show" => "Show",
@@ -1041,9 +898,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Host key verification
         "hk_unknown_title" => "Unknown Host Key",
         "hk_warning_title" => "HOST KEY CHANGED",
-        "hk_warning_desc" => {
-            "WARNING: The host key has changed! This could indicate a man-in-the-middle attack."
-        }
+        "hk_warning_desc" => "WARNING: The host key has changed! This could indicate a man-in-the-middle attack.",
         "hk_unknown_desc" => "The authenticity of {host} can not be established.",
         "hk_fingerprint_sha256" => "{key_type} fingerprint is SHA256:",
         "hk_old_fingerprint" => "Previous fingerprint:",
@@ -1056,9 +911,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Settings > Advanced: debug logging + environment report.
         "settings_advanced" => "Advanced",
         "download_mirror" => "Download mirror",
-        "download_mirror_desc" => {
-            "Route font, plugin and update downloads through a mirror when GitHub is blocked or slow on your network (common on mainland-China networks). Every download stays SHA-256 or Ed25519 verified, so the mirror never has to be trusted. Automatic uses GitHub and falls back to the project's mirror when GitHub is unreachable."
-        }
+        "download_mirror_desc" => "Route font, plugin and update downloads through a mirror when GitHub is blocked or slow on your network (common on mainland-China networks). Every download stays SHA-256 or Ed25519 verified, so the mirror never has to be trusted. Automatic uses GitHub and falls back to the project's mirror when GitHub is unreachable.",
         "download_mirror_auto" => "Automatic",
         "download_mirror_github" => "GitHub only",
         "download_mirror_custom" => "Custom mirror",
@@ -1081,9 +934,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "keygen_copy_public" => "Copy public key",
         "keygen_save_pub" => "Save .pub file",
         "keygen_export_private" => "Export private key",
-        "keygen_export_desc" => {
-            "The private key stays encrypted in the vault. Export a copy only if another tool needs it; with a passphrase it is written in OpenSSH encrypted format."
-        }
+        "keygen_export_desc" => "The private key stays encrypted in the vault. Export a copy only if another tool needs it; with a passphrase it is written in OpenSSH encrypted format.",
         "keygen_export_passphrase" => "Passphrase",
         "keygen_export_passphrase_confirm" => "Confirm passphrase",
         "keygen_export_plaintext_warn" => "No passphrase: the exported file will be unencrypted.",
@@ -1093,9 +944,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "public_key" => "Public key",
         "done" => "Done",
         "debug_logging" => "Debug logging",
-        "debug_logging_desc" => {
-            "Write app diagnostics to a log file to help investigate problems. Passwords and keys are never logged. Attach the file when reporting an issue."
-        }
+        "debug_logging_desc" => "Write app diagnostics to a log file to help investigate problems. Passwords and keys are never logged. Attach the file when reporting an issue.",
         "debug_log_file" => "Log file",
         "debug_log_clear" => "Clear log",
         "debug_log_cleared" => "Log file cleared",
@@ -1126,12 +975,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "no_stored_password" => "No stored password for this host",
         "host_encoding" => "Encoding",
         "host_terminal_type" => "Terminal type (TERM)",
-        "term_fallback_toast" => {
-            "This host has no terminfo entry for \"{requested}\". Connected with \"{used}\" instead; consider changing this host's Terminal Type."
-        }
-        "term_missing_toast" => {
-            "This host has no terminfo entry for \"{requested}\" and no substitute was found. Full-screen apps may misbehave; try another Terminal Type for this host."
-        }
+        "term_fallback_toast" => "This host has no terminfo entry for \"{requested}\". Connected with \"{used}\" instead; consider changing this host's Terminal Type.",
+        "term_missing_toast" => "This host has no terminfo entry for \"{requested}\" and no substitute was found. Full-screen apps may misbehave; try another Terminal Type for this host.",
         "host_encoding_desc" => "Character set for this host's terminal. Default UTF-8.",
         "connection_failed_log" => "Connection failed with connection log:",
         "connecting_status" => "Connecting...",
@@ -1172,9 +1017,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "proxy_type_identity_fallback" => "Saved proxy",
         "proxy_type_identity_deleted" => "(deleted proxy)",
         "proxy_identity_err_label_required" => "Label is required",
-        "proxy_identity_err_command_unsupported" => {
-            "Command-type proxies must be configured inline on the host, not as a saved identity"
-        }
+        "proxy_identity_err_command_unsupported" => "Command-type proxies must be configured inline on the host, not as a saved identity",
         "proxy_identity_err_invalid_kind" => "Invalid proxy kind for a saved identity",
 
         // Dashboard root sections (Termius-style Groups + Hosts split)
@@ -1182,17 +1025,11 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "hosts_section" => "Hosts",
         "flatten_hosts_label" => "Show all hosts at root",
         "card_accent_glass_label" => "Accent glass cards",
-        "card_accent_glass_desc" => {
-            "Soft per-colour wash on dashboard cards (host/group colour fading across)."
-        }
+        "card_accent_glass_desc" => "Soft per-colour wash on dashboard cards (host/group colour fading across).",
         "show_host_address_label" => "Show host address",
-        "show_host_address_desc" => {
-            "Show user@host:port on host cards. Off by default keeps addresses out of screenshots. Port 22 is always omitted."
-        }
+        "show_host_address_desc" => "Show user@host:port on host cards. Off by default keeps addresses out of screenshots. Port 22 is always omitted.",
         "privacy_mode_label" => "Privacy mode",
-        "privacy_mode_desc" => {
-            "Auto-hide sensitive data (host, IP, user, port, proxy) behind muted blocks, revealed on hover. In the terminal, IPs and user@host prompt tokens are masked too. Off by default. Set per host in the host editor."
-        }
+        "privacy_mode_desc" => "Auto-hide sensitive data (host, IP, user, port, proxy) behind muted blocks, revealed on hover. In the terminal, IPs and user@host prompt tokens are masked too. Off by default. Set per host in the host editor.",
         "privacy_class_public_ips" => "Mask public IP addresses",
         "privacy_class_private_ips" => "Mask private and loopback IPs",
         "privacy_class_usernames" => "Mask usernames",
@@ -1204,13 +1041,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "privacy_toast_session_off" => "Privacy Mode forced off for this session",
         "privacy_toast_follow" => "Privacy Mode following settings again",
         "privacy_always_mask_label" => "Always mask these words",
-        "privacy_always_mask_desc" => {
-            "Comma-separated. Masked wherever they appear (terminal, session logs, labels), like saved hostnames. Minimum 4 characters."
-        }
+        "privacy_always_mask_desc" => "Comma-separated. Masked wherever they appear (terminal, session logs, labels), like saved hostnames. Minimum 4 characters.",
         "privacy_never_mask_label" => "Never mask these usernames",
-        "privacy_never_mask_desc" => {
-            "Comma-separated. Saved connection usernames are masked unless listed here. Pre-filled with common shared usernames (root, ubuntu, ...) so everyday output stays readable."
-        }
+        "privacy_never_mask_desc" => "Comma-separated. Saved connection usernames are masked unless listed here. Pre-filled with common shared usernames (root, ubuntu, ...) so everyday output stays readable.",
         "host_privacy_mode" => "Privacy mode",
         "quirks_section_title" => "Advanced terminal",
         "quirks_applies_next_connect" => "Applies on the next connection to this host.",
@@ -1243,15 +1076,11 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "host_privacy_mode_off" => "Off",
         "privacy_reveal" => "Reveal",
         "privacy_hide" => "Hide",
-        "flatten_hosts_desc" => {
-            "When on, the dashboard root shows a Groups section above a flat list of every host. When off, hosts inside groups are hidden until you open the group."
-        }
+        "flatten_hosts_desc" => "When on, the dashboard root shows a Groups section above a flat list of every host. When off, hosts inside groups are hidden until you open the group.",
 
         // Sync passwords toggle
         "sync_passwords" => "Sync passwords across devices",
-        "sync_passwords_desc" => {
-            "When on, connection / identity / proxy passwords are mirrored to paired devices. Off keeps them device-local."
-        }
+        "sync_passwords_desc" => "When on, connection / identity / proxy passwords are mirrored to paired devices. Off keeps them device-local.",
 
         // Layout direction (Settings → Appearance)
         "layout_direction" => "Layout Direction",
@@ -1271,9 +1100,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "auth_interactive" => "Interactive",
         "auth_password_prompt" => "Password (ask)",
         "auth_password_prompt_title" => "Enter Password",
-        "auth_password_prompt_note" => {
-            "You'll be asked for the password on every connect. It is never saved."
-        }
+        "auth_password_prompt_note" => "You'll be asked for the password on every connect. It is never saved.",
 
         "snippet_btn" => "SNIPPET",
         "commands" => "Commands",
@@ -1283,18 +1110,14 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         "re_verify_all" => "Re-verify all",
         "no_known_hosts_yet" => "No known hosts yet",
-        "known_hosts_empty_desc" => {
-            "Entries appear here when you connect and approve a host's fingerprint."
-        }
+        "known_hosts_empty_desc" => "Entries appear here when you connect and approve a host's fingerprint.",
         "last_seen" => "Last seen:",
 
         "icon" => "Icon",
         "background_color" => "Background color",
         "icon_search" => "Search icons",
         "custom_icon" => "Custom icon",
-        "custom_icon_desc" => {
-            "Override the auto-detected icon and color. Use \u{201c}Reset to auto\u{201d} to let OS detection drive it again."
-        }
+        "custom_icon_desc" => "Override the auto-detected icon and color. Use \u{201c}Reset to auto\u{201d} to let OS detection drive it again.",
         "reset_to_auto" => "Reset to auto",
 
         "new_tab" => "New Tab",
@@ -1354,14 +1177,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "private_key" => "Private Key",
         "key_passphrase_label" => "Key Passphrase",
         "key_passphrase_placeholder" => "Passphrase",
-        "key_passphrase_hint" => {
-            "This key is encrypted. Enter the passphrase once: it will be used to decrypt the key, then discarded. The decrypted key is stored inside the vault, which is already encrypted with your master password."
-        }
+        "key_passphrase_hint" => "This key is encrypted. Enter the passphrase once: it will be used to decrypt the key, then discarded. The decrypted key is stored inside the vault, which is already encrypted with your master password.",
         "key_passphrase_wrong" => "Wrong passphrase. Please try again.",
         "key_passphrase_required_msg" => "Enter the key passphrase to continue.",
-        "key_unsupported_kind" => {
-            "Unsupported key type: {kind}. Use Ed25519, RSA, or ECDSA (P-256 or P-384)."
-        }
+        "key_unsupported_kind" => "Unsupported key type: {kind}. Use Ed25519, RSA, or ECDSA (P-256 or P-384).",
         "key_not_found" => "Key not found.",
         "key_certificate_removed" => "Certificate removed",
         "key_select_file_first" => "Select a key file first",
@@ -1374,9 +1193,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "use_totp" => "Use TOTP (2FA)",
         "totp_invalid" => "Invalid TOTP secret (use a Base32 code or an otpauth:// link)",
         "auto_lock_minutes" => "Auto-lock vault (minutes, 0 = off)",
-        "setting_auto_lock_desc" => {
-            "Lock the vault after this many minutes without keyboard or mouse activity. Open SSH sessions stay alive behind the lock screen and are back after unlocking (the manual Lock Vault button still closes them)."
-        }
+        "setting_auto_lock_desc" => "Lock the vault after this many minutes without keyboard or mouse activity. Open SSH sessions stay alive behind the lock screen and are back after unlocking (the manual Lock Vault button still closes them).",
         "biometric_unlock" => "Unlock with biometrics",
         "biometric_unlock_windows" => "Unlock with Windows Hello",
         "biometric_unlock_macos" => "Unlock with Touch ID",
@@ -1389,12 +1206,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "setup_biometric_linux" => "Also enable login keyring unlock",
         "biometric_unlock_subtitle" => "Confirm it's you to unlock.",
         "use_master_password" => "Use master password instead",
-        "biometric_unlock_desc" => {
-            "Unlock this app with your device's biometrics (Windows Hello, Touch ID) or, on Linux, your login keyring. Your master password is stored in the operating system's protected keystore. Windows and macOS release it only after a presence check (biometrics or PIN); on Linux it is available to your session whenever the login keyring is unlocked. This unlocks the app only; it is not SSH authentication, and the vault stays encrypted with your password either way."
-        }
-        "biometric_unlock_failed" => {
-            "Biometric unlock was cancelled or is unavailable. Enter your master password."
-        }
+        "biometric_unlock_desc" => "Unlock this app with your device's biometrics (Windows Hello, Touch ID) or, on Linux, your login keyring. Your master password is stored in the operating system's protected keystore. Windows and macOS release it only after a presence check (biometrics or PIN); on Linux it is available to your session whenever the login keyring is unlocked. This unlocks the app only; it is not SSH authentication, and the vault stays encrypted with your password either way.",
+        "biometric_unlock_failed" => "Biometric unlock was cancelled or is unavailable. Enter your master password.",
         "api_url" => "API URL",
         "loaded_bytes" => "Loaded ({bytes} bytes)",
         "edit_identity" => "Edit Identity",
@@ -1438,9 +1251,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "archive_compressing" => "Compressing...",
         "archive_copying" => "Copying from archive...",
         "archive_no_tools" => "No archive tool found on the server",
-        "archive_read_only" => {
-            "Archive contents are read-only. Close the archive to modify this pane."
-        }
+        "archive_read_only" => "Archive contents are read-only. Close the archive to modify this pane.",
         "archive_unsafe_skipped" => "{n} entries with unsafe paths were hidden",
         "archive_log_browsing" => "Browsing archive",
         "archive_log_extracted" => "Extracted",
@@ -1487,29 +1298,21 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "monitor_disk" => "Disks",
         "monitor_sampling" => "Sampling...",
         "monitor_enable_host" => "Monitor this host",
-        "monitor_opt_in_hint" => {
-            "Monitoring reads CPU, memory, load and disk usage from this host over the open session. Nothing is installed on the server."
-        }
+        "monitor_opt_in_hint" => "Monitoring reads CPU, memory, load and disk usage from this host over the open session. Nothing is installed on the server.",
         "monitor_requires_host" => "Monitoring is only available for saved hosts.",
         "monitor_probe_failed" => "Probe failed",
         "monitor_status_bar" => "Host vitals in the status bar",
-        "monitor_status_bar_desc" => {
-            "Show CPU, memory, network and the busiest disk of the monitored host. Needs monitoring enabled on that host."
-        }
+        "monitor_status_bar_desc" => "Show CPU, memory, network and the busiest disk of the monitored host. Needs monitoring enabled on that host.",
         "monitor_ports" => "Listening ports",
         "monitor_forward_port" => "Forward this port locally",
         "monitor_interval" => "Monitoring interval (s)",
-        "monitor_interval_desc" => {
-            "Seconds between host-monitor probes while the Monitor tab or its status-bar segment is showing. Minimum 2."
-        }
+        "monitor_interval_desc" => "Seconds between host-monitor probes while the Monitor tab or its status-bar segment is showing. Minimum 2.",
         "monitor_alert_cpu" => "{host}: CPU above 90%",
         "monitor_alert_mem" => "{host}: memory above 90%",
         "monitor_alert_disk" => "{host}: {mount} above 95% full",
         "sftp_no_editor_configured" => "No default editor configured. Set one in Settings > SFTP.",
         "sftp_edit_prompt_title" => "File modified",
-        "sftp_edit_prompt_text" => {
-            "The file '{file}' has been modified. Replace the remote file on {host}?"
-        }
+        "sftp_edit_prompt_text" => "The file '{file}' has been modified. Replace the remote file on {host}?",
         "sftp_edit_yes_all" => "Yes to all",
         "sftp_edit_stop_watching" => "Stop editing",
         "sftp_edit_autosave_btn" => "Autosave (don't ask again)",
@@ -1517,14 +1320,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sftp_edit_upload_failed" => "Upload failed",
         "sftp_edit_save_retry" => "Save the file again to retry.",
         "setting_default_editor" => "Default editor",
-        "setting_default_editor_desc" => {
-            "Application used by \"Open with default text editor\" on remote files."
-        }
+        "setting_default_editor_desc" => "Application used by \"Open with default text editor\" on remote files.",
         "setting_default_editor_placeholder" => "Path to an editor executable",
         "setting_edit_autosave_toggle" => "Auto-upload edited files",
-        "setting_edit_autosave_desc" => {
-            "Upload the remote copy automatically whenever the local temp file is saved, without asking. The save dialog's Autosave button turns this on."
-        }
+        "setting_edit_autosave_desc" => "Upload the remote copy automatically whenever the local temp file is saved, without asking. The save dialog's Autosave button turns this on.",
         "transfer_relaying" => "Relaying",
         "sftp_local_machine" => "This computer",
         "duplicate_n_items" => "Duplicate {n} items",
@@ -1534,9 +1333,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "files_follow_on_tip" => "Following the terminal directory. Click to stop.",
         "files_follow_off_tip" => "Follow the terminal directory",
         "setting_sftp_force_osc7" => "Force exact directory following (OSC 7)",
-        "setting_sftp_force_osc7_desc" => {
-            "The terminal Files sidebar follows the shell's directory. When the shell reports it via OSC 7, following is exact; otherwise Oryxis falls back to parsing the window title, which breaks with some prompts. This injects a small setup line on connect so the shell always reports OSC 7. bash/zsh only; it adds to the shell's PROMPT_COMMAND and cleans up its own output so nothing shows on screen."
-        }
+        "setting_sftp_force_osc7_desc" => "The terminal Files sidebar follows the shell's directory. When the shell reports it via OSC 7, following is exact; otherwise Oryxis falls back to parsing the window title, which breaks with some prompts. This injects a small setup line on connect so the shell always reports OSC 7. bash/zsh only; it adds to the shell's PROMPT_COMMAND and cleans up its own output so nothing shows on screen.",
         "setting_sftp_force_osc7_toggle" => "Inject OSC 7 emitter on connect",
         "files_mounting" => "Opening SFTP…",
         "files_empty" => "Empty folder",
@@ -1621,63 +1418,37 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "loading" => "Loading…",
 
         // Settings descriptions
-        "setting_keepalive_desc" => {
-            "How often (in seconds) to send SSH keepalive packets. Set to 0 to disable."
-        }
+        "setting_keepalive_desc" => "How often (in seconds) to send SSH keepalive packets. Set to 0 to disable.",
         "setting_scrollback_desc" => "Limit number of terminal rows. Set to 0 for maximum.",
-        "setting_font_desc" => {
-            "SauceCodePro Nerd Font is bundled (Source Code Pro patched with Powerline, Font Awesome, Devicons and Material icons); others rely on the system, if a font isn't installed, the OS falls back to its default monospace."
-        }
-        "setting_update_check_desc" => {
-            "Query GitHub on startup for newer releases. You'll see a modal with options to skip, defer, or install."
-        }
-        "setting_os_detect_desc" => {
-            "After the first successful SSH connect, silently run a probe (`cat /etc/os-release; uname -s`) to detect the remote OS and swap in a distro-specific icon on host cards."
-        }
-        "setting_reconnect_desc" => {
-            "Silently retry disconnected SSH sessions every 30 seconds, up to the limit below."
-        }
+        "setting_font_desc" => "SauceCodePro Nerd Font is bundled (Source Code Pro patched with Powerline, Font Awesome, Devicons and Material icons); others rely on the system, if a font isn't installed, the OS falls back to its default monospace.",
+        "setting_update_check_desc" => "Query GitHub on startup for newer releases. You'll see a modal with options to skip, defer, or install.",
+        "setting_os_detect_desc" => "After the first successful SSH connect, silently run a probe (`cat /etc/os-release; uname -s`) to detect the remote OS and swap in a distro-specific icon on host cards.",
+        "setting_reconnect_desc" => "Silently retry disconnected SSH sessions every 30 seconds, up to the limit below.",
         "transfer_parallelism" => "Transfer parallelism",
-        "setting_sftp_concurrency_desc" => {
-            "Concurrent SFTP transfers per session (1–8). Each slot opens its own subsystem channel, higher = faster bulk transfers, more bandwidth pressure."
-        }
+        "setting_sftp_concurrency_desc" => "Concurrent SFTP transfers per session (1–8). Each slot opens its own subsystem channel, higher = faster bulk transfers, more bandwidth pressure.",
         "ai_model_placeholder" => "Model name...",
         "no_api_key" => "No API key set",
-        "ai_system_prompt_desc" => {
-            "Optional. Added to the default system prompt that includes terminal context and bash tool instructions."
-        }
+        "ai_system_prompt_desc" => "Optional. Added to the default system prompt that includes terminal context and bash tool instructions.",
         "ai_system_prompt_placeholder" => "Custom instructions for the AI assistant...",
         "additional_system_prompt" => "Additional System Instructions",
         "new_master_password_placeholder" => "New master password...",
         "confirm_master_password_placeholder" => "Confirm master password...",
         "passwords_do_not_match" => "Passwords do not match",
         "remove_password" => "Remove password",
-        "vault_set_password_desc" => {
-            "Set a master password to protect your vault. You will need to enter it each time you open Oryxis."
-        }
+        "vault_set_password_desc" => "Set a master password to protect your vault. You will need to enter it each time you open Oryxis.",
         "vault_protected_note" => "Your vault is protected with a master password.",
         "vault_importance_title" => "Why set a master password?",
-        "vault_importance_desc" => {
-            "Your vault stores SSH keys, host passwords and other credentials. Without a master password they are readable by anyone with access to this computer. Setting one encrypts the vault at rest, so it can only be opened with your password."
-        }
+        "vault_importance_desc" => "Your vault stores SSH keys, host passwords and other credentials. Without a master password they are readable by anyone with access to this computer. Setting one encrypts the vault at rest, so it can only be opened with your password.",
 
         // Welcome / onboarding carousel.
         "onboarding_welcome_title" => "Welcome to Oryxis",
-        "onboarding_welcome_body" => {
-            "A native SSH client that doubles as an encrypted vault for your connections, keys and secrets. Let's take a quick tour."
-        }
+        "onboarding_welcome_body" => "A native SSH client that doubles as an encrypted vault for your connections, keys and secrets. Let's take a quick tour.",
         "onboarding_vault_title" => "Your encrypted vault",
-        "onboarding_vault_body" => {
-            "Host passwords, SSH keys and proxy credentials live in a single local vault, encrypted with Argon2id and ChaCha20-Poly1305. Local-first: nothing leaves your machine unless you choose to sync."
-        }
+        "onboarding_vault_body" => "Host passwords, SSH keys and proxy credentials live in a single local vault, encrypted with Argon2id and ChaCha20-Poly1305. Local-first: nothing leaves your machine unless you choose to sync.",
         "onboarding_connect_title" => "Connect to anything",
-        "onboarding_connect_body" => {
-            "Open hosts in an embedded terminal with jump chains, SFTP, port forwarding and one-click cloud targets (AWS, Kubernetes)."
-        }
+        "onboarding_connect_body" => "Open hosts in an embedded terminal with jump chains, SFTP, port forwarding and one-click cloud targets (AWS, Kubernetes).",
         "onboarding_sync_title" => "Sync and AI",
-        "onboarding_sync_body" => {
-            "Opt-in peer-to-peer sync keeps your vault in step across devices, and a per-session AI assistant helps you right inside the terminal."
-        }
+        "onboarding_sync_body" => "Opt-in peer-to-peer sync keeps your vault in step across devices, and a per-session AI assistant helps you right inside the terminal.",
         "onboarding_password_title" => "Protect your vault",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "Passwords, SSH keys and proxy credentials in one place",
@@ -1695,24 +1466,18 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "onboarding_done" => "Done",
         "onboarding_later" => "Maybe later",
         "onboarding_replay_label" => "Welcome tour",
-        "onboarding_replay_desc" => {
-            "Replay the welcome carousel that introduces the vault and core features."
-        }
+        "onboarding_replay_desc" => "Replay the welcome carousel that introduces the vault and core features.",
         "onboarding_replay_btn" => "Show welcome tour",
         "vault_protected_title" => "Your vault is protected",
         "vault_remove_confirm_title" => "Remove the master password?",
-        "vault_remove_confirm_desc" => {
-            "Your vault will no longer be encrypted at rest. Anyone with access to this computer will be able to read your stored keys and credentials."
-        }
+        "vault_remove_confirm_desc" => "Your vault will no longer be encrypted at rest. Anyone with access to this computer will be able to read your stored keys and credentials.",
         "update_password" => "Update password",
         "change_password_title" => "Change master password",
         "current_master_password_placeholder" => "Current master password...",
         "current_password_incorrect" => "Current password is incorrect",
         "password_updated" => "Master password updated",
         "ssh_config_import" => "SSH config import",
-        "ssh_config_import_desc" => {
-            "Pick an OpenSSH config file (defaults to ~/.ssh/config). Each `Host` block becomes a connection record; wildcards and existing labels are skipped."
-        }
+        "ssh_config_import_desc" => "Pick an OpenSSH config file (defaults to ~/.ssh/config). Each `Host` block becomes a connection record; wildcards and existing labels are skipped.",
         "import_ssh_config_btn" => "Import ~/.ssh/config",
         "export_hosts" => "Export hosts",
         "export_groups" => "Folders to include",
@@ -1732,25 +1497,19 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "terminal_link_hint" => "Hold Ctrl and click to open the link.",
         "mouse_capture_hint" => "Mouse mode active. Hold Shift to select text.",
         "terminal_hints" => "Terminal hints",
-        "terminal_hints_desc" => {
-            "When to show teaching hints like the mouse-capture toast and the Ctrl + Click link tip."
-        }
+        "terminal_hints_desc" => "When to show teaching hints like the mouse-capture toast and the Ctrl + Click link tip.",
         "hint_mode_always" => "Always show",
         "hint_mode_once" => "Once per tab",
         "hint_mode_never" => "Never show",
         "reset_hints" => "Reset hints",
         "reset_hints_desc" => "Show all one-time tips and hints again.",
-        "ai_key_saved_placeholder" => {
-            "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} saved, type to replace"
-        }
+        "ai_key_saved_placeholder" => "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} saved, type to replace",
         "host_count_one" => "1 host",
         "host_count_other" => "hosts",
         "line_count_one" => "1 line",
         "line_count_other" => "lines",
         "careful_paste_label" => "Warn before multi-line paste",
-        "careful_paste_desc" => {
-            "Preview and confirm before pasting text with line breaks, so a hidden trailing newline can't run a command."
-        }
+        "careful_paste_desc" => "Preview and confirm before pasting text with line breaks, so a hidden trailing newline can't run a command.",
         "careful_paste_title" => "Paste multiple lines?",
         "careful_paste_trailing" => "Ends with a line break, the last line will run immediately.",
         "careful_paste_confirm" => "Paste",
@@ -1762,56 +1521,34 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "tab_bar_position_bottom" => "Bottom",
         "tab_bar_position_left" => "Left",
         "tab_bar_position_right" => "Right",
-        "tab_bar_position_desc" => {
-            "Bottom docks the tab strip above the status bar; Left / Right dock it as a vertical tab list on that side. The window buttons stay in a slim top bar."
-        }
+        "tab_bar_position_desc" => "Bottom docks the tab strip above the status bar; Left / Right dock it as a vertical tab list on that side. The window buttons stay in a slim top bar.",
         "inactive_tab_style" => "Inactive tab style",
         "inactive_tab_style_none" => "None",
         "inactive_tab_style_border" => "Border",
         "inactive_tab_style_underline" => "Underline",
-        "inactive_tab_style_desc" => {
-            "How inactive tabs are set apart. Border outlines each one; Underline draws a rule on the tab's inner edge, which follows the strip (bottom on a top strip, the side on a vertical one)."
-        }
+        "inactive_tab_style_desc" => "How inactive tabs are set apart. Border outlines each one; Underline draws a rule on the tab's inner edge, which follows the strip (bottom on a top strip, the side on a vertical one).",
         "pinned_tabs_top_bar" => "Pinned tabs in the top bar",
-        "pinned_tabs_top_bar_desc" => {
-            "Pinned tabs dock next to Home in the top bar. If the top bar is hidden, they become a fixed group at the top of the strip."
-        }
+        "pinned_tabs_top_bar_desc" => "Pinned tabs dock next to Home in the top bar. If the top bar is hidden, they become a fixed group at the top of the strip.",
         "side_hide_top_bar" => "Hide the top bar",
-        "side_hide_top_bar_desc" => {
-            "The window buttons and Home move into the tab strip; its empty area drags the window and a double click maximizes."
-        }
+        "side_hide_top_bar_desc" => "The window buttons and Home move into the tab strip; its empty area drags the window and a double click maximizes.",
         "side_full_height" => "Full-height tab strip",
-        "side_full_height_desc" => {
-            "The strip reaches the bottom edge of the window; the status bar spans only the content area."
-        }
+        "side_full_height_desc" => "The strip reaches the bottom edge of the window; the status bar spans only the content area.",
         "import_summary_imported" => "Imported hosts:",
         "import_summary_skipped" => "skipped, label already exists",
         "password_too_short" => "Password must be at least 4 characters",
-        "vault_already_has_password" => {
-            "This vault already has a password. Enter it above to unlock."
-        }
-        "ecs_exec_group_missing" => {
-            "The cloud group behind this session no longer exists. Unpin the tab and reconnect from the dashboard."
-        }
+        "vault_already_has_password" => "This vault already has a password. Enter it above to unlock.",
+        "ecs_exec_group_missing" => "The cloud group behind this session no longer exists. Unpin the tab and reconnect from the dashboard.",
         "cloud_session_ended" => "session ended",
         "cloud_session_ended_hint" => "session ended, select this tab again to reconnect",
         "update_check_available" => "Update available:",
         "connect_timeout" => "Connect timeout (s)",
-        "connect_timeout_desc" => {
-            "How long to wait for the TCP connect + SSH transport handshake before failing fast. Default 15."
-        }
+        "connect_timeout_desc" => "How long to wait for the TCP connect + SSH transport handshake before failing fast. Default 15.",
         "auth_timeout" => "Auth timeout (s)",
-        "auth_timeout_desc" => {
-            "Cap on the authentication phase. Long enough to cover password + 2FA prompts. Default 30."
-        }
+        "auth_timeout_desc" => "Cap on the authentication phase. Long enough to cover password + 2FA prompts. Default 30.",
         "channel_open_timeout" => "Channel open timeout (s)",
-        "channel_open_timeout_desc" => {
-            "How long a single SFTP / PTY / sibling channel-open is allowed to take before erroring. Default 10."
-        }
+        "channel_open_timeout_desc" => "How long a single SFTP / PTY / sibling channel-open is allowed to take before erroring. Default 10.",
         "operation_timeout" => "Operation timeout (s)",
-        "operation_timeout_desc" => {
-            "Per-request cap (list, read, write, rename). Bounds the \"Loading…\" state when the remote stops responding. Applies live to the active session. Default 30."
-        }
+        "operation_timeout_desc" => "Per-request cap (list, read, write, rename). Bounds the \"Loading…\" state when the remote stops responding. Applies live to the active session. Default 30.",
         "sync_mode_auto" => "Auto",
         "sync_mode_manual" => "Manual",
         "built_with" => "Built with",
@@ -1821,26 +1558,18 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Plugins panel
         "plugins" => "Plugins",
         "features_and_plugins" => "Features & Plugins",
-        "update_replace_failed" => {
-            "Couldn't replace the running app automatically. Open the release page to update manually."
-        }
+        "update_replace_failed" => "Couldn't replace the running app automatically. Open the release page to update manually.",
         "features" => "Features",
         "feature_ai_desc" => "In-terminal AI chat that can run commands on the connected server.",
         "feature_sftp_desc" => "Browse and transfer files over SSH with a dual-pane manager.",
         "feature_monitoring" => "Host monitoring",
-        "feature_monitoring_desc" => {
-            "Live CPU, memory, disk, network and listening ports of a host, read over the open session. Adds a Monitor sidebar tab and an optional status-bar readout."
-        }
+        "feature_monitoring_desc" => "Live CPU, memory, disk, network and listening ports of a host, read over the open session. Adds a Monitor sidebar tab and an optional status-bar readout.",
         "settings_section_monitoring" => "Monitoring",
         "monitor_all_hosts" => "Enable for all hosts",
-        "monitor_all_hosts_desc" => {
-            "Monitor every host with a live session, without opting in each one. The per-host toggle in the host editor is locked while this is on."
-        }
+        "monitor_all_hosts_desc" => "Monitor every host with a live session, without opting in each one. The per-host toggle in the host editor is locked while this is on.",
         "monitor_enable_host_all" => "Monitored (all hosts)",
         "feature_sync_desc" => "Encrypted peer-to-peer sync of your vault across your devices.",
-        "feature_remote_desktop_desc" => {
-            "RDP/VNC hosts, reached directly or tunnelled through an SSH gateway."
-        }
+        "feature_remote_desktop_desc" => "RDP/VNC hosts, reached directly or tunnelled through an SSH gateway.",
         "plugins_subtitle" => "Manage downloaded cloud-provider plugins.",
         "plugins_empty" => "No plugins available yet.",
         "plugins_auto_update_global" => "Auto-update all",
@@ -1860,9 +1589,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "plugin_uninstall_confirm_title" => "Remove plugin?",
         "log_delete_confirm_title" => "Delete recording?",
         "log_retention_label" => "Auto-delete logs",
-        "setting_log_retention_desc" => {
-            "Automatically delete connection events and finished session recordings older than the selected age. In-progress recordings are never removed."
-        }
+        "setting_log_retention_desc" => "Automatically delete connection events and finished session recordings older than the selected age. In-progress recordings are never removed.",
         "log_retention_off" => "Never",
         "log_retention_1d" => "1 day",
         "log_retention_3d" => "3 days",
@@ -1872,48 +1599,32 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "log_retention_90d" => "3 months",
         "log_delete_confirm_body" => "this session recording is permanently deleted.",
         "known_host_remove_confirm_title" => "Remove host key?",
-        "known_host_remove_confirm_body" => {
-            "this host key is removed; you'll verify it again on the next connection."
-        }
+        "known_host_remove_confirm_body" => "this host key is removed; you'll verify it again on the next connection.",
         "known_hosts_clear_confirm_title" => "Re-verify all hosts?",
-        "known_hosts_clear_confirm_body" => {
-            "Every saved host key is removed; you'll verify each host again on the next connection."
-        }
-        "plugin_uninstall_confirm_body" => {
-            "the downloaded binaries are deleted from this machine. You can reinstall from this panel at any time."
-        }
+        "known_hosts_clear_confirm_body" => "Every saved host key is removed; you'll verify each host again on the next connection.",
+        "plugin_uninstall_confirm_body" => "the downloaded binaries are deleted from this machine. You can reinstall from this panel at any time.",
         "plugin_action_check_updates" => "Check for updates",
         "plugin_action_retry" => "Retry",
         "plugin_pinned" => "Pinned to",
         "plugin_install_modal_title" => "Install",
-        "plugin_install_modal_body" => {
-            "This downloads the plugin binary into a local cache. It can be updated or removed independently of the app."
-        }
+        "plugin_install_modal_body" => "This downloads the plugin binary into a local cache. It can be updated or removed independently of the app.",
         "plugin_install_modal_size" => "Download size",
-        "plugin_install_modal_unknown_size" => {
-            "Download size unavailable (could not reach the plugin host)."
-        }
+        "plugin_install_modal_unknown_size" => "Download size unavailable (could not reach the plugin host).",
         "plugin_changelog" => "What's new",
         "plugin_install_confirm" => "Install",
-        "plugin_err_no_manifest" => {
-            "Could not reach the plugin host. Check your connection and try again."
-        }
+        "plugin_err_no_manifest" => "Could not reach the plugin host. Check your connection and try again.",
         "plugin_err_binary_not_found" => "Plugin binary not found in cache.",
         "plugin_err_spawn" => "Could not launch plugin process.",
         "plugin_err_process_gone" => "Plugin process exited unexpectedly.",
         "plugin_err_timeout" => "Plugin call timed out.",
         "plugin_err_protocol" => "Plugin protocol error.",
-        "plugin_err_version_mismatch" => {
-            "Plugin and app do not share a protocol version. Update one side."
-        }
+        "plugin_err_version_mismatch" => "Plugin and app do not share a protocol version. Update one side.",
         "plugin_err_provider" => "Plugin call failed.",
         "plugin_err_manifest" => "Could not read plugin manifest. Check the host and try again.",
         "plugin_err_download" => "Plugin download failed. Check your connection.",
         "plugin_err_integrity" => "Plugin integrity check failed. Install refused.",
         "plugin_err_io" => "Disk error while installing plugin.",
-        "plugin_err_needs_update" => {
-            "A plugin release exists, but it requires a newer version of Oryxis. Update the app to install it."
-        }
+        "plugin_err_needs_update" => "A plugin release exists, but it requires a newer version of Oryxis. Update the app to install it.",
         "toggle_on" => "ON",
         "toggle_off" => "OFF",
 
@@ -1924,21 +1635,15 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mcp_token_hide" => "Hide",
         "mcp_token_copy" => "Copy",
         "mcp_token_regenerate" => "Regenerate",
-        "mcp_token_desc" => {
-            "Required by every MCP client. Regenerating invalidates the previous value, re-run Install to refresh the Claude Code config."
-        }
-        "mcp_vault_pw_note" => {
-            "This vault has a master password. The MCP server needs it (env ORYXIS_VAULT_PASSWORD) or it exits at startup and the client reports the connection as failed."
-        }
+        "mcp_token_desc" => "Required by every MCP client. Regenerating invalidates the previous value, re-run Install to refresh the Claude Code config.",
+        "mcp_vault_pw_note" => "This vault has a master password. The MCP server needs it (env ORYXIS_VAULT_PASSWORD) or it exits at startup and the client reports the connection as failed.",
         "mcp_vault_pw_include" => "Include vault password",
         "mcp_vault_pw_confirm_prompt" => "Type your master password to include it in the config:",
         "mcp_vault_pw_placeholder" => "Master password",
         "mcp_vault_pw_confirm" => "Confirm",
         "mcp_vault_pw_wrong" => "Wrong password",
         "mcp_vault_pw_included" => "Vault password included in the config.",
-        "mcp_vault_pw_plaintext_warning" => {
-            "It is written as plain text; anyone who can read the config file can unlock your vault."
-        }
+        "mcp_vault_pw_plaintext_warning" => "It is written as plain text; anyone who can read the config file can unlock your vault.",
         "mcp_vault_pw_removed" => "Vault password removed from the client config.",
         "mcp_vault_pw_remove_failed" => "Could not remove the password from the config:",
 
@@ -1947,14 +1652,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         // Suffix appended after the provider name ("AWS", "Kubernetes")
         // to form the banner title, so it reads per the selected provider.
         "cloud_plugin_missing_title_suffix" => "plugin not installed",
-        "cloud_plugin_missing_body" => {
-            "Test Credentials and Discover Hosts need this provider's plugin. Install it to use this account."
-        }
+        "cloud_plugin_missing_body" => "Test Credentials and Discover Hosts need this provider's plugin. Install it to use this account.",
         // Cloud Accounts: no provider plugin installed at all
         "cloud_no_provider_title" => "No cloud provider installed",
-        "cloud_no_provider_desc" => {
-            "Cloud accounts discover and import hosts from providers like AWS and Kubernetes. Install a provider plugin to add an account."
-        }
+        "cloud_no_provider_desc" => "Cloud accounts discover and import hosts from providers like AWS and Kubernetes. Install a provider plugin to add an account.",
         "cloud_no_provider_btn" => "Open Plugins",
 
         // Sort dropdown (Hosts / Keychain / Snippets toolbars)
@@ -1969,9 +1670,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "new_port_forward" => "New Port Forward",
         "edit_port_forward" => "Edit Port Forward",
         "create_port_forward_title" => "Forward a port",
-        "create_port_forward_desc" => {
-            "Keep a tunnel open without a terminal: databases, dashboards, webhooks."
-        }
+        "create_port_forward_desc" => "Keep a tunnel open without a terminal: databases, dashboards, webhooks.",
         "search_port_forwards" => "Search port forwards...",
         "search_cloud_accounts" => "Search accounts...",
         "search_proxies" => "Search proxies...",
@@ -1982,15 +1681,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "pf_target_host" => "Target host",
         "pf_target_port" => "Target port",
         "pf_auto_start" => "Start automatically on launch",
-        "pf_auto_start_hint" => {
-            "If it can't connect it keeps retrying (for example while the SSH key isn't loaded yet), and reconnects on its own if the tunnel drops."
-        }
-        "gateway_ports_hint" => {
-            "Binding 0.0.0.0 requires \"GatewayPorts yes\" in the server's sshd_config."
-        }
-        "socks_open_proxy_hint" => {
-            "A dynamic SOCKS forward is unauthenticated. Bound to a non-loopback address it is an open proxy into the remote network for anyone who can reach this machine. Use 127.0.0.1 unless you intend to share it."
-        }
+        "pf_auto_start_hint" => "If it can't connect it keeps retrying (for example while the SSH key isn't loaded yet), and reconnects on its own if the tunnel drops.",
+        "gateway_ports_hint" => "Binding 0.0.0.0 requires \"GatewayPorts yes\" in the server's sshd_config.",
+        "socks_open_proxy_hint" => "A dynamic SOCKS forward is unauthenticated. Bound to a non-loopback address it is an open proxy into the remote network for anyone who can reach this machine. Use 127.0.0.1 unless you intend to share it.",
         "pf_on" => "ON",
         "pf_off" => "OFF",
         "pf_starting" => "...",
@@ -2000,14 +1693,13 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "pf_err_port" => "Ports must be between 1 and 65535",
         "pf_unknown_host" => "unknown host",
 
+
         "cjk_font_downloading" => "Downloading language font...",
         "cjk_font_failed" => "Couldn't download the language font, using the system font.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certificate",
-        "certificate_desc" => {
-            "Optional signed user certificate (an OpenSSH -cert.pub line) offered during publickey auth."
-        }
+        "certificate_desc" => "Optional signed user certificate (an OpenSSH -cert.pub line) offered during publickey auth.",
         "cert_attach" => "Certificate attached",
         "cert_browse" => "Browse...",
         "cert_detected_hint" => "Certificate detected next to the key file",
@@ -2039,15 +1731,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "import_public_key" => "Import public key",
         "key_badge_security_key" => "Security key",
         "preferred_agent_key" => "Optional: this key's agent identity is offered first at connect.",
-        "pkcs11_help" => {
-            "Hardware keys reach the agent via ssh-add: -K loads FIDO2 resident keys, -s <module> loads PKCS#11 smartcards."
-        }
-        "sk_agent_hint" => {
-            "Security-key identities must be loaded into the OS ssh-agent first (ssh-add -K with the token plugged in)."
-        }
-        "public_key_only_error" => {
-            "That looks like private key material; paste it into the Private Key field instead."
-        }
+        "pkcs11_help" => "Hardware keys reach the agent via ssh-add: -K loads FIDO2 resident keys, -s <module> loads PKCS#11 smartcards.",
+        "sk_agent_hint" => "Security-key identities must be loaded into the OS ssh-agent first (ssh-add -K with the token plugged in).",
+        "public_key_only_error" => "That looks like private key material; paste it into the Private Key field instead.",
 
         _ => "???",
     }

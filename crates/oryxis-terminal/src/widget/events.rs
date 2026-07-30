@@ -1137,49 +1137,6 @@ where
                         }
                         Some(CanvasAction::capture())
                     }
-                    TerminalChordAction::CopyPaste => {
-                        // Copy the live selection to the clipboard,
-                        // then fire the paste callback so the dispatcher
-                        // routes the clipboard text into the active SSH
-                        // session (or local PTY). Finally clear the
-                        // selection so the highlight disappears, matching
-                        // the convention where paste consumes the
-                        // selection.
-                        let mut paste_msg: Option<canvas::Action<Message>> = None;
-                        if let Some(ref sel) = widget_state.selection
-                            && !sel.is_empty()
-                            && let Ok(state) = self.state.lock()
-                        {
-                            let text = state.get_selection_text(sel);
-                            drop(state);
-                            if !text.is_empty() {
-                                set_clipboard_text(&text);
-                            }
-                            if let Some(msg) = self.on_paste_request.clone() {
-                                paste_msg = Some(CanvasAction::publish(msg));
-                            }
-                        } else if let Some(msg) = self.on_paste_request.clone() {
-                            // No live selection: still paste (the
-                            // clipboard may carry text from a prior
-                            // copy in another app).
-                            paste_msg = Some(CanvasAction::publish(msg));
-                        }
-                        // Clear the selection regardless of whether
-                        // there was text to copy.
-                        widget_state.selection = None;
-                        widget_state.select_anchor = None;
-                        widget_state.selecting = false;
-                        if paste_msg.is_some() {
-                            // Fire the paste AND request a redraw (to
-                            // clear the highlight) in one batch. iced
-                            // `CanvasAction` doesn't combine, so we
-                            // return the paste (the app's message
-                            // path will trigger its own update cycle).
-                            paste_msg
-                        } else {
-                            Some(CanvasAction::request_redraw().and_capture())
-                        }
-                    }
                     // Selects the entire buffer (scrollback + screen); copy
                     // stays a separate gesture (the copy chord, or
                     // copy-on-select on the next release).
@@ -1249,16 +1206,20 @@ where
                     }
                 };
             }
-            // Any other key press: if "reset scrollback on keypress" is
-            // enabled, jump back to the live edge. The selection is NO
-            // LONGER cleared on keypress: a selected block stays
-            // highlighted so the user can copy-paste it with the
-            // TerminalCopyPaste chord (Ctrl+Shift+X by default). The
-            // selection is cleared only by clicking blank space or by
-            // the CopyPaste chord itself. Bare modifier presses (Ctrl /
-            // Shift / Alt / Super) must NOT reset the scroll, otherwise
-            // the first key of a copy chord (Ctrl, then Shift+C) would
-            // snap the view first.
+            // Any other key press dismisses a live selection, matching
+            // xterm / iTerm where typing or navigating clears the highlight
+            // (otherwise a stale selection lingers as a tinted band, e.g.
+            // over a full-screen TUI like mc that took over the screen after
+            // the selection was made), and, when enabled, jumps back to the
+            // live edge (PuTTY's "reset scrollback on keypress"). The
+            // keystroke is NOT captured: it must still reach the PTY through
+            // the global key subscription (an independent path), so we only
+            // drop the selection / reset the scroll and redraw. Bare modifier
+            // presses (Ctrl / Shift / Alt / Super) must NOT trigger either,
+            // otherwise the first key of a copy chord (Ctrl, then Shift+C)
+            // wipes the selection before the copy fires. The copy / select-
+            // all chords are handled by earlier arms that return first, so a
+            // copy is never treated as a terminal keystroke here.
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
                 if self.focused
                     && !matches!(
@@ -1272,10 +1233,17 @@ where
                                 | keyboard::key::Named::Meta
                         )
                     )
-                    && self.reset_scroll_on_keypress
-                    && widget_state.scroll_offset.get() != 0 =>
+                    && (widget_state.selection.is_some()
+                        || widget_state.select_anchor.is_some()
+                        || (self.reset_scroll_on_keypress
+                            && widget_state.scroll_offset.get() != 0)) =>
             {
-                widget_state.scroll_offset.set(0);
+                widget_state.selection = None;
+                widget_state.select_anchor = None;
+                widget_state.selecting = false;
+                if self.reset_scroll_on_keypress {
+                    widget_state.scroll_offset.set(0);
+                }
                 return Some(CanvasAction::request_redraw());
             }
             _ => {}

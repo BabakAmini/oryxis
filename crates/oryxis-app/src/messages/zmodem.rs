@@ -7,9 +7,9 @@ pub enum ZmodemMessage {
     /// A ZMODEM transfer streamed a progress / outcome event for a pane.
     /// Terminal states (Completed / Aborted / Error) clear the pane's
     /// transfer and resume the terminal.
-    ZmodemProgress(Uuid, oryxis_zmodem::Progress), // (pane_id, progress)
+    ZmodemProgress(Uuid, oryxis_zmodem::Progress),  // (pane_id, progress)
     /// User asked to cancel the pane's in-flight ZMODEM transfer.
-    ZmodemCancel(Uuid), // (pane_id)
+    ZmodemCancel(Uuid),  // (pane_id)
     /// Pick the folder ZMODEM downloads are saved into.
     PickZmodemDownloadDir,
     /// ZMODEM download folder chosen (or dialog dismissed with `None`).

@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use iced::keyboard::{self, Key, Modifiers, key::Named};
+use iced::keyboard::{self, key::Named, Key, Modifiers};
 
 /// Stable identifier for every editable action. Persisted to the
 /// settings table as `hotkey_<snake_case_name>` so renames are
@@ -36,8 +36,8 @@ pub enum HotkeyAction {
     /// Open a new SFTP browser tab.
     OpenSftp,
     // Tab strip
-    SwitchToTabSlot, // family: Ctrl + digit 1..9
-    CycleTabs,       // family: Alt + ArrowLeft/Right
+    SwitchToTabSlot,   // family: Ctrl + digit 1..9
+    CycleTabs,         // family: Alt + ArrowLeft/Right
     // Window
     ToggleFullscreen,
     // Font zoom (the three discrete keys; wheel zoom isn't editable)
@@ -116,12 +116,6 @@ pub enum HotkeyAction {
     /// "restart this host"), same handler either way. Terminal-only:
     /// there is no focused tab to reconnect anywhere else.
     ReconnectTab,
-    /// Copy the terminal selection AND paste it into the focused pane,
-    /// in one gesture. The selection is cleared after paste, matching
-    /// the xterm/iTerm convention where paste consumes the selection.
-    /// Like Paste this must be dispatched at app level so it can reach
-    /// an SSH session. Terminal-only (requires a focused pane).
-    TerminalCopyPaste,
 }
 
 impl HotkeyAction {
@@ -164,7 +158,6 @@ impl HotkeyAction {
             TogglePrivacyMode,
             TerminalCopy,
             TerminalPaste,
-            TerminalCopyPaste,
             TerminalSelectAll,
             ScrollbackPageUp,
             ScrollbackPageDown,
@@ -220,7 +213,6 @@ impl HotkeyAction {
             TerminalSelectAll => "terminal_select_all",
             ScrollbackPageUp => "scrollback_page_up",
             ScrollbackPageDown => "scrollback_page_down",
-            TerminalCopyPaste => "terminal_copy_paste",
         }
     }
 
@@ -276,7 +268,6 @@ impl HotkeyAction {
             TerminalSelectAll => "select_all",
             ScrollbackPageUp => "hotkey_scrollback_page_up",
             ScrollbackPageDown => "hotkey_scrollback_page_down",
-            TerminalCopyPaste => "hotkey_terminal_copy_paste",
         }
     }
 
@@ -300,7 +291,6 @@ impl HotkeyAction {
                 | ReconnectTab
                 | TerminalCopy
                 | TerminalPaste
-                | TerminalCopyPaste
                 | TerminalSelectAll
                 | ScrollbackPageUp
                 | ScrollbackPageDown
@@ -317,11 +307,7 @@ impl HotkeyAction {
         use HotkeyAction::*;
         matches!(
             self,
-            TerminalCopy
-                | TerminalSelectAll
-                | ScrollbackPageUp
-                | ScrollbackPageDown
-                | TerminalCopyPaste
+            TerminalCopy | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown
         )
     }
 
@@ -346,6 +332,7 @@ impl HotkeyAction {
                 | HotkeyAction::VaultSectionSlot
         )
     }
+
 }
 
 /// The non-modifier half of a binding.
@@ -1105,79 +1092,31 @@ pub fn default_bindings() -> HotkeyMap {
     // kill-line) that is_terminal_control_sequence() leaves with the
     // PTY, so the picker was unreachable from inside a live terminal.
     // The Shift lifts it out of that gate.
-    put(
-        &mut m,
-        ShowNewTabPicker,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('t'),
-    );
+    put(&mut m, ShowNewTabPicker, primary_ctrl, true, false, primary_logo, Char('t'));
     // Ctrl+Shift+J (Cmd+Shift+J on macOS), not plain Ctrl+J: a bare
     // Ctrl+letter is a terminal control sequence (Ctrl+J IS line feed,
     // emacs/readline accept-line) and is_terminal_control_sequence()
     // suppresses it inside the terminal view, which is exactly where
     // jumping between tabs is most useful (issue #100). The Shift lifts
     // it out of that gate, same rationale as OpenLocalShell below.
-    put(
-        &mut m,
-        ShowTabJump,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('j'),
-    );
+    put(&mut m, ShowTabJump, primary_ctrl, true, false, primary_logo, Char('j'));
     // Ctrl+Shift+P (Cmd+Shift+P on macOS), the VS Code convention. Plain
     // Ctrl+P is OpenPortForwards and a bare Ctrl+letter is a PTY control
     // sequence anyway; the Shift both frees it from that gate and clears
     // the OpenPortForwards binding (modifier match is exact).
-    put(
-        &mut m,
-        ShowCommandPalette,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('p'),
-    );
+    put(&mut m, ShowCommandPalette, primary_ctrl, true, false, primary_logo, Char('p'));
     // Ctrl+Shift+L (Cmd+Shift+L on macOS), not plain Ctrl+L: a bare
     // Ctrl+letter is a terminal control sequence (Ctrl+L = clear) and
     // is_terminal_control_sequence() suppresses it inside the terminal
     // view, which is exactly where opening a local shell is useful. The
     // Shift modifier lifts it out of that gate so the action fires
     // everywhere while plain Ctrl+L still reaches the PTY to clear.
-    put(
-        &mut m,
-        OpenLocalShell,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('l'),
-    );
-    put(
-        &mut m,
-        NewWindow,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('n'),
-    );
+    put(&mut m, OpenLocalShell, primary_ctrl, true, false, primary_logo, Char('l'));
+    put(&mut m, NewWindow, primary_ctrl, true, false, primary_logo, Char('n'));
     // Ctrl+N (Cmd+N on macOS): the Termius new-host convention. A bare
     // Ctrl+letter, so inside a terminal it stays with the PTY (readline
     // next-history), like Ctrl+K / Ctrl+P above.
-    put(
-        &mut m,
-        NewHost,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Char('n'),
-    );
+    put(&mut m, NewHost, primary_ctrl, false, false, primary_logo, Char('n'));
     // Ctrl+Shift+G (Cmd+Shift+G on macOS), issue #99. Moved off
     // Ctrl+Shift+T: that is the terminal-world "new tab" chord, which
     // the saved-host picker (the primary new-tab action) now owns; an
@@ -1188,281 +1127,66 @@ pub fn default_bindings() -> HotkeyMap {
     // Quick there would invite the exact wrong-modifier slip into
     // logout. The Shift lifts it out of the terminal control-sequence
     // gate so it fires from inside a live terminal too.
-    put(
-        &mut m,
-        ShowQuickConnect,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('g'),
-    );
+    put(&mut m, ShowQuickConnect, primary_ctrl, true, false, primary_logo, Char('g'));
     // Ctrl+Shift+R (Cmd+Shift+R on macOS): reconnect the focused tab,
     // the browser-reload mnemonic. NOT plain Ctrl+R: that is readline
     // reverse-history-search, which the control-sequence gate rightly
     // leaves with the PTY; the Shift lifts the chord out of that gate
     // so it fires from inside a live terminal, where a dropped session
     // is actually noticed.
-    put(
-        &mut m,
-        ReconnectTab,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('r'),
-    );
+    put(&mut m, ReconnectTab, primary_ctrl, true, false, primary_logo, Char('r'));
     // Keychain pair on Ctrl+Shift (Cmd+Shift on macOS): Shift lifts
     // both out of the terminal control-sequence gate; K mirrors the
     // key mnemonic (exact-modifier matching keeps it clear of the
     // plain Ctrl+K picker), I the identity one.
-    put(
-        &mut m,
-        NewKey,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('k'),
-    );
-    put(
-        &mut m,
-        NewIdentity,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('i'),
-    );
-    put(
-        &mut m,
-        CloseActiveTab,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('w'),
-    );
-    put(
-        &mut m,
-        OpenPortForwards,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Char('p'),
-    );
-    put(
-        &mut m,
-        OpenSettings,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Punct(","),
-    );
-    put(
-        &mut m,
-        FocusViewSearch,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Char('f'),
-    );
+    put(&mut m, NewKey, primary_ctrl, true, false, primary_logo, Char('k'));
+    put(&mut m, NewIdentity, primary_ctrl, true, false, primary_logo, Char('i'));
+    put(&mut m, CloseActiveTab, primary_ctrl, true, false, primary_logo, Char('w'));
+    put(&mut m, OpenPortForwards, primary_ctrl, false, false, primary_logo, Char('p'));
+    put(&mut m, OpenSettings, primary_ctrl, false, false, primary_logo, Punct(","));
+    put(&mut m, FocusViewSearch, primary_ctrl, false, false, primary_logo, Char('f'));
     // Ctrl+Shift+E (Cmd+Shift+E on macOS): Shift lifts it out of the terminal
     // control-sequence gate, same rationale as OpenLocalShell. Configurable.
-    put(
-        &mut m,
-        OpenSftp,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('e'),
-    );
-    put(
-        &mut m,
-        SwitchToTabSlot,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Digit1to9,
-    );
+    put(&mut m, OpenSftp, primary_ctrl, true, false, primary_logo, Char('e'));
+    put(&mut m, SwitchToTabSlot, primary_ctrl, false, false, primary_logo, Digit1to9);
     put(&mut m, CycleTabs, false, false, true, false, ArrowLeftRight);
-    put(
-        &mut m,
-        ToggleFullscreen,
-        false,
-        false,
-        false,
-        false,
-        Named(keyboard::key::Named::F11),
-    );
-    put(
-        &mut m,
-        FontZoomIn,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Punct("="),
-    );
-    put(
-        &mut m,
-        FontZoomOut,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Punct("-"),
-    );
-    put(
-        &mut m,
-        FontZoomReset,
-        primary_ctrl,
-        false,
-        false,
-        primary_logo,
-        Char('0'),
-    );
+    put(&mut m, ToggleFullscreen, false, false, false, false, Named(keyboard::key::Named::F11));
+    put(&mut m, FontZoomIn, primary_ctrl, false, false, primary_logo, Punct("="));
+    put(&mut m, FontZoomOut, primary_ctrl, false, false, primary_logo, Punct("-"));
+    put(&mut m, FontZoomReset, primary_ctrl, false, false, primary_logo, Char('0'));
     // Terminal split panes. Ctrl+Shift (Cmd+Shift on macOS): Shift lifts
     // these out of the terminal control-sequence gate and the directional
     // arrows out of cursor-key reach. Vertical split is on D ("divide")
     // because Ctrl+Shift+E is the OpenSftp binding above; O keeps the
     // GNOME Terminal stacked-split convention.
-    put(
-        &mut m,
-        SplitPaneVertical,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('d'),
-    );
-    put(
-        &mut m,
-        SplitPaneHorizontal,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('o'),
-    );
-    put(
-        &mut m,
-        FocusPaneLeft,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Named(keyboard::key::Named::ArrowLeft),
-    );
-    put(
-        &mut m,
-        FocusPaneRight,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Named(keyboard::key::Named::ArrowRight),
-    );
-    put(
-        &mut m,
-        FocusPaneUp,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Named(keyboard::key::Named::ArrowUp),
-    );
-    put(
-        &mut m,
-        FocusPaneDown,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Named(keyboard::key::Named::ArrowDown),
-    );
+    put(&mut m, SplitPaneVertical, primary_ctrl, true, false, primary_logo, Char('d'));
+    put(&mut m, SplitPaneHorizontal, primary_ctrl, true, false, primary_logo, Char('o'));
+    put(&mut m, FocusPaneLeft, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowLeft));
+    put(&mut m, FocusPaneRight, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowRight));
+    put(&mut m, FocusPaneUp, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowUp));
+    put(&mut m, FocusPaneDown, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowDown));
     // Ctrl+Shift+H (Cmd+Shift+H on macOS): Shift lifts it out of the
     // terminal control-sequence gate (plain Ctrl+H is backspace on the
     // PTY), H for the History/lists sidebar. Rebindable like the rest.
-    put(
-        &mut m,
-        FocusSidebarList,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('h'),
-    );
+    put(&mut m, FocusSidebarList, primary_ctrl, true, false, primary_logo, Char('h'));
     // Ctrl+Shift+B (Cmd+Shift+B on macOS): the VS Code toggle-sidebar
     // convention; Shift lifts it out of the control-sequence gate.
-    put(
-        &mut m,
-        ToggleSidebar,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('b'),
-    );
+    put(&mut m, ToggleSidebar, primary_ctrl, true, false, primary_logo, Char('b'));
     // Ctrl+Shift+F (Cmd+Shift+F on macOS): flip the focused SSH tab
     // between Terminal and Files. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+F is readline forward-char /
     // the app's FocusViewSearch elsewhere).
-    put(
-        &mut m,
-        ToggleTabFiles,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('f'),
-    );
+    put(&mut m, ToggleTabFiles, primary_ctrl, true, false, primary_logo, Char('f'));
     // Ctrl+Shift+U (Cmd+Shift+U on macOS): arm / disarm broadcast input
     // across the tab's panes. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+U is readline kill-line).
-    put(
-        &mut m,
-        ToggleBroadcastInput,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('u'),
-    );
-    // Ctrl+Shift+X (Cmd+Shift+X on macOS): copy the terminal selection
-    // and paste it into the focused pane in one gesture. Shift lifts it
-    // out of the terminal control-sequence gate (plain Ctrl+X is the
-    // readline kill-line control that the PTY must keep). On macOS Cmd+C
-    // already copies and lacks a Ctrl+Shift idiom, so the same chord
-    // works on every platform.
-    put(
-        &mut m,
-        TerminalCopyPaste,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('x'),
-    );
+    put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
     // Ctrl+Shift+M (Cmd+Shift+M on macOS): Privacy Mode session
     // override (issue #78). Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+M IS carriage return). Users
     // who want an F-key can rebind (F11=fullscreen is the precedent);
     // F1-F10 stay with TUI apps by default.
-    put(
-        &mut m,
-        TogglePrivacyMode,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Char('m'),
-    );
+    put(&mut m, TogglePrivacyMode, primary_ctrl, true, false, primary_logo, Char('m'));
     // Terminal clipboard (#75). Deliberately NOT built from the
     // primary_ctrl / primary_logo pair: the platforms disagree on more
     // than which modifier to use. Elsewhere the convention is
@@ -1482,101 +1206,39 @@ pub fn default_bindings() -> HotkeyMap {
     // Plain Ctrl+V is NOT a paste chord. It is the literal-next byte
     // (vim visual block, readline quoted-insert), and binding it here
     // would take it away from the PTY with no way back.
-    let shift_insert = (
-        false,
-        true,
-        false,
-        false,
-        Named(keyboard::key::Named::Insert),
-    );
+    let shift_insert = (false, true, false, false, Named(keyboard::key::Named::Insert));
     if mac {
-        put_many(
-            &mut m,
-            TerminalCopy,
-            &[(false, false, false, true, Char('c'))],
-        );
+        put_many(&mut m, TerminalCopy, &[(false, false, false, true, Char('c'))]);
         put_many(
             &mut m,
             TerminalPaste,
             &[(false, false, false, true, Char('v')), shift_insert],
         );
-        put_many(
-            &mut m,
-            TerminalSelectAll,
-            &[(false, false, false, true, Char('a'))],
-        );
+        put_many(&mut m, TerminalSelectAll, &[(false, false, false, true, Char('a'))]);
     } else {
-        put_many(
-            &mut m,
-            TerminalCopy,
-            &[(true, true, false, false, Char('c'))],
-        );
+        put_many(&mut m, TerminalCopy, &[(true, true, false, false, Char('c'))]);
         put_many(
             &mut m,
             TerminalPaste,
             &[(true, true, false, false, Char('v')), shift_insert],
         );
-        put_many(
-            &mut m,
-            TerminalSelectAll,
-            &[(true, true, false, false, Char('a'))],
-        );
+        put_many(&mut m, TerminalSelectAll, &[(true, true, false, false, Char('a'))]);
     }
     // Scrollback paging. Shift+PageUp/PageDown on every platform: it is
     // universal across terminals and macOS has no competing idiom. The
     // widget yields these to the PTY on the alternate screen, where
     // there is no scrollback and the running app owns the key.
-    put(
-        &mut m,
-        ScrollbackPageUp,
-        false,
-        true,
-        false,
-        false,
-        Named(keyboard::key::Named::PageUp),
-    );
-    put(
-        &mut m,
-        ScrollbackPageDown,
-        false,
-        true,
-        false,
-        false,
-        Named(keyboard::key::Named::PageDown),
-    );
+    put(&mut m, ScrollbackPageUp, false, true, false, false, Named(keyboard::key::Named::PageUp));
+    put(&mut m, ScrollbackPageDown, false, true, false, false, Named(keyboard::key::Named::PageDown));
     // Ctrl+Shift+digit (Cmd+Shift on macOS): the vault-section
     // jump family, one digit per burger-menu VAULT entry. Shift
     // keeps it clear of the Ctrl+digit tab slots.
-    put(
-        &mut m,
-        VaultSectionSlot,
-        primary_ctrl,
-        true,
-        false,
-        primary_logo,
-        Digit1to9,
-    );
+    put(&mut m, VaultSectionSlot, primary_ctrl, true, false, primary_logo, Digit1to9);
     // Vault section cycling. Plain Ctrl on every platform (the
     // browser/IDE tab-strip convention; Cmd+PageUp/Down has no macOS
     // precedent), rebindable like everything else.
-    put(
-        &mut m,
-        VaultSectionPrev,
-        true,
-        false,
-        false,
-        false,
-        Named(keyboard::key::Named::PageUp),
-    );
-    put(
-        &mut m,
-        VaultSectionNext,
-        true,
-        false,
-        false,
-        false,
-        Named(keyboard::key::Named::PageDown),
-    );
+    put(&mut m, VaultSectionPrev, true, false, false, false, Named(keyboard::key::Named::PageUp));
+    put(&mut m, VaultSectionNext, true, false, false, false, Named(keyboard::key::Named::PageDown));
     m
 }
 
@@ -1591,8 +1253,8 @@ mod tests {
             // Every chord on its own.
             for binding in binds.iter() {
                 let s = binding.serialize();
-                let parsed =
-                    HotkeyBinding::parse(&s).unwrap_or_else(|| panic!("parse failed for {s}"));
+                let parsed = HotkeyBinding::parse(&s)
+                    .unwrap_or_else(|| panic!("parse failed for {s}"));
                 assert_eq!(
                     *binding, parsed,
                     "round-trip mismatch for {s}: {binding:?} != {parsed:?}"
@@ -1600,8 +1262,8 @@ mod tests {
             }
             // And the whole list, which is what the settings row holds.
             let s = binds.serialize();
-            let parsed =
-                HotkeyBindings::parse(&s).unwrap_or_else(|| panic!("list parse failed for {s:?}"));
+            let parsed = HotkeyBindings::parse(&s)
+                .unwrap_or_else(|| panic!("list parse failed for {s:?}"));
             assert_eq!(*binds, parsed, "list round-trip mismatch for {s:?}");
         }
     }
@@ -1647,10 +1309,7 @@ mod tests {
     fn empty_row_is_not_an_unbind() {
         assert_eq!(HotkeyBindings::parse(""), None);
         assert_eq!(HotkeyBindings::parse("   "), None);
-        assert_eq!(
-            HotkeyBindings::parse(UNBOUND),
-            Some(HotkeyBindings::default())
-        );
+        assert_eq!(HotkeyBindings::parse(UNBOUND), Some(HotkeyBindings::default()));
         assert_eq!(HotkeyBindings::default().serialize(), UNBOUND);
         // Round-trips as a real state, not by accident.
         assert_eq!(
@@ -1722,9 +1381,7 @@ mod tests {
     #[test]
     fn paste_defaults_follow_the_terminal_convention() {
         let defaults = default_bindings();
-        let paste = defaults
-            .get(&HotkeyAction::TerminalPaste)
-            .expect("paste bound");
+        let paste = defaults.get(&HotkeyAction::TerminalPaste).expect("paste bound");
         let ctrl_v = HotkeyBinding {
             ctrl: true,
             shift: false,
@@ -1740,10 +1397,7 @@ mod tests {
             logo: false,
             primary: PrimaryKey::Named(Named::Insert),
         };
-        assert!(
-            paste.contains(&shift_ins),
-            "Shift+Insert is a standard paste chord"
-        );
+        assert!(paste.contains(&shift_ins), "Shift+Insert is a standard paste chord");
         assert_eq!(paste.len(), 2);
         // The chord shown in the palette is the platform-primary one,
         // not the Insert alternate.
@@ -1754,9 +1408,7 @@ mod tests {
         // mouse-only by default and GNOME Terminal documents only
         // Ctrl+Shift+C. Shipping it "for symmetry" would be inventing a
         // convention. It stays bindable, just not factory.
-        let copy = defaults
-            .get(&HotkeyAction::TerminalCopy)
-            .expect("copy bound");
+        let copy = defaults.get(&HotkeyAction::TerminalCopy).expect("copy bound");
         let ctrl_ins = HotkeyBinding {
             ctrl: true,
             shift: false,
@@ -1764,10 +1416,7 @@ mod tests {
             logo: false,
             primary: PrimaryKey::Named(Named::Insert),
         };
-        assert!(
-            !copy.contains(&ctrl_ins),
-            "Ctrl+Insert copy is not a real convention"
-        );
+        assert!(!copy.contains(&ctrl_ins), "Ctrl+Insert copy is not a real convention");
         assert_eq!(copy.len(), 1);
 
         // No factory chord anywhere is a bare Ctrl+letter that the shell
@@ -1864,10 +1513,7 @@ mod tests {
             primary: PrimaryKey::Char('k'),
         };
         assert_eq!(
-            b.match_event(
-                &Key::Character("k".into()),
-                &(Modifiers::CTRL | Modifiers::SHIFT)
-            ),
+            b.match_event(&Key::Character("k".into()), &(Modifiers::CTRL | Modifiers::SHIFT)),
             None
         );
         assert_eq!(

@@ -20,7 +20,6 @@
 #![allow(clippy::result_large_err)]
 
 mod connect;
-pub(crate) use connect::pane_to_connection;
 mod hostkey;
 mod kbi;
 
@@ -31,7 +30,7 @@ use uuid::Uuid;
 
 use oryxis_ssh::SshSession;
 
-use crate::app::{EditorMessage, Message, Oryxis, SshMessage};
+use crate::app::{EditorMessage, SshMessage, Message, Oryxis};
 use crate::state::View;
 
 impl Oryxis {
@@ -60,30 +59,29 @@ impl Oryxis {
     /// connect arms live in the match below, and the final `Err`
     /// propagates back to `dispatch::update` so the other handlers
     /// (or the inline match) get their turn.
-    pub(crate) fn handle_ssh(&mut self, message: SshMessage) -> Task<Message> {
+    pub(crate) fn handle_ssh(
+        &mut self,
+        message: SshMessage,
+    ) -> Task<Message> {
         match message {
             // Host-key prompt / legacy-algorithm dialog -> hostkey sub;
             // keyboard-interactive auth + quick-auth switch -> kbi sub.
             // Exhaustive: a new variant fails to compile until listed.
-            m @ (SshMessage::SshNoCommonAlgo { .. }
-            | SshMessage::LegacyAlgoAccept { .. }
+            m @ (SshMessage::SshNoCommonAlgo{ .. }
+            | SshMessage::LegacyAlgoAccept{ .. }
             | SshMessage::LegacyAlgoCancel
             | SshMessage::SshHostKeyVerify(..)
             | SshMessage::SshHostKeyReject
             | SshMessage::SshHostKeyContinue
             | SshMessage::SshHostKeyAcceptAndSave) => {
-                return self
-                    .handle_ssh_hostkey(m)
-                    .unwrap_or_else(crate::dispatch::unrouted);
+                return self.handle_ssh_hostkey(m).unwrap_or_else(crate::dispatch::unrouted);
             }
             m @ (SshMessage::SshKbiPrompt(..)
             | SshMessage::SshKbiInput(..)
             | SshMessage::SshKbiSubmit
             | SshMessage::SshKbiCancel
             | SshMessage::QuickAuthSwitch(..)) => {
-                return self
-                    .handle_ssh_kbi(m)
-                    .unwrap_or_else(crate::dispatch::unrouted);
+                return self.handle_ssh_kbi(m).unwrap_or_else(crate::dispatch::unrouted);
             }
             // -- SSH connection --
             SshMessage::ConnectSsh(idx) => {
@@ -97,7 +95,9 @@ impl Oryxis {
                     return self.connect_ssh_into_pane(idx, tab_idx, target, axis);
                 }
                 if let Some(conn) = self.connections.get(idx).cloned() {
-                    return self.start_ssh_tab(conn, crate::state::ProgressOrigin::Saved(idx));
+                    return 
+                        self.start_ssh_tab(conn, crate::state::ProgressOrigin::Saved(idx))
+                    ;
                 }
             }
             SshMessage::QuickConnect(entry) => {
@@ -243,13 +243,17 @@ impl Oryxis {
                     if self.setting_sftp_force_osc7
                         && let Some(ssh) = session.ssh()
                     {
-                        if let Err(e) = ssh.write(crate::state::OSC7_PROMPT_INJECT.as_bytes()) {
+                        if let Err(e) =
+                            ssh.write(crate::state::OSC7_PROMPT_INJECT.as_bytes())
+                        {
                             tracing::warn!(
                                 target = "oryxis::dispatch_ssh",
                                 error = %e,
                                 "failed to inject OSC 7 PROMPT_COMMAND"
                             );
-                        } else if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id) {
+                        } else if let Some(pane) =
+                            self.tabs[tab_idx].pane_by_id_mut(pane_id)
+                        {
                             pane.osc7_injected = true;
                         }
                     }
@@ -260,13 +264,9 @@ impl Oryxis {
                     self.apply_shell_integration(tab_idx, pane_id);
                     tracing::info!("SSH connected: {}", label);
                     if self.should_record_history()
-                        && let Some(vault) = &self.vault
-                    {
+                        && let Some(vault) = &self.vault {
                         let entry = oryxis_core::models::log_entry::LogEntry::new(
-                            &label,
-                            &label,
-                            oryxis_core::models::log_entry::LogEvent::Connected,
-                            "Session established",
+                            &label, &label, oryxis_core::models::log_entry::LogEvent::Connected, "Session established",
                         );
                         let _ = vault.add_log(&entry);
                     }
@@ -425,19 +425,16 @@ impl Oryxis {
                         let _ = vault.end_session_log(&log_id);
                     }
                     if self.should_record_history()
-                        && let Some(vault) = &self.vault
-                    {
+                        && let Some(vault) = &self.vault {
                         let entry = oryxis_core::models::log_entry::LogEntry::new(
-                            &label,
-                            &label,
-                            oryxis_core::models::log_entry::LogEvent::Disconnected,
-                            "Session ended",
+                            &label, &label, oryxis_core::models::log_entry::LogEvent::Disconnected, "Session ended",
                         );
                         let _ = vault.add_log(&entry);
                     }
                     // Refresh session logs list (count + current page)
                     if let Some(vault) = &self.vault {
-                        self.session_logs_total = vault.count_session_logs().unwrap_or(0);
+                        self.session_logs_total =
+                            vault.count_session_logs().unwrap_or(0);
                         self.session_logs = vault
                             .list_session_logs_page(self.session_logs_page * 50, 50)
                             .unwrap_or_default();
@@ -553,9 +550,8 @@ impl Oryxis {
                         }
                         crate::state::ProgressOrigin::Quick(id) => {
                             match self.quick_connects.get(&id).cloned() {
-                                Some(entry) => self.update(Message::Ssh(SshMessage::QuickConnect(
-                                    Box::new(entry),
-                                ))),
+                                Some(entry) => self
+                                    .update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry)))),
                                 None => Task::none(),
                             }
                         }
@@ -587,7 +583,9 @@ impl Oryxis {
                     if let Some(pane) = self.tabs[tab_idx].pane_by_id_mut(pane_id)
                         && let Ok(mut state) = pane.terminal.lock()
                     {
-                        state.process(b"\r\nRetrying with the selected identity...\r\n");
+                        state.process(
+                            b"\r\nRetrying with the selected identity...\r\n",
+                        );
                     }
                     return self.spawn_ssh_for_pane_quick(qid, tab_idx, pane_id);
                 }
@@ -682,10 +680,9 @@ impl Oryxis {
                 // guard on the progress origin keeps an (unlikely) stale flag
                 // from hijacking an unrelated connect's error.
                 if let Some(qid) = self.pending_auth_switch
-                    && self
-                        .connecting
-                        .as_ref()
-                        .is_some_and(|p| p.origin == crate::state::ProgressOrigin::Quick(qid))
+                    && self.connecting.as_ref().is_some_and(|p| {
+                        p.origin == crate::state::ProgressOrigin::Quick(qid)
+                    })
                 {
                     self.pending_auth_switch = None;
                     return self.update(Message::Ssh(SshMessage::SshRetry));
@@ -701,18 +698,10 @@ impl Oryxis {
                 }
                 tracing::error!("SSH error: {}", err);
                 if self.should_record_history()
-                    && let Some(vault) = &self.vault
-                {
-                    let label = self
-                        .connecting
-                        .as_ref()
-                        .map(|p| p.label.as_str())
-                        .unwrap_or("unknown");
+                    && let Some(vault) = &self.vault {
+                    let label = self.connecting.as_ref().map(|p| p.label.as_str()).unwrap_or("unknown");
                     let entry = oryxis_core::models::log_entry::LogEntry::new(
-                        label,
-                        label,
-                        oryxis_core::models::log_entry::LogEvent::Error,
-                        &err,
+                        label, label, oryxis_core::models::log_entry::LogEvent::Error, &err,
                     );
                     let _ = vault.add_log(&entry);
                 }
@@ -747,9 +736,7 @@ impl Oryxis {
                 // Mark progress as failed (keep the view open with logs)
                 if let Some(ref mut progress) = self.connecting {
                     progress.failed = true;
-                    progress
-                        .logs
-                        .push((progress.step, format!("Error: {}", err)));
+                    progress.logs.push((progress.step, format!("Error: {}", err)));
                 } else {
                     self.host_panel_error = Some(format!("SSH: {}", err));
                 }

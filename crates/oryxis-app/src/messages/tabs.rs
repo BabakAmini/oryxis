@@ -1,8 +1,8 @@
 //! Tabs, tab strip, tab menu, folders, icon picker, command palette, new-tab picker, window controls.
 
-use super::Message;
 use iced::Point;
 use uuid::Uuid;
+use super::Message;
 
 #[derive(Debug, Clone)]
 pub enum TabsMessage {
@@ -98,9 +98,6 @@ pub enum TabsMessage {
     /// From an SFTP tab's context menu: focus a live terminal tab on
     /// the mounted host, or connect one.
     OpenTerminalForSftpTab(usize),
-    /// Copy the focused pane's hostname (IP / hostname) to the clipboard.
-    /// From the tab context menu; reads the connection's `hostname` field.
-    CopyTabHostname(usize),
     ShowFolderActions(Uuid),
     StartRenameFolder(Uuid),
     FolderRenameInput(String),
