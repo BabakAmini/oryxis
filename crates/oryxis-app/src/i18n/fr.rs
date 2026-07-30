@@ -1238,6 +1238,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Ouvrir dans le Finder",
         "duplicate_n_items" => "Dupliquer {n} éléments",
         "copy_path" => "Copier le chemin",
+        "copy_host_address" => "Copier l'adresse de l'hôte",
         "copy_n_paths" => "Copier {n} chemins",
         "tab_tip_files" => "Fichiers",
         "files_follow_on_tip" => "Suit le répertoire du terminal. Cliquez pour arrêter.",

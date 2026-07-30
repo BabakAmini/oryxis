@@ -1328,6 +1328,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sftp_local_machine" => "This computer",
         "duplicate_n_items" => "Duplicate {n} items",
         "copy_path" => "Copy path",
+        "copy_host_address" => "Copy host address",
         "copy_n_paths" => "Copy {n} paths",
         "tab_tip_files" => "Files",
         "files_follow_on_tip" => "Following the terminal directory. Click to stop.",

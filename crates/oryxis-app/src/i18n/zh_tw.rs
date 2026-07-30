@@ -1238,6 +1238,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "在 Finder 中開啟",
         "duplicate_n_items" => "建立 {n} 個項目的複本",
         "copy_path" => "複製路徑",
+        "copy_host_address" => "複製主機位址",
         "copy_n_paths" => "複製 {n} 個路徑",
         "tab_tip_files" => "檔案",
         "files_follow_on_tip" => "正在跟隨終端機目錄。點選以停止。",

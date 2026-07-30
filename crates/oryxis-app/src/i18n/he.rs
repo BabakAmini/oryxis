@@ -1327,6 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_local_machine" => "המחשב הזה",
         "duplicate_n_items" => "שכפול {n} פריטים",
         "copy_path" => "העתקת נתיב",
+        "copy_host_address" => "העתקת כתובת מארח",
         "copy_n_paths" => "העתקת {n} נתיבים",
         "tab_tip_files" => "קבצים",
         "files_follow_on_tip" => "עוקב אחרי תיקיית הטרמינל. לחצו כדי להפסיק.",

@@ -1327,6 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_local_machine" => "Αυτός ο υπολογιστής",
         "duplicate_n_items" => "Αντίγραφο {n} στοιχείων",
         "copy_path" => "Αντιγραφή διαδρομής",
+        "copy_host_address" => "Αντιγραφή διεύθυνσης host",
         "copy_n_paths" => "Αντιγραφή {n} διαδρομών",
         "tab_tip_files" => "Αρχεία",
         "files_follow_on_tip" => "Ακολουθεί τον κατάλογο του τερματικού. Κλικ για διακοπή.",

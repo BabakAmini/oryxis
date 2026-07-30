@@ -1327,6 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_local_machine" => "Tento počítač",
         "duplicate_n_items" => "Duplikovat {n} položek",
         "copy_path" => "Kopírovat cestu",
+        "copy_host_address" => "Kopírovat adresu hostitele",
         "copy_n_paths" => "Kopírovat {n} cest",
         "tab_tip_files" => "Soubory",
         "files_follow_on_tip" => "Sleduje adresář terminálu. Kliknutím zastavíte.",

@@ -1238,6 +1238,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Finderで開く",
         "duplicate_n_items" => "{n} 項目を複製",
         "copy_path" => "パスをコピー",
+        "copy_host_address" => "ホストアドレスをコピー",
         "copy_n_paths" => "{n} 件のパスをコピー",
         "tab_tip_files" => "ファイル",
         "files_follow_on_tip" => "ターミナルのディレクトリに追従中。クリックで停止。",

@@ -1327,6 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_local_machine" => "Ten komputer",
         "duplicate_n_items" => "Duplikuj {n} elementów",
         "copy_path" => "Kopiuj ścieżkę",
+        "copy_host_address" => "Kopiuj adres hosta",
         "copy_n_paths" => "Kopiuj {n} ścieżek",
         "tab_tip_files" => "Pliki",
         "files_follow_on_tip" => "Podąża za katalogiem terminala. Kliknij, aby zatrzymać.",

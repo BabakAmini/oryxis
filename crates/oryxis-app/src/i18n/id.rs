@@ -1321,6 +1321,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp_local_machine" => "Komputer ini",
         "duplicate_n_items" => "Gandakan {n} item",
         "copy_path" => "Salin jalur",
+        "copy_host_address" => "Salin alamat host",
         "copy_n_paths" => "Salin {n} jalur",
         "tab_tip_files" => "Berkas",
         "files_follow_on_tip" => "Mengikuti direktori terminal. Klik untuk berhenti.",

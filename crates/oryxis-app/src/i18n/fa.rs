@@ -1310,6 +1310,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "باز کردن در Finder",
         "duplicate_n_items" => "تکرار {n} مورد",
         "copy_path" => "کپی مسیر",
+        "copy_host_address" => "کپی نشانی میزبان",
         "copy_n_paths" => "کپی {n} مسیر",
         "tab_tip_files" => "فایل‌ها",
         "files_follow_on_tip" => "در حال دنبال کردن پوشه ترمینال. برای توقف کلیک کنید.",
