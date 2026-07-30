@@ -156,18 +156,21 @@ impl Oryxis {
             // Nothing bound at all: the add chip carries the placeholder,
             // so the row still reads as one affordance rather than a bare
             // "+" next to nothing.
-            //
-            // An action whose factory gesture is a MOUSE button has no
-            // chord to show, but it is not unbound either: naming the
-            // gesture keeps the row from reading as a broken feature. The
-            // keyboard slot stays empty and addable.
-            let placeholder = self
-                .action_live_gesture(action)
-                .unwrap_or_else(|| crate::i18n::t("hotkey_unbound"));
-            text(placeholder)
-                .size(11)
-                .color(OryxisColors::t().text_muted)
-                .into()
+            match self.action_live_gesture(action) {
+                // An action whose factory gesture is a MOUSE button has
+                // no chord to show, but it is not unbound either: the
+                // gesture renders as a key badge, the same pill as a real
+                // chord, so it reads at the same contrast on every theme
+                // (muted text sat straight on the chip's accent-tinted
+                // button_bg and washed out). The keyboard slot stays
+                // empty and addable, the panel's "Click a shortcut to
+                // change it." still applies.
+                Some(gesture) => key_badge_owned(gesture.to_string()),
+                None => text(crate::i18n::t("hotkey_unbound"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+            }
         } else {
             text("+")
                 .size(13)
