@@ -328,6 +328,8 @@ mod tests {
             chat_task: None,
             chat_mode: crate::state::ChatMode::Auto,
             chat_last_md_parse: None,
+            chat_saved_id: None,
+            chat_persisted: 0,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: None,

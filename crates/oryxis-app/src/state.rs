@@ -193,6 +193,11 @@ pub(crate) struct ToolExchange {
     /// Captured terminal output. `None` while the command is still
     /// running (rendered + sent as flat text until it resolves).
     pub output: Option<String>,
+    /// Gemini's opaque per-call `thoughtSignature`, kept so the replay can
+    /// echo it back; Gemini 2.5+ rejects a function call that returns
+    /// without one. `None` on every other provider. See
+    /// `crate::ai::ToolUseMsg::thought_signature`.
+    pub thought_signature: Option<String>,
 }
 
 /// A single message in the AI chat sidebar.
@@ -206,6 +211,12 @@ pub(crate) struct ChatMessage {
     pub parsed_md: Vec<iced::widget::markdown::Item>,
     /// Structured tool data, `Some` only for [`ChatRole::Tool`] messages.
     pub tool: Option<ToolExchange>,
+    /// Chain-of-thought streamed alongside an assistant reply, when the
+    /// provider emits one (DeepSeek thinking mode). Never rendered: it is
+    /// kept because DeepSeek requires it back in the history on the next
+    /// request and answers 400 without it (issue #105). Empty for every
+    /// other provider and for non-assistant roles.
+    pub reasoning: String,
 }
 
 impl ChatMessage {
@@ -217,6 +228,7 @@ impl ChatMessage {
             content: content.into(),
             parsed_md: Vec::new(),
             tool: None,
+            reasoning: String::new(),
         }
     }
 }

@@ -89,6 +89,31 @@ impl Oryxis {
         col.into()
     }
 
+    /// Kebab of a saved AI conversation row. Deliberately short: a saved
+    /// conversation is read or deleted, never resumed (the terminal it was
+    /// held against is gone), so there is no "continue" action to offer.
+    pub(crate) fn build_menu_chat_conversation_actions(
+        &self,
+        idx: usize,
+    ) -> Element<'_, Message> {
+        let mut col = column![].spacing(2);
+        if let Some(id) = self.chat_conversations.get(idx).map(|c| c.id) {
+            col = col.push(self.menu_item(
+                iced_fonts::lucide::bot(),
+                crate::i18n::t("chat_open"),
+                Message::History(HistoryMessage::OpenChatConversation(id)),
+                OryxisColors::t().text_secondary,
+            ));
+        }
+        col = col.push(self.menu_item(
+            iced_fonts::lucide::trash(),
+            crate::i18n::t("delete"),
+            Message::History(HistoryMessage::RequestDeleteChatConversation(idx)),
+            OryxisColors::t().error,
+        ));
+        col.into()
+    }
+
     pub(crate) fn build_menu_host_actions(&self, idx: usize) -> Element<'_, Message> {
         let conn = self.connections.get(idx);
         let cloud_profile_id = conn

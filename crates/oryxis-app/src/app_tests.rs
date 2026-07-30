@@ -254,31 +254,29 @@ fn sftp_owned_envelope_carries_owner_for_routing() {
 }
 
 #[test]
-fn sftp_state_unsaved_covers_dirty_edit_sessions() {
+fn sftp_state_unsaved_covers_edit_watches() {
     // Shared close-guard predicate: standalone tab close and the hybrid
-    // Close-SFTP-session guard must agree that a dirty external edit (a
-    // pending upload) is unsaved work, while a clean edit session is not.
+    // Close-SFTP-session guard must agree on what counts as unsaved work.
     let mut st = crate::state::SftpState::default();
     assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
     let session = crate::state::EditSession {
-        client_override: None,
-        pane_side: crate::state::SftpPaneSide::Right,
+        client: None,
         remote_path: "/srv/x.conf".into(),
         temp_path: std::path::PathBuf::from("/tmp/oryxis-x.conf"),
         label: "x.conf".into(),
-        host: String::new(),
+        host: "web-1".into(),
+        opener: crate::state::SftpEditOpener::OsDefault,
         initial_mtime: None,
         dirty: false,
         uploading: false,
     };
-    st.edit_session = Some(session.clone());
-    assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
-    st.edit_session.as_mut().unwrap().dirty = true;
-    assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
-    // A registered watch counts as unsaved even while CLEAN: the
-    // external editor is still open and closing would silently orphan
-    // its future saves.
-    st.edit_session = None;
+    // A registered watch counts as unsaved even while CLEAN: the external
+    // editor is still open and closing would silently orphan its future
+    // saves. A watch holding a pending save obviously counts too.
     st.edit_watches.push(session);
     assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
+    st.edit_watches[0].dirty = true;
+    assert!(crate::sftp_methods::sftp_state_has_unsaved(&st));
+    st.edit_watches.clear();
+    assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
 }

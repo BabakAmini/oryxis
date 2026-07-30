@@ -40,6 +40,61 @@ impl Oryxis {
         row_mcp
     }
 
+    /// Directory a fresh SFTP mount of this host lands in (SSH >
+    /// Integration). Empty placeholder spells out the default (the login
+    /// directory) so "inherit" is visible rather than implied; a path that
+    /// no longer resolves falls back to it at mount time.
+    pub(super) fn hp_row_sftp_initial_path(&self, is_ssh: bool) -> Element<'_, Message> {
+        if !is_ssh {
+            return empty();
+        }
+        // Stacked, unlike the sibling toggle rows: a remote path is long and
+        // an inline field would squeeze the label into two lines and still
+        // clip the value.
+        container(
+            column![
+                dir_row(vec![
+                    iced_fonts::lucide::folder_open()
+                        .size(14)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(10).into(),
+                    text(t("host_sftp_initial_path"))
+                        .size(13)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center),
+                Space::new().height(2),
+                text(t("host_sftp_initial_path_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(6),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-sftp-initial-path")),
+                    10.0,
+                    text_input(
+                        t("host_sftp_initial_path_placeholder"),
+                        &self.editor_form.sftp_initial_path,
+                    )
+                    .id(iced::widget::Id::new("editor-sftp-initial-path"))
+                    .on_input(|v| {
+                        Message::Editor(EditorMessage::EditorSftpInitialPathChanged(v))
+                    })
+                    .on_submit(Message::Editor(EditorMessage::EditorSave))
+                    .padding(6)
+                    .width(Length::Fill)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                ),
+            ]
+            .width(Length::Fill),
+        )
+        .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 })
+        .into()
+    }
+
     /// Per-host agentless monitoring opt-in (SSH > Integration, issue
     /// #83). Same shape as the MCP row: SSH-only, since the probe reads
     /// `/proc` over an exec channel.

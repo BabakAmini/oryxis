@@ -65,6 +65,20 @@ impl Oryxis {
                 panel_field(t("provider"), provider_pick),
                 Space::new().height(12),
                 panel_field(t("model"), model_input),
+                Space::new().height(12),
+                self.settings_nav_slot_labeled(
+                    t("ai_reasoning"),
+                    crate::keynav::RowAction::activate(Message::Ai(
+                        AiMessage::ToggleAiReasoning,
+                    )),
+                    8.0,
+                    crate::widgets::toggle_row_desc(
+                        t("ai_reasoning"),
+                        t("ai_reasoning_desc"),
+                        self.ai.reasoning,
+                        Message::Ai(AiMessage::ToggleAiReasoning),
+                    ),
+                ),
             ];
 
             if current_info.kind == crate::ai::ProviderKind::Custom {

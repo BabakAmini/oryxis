@@ -64,8 +64,17 @@ pub enum TerminalMessage {
     /// dispatcher reads the clipboard and routes the text to the SSH
     /// session (if active) or the local PTY, mirroring Ctrl+Shift+V.
     TerminalPasteFromClipboard,
+    /// Clipboard text handed back by the runtime for a pending paste, with
+    /// the tab index the paste was requested FROM (`None` text = empty or
+    /// unavailable). Every paste path funnels through here: the runtime is
+    /// the only clipboard reader in the process, so a second concurrent read
+    /// can't corrupt the heap (see `oryxis_terminal::host_clipboard`). The
+    /// tab rides along because the read resolves later and the user may have
+    /// switched tabs in between.
+    TerminalPasteResolved(usize, Option<String>),
     /// Careful-paste confirmation: send the multi-line text held in
-    /// `pending_paste` to the active session.
+    /// `pending_paste` to the tab it was captured for (not the currently
+    /// active one, which may have changed since).
     ConfirmPendingPaste,
     /// Careful-paste confirmation dismissed: drop the held text.
     CancelPendingPaste,

@@ -43,6 +43,9 @@ pub(crate) enum OverlayContent {
     /// Kebab menu on a History session row: Export .cast, Export
     /// transcript, Delete. `usize` is the `session_logs` index.
     SessionLogActions(usize),
+    /// Kebab menu of a saved AI conversation row, by index into
+    /// `Oryxis::chat_conversations`.
+    ChatConversationActions(usize),
     /// Same session-log actions, opened from the viewer's header `...`
     /// button: the viewer has a dedicated Play button, so this variant
     /// renders the menu without the Play row.

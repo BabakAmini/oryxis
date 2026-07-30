@@ -404,23 +404,18 @@ fn gauge_block<'a>(label: &'a str, pct: f32, value: &str) -> Element<'a, Message
     } else {
         OryxisColors::t().accent
     };
-    // FillPortion needs whole numbers; below 1% the bar renders empty,
-    // which is the honest reading anyway.
-    let filled = pct.round() as u16;
-    let rest = 100u16.saturating_sub(filled);
-    let bar = dir_row(vec![
-        container(Space::new().height(6))
-            .width(Length::FillPortion(filled))
-            .style(move |_| container::Style {
-                background: Some(Background::Color(fill)),
-                border: Border { radius: Radius::from(3.0), ..Default::default() },
-                ..Default::default()
-            })
-            .into(),
-        container(Space::new().height(6))
-            .width(Length::FillPortion(rest))
-            .into(),
-    ]);
+    // The old note here claimed a sub-1% gauge "renders empty, which is the
+    // honest reading anyway". It rendered FULL: a weightless
+    // `FillPortion(0)` takes the whole track in iced instead of vanishing,
+    // so an idle host showed a saturated bar and a pegged one showed an
+    // empty bar. `progress_track` omits the weightless side (issue #107 is
+    // the same defect on the transfer bar).
+    let bar = crate::widgets::progress_track(
+        pct / 100.0,
+        6.0,
+        fill,
+        OryxisColors::t().bg_surface,
+    );
     column![
         dir_row(vec![
             text(label.to_string())
@@ -435,11 +430,7 @@ fn gauge_block<'a>(label: &'a str, pct: f32, value: &str) -> Element<'a, Message
         ])
         .align_y(iced::Alignment::Center),
         Space::new().height(4),
-        container(bar).width(Length::Fill).style(|_| container::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_surface)),
-            border: Border { radius: Radius::from(3.0), ..Default::default() },
-            ..Default::default()
-        }),
+        bar,
     ]
     .width(Length::Fill)
     .into()

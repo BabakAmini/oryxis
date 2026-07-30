@@ -16,13 +16,21 @@ use crate::state::SftpPaneSide;
 /// Matches the Windows system default so slow double-clickers still land an
 /// "open" instead of falling through to selection (or worse, rename).
 const DOUBLE_CLICK_WINDOW: Duration = Duration::from_millis(500);
-/// Slow-click-to-rename only arms inside [MIN, MAX) after the previous click
-/// on the same row. The gap between DOUBLE_CLICK_WINDOW and MIN is a
-/// deliberate dead zone: second clicks there just re-select, so a sluggish
-/// double-click (intent: open) can never be misread as a rename. QA showed
-/// arming right at the double-click boundary caught real open attempts.
+/// Slow-click-to-rename arms no earlier than this after the previous click on
+/// the same row. The gap between DOUBLE_CLICK_WINDOW and here is a dead zone
+/// where a second click only re-selects: a sluggish double-click (intent:
+/// open) lands there and must never be read as an edit request. Explorer and
+/// Finder have no dead zone and famously do misread it, hence keeping ours.
+/// There is deliberately no upper bound, matching those two: a row that is
+/// still the lone selection stays renameable, and the other two gates (the
+/// name hit test and the cancellable deferral) are what keep the affordance
+/// from firing by accident.
 const SLOW_RENAME_MIN: Duration = Duration::from_millis(900);
-const SLOW_RENAME_WINDOW: Duration = Duration::from_millis(2500);
+/// How long an armed slow-click rename waits before it actually opens the
+/// inline editor. A further click inside this window bumps `click_gen` and
+/// cancels it, which is what makes a sluggish double-click open the folder
+/// instead of renaming it (the whole complaint behind this tuning).
+const SLOW_RENAME_DEFER: Duration = Duration::from_millis(500);
 /// Idle gap after which type-ahead starts a fresh search instead of
 /// appending to the previous one.
 const TYPE_AHEAD_RESET: Duration = Duration::from_millis(900);
@@ -83,12 +91,39 @@ impl Oryxis {
         });
     }
 
+    /// Turn a slow-click rename armed on the press (and not cancelled by a
+    /// drag) into a DEFERRED fire: the inline editor only opens once the
+    /// deferral elapses with no further click, so the second click of a
+    /// sluggish double-click still opens the folder. Called from the global
+    /// left-release handler; no-op when nothing is armed.
+    pub(crate) fn defer_slow_rename(&mut self) -> Task<Message> {
+        let Some((side, path)) = self.sftp.pending_rename.take() else {
+            return Task::none();
+        };
+        let generation = self.sftp_click_gen;
+        Task::perform(
+            async move {
+                tokio::time::sleep(SLOW_RENAME_DEFER).await;
+            },
+            move |_| {
+                Message::Sftp(SftpMessage::SftpSlowRenameFire(
+                    side,
+                    path.clone(),
+                    generation,
+                ))
+            },
+        )
+    }
+
     pub(super) fn handle_sftp_selection(
         &mut self,
         message: SftpMessage,
     ) -> Result<Task<Message>, SftpMessage> {
         match message {
             SftpMessage::SftpRowRightClick(side, path, is_dir) => {
+                // A right-click retires any deferred rename too: the user
+                // asked for the menu, not for an editor to pop open behind it.
+                self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
                 // If the user right-clicks a row that wasn't part of the
                 // current selection, treat the right-click as a fresh
                 // single-select, matches Finder/Explorer behaviour and
@@ -184,6 +219,28 @@ impl Oryxis {
             }
             SftpMessage::SftpRowExit => {
                 self.sftp.hovered_row = None;
+            }
+            SftpMessage::SftpNameHovered(side, path) => {
+                // Same menu guard as SftpRowEnter: the gaps between the open
+                // context menu's items sit over the rows behind it.
+                if self.sftp.row_menu.is_some() {
+                    return Ok(Task::none());
+                }
+                self.sftp.hovered_name = Some((side, path));
+            }
+            SftpMessage::SftpNameUnhovered => {
+                self.sftp.hovered_name = None;
+            }
+            SftpMessage::SftpSlowRenameFire(side, path, generation) => {
+                if !slow_rename_still_valid(
+                    generation,
+                    self.sftp_click_gen,
+                    &self.sftp.selected_rows,
+                    (side, &path),
+                ) {
+                    return Ok(Task::none());
+                }
+                return Ok(Task::done(Message::Sftp(SftpMessage::SftpStartRename(side, path))));
             }
             SftpMessage::SftpMouseLeftPressed => {
                 // Any physical click leaves keyboard-selection mode: the
@@ -303,21 +360,31 @@ impl Oryxis {
                 let target = (side, path.clone());
                 let ctrl = self.modifiers.control() || self.modifiers.command();
                 let shift = self.modifiers.shift();
-                // Slow-click-to-rename: a second plain click on the row that is
-                // already the sole selection, slower than a double-click but
-                // within a deliberate window, arms an inline rename. It's only
-                // committed on release (see the Left-up handler) so dragging an
-                // already-selected row still works.
+                // Every click retires any rename armed by an earlier one (see
+                // SftpSlowRenameFire), so a second click always wins over a
+                // pending edit.
+                self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
+                // Slow-click-to-rename, Explorer / Finder semantics: a plain
+                // click that lands ON THE NAME of the row that is already the
+                // lone selection, no sooner than a double-click after the
+                // previous click, arms an inline rename. Three gates keep it
+                // off real open attempts: the name hit test (a click on the
+                // Size / Modified columns or the slack past a short name is
+                // just a click), the release check below (a drag isn't a
+                // rename), and the deferred fire (a following click cancels).
                 let now = std::time::Instant::now();
                 let already_sole = self.sftp.selected_rows.as_slice() == [target.clone()];
+                let on_name = self
+                    .sftp
+                    .hovered_name
+                    .as_ref()
+                    .is_some_and(|(s, p)| *s == side && p == &path);
                 let slow_second = !ctrl
                     && !shift
                     && already_sole
+                    && on_name
                     && self.sftp.last_click.as_ref().is_some_and(|(s, p, t)| {
-                        *s == side
-                            && p == &path
-                            && now.duration_since(*t) >= SLOW_RENAME_MIN
-                            && now.duration_since(*t) < SLOW_RENAME_WINDOW
+                        *s == side && p == &path && now.duration_since(*t) >= SLOW_RENAME_MIN
                     });
                 self.sftp.pending_rename =
                     slow_second.then(|| (side, path.clone()));
@@ -668,6 +735,20 @@ impl Oryxis {
                         Named::ArrowLeft => return Ok(self.sftp_focus_parent()),
                         // Tab switches the focused pane.
                         Named::Tab => return Ok(self.sftp_toggle_pane_focus()),
+                        // F2 renames the selected row, the standard shortcut
+                        // in Explorer / Finder / FileZilla and the reliable
+                        // path now that the slow click is deliberately hard
+                        // to trigger by accident. A multi-selection has no
+                        // single target, so it stays inert.
+                        Named::F2 => {
+                            if let [(side, path)] = self.sftp.selected_rows.as_slice() {
+                                let (side, path) = (*side, path.clone());
+                                return Ok(Task::done(Message::Sftp(
+                                    SftpMessage::SftpStartRename(side, path),
+                                )));
+                            }
+                            return Ok(Task::none());
+                        }
                         // The dedicated Menu key (and Shift+F10, its
                         // keyboard equivalent on boards without one) opens
                         // the row context menu on the focused row, the
@@ -750,5 +831,85 @@ impl Oryxis {
                         move |_| Message::Sftp(SftpMessage::SftpTypeAheadFire(generation)),
                     ))
                 }
+    }
+}
+
+/// Whether a deferred slow-click rename should still open the inline editor
+/// when its timer fires. Two conditions, both about the click that armed it
+/// still being the user's last word:
+///
+/// - it must be the NEWEST click (`armed_gen == click_gen`). Every click,
+///   right-click and navigation bumps the generation, so the second click of
+///   a sluggish double-click, a click on another row, or descending into a
+///   folder all retire the pending rename.
+/// - its row must still be the lone selection, which covers the paths that
+///   move the selection without a click (keyboard cursor, type-ahead, a
+///   listing that reloaded).
+fn slow_rename_still_valid(
+    armed_gen: u64,
+    click_gen: u64,
+    selection: &[(SftpPaneSide, String)],
+    target: (SftpPaneSide, &str),
+) -> bool {
+    armed_gen == click_gen
+        && matches!(selection, [(side, path)] if *side == target.0 && path == target.1)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::slow_rename_still_valid;
+    use crate::state::SftpPaneSide::{Left, Right};
+
+    fn sel(rows: &[(crate::state::SftpPaneSide, &str)]) -> Vec<(crate::state::SftpPaneSide, String)> {
+        rows.iter().map(|(s, p)| (*s, p.to_string())).collect()
+    }
+
+    #[test]
+    fn fires_when_nothing_happened_since_the_arming_click() {
+        assert!(slow_rename_still_valid(
+            7,
+            7,
+            &sel(&[(Right, "/srv/a.conf")]),
+            (Right, "/srv/a.conf"),
+        ));
+    }
+
+    #[test]
+    fn a_later_click_cancels() {
+        // The second click of a slow double-click (or any other click) bumps
+        // the generation: the folder opens, no editor pops open behind it.
+        assert!(!slow_rename_still_valid(
+            7,
+            8,
+            &sel(&[(Right, "/srv/a.conf")]),
+            (Right, "/srv/a.conf"),
+        ));
+    }
+
+    #[test]
+    fn selection_must_still_be_exactly_that_row() {
+        // Moved on (keyboard cursor, type-ahead, reloaded listing).
+        assert!(!slow_rename_still_valid(
+            7,
+            7,
+            &sel(&[(Right, "/srv/b.conf")]),
+            (Right, "/srv/a.conf"),
+        ));
+        // Grew into a multi-selection: no single rename target.
+        assert!(!slow_rename_still_valid(
+            7,
+            7,
+            &sel(&[(Right, "/srv/a.conf"), (Right, "/srv/b.conf")]),
+            (Right, "/srv/a.conf"),
+        ));
+        // Emptied.
+        assert!(!slow_rename_still_valid(7, 7, &[], (Right, "/srv/a.conf")));
+        // Same path, other pane (both panes can show one host).
+        assert!(!slow_rename_still_valid(
+            7,
+            7,
+            &sel(&[(Left, "/srv/a.conf")]),
+            (Right, "/srv/a.conf"),
+        ));
     }
 }

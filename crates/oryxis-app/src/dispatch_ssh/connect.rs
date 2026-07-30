@@ -980,26 +980,63 @@ impl Oryxis {
     }
 
     /// Open a local shell into a new split pane.
+    ///
+    /// `pick` is the resolved shell (program / args / label), exactly as
+    /// `spawn_local_shell` takes it; `None` means the OS default shell.
+    /// Splitting used to hard-code `None`, so a user with a curated list
+    /// (or an "always open X" default) still got the OS default in the new
+    /// pane, which on Windows is Command Prompt (issue #108). The choice is
+    /// resolved by `open_local_shell_resolved` before we get here, so both
+    /// entry points honour the same setting.
     pub(crate) fn local_shell_into_pane(
         &mut self,
         tab_idx: usize,
         target: iced::widget::pane_grid::Pane,
         axis: iced::widget::pane_grid::Axis,
+        pick: Option<(String, Vec<String>, String)>,
     ) -> Task<Message> {
-        let Ok((mut state, rx)) =
-            TerminalState::new(DEFAULT_TERM_COLS as u16, DEFAULT_TERM_ROWS as u16, None)
-        else {
+        // Inherit the cwd of the pane we are splitting when it is itself a
+        // local shell, the same rule `spawn_local_shell` applies to tabs (a
+        // remote SSH cwd would not exist locally).
+        let inherit_cwd = self
+            .tabs
+            .get(tab_idx)
+            .and_then(|t| t.pane_grid.get(target))
+            .filter(|p| matches!(p.origin, crate::state::PaneOrigin::Local(_)))
+            .and_then(|p| p.cwd.clone());
+        let result = match &pick {
+            Some((program, args, _)) => TerminalState::new_with_command(
+                DEFAULT_TERM_COLS as u16,
+                DEFAULT_TERM_ROWS as u16,
+                program,
+                args,
+                inherit_cwd.as_deref(),
+            ),
+            None => TerminalState::new(
+                DEFAULT_TERM_COLS as u16,
+                DEFAULT_TERM_ROWS as u16,
+                inherit_cwd.as_deref(),
+            ),
+        };
+        let Ok((mut state, rx)) = result else {
+            tracing::error!(
+                "Failed to spawn local shell into split pane: program={:?}",
+                pick.as_ref().map(|(p, _, _)| p)
+            );
             return Task::none();
         };
         state.set_palette(self.terminal_palette.clone());
         let terminal = Arc::new(Mutex::new(state));
-        let label = crate::i18n::t("local_shell").to_string();
-        // Default OS shell (empty program). Restored verbatim by the
-        // session-group open path.
+        let label = pick
+            .as_ref()
+            .map(|(_, _, l)| l.clone())
+            .unwrap_or_else(|| crate::i18n::t("local_shell").to_string());
+        // Capture the exact shell so a saved session group restores it.
+        // No pick = default OS shell (empty program).
         let origin = crate::state::PaneOrigin::Local(crate::state::LocalShellSpec {
             label: label.clone(),
-            program: String::new(),
-            args: Vec::new(),
+            program: pick.as_ref().map(|(p, _, _)| p.clone()).unwrap_or_default(),
+            args: pick.as_ref().map(|(_, a, _)| a.clone()).unwrap_or_default(),
         });
         let Some(pane_id) = self.make_split_pane(tab_idx, target, axis, label, terminal, origin)
         else {

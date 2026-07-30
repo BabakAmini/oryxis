@@ -25,6 +25,9 @@ pub enum EditorMessage {
     /// "0" == explicitly disabled on this host; any positive integer
     /// is the per-host override in seconds. Sanitized to digits-only.
     EditorKeepaliveChanged(String),
+    /// Directory a fresh SFTP mount of this host lands in, as typed.
+    /// Empty == the login directory (the default).
+    EditorSftpInitialPathChanged(String),
     /// Per-host auto-title (OSC 0/2) selection from the host editor pick:
     /// the localized "Default / Show / Hide" label.
     EditorAutoTitleChanged(String),

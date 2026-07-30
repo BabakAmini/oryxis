@@ -151,6 +151,15 @@ pub enum SftpMessage {
     /// Copy every selected path in the given pane, one per line.
     SftpCopySelectionPaths(crate::state::SftpPaneSide),
     SftpStartRename(crate::state::SftpPaneSide, String),
+    /// The cursor entered the drawn file-name label of a row. Gates the
+    /// slow-click rename to the name itself, Explorer / Finder style.
+    SftpNameHovered(crate::state::SftpPaneSide, String),
+    /// The cursor left a file-name label.
+    SftpNameUnhovered,
+    /// Deferred slow-click rename `(side, path, click generation)`: sent
+    /// a double-click window after the arming release and dropped when a
+    /// newer click has bumped the generation meanwhile.
+    SftpSlowRenameFire(crate::state::SftpPaneSide, String, u64),
     SftpRenameInput(String),
     SftpRenameCommit,
     /// A remote rename succeeded: `(side, dir to reload, new basename)`.
@@ -188,6 +197,9 @@ pub enum SftpMessage {
     SftpRowExit,
     SftpMouseLeftPressed,
     SftpSelectRow(crate::state::SftpPaneSide, String, bool),
+    /// "Open / Edit" on a remote row: download a temp copy, hand it to the
+    /// OS file association and watch it in the background. The same
+    /// pipeline as `SftpStartEditWith`, with the default opener.
     SftpStartEdit(crate::state::SftpPaneSide, String),
     /// Open a local file in the OS default app, no temp copy, no
     /// mtime watch. Edits land on the file directly.
@@ -196,26 +208,36 @@ pub enum SftpMessage {
     /// only). Folders open in place; files open their folder selected.
     /// Carries the absolute path and whether it's a directory.
     SftpRevealInExplorer(std::path::PathBuf, bool),
-    SftpEditReady(crate::state::EditSession),
-    SftpEditSave,
-    SftpEditDiscard,
     SftpEditWatchTick,
     /// Open a remote file with a chosen local application (issue #84):
     /// downloads a temp copy, spawns the opener, and registers a
-    /// background watch that confirms each save via the blocking dialog.
+    /// background watch that confirms each save via the save dialog.
     SftpStartEditWith(
         crate::state::SftpPaneSide,
         String,
         crate::state::SftpEditOpener,
     ),
     /// The temp copy is written and the opener spawned: register the
-    /// watch entry (the non-blocking sibling of `SftpEditReady`).
+    /// background watch.
     SftpEditWatchReady(crate::state::EditSession),
-    /// A button of the save-confirmation dialog was pressed.
-    SftpEditPromptChoice(crate::state::SftpEditPromptChoice),
+    /// A button of the save-confirmation dialog was pressed, for the watch
+    /// owning this temp file (the dialog can be answering for a watch that
+    /// lives on a parked tab, so it never means "the first dirty one").
+    SftpEditPromptChoice(crate::state::SftpEditPromptChoice, std::path::PathBuf),
+    /// A button of the reopen-or-redownload dialog was pressed.
+    SftpEditReopenChoice(crate::state::SftpEditReopenChoice),
+    /// Surface an edit-flow message as a toast. Used by the paths that
+    /// have no pane to report into (a relaunched opener, sidebar edits).
+    SftpEditToast(String),
     /// A watch upload finished: re-arm the entry (keyed by temp path)
     /// with the temp mtime captured at upload time, or surface the error.
     SftpEditWatchUploadDone(std::path::PathBuf, Result<std::time::SystemTime, String>),
+    /// Remember this remote directory as the host's SFTP landing folder
+    /// (`Connection.sftp_initial_path`), from the pane's context menu.
+    SftpSetInitialPath(crate::state::SftpPaneSide, String),
+    /// Forget the host's saved SFTP landing folder: fresh mounts go back
+    /// to the login directory.
+    SftpClearInitialPath(crate::state::SftpPaneSide),
     SftpCancelRemoteLoad(crate::state::SftpPaneSide),
     /// Retry the last failed remote action, either re-list the
     /// current path (if a session is still mounted) or re-run the

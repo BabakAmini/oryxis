@@ -34,6 +34,10 @@ pub(crate) fn unrouted<M: std::fmt::Debug>(message: M) -> Task<Message> {
 
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        // Stall watchdog (#104): heartbeat + in-flight marker for this
+        // message, dropped on every exit path. No-op unless the debug
+        // logging toggle is on.
+        let _stall_guard = crate::stall_watchdog::message_guard(&message);
         // Sync the cursor position from the event listener's atomics.
         // CursorMoved is only forwarded as a message while something
         // consumes continuous positions (see `mouse_interest` below), so
@@ -94,6 +98,16 @@ impl Oryxis {
         // itself a message, so the gate is already open by the time the
         // first CursorMoved of that drag arrives.
         crate::subscription::set_mouse_interest(self.mouse_interest());
+        // Clipboard work the terminal crate queued for us this cycle
+        // (copy-on-select, the copy chord, right-click copy, OSC 52). The
+        // widget layer has no clipboard of its own on purpose: every access
+        // in the process has to be serialized by the runtime, or two
+        // concurrent Win32 clipboard opens kill the app outright. See
+        // `oryxis_terminal::host_clipboard`.
+        let mut extra: Vec<Task<Message>> =
+            crate::dispatch_global::serve_terminal_clipboard_requests()
+                .into_iter()
+                .collect();
         // One-shot Privacy Mode hint (issue #78): the first time a
         // redaction bar actually draws, spell out how the reveal works
         // ("hover to peek, click to pin"); getting silently masked with
@@ -105,11 +119,13 @@ impl Oryxis {
         if oryxis_terminal::take_privacy_mask_drawn() && !self.privacy.hint_shown {
             self.privacy.hint_shown = true;
             self.persist_setting("hint_privacy_mask", "true");
-            let hint =
-                self.show_toast_secs(crate::i18n::t("privacy_hint_toast").to_string(), 6);
-            return Task::batch([task, hint]);
+            extra.push(self.show_toast_secs(crate::i18n::t("privacy_hint_toast").to_string(), 6));
         }
-        task
+        if extra.is_empty() {
+            return task;
+        }
+        extra.insert(0, task);
+        Task::batch(extra)
     }
 
     /// Whether anything in the app currently consumes continuous cursor
@@ -220,6 +236,7 @@ impl Oryxis {
             // Cross-cutting globals (handled outside any single domain).
             Message::OpenUrl(_)
             | Message::CopyToClipboard(_)
+            | Message::ClipboardWritten(_)
             | Message::ToastClear
             | Message::ToastDismiss
             | Message::ErrorDialogDismiss

@@ -618,5 +618,31 @@ fn connection_cloud_ref_and_initial_command_round_trip() {
     assert_eq!(back.initial_command.as_deref(), Some("exec bash"));
 }
 
-// ── Group.cloud_query ──
+// ── Connection.sftp_initial_path ──
 
+#[test]
+fn sftp_initial_path_roundtrips_and_blank_reads_as_none() {
+    // The per-host SFTP landing folder is a plain additive column, but a
+    // blank value must come back as `None` ("the login directory"), never
+    // as an empty path the mount would try to canonicalize.
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "host");
+    conn.sftp_initial_path = Some("/srv/www".into());
+    vault.save_connection(&conn, None).unwrap();
+    let stored = vault.list_connections().unwrap();
+    assert_eq!(
+        stored[0].sftp_initial_path.as_deref(),
+        Some("/srv/www"),
+        "landing folder must survive a save/list round trip"
+    );
+
+    conn.sftp_initial_path = Some("   ".into());
+    vault.save_connection(&conn, None).unwrap();
+    assert_eq!(vault.list_connections().unwrap()[0].sftp_initial_path, None);
+
+    conn.sftp_initial_path = None;
+    vault.save_connection(&conn, None).unwrap();
+    assert_eq!(vault.list_connections().unwrap()[0].sftp_initial_path, None);
+}
+
+// ── Group.cloud_query ──

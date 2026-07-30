@@ -12,6 +12,18 @@ pub enum HistoryMessage {
     ViewSessionLog(Uuid),
     /// Open the kebab menu on a History session row.
     ShowSessionLogMenu(usize),
+    /// Kebab / right-click menu of a saved AI conversation row.
+    ShowChatConversationMenu(usize),
+    /// Open a saved conversation in the read-only reader. Loads its turns
+    /// from the vault; a conversation is never resumed, only re-read (the
+    /// terminal it was held against is long gone).
+    OpenChatConversation(Uuid),
+    /// Close the conversation reader.
+    CloseChatConversation,
+    /// Ask before deleting a saved conversation; the confirm dialog's
+    /// action carries `DeleteChatConversation`.
+    RequestDeleteChatConversation(usize),
+    DeleteChatConversation(usize),
     /// Export a recorded session as an asciicast v2 `.cast` file
     /// (replayable in the asciinema player). Output-only by design.
     ExportSessionCast(Uuid),

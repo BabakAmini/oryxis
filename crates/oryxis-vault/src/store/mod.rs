@@ -413,6 +413,7 @@ pub struct VaultStore {
 }
 
 
+mod chat;
 mod cloud;
 mod command_history;
 mod connections;
@@ -427,6 +428,7 @@ mod settings;
 mod snippets;
 mod sync;
 
+pub use chat::{ChatConversationEntry, ChatMessageEntry};
 pub use logs::{SealedSessionOutput, CONTENT_SEARCH_MAX_SCAN_BYTES};
 
 #[cfg(test)]

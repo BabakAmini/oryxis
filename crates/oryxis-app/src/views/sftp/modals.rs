@@ -230,79 +230,88 @@ pub(crate) fn new_entry_modal<'a>(entry: &crate::state::SftpNewEntry) -> Element
         .into()
 }
 
-/// Modal shown while an edit-in-place session is active. The user has
-/// the temp file open in their OS editor, when they're done they come
-/// back here and either save the changes back to the remote or discard.
-/// Backdrop is non-dismissable on click; the user must explicitly choose
-/// so a stray click can't drop their edits.
-pub(crate) fn edit_in_place_modal<'a>(
-    session: &crate::state::EditSession,
+/// Reopen-or-redownload dialog: the user asked to open a remote file that
+/// is already being edited locally. Reopening hands the existing copy back
+/// to the application (keeping any save that is still waiting to upload);
+/// downloading again throws that copy away. FileZilla asks the same
+/// question, and for the same reason: a blind re-download silently
+/// discards work. Non-dismissable on backdrop click.
+pub(crate) fn edit_reopen_modal<'a>(
+    app: &crate::app::Oryxis,
+    prompt: &crate::state::EditReopenPrompt,
 ) -> Element<'a, Message> {
-    let (status_text, status_color) = if session.dirty {
-        (
-            t("edit_changes_detected").to_string(),
-            OryxisColors::t().accent,
-        )
-    } else {
-        (
-            t("edit_waiting_changes").to_string(),
-            OryxisColors::t().text_muted,
-        )
-    };
-    let title = if session.dirty {
-        t("edit_title_modified")
-    } else {
-        t("edit_title_clean")
-    };
-    let dialog = container(
-        column![
-            text(title).size(16).color(OryxisColors::t().text_primary),
-            Space::new().height(6),
-            text(session.label.clone())
-                .size(13)
-                .color(OryxisColors::t().text_secondary),
-            Space::new().height(4),
-            text(format!("{} {}", t("local_copy_label"), session.temp_path.display()))
-                .size(11)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(4),
-            text(session.remote_path.clone())
-                .size(11)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(16),
-            text(status_text).size(12).color(status_color),
-            Space::new().height(16),
-            row![
-                crate::widgets::styled_button(
-                    t("save_to_remote"),
-                    Message::Sftp(SftpMessage::SftpEditSave),
-                    OryxisColors::t().accent,
-                ),
-                Space::new().width(8),
-                crate::widgets::styled_button(
-                    t("discard"),
-                    Message::Sftp(SftpMessage::SftpEditDiscard),
-                    OryxisColors::t().text_muted,
-                ),
-            ],
-        ]
-        .padding(24)
-        .width(440),
-    )
-    .style(|_| container::Style {
-        background: Some(Background::Color(OryxisColors::t().bg_surface)),
-        border: Border {
-            radius: Radius::from(12.0),
-            color: OryxisColors::t().border,
-            width: 1.0,
-        },
-        ..Default::default()
-    });
+    use crate::state::SftpEditReopenChoice as C;
+    let choice = |c: C| Message::Sftp(SftpMessage::SftpEditReopenChoice(c));
 
-    // Solid scrim with no on_press, the modal is intentionally
-    // non-dismissable on backdrop click. Clicking outside does nothing
-    // so the user is forced to make an explicit save/discard choice and
-    // can't lose their edits to a misclick.
+    let mut body = column![
+        text(t("sftp_edit_reopen_title"))
+            .size(15)
+            .font(iced::Font {
+                weight: iced::font::Weight::Semibold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            })
+            .color(OryxisColors::t().text_primary),
+        Space::new().height(6),
+        text(t("sftp_edit_reopen_text").replacen("{file}", &prompt.label, 1))
+            .size(12)
+            .color(OryxisColors::t().text_secondary),
+        Space::new().height(2),
+        text(prompt.temp_path.display().to_string())
+            .size(11)
+            .color(OryxisColors::t().text_muted),
+    ]
+    .width(Length::Fill);
+    // Only warn about losing work when there actually is a save pending:
+    // an unmodified copy costs nothing to re-download.
+    if prompt.pending_save {
+        body = body.push(Space::new().height(8)).push(
+            text(t("sftp_edit_reopen_pending"))
+                .size(11)
+                .color(OryxisColors::t().accent),
+        );
+    }
+
+    app.modal_nav_reset();
+    let buttons = crate::widgets::dir_row(vec![
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::Cancel)),
+            8.0,
+            false,
+            ghost_button(t("cancel"), choice(C::Cancel)),
+        ),
+        Space::new().width(Length::Fill).into(),
+        app.modal_nav_slot(
+            crate::keynav::RowAction::activate(choice(C::Fresh)),
+            8.0,
+            false,
+            outlined_button(t("sftp_edit_reopen_fresh"), choice(C::Fresh)),
+        ),
+        Space::new().width(8).into(),
+        app.modal_nav_slot_default(
+            crate::keynav::RowAction::activate(choice(C::Reopen)),
+            8.0,
+            true,
+            primary_button(
+                t("sftp_edit_reopen_local"),
+                choice(C::Reopen),
+                OryxisColors::t().accent,
+            ),
+        ),
+    ])
+    .align_y(iced::Alignment::Center);
+
+    let content = body.push(Space::new().height(18)).push(buttons);
+    let dialog = container(content.padding(22).width(560))
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        });
+
     let scrim: Element<'_, Message> = container(Space::new())
         .width(Length::Fill)
         .height(Length::Fill)
@@ -311,16 +320,11 @@ pub(crate) fn edit_in_place_modal<'a>(
             ..Default::default()
         })
         .into();
-
-    // Wrap the dialog in a MouseArea that swallows clicks via `NoOp`,
-    // otherwise events fall through the Stack to the scrim underneath
-    // and the modal closes on every click inside the dialog body.
     let centered = container(MouseArea::new(dialog).on_press(Message::NoOp))
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill);
-
     iced::widget::Stack::new()
         .push(scrim)
         .push(centered)
@@ -633,8 +637,13 @@ pub(crate) fn edit_prompt_modal<'a>(
         .replacen("{file}", &session.label, 1)
         .replacen("{host}", &host, 1);
 
-    let choice =
-        |c: C| Message::Sftp(SftpMessage::SftpEditPromptChoice(c));
+    // Every choice names the watch it answers for by temp file: the dialog
+    // can be resolving a save that belongs to a parked tab, so "the first
+    // dirty watch" is not a safe target.
+    let temp = session.temp_path.clone();
+    let choice = move |c: C| {
+        Message::Sftp(SftpMessage::SftpEditPromptChoice(c, temp.clone()))
+    };
 
     // Keyboard rows in visual order (Tab/arrows walk them, Enter fires
     // the ringed row); Yes is the surface default so a bare Enter
@@ -645,7 +654,7 @@ pub(crate) fn edit_prompt_modal<'a>(
             crate::keynav::RowAction::activate(choice(C::Cancel)),
             8.0,
             false,
-            ghost_button(t("cancel"), choice(C::Cancel)),
+            ghost_button(t("sftp_edit_stop_watching"), choice(C::Cancel)),
         ),
         Space::new().width(Length::Fill).into(),
         app.modal_nav_slot(

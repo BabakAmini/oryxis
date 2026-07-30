@@ -33,15 +33,16 @@ pub fn wrap_paste(text: &str, bracketed: bool) -> Vec<u8> {
     out
 }
 
-/// Write `text` to the system clipboard, best-effort. Errors are swallowed
-/// (a backend may be unavailable on a headless box or under a compositor
-/// without the data-control protocol); a failed copy should never panic
-/// the UI. Shared by the copy-on-select, right-click-copy and Ctrl+Shift+C
-/// paths so the three sites stay in sync.
+/// Queue `text` for the host to put on the system clipboard. Shared by the
+/// copy-on-select, right-click-copy and Ctrl+Shift+C paths so the three sites
+/// stay in sync.
+///
+/// This crate never talks to the system clipboard itself: the host performs
+/// every operation through the iced runtime, which keeps one clipboard access
+/// in flight per process. See [`crate::host_clipboard`] for the crash that
+/// bought that rule.
 pub(crate) fn set_clipboard_text(text: &str) {
-    if let Ok(mut clip) = arboard::Clipboard::new() {
-        let _ = clip.set_text(text);
-    }
+    crate::host_clipboard::write_text(text);
 }
 
 /// Best-effort spawn of the OS default handler for a URL. Runs detached; the

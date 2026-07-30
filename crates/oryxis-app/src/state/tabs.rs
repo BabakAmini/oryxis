@@ -641,6 +641,16 @@ pub(crate) struct TerminalTab {
     /// global) because two tabs can stream at once now: a shared static would
     /// see alternating tab ids and never throttle, re-parsing every chunk.
     pub chat_last_md_parse: Option<std::time::Instant>,
+    /// Row id of this conversation in `chat_conversations`, minted the
+    /// first time a turn is saved. `None` until then, so a tab whose chat
+    /// was never used leaves nothing behind.
+    pub chat_saved_id: Option<Uuid>,
+    /// How many entries of `chat_history` are already in the vault.
+    /// Persistence is append-only, so this is where the next flush starts.
+    /// The history can also SHRINK (an empty assistant placeholder or a
+    /// pending-tool bubble is popped), which is why the flush compares
+    /// against the current length instead of trusting this blindly.
+    pub chat_persisted: usize,
     /// True for cloud SSM / ECS-Exec tabs (a `session-manager-plugin`
     /// PTY). These talk SSM over a websocket whose idle timer kills the
     /// session after ~20 min of inactivity, so they get the
@@ -861,6 +871,8 @@ impl TerminalTab {
             chat_task: None,
             chat_mode: default_chat_mode(),
             chat_last_md_parse: None,
+            chat_saved_id: None,
+            chat_persisted: 0,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: None,
@@ -1020,6 +1032,34 @@ impl TerminalTab {
         self.auto_label(auto_title)
     }
 
+    /// Re-anchor the tab's own label on the pane that is left when a
+    /// split collapses back to a single pane.
+    ///
+    /// `auto_label` reads the FOCUSED PANE's label while a tab is split
+    /// but falls back to `self.label` once it is not, and `self.label` is
+    /// fixed when the tab is created. So closing the first pane of a
+    /// two-pane tab left the tab wearing the name of the pane that just
+    /// went away, while showing the survivor's terminal (issue #108).
+    ///
+    /// This repairs the tab's identity rather than just its caption:
+    /// `self.label` is also what the host-accent and detected-OS lookups
+    /// key on, so a stale value mismatched those too.
+    ///
+    /// No-op while the tab is still split (the focused pane's label is
+    /// what shows then) or when the survivor carries no label of its own.
+    pub fn sync_label_to_sole_pane(&mut self) {
+        if self.pane_count() != 1 {
+            return;
+        }
+        let Some(survivor) = self.pane_grid.panes.values().next() else {
+            return;
+        };
+        if survivor.label.is_empty() {
+            return;
+        }
+        self.label = survivor.label.clone();
+    }
+
     /// The automatic label, ignoring any user rename. This is what
     /// lookups (host accent, detected-OS badge) key on: a custom name is
     /// display-only and must never leak into a `Connection`-by-label
@@ -1061,6 +1101,73 @@ mod terminal_tab_tests {
             .expect("split");
         tab.focused = handle;
         handle
+    }
+
+    /// Split a tab named after its first pane, add a second pane for a
+    /// different host, then close the FIRST one. The tab is now showing the
+    /// second host's terminal, so it must not keep the first host's name
+    /// (issue #108): the unsplit label comes from the tab, which was named
+    /// at creation.
+    fn named_split(tab: &mut TerminalTab, label: &str) -> pane_grid::Pane {
+        let (handle, _) = tab
+            .pane_grid
+            .split(
+                pane_grid::Axis::Vertical,
+                tab.focused,
+                Pane::new(label.into(), dummy_terminal()),
+            )
+            .expect("split");
+        tab.focused = handle;
+        handle
+    }
+
+    #[test]
+    fn collapsing_a_split_renames_the_tab_after_the_surviving_pane() {
+        let mut tab = TerminalTab::new_single("Local Shell".into(), dummy_terminal());
+        let first = tab.focused;
+        named_split(&mut tab, "root@prod-db");
+        // Split: the focused pane's label is what shows.
+        assert_eq!(tab.auto_label(false), "root@prod-db");
+
+        // Close the pane the tab was named after.
+        let (_, sibling) = tab.pane_grid.close(first).expect("close");
+        tab.focused = sibling;
+        tab.sync_label_to_sole_pane();
+
+        assert_eq!(
+            tab.auto_label(false),
+            "root@prod-db",
+            "an unsplit tab must wear the surviving pane's name, not the closed one's"
+        );
+    }
+
+    /// The repair must not fight a user rename: `custom_name` wins over
+    /// every automatic source, including this one.
+    #[test]
+    fn collapsing_a_split_does_not_override_a_user_rename() {
+        let mut tab = TerminalTab::new_single("Local Shell".into(), dummy_terminal());
+        let first = tab.focused;
+        named_split(&mut tab, "root@prod-db");
+        tab.custom_name = Some("deploy box".into());
+
+        let (_, sibling) = tab.pane_grid.close(first).expect("close");
+        tab.focused = sibling;
+        tab.sync_label_to_sole_pane();
+
+        assert_eq!(tab.display_label(false), "deploy box");
+        // The automatic label underneath still tracks the survivor.
+        assert_eq!(tab.auto_label(false), "root@prod-db");
+    }
+
+    /// Still split = still the focused pane's label, so the repair must
+    /// leave a multi-pane tab's own label alone.
+    #[test]
+    fn a_still_split_tab_keeps_its_own_label() {
+        let mut tab = TerminalTab::new_single("Local Shell".into(), dummy_terminal());
+        named_split(&mut tab, "root@prod-db");
+        named_split(&mut tab, "root@web-01");
+        tab.sync_label_to_sole_pane();
+        assert_eq!(tab.label, "Local Shell", "three panes: nothing to re-anchor");
     }
 
     #[test]

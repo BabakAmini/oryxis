@@ -1,4 +1,5 @@
 pub mod backend;
+pub mod host_clipboard;
 pub mod input_tracker;
 pub mod osc;
 pub mod screen_title;
@@ -8,6 +9,7 @@ pub mod colors;
 pub mod mouse;
 
 pub use backend::{set_clipboard_access, set_default_scrollback, TerminalBackend, DEFAULT_WORD_DELIMITERS};
+pub use host_clipboard::{take_clipboard_requests, ClipboardRequest, ClipboardSink};
 pub use input_tracker::{InputTracker, SubmittedLine};
 pub use osc::{PositionedShellMark, Progress, ShellMark};
 pub use colors::{TerminalPalette, TerminalTheme};

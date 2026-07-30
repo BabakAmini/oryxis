@@ -14,6 +14,10 @@ pub enum AiMessage {
     /// the needle on close).
     ToggleSidebarSearch,
     ToggleAiEnabled,
+    /// Toggle "let reasoning models think before answering". Off by default:
+    /// the chain-of-thought is billed and never shown, and it is billed
+    /// twice once providers require it replayed (see `ChatStreamReasoning`).
+    ToggleAiReasoning,
     AiProviderChanged(String),
     AiModelChanged(String),
     AiApiKeyChanged(String),
@@ -37,6 +41,11 @@ pub enum AiMessage {
     /// started the stream, not `active_tab`, so switching tabs mid-stream
     /// can't corrupt another conversation or run a command on the wrong host.
     ChatStreamChunk { tab_id: Uuid, delta: String },
+    /// Incremental chain-of-thought delta (DeepSeek thinking mode), routed
+    /// like `ChatStreamChunk` but accumulated apart from the answer: it is
+    /// never rendered, and exists because the provider demands it back on
+    /// the conversation's next request (issue #105).
+    ChatStreamReasoning { tab_id: Uuid, delta: String },
     /// Terminal sentinel for `ChatStreamChunk`, clears the loading
     /// state and finalises the message (markdown re-parse, scroll snap)
     /// on the origin tab.
@@ -54,7 +63,17 @@ pub enum AiMessage {
     /// exchange. `tab_id` pins it to the tab that owns the conversation so a
     /// tool call never lands in the wrong session; `risk` is carried so the
     /// reconstructed `tool_use` block reports the model's classification.
-    ChatToolExec { tab_id: Uuid, command: String, risk: String },
+    ChatToolExec {
+        tab_id: Uuid,
+        command: String,
+        risk: String,
+        /// Gemini's per-call `thoughtSignature`, threaded from the proposal
+        /// through every gate (auto-exec, judge, user approval) so it reaches
+        /// the `ToolExchange` that the replay reads. Losing it here would
+        /// 400 the request after the command runs, which is the worst place
+        /// to fail. See `crate::ai::ToolUseMsg::thought_signature`.
+        thought_signature: Option<String>,
+    },
     /// The terminal poll for a running tool exchange finished. Persists the
     /// captured `output` onto the exchange with id `tool_id` (pairing it with
     /// its `tool_use`), then fires the analysis followup. Re-introduced as the
@@ -66,10 +85,24 @@ pub enum AiMessage {
     /// running unattended; risky ones (and ones the model failed to
     /// classify) are queued as a `PendingTool` bubble with RUN / ALWAYS RUN
     /// / DENY buttons.
-    ChatToolProposed { tab_id: Uuid, command: String, risk: String },
+    ChatToolProposed {
+        tab_id: Uuid,
+        command: String,
+        risk: String,
+        /// Gemini's opaque per-call `thoughtSignature`, carried through to
+        /// the `ToolExchange` so the replay can echo it back. `None` on the
+        /// other providers. See `crate::ai::ToolUseMsg::thought_signature`.
+        thought_signature: Option<String>,
+    },
     /// The independent safety judge (or a mode/loop guard) declined to
     /// auto-run a command. Surface it for explicit approval like a risky one.
-    ChatToolGuardBlocked { tab_id: Uuid, command: String },
+    ChatToolGuardBlocked {
+        tab_id: Uuid,
+        command: String,
+        /// Gemini's per-call `thoughtSignature`, carried so the pending
+        /// bubble this raises can hand it back when the user approves.
+        thought_signature: Option<String>,
+    },
     /// User clicked RUN on a pending tool prompt, execute once.
     ChatToolApprove(String),
     /// User clicked ALWAYS RUN, add this command's first token to the

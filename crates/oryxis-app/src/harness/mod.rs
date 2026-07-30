@@ -66,6 +66,7 @@ use std::time::{Duration, Instant};
 use iced::{Program, Size};
 use iced_test::Instruction;
 use iced_test::core::Rectangle;
+use iced_test::core::clipboard;
 use iced_test::core::theme;
 use iced_test::core::widget::Id;
 use iced_test::core::widget::operation::Operation;
@@ -649,6 +650,58 @@ where
                 }
             }
         }
+    }
+
+    /// The `clipboard` family, shared by the ctl / REPL front-end and the
+    /// batch runner so a committed `.ice` behaves exactly like a live
+    /// session:
+    ///
+    /// - `clipboard` reports the emulated clipboard
+    /// - `clipboard "text"` seeds it (`\n` escapes for multi-line content)
+    /// - `clipboard is "text"` ASSERTS it, which is what makes copy paths
+    ///   testable at all: the app's copies go through the iced runtime, so
+    ///   they land in the emulated clipboard where a test can see them.
+    ///
+    /// `Ok(line)` is the response to print, `Err(reason)` a failed assert or
+    /// a syntax error (the batch runner turns either into a test failure).
+    fn clipboard_command(&mut self, rest: &str) -> Result<String, String> {
+        let current = match self.emulator.clipboard() {
+            Some(clipboard::Content::Text(text)) => Some(text.clone()),
+            _ => None,
+        };
+        let (verb, arg) = match rest.split_once(char::is_whitespace) {
+            Some((verb, arg)) => (verb, arg.trim()),
+            None => (rest, ""),
+        };
+        if verb == "is" {
+            let want = parse_quoted(arg)
+                .map(|text| commands::unescape_clipboard(&text))
+                .ok_or_else(|| {
+                    "clipboard is wants a quoted string: clipboard is \"text\"".to_string()
+                })?;
+            return match current {
+                Some(text) if text == want => Ok("ok".into()),
+                Some(text) => Err(format!("clipboard is {want:?}, got {text:?}")),
+                None => Err(format!("clipboard is {want:?}, got nothing")),
+            };
+        }
+        if rest.is_empty() {
+            return Ok(match self.emulator.clipboard() {
+                Some(clipboard::Content::Text(text)) => format!("clipboard {text:?}"),
+                Some(clipboard::Content::Html(html)) => format!("clipboard html {html:?}"),
+                Some(clipboard::Content::Files(files)) => format!("clipboard files {files:?}"),
+                Some(_) => "clipboard <non-text content>".into(),
+                None => "clipboard empty".into(),
+            });
+        }
+        // The wire protocol is line-based, so multi-line content (PEM blocks)
+        // rides in as `\n` escapes.
+        let text = parse_quoted(rest)
+            .map(|text| commands::unescape_clipboard(&text))
+            .ok_or_else(|| "clipboard wants a quoted string: clipboard \"secret\"".to_string())?;
+        self.emulator
+            .set_clipboard(Some(clipboard::Content::Text(text)));
+        Ok("ok".into())
     }
 
     /// Renders the current UI straight from the emulator's own

@@ -268,6 +268,10 @@ pub(crate) struct ConnectionForm {
     /// Per-host SSH rekey threshold in MB as typed (empty = default).
     /// Maps to `Connection.rekey_limit_mb`.
     pub rekey_limit_mb: String,
+    /// Directory a fresh SFTP mount of this host lands in, as typed
+    /// (empty = the login directory). Maps to
+    /// `Connection.sftp_initial_path`.
+    pub sftp_initial_path: String,
 }
 
 /// One SSH algorithm negotiation category, used to drive the per-host
@@ -969,6 +973,7 @@ impl Default for ConnectionForm {
             sidebar_auto_open: None,
             quirks: oryxis_core::models::terminal_quirks::TerminalQuirks::default(),
             rekey_limit_mb: String::new(),
+            sftp_initial_path: String::new(),
         }
     }
 }

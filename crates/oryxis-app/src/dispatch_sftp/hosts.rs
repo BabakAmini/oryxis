@@ -45,6 +45,56 @@ enum SftpConnectMsg {
 }
 
 impl Oryxis {
+    /// Write (or clear) the SFTP landing folder of the host mounted in
+    /// `side`, both in memory and in the vault, and confirm with a toast.
+    /// The pane is matched by its host label, the same key the remount path
+    /// uses; a pane showing Local (or a host that isn't a saved connection,
+    /// e.g. a cloud-discovered one that was never imported) simply has
+    /// nothing to store, and says so.
+    fn store_sftp_initial_path(
+        &mut self,
+        side: SftpPaneSide,
+        path: Option<String>,
+    ) -> Task<Message> {
+        let Some(label) = self
+            .sftp
+            .pane(side)
+            .host_label
+            .clone()
+            .filter(|_| self.sftp.pane(side).is_remote)
+        else {
+            return Task::none();
+        };
+        let value = path
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty());
+        let Some(conn) = self.connections.iter_mut().find(|c| c.label == label) else {
+            return self.show_toast_secs(
+                crate::i18n::t("sftp_initial_path_no_host").to_string(),
+                4,
+            );
+        };
+        conn.sftp_initial_path = value.clone();
+        conn.updated_at = chrono::Utc::now();
+        // Full save (like the icon picker's): the row must persist without
+        // clobbering the host's other columns.
+        if let Some(vault) = &self.vault
+            && let Err(e) = vault.save_connection(conn, None)
+        {
+            return self.show_toast_secs(format!("{e}"), 5);
+        }
+        match value {
+            Some(p) => self.show_toast_secs(
+                crate::i18n::t("sftp_initial_path_saved").replacen("{path}", &p, 1),
+                3,
+            ),
+            None => self.show_toast_secs(
+                crate::i18n::t("sftp_initial_path_cleared").to_string(),
+                3,
+            ),
+        }
+    }
+
     pub(super) fn handle_sftp_hosts(
         &mut self,
         message: SftpMessage,
@@ -99,11 +149,17 @@ impl Oryxis {
                     })
                 });
                 let label = conn.label.clone();
-                // One-shot preferred directory (sidebar Files promotion);
-                // taken here so both the reuse and fresh-dial branches
-                // honor it, with home-dir fallback in
-                // `initial_remote_listing` when it doesn't resolve.
-                let initial_hint = self.sftp_open_at_path.take();
+                // Preferred directory for this mount, in precedence order:
+                // the one-shot hint (a sidebar Files promotion, a remount
+                // landing back where the user was) first, then the host's
+                // own saved SFTP folder. Both fall back to the login
+                // directory in `initial_remote_listing` when they don't
+                // resolve, so a stale value can never break the mount.
+                let initial_hint = self
+                    .sftp_open_at_path
+                    .take()
+                    .or_else(|| conn.sftp_initial_path.clone())
+                    .filter(|p| !p.trim().is_empty());
                 // Owner of the live buffer at kickoff time (standalone SFTP
                 // tab or hybrid terminal tab). The mount completion is
                 // stamped with it so a park/hoist swap while the mount is in
@@ -473,6 +529,14 @@ impl Oryxis {
                 }
                 self.sftp.picker_target = side;
                 self.sftp.picker_open = true;
+            }
+            SftpMessage::SftpSetInitialPath(side, path) => {
+                self.sftp.close_menus();
+                return Ok(self.store_sftp_initial_path(side, Some(path)));
+            }
+            SftpMessage::SftpClearInitialPath(side) => {
+                self.sftp.close_menus();
+                return Ok(self.store_sftp_initial_path(side, None));
             }
             SftpMessage::SftpOpenPicker(side) => {
                 self.sftp.picker_target = side;

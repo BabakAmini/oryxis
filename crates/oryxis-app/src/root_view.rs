@@ -10,6 +10,10 @@ use crate::theme::OryxisColors;
 
 impl Oryxis {
     pub fn view(&self) -> Element<'_, Message> {
+        // Stall watchdog (#104): proves iced is still drawing. A live
+        // update heartbeat with this one dead means the freeze sits in
+        // presentation, not in our handlers.
+        crate::stall_watchdog::beat_view();
         let base = match self.vault_ui.state {
             VaultState::Loading => self.view_vault_error("Failed to open vault database"),
             // First-run welcome / onboarding carousel, full page.

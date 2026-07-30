@@ -36,6 +36,9 @@ impl Oryxis {
                 if let Some(vault) = &self.vault {
                     let _ = vault.clear_logs();
                     let _ = vault.clear_session_logs();
+                    // "Clear all" clears the whole timeline, and saved
+                    // conversations are rows in it.
+                    let _ = vault.clear_chat_conversations();
                     self.logs_page = 0;
                     self.session_logs_page = 0;
                     self.load_data_from_vault();
@@ -45,6 +48,13 @@ impl Oryxis {
                 // content-search results that pointed into the wiped rows.
                 self.viewing_session_log = None;
                 self.session_player = None;
+                self.chat_viewer = None;
+                // A tab still appending to a wiped conversation must start a
+                // fresh row instead of resurrecting a deleted one.
+                for tab in &mut self.tabs {
+                    tab.chat_saved_id = None;
+                    tab.chat_persisted = 0;
+                }
                 self.history_content_reset();
             }
             HistoryMessage::LogsPageNext => {
@@ -73,6 +83,8 @@ impl Oryxis {
                 // session shows everything recorded up to this moment,
                 // not just what was last persisted.
                 self.flush_session_logs_final();
+                // The History slot holds one reader at a time.
+                self.chat_viewer = None;
                 let Some(vault) = &self.vault else {
                     return Task::none();
                 };
@@ -129,10 +141,8 @@ impl Oryxis {
                 {
                     let text = state.all_text();
                     drop(state);
-                    if !text.is_empty()
-                        && let Ok(mut clip) = arboard::Clipboard::new()
-                    {
-                        let _ = clip.set_text(text);
+                    if !text.is_empty() {
+                        return crate::dispatch_global::write_clipboard_text(text);
                     }
                 }
             }
@@ -401,6 +411,108 @@ impl Oryxis {
                         danger: true,
                     }),
                 });
+            }
+
+            HistoryMessage::ShowChatConversationMenu(idx) => {
+                use crate::state::{OverlayContent, OverlayState};
+                // Toggle, mirroring the session-log kebab beside it.
+                let already = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(OverlayContent::ChatConversationActions(i)) if *i == idx
+                );
+                if already {
+                    self.overlay = None;
+                } else {
+                    let anchor = self.keynav_take_menu_anchor();
+                    self.overlay = Some(OverlayState {
+                        content: OverlayContent::ChatConversationActions(idx),
+                        x: anchor.0,
+                        y: anchor.1,
+                    });
+                }
+            }
+            HistoryMessage::OpenChatConversation(id) => {
+                self.overlay = None;
+                // One reader at a time in the History slot, the same rule
+                // the recording viewer and the player already follow.
+                self.viewing_session_log = None;
+                self.session_player = None;
+                // Flush the live conversation first, so opening the one you
+                // are still having shows its latest turns rather than what
+                // happened to be saved at the last settle point.
+                if let Some(idx) = self.active_tab {
+                    self.flush_chat_history(idx);
+                }
+                let Some(vault) = &self.vault else {
+                    return Task::none();
+                };
+                let messages = match vault.chat_messages(&id) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        return self
+                            .show_toast(format!("{}: {e}", crate::i18n::t("chat_open_failed")));
+                    }
+                };
+                let label = self
+                    .chat_conversations
+                    .iter()
+                    .find(|c| c.id == id)
+                    .map(|c| c.label.clone())
+                    .unwrap_or_default();
+                self.chat_viewer = Some(crate::state::ChatViewer {
+                    conversation_id: id,
+                    label,
+                    messages,
+                });
+            }
+            HistoryMessage::CloseChatConversation => {
+                self.chat_viewer = None;
+            }
+            HistoryMessage::RequestDeleteChatConversation(idx) => {
+                // Reached from the row kebab; drop it before the dialog.
+                self.overlay = None;
+                let label = self
+                    .chat_conversations
+                    .get(idx)
+                    .map(|e| e.label.clone())
+                    .unwrap_or_default();
+                self.error_dialog = Some(crate::state::ErrorDialog {
+                    title: crate::i18n::t("chat_delete_confirm_title").to_string(),
+                    body: format!(
+                        "{label}: {}",
+                        crate::i18n::t("chat_delete_confirm_body")
+                    ),
+                    link: None,
+                    action: Some(crate::state::ErrorDialogAction {
+                        label: crate::i18n::t("delete").to_string(),
+                        message: Box::new(Message::History(
+                            HistoryMessage::DeleteChatConversation(idx),
+                        )),
+                        danger: true,
+                    }),
+                });
+            }
+            HistoryMessage::DeleteChatConversation(idx) => {
+                let Some(id) = self.chat_conversations.get(idx).map(|e| e.id) else {
+                    return Task::none();
+                };
+                if let Some(vault) = &self.vault {
+                    let _ = vault.delete_chat_conversation(&id);
+                    self.chat_conversations =
+                        vault.list_chat_conversations().unwrap_or_default();
+                }
+                // The reader cannot outlive what it is reading.
+                if self.chat_viewer.as_ref().is_some_and(|v| v.conversation_id == id) {
+                    self.chat_viewer = None;
+                }
+                // A tab still appending to this conversation must not
+                // resurrect it: detach so its next turn starts a new row.
+                for tab in &mut self.tabs {
+                    if tab.chat_saved_id == Some(id) {
+                        tab.chat_saved_id = None;
+                        tab.chat_persisted = 0;
+                    }
+                }
             }
 
             HistoryMessage::LogRowHovered(id) => {

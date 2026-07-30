@@ -89,30 +89,17 @@ impl Oryxis {
         // Action row OR progress bar depending on state.
         let action_area: Element<'_, Message> = if self.update_downloading {
             let pct = (self.update_progress * 100.0).clamp(0.0, 100.0) as u32;
-            // The filled portion needs a sibling empty portion or, as the
-            // sole Fill child, it always spans the whole track (the bar
-            // looked stuck at 100%). Two FillPortion children split the
-            // width by pct / (100 - pct).
-            let bar = container(
-                iced::widget::row![
-                    container(Space::new().height(6))
-                        .width(Length::FillPortion(pct as u16))
-                        .height(Length::Fixed(6.0))
-                        .style(|_| container::Style {
-                            background: Some(Background::Color(OryxisColors::t().accent)),
-                            border: Border { radius: Radius::from(3.0), ..Default::default() },
-                            ..Default::default()
-                        }),
-                    Space::new().width(Length::FillPortion((100 - pct) as u16)),
-                ],
-            )
-            .width(Length::Fill)
-            .height(Length::Fixed(6.0))
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_hover)),
-                border: Border { radius: Radius::from(3.0), ..Default::default() },
-                ..Default::default()
-            });
+            // Both ends of this bar used to misdraw: a weightless
+            // `FillPortion(0)` takes the WHOLE track in iced rather than
+            // vanishing, so 0% painted a full bar and 100% handed the track
+            // back to the empty sibling. `progress_track` omits the
+            // weightless side instead (same defect as issue #107).
+            let bar = crate::widgets::progress_track(
+                self.update_progress,
+                6.0,
+                OryxisColors::t().accent,
+                OryxisColors::t().bg_hover,
+            );
             // Branch on the update's own artifact kind, not the channel
             // setting: a nightly binary can legitimately download a stable
             // installer (channel flipped back to Stable), and the setting

@@ -120,10 +120,15 @@ pub(crate) fn name_cell<'a>(
 /// Build the Name cell's inner widget: the rename input while editing,
 /// otherwise an ellipsised filename. Also returns the full name to use as a
 /// hover tooltip when (and only when) the label is wide enough to be clipped.
+/// `hover_target` names the row the label belongs to; when set, the drawn
+/// name gets a transparent hover probe so the dispatcher can tell a click
+/// on the NAME from a click anywhere else on the row (the slow-click
+/// rename hit test). `None` on rows that can't be renamed.
 pub(crate) fn name_label_widget<'a>(
     name: &str,
     rename_input: Option<&str>,
     widths: crate::state::SftpColWidths,
+    hover_target: Option<(SftpPaneSide, String)>,
 ) -> (Element<'a, Message>, Option<String>) {
     use crate::state::SftpColumn;
     if let Some(input) = rename_input {
@@ -160,7 +165,32 @@ pub(crate) fn name_label_widget<'a>(
     let tooltip = (approx_text_width(name, 12.0) > avail
         && measure_text_width(name, 12.0) > avail)
         .then(|| name.to_string());
-    (label, tooltip)
+    let Some((side, path)) = hover_target else {
+        return (label, tooltip);
+    };
+    // Transparent hover probe over the drawn name, clamped to the text's own
+    // width (or to the cell once the name is long enough to ellipsise). It
+    // reports which row's NAME the cursor is on, which is what gates the
+    // slow-click rename: a click on the Size / Modified columns, or on the
+    // slack right of a short name, must never start an edit. Layered in a
+    // stack so the label keeps its Fill layout (a fixed-width text would
+    // ellipsise against the estimate instead of the real width), and the
+    // probe declares no press handler, so clicks still reach the row button
+    // underneath. `approx_text_width` is the same cheap per-row estimate the
+    // tooltip gate above already runs, biased high, so the probe errs a few
+    // pixels wide rather than cutting off the end of the name.
+    let hit_w = approx_text_width(name, 12.0).min(avail).max(1.0);
+    let probe = MouseArea::new(Space::new().width(Length::Fixed(hit_w)).height(Length::Fill))
+        .on_enter(Message::Sftp(SftpMessage::SftpNameHovered(side, path)))
+        .on_exit(Message::Sftp(SftpMessage::SftpNameUnhovered));
+    let layered = iced::widget::stack![
+        label,
+        container(probe)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Left),
+    ]
+    .into();
+    (layered, tooltip)
 }
 
 /// Build the ordered cells of one file row. The Name column (wherever it sits
@@ -298,7 +328,12 @@ pub(crate) fn file_row_local<'a>(
 
     // Inline rename mode swaps the row's label for a text input; the
     // icon + columns stay put so the row geometry doesn't jump.
-    let (label_widget, tooltip_name) = name_label_widget(&name, rename_input, widths);
+    let (label_widget, tooltip_name) = name_label_widget(
+        &name,
+        rename_input,
+        widths,
+        Some((side, path.to_string_lossy().into_owned())),
+    );
 
     let children = row_cells(visible, widths, icon, label_widget, tooltip_name, |c| {
         match c {
@@ -401,7 +436,8 @@ pub(crate) fn file_row_remote<'a>(
     let perms_s = format_perms(permissions, is_dir, is_symlink);
     let owner_s = format_owner(uid, gid);
 
-    let (label_widget, tooltip_name) = name_label_widget(&name, rename_input, widths);
+    let (label_widget, tooltip_name) =
+        name_label_widget(&name, rename_input, widths, Some((side, full_path.clone())));
 
     // Single message routes folder navigation, file single-select, and
     // ctrl/shift modifier selection, see the local row counterpart.

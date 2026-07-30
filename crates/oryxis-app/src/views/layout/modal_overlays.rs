@@ -514,6 +514,7 @@ impl Oryxis {
         };
         let nudged_y = row_menu.y + 2.0;
         let menu_height = crate::views::sftp::row_context_menu_height(
+            self,
             row_menu,
             cross_pane_ready,
             source_is_remote,

@@ -163,19 +163,20 @@ impl EventListener for EventProxy {
             }
             // OSC 52: an app reads the system clipboard. Off by default (a
             // remote reading your clipboard is a privacy risk). When enabled,
-            // the formatter builds the reply, sent back through the PTY
-            // back-channel (the same one cursor-position replies use).
+            // the read is queued for the host (never performed here: see
+            // `host_clipboard`) and the formatter builds the reply once the
+            // text arrives, sent back through the PTY back-channel (the same
+            // one cursor-position replies use).
             Event::ClipboardLoad(_ty, formatter) if self.osc52_read_allowed() => {
-                let current = arboard::Clipboard::new()
-                    .ok()
-                    .and_then(|mut c| c.get_text().ok())
-                    .unwrap_or_default();
-                let reply = formatter(&current);
-                if let Ok(slot) = self.pty_write_tx.lock()
-                    && let Some(tx) = slot.as_ref()
-                {
-                    let _ = tx.send(reply.into_bytes());
-                }
+                let reply_to = Arc::clone(&self.pty_write_tx);
+                crate::host_clipboard::read_text(move |text| {
+                    let reply = formatter(text);
+                    if let Ok(slot) = reply_to.lock()
+                        && let Some(tx) = slot.as_ref()
+                    {
+                        let _ = tx.send(reply.into_bytes());
+                    }
+                });
             }
             _ => {}
         }
@@ -202,7 +203,11 @@ pub struct TerminalBackend {
     /// OSC 133 shell-integration marks captured by `process`, each stamped
     /// with the cursor position at the moment the emulator reached the mark.
     /// Drained by `take_marks`; bounded so an undrained pane can't grow it.
-    marks: Vec<crate::osc::PositionedShellMark>,
+    /// A deque so evicting the oldest mark at the cap is O(1): `process`
+    /// runs on the UI thread, and a mark flood paying a 4096-element
+    /// shift per mark is exactly the silent per-batch cost class #104
+    /// hunts.
+    marks: std::collections::VecDeque<crate::osc::PositionedShellMark>,
 }
 
 impl TerminalBackend {
@@ -221,6 +226,13 @@ impl TerminalBackend {
         let config = TermConfig {
             scrolling_history: scrollback,
             semantic_escape_chars: DEFAULT_WORD_DELIMITERS.to_string(),
+            // Let the emulator forward BOTH OSC 52 directions; the policy is
+            // ours (`osc52_write_allowed` / `osc52_read_allowed`, driven by the
+            // Clipboard access setting plus the per-host override). alacritty's
+            // own default is `OnlyCopy`, which silently dropped every query
+            // before our gate ever saw it, so "Clipboard access: read/write"
+            // could never actually answer a paste request.
+            osc52: alacritty_terminal::term::Osc52::CopyPaste,
             ..Default::default()
         };
         let event_proxy = EventProxy::new();
@@ -236,7 +248,7 @@ impl TerminalBackend {
             config,
             osc: crate::osc::OscSniffer::default(),
             screen_title: crate::screen_title::ScreenTitleFilter::default(),
-            marks: Vec::new(),
+            marks: std::collections::VecDeque::new(),
         }
     }
 
@@ -285,9 +297,9 @@ impl TerminalBackend {
                 let abs_line =
                     self.term.grid().history_size() as i64 + i64::from(point.line.0);
                 if self.marks.len() >= 4096 {
-                    self.marks.remove(0);
+                    self.marks.pop_front();
                 }
-                self.marks.push(crate::osc::PositionedShellMark {
+                self.marks.push_back(crate::osc::PositionedShellMark {
                     mark: ev.mark,
                     abs_line,
                     col: point.column.0 as u16,
@@ -302,7 +314,7 @@ impl TerminalBackend {
 
     /// Drain the OSC 133 marks captured since the last call.
     pub fn take_marks(&mut self) -> Vec<crate::osc::PositionedShellMark> {
-        std::mem::take(&mut self.marks)
+        std::mem::take(&mut self.marks).into()
     }
 
     /// Deadline at which an open synchronized update (DEC `?2026`) must be
@@ -372,8 +384,66 @@ mod tests {
     use super::*;
     use alacritty_terminal::index::{Column, Line, Point};
 
+    /// OSC 52 store: the backend must NOT touch the system clipboard itself,
+    /// it queues the write for the host (see `host_clipboard`).
+    #[test]
+    fn osc52_store_queues_a_host_write() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, false);
+        let mut backend = TerminalBackend::new(40, 5);
+        // ESC ] 52 ; c ; base64("QUEUED") BEL
+        backend.process(b"\x1b]52;c;UVVFVUVE\x07");
+        let reqs = crate::host_clipboard::take_clipboard_requests();
+        assert_eq!(reqs.len(), 1, "one queued request: {reqs:?}");
+        match &reqs[0] {
+            crate::host_clipboard::ClipboardRequest::Write(text) => {
+                assert_eq!(text, "QUEUED");
+            }
+            other => panic!("expected a queued write, got {other:?}"),
+        }
+        set_clipboard_access(true, false);
+    }
+
+    /// OSC 52 query: the read is queued for the host, and delivering the text
+    /// formats the reply and writes it back through the PTY back-channel.
+    #[test]
+    fn osc52_query_queues_a_host_read_and_replies_through_the_pty() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, true);
+        let mut backend = TerminalBackend::new(40, 5);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        backend.event_proxy.set_pty_write_tx(tx);
+        backend.process(b"\x1b]52;c;?\x07");
+        let reqs = crate::host_clipboard::take_clipboard_requests();
+        assert_eq!(reqs.len(), 1, "one queued request: {reqs:?}");
+        match &reqs[0] {
+            crate::host_clipboard::ClipboardRequest::Read(sink) => sink.deliver("HELLO"),
+            other => panic!("expected a queued read, got {other:?}"),
+        }
+        let bytes = rx.try_recv().expect("reply written to the PTY back-channel");
+        let reply = String::from_utf8_lossy(&bytes);
+        // base64("HELLO") == "SEVMTE8="
+        assert!(reply.contains("SEVMTE8"), "reply carries the clipboard: {reply:?}");
+        set_clipboard_access(true, false);
+    }
+
+    /// Read denied (the default): a query queues nothing at all, so a remote
+    /// can't even learn that a clipboard exists.
+    #[test]
+    fn osc52_query_is_ignored_when_read_is_off() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, false);
+        let mut backend = TerminalBackend::new(40, 5);
+        backend.process(b"\x1b]52;c;?\x07");
+        assert!(
+            crate::host_clipboard::take_clipboard_requests().is_empty(),
+            "a denied query must queue nothing"
+        );
+    }
+
     #[test]
     fn osc52_per_instance_override_beats_global_both_ways() {
+        let _serial = crate::host_clipboard::test_exclusive();
         let proxy = EventProxy::new();
         // Inherit (default): the effective policy tracks the global.
         set_clipboard_access(true, false);
@@ -487,5 +557,58 @@ mod tests {
         backend.flush_sync();
         assert_eq!(cell0(&backend), 'Z');
         assert!(backend.sync_timeout().is_none());
+    }
+
+    /// Read a rendered row back as text, trailing blanks trimmed. Asserting
+    /// on the grid (not on the filter's output) is the point: it is the only
+    /// way to prove the payload never became visible cells.
+    fn line(backend: &TerminalBackend, row: usize) -> String {
+        let grid = backend.term.grid();
+        let cols = grid.columns();
+        let mut s = String::with_capacity(cols);
+        for col in 0..cols {
+            s.push(grid[Line(row as i32)][Column(col)].c);
+        }
+        s.trim_end().to_string()
+    }
+
+    /// Issue #88 follow-up (Mazwak, CentOS 7). On a `screen*` TERM the stock
+    /// `/etc/bashrc` sets
+    /// `PROMPT_COMMAND='printf "\033k%s@%s:%s\033\\" ...'`, so every prompt is
+    /// preceded by screen's window-title sequence. vte dispatches `ESC k` as an
+    /// unhandled escape and PRINTS the payload, which is what rendered the
+    /// prompt twice: `root@oldserver:~[root@oldserver ~]#`. The grid must carry
+    /// the shell's prompt alone, and the title must arrive as a title.
+    #[test]
+    fn centos_screen_prompt_command_does_not_paint_a_second_prompt() {
+        let mut backend = TerminalBackend::new(40, 5);
+        // Byte for byte what bash emits on that host.
+        backend.process(b"\x1bkroot@oldserver:~\x1b\\[root@oldserver ~]# ");
+        assert_eq!(
+            line(&backend, 0),
+            "[root@oldserver ~]#",
+            "the window title must not reach the grid as text"
+        );
+        let title = backend.event_proxy.title.lock().unwrap().clone();
+        assert_eq!(title.as_deref(), Some("root@oldserver:~"), "title is surfaced");
+    }
+
+    /// The second half of the same report: with the payload occupying real
+    /// columns, readline's Ctrl+R redraw (which returns to column 0 and
+    /// overwrites) could not cover the stale prompt, leaving its tail visible
+    /// (`(reverse-i-search)`':ot@oldserver ~]#`). With the sequence stripped
+    /// the redraw covers the whole prompt, exactly as it does on xterm-256color.
+    #[test]
+    fn reverse_search_redraw_covers_the_whole_prompt() {
+        let mut backend = TerminalBackend::new(60, 5);
+        backend.process(b"\x1bkroot@oldserver:~\x1b\\[root@oldserver ~]# ");
+        // Ctrl+R: bash returns to column 0 and paints the search prompt over
+        // whatever was there.
+        backend.process(b"\r(reverse-i-search)`': ");
+        assert_eq!(
+            line(&backend, 0),
+            "(reverse-i-search)`':",
+            "no tail of the old prompt may survive the redraw"
+        );
     }
 }

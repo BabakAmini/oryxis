@@ -569,60 +569,36 @@ impl Oryxis {
             }
             SidebarFilesMessage::SidebarFilesEdit(path) => {
                 self.overlay = None;
-                let Some(pane) = self.active_pane_mut() else {
+                let Some(client) = self.active_pane_mut().and_then(|p| p.files.client.clone())
+                else {
                     return Task::none();
                 };
-                let Some(client) = pane.files.client.clone() else {
-                    return Task::none();
-                };
-                return Task::perform(
-                    async move {
-                        let (basename, temp_path) = crate::util::edit_temp_file(&path);
-                        let bytes =
-                            client.read_file(&path).await.map_err(|e| e.to_string())?;
-                        tokio::fs::write(&temp_path, &bytes)
-                            .await
-                            .map_err(|e| format!("write temp: {e}"))?;
-                        // Same 0600 tightening as the SFTP pane's edit.
-                        #[cfg(unix)]
-                        {
-                            use std::os::unix::fs::PermissionsExt as _;
-                            let _ = tokio::fs::set_permissions(
-                                &temp_path,
-                                std::fs::Permissions::from_mode(0o600),
-                            )
-                            .await;
-                        }
-                        if let Err(e) = open::that(&temp_path) {
-                            return Err(format!(
-                                "open editor: {e} (temp at {})",
-                                temp_path.display()
-                            ));
-                        }
-                        let initial_mtime = tokio::fs::metadata(&temp_path)
-                            .await
-                            .ok()
-                            .and_then(|m| m.modified().ok());
-                        Ok::<crate::state::EditSession, String>(crate::state::EditSession {
-                            client_override: Some(client.clone()),
-                            // Sidebar edits upload via client_override; the
-                            // side is never consulted.
-                            pane_side: crate::state::SftpPaneSide::Right,
-                            remote_path: path,
-                            temp_path,
-                            label: basename,
-                            host: String::new(),
-                            initial_mtime,
-                            dirty: false,
-                            uploading: false,
-                        })
-                    },
-                    move |result| match result {
-                        Ok(session) => Message::Sftp(SftpMessage::SftpEditReady(session)),
-                        // Toast, not SidebarFilesError: see the properties
-                        // handler above for the stamp-aliasing rationale.
-                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),
-                    },
+                // Same background watch as the SFTP pane's Open / Edit, with
+                // the sidebar's own channel: the browser stays usable while
+                // the editor runs, and each save asks before uploading.
+                // Host identity for the watch, which is what tells two hosts'
+                // same-path files apart. Resolved through the pane's saved
+                // connection so it matches the label an SFTP pane records
+                // (`conn.label`): the same file opened from both surfaces
+                // must be recognised as already being edited, not watched
+                // twice. Falls back to the pane's own label for panes with
+                // no vault connection (quick-connect, cloud, local).
+                let host = match self.active_pane_mut().map(|p| p.origin.clone()) {
+                    Some(crate::state::PaneOrigin::Host(id)) => self
+                        .connections
+                        .iter()
+                        .find(|c| c.id == id)
+                        .map(|c| c.label.clone()),
+                    _ => None,
+                }
+                .or_else(|| self.active_pane_mut().map(|p| p.label.clone()))
+                .unwrap_or_default();
+                return self.start_edit_watch(
+                    crate::state::SftpPaneSide::Right,
+                    path,
+                    crate::state::SftpEditOpener::OsDefault,
+                    Some((client, host)),
+                    true,
                 );
             }
             SidebarFilesMessage::SidebarFilesStartEditPath => {

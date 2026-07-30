@@ -178,9 +178,10 @@ impl Oryxis {
             Modal::SftpNewEntry => self.sftp.new_entry.is_some(),
             Modal::SftpProperties => self.sftp.properties.is_some(),
             Modal::SftpOverwrite => self.sftp.overwrite_prompt.is_some(),
-            Modal::SftpEditPrompt => {
-                self.sftp.edit_watches.iter().any(|w| w.dirty && !w.uploading)
-            }
+            // Any surface's watch: the dialog layers globally, so a save
+            // waiting on a parked tab owns the keyboard just the same.
+            Modal::SftpEditPrompt => self.pending_edit_save().is_some(),
+            Modal::SftpEditReopen => self.sftp_edit_reopen.is_some(),
             Modal::SftpPicker => self.sftp.picker_open,
             Modal::CertificateViewer => self.cert_viewer.is_some(),
         }
@@ -290,20 +291,10 @@ impl Oryxis {
             // Closing the save prompt without a button press means "skip
             // this save" (the safe default): re-arm so the next save
             // prompts again, never upload by accident.
-            Modal::SftpEditPrompt => {
-                if let Some(w) = self
-                    .sftp
-                    .edit_watches
-                    .iter_mut()
-                    .find(|w| w.dirty && !w.uploading)
-                {
-                    w.dirty = false;
-                    w.initial_mtime = std::fs::metadata(&w.temp_path)
-                        .ok()
-                        .and_then(|m| m.modified().ok())
-                        .or(w.initial_mtime);
-                }
-            }
+            Modal::SftpEditPrompt => self.skip_pending_edit_save(),
+            // Esc on the reopen dialog = do nothing at all, the safest of
+            // its three answers (neither branch runs).
+            Modal::SftpEditReopen => self.sftp_edit_reopen = None,
             Modal::SftpPicker => self.sftp.picker_open = false,
             Modal::CertificateViewer => self.cert_viewer = None,
         }
@@ -1185,10 +1176,7 @@ impl Oryxis {
             // Paste is the one clipboard action the dispatcher performs
             // itself: the widget can only write to a local PTY, so a
             // widget-side paste would silently do nothing over SSH.
-            TerminalPaste => {
-                self.paste_clipboard_into_active();
-                Task::none()
-            }
+            TerminalPaste => self.paste_clipboard_into_active(),
             // Copy / select-all / scrollback paging are performed by the
             // terminal WIDGET, which owns the selection and the scroll
             // offset (both live in its canvas state, out of reach from

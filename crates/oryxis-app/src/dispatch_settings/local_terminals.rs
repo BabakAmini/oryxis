@@ -59,18 +59,38 @@ impl Oryxis {
                 .find(|e| e.id == id)
                 .map(|e| e.to_spec())
         {
-            return spawn_local_shell(self, Some((spec.program, spec.args, spec.label)));
+            return self.open_local_shell_resolved(Some((spec.program, spec.args, spec.label)));
         }
         let specs = self.local_terminal_specs();
         match specs.as_slice() {
             // Nothing curated: fall back to the OS default shell.
-            [] => spawn_local_shell(self, None),
-            [only] => spawn_local_shell(
-                self,
-                Some((only.program.clone(), only.args.clone(), only.label.clone())),
-            ),
+            [] => self.open_local_shell_resolved(None),
+            [only] => self.open_local_shell_resolved(Some((
+                only.program.clone(),
+                only.args.clone(),
+                only.label.clone(),
+            ))),
             _ => Task::done(Message::Settings(SettingsMessage::ShowLocalShellPicker)),
         }
+    }
+
+    /// Send a resolved local-shell choice wherever the user asked for it:
+    /// into the pane they were splitting, or into a new tab.
+    ///
+    /// Both entry points funnel through here so the curated list, the
+    /// "always open X" default and the picker apply identically. Splitting
+    /// used to bypass the decision entirely and always spawn the OS default
+    /// shell (issue #108). Taking the pending split here (rather than when
+    /// the picker row is clicked) is what lets the shell picker be raised
+    /// in between without losing the target pane.
+    pub(crate) fn open_local_shell_resolved(
+        &mut self,
+        pick: Option<(String, Vec<String>, String)>,
+    ) -> Task<Message> {
+        if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
+            return self.local_shell_into_pane(tab_idx, target, axis, pick);
+        }
+        spawn_local_shell(self, pick)
     }
 }
 
@@ -126,10 +146,14 @@ impl Oryxis {
             }
             SettingsMessage::HideLocalShellPicker => {
                 self.local_shell_picker_open = false;
+                // Abandoning the picker abandons the split intent that
+                // raised it, so an unrelated later open can't inherit a
+                // stale target pane (same rule as `HideNewTabPicker`).
+                self.pending_pane_split = None;
             }
             SettingsMessage::OpenLocalShellWith { program, args, label } => {
                 self.local_shell_picker_open = false;
-                return Ok(spawn_local_shell(self, Some((program, args, label))));
+                return Ok(self.open_local_shell_resolved(Some((program, args, label))));
             }
             SettingsMessage::OpenLocalTerminalsSettings => {
                 self.local_shell_picker_open = false;

@@ -843,6 +843,9 @@ impl Oryxis {
     /// buffer; discards the buffer if the owning tab was closed.
     pub(crate) fn park_hybrid_sftp(&mut self) {
         if let Some(id) = self.hybrid_sftp_owner.take() {
+            // Same reason as `focus_sftp_tab`: the rows a pending rename
+            // was armed against are leaving the live buffer.
+            self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
             if let Some(tab) = self.tabs.iter_mut().find(|t| t._id == id) {
                 *tab.files_state = std::mem::take(&mut self.sftp);
             } else {
@@ -1227,6 +1230,10 @@ impl Oryxis {
         if idx >= self.sftp_tabs.len() {
             return;
         }
+        // Swapping which surface owns the live buffer retires a deferred
+        // slow-click rename: its target row belongs to the surface being
+        // parked, and the row list under it is about to be replaced.
+        self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
         // A hybrid tab holding the buffer parks first (its state goes
         // home); only then can a standalone tab be hoisted.
         self.park_hybrid_sftp();
@@ -1317,17 +1324,14 @@ fn is_wsl_root(path: &std::path::Path) -> bool {
 /// the empty trailing entries Windows likes to add. Returns an empty
 /// list on non-Windows or if `wsl.exe` is unavailable.
 /// Whether an SFTP state carries unsaved work worth a close-guard: an
-/// in-flight transfer, a dirty edit-session (an external-editor save
-/// whose upload hasn't landed yet), or ANY registered watch. A clean
-/// watch counts too: the external editor is still open, and silently
-/// dropping the watch would turn its future saves into local-only
-/// writes with no upload and no warning. Shared by the standalone tab
-/// close guards and the hybrid Close-SFTP-session guard so the two
-/// paths can never diverge on what counts as discardable.
+/// in-flight transfer or ANY registered edit watch. A clean watch counts
+/// too: the external editor is still open, and silently dropping the
+/// watch would turn its future saves into local-only writes with no
+/// upload and no warning. Shared by the standalone tab close guards and
+/// the hybrid Close-SFTP-session guard so the two paths can never
+/// diverge on what counts as discardable.
 pub(crate) fn sftp_state_has_unsaved(st: &crate::state::SftpState) -> bool {
-    st.transfer.is_some()
-        || st.edit_session.as_ref().is_some_and(|e| e.dirty)
-        || !st.edit_watches.is_empty()
+    st.transfer.is_some() || !st.edit_watches.is_empty()
 }
 
 fn list_wsl_distros_for_pane() -> Vec<String> {

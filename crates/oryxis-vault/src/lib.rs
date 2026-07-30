@@ -8,7 +8,8 @@ pub use keygen::{
 };
 pub use portable::{export_vault, import_vault, inspect_export, is_valid_export, export_includes_keys, ExportCategory, ExportFilter, ExportOptions, ExportSelection, ExportSummary, ImportResult};
 pub use store::{
-    calibrate_kdf, derive_sync_secret, CommandHistoryEntry, KdfParams, SealedSessionOutput,
+    calibrate_kdf, derive_sync_secret, ChatConversationEntry, ChatMessageEntry,
+    CommandHistoryEntry, KdfParams, SealedSessionOutput,
     SessionLogEntry, SessionLogEvent, SyncPeerRow,
     Tombstone,
     VaultError, VaultStore,

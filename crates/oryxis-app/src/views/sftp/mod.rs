@@ -300,17 +300,13 @@ impl Oryxis {
             Some(delete_confirm_modal(&self.sftp.delete_confirm))
         } else if let Some(entry) = &self.sftp.new_entry {
             Some(new_entry_modal(entry))
-        } else if let Some(session) = &self.sftp.edit_session {
-            Some(edit_in_place_modal(session))
-        } else if let Some(watch) = self
-            .sftp
-            .edit_watches
-            .iter()
-            .find(|w| w.dirty && !w.uploading)
-        {
-            // Save-confirmation for an "Open with" edit watch. Multiple
-            // dirty watches queue naturally: answering one re-renders
-            // with the next.
+        } else if let Some(prompt) = &self.sftp_edit_reopen {
+            Some(edit_reopen_modal(self, prompt))
+        } else if let Some(watch) = self.pending_edit_save() {
+            // Save confirmation for a background edit watch, on ANY surface
+            // (this layer is global, so a save on a parked tab is still
+            // answerable). Multiple pending saves queue naturally:
+            // answering one re-renders with the next.
             Some(edit_prompt_modal(self, watch))
         } else if let Some(prompt) = &self.sftp.overwrite_prompt {
             Some(overwrite_modal(prompt))

@@ -120,6 +120,10 @@ impl Oryxis {
             self.session_logs = vault
                 .list_session_logs_page(self.session_logs_page * 50, 50)
                 .unwrap_or_default();
+            // Saved AI conversations share the History timeline. The list is
+            // metadata only (turn bodies load when one is opened), so it is
+            // cheap to hold whole rather than paginate.
+            self.chat_conversations = vault.list_chat_conversations().unwrap_or_default();
         }
     }
 
@@ -179,6 +183,9 @@ impl Oryxis {
             // AI settings
             if let Ok(Some(v)) = vault.get_setting("ai_enabled") {
                 self.ai.enabled = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("ai_reasoning") {
+                self.ai.reasoning = v == "true";
             }
             if let Ok(Some(v)) = vault.get_setting("ai_provider") {
                 self.ai.provider = v;

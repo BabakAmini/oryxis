@@ -34,6 +34,14 @@ enum TimelineKind<'a> {
         idx: usize,
         entry: &'a oryxis_vault::SessionLogEntry,
     },
+    /// A saved AI conversation. Shares the timeline with the sessions
+    /// rather than living in its own tab, so a chat sits next to the
+    /// session it was held during, which is how anyone looking for it
+    /// remembers it.
+    Chat {
+        idx: usize,
+        entry: &'a oryxis_vault::ChatConversationEntry,
+    },
 }
 
 struct TimelineRow<'a> {
@@ -54,6 +62,7 @@ impl Oryxis {
         // entries".) Show just the empty state, no toolbar / pagination /
         // Clear all, matching the other empty vault views.
         let has_timeline = !self.session_logs.is_empty()
+            || !self.chat_conversations.is_empty()
             || self
                 .logs
                 .iter()
@@ -131,6 +140,21 @@ impl Oryxis {
                 kind: TimelineKind::Session { idx, entry },
             });
         }
+        for (idx, entry) in self.chat_conversations.iter().enumerate() {
+            // A conversation on a local shell has no host to resolve.
+            let hostname = entry
+                .connection_id
+                .and_then(|id| conn_by_id.get(&id))
+                .map(|c| c.hostname.as_str());
+            rows.push(TimelineRow {
+                // Placed by when the conversation STARTED, like a session,
+                // so the timeline reads as "what happened when".
+                ts: entry.started_at,
+                label: &entry.label,
+                hostname,
+                kind: TimelineKind::Chat { idx, entry },
+            });
+        }
 
         // Host-tag filter first: rows resolve to their connection
         // (session rows by id, failure rows by label) and survive when
@@ -142,6 +166,9 @@ impl Oryxis {
                     TimelineKind::Session { entry, .. } => {
                         conn_by_id.get(&entry.connection_id).copied()
                     }
+                    TimelineKind::Chat { entry, .. } => entry
+                        .connection_id
+                        .and_then(|id| conn_by_id.get(&id).copied()),
                     TimelineKind::Failure(_) => conn_by_label.get(r.label).copied(),
                 };
                 conn.is_some_and(|c| {
@@ -172,7 +199,10 @@ impl Oryxis {
                         TimelineKind::Session { entry, .. } => {
                             self.history_content.log_matches.contains_key(&entry.id)
                         }
-                        TimelineKind::Failure(_) => false,
+                        // The content search scans recorded terminal
+                        // output; a conversation has none, so it only ever
+                        // matches on the label/host search above.
+                        TimelineKind::Chat { .. } | TimelineKind::Failure(_) => false,
                     }
             });
         }
@@ -210,7 +240,9 @@ impl Oryxis {
         // only *requests* the wipe; the actual ClearLogs runs from the
         // confirmation modal in layout.rs.
         // Nothing to clear → the button is disabled (muted, no action).
-        let has_entries = !self.logs.is_empty() || !self.session_logs.is_empty();
+        let has_entries = !self.logs.is_empty()
+            || !self.session_logs.is_empty()
+            || !self.chat_conversations.is_empty();
         let mut clear_btn = button(
             container(
                 text(crate::i18n::t("clear_all").to_uppercase())
@@ -410,6 +442,9 @@ impl Oryxis {
                     TimelineKind::Session { entry, .. } => {
                         conn_by_id.get(&entry.connection_id).copied()
                     }
+                    TimelineKind::Chat { entry, .. } => entry
+                        .connection_id
+                        .and_then(|id| conn_by_id.get(&id).copied()),
                     TimelineKind::Failure(_) => conn_by_label.get(row_data.label).copied(),
                 };
                 // The content search knows WHY a session matched (the
@@ -422,7 +457,7 @@ impl Oryxis {
                             .log_matches
                             .get(&entry.id)
                             .map(|s| s.as_str()),
-                        TimelineKind::Failure(_) => None,
+                        TimelineKind::Chat { .. } | TimelineKind::Failure(_) => None,
                     }
                 } else {
                     None
@@ -452,6 +487,13 @@ impl Oryxis {
         // (opening either closes the other in the dispatcher).
         if let Some(player) = &self.session_player {
             return self.view_session_player(player);
+        }
+
+        // ── Saved conversation reader ──
+        // Same slot as the recording viewer below: opening one closes the
+        // other in the dispatcher, so only one can be up.
+        if let Some(viewer) = &self.chat_viewer {
+            return self.view_chat_viewer(viewer);
         }
 
         // ── Session viewer overlay ──
@@ -854,6 +896,10 @@ impl Oryxis {
                 crate::i18n::t("event_session").to_string(),
                 OryxisColors::t().accent,
             ),
+            TimelineKind::Chat { .. } => (
+                crate::i18n::t("event_chat").to_string(),
+                OryxisColors::t().success,
+            ),
         };
         let chip = container(
             text(chip_text)
@@ -918,6 +964,21 @@ impl Oryxis {
                     format!("{hostname} · {duration} · {size_str}")
                 }
             }
+            // A conversation reads by its size and who answered, the
+            // closest equivalent of a session's duration + byte count.
+            TimelineKind::Chat { entry, .. } => {
+                let turns = format!("{} {}", entry.message_count, crate::i18n::t("chat_turns"));
+                let model = if entry.model.is_empty() {
+                    entry.provider.clone()
+                } else {
+                    entry.model.clone()
+                };
+                if host_str.is_empty() {
+                    format!("{turns} · {model}")
+                } else {
+                    format!("{host_str} · {turns} · {model}")
+                }
+            }
         };
 
         // Session rows are clickable (the whole row opens the
@@ -925,6 +986,7 @@ impl Oryxis {
         // to open, so they keep the flat card look.
         let viewable = match &row.kind {
             TimelineKind::Session { entry, .. } => Some(entry.id),
+            TimelineKind::Chat { entry, .. } => Some(entry.id),
             TimelineKind::Failure(_) => None,
         };
         let kb_selected = viewable.is_some()
@@ -956,6 +1018,43 @@ impl Oryxis {
                         OryxisColors::t().text_muted,
                         true,
                         Message::History(HistoryMessage::ShowSessionLogMenu(idx)),
+                    )
+                    .into()
+                } else {
+                    Space::new()
+                        .width(Length::Fixed(LOG_DOTS_SLOT_W))
+                        .height(Length::Fixed(22.0))
+                        .into()
+                };
+                let _ = entry;
+                crate::widgets::dir_row(vec![
+                    text(ts)
+                        .size(10)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(8).into(),
+                    kebab,
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            }
+            // A saved conversation gets the same kebab as a session, with
+            // its own menu (open / delete). The row click opens it.
+            TimelineKind::Chat { idx, entry } => {
+                let idx = *idx;
+                let menu_open = matches!(
+                    self.overlay.as_ref().map(|o| &o.content),
+                    Some(crate::state::OverlayContent::ChatConversationActions(i)) if *i == idx
+                );
+                const LOG_DOTS_SLOT_W: f32 = 22.0;
+                let show_dots = (viewable.is_some() && viewable == self.hovered_log_row)
+                    || menu_open
+                    || kb_selected;
+                let kebab: Element<'_, Message> = if show_dots {
+                    crate::widgets::card_kebab_button(
+                        OryxisColors::t().text_muted,
+                        true,
+                        Message::History(HistoryMessage::ShowChatConversationMenu(idx)),
                     )
                     .into()
                 } else {
@@ -1057,13 +1156,31 @@ impl Oryxis {
                 // Right-click anywhere on the row opens the kebab menu
                 // (app-wide card convention); left click still opens
                 // the recording.
+                // A conversation opens its own reader, not the recording
+                // viewer; both are a plain left click on the row.
+                let open = match &row.kind {
+                    TimelineKind::Chat { .. } => {
+                        Message::History(HistoryMessage::OpenChatConversation(log_id))
+                    }
+                    _ => Message::History(HistoryMessage::ViewSessionLog(log_id)),
+                };
                 let mut area = iced::widget::MouseArea::new(card)
-                    .on_press(Message::History(HistoryMessage::ViewSessionLog(log_id)))
+                    .on_press(open)
                     .on_enter(Message::History(HistoryMessage::LogRowHovered(log_id)))
                     .on_exit(Message::History(HistoryMessage::LogRowUnhovered))
                     .interaction(iced::mouse::Interaction::Pointer);
-                if let TimelineKind::Session { idx, .. } = &row.kind {
-                    area = area.on_right_press(Message::History(HistoryMessage::ShowSessionLogMenu(*idx)));
+                match &row.kind {
+                    TimelineKind::Session { idx, .. } => {
+                        area = area.on_right_press(Message::History(
+                            HistoryMessage::ShowSessionLogMenu(*idx),
+                        ));
+                    }
+                    TimelineKind::Chat { idx, .. } => {
+                        area = area.on_right_press(Message::History(
+                            HistoryMessage::ShowChatConversationMenu(*idx),
+                        ));
+                    }
+                    TimelineKind::Failure(_) => {}
                 }
                 let row_el: Element<'_, Message> = area.into();
                 crate::widgets::select_ring_opt(

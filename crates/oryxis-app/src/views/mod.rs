@@ -7,6 +7,7 @@
 
 pub(crate) mod add_actions;
 pub(crate) mod chain_editor;
+pub(crate) mod chat_viewer;
 pub(crate) mod chrome;
 pub(crate) mod cloud_accounts;
 pub(crate) mod connection_progress;

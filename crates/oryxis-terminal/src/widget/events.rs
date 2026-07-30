@@ -887,13 +887,7 @@ where
                 if let Some(msg) = self.on_paste_request.clone() {
                     return Some(CanvasAction::publish(msg).and_capture());
                 }
-                if let Ok(mut clip) = arboard::Clipboard::new()
-                    && let Ok(text) = clip.get_text()
-                    && let Ok(mut state) = self.state.lock()
-                {
-                    let bracketed = state.bracketed_paste_enabled();
-                    state.write(&crate::wrap_paste(&text, bracketed));
-                }
+                crate::host_clipboard::paste_into(Arc::clone(&self.state));
                 return Some(CanvasAction::capture());
             }
             // `on_paste_request` callback we delegate the actual paste to
@@ -986,13 +980,7 @@ where
                         if let Some(msg) = self.on_paste_request.clone() {
                             return Some(CanvasAction::publish(msg).and_capture());
                         }
-                        if let Ok(mut clip) = arboard::Clipboard::new()
-                            && let Ok(text) = clip.get_text()
-                            && let Ok(mut state) = self.state.lock()
-                        {
-                            let bracketed = state.bracketed_paste_enabled();
-                            state.write(&crate::wrap_paste(&text, bracketed));
-                        }
+                        crate::host_clipboard::paste_into(Arc::clone(&self.state));
                         return Some(CanvasAction::capture());
                     }
                 }
