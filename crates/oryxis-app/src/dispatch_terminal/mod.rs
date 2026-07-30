@@ -14,6 +14,7 @@
 
 #![allow(clippy::result_large_err)]
 
+mod drop;
 mod keyboard;
 mod output;
 
@@ -515,6 +516,22 @@ impl Oryxis {
                 // clipboard. Pasting through the normal path keeps the
                 // careful-paste and paste-guard gates.
                 self.paste_text_into_tab(tab_idx, &text);
+            }
+            TerminalMessage::TerminalDropFlush => {
+                return self.handle_terminal_drop_flush();
+            }
+            TerminalMessage::TerminalDropProgress(pane_id, progress) => {
+                return self.handle_terminal_drop_progress(pane_id, progress);
+            }
+            TerminalMessage::TerminalDropCancel(pane_id) => {
+                // Cooperative: the upload task sees the flag on its next
+                // progress tick, kills the in-flight write and sweeps the
+                // partial file. The card clears when `Cancelled` arrives.
+                if let Some(pane) = self.pane_by_id(pane_id)
+                    && let Some(up) = pane.drop_upload.as_ref()
+                {
+                    up.abort.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
             }
             TerminalMessage::TerminalCopyAll(pane_id) => {
                 self.overlay = None;

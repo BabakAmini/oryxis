@@ -105,6 +105,17 @@ pub enum TerminalMessage {
     /// one) and the focused pane can change before this is handled. Never
     /// touches the system clipboard.
     TerminalPasteSelection(Uuid, String),
+    /// Flush the buffered OS drop (a multi-file drop arrives as one
+    /// FileDropped per file): resolve the target pane and route the
+    /// batch to its transport. Fired by a short debounce after the
+    /// first file of the gesture.
+    TerminalDropFlush,
+    /// The OS-drop SFTP upload task streamed a progress event for a
+    /// pane. Terminal events (Done / Failed / Cancelled) clear the
+    /// pane's card and toast the outcome.
+    TerminalDropProgress(Uuid, crate::state::DropProgress),
+    /// User asked to cancel the pane's in-flight OS-drop upload.
+    TerminalDropCancel(Uuid),
     /// Copy the whole buffer (scrollback + screen) of a pane to the
     /// clipboard (context-menu "Copy All"). `pane_id`.
     TerminalCopyAll(Uuid),

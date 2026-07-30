@@ -427,6 +427,11 @@ pub struct Oryxis {
     /// requested rather than resolved on confirm: see
     /// `dispatch_terminal::paste_text_into_tab`.
     pub(crate) pending_paste: Option<(usize, String)>,
+    /// Paths from an in-flight OS drop onto the terminal, buffered so a
+    /// multi-file gesture (one `FileDropped` per file) becomes one routed
+    /// batch. Flushed by `TerminalDropFlush` after a short debounce; the
+    /// target pane is resolved once, at flush.
+    pub(crate) pending_terminal_drops: Vec<std::path::PathBuf>,
     /// Manual host-group editor side panel (label + icon + color). Open
     /// when `group_edit_visible`; `group_edit_id` is the group being
     /// edited. `group_edit_icon` / `group_edit_color` are empty strings

@@ -101,6 +101,20 @@ impl Oryxis {
         let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel::<Progress>();
         let abort = Arc::new(AtomicBool::new(false));
 
+        // An OS drop staged its sources and typed `rz -y` (drop.rs): the
+        // detection firing IS the proof the receiver started, so consume
+        // the stash and skip the picker. Taken regardless of direction so
+        // a stale stash can never leak into an unrelated later `sz`.
+        let preset_sources: Option<Vec<std::path::PathBuf>> =
+            self.pane_by_id_mut(pane_id).and_then(|p| {
+                if p.pending_drop_sources.is_empty() {
+                    None
+                } else {
+                    Some(std::mem::take(&mut p.pending_drop_sources))
+                }
+            })
+            .filter(|_| direction == Direction::Upload);
+
         // Telnet: open the inbound raw window before any protocol frame
         // can arrive; closed again wherever the divert is torn down.
         self.set_zmodem_binary_inbound(pane_id, true);
@@ -155,6 +169,15 @@ impl Oryxis {
                             return;
                         }
                         Some(TransferSpec::Download { dest_dir })
+                    }
+                    Direction::Upload if preset_sources.is_some() => {
+                        // OS drop: the sources were chosen by the drop
+                        // gesture itself, no picker. `is_some` checked in
+                        // the guard, so the expect can never fire.
+                        Some(TransferSpec::Upload {
+                            sources: preset_sources.expect("guarded by the match arm"),
+                            streaming_window,
+                        })
                     }
                     Direction::Upload => {
                         // Multi-select: every picked file goes out in
@@ -309,6 +332,21 @@ impl Oryxis {
                     // clears the divert.
                     zm.abort.store(true, Ordering::Relaxed);
                     let _ = zm.wire_tx.send(Vec::new());
+                }
+                Task::none()
+            }
+            ZmodemMessage::ZmodemDropRzTimeout(pane_id) => {
+                // Sources still staged = the detector never saw the
+                // remote receiver start within the window: no lrzsz, or
+                // the `rz -y` landed inside a full-screen program. Clear
+                // and explain. When the transfer did start, the stash was
+                // consumed by `begin_zmodem_transfer` and this is a no-op,
+                // so the timeout can never touch a running transfer.
+                if let Some(pane) = self.pane_by_id_mut(pane_id)
+                    && !pane.pending_drop_sources.is_empty()
+                {
+                    pane.pending_drop_sources.clear();
+                    self.set_toast(crate::i18n::t("terminal_drop_no_rz").to_string());
                 }
                 Task::none()
             }

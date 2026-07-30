@@ -167,7 +167,16 @@ impl Oryxis {
             | SftpMessage::SftpRelay(..)
             | SftpMessage::SftpRelayFolder(..)) => self
                 .handle_sftp_transfers(m)
-                .unwrap_or_else(|_| Task::none()),
+                // Transfers legitimately decline the whole group when no
+                // SFTP tab owns the continuation: quiet drop, EXCEPT the
+                // OS file drop, which then belongs to the terminal (#106).
+                // With no SFTP tab open at all, the owner gate declines
+                // before the FileDropped arm can route it, so the
+                // fallback has to happen here.
+                .unwrap_or_else(|m| match m {
+                    SftpMessage::SftpFileDropped(path) => self.buffer_terminal_drop(path),
+                    _ => Task::none(),
+                }),
             m @ (SftpMessage::SftpStartEdit(..)
             | SftpMessage::SftpOpenLocal(..)
             | SftpMessage::SftpRevealInExplorer(..)

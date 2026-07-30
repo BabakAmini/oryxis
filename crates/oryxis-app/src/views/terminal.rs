@@ -50,7 +50,7 @@ impl Oryxis {
             // processing output, so a remote `sz` can seize the pane
             // while the files surface is up and must stay visible.
             let mut stack = iced::widget::Stack::new().push(self.view_sftp());
-            if let Some(zm) = self.zmodem_overlay() {
+            if let Some(zm) = self.transfer_overlay() {
                 stack = stack.push(zm);
             }
             return stack.into();
@@ -171,34 +171,57 @@ impl Oryxis {
         // (`root_view.rs`), so notifications raised while the user sits
         // in the Dashboard / Settings views are visible too.
         let mut stack = iced::widget::Stack::new().push(base);
-        if let Some(zm) = self.zmodem_overlay() {
+        if let Some(zm) = self.transfer_overlay() {
             stack = stack.push(zm);
         }
         stack.into()
     }
 
     /// Bottom-center transfer card over the terminal while the active
-    /// pane is running a ZMODEM transfer: direction, file name, byte
-    /// progress, a bar (when the size is known) and a Cancel button.
-    /// `None` when no transfer is active.
-    fn zmodem_overlay(&self) -> Option<Element<'_, Message>> {
+    /// pane is moving files: a ZMODEM transfer (in-band, PTY diverted)
+    /// or an OS-drop SFTP upload (out-of-band, terminal stays live).
+    /// One card for both: direction verb, entry name, byte progress, a
+    /// bar (when the size is known) and Cancel. `None` when idle. The
+    /// two never coexist on a pane (the drop router refuses a second
+    /// transfer), so ZMODEM being checked first is not a preference.
+    fn transfer_overlay(&self) -> Option<Element<'_, Message>> {
         let pane = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active())?;
-        let zm = pane.zmodem.as_ref()?;
         let pane_id = pane.id;
+        // (verb, name, batch, transferred, total, cancel message)
+        let (verb, name, batch, transferred, total, cancel_msg) =
+            if let Some(zm) = pane.zmodem.as_ref() {
+                let verb = match zm.direction {
+                    oryxis_zmodem::Direction::Download => t("zmodem_downloading"),
+                    oryxis_zmodem::Direction::Upload => t("zmodem_uploading"),
+                };
+                (
+                    verb,
+                    zm.file_name.as_deref().unwrap_or("…"),
+                    zm.batch,
+                    zm.transferred,
+                    zm.total,
+                    Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)),
+                )
+            } else if let Some(up) = pane.drop_upload.as_ref() {
+                (
+                    t("zmodem_uploading"),
+                    up.file_name.as_deref().unwrap_or("…"),
+                    up.batch,
+                    up.transferred,
+                    up.total,
+                    Message::Terminal(TerminalMessage::TerminalDropCancel(pane_id)),
+                )
+            } else {
+                return None;
+            };
 
-        let verb = match zm.direction {
-            oryxis_zmodem::Direction::Download => t("zmodem_downloading"),
-            oryxis_zmodem::Direction::Upload => t("zmodem_uploading"),
-        };
-        let name = zm.file_name.as_deref().unwrap_or("…");
-        // Multi-file upload position; numeric, so no i18n needed.
-        let batch = zm
-            .batch
+        // Multi-file position; numeric, so no i18n needed.
+        let batch = batch
             .map(|(k, n)| format!(" ({k}/{n})"))
             .unwrap_or_default();
-        let bytes_line = match zm.total {
-            Some(total) => format!("{} / {}", fmt_bytes(zm.transferred), fmt_bytes(total)),
-            None => fmt_bytes(zm.transferred),
+        let bytes_line = match total {
+            Some(total) => format!("{} / {}", fmt_bytes(transferred), fmt_bytes(total)),
+            None => fmt_bytes(transferred),
         };
         let header = dir_row(vec![
             text(format!("{verb} {name}{batch}"))
@@ -211,12 +234,12 @@ impl Oryxis {
         .align_y(iced::Alignment::Center);
 
         let mut body = column![header].spacing(6).width(Length::Fixed(320.0));
-        if let Some(total) = zm.total.filter(|t| *t > 0) {
-            let frac = (zm.transferred as f32 / total as f32).clamp(0.0, 1.0);
+        if let Some(total) = total.filter(|t| *t > 0) {
+            let frac = (transferred as f32 / total as f32).clamp(0.0, 1.0);
             body = body.push(iced::widget::progress_bar(0.0..=1.0, frac));
         }
         let cancel = button(text(t("cancel")).size(11).color(OryxisColors::t().text_primary))
-            .on_press(Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)))
+            .on_press(cancel_msg)
             .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
             .style(|_, status| {
                 let bg = match status {
@@ -463,6 +486,10 @@ impl Oryxis {
             self.terminal_font_size,
             self.terminal_font_name.clone(),
         );
+        // Report this pane's drawn rect so the OS-drop router can find
+        // the pane under the cursor (a split tab can host different
+        // hosts, so "the focused pane" is not always the drop target).
+        let host = crate::widgets::bounds_reporter(host, pane.bounds.clone());
         // Top-right overlays over the live canvas. The find-bar (C1) takes
         // the corner while open; otherwise a broadcast chip (C2) sits there
         // whenever the tab is armed, showing this pane's participate / muted

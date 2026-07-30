@@ -360,7 +360,11 @@ impl Oryxis {
                 // whole next gesture. The flag now only powers the drop
                 // highlight.
                 if !self.sftp_surface_visible() {
-                    return Ok(Task::none());
+                    // Not an SFTP drop at all: an SFTP tab exists (the
+                    // owner gate above passed) but a terminal is what's
+                    // on screen. Hand the file to the terminal drop
+                    // router (#106) instead of swallowing it.
+                    return Ok(self.buffer_terminal_drop(path));
                 }
                 let in_remote_pane =
                     target_folder.is_some() || self.is_cursor_over_remote_pane();

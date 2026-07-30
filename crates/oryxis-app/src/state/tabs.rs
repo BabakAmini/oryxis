@@ -369,6 +369,24 @@ pub(crate) struct Pane {
     /// is diverted to the driver (not the emulator) and input is frozen.
     /// Cleared when the transfer ends, which resumes the terminal.
     pub zmodem: Option<ZmodemPane>,
+    /// `Some` while an OS drag-and-drop upload runs over SFTP on this
+    /// pane's session (`drop.rs`). Unlike `zmodem` this does NOT divert
+    /// the byte stream: the upload rides its own subsystem channel, so
+    /// the terminal stays fully interactive. Drives the same overlay
+    /// card the ZMODEM transfers use.
+    pub drop_upload: Option<DropUploadPane>,
+    /// Files from an OS drop waiting for the ZMODEM detector: the app
+    /// typed `rz -y` and, when the detector sees the remote receiver
+    /// start, `begin_zmodem_transfer` consumes these instead of opening
+    /// the file picker. Cleared by the detect-timeout (remote has no
+    /// lrzsz) and on disconnect.
+    pub pending_drop_sources: Vec<std::path::PathBuf>,
+    /// Screen rect of this pane's canvas as last drawn, written by a
+    /// `bounds_reporter` wrapper each frame. Read by the OS-drop router
+    /// to find the pane under the cursor: a split tab can hold panes on
+    /// different hosts, so "the focused pane" is not always the pane the
+    /// user dropped onto.
+    pub bounds: crate::widgets::BoundsCell,
     /// `HintMode::Once` bookkeeping: set once the "hold Shift to select"
     /// mouse-capture toast has fired for this pane, so it retires here.
     /// In-memory only, a fresh pane (new tab / host) starts over.
@@ -485,6 +503,9 @@ impl Pane {
             last_output: None,
             zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
             zmodem: None,
+            drop_upload: None,
+            pending_drop_sources: Vec::new(),
+            bounds: crate::widgets::new_bounds_cell(),
             mouse_hint_shown: false,
             link_hint_shown: false,
             files: PaneFiles::default(),
@@ -575,6 +596,41 @@ pub(crate) struct ZmodemPane {
     /// fails once the driver drops its receiver). Replayed into the
     /// emulator at teardown so a fast prompt is never swallowed.
     pub late: Vec<u8>,
+}
+
+/// Live state of an OS-drop upload running over SFTP on a pane's
+/// session. Same overlay card as [`ZmodemPane`], different plumbing: the
+/// upload rides its own subsystem channel, so nothing is diverted and
+/// the terminal stays interactive throughout.
+pub(crate) struct DropUploadPane {
+    /// Current top-level entry being sent (file or folder root).
+    pub file_name: Option<String>,
+    /// `(k, n)` position across the drop's top-level entries.
+    pub batch: Option<(usize, usize)>,
+    /// Bytes moved so far across the whole drop, and the pre-walked
+    /// total (known up front, unlike ZMODEM's advertised sizes).
+    pub transferred: u64,
+    pub total: Option<u64>,
+    /// Set by the overlay's Cancel; the upload task checks it on its
+    /// progress tick, aborts the in-flight file and removes the partial.
+    pub abort: Arc<std::sync::atomic::AtomicBool>,
+}
+
+/// Progress events streamed by the OS-drop SFTP upload task
+/// (`begin_drop_sftp_upload`) back to the update loop. One terminal
+/// event (`Done` / `Failed` / `Cancelled`) is guaranteed; it clears
+/// [`Pane::drop_upload`] and toasts the outcome.
+#[derive(Debug, Clone)]
+pub(crate) enum DropProgress {
+    /// Emitted once after the local walk: the whole drop's byte total.
+    Plan { total: u64 },
+    /// A top-level entry started uploading. `(k, n)` across entries.
+    Entry { name: String, index: usize, of: usize },
+    /// Cumulative bytes moved across the whole drop.
+    Advanced { transferred: u64 },
+    Done,
+    Failed(String),
+    Cancelled,
 }
 
 /// A terminal tab. Its panes live in an iced `pane_grid::State`, which owns
