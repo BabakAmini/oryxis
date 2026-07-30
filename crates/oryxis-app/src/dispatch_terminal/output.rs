@@ -430,7 +430,10 @@ impl Oryxis {
                 // (pane label, full body, redacted body) triples raised by
                 // smart tabs this batch, delivered after the borrow ends
                 // (Privacy Mode is resolved per pane at delivery).
-                let mut smart_notifications: Vec<(String, String, String)> = Vec::new();
+                // (tab index, pane label, body, redacted body). The tab
+                // rides along so DELIVERY can drop in-app toasts about the
+                // tab already on screen (see below).
+                let mut smart_notifications: Vec<(usize, String, String, String)> = Vec::new();
                 let mut captured_cmds: Vec<(uuid::Uuid, String)> = Vec::new();
                 // (log id, offset_ms, command) rows for the session
                 // recording's 'c' chunks, written after the borrow ends.
@@ -539,6 +542,7 @@ impl Oryxis {
                                             },
                                         );
                                         smart_notifications.push((
+                                            tab_idx,
                                             pane.label.clone(),
                                             crate::smart_tabs::finished_body(&f, true),
                                             crate::smart_tabs::finished_body(&f, false),
@@ -582,6 +586,7 @@ impl Oryxis {
                             // pane label differs under Privacy Mode.
                             let body = crate::i18n::t("smart_activity").to_string();
                             smart_notifications.push((
+                                tab_idx,
                                 pane.label.clone(),
                                 body.clone(),
                                 body,
@@ -757,7 +762,21 @@ impl Oryxis {
                 // drops the pane identity: the OS notification center keeps
                 // plaintext around, and the terminal's masking is
                 // render-only, so it must not be sidestepped here.
-                for (label, body, redacted) in smart_notifications {
+                for (notif_tab, label, body, redacted) in smart_notifications {
+                    // Delivery-time gate (owner report): an IN-APP toast
+                    // about the tab currently on screen is never useful.
+                    // Looking at the app, the output itself is the signal;
+                    // away from it, the toast is invisible. It also closes
+                    // the alt-tab race: output buffered while away is
+                    // processed in the same batch as (or just before) the
+                    // refocus event, so the watched gate above still saw
+                    // focused=false and raised a notification for the tab
+                    // the user is already reading. OS notifications keep
+                    // covering the active tab: telling the user their
+                    // long command finished WHILE they are in another app
+                    // is that mode's whole point.
+                    let about_active_tab = active_tab == Some(notif_tab)
+                        && self.active_view == crate::state::View::Terminal;
                     let private = self.privacy_active_for_label(&label);
                     let (title, text) = if private {
                         ("Oryxis".to_string(), redacted)
@@ -766,10 +785,22 @@ impl Oryxis {
                     };
                     let show_toast = match notif_mode {
                         crate::util::NotificationMode::Off => false,
-                        crate::util::NotificationMode::Toast => true,
+                        crate::util::NotificationMode::Toast => !about_active_tab,
                         crate::util::NotificationMode::Os => {
-                            win_focused
-                                || !crate::util::show_os_notification(&title, &text)
+                            if win_focused {
+                                // In the app: an in-app toast beats a system
+                                // banner (unchanged), except about the tab on
+                                // screen, where neither is needed.
+                                !about_active_tab
+                            } else {
+                                // Away: the system banner is the point,
+                                // active tab included. Toast only as the
+                                // failure fallback, and the active-tab gate
+                                // still applies to it, "away" may already be
+                                // stale in the alt-tab race.
+                                !crate::util::show_os_notification(&title, &text)
+                                    && !about_active_tab
+                            }
                         }
                     };
                     if show_toast {
