@@ -135,11 +135,15 @@ pub struct TerminalWidgetState {
     /// once the live highlight is gone, illustrating what a PRIMARY
     /// paste will insert; a new selection replaces it. The column count
     /// guards a resize: reflow moves lines, so a stale range would band
-    /// unrelated cells. Never drawn in alt-screen (the region belongs
-    /// to the main grid, which the alt app is covering) nor under
-    /// `copy_on_select` (single-buffer mode pastes the clipboard, so
-    /// the ghost would illustrate the wrong buffer).
-    primary_ghost: Option<(Selection, u16)>,
+    /// unrelated cells. The line total guards grid ROTATION for the same
+    /// reason: our line coordinates are raw, so once output pushes the
+    /// screen (total_lines grows) the range points at different content.
+    /// Typing on the current line rotates nothing, so the
+    /// select-type-paste flow keeps its ghost. Never drawn in alt-screen
+    /// (the region belongs to the main grid, which the alt app is
+    /// covering) nor under `copy_on_select` (single-buffer mode pastes
+    /// the clipboard, so the ghost would illustrate the wrong buffer).
+    primary_ghost: Option<(Selection, u16, usize)>,
     /// Lines scrolled back (0 = bottom). A `Cell` so the immutable-`&self`
     /// draw can reset it to the live edge on new output (PuTTY's "reset
     /// scrollback on display activity"); every other mutation is in

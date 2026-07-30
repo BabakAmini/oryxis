@@ -793,10 +793,12 @@ where
                     && let Ok(state) = self.state.lock()
                 {
                     use alacritty_terminal::grid::Dimensions;
-                    let cols = state.backend.term.grid().columns() as u16;
+                    let grid = state.backend.term.grid();
+                    let cols = grid.columns() as u16;
+                    let total = grid.total_lines();
                     let text = state.get_selection_text(&sel);
                     drop(state);
-                    (!text.is_empty()).then_some((text, sel, cols))
+                    (!text.is_empty()).then_some((text, sel, cols, total))
                 } else {
                     None
                 };
@@ -811,9 +813,9 @@ where
                 // alongside the text: once the live highlight is gone the
                 // draw pass shows it as a faint ghost band, illustrating
                 // what a PRIMARY paste will insert.
-                if let Some((ref text, sel, cols)) = finished {
+                if let Some((ref text, sel, cols, total)) = finished {
                     widget_state.primary_selection = Some(text.clone());
-                    widget_state.primary_ghost = Some((sel, cols));
+                    widget_state.primary_ghost = Some((sel, cols, total));
                 }
                 // Auto-copy the just-finished selection when the setting is
                 // enabled (XTerm / iTerm behaviour). When `right_click_copy`

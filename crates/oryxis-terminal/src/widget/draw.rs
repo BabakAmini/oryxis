@@ -76,7 +76,7 @@ where
             scroll_offset: widget_state.scroll_offset.get(),
             selection: widget_state.selection,
             ghost: if widget_state.selection.is_none() && !self.copy_on_select {
-                widget_state.primary_ghost.map(|(s, _)| s)
+                widget_state.primary_ghost.map(|(s, ..)| s)
             } else {
                 None
             },
@@ -215,10 +215,12 @@ where
                     {
                         widget_state
                             .primary_ghost
-                            .filter(|(_, cols)| {
-                                *cols as usize == state.backend.term.grid().columns()
+                            .filter(|(_, cols, total)| {
+                                let grid = state.backend.term.grid();
+                                *cols as usize == grid.columns()
+                                    && *total == grid.total_lines()
                             })
-                            .map(|(s, _)| s)
+                            .map(|(s, ..)| s)
                     } else {
                         None
                     };
