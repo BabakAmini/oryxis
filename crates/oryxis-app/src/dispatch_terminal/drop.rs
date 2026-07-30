@@ -137,15 +137,28 @@ impl Oryxis {
             return Task::none();
         };
 
-        // SSH with an exact shell cwd: SFTP, files and folders alike, on
-        // a subsystem channel of the live handle. Out-of-band: nothing is
-        // typed, so this is safe even with a full-screen program up.
+        // Sidebar Files hybrid: with the browser on screen, its current
+        // directory is what the user is LOOKING at (manual navigation
+        // included), and the mounted client is proof SFTP works, so it
+        // outranks the shell cwd. Focused pane only: the sidebar renders
+        // the FOCUSED pane's browser, so for any other pane of a split
+        // that directory is not the one on screen.
+        let sidebar_dir = (pane_id == tab.active().id
+            && self.effective_sidebar_tab() == Some(crate::state::TerminalSidebarTab::Files)
+            && pane.files.client.is_some()
+            && !pane.files.path.is_empty())
+        .then(|| pane.files.path.clone());
+
+        // SSH with a visible browser directory or an exact shell cwd:
+        // SFTP, files and folders alike, on a subsystem channel of the
+        // live handle. Out-of-band: nothing is typed, so this is safe
+        // even with a full-screen program up.
         if let Some(ssh) = session.ssh()
-            && pane.cwd_from_osc7
-            && let Some(cwd) = pane.cwd.clone()
+            && let Some(dest) = sidebar_dir
+                .or_else(|| pane.cwd_from_osc7.then(|| pane.cwd.clone()).flatten())
         {
             let ssh = Arc::clone(ssh);
-            return self.begin_drop_sftp_upload(pane_id, ssh, cwd, files, dirs);
+            return self.begin_drop_sftp_upload(pane_id, ssh, dest, files, dirs);
         }
 
         // ZMODEM fallback (SSH without exact cwd, Telnet, serial).
@@ -211,6 +224,7 @@ impl Oryxis {
                 transferred: 0,
                 total: None,
                 abort: Arc::clone(&abort),
+                dest_dir: dest_dir.clone(),
             });
         } else {
             return Task::none();
@@ -396,6 +410,7 @@ impl Oryxis {
         progress: DropProgress,
     ) -> Task<Message> {
         let mut toast: Option<String> = None;
+        let mut refresh: Option<Task<Message>> = None;
         if let Some(pane) = self.pane_by_id_mut(pane_id) {
             match progress {
                 DropProgress::Plan { total } => {
@@ -417,8 +432,26 @@ impl Oryxis {
                     }
                 }
                 DropProgress::Done => {
-                    pane.drop_upload = None;
+                    let up = pane.drop_upload.take();
                     toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                    // Sidebar Files showing the directory we just landed
+                    // in: re-list it so the new entries appear without a
+                    // manual refresh. Pinned to this pane's browser (not
+                    // `SidebarFilesRefresh`, which acts on the ACTIVE
+                    // pane: focus can have moved during a long upload).
+                    if let Some(up) = up
+                        && let Some(client) = pane.files.client.clone()
+                        && pane.files.path == up.dest_dir
+                    {
+                        pane.files.loading = true;
+                        let seq = pane.files.next_req();
+                        refresh = Some(crate::dispatch_sidebar_files::list_dir_task(
+                            client,
+                            up.dest_dir,
+                            pane_id,
+                            seq,
+                        ));
+                    }
                 }
                 DropProgress::Cancelled => {
                     pane.drop_upload = None;
@@ -433,7 +466,7 @@ impl Oryxis {
         if let Some(t) = toast {
             self.set_toast(t);
         }
-        Task::none()
+        refresh.unwrap_or_else(Task::none)
     }
 }
 

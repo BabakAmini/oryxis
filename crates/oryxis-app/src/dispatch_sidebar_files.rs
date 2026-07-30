@@ -896,7 +896,11 @@ fn op_then_list(
 
 /// One directory listing on the sidebar browser's channel. `seq` is the
 /// request stamp compared on completion (latest request wins).
-fn list_dir_task(
+/// `pub(crate)`: the OS-drop upload refreshes the visible listing on
+/// completion through this (`drop.rs`), pinned to its pane id rather
+/// than riding `SidebarFilesRefresh`, whose "active pane" can have
+/// changed during a long upload.
+pub(crate) fn list_dir_task(
     client: oryxis_ssh::SftpClient,
     path: String,
     pane_id: Uuid,

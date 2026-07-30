@@ -614,6 +614,10 @@ pub(crate) struct DropUploadPane {
     /// Set by the overlay's Cancel; the upload task checks it on its
     /// progress tick, aborts the in-flight file and removes the partial.
     pub abort: Arc<std::sync::atomic::AtomicBool>,
+    /// Remote directory the drop lands in. Read at `Done` to refresh
+    /// the sidebar Files browser when it is showing this directory, so
+    /// the uploaded entries appear without a manual refresh.
+    pub dest_dir: String,
 }
 
 /// Progress events streamed by the OS-drop SFTP upload task
