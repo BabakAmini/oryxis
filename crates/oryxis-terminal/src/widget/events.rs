@@ -929,6 +929,15 @@ where
                 // before PRIMARY existed, so the fallback keeps a
                 // never-selected pane working the way it used to instead of
                 // turning the button into a no-op.
+                // Pasting consumes the live highlight (owner call): the
+                // band stays put over the target text otherwise, reading
+                // as a selection that refused to move, and the paste is
+                // about to echo under it anyway. The stored PRIMARY (and
+                // its ghost band) survive, this only demotes the live
+                // visual, whichever buffer the paste below reads.
+                widget_state.selection = None;
+                widget_state.select_anchor = None;
+                widget_state.selecting = false;
                 if !self.copy_on_select
                     && let Some(text) = widget_state.primary_selection.clone()
                     && let Some(to_message) = self.on_paste_selection.as_ref()
@@ -1206,6 +1215,11 @@ where
                     // exactly what Shift+Insert did before this action
                     // owned the chord.
                     TerminalChordAction::PasteSelection => {
+                        // Same demote as middle-click: pasting consumes
+                        // the live highlight, the ghost carries on.
+                        widget_state.selection = None;
+                        widget_state.select_anchor = None;
+                        widget_state.selecting = false;
                         if !self.copy_on_select
                             && let Some(text) = widget_state.primary_selection.clone()
                             && let Some(to_message) = self.on_paste_selection.as_ref()

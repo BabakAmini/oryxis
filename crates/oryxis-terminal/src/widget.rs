@@ -141,8 +141,9 @@ pub struct TerminalWidgetState {
     /// Typing on the current line rotates nothing, so the
     /// select-type-paste flow keeps its ghost. Never drawn in alt-screen
     /// (the region belongs to the main grid, which the alt app is
-    /// covering) nor under `copy_on_select` (single-buffer mode pastes
-    /// the clipboard, so the ghost would illustrate the wrong buffer).
+    /// covering). Drawn in BOTH clipboard modes: under `copy_on_select`
+    /// the last selection IS the clipboard, so the band stays an honest
+    /// cue for the paste gestures either way.
     primary_ghost: Option<(Selection, u16, usize)>,
     /// Lines scrolled back (0 = bottom). A `Cell` so the immutable-`&self`
     /// draw can reset it to the live edge on new output (PuTTY's "reset

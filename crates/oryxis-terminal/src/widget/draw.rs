@@ -75,7 +75,7 @@ where
             epoch: content_epoch,
             scroll_offset: widget_state.scroll_offset.get(),
             selection: widget_state.selection,
-            ghost: if widget_state.selection.is_none() && !self.copy_on_select {
+            ghost: if widget_state.selection.is_none() {
                 widget_state.primary_ghost.map(|(s, ..)| s)
             } else {
                 None
@@ -204,15 +204,15 @@ where
                     // Faint PRIMARY ghost: the demoted rectangle of the
                     // last selection, shown only when no live highlight is
                     // up. Suppressed in alt-screen (the region belongs to
-                    // the main grid the alt app is covering), after a
-                    // resize (reflow moved the lines the range points at),
-                    // and under copy_on_select (single-buffer mode pastes
-                    // the clipboard, so the band would illustrate the
-                    // wrong buffer).
-                    let ghost: Option<Selection> = if selection.is_none()
-                        && !self.copy_on_select
-                        && !in_alt_screen
-                    {
+                    // the main grid the alt app is covering) and after a
+                    // resize or a rotation (both move the lines the range
+                    // points at). NOT gated on copy_on_select: the band
+                    // means "what you last selected", which under that
+                    // setting is what the clipboard holds, so it stays an
+                    // honest cue for the paste gestures in both modes
+                    // (modulo an external copy replacing the clipboard,
+                    // which nothing render-side can see).
+                    let ghost: Option<Selection> = if selection.is_none() && !in_alt_screen {
                         widget_state
                             .primary_ghost
                             .filter(|(_, cols, total)| {
