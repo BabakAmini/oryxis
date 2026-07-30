@@ -780,25 +780,44 @@ where
                 widget_state.selecting = false;
                 widget_state.select_anchor = None;
                 widget_state.last_extend_cell = None;
-                // Auto-copy the just-finished selection when the setting is
-                // enabled (XTerm / iTerm behaviour). Skip degenerate
-                // selections that didn't move (single click). When
-                // `right_click_copy` is on the copy is deferred to a
-                // right-click instead, so skip the auto-copy here; the
-                // deferral is Paste-scheme-only (see
-                // `defers_copy_to_right_click`).
-                if was_selecting
-                    && self.copy_on_select
-                    && !self.defers_copy_to_right_click()
+                // Text of the selection that just finished, read once and
+                // shared by the two things that want it: the PRIMARY
+                // selection below and the optional auto-copy. Degenerate
+                // selections that never moved (a single click) don't count,
+                // but a double/triple-click one does even when it lands on a
+                // one-character word.
+                let finished_text = if was_selecting
                     && let Some(ref sel) = widget_state.selection
                     && (!sel.is_empty() || was_semantic)
                     && let Ok(state) = self.state.lock()
                 {
                     let text = state.get_selection_text(sel);
                     drop(state);
-                    if !text.is_empty() {
-                        set_clipboard_text(&text);
-                    }
+                    Some(text).filter(|t| !t.is_empty())
+                } else {
+                    None
+                };
+                // X11 PRIMARY selection: selecting text IS the act that sets
+                // it, so this is not gated on any setting, and it survives
+                // the highlight being cleared on the next keystroke. That
+                // separation is the whole point of the buffer: it is what
+                // lets "select a path, type `cd `, paste it" work, which a
+                // highlight-bound read cannot do. Independent of the system
+                // clipboard by design (`copy_on_select` is the setting for
+                // people who want selections there too).
+                if let Some(ref text) = finished_text {
+                    widget_state.primary_selection = Some(text.clone());
+                }
+                // Auto-copy the just-finished selection when the setting is
+                // enabled (XTerm / iTerm behaviour). When `right_click_copy`
+                // is on the copy is deferred to a right-click instead, so
+                // skip it here; the deferral is Paste-scheme-only (see
+                // `defers_copy_to_right_click`).
+                if let Some(ref text) = finished_text
+                    && self.copy_on_select
+                    && !self.defers_copy_to_right_click()
+                {
+                    set_clipboard_text(text);
                 }
                 if was_dragging {
                     return Some(CanvasAction::request_redraw().and_capture());
@@ -884,6 +903,22 @@ where
             iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Middle))
                 if cursor.position_in(bounds).is_some() && self.middle_click_paste =>
             {
+                // X11 semantics: the middle button pastes the PRIMARY
+                // selection, which is a different buffer from the
+                // clipboard. That is what the gesture means everywhere it
+                // exists, and it is why selecting is enough to make text
+                // pasteable without Ctrl+Shift+C.
+                //
+                // Fall back to the clipboard when nothing has been selected
+                // in this pane yet: that was this gesture's only behaviour
+                // before PRIMARY existed, so the fallback keeps a
+                // never-selected pane working the way it used to instead of
+                // turning the button into a no-op.
+                if let Some(text) = widget_state.primary_selection.clone()
+                    && let Some(to_message) = self.on_paste_selection.as_ref()
+                {
+                    return Some(CanvasAction::publish(to_message(text)).and_capture());
+                }
                 if let Some(msg) = self.on_paste_request.clone() {
                     return Some(CanvasAction::publish(msg).and_capture());
                 }
@@ -1136,6 +1171,30 @@ where
                             }
                         }
                         Some(CanvasAction::capture())
+                    }
+                    // Keyboard twin of middle-click: paste the PRIMARY
+                    // selection. Reads the remembered text, not the live
+                    // highlight, so it still works after the keystrokes that
+                    // cleared the highlight ("select a path, type `cd `,
+                    // paste it"). Leaves the highlight alone, because in X11
+                    // a PRIMARY paste does not consume the selection, and
+                    // never touches the clipboard.
+                    //
+                    // Nothing selected in this pane yet = no-op. Unlike
+                    // middle-click there is no clipboard fallback here: the
+                    // plain paste chord already owns that, and this action
+                    // ships unbound anyway, so anyone who binds it asked for
+                    // this specific behaviour.
+                    TerminalChordAction::PasteSelection => {
+                        match (
+                            widget_state.primary_selection.clone(),
+                            self.on_paste_selection.as_ref(),
+                        ) {
+                            (Some(text), Some(to_message)) => {
+                                Some(CanvasAction::publish(to_message(text)).and_capture())
+                            }
+                            _ => Some(CanvasAction::capture()),
+                        }
                     }
                     // Selects the entire buffer (scrollback + screen); copy
                     // stays a separate gesture (the copy chord, or

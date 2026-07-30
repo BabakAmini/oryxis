@@ -98,6 +98,24 @@ pub enum TerminalMessage {
     /// Copy the captured selection text to the clipboard (context-menu
     /// "Copy").
     TerminalCopySelection(String),
+    /// Paste the X11 PRIMARY selection into a pane: middle-click, the
+    /// paste-selection action, or the context-menu row. `(pane_id, text)`;
+    /// the pane is explicit because every sender knows it (the widget
+    /// captures its own at build time, the menu carries the right-clicked
+    /// one) and the focused pane can change before this is handled. Never
+    /// touches the system clipboard.
+    TerminalPasteSelection(Uuid, String),
+    /// Flush the buffered OS drop (a multi-file drop arrives as one
+    /// FileDropped per file): resolve the target pane and route the
+    /// batch to its transport. Fired by a short debounce after the
+    /// first file of the gesture.
+    TerminalDropFlush,
+    /// The OS-drop SFTP upload task streamed a progress event for a
+    /// pane. Terminal events (Done / Failed / Cancelled) clear the
+    /// pane's card and toast the outcome.
+    TerminalDropProgress(Uuid, crate::state::DropProgress),
+    /// User asked to cancel the pane's in-flight OS-drop upload.
+    TerminalDropCancel(Uuid),
     /// Copy the whole buffer (scrollback + screen) of a pane to the
     /// clipboard (context-menu "Copy All"). `pane_id`.
     TerminalCopyAll(Uuid),

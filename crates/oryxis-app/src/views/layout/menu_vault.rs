@@ -261,6 +261,18 @@ impl Oryxis {
         if new_window_ok {
             items = items.push(self.menu_item(iced_fonts::lucide::external_link(), crate::i18n::t("duplicate_new_window"), Message::Tabs(TabsMessage::DuplicateInNewWindow(idx)), OryxisColors::t().text_secondary));
         }
+        // Copy the focused pane's host address. Only offered when the pane's
+        // origin still resolves to a connection: a local shell, an SSM / ECS
+        // pane or a deleted host has no address to hand over.
+        if self
+            .tabs
+            .get(idx)
+            .map(|t| t.active().id)
+            .and_then(|pane_id| self.pane_origin_connection(pane_id))
+            .is_some()
+        {
+            items = items.push(self.menu_item(iced_fonts::lucide::clipboard_copy(), crate::i18n::t("copy_host_address"), Message::Tabs(TabsMessage::CopyTabAddress(idx)), OryxisColors::t().text_secondary));
+        }
         items = items.push(self.menu_item(iced_fonts::lucide::rotate_cw(), crate::i18n::t("reconnect"), Message::Tabs(TabsMessage::ReconnectTab(idx)), OryxisColors::t().accent));
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Tabs(TabsMessage::CloseTab(idx)), OryxisColors::t().text_secondary));
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Tabs(TabsMessage::CloseOtherTabs(idx)), OryxisColors::t().text_secondary));
@@ -872,6 +884,15 @@ impl Oryxis {
                 iced_fonts::lucide::copy(),
                 crate::i18n::t("terminal_copy"),
                 Message::Terminal(TerminalMessage::TerminalCopySelection(text.clone())),
+                OryxisColors::t().text_secondary,
+            ));
+            // Same gesture as the Ctrl+Shift+X chord. Inside the
+            // has-a-selection branch: with nothing selected it would just
+            // duplicate the plain "Paste" row below it.
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::clipboard_list(),
+                crate::i18n::t("hotkey_terminal_paste_selection"),
+                Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text.clone())),
                 OryxisColors::t().text_secondary,
             ));
         }

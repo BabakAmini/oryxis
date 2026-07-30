@@ -98,6 +98,10 @@ pub enum TabsMessage {
     /// From an SFTP tab's context menu: focus a live terminal tab on
     /// the mounted host, or connect one.
     OpenTerminalForSftpTab(usize),
+    /// Copy the focused pane's host address (`Connection.hostname`, so a
+    /// DNS name or a literal IP, whichever the host is saved with) to the
+    /// clipboard. From the tab context menu.
+    CopyTabAddress(usize),
     ShowFolderActions(Uuid),
     StartRenameFolder(Uuid),
     FolderRenameInput(String),

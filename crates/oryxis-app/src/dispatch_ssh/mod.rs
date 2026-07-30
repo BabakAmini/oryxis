@@ -399,6 +399,19 @@ impl Oryxis {
                         // and the pane resumes (typable) instead of being
                         // stranded as a dead sink behind a frozen card.
                         p.zmodem = None;
+                        // Same fate for an OS-drop upload: its SFTP
+                        // channel rode the session that just died, so the
+                        // task errors out on its own; raising abort makes
+                        // the race harmless and dropping the card now
+                        // (instead of on the task's Failed event) keeps
+                        // the reconnect UI clean. Staged-but-undetected
+                        // drop sources are void with the shell that never
+                        // ran their `rz`.
+                        if let Some(up) = p.drop_upload.take() {
+                            up.abort
+                                .store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                        p.pending_drop_sources.clear();
                         // A dead transport voids any in-flight command
                         // timing: the reconnect prompt would otherwise
                         // "finish" it with a duration spanning the outage.

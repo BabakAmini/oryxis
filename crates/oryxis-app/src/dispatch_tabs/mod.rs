@@ -232,6 +232,23 @@ impl Oryxis {
             TabsMessage::DetachTabSftp(idx) => return self.handle_detach_tab_sftp(idx),
             TabsMessage::CloseTabSftpSession(idx) => return self.handle_close_tab_sftp_session(idx),
             TabsMessage::OpenTerminalForSftpTab(idx) => return self.handle_open_terminal_for_sftp_tab(idx),
+            TabsMessage::CopyTabAddress(idx) => {
+                self.overlay = None;
+                // Resolve through the focused pane's origin, not the tab
+                // label: a split tab can hold panes on different hosts and
+                // the label may be renamed. `CopyToClipboard` owns the write
+                // (one clipboard access per process) and toasts only once the
+                // runtime confirms it landed.
+                let address = self
+                    .tabs
+                    .get(idx)
+                    .map(|t| t.active().id)
+                    .and_then(|pane_id| self.pane_origin_connection(pane_id))
+                    .map(|c| c.hostname.clone());
+                if let Some(address) = address {
+                    return self.update(Message::CopyToClipboard(address));
+                }
+            }
             TabsMessage::TabHovered(idx) => {
                 self.hovered_tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).

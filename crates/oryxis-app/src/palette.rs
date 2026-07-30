@@ -95,7 +95,8 @@ fn hotkey_category(action: HotkeyAction) -> PaletteCategory {
         FontZoomIn | FontZoomOut | FontZoomReset | SplitPaneVertical | SplitPaneHorizontal
         | FocusPaneLeft | FocusPaneRight | FocusPaneUp | FocusPaneDown | FocusSidebarList
         | ToggleSidebar | ToggleTabFiles | ToggleBroadcastInput | TerminalCopy
-        | TerminalPaste | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown => {
+        | TerminalPaste | TerminalPasteSelection | TerminalSelectAll | ScrollbackPageUp
+        | ScrollbackPageDown => {
             PaletteCategory::Terminal
         }
         OpenSettings => PaletteCategory::Settings,

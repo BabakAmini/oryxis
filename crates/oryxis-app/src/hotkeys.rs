@@ -94,6 +94,13 @@ pub enum HotkeyAction {
     /// dispatcher, which is the only layer that can reach an SSH
     /// session.
     TerminalPaste,
+    /// Paste the X11 PRIMARY selection (the text of the last completed
+    /// selection, remembered independently of the highlight) into the
+    /// focused pane: the keyboard twin of middle-click. Widget-side like
+    /// `TerminalCopy`, because PRIMARY lives in the canvas state; the
+    /// widget hands the text over and the dispatcher pastes it. Ships
+    /// UNBOUND, see `default_bindings`.
+    TerminalPasteSelection,
     /// Select the whole terminal buffer. Widget-side, like `TerminalCopy`.
     TerminalSelectAll,
     /// Page the scrollback up. Widget-side (it owns `scroll_offset`).
@@ -158,6 +165,7 @@ impl HotkeyAction {
             TogglePrivacyMode,
             TerminalCopy,
             TerminalPaste,
+            TerminalPasteSelection,
             TerminalSelectAll,
             ScrollbackPageUp,
             ScrollbackPageDown,
@@ -210,6 +218,7 @@ impl HotkeyAction {
             NewIdentity => "new_identity",
             TerminalCopy => "terminal_copy",
             TerminalPaste => "terminal_paste",
+            TerminalPasteSelection => "terminal_paste_selection",
             TerminalSelectAll => "terminal_select_all",
             ScrollbackPageUp => "scrollback_page_up",
             ScrollbackPageDown => "scrollback_page_down",
@@ -265,6 +274,7 @@ impl HotkeyAction {
             // parallel keys, same as the split-pane pair above.
             TerminalCopy => "terminal_copy",
             TerminalPaste => "terminal_paste",
+            TerminalPasteSelection => "hotkey_terminal_paste_selection",
             TerminalSelectAll => "select_all",
             ScrollbackPageUp => "hotkey_scrollback_page_up",
             ScrollbackPageDown => "hotkey_scrollback_page_down",
@@ -291,6 +301,7 @@ impl HotkeyAction {
                 | ReconnectTab
                 | TerminalCopy
                 | TerminalPaste
+                | TerminalPasteSelection
                 | TerminalSelectAll
                 | ScrollbackPageUp
                 | ScrollbackPageDown
@@ -307,7 +318,11 @@ impl HotkeyAction {
         use HotkeyAction::*;
         matches!(
             self,
-            TerminalCopy | TerminalSelectAll | ScrollbackPageUp | ScrollbackPageDown
+            TerminalCopy
+                | TerminalPasteSelection
+                | TerminalSelectAll
+                | ScrollbackPageUp
+                | ScrollbackPageDown
         )
     }
 
@@ -1181,6 +1196,11 @@ pub fn default_bindings() -> HotkeyMap {
     // across the tab's panes. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+U is readline kill-line).
     put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
+    // TerminalPasteSelection ships with NO factory chord on purpose. Its
+    // gesture is the middle button (the X11 PRIMARY convention, already
+    // wired in the widget), and no terminal anywhere ships a keyboard
+    // chord for it, so picking one would be inventing a convention. Same
+    // call as the Ctrl+Insert copy below: bindable, just not factory.
     // Ctrl+Shift+M (Cmd+Shift+M on macOS): Privacy Mode session
     // override (issue #78). Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+M IS carriage return). Users
@@ -1454,6 +1474,7 @@ mod tests {
         for a in [
             HotkeyAction::TerminalCopy,
             HotkeyAction::TerminalPaste,
+            HotkeyAction::TerminalPasteSelection,
             HotkeyAction::TerminalSelectAll,
             HotkeyAction::ScrollbackPageUp,
             HotkeyAction::ScrollbackPageDown,
@@ -1461,6 +1482,31 @@ mod tests {
             assert!(all.contains(&a), "{a:?} missing from all()");
             assert!(a.terminal_only(), "{a:?} must not fire outside a terminal");
         }
+    }
+
+    #[test]
+    fn paste_selection_ships_unbound_but_listed() {
+        // No factory chord: the gesture for a PRIMARY-selection paste is
+        // the middle button, and no terminal ships a keyboard chord for
+        // it, so shipping one would invent a convention (the same call as
+        // the Ctrl+Insert copy above). It stays bindable, and Settings >
+        // Shortcuts renders it as "(unbound)" with an add chip.
+        assert!(
+            !default_bindings().contains_key(&HotkeyAction::TerminalPasteSelection),
+            "paste-selection must not ship a factory chord"
+        );
+        // Unbound is not the same as absent: it still has to be listed in
+        // the Shortcuts editor for anyone to bind it.
+        assert!(HotkeyAction::all().contains(&HotkeyAction::TerminalPasteSelection));
+        // Performed by the widget (PRIMARY lives in the canvas state), so
+        // the command palette must not list it: a palette row dispatches
+        // `RunHotkeyAction`, which never reaches the canvas, and the row
+        // would silently do nothing.
+        assert!(HotkeyAction::TerminalPasteSelection.widget_dispatched());
+        // Paste, by contrast, IS dispatched app-side (it has to reach an
+        // SSH session), so it stays clickable in the palette. Guards the
+        // pair against being lumped together by a later edit.
+        assert!(!HotkeyAction::TerminalPaste.widget_dispatched());
     }
 
     #[test]
