@@ -1330,6 +1330,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "copy_path" => "Copy path",
         "copy_host_address" => "Copy host address",
         "hotkey_terminal_paste_selection" => "Paste selection",
+        "gesture_middle_click" => "Middle mouse button",
         "copy_n_paths" => "Copy {n} paths",
         "tab_tip_files" => "Files",
         "files_follow_on_tip" => "Following the terminal directory. Click to stop.",

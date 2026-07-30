@@ -1329,6 +1329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "पथ कॉपी करें",
         "copy_host_address" => "होस्ट पता कॉपी करें",
         "hotkey_terminal_paste_selection" => "चयन चिपकाएँ",
+        "gesture_middle_click" => "माउस का मध्य बटन",
         "copy_n_paths" => "{n} पथ कॉपी करें",
         "tab_tip_files" => "फ़ाइलें",
         "files_follow_on_tip" => "टर्मिनल डायरेक्टरी का अनुसरण हो रहा है। रोकने के लिए क्लिक करें।",

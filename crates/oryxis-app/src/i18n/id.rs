@@ -1323,6 +1323,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Salin jalur",
         "copy_host_address" => "Salin alamat host",
         "hotkey_terminal_paste_selection" => "Tempel pilihan",
+        "gesture_middle_click" => "Tombol tengah mouse",
         "copy_n_paths" => "Salin {n} jalur",
         "tab_tip_files" => "Berkas",
         "files_follow_on_tip" => "Mengikuti direktori terminal. Klik untuk berhenti.",

@@ -1231,6 +1231,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Копировать путь",
         "copy_host_address" => "Копировать адрес хоста",
         "hotkey_terminal_paste_selection" => "Вставить выделенное",
+        "gesture_middle_click" => "Средняя кнопка мыши",
         "copy_n_paths" => "Копировать {n} путей",
         "tab_tip_files" => "Файлы",
         "files_follow_on_tip" => "Следует за каталогом терминала. Нажмите, чтобы остановить.",

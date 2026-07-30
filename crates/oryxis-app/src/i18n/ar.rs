@@ -1328,6 +1328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "نسخ المسار",
         "copy_host_address" => "نسخ عنوان المضيف",
         "hotkey_terminal_paste_selection" => "لصق التحديد",
+        "gesture_middle_click" => "زر الفأرة الأوسط",
         "copy_n_paths" => "نسخ {n} مسار",
         "tab_tip_files" => "الملفات",
         "files_follow_on_tip" => "يتابع مجلد الطرفية. انقر للإيقاف.",

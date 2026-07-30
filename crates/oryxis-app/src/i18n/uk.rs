@@ -1323,6 +1323,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Копіювати шлях",
         "copy_host_address" => "Копіювати адресу хоста",
         "hotkey_terminal_paste_selection" => "Вставити виділене",
+        "gesture_middle_click" => "Середня кнопка миші",
         "copy_n_paths" => "Копіювати {n} шляхів",
         "tab_tip_files" => "Файли",
         "files_follow_on_tip" => "Слідкує за каталогом термінала. Натисніть, щоб зупинити.",

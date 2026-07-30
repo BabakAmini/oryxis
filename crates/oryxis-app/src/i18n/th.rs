@@ -1330,6 +1330,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "คัดลอกพาธ",
         "copy_host_address" => "คัดลอกที่อยู่โฮสต์",
         "hotkey_terminal_paste_selection" => "วางส่วนที่เลือก",
+        "gesture_middle_click" => "ปุ่มกลางของเมาส์",
         "copy_n_paths" => "คัดลอก {n} พาธ",
         "tab_tip_files" => "ไฟล์",
         "files_follow_on_tip" => "กำลังตามไดเรกทอรีของเทอร์มินัล คลิกเพื่อหยุด",

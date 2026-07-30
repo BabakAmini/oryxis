@@ -1231,6 +1231,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Copia percorso",
         "copy_host_address" => "Copia indirizzo host",
         "hotkey_terminal_paste_selection" => "Incolla selezione",
+        "gesture_middle_click" => "Pulsante centrale del mouse",
         "copy_n_paths" => "Copia {n} percorsi",
         "tab_tip_files" => "File",
         "files_follow_on_tip" => "Segue la directory del terminale. Clic per fermare.",

@@ -1323,6 +1323,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Yolu kopyala",
         "copy_host_address" => "Sunucu adresini kopyala",
         "hotkey_terminal_paste_selection" => "Seçimi yapıştır",
+        "gesture_middle_click" => "Orta fare düğmesi",
         "copy_n_paths" => "{n} yolu kopyala",
         "tab_tip_files" => "Dosyalar",
         "files_follow_on_tip" => "Terminal dizini izleniyor. Durdurmak için tıklayın.",

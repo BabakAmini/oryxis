@@ -1312,6 +1312,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "کپی مسیر",
         "copy_host_address" => "کپی نشانی میزبان",
         "hotkey_terminal_paste_selection" => "چسباندن انتخاب",
+        "gesture_middle_click" => "دکمه میانی ماوس",
         "copy_n_paths" => "کپی {n} مسیر",
         "tab_tip_files" => "فایل‌ها",
         "files_follow_on_tip" => "در حال دنبال کردن پوشه ترمینال. برای توقف کلیک کنید.",

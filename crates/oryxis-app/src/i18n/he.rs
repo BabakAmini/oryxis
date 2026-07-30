@@ -1329,6 +1329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "העתקת נתיב",
         "copy_host_address" => "העתקת כתובת מארח",
         "hotkey_terminal_paste_selection" => "הדבקת הבחירה",
+        "gesture_middle_click" => "לחצן העכבר האמצעי",
         "copy_n_paths" => "העתקת {n} נתיבים",
         "tab_tip_files" => "קבצים",
         "files_follow_on_tip" => "עוקב אחרי תיקיית הטרמינל. לחצו כדי להפסיק.",

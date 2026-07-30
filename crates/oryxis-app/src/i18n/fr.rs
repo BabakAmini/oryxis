@@ -1240,6 +1240,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Copier le chemin",
         "copy_host_address" => "Copier l'adresse de l'hôte",
         "hotkey_terminal_paste_selection" => "Coller la sélection",
+        "gesture_middle_click" => "Bouton central de la souris",
         "copy_n_paths" => "Copier {n} chemins",
         "tab_tip_files" => "Fichiers",
         "files_follow_on_tip" => "Suit le répertoire du terminal. Cliquez pour arrêter.",

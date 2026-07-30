@@ -153,10 +153,18 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into()
         } else if empty_row {
-            // Nothing bound at all: the add chip carries the unbound
-            // placeholder, so the row still reads as one affordance
-            // rather than a bare "+" next to nothing.
-            text(crate::i18n::t("hotkey_unbound"))
+            // Nothing bound at all: the add chip carries the placeholder,
+            // so the row still reads as one affordance rather than a bare
+            // "+" next to nothing.
+            //
+            // An action whose factory gesture is a MOUSE button has no
+            // chord to show, but it is not unbound either: naming the
+            // gesture keeps the row from reading as a broken feature. The
+            // keyboard slot stays empty and addable.
+            let placeholder = self
+                .action_live_gesture(action)
+                .unwrap_or_else(|| crate::i18n::t("hotkey_unbound"));
+            text(placeholder)
                 .size(11)
                 .color(OryxisColors::t().text_muted)
                 .into()
@@ -192,6 +200,27 @@ impl Oryxis {
                 }
             });
         self.settings_nav_ring_at(idx, 6.0, btn.into())
+    }
+
+    /// Name of the built-in MOUSE gesture that performs `action`, when it
+    /// has one AND that gesture is currently enabled. Lets a chord-less
+    /// row say what does drive the action instead of "(unbound)", which
+    /// reads as a broken feature.
+    ///
+    /// Gated on the live setting on purpose: a user who turned the
+    /// gesture off really has nothing bound, and the row should say so
+    /// rather than point at a disabled affordance.
+    fn action_live_gesture(&self, action: crate::hotkeys::HotkeyAction) -> Option<&'static str> {
+        match action {
+            // X11 PRIMARY paste. Middle-click is the convention's native
+            // gesture, which is why this action ships without a chord.
+            crate::hotkeys::HotkeyAction::TerminalPasteSelection
+                if self.setting_middle_click_paste =>
+            {
+                Some(crate::i18n::t("gesture_middle_click"))
+            }
+            _ => None,
+        }
     }
 
     /// Single row in the Shortcuts editor list. Renders one chip per

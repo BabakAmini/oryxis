@@ -1329,6 +1329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "copy_path" => "Kopiuj ścieżkę",
         "copy_host_address" => "Kopiuj adres hosta",
         "hotkey_terminal_paste_selection" => "Wklej zaznaczenie",
+        "gesture_middle_click" => "Środkowy przycisk myszy",
         "copy_n_paths" => "Kopiuj {n} ścieżek",
         "tab_tip_files" => "Pliki",
         "files_follow_on_tip" => "Podąża za katalogiem terminala. Kliknij, aby zatrzymać.",
