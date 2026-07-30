@@ -646,8 +646,18 @@ fn cell_advance(font: Font, font_size: f32) -> f32 {
         font,
         align_x: iced::advanced::text::Alignment::Default,
         align_y: alignment::Vertical::Top,
-        // Match the canvas `Text` default (Basic) so the measured advance
-        // equals what `flush_run`'s `fill_text` renders.
+        // Basic on purpose, and it does NOT need to mirror the canvas.
+        // The canvas `Text` default is `Shaping::Auto` (we enable neither
+        // `basic-shaping` nor `advanced-shaping`), and `to_shaping` maps
+        // Auto to cosmic-text's Basic for ASCII and Advanced otherwise. The
+        // sample below is ASCII, so Auto would resolve to Basic here anyway:
+        // naming it keeps the measurement independent of that mapping.
+        //
+        // Do NOT copy this to the draw path. `fill_text` there must stay on
+        // the Auto default: cosmic-text's Basic means "no font fallback", so
+        // pinning it would tofu every glyph the terminal font lacks (CJK,
+        // emoji), and it would buy nothing because ASCII runs already shape
+        // as Basic.
         shaping: iced::advanced::text::Shaping::Basic,
         wrapping: iced::advanced::text::Wrapping::None,
         ellipsis: iced::advanced::text::Ellipsis::None,
