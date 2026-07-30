@@ -333,8 +333,12 @@ impl Oryxis {
                         ]
                         .align_y(iced::Alignment::Center),
                         iced::widget::Space::new().height(4),
+                        // WordOrGlyph: API error payloads are long JSON
+                        // tokens with no spaces; Word wrapping can't break
+                        // them and they'd overflow the card border.
                         text(msg.content.as_str())
                             .size(11)
+                            .wrapping(iced::widget::text::Wrapping::WordOrGlyph)
                             .color(OryxisColors::t().text_muted),
                         iced::widget::Space::new().height(8),
                         crate::widgets::styled_button(
@@ -345,7 +349,7 @@ impl Oryxis {
                     ],
                 )
                 .padding(Padding { top: 8.0, right: 12.0, bottom: 8.0, left: 12.0 })
-                .width(Length::Shrink.max(300.0))
+                .width(Length::Fill)
                 .style(|_| container::Style {
                     background: Some(Background::Color(Color {
                         a: 0.10,
