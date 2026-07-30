@@ -1239,7 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Dupliquer {n} éléments",
         "copy_path" => "Copier le chemin",
         "copy_host_address" => "Copier l'adresse de l'hôte",
-        "hotkey_terminal_paste_selection" => "Coller la sélection",
+        "hotkey_terminal_paste_selection" => "Coller la sélection (primary)",
         "gesture_middle_click" => "Bouton central de la souris",
         "terminal_drop_no_rz" => "L'hôte distant n'a pas rz (lrzsz). Installez-le, ou utilisez le mode Files de l'onglet pour envoyer.",
         "terminal_drop_busy" => "Une commande s'exécute ici. Terminez-la, ou utilisez le mode Files de l'onglet pour envoyer.",

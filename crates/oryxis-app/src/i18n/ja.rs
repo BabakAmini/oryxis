@@ -1239,7 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n} 項目を複製",
         "copy_path" => "パスをコピー",
         "copy_host_address" => "ホストアドレスをコピー",
-        "hotkey_terminal_paste_selection" => "選択範囲を貼り付け",
+        "hotkey_terminal_paste_selection" => "選択範囲を貼り付け (primary)",
         "gesture_middle_click" => "マウス中ボタン",
         "terminal_drop_no_rz" => "リモートに rz（lrzsz）がありません。インストールするか、タブの Files モードでアップロードしてください。",
         "terminal_drop_busy" => "ここではコマンドが実行中です。終了させるか、タブの Files モードでアップロードしてください。",

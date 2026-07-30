@@ -1230,7 +1230,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Duplica {n} elementi",
         "copy_path" => "Copia percorso",
         "copy_host_address" => "Copia indirizzo host",
-        "hotkey_terminal_paste_selection" => "Incolla selezione",
+        "hotkey_terminal_paste_selection" => "Incolla selezione (primary)",
         "gesture_middle_click" => "Pulsante centrale del mouse",
         "terminal_drop_no_rz" => "L'host remoto non ha rz (lrzsz). Installalo, oppure usa la modalità Files della scheda per caricare.",
         "terminal_drop_busy" => "Qui è in esecuzione un comando. Terminalo, oppure usa la modalità Files della scheda per caricare.",

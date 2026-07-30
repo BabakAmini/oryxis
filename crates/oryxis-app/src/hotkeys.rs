@@ -98,8 +98,9 @@ pub enum HotkeyAction {
     /// selection, remembered independently of the highlight) into the
     /// focused pane: the keyboard twin of middle-click. Widget-side like
     /// `TerminalCopy`, because PRIMARY lives in the canvas state; the
-    /// widget hands the text over and the dispatcher pastes it. Ships
-    /// UNBOUND, see `default_bindings`.
+    /// widget hands the text over and the dispatcher pastes it.
+    /// Factory inputs: Shift+Insert (the xterm / kitty / Alacritty
+    /// convention) and the middle mouse button.
     TerminalPasteSelection,
     /// Select the whole terminal buffer. Widget-side, like `TerminalCopy`.
     TerminalSelectAll,
@@ -1196,11 +1197,6 @@ pub fn default_bindings() -> HotkeyMap {
     // across the tab's panes. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+U is readline kill-line).
     put(&mut m, ToggleBroadcastInput, primary_ctrl, true, false, primary_logo, Char('u'));
-    // TerminalPasteSelection ships with NO factory chord on purpose. Its
-    // gesture is the middle button (the X11 PRIMARY convention, already
-    // wired in the widget), and no terminal anywhere ships a keyboard
-    // chord for it, so picking one would be inventing a convention. Same
-    // call as the Ctrl+Insert copy below: bindable, just not factory.
     // Ctrl+Shift+M (Cmd+Shift+M on macOS): Privacy Mode session
     // override (issue #78). Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+M IS carriage return). Users
@@ -1226,24 +1222,26 @@ pub fn default_bindings() -> HotkeyMap {
     // Plain Ctrl+V is NOT a paste chord. It is the literal-next byte
     // (vim visual block, readline quoted-insert), and binding it here
     // would take it away from the PTY with no way back.
-    let shift_insert = (false, true, false, false, Named(keyboard::key::Named::Insert));
     if mac {
         put_many(&mut m, TerminalCopy, &[(false, false, false, true, Char('c'))]);
-        put_many(
-            &mut m,
-            TerminalPaste,
-            &[(false, false, false, true, Char('v')), shift_insert],
-        );
+        put_many(&mut m, TerminalPaste, &[(false, false, false, true, Char('v'))]);
         put_many(&mut m, TerminalSelectAll, &[(false, false, false, true, Char('a'))]);
     } else {
         put_many(&mut m, TerminalCopy, &[(true, true, false, false, Char('c'))]);
-        put_many(
-            &mut m,
-            TerminalPaste,
-            &[(true, true, false, false, Char('v')), shift_insert],
-        );
+        put_many(&mut m, TerminalPaste, &[(true, true, false, false, Char('v'))]);
         put_many(&mut m, TerminalSelectAll, &[(true, true, false, false, Char('a'))]);
     }
+    // Shift+Insert pastes the PRIMARY selection, not the clipboard: the
+    // xterm default, kitty's `paste_from_selection` and Alacritty's
+    // `PasteSelection` all bind exactly this chord to exactly this
+    // buffer, so this IS the convention, on every platform (our PRIMARY
+    // is app-internal, so it exists off X11 too). The widget falls back
+    // to a clipboard paste when the pane never had a selection or under
+    // copy_on_select (the PuTTY single-buffer model), so the chord
+    // still always pastes something, matching what it did while it was
+    // a plain paste chord. Its second factory input is the middle
+    // mouse button, which lives outside this table.
+    put(&mut m, TerminalPasteSelection, false, true, false, false, Named(keyboard::key::Named::Insert));
     // Scrollback paging. Shift+PageUp/PageDown on every platform: it is
     // universal across terminals and macOS has no competing idiom. The
     // widget yields these to the PTY on the alternate screen, where
@@ -1410,6 +1408,12 @@ mod tests {
             primary: PrimaryKey::Char('v'),
         };
         assert!(!paste.contains(&ctrl_v), "Ctrl+V must stay with the PTY");
+        // Shift+Insert is NOT a clipboard-paste chord: xterm binds it to
+        // the PRIMARY selection, kitty ships it as `paste_from_selection`
+        // and Alacritty as `PasteSelection`, so it belongs to the
+        // separate `TerminalPasteSelection` action. Leaving it on plain
+        // paste as well would double-fire the chord (the widget resolver
+        // and the app router both matching it).
         let shift_ins = HotkeyBinding {
             ctrl: false,
             shift: true,
@@ -1417,11 +1421,13 @@ mod tests {
             logo: false,
             primary: PrimaryKey::Named(Named::Insert),
         };
-        assert!(paste.contains(&shift_ins), "Shift+Insert is a standard paste chord");
-        assert_eq!(paste.len(), 2);
-        // The chord shown in the palette is the platform-primary one,
-        // not the Insert alternate.
-        assert_ne!(paste.primary(), Some(shift_ins));
+        assert!(!paste.contains(&shift_ins), "Shift+Insert belongs to PasteSelection");
+        assert_eq!(paste.len(), 1);
+        let paste_sel = defaults
+            .get(&HotkeyAction::TerminalPasteSelection)
+            .expect("paste-selection bound");
+        assert!(paste_sel.contains(&shift_ins), "the xterm/kitty/Alacritty chord");
+        assert_eq!(paste_sel.len(), 1);
 
         // Shift+Insert paste has real pedigree (X11; PuTTY documents it).
         // A matching Ctrl+Insert copy does NOT: PuTTY's docs say copy is
@@ -1485,18 +1491,7 @@ mod tests {
     }
 
     #[test]
-    fn paste_selection_ships_unbound_but_listed() {
-        // No factory chord: the gesture for a PRIMARY-selection paste is
-        // the middle button, and no terminal ships a keyboard chord for
-        // it, so shipping one would invent a convention (the same call as
-        // the Ctrl+Insert copy above). It stays bindable, and Settings >
-        // Shortcuts renders it as "(unbound)" with an add chip.
-        assert!(
-            !default_bindings().contains_key(&HotkeyAction::TerminalPasteSelection),
-            "paste-selection must not ship a factory chord"
-        );
-        // Unbound is not the same as absent: it still has to be listed in
-        // the Shortcuts editor for anyone to bind it.
+    fn paste_selection_is_widget_dispatched_and_listed() {
         assert!(HotkeyAction::all().contains(&HotkeyAction::TerminalPasteSelection));
         // Performed by the widget (PRIMARY lives in the canvas state), so
         // the command palette must not list it: a palette row dispatches
@@ -1640,9 +1635,11 @@ mod tests {
         assert!(ctrl_a.is_safe());
     }
 
-    /// Does the Insert pair actually FIRE? `is_safe` / `parse` passing
+    /// Does the Insert chord actually FIRE? `is_safe` / `parse` passing
     /// only proves the editor would accept the chord, not that a real
-    /// key event reaches the action.
+    /// key event reaches the action. Since the Shift+Insert move to
+    /// PasteSelection this also pins that plain paste does NOT match it,
+    /// or one keystroke would fire both actions.
     #[test]
     fn insert_chords_match_a_real_key_event() {
         let defaults = default_bindings();
@@ -1650,15 +1647,23 @@ mod tests {
 
         let mut m = Modifiers::default();
         m.set(Modifiers::SHIFT, true);
+        let paste_sel = defaults
+            .get(&HotkeyAction::TerminalPasteSelection)
+            .expect("bound");
+        assert_eq!(
+            paste_sel.match_event(&ins, &m),
+            Some(FamilyMatch::Plain),
+            "Shift+Insert must fire the PRIMARY paste"
+        );
         let paste = defaults.get(&HotkeyAction::TerminalPaste).expect("bound");
         assert_eq!(
             paste.match_event(&ins, &m),
-            Some(FamilyMatch::Plain),
-            "Shift+Insert must fire paste"
+            None,
+            "plain paste must not shadow the PasteSelection chord"
         );
 
         // Modifier match is exact: a bare Insert fires nothing.
         let none = Modifiers::default();
-        assert_eq!(paste.match_event(&ins, &none), None);
+        assert_eq!(paste_sel.match_event(&ins, &none), None);
     }
 }

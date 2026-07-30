@@ -1329,7 +1329,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "ทำสำเนา {n} รายการ",
         "copy_path" => "คัดลอกพาธ",
         "copy_host_address" => "คัดลอกที่อยู่โฮสต์",
-        "hotkey_terminal_paste_selection" => "วางส่วนที่เลือก",
+        "hotkey_terminal_paste_selection" => "วางส่วนที่เลือก (primary)",
         "gesture_middle_click" => "ปุ่มกลางของเมาส์",
         "terminal_drop_no_rz" => "โฮสต์ระยะไกลไม่มี rz (lrzsz) โปรดติดตั้ง หรือใช้โหมด Files ของแท็บเพื่ออัปโหลด",
         "terminal_drop_busy" => "มีคำสั่งกำลังทำงานอยู่ โปรดทำให้เสร็จ หรือใช้โหมด Files ของแท็บเพื่ออัปโหลด",

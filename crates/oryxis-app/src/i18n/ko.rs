@@ -1322,7 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n}개 항목 복제",
         "copy_path" => "경로 복사",
         "copy_host_address" => "호스트 주소 복사",
-        "hotkey_terminal_paste_selection" => "선택 영역 붙여넣기",
+        "hotkey_terminal_paste_selection" => "선택 영역 붙여넣기 (primary)",
         "gesture_middle_click" => "마우스 가운데 버튼",
         "terminal_drop_no_rz" => "원격에 rz(lrzsz)가 없습니다. 설치하거나 탭의 Files 모드로 업로드하세요.",
         "terminal_drop_busy" => "여기서 명령이 실행 중입니다. 먼저 끝내거나 탭의 Files 모드로 업로드하세요.",

@@ -130,6 +130,16 @@ pub struct TerminalWidgetState {
     /// xterm exposes the same idea to users as the `keepSelection`
     /// resource.
     primary_selection: Option<String>,
+    /// Where `primary_selection` was captured: the selection range plus
+    /// the grid column count at capture. Drawn as a faint "ghost" band
+    /// once the live highlight is gone, illustrating what a PRIMARY
+    /// paste will insert; a new selection replaces it. The column count
+    /// guards a resize: reflow moves lines, so a stale range would band
+    /// unrelated cells. Never drawn in alt-screen (the region belongs
+    /// to the main grid, which the alt app is covering) nor under
+    /// `copy_on_select` (single-buffer mode pastes the clipboard, so
+    /// the ghost would illustrate the wrong buffer).
+    primary_ghost: Option<(Selection, u16)>,
     /// Lines scrolled back (0 = bottom). A `Cell` so the immutable-`&self`
     /// draw can reset it to the live edge on new output (PuTTY's "reset
     /// scrollback on display activity"); every other mutation is in
@@ -262,6 +272,13 @@ struct RenderKey {
     /// the clamped value the draw actually uses.
     scroll_offset: i32,
     selection: Option<Selection>,
+    /// The PRIMARY ghost band's range when it is eligible to draw (no
+    /// live selection, copy_on_select off). Alt-screen and resize
+    /// transitions arrive with an epoch bump, so eligibility here can
+    /// skip those two checks; folding the range in makes the demote
+    /// (selection cleared with no output, e.g. a click on blank space)
+    /// repaint the band without waiting for output.
+    ghost: Option<Selection>,
     /// Hovered URL quantized to its cell, so sliding along one URL doesn't
     /// rebuild every pixel. `None` when not over a detected URL.
     hovered_url_cell: Option<(u16, u16)>,

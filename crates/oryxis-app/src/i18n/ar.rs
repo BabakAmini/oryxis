@@ -1327,7 +1327,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "تكرار {n} عنصر",
         "copy_path" => "نسخ المسار",
         "copy_host_address" => "نسخ عنوان المضيف",
-        "hotkey_terminal_paste_selection" => "لصق التحديد",
+        "hotkey_terminal_paste_selection" => "لصق التحديد (primary)",
         "gesture_middle_click" => "زر الفأرة الأوسط",
         "terminal_drop_no_rz" => "المضيف البعيد لا يملك rz (lrzsz). ثبّته أو استخدم وضع Files في علامة التبويب للرفع.",
         "terminal_drop_busy" => "هناك أمر قيد التشغيل هنا. أنهِه أو استخدم وضع Files في علامة التبويب للرفع.",

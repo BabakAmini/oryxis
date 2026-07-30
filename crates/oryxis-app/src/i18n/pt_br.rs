@@ -1279,7 +1279,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Duplicar {n} itens",
         "copy_path" => "Copiar caminho",
         "copy_host_address" => "Copiar endereço do host",
-        "hotkey_terminal_paste_selection" => "Colar seleção",
+        "hotkey_terminal_paste_selection" => "Colar seleção (primary)",
         "gesture_middle_click" => "Botão do meio do mouse",
         "terminal_drop_no_rz" => "O host remoto não tem rz (lrzsz). Instale-o, ou use o modo Files da aba para enviar.",
         "terminal_drop_busy" => "Há um comando em execução aqui. Conclua-o, ou use o modo Files da aba para enviar.",

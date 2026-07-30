@@ -1322,7 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Nhân bản {n} mục",
         "copy_path" => "Sao chép đường dẫn",
         "copy_host_address" => "Sao chép địa chỉ máy chủ",
-        "hotkey_terminal_paste_selection" => "Dán vùng chọn",
+        "hotkey_terminal_paste_selection" => "Dán vùng chọn (primary)",
         "gesture_middle_click" => "Nút chuột giữa",
         "terminal_drop_no_rz" => "Máy chủ từ xa không có rz (lrzsz). Hãy cài đặt, hoặc dùng chế độ Files của thẻ để tải lên.",
         "terminal_drop_busy" => "Một lệnh đang chạy ở đây. Hãy hoàn tất nó, hoặc dùng chế độ Files của thẻ để tải lên.",

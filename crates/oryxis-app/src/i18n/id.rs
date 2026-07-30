@@ -1322,7 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Gandakan {n} item",
         "copy_path" => "Salin jalur",
         "copy_host_address" => "Salin alamat host",
-        "hotkey_terminal_paste_selection" => "Tempel pilihan",
+        "hotkey_terminal_paste_selection" => "Tempel pilihan (primary)",
         "gesture_middle_click" => "Tombol tengah mouse",
         "terminal_drop_no_rz" => "Host jarak jauh tidak punya rz (lrzsz). Pasang, atau gunakan mode Files tab untuk mengunggah.",
         "terminal_drop_busy" => "Ada perintah yang sedang berjalan di sini. Selesaikan, atau gunakan mode Files tab untuk mengunggah.",

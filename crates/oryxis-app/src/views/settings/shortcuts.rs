@@ -153,24 +153,15 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into()
         } else if empty_row {
-            // Nothing bound at all: the add chip carries the placeholder,
-            // so the row still reads as one affordance rather than a bare
-            // "+" next to nothing.
-            match self.action_live_gesture(action) {
-                // An action whose factory gesture is a MOUSE button has
-                // no chord to show, but it is not unbound either: the
-                // gesture renders as a key badge, the same pill as a real
-                // chord, so it reads at the same contrast on every theme
-                // (muted text sat straight on the chip's accent-tinted
-                // button_bg and washed out). The keyboard slot stays
-                // empty and addable, the panel's "Click a shortcut to
-                // change it." still applies.
-                Some(gesture) => key_badge_owned(gesture.to_string()),
-                None => text(crate::i18n::t("hotkey_unbound"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted)
-                    .into(),
-            }
+            // Nothing bound at all, gestures included (`empty_row` is
+            // false when a live mouse gesture badge precedes this chip):
+            // the add chip carries the unbound placeholder, so the row
+            // still reads as one affordance rather than a bare "+" next
+            // to nothing.
+            text(crate::i18n::t("hotkey_unbound"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into()
         } else {
             text("+")
                 .size(13)
@@ -250,20 +241,24 @@ impl Oryxis {
             .filter(|(a, _)| *a == action)
             .map(|(_, s)| s);
 
-        let mut chips: Vec<Element<'_, Message>> = binds
-            .iter()
-            .enumerate()
-            .map(|(i, chord)| {
-                let slot = HotkeySlot::Replace(i);
-                self.hotkey_chip(action, slot, Some(*chord), editing == Some(slot), false)
-            })
-            .collect();
+        let mut chips: Vec<Element<'_, Message>> = Vec::with_capacity(binds.len() + 2);
+        // A built-in MOUSE gesture renders first, as a key badge like the
+        // chord pills, so it reads at the same contrast on every theme.
+        // Not a chip: it is not recordable and not resettable, the
+        // gesture's own setting governs it, so it takes no click.
+        if let Some(gesture) = self.action_live_gesture(action) {
+            chips.push(key_badge_owned(gesture.to_string()));
+        }
+        chips.extend(binds.iter().enumerate().map(|(i, chord)| {
+            let slot = HotkeySlot::Replace(i);
+            self.hotkey_chip(action, slot, Some(*chord), editing == Some(slot), false)
+        }));
         chips.push(self.hotkey_chip(
             action,
             HotkeySlot::Add,
             None,
             editing == Some(HotkeySlot::Add),
-            binds.is_empty(),
+            binds.is_empty() && self.action_live_gesture(action).is_none(),
         ));
 
         let pills_box = container(

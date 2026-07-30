@@ -1230,7 +1230,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n} Elemente duplizieren",
         "copy_path" => "Pfad kopieren",
         "copy_host_address" => "Hostadresse kopieren",
-        "hotkey_terminal_paste_selection" => "Auswahl einfügen",
+        "hotkey_terminal_paste_selection" => "Auswahl einfügen (primary)",
         "gesture_middle_click" => "Mittlere Maustaste",
         "terminal_drop_no_rz" => "Der Remote-Host hat kein rz (lrzsz). Installieren Sie es oder nutzen Sie den Files-Modus des Tabs zum Hochladen.",
         "terminal_drop_busy" => "Hier läuft gerade ein Befehl. Beenden Sie ihn oder nutzen Sie den Files-Modus des Tabs zum Hochladen.",

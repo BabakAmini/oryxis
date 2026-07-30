@@ -75,6 +75,11 @@ where
             epoch: content_epoch,
             scroll_offset: widget_state.scroll_offset.get(),
             selection: widget_state.selection,
+            ghost: if widget_state.selection.is_none() && !self.copy_on_select {
+                widget_state.primary_ghost.map(|(s, _)| s)
+            } else {
+                None
+            },
             hovered_url_cell: widget_state.hovered_url.as_ref().map(|(_, pos)| {
                 (
                     ((pos.x - TERM_PAD) / cell_w).max(0.0) as u16,
@@ -157,6 +162,7 @@ where
                     total_lines,
                     in_alt_screen,
                     scroll_offset,
+                    ghost,
                 ) = {
                     let mut state = match self.state.lock() {
                         Ok(s) => s,
@@ -193,6 +199,28 @@ where
                         let grid = state.backend.term.grid();
                         let max_scroll = grid.total_lines().saturating_sub(grid.screen_lines()) as i32;
                         widget_state.scroll_offset.get().clamp(0, max_scroll)
+                    };
+
+                    // Faint PRIMARY ghost: the demoted rectangle of the
+                    // last selection, shown only when no live highlight is
+                    // up. Suppressed in alt-screen (the region belongs to
+                    // the main grid the alt app is covering), after a
+                    // resize (reflow moved the lines the range points at),
+                    // and under copy_on_select (single-buffer mode pastes
+                    // the clipboard, so the band would illustrate the
+                    // wrong buffer).
+                    let ghost: Option<Selection> = if selection.is_none()
+                        && !self.copy_on_select
+                        && !in_alt_screen
+                    {
+                        widget_state
+                            .primary_ghost
+                            .filter(|(_, cols)| {
+                                *cols as usize == state.backend.term.grid().columns()
+                            })
+                            .map(|(s, _)| s)
+                    } else {
+                        None
                     };
 
                     let term = &state.backend.term;
@@ -278,6 +306,9 @@ where
                                 && !selection
                                     .as_ref()
                                     .is_some_and(|s| Self::is_in_selection(s, col, line.0))
+                                && !ghost
+                                    .as_ref()
+                                    .is_some_and(|s| Self::is_in_selection(s, col, line.0))
                             {
                                 continue;
                             }
@@ -322,6 +353,7 @@ where
                         total_lines,
                         in_alt_screen,
                         scroll_offset,
+                        ghost,
                     )
                 };
                 let palette = &palette;
@@ -493,6 +525,15 @@ where
                     if is_selected {
                         bg = Color::from_rgba(0.133, 0.60, 0.569, 0.35);
                         fg = Color::WHITE;
+                    } else if ghost
+                        .as_ref()
+                        .is_some_and(|s| Self::is_in_selection(s, cd.col, cell_line))
+                    {
+                        // PRIMARY ghost: the same hue as the live band at a
+                        // fraction of its weight, and the glyph colors stay
+                        // untouched, so it reads as a residue, not a
+                        // selection.
+                        bg = Color::from_rgba(0.133, 0.60, 0.569, 0.13);
                     }
 
                     // Buffer-search match background. Selection wins when both

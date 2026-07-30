@@ -1230,7 +1230,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Дублировать {n} элементов",
         "copy_path" => "Копировать путь",
         "copy_host_address" => "Копировать адрес хоста",
-        "hotkey_terminal_paste_selection" => "Вставить выделенное",
+        "hotkey_terminal_paste_selection" => "Вставить выделенное (primary)",
         "gesture_middle_click" => "Средняя кнопка мыши",
         "terminal_drop_no_rz" => "На удалённом хосте нет rz (lrzsz). Установите его или используйте режим Files вкладки для загрузки.",
         "terminal_drop_busy" => "Здесь выполняется команда. Завершите её или используйте режим Files вкладки для загрузки.",

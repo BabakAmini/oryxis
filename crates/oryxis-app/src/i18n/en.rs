@@ -1329,7 +1329,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "duplicate_n_items" => "Duplicate {n} items",
         "copy_path" => "Copy path",
         "copy_host_address" => "Copy host address",
-        "hotkey_terminal_paste_selection" => "Paste selection",
+        "hotkey_terminal_paste_selection" => "Paste selection (primary)",
         "gesture_middle_click" => "Middle mouse button",
         "terminal_drop_no_rz" => "The remote has no rz (lrzsz). Install it, or use the tab's Files mode to upload.",
         "terminal_drop_busy" => "A command is running here. Finish it, or use the tab's Files mode to upload.",

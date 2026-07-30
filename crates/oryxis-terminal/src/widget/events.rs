@@ -785,15 +785,18 @@ where
                 // selection below and the optional auto-copy. Degenerate
                 // selections that never moved (a single click) don't count,
                 // but a double/triple-click one does even when it lands on a
-                // one-character word.
-                let finished_text = if was_selecting
-                    && let Some(ref sel) = widget_state.selection
+                // one-character word. The grid width rides along for the
+                // ghost's resize guard.
+                let finished = if was_selecting
+                    && let Some(sel) = widget_state.selection
                     && (!sel.is_empty() || was_semantic)
                     && let Ok(state) = self.state.lock()
                 {
-                    let text = state.get_selection_text(sel);
+                    use alacritty_terminal::grid::Dimensions;
+                    let cols = state.backend.term.grid().columns() as u16;
+                    let text = state.get_selection_text(&sel);
                     drop(state);
-                    Some(text).filter(|t| !t.is_empty())
+                    (!text.is_empty()).then_some((text, sel, cols))
                 } else {
                     None
                 };
@@ -804,16 +807,20 @@ where
                 // lets "select a path, type `cd `, paste it" work, which a
                 // highlight-bound read cannot do. Independent of the system
                 // clipboard by design (`copy_on_select` is the setting for
-                // people who want selections there too).
-                if let Some(ref text) = finished_text {
+                // people who want selections there too). The range is kept
+                // alongside the text: once the live highlight is gone the
+                // draw pass shows it as a faint ghost band, illustrating
+                // what a PRIMARY paste will insert.
+                if let Some((ref text, sel, cols)) = finished {
                     widget_state.primary_selection = Some(text.clone());
+                    widget_state.primary_ghost = Some((sel, cols));
                 }
                 // Auto-copy the just-finished selection when the setting is
                 // enabled (XTerm / iTerm behaviour). When `right_click_copy`
                 // is on the copy is deferred to a right-click instead, so
                 // skip it here; the deferral is Paste-scheme-only (see
                 // `defers_copy_to_right_click`).
-                if let Some(ref text) = finished_text
+                if let Some((ref text, ..)) = finished
                     && self.copy_on_select
                     && !self.defers_copy_to_right_click()
                 {
@@ -909,12 +916,19 @@ where
                 // exists, and it is why selecting is enough to make text
                 // pasteable without Ctrl+Shift+C.
                 //
+                // NOT under `copy_on_select`: that setting is the PuTTY
+                // single-buffer model, where selecting IS the copy and
+                // every paste gesture reads the clipboard, external copies
+                // included. Serving PRIMARY there would ignore the user's
+                // newer clipboard content.
+                //
                 // Fall back to the clipboard when nothing has been selected
                 // in this pane yet: that was this gesture's only behaviour
                 // before PRIMARY existed, so the fallback keeps a
                 // never-selected pane working the way it used to instead of
                 // turning the button into a no-op.
-                if let Some(text) = widget_state.primary_selection.clone()
+                if !self.copy_on_select
+                    && let Some(text) = widget_state.primary_selection.clone()
                     && let Some(to_message) = self.on_paste_selection.as_ref()
                 {
                     return Some(CanvasAction::publish(to_message(text)).and_capture());
@@ -1173,28 +1187,34 @@ where
                         Some(CanvasAction::capture())
                     }
                     // Keyboard twin of middle-click: paste the PRIMARY
-                    // selection. Reads the remembered text, not the live
+                    // selection (Shift+Insert by default, the xterm / kitty
+                    // `paste_from_selection` / Alacritty `PasteSelection`
+                    // convention). Reads the remembered text, not the live
                     // highlight, so it still works after the keystrokes that
                     // cleared the highlight ("select a path, type `cd `,
                     // paste it"). Leaves the highlight alone, because in X11
                     // a PRIMARY paste does not consume the selection, and
                     // never touches the clipboard.
                     //
-                    // Nothing selected in this pane yet = no-op. Unlike
-                    // middle-click there is no clipboard fallback here: the
-                    // plain paste chord already owns that, and this action
-                    // ships unbound anyway, so anyone who binds it asked for
-                    // this specific behaviour.
+                    // Same fallbacks as middle-click, and for the same
+                    // reasons: under `copy_on_select` (the PuTTY
+                    // single-buffer model) every paste gesture reads the
+                    // clipboard, and a pane where nothing was ever selected
+                    // pastes the clipboard rather than dead-keying, which is
+                    // exactly what Shift+Insert did before this action
+                    // owned the chord.
                     TerminalChordAction::PasteSelection => {
-                        match (
-                            widget_state.primary_selection.clone(),
-                            self.on_paste_selection.as_ref(),
-                        ) {
-                            (Some(text), Some(to_message)) => {
-                                Some(CanvasAction::publish(to_message(text)).and_capture())
-                            }
-                            _ => Some(CanvasAction::capture()),
+                        if !self.copy_on_select
+                            && let Some(text) = widget_state.primary_selection.clone()
+                            && let Some(to_message) = self.on_paste_selection.as_ref()
+                        {
+                            return Some(CanvasAction::publish(to_message(text)).and_capture());
                         }
+                        if let Some(msg) = self.on_paste_request.clone() {
+                            return Some(CanvasAction::publish(msg).and_capture());
+                        }
+                        crate::host_clipboard::paste_into(Arc::clone(&self.state));
+                        Some(CanvasAction::capture())
                     }
                     // Selects the entire buffer (scrollback + screen); copy
                     // stays a separate gesture (the copy chord, or

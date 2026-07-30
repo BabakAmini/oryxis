@@ -1322,7 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n} öğeyi çoğalt",
         "copy_path" => "Yolu kopyala",
         "copy_host_address" => "Sunucu adresini kopyala",
-        "hotkey_terminal_paste_selection" => "Seçimi yapıştır",
+        "hotkey_terminal_paste_selection" => "Seçimi yapıştır (primary)",
         "gesture_middle_click" => "Orta fare düğmesi",
         "terminal_drop_no_rz" => "Uzak sunucuda rz (lrzsz) yok. Yükleyin veya göndermek için sekmenin Files modunu kullanın.",
         "terminal_drop_busy" => "Burada bir komut çalışıyor. Bitirin veya göndermek için sekmenin Files modunu kullanın.",

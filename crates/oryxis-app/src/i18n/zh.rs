@@ -1239,7 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "复制 {n} 项",
         "copy_path" => "复制路径",
         "copy_host_address" => "复制主机地址",
-        "hotkey_terminal_paste_selection" => "粘贴选中内容",
+        "hotkey_terminal_paste_selection" => "粘贴选中内容 (primary)",
         "gesture_middle_click" => "鼠标中键",
         "terminal_drop_no_rz" => "远程主机没有 rz（lrzsz）。请安装它，或使用标签页的 Files 模式上传。",
         "terminal_drop_busy" => "此处有命令正在运行。请先结束它，或使用标签页的 Files 模式上传。",

@@ -1311,7 +1311,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "تکرار {n} مورد",
         "copy_path" => "کپی مسیر",
         "copy_host_address" => "کپی نشانی میزبان",
-        "hotkey_terminal_paste_selection" => "چسباندن انتخاب",
+        "hotkey_terminal_paste_selection" => "چسباندن انتخاب (primary)",
         "gesture_middle_click" => "دکمه میانی ماوس",
         "terminal_drop_no_rz" => "میزبان راه دور rz (lrzsz) ندارد. آن را نصب کنید یا از حالت Files برگه برای بارگذاری استفاده کنید.",
         "terminal_drop_busy" => "فرمانی در حال اجرا است. آن را تمام کنید یا از حالت Files برگه برای بارگذاری استفاده کنید.",

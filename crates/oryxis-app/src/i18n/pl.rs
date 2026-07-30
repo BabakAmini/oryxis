@@ -1328,7 +1328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Duplikuj {n} elementów",
         "copy_path" => "Kopiuj ścieżkę",
         "copy_host_address" => "Kopiuj adres hosta",
-        "hotkey_terminal_paste_selection" => "Wklej zaznaczenie",
+        "hotkey_terminal_paste_selection" => "Wklej zaznaczenie (primary)",
         "gesture_middle_click" => "Środkowy przycisk myszy",
         "terminal_drop_no_rz" => "Zdalny host nie ma rz (lrzsz). Zainstaluj go lub użyj trybu Files karty, aby wysłać.",
         "terminal_drop_busy" => "Tutaj działa polecenie. Zakończ je lub użyj trybu Files karty, aby wysłać.",

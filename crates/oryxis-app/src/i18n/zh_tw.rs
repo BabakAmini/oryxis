@@ -1239,7 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "建立 {n} 個項目的複本",
         "copy_path" => "複製路徑",
         "copy_host_address" => "複製主機位址",
-        "hotkey_terminal_paste_selection" => "貼上選取內容",
+        "hotkey_terminal_paste_selection" => "貼上選取內容 (primary)",
         "gesture_middle_click" => "滑鼠中鍵",
         "terminal_drop_no_rz" => "遠端主機沒有 rz（lrzsz）。請安裝它，或使用分頁的 Files 模式上傳。",
         "terminal_drop_busy" => "這裡有指令正在執行。請先結束它，或使用分頁的 Files 模式上傳。",

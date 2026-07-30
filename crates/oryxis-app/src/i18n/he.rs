@@ -1328,7 +1328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "שכפול {n} פריטים",
         "copy_path" => "העתקת נתיב",
         "copy_host_address" => "העתקת כתובת מארח",
-        "hotkey_terminal_paste_selection" => "הדבקת הבחירה",
+        "hotkey_terminal_paste_selection" => "הדבקת הבחירה (primary)",
         "gesture_middle_click" => "לחצן העכבר האמצעי",
         "terminal_drop_no_rz" => "למארח המרוחק אין rz (lrzsz). התקינו אותו או השתמשו במצב Files של הלשונית להעלאה.",
         "terminal_drop_busy" => "פקודה רצה כאן. סיימו אותה או השתמשו במצב Files של הלשונית להעלאה.",

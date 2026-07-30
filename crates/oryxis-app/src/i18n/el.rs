@@ -1328,7 +1328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Αντίγραφο {n} στοιχείων",
         "copy_path" => "Αντιγραφή διαδρομής",
         "copy_host_address" => "Αντιγραφή διεύθυνσης host",
-        "hotkey_terminal_paste_selection" => "Επικόλληση επιλογής",
+        "hotkey_terminal_paste_selection" => "Επικόλληση επιλογής (primary)",
         "gesture_middle_click" => "Μεσαίο κουμπί ποντικιού",
         "terminal_drop_no_rz" => "Ο απομακρυσμένος host δεν έχει rz (lrzsz). Εγκαταστήστε το ή χρησιμοποιήστε τη λειτουργία Files της καρτέλας για αποστολή.",
         "terminal_drop_busy" => "Εδώ εκτελείται μια εντολή. Ολοκληρώστε την ή χρησιμοποιήστε τη λειτουργία Files της καρτέλας για αποστολή.",

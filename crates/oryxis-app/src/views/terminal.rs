@@ -360,9 +360,10 @@ impl Oryxis {
         use oryxis_terminal::widget::TerminalChordAction;
         let get = |a| self.hotkey_bindings.get(&a).cloned().unwrap_or_default();
         let copy = get(TerminalCopy);
-        // Unbound by default, so this only matches once a user binds it.
-        // Checked after Copy on purpose: if someone binds both onto the
-        // same chord, the non-destructive one should win the tie.
+        // Shift+Insert by default (the xterm / kitty / Alacritty PRIMARY
+        // paste chord). Checked after Copy on purpose: if someone binds
+        // both onto the same chord, the non-destructive one should win
+        // the tie.
         let paste_selection = get(TerminalPasteSelection);
         let select_all = get(TerminalSelectAll);
         let page_up = get(ScrollbackPageUp);
