@@ -19,6 +19,17 @@ pub(crate) use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 
 pub(crate) const TAB_HEIGHT: f32 = 26.0;
 pub(crate) const TAB_ICON_SLOT: f32 = 16.0;
+/// Diameter of the split pane-count pill ("2" on a grouped tab). A fixed
+/// square so a single digit renders as a true circle rather than an oval.
+pub(crate) const COUNT_DISC: f32 = 15.0;
+/// Gap between the pane-count pill and the label that follows it.
+///
+/// Both of these are shared rather than local because the pill's footprint
+/// has to be subtracted in TWO places that used to carry it as separate
+/// magic numbers: `tab_content_width` (sizing the chip) and the label
+/// truncation (fitting text inside it). When only the first knew about the
+/// pill, grouped tabs spilled their label past the chip edge (#108).
+pub(crate) const COUNT_GAP: f32 = 4.0;
 /// Fixed width of a compact (Chrome-style) pinned tab chip.
 pub(crate) const CHIP_W: f32 = 38.0;
 

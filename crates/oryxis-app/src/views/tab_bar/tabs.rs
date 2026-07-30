@@ -410,6 +410,13 @@ pub(crate) fn session_tab<'a>(
     if files_mode.is_some() {
         label_width = (label_width - 20.0).max(0.0);
     }
+    // So does the split pane-count pill. `tab_content_width` already
+    // reserves this when it sizes the chip, so leaving it out here let the
+    // label claim room the pill was going to occupy and spill past the
+    // chip's edge on any grouped tab (#108).
+    if pane_count > 1 {
+        label_width = (label_width - (COUNT_DISC + COUNT_GAP)).max(0.0);
+    }
     let display_label = truncate_label(&display_label_full, label_width);
 
     let show_close = is_active || is_hovered;
@@ -474,10 +481,8 @@ pub(crate) fn session_tab<'a>(
     // icon (offset from it) on a split tab, e.g. "2". Tinted with the tab
     // text color so it reads in both active and inactive states.
     let count_chip: Option<Element<'_, Message>> = (pane_count > 1).then(|| {
-        // Fixed square so a single digit renders as a true circle rather
-        // than an oval. Two-digit counts (10+ panes) are vanishingly rare;
-        // they'd just fill the disc a little tighter.
-        const COUNT_DISC: f32 = 15.0;
+        // Two-digit counts (10+ panes) are vanishingly rare; they'd just
+        // fill the disc a little tighter.
         container(
             text(pane_count.to_string())
                 .size(10)

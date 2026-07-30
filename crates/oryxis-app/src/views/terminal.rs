@@ -202,8 +202,7 @@ impl Oryxis {
                     zm.total,
                     Message::Zmodem(ZmodemMessage::ZmodemCancel(pane_id)),
                 )
-            } else {
-                let up = pane.drop_upload.as_ref()?;
+            } else if let Some(up) = pane.drop_upload.as_ref() {
                 (
                     t("zmodem_uploading"),
                     up.file_name.as_deref().unwrap_or("…"),
@@ -212,6 +211,8 @@ impl Oryxis {
                     up.total,
                     Message::Terminal(TerminalMessage::TerminalDropCancel(pane_id)),
                 )
+            } else {
+                return None;
             };
 
         // Multi-file position; numeric, so no i18n needed.
