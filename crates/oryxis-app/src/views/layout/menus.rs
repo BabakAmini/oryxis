@@ -23,6 +23,7 @@ impl Oryxis {
             // "Export transcript (.txt)" + translations on one line,
             // with room for the privacy footer to wrap sanely.
             OverlayContent::SessionLogActions(_) => 240.0,
+            OverlayContent::ChatConversationActions(_) => 200.0,
             OverlayContent::SessionLogViewerActions(_) => 240.0,
             // "Open SFTP session here" + translations on one line.
             OverlayContent::SidebarFilesRow { .. }
@@ -75,6 +76,7 @@ impl Oryxis {
             }
             OverlayContent::SnippetTagFilter => (self.distinct_snippet_tags().len() + 1) as f32,
             OverlayContent::SessionLogActions(_) => 4.0,
+            OverlayContent::ChatConversationActions(_) => 4.0,
             OverlayContent::SessionLogViewerActions(_) => 4.0,
             OverlayContent::SftpTabActions(_) => 6.0,
             OverlayContent::SidebarFilesRow { is_dir, .. } => {
@@ -239,6 +241,9 @@ impl Oryxis {
                 Message::History(HistoryMessage::ClearHistoryTagFilter),
             ),
             OverlayContent::SessionLogActions(idx) => self.build_menu_session_log_actions(*idx),
+            OverlayContent::ChatConversationActions(idx) => {
+                self.build_menu_chat_conversation_actions(*idx)
+            }
             OverlayContent::SessionLogViewerActions(idx) => {
                 self.build_menu_session_log_viewer_actions(*idx)
             }

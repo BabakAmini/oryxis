@@ -597,10 +597,15 @@ impl Oryxis {
                 // conversation the user is looking at).
                 self.abort_active_chat_task();
                 self.reset_chat_auto_run_guard();
-                if let Some(idx) = self.active_tab
-                    && let Some(tab) = self.tabs.get_mut(idx)
-                {
-                    tab.chat_history.clear();
+                if let Some(idx) = self.active_tab {
+                    if let Some(tab) = self.tabs.get_mut(idx) {
+                        tab.chat_history.clear();
+                    }
+                    // Whatever was already saved stays saved and readable on
+                    // the History screen; the next exchange just starts its
+                    // own conversation instead of appending to the one the
+                    // user cleared.
+                    self.detach_saved_chat(idx);
                 }
                 self.chat_scroll_at_bottom = true;
             }
@@ -709,8 +714,8 @@ impl Oryxis {
                     self.sftp.pending_rename = None;
                     return self.handle_internal_drag_drop(drag);
                 }
-                if let Some((side, path)) = self.sftp.pending_rename.take() {
-                    return Task::done(Message::Sftp(SftpMessage::SftpStartRename(side, path)));
+                if self.sftp.pending_rename.is_some() {
+                    return self.defer_slow_rename();
                 }
             }
             AiMessage::SendChat => {
@@ -809,6 +814,9 @@ impl Oryxis {
                     // abort handle so a later Stop doesn't cancel nothing.
                     self.tabs[idx].chat_task = None;
                     self.tabs[idx].chat_loading = false;
+                    // The reply is complete: a settle point where saving the
+                    // conversation cannot capture a half-streamed answer.
+                    self.flush_chat_history(idx);
                 }
                 if is_active && self.chat_scroll_at_bottom {
                     return chat_scroll_to_end();
@@ -1297,6 +1305,11 @@ impl Oryxis {
                     self.tabs[idx].chat_loading = false;
                     return Task::none();
                 }
+                // The exchange is complete (command ran, output attached), so
+                // it can be saved before the followup starts streaming over
+                // it. Without this a conversation that ends on a tool call
+                // would lose the call itself.
+                self.flush_chat_history(idx);
                 let followup = self.spawn_chat_stream_for(idx);
                 return Task::batch(vec![chat_scroll_to_end(), followup]);
             }

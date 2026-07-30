@@ -998,6 +998,9 @@ impl Oryxis {
                                 );
                                 write_failed = true;
                             } else {
+                                // Saved AI conversations reference the host
+                                // by id; sweep them with it.
+                                let _ = vault.delete_chat_conversations_for_connection(cid);
                                 dropped.push(*cid);
                             }
                         }

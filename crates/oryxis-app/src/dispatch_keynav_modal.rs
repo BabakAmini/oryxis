@@ -97,6 +97,9 @@ impl Oryxis {
                     // Save-confirmation for an edit watch: Yes is the
                     // default-ringed action, Esc skips the save.
                     | Modal::SftpEditPrompt
+                    // Reopen-or-redownload: "Reopen the local copy" is the
+                    // default-ringed action (it never loses work).
+                    | Modal::SftpEditReopen
                     // Read-only cert viewer: Close is the default action;
                     // Remove (when present) is the other recorded row.
                     | Modal::CertificateViewer => SurfaceFamily::Confirm,

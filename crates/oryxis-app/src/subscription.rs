@@ -114,6 +114,18 @@ impl Oryxis {
                 iced::event::Event::Mouse(iced::mouse::Event::ButtonReleased(
                     iced::mouse::Button::Left,
                 )) => Some(Message::Ai(AiMessage::ChatSidebarResizeStop)),
+                // Global Right press, purely to guarantee an `update()` runs
+                // after it. The terminal widget's right-click copy (xterm
+                // extend-and-copy, and right-click-over-selection under the
+                // Paste scheme) CAPTURES the press and publishes nothing, and
+                // the queued copy is only performed by the clipboard drain at
+                // the end of `update()` (see
+                // `dispatch_global::serve_terminal_clipboard_requests`).
+                // Without this the copy would sit in the queue until some
+                // unrelated message came along.
+                iced::event::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                    iced::mouse::Button::Right,
+                )) => Some(Message::NoOp),
                 iced::event::Event::Window(iced::window::Event::Resized(size)) => {
                     Some(Message::Tabs(TabsMessage::WindowResized(size)))
                 }
@@ -245,16 +257,15 @@ impl Oryxis {
         // (no save can upload behind the lock screen even if a watch
         // slipped past a future sweep edit).
         if self.vault_ui.state == crate::state::VaultState::Unlocked
-            && (self.sftp.edit_session.is_some()
-                || !self.sftp.edit_watches.is_empty()
+            && (!self.sftp.edit_watches.is_empty()
                 || self
                     .sftp_tabs
                     .iter()
-                    .any(|t| t.state.edit_session.is_some() || !t.state.edit_watches.is_empty())
+                    .any(|t| !t.state.edit_watches.is_empty())
                 || self
                     .tabs
                     .iter()
-                    .any(|t| t.files_state.edit_session.is_some() || !t.files_state.edit_watches.is_empty()))
+                    .any(|t| !t.files_state.edit_watches.is_empty()))
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(2))

@@ -124,7 +124,11 @@ reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], defau
 # Async stream combinators, used by the AI streaming path to fold the
 # reqwest byte stream into provider-specific SSE chunks.
 futures-util = "0.3"
-arboard = "3"
+# No `arboard` here on purpose: the iced runtime owns the system clipboard
+# and serves one access at a time (`iced::clipboard::read_text` / `write`).
+# A direct arboard call from the UI thread races the runtime's own paste
+# read and kills the process on Windows (STATUS_HEAP_CORRUPTION inside
+# user32!GetClipboardData). See `oryxis_terminal::host_clipboard`.
 # Cross-platform "open this file with the OS default app", used by the
 # SFTP edit-in-place flow to launch the user's editor on a downloaded
 # temp copy. Tiny crate, no transitive deps of note.

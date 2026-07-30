@@ -171,13 +171,12 @@ impl Oryxis {
             m @ (SftpMessage::SftpStartEdit(..)
             | SftpMessage::SftpOpenLocal(..)
             | SftpMessage::SftpRevealInExplorer(..)
-            | SftpMessage::SftpEditReady(..)
-            | SftpMessage::SftpEditSave
-            | SftpMessage::SftpEditDiscard
             | SftpMessage::SftpEditWatchTick
             | SftpMessage::SftpStartEditWith(..)
             | SftpMessage::SftpEditWatchReady(..)
             | SftpMessage::SftpEditPromptChoice(..)
+            | SftpMessage::SftpEditReopenChoice(..)
+            | SftpMessage::SftpEditToast(..)
             | SftpMessage::SftpEditWatchUploadDone(..)
             | SftpMessage::SftpShowProperties(..)
             | SftpMessage::SftpPropertiesLoaded(..)
@@ -201,6 +200,8 @@ impl Oryxis {
                 .unwrap_or_else(crate::dispatch::unrouted),
             m @ (SftpMessage::HostMounted(..)
             | SftpMessage::RemoteError(..)
+            | SftpMessage::SftpSetInitialPath(..)
+            | SftpMessage::SftpClearInitialPath(..)
             | SftpMessage::SftpPickHost(..)
             | SftpMessage::SftpOpenPicker(..)
             | SftpMessage::SftpPickLocal
@@ -282,6 +283,9 @@ impl Oryxis {
             | SftpMessage::SftpTypeAheadFire(..)
             | SftpMessage::SftpRowEnter(..)
             | SftpMessage::SftpRowExit
+            | SftpMessage::SftpNameHovered(..)
+            | SftpMessage::SftpNameUnhovered
+            | SftpMessage::SftpSlowRenameFire(..)
             | SftpMessage::SftpMouseLeftPressed
             | SftpMessage::SftpSelectRow(..)) => self
                 .handle_sftp_selection(m)

@@ -163,19 +163,20 @@ impl EventListener for EventProxy {
             }
             // OSC 52: an app reads the system clipboard. Off by default (a
             // remote reading your clipboard is a privacy risk). When enabled,
-            // the formatter builds the reply, sent back through the PTY
-            // back-channel (the same one cursor-position replies use).
+            // the read is queued for the host (never performed here: see
+            // `host_clipboard`) and the formatter builds the reply once the
+            // text arrives, sent back through the PTY back-channel (the same
+            // one cursor-position replies use).
             Event::ClipboardLoad(_ty, formatter) if self.osc52_read_allowed() => {
-                let current = arboard::Clipboard::new()
-                    .ok()
-                    .and_then(|mut c| c.get_text().ok())
-                    .unwrap_or_default();
-                let reply = formatter(&current);
-                if let Ok(slot) = self.pty_write_tx.lock()
-                    && let Some(tx) = slot.as_ref()
-                {
-                    let _ = tx.send(reply.into_bytes());
-                }
+                let reply_to = Arc::clone(&self.pty_write_tx);
+                crate::host_clipboard::read_text(move |text| {
+                    let reply = formatter(text);
+                    if let Ok(slot) = reply_to.lock()
+                        && let Some(tx) = slot.as_ref()
+                    {
+                        let _ = tx.send(reply.into_bytes());
+                    }
+                });
             }
             _ => {}
         }
@@ -225,6 +226,13 @@ impl TerminalBackend {
         let config = TermConfig {
             scrolling_history: scrollback,
             semantic_escape_chars: DEFAULT_WORD_DELIMITERS.to_string(),
+            // Let the emulator forward BOTH OSC 52 directions; the policy is
+            // ours (`osc52_write_allowed` / `osc52_read_allowed`, driven by the
+            // Clipboard access setting plus the per-host override). alacritty's
+            // own default is `OnlyCopy`, which silently dropped every query
+            // before our gate ever saw it, so "Clipboard access: read/write"
+            // could never actually answer a paste request.
+            osc52: alacritty_terminal::term::Osc52::CopyPaste,
             ..Default::default()
         };
         let event_proxy = EventProxy::new();
@@ -376,8 +384,66 @@ mod tests {
     use super::*;
     use alacritty_terminal::index::{Column, Line, Point};
 
+    /// OSC 52 store: the backend must NOT touch the system clipboard itself,
+    /// it queues the write for the host (see `host_clipboard`).
+    #[test]
+    fn osc52_store_queues_a_host_write() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, false);
+        let mut backend = TerminalBackend::new(40, 5);
+        // ESC ] 52 ; c ; base64("QUEUED") BEL
+        backend.process(b"\x1b]52;c;UVVFVUVE\x07");
+        let reqs = crate::host_clipboard::take_clipboard_requests();
+        assert_eq!(reqs.len(), 1, "one queued request: {reqs:?}");
+        match &reqs[0] {
+            crate::host_clipboard::ClipboardRequest::Write(text) => {
+                assert_eq!(text, "QUEUED");
+            }
+            other => panic!("expected a queued write, got {other:?}"),
+        }
+        set_clipboard_access(true, false);
+    }
+
+    /// OSC 52 query: the read is queued for the host, and delivering the text
+    /// formats the reply and writes it back through the PTY back-channel.
+    #[test]
+    fn osc52_query_queues_a_host_read_and_replies_through_the_pty() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, true);
+        let mut backend = TerminalBackend::new(40, 5);
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        backend.event_proxy.set_pty_write_tx(tx);
+        backend.process(b"\x1b]52;c;?\x07");
+        let reqs = crate::host_clipboard::take_clipboard_requests();
+        assert_eq!(reqs.len(), 1, "one queued request: {reqs:?}");
+        match &reqs[0] {
+            crate::host_clipboard::ClipboardRequest::Read(sink) => sink.deliver("HELLO"),
+            other => panic!("expected a queued read, got {other:?}"),
+        }
+        let bytes = rx.try_recv().expect("reply written to the PTY back-channel");
+        let reply = String::from_utf8_lossy(&bytes);
+        // base64("HELLO") == "SEVMTE8="
+        assert!(reply.contains("SEVMTE8"), "reply carries the clipboard: {reply:?}");
+        set_clipboard_access(true, false);
+    }
+
+    /// Read denied (the default): a query queues nothing at all, so a remote
+    /// can't even learn that a clipboard exists.
+    #[test]
+    fn osc52_query_is_ignored_when_read_is_off() {
+        let _serial = crate::host_clipboard::test_exclusive();
+        set_clipboard_access(true, false);
+        let mut backend = TerminalBackend::new(40, 5);
+        backend.process(b"\x1b]52;c;?\x07");
+        assert!(
+            crate::host_clipboard::take_clipboard_requests().is_empty(),
+            "a denied query must queue nothing"
+        );
+    }
+
     #[test]
     fn osc52_per_instance_override_beats_global_both_ways() {
+        let _serial = crate::host_clipboard::test_exclusive();
         let proxy = EventProxy::new();
         // Inherit (default): the effective policy tracks the global.
         set_clipboard_access(true, false);

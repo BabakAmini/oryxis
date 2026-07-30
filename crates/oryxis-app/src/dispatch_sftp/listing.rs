@@ -36,6 +36,10 @@ impl Oryxis {
             SftpMessage::SftpNavigateRemote(side, path) => {
                 // Also dismiss any open menu (Refresh routes here).
                 self.sftp.close_menus();
+                // Leaving the directory retires a deferred slow-click rename:
+                // the click that opened the folder must not also open an
+                // editor on the row it came from.
+                self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
                 // Zip-browse interception: a synthetic `<archive>!/...`
                 // target relists from the cached index (no I/O); any
                 // real path leaves browse mode and navigates normally.
@@ -128,6 +132,8 @@ impl Oryxis {
                 }
             }
             SftpMessage::SftpUp(side) => {
+                // Same as a descent: climbing out retires a deferred rename.
+                self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
                 // Inside a browsed archive, ".." climbs the virtual tree
                 // and leaves the archive at its root.
                 if let Some(zip) = &self.sftp.pane(side).zip {
@@ -179,6 +185,8 @@ impl Oryxis {
                 }
             }
             SftpMessage::SftpNavigateLocal(side, path) => {
+                // Retires a deferred rename, see SftpNavigateRemote.
+                self.sftp_click_gen = self.sftp_click_gen.wrapping_add(1);
                 // Zip-browse interception, mirroring SftpNavigateRemote.
                 if let Some(zip) = &self.sftp.pane(side).zip {
                     if let Some(inner) = zip.inner_from_synthetic(&path.to_string_lossy()) {

@@ -308,13 +308,10 @@ pub(crate) struct SftpState {
     /// Stays put across ctrl-click toggles so the range pivots from the
     /// initial selection point rather than the most recent toggle.
     pub selection_anchor: Option<(SftpPaneSide, String)>,
-    /// Active edit-in-place session, a remote file downloaded to an OS
-    /// temp path and opened in the user's default editor. Persists until
-    /// the user clicks Save Back or Discard.
-    pub edit_session: Option<EditSession>,
-    /// Files opened via the "Open with" actions: watched in the
-    /// background (the surface stays usable) and confirmed per save via
-    /// the blocking dialog, MobaXterm-style. Multiple files at once.
+    /// Files opened in a local application from this surface: downloaded
+    /// to a temp path, watched in the background (the surface stays fully
+    /// usable) and confirmed per save through the save dialog,
+    /// FileZilla-style. Multiple files at once.
     pub edit_watches: Vec<EditSession>,
     /// Pending overwrite confirmation, set when the user uploads a file
     /// whose name already exists in the destination. Cleared when the
@@ -344,9 +341,16 @@ pub(crate) struct SftpState {
     /// double-click (single click selects a folder, double click opens it).
     pub last_click: Option<(SftpPaneSide, String, std::time::Instant)>,
     /// Row armed for inline rename by a slow second click (`(side, path)`):
-    /// set on the press, committed to an actual rename on release iff no drag
-    /// activated, so dragging an already-selected row still works.
+    /// set on the press, deferred on release (iff no drag activated, so
+    /// dragging an already-selected row still works) and only then armed
+    /// as a real rename, see `click_gen`.
     pub pending_rename: Option<(SftpPaneSide, String)>,
+    /// Row whose file NAME LABEL (the drawn text, not the whole row) is
+    /// under the cursor. The slow-click rename only arms over the name,
+    /// the way Explorer / Finder hit-test their label rect, so a click on
+    /// the Size / Modified / empty area of an already-selected row can
+    /// never start an edit.
+    pub hovered_name: Option<(SftpPaneSide, String)>,
     /// Swallow the next row-activation keypress. Set when an inline input
     /// (rename / new-entry) commits on Enter: the same physical Enter also
     /// reaches the global keyboard subscription, which would otherwise
@@ -456,7 +460,6 @@ impl Default for SftpState {
             download_dest_override: None,
             selected_rows: Vec::new(),
             selection_anchor: None,
-            edit_session: None,
             edit_watches: Vec::new(),
             overwrite_prompt: None,
             properties: None,
@@ -467,6 +470,7 @@ impl Default for SftpState {
             type_ahead_committed: String::new(),
             last_click: None,
             pending_rename: None,
+            hovered_name: None,
             swallow_next_activate: false,
             type_ahead_gen: 0,
             type_ahead_cycle: false,
@@ -657,37 +661,83 @@ pub(crate) enum OverwriteAction {
     Cancel,
 }
 
+/// One file opened in a local application from a remote listing, watched
+/// in the background: the surface stays fully usable while the editor
+/// runs, and every save the watcher notices asks whether to send the file
+/// back (FileZilla / MobaXterm semantics). Lives in `edit_watches`; there
+/// is no blocking variant.
 #[derive(Debug, Clone)]
 pub(crate) struct EditSession {
-    /// When set, the save uploads through THIS client (sidebar Files
-    /// browser ops and every `edit_watches` entry); `None` resolves the
-    /// remote SFTP pane as before.
-    pub client_override: Option<SftpClient>,
-    /// Pane the edit was started from. Save/reload and error reporting
-    /// resolve THIS pane, never a recomputed "the remote side" (with two
-    /// remote panes that guess picks the wrong host). Only meaningful
-    /// when `client_override` is `None`.
-    pub pane_side: SftpPaneSide,
+    /// Client the upload goes through, captured at open time. A watch
+    /// outlives the pane's own state (a parked tab keeps uploading), so it
+    /// never re-resolves its channel from a pane. Every registered watch
+    /// carries one; `None` only exists so the type stays constructible in
+    /// tests, and the upload refuses it explicitly.
+    pub client: Option<SftpClient>,
     pub remote_path: String,
     pub temp_path: std::path::PathBuf,
-    /// Display label shown in the modal, basename of the remote file.
+    /// Display label shown in the dialogs, basename of the remote file.
     pub label: String,
     /// Host label the file came from, shown by the save-confirmation
-    /// dialog ("replace the remote file on {host}?").
+    /// dialog ("replace the remote file on {host}?"). Together with
+    /// `remote_path` it identifies the file across surfaces.
     pub host: String,
+    /// How the local application was launched, replayed verbatim when the
+    /// user reopens the same file.
+    pub opener: SftpEditOpener,
     /// Mtime of the temp file when it was first written (right after
     /// download). The watcher tick polls this to detect saves coming
-    /// from the user's editor. Watch entries re-arm it after every
-    /// upload / skip so each new save prompts again.
+    /// from the user's editor, and re-arms it after every upload / skip
+    /// so each new save prompts again.
     pub initial_mtime: Option<std::time::SystemTime>,
     /// True once the watcher tick observes an mtime newer than
-    /// `initial_mtime`. On the blocking edit session it drives the
-    /// "Changes detected" copy; on a watch entry it queues the
-    /// save-confirmation dialog.
+    /// `initial_mtime`: a save is waiting for the user's answer.
     pub dirty: bool,
     /// A watch upload is in flight; the tick and the dialog skip the
     /// entry until the completion message re-arms it.
     pub uploading: bool,
+}
+
+/// Collision dialog shown when the user opens a remote file that is
+/// already being edited: the local temp copy exists and is watched, so
+/// re-downloading it blind would throw away unsaved work (FileZilla asks
+/// the same question).
+#[derive(Debug, Clone)]
+pub(crate) struct EditReopenPrompt {
+    /// Temp file of the live watch this collides with, its identity.
+    pub temp_path: std::path::PathBuf,
+    /// Basename shown in the dialog.
+    pub label: String,
+    pub remote_path: String,
+    pub host: String,
+    /// True when the watch is holding a save that was never uploaded, the
+    /// case where discarding the local copy actually loses work.
+    pub pending_save: bool,
+    /// Opener the live watch was launched with. Reopen replays THIS one so
+    /// the edit continues in the application that already holds the file,
+    /// whichever action the user used to come back to it.
+    pub watch_opener: SftpEditOpener,
+    /// Everything needed to replay the open on either branch. `opener` is
+    /// the one the new request asked for, used by the fresh download.
+    pub side: SftpPaneSide,
+    pub opener: SftpEditOpener,
+    pub client: SftpClient,
+    /// Report failures of the replayed open as a toast instead of a pane
+    /// error banner (the sidebar Files browser has no banner).
+    pub to_toast: bool,
+}
+
+/// A button of the reopen-or-redownload dialog.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SftpEditReopenChoice {
+    /// Launch the application again on the existing local copy, keeping
+    /// the watch (and any pending save) intact.
+    Reopen,
+    /// Drop the watch, delete the local copy and download the remote file
+    /// again.
+    Fresh,
+    /// Do nothing.
+    Cancel,
 }
 
 /// How "Open with..." resolves the local application for a remote file

@@ -76,6 +76,11 @@ pub(crate) enum Modal {
     /// never an accidental upload. Its buttons are keynav Confirm rows,
     /// Enter fires the ringed choice (default Yes).
     SftpEditPrompt,
+    /// Reopen-or-redownload dialog for a file that is already being
+    /// edited. Data-bearing like `SftpEditPrompt` (one branch deletes the
+    /// local copy), so it blocks input; in `ESC_ORDER` where Esc means
+    /// "do nothing", neither reopen nor discard.
+    SftpEditReopen,
     SftpPicker,
     /// The ssh-agent per-signature confirm prompt (`agent.pending_confirm`,
     /// B1). A blocking security prompt like `HostKey`: it MUST block input
@@ -122,6 +127,7 @@ impl Modal {
         Modal::SftpProperties,
         Modal::SftpOverwrite,
         Modal::SftpEditPrompt,
+        Modal::SftpEditReopen,
         Modal::SftpPicker,
         Modal::AgentConfirm,
         Modal::CertificateViewer,
@@ -152,6 +158,10 @@ impl Modal {
         // follow in the same lightweight-confirm group.
         Modal::ErrorDialog,
         Modal::ClearHistoryConfirm,
+        // Esc = neither reopen nor discard the local copy. Ahead of the
+        // save prompt because `layer_sftp_modals` renders it on top: Esc
+        // must always answer the dialog the user can actually see.
+        Modal::SftpEditReopen,
         // Esc = skip this save (never upload by accident); the watch
         // re-arms so the next save prompts again.
         Modal::SftpEditPrompt,
@@ -202,6 +212,7 @@ impl Modal {
             | Modal::SftpProperties
             | Modal::SftpOverwrite
             | Modal::SftpEditPrompt
+            | Modal::SftpEditReopen
             | Modal::SftpPicker
             | Modal::AgentConfirm
             | Modal::CertificateViewer => true,
@@ -247,12 +258,13 @@ mod tests {
                 | Modal::SftpProperties
                 | Modal::SftpOverwrite
                 | Modal::SftpEditPrompt
+                | Modal::SftpEditReopen
                 | Modal::SftpPicker
                 | Modal::AgentConfirm
                 | Modal::CertificateViewer => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 31, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 32, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

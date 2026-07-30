@@ -25,6 +25,10 @@
 //!   artifact for visual review; canvas content such as the terminal
 //!   grid is invisible to `expect`, screenshots are how those flows
 //!   get validated)
+//! - `clipboard "text"` seeds the emulated clipboard, `clipboard is
+//!   "text"` ASSERTS it (a mismatch fails the test). Every clipboard
+//!   access in the app goes through the iced runtime, so the emulated
+//!   clipboard sees the app's own copies too
 //! - blank lines and `#` comments are skipped
 //!
 //! A failing instruction (target not found / expectation not met)
@@ -260,6 +264,19 @@ where
                     None
                 }
                 Err(reason) => Some(format!("screenshot: {reason}")),
+            },
+            // Seed / report / assert the emulated clipboard. `clipboard is
+            // "text"` is a real assertion, so copy paths (which land in the
+            // emulated clipboard now that every access goes through the iced
+            // runtime) are testable without a screenshot.
+            "clipboard" => match session.clipboard_command(rest) {
+                Ok(line) => {
+                    if rest.is_empty() {
+                        println!("== {line}");
+                    }
+                    None
+                }
+                Err(reason) => Some(reason),
             },
             _ => match session.run_line(program, line) {
                 RunOutcome::Done | RunOutcome::Timeout => None,

@@ -36,14 +36,22 @@ impl Oryxis {
         }
     }
 
-    /// Paste `text` into the active tab's session. Careful-paste gate:
-    /// when the setting is on (default) and the text contains a line
-    /// break, the paste is parked in `pending_paste` and a confirmation
-    /// dialog (line count + preview) takes over, so a hidden trailing
-    /// newline can't auto-run a command. Single-line pastes, and every
-    /// paste when the guard is off, go straight to the session.
-    pub(crate) fn paste_text_into_active(&mut self, text: &str) {
-        if self.active_tab.is_none() {
+    /// Paste `text` into `tab_idx`'s session. Careful-paste gate: when the
+    /// setting is on (default) and the text contains a line break, the paste
+    /// is parked in `pending_paste` and a confirmation dialog (line count +
+    /// preview) takes over, so a hidden trailing newline can't auto-run a
+    /// command. Single-line pastes, and every paste when the guard is off, go
+    /// straight to the session.
+    ///
+    /// The target tab is a parameter, not `self.active_tab`: clipboard reads
+    /// resolve one or more `update()`s after the gesture that asked for them
+    /// (the runtime performs them off-thread, and an RDS / delayed-rendering
+    /// clipboard owner can hold `GetClipboardData` for a long time), so every
+    /// paste path captures its tab when the read is requested. Re-resolving
+    /// the active tab at delivery time would drop the text into whatever tab
+    /// the user switched to meanwhile, i.e. into a different host's shell.
+    pub(crate) fn paste_text_into_tab(&mut self, tab_idx: usize, text: &str) {
+        if self.tabs.get(tab_idx).is_none() {
             return;
         }
         // Two independent gates (owner call: each has its own setting):
@@ -55,42 +63,51 @@ impl Oryxis {
             || (self.setting_paste_guard
                 && !crate::paste_guard::paste_warnings(text).is_empty())
         {
-            self.pending_paste = Some(text.to_string());
+            self.pending_paste = Some((tab_idx, text.to_string()));
             return;
         }
-        self.write_paste_to_active(text);
+        self.write_paste_to_tab(tab_idx, text);
     }
 
-    /// Write `text` into the active tab's session, wrapping it for
+    /// Write `text` into `tab_idx`'s session, wrapping it for
     /// bracketed-paste when the focused app enabled it (`\e[?2004h`).
     /// Routes to the SSH session when one is attached, otherwise the
     /// local PTY. Shared by the clipboard (right-click / Ctrl+Shift+V)
-    /// paste paths and the careful-paste confirmation.
-    pub(crate) fn write_paste_to_active(&mut self, text: &str) {
-        if let Some(tab_idx) = self.active_tab {
-            let Some(tab) = self.tabs.get(tab_idx) else {
-                return;
-            };
-            let bracketed = tab
-                .active()
-                .terminal
-                .lock()
-                .map(|s| s.bracketed_paste_enabled())
-                .unwrap_or(false);
-            let payload = oryxis_terminal::wrap_paste(text, bracketed);
-            self.write_input_to_tab(tab_idx, &payload);
-        }
+    /// paste paths and the careful-paste confirmation. Explicit tab for the
+    /// reason in [`Self::paste_text_into_tab`].
+    pub(crate) fn write_paste_to_tab(&mut self, tab_idx: usize, text: &str) {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let bracketed = tab
+            .active()
+            .terminal
+            .lock()
+            .map(|s| s.bracketed_paste_enabled())
+            .unwrap_or(false);
+        let payload = oryxis_terminal::wrap_paste(text, bracketed);
+        self.write_input_to_tab(tab_idx, &payload);
     }
 
     /// Read the system clipboard and paste it into the active session.
-    /// Shared by the Ctrl+V, Ctrl+Shift+V and Cmd+V (macOS) key paths so
-    /// the bracketed-paste handling lives in exactly one place.
-    pub(crate) fn paste_clipboard_into_active(&mut self) {
-        if let Ok(mut clip) = arboard::Clipboard::new()
-            && let Ok(text) = clip.get_text()
-        {
-            self.paste_text_into_active(&text);
-        }
+    /// Shared by the Ctrl+Shift+V / Shift+Insert / Cmd+V (macOS) key paths,
+    /// the terminal context menu and the widget's paste hook, so the
+    /// bracketed-paste handling lives in exactly one place.
+    ///
+    /// The read is a `Task`: the iced runtime owns the clipboard and serves
+    /// one access at a time. Reading it inline here (arboard on the UI
+    /// thread) raced the runtime's own paste read and killed the process on
+    /// Windows with `STATUS_HEAP_CORRUPTION` inside `GetClipboardData`
+    /// (field crash 2026-07-29; see `oryxis_terminal::host_clipboard`).
+    pub(crate) fn paste_clipboard_into_active(&mut self) -> Task<Message> {
+        // Capture the target tab NOW, not when the text comes back: see
+        // `paste_text_into_tab`.
+        let Some(tab_idx) = self.active_tab else {
+            return Task::none();
+        };
+        crate::dispatch_global::read_clipboard_text(move |text| {
+            Message::Terminal(TerminalMessage::TerminalPasteResolved(tab_idx, text))
+        })
     }
 
     /// Dispatch a terminal message: `PtyOutput` and `KeyboardEvent`
@@ -440,10 +457,13 @@ impl Oryxis {
                 // (widget paste hook, middle-click, keyboard), which run
                 // with no overlay open.
                 self.overlay = None;
-                if let Ok(mut clip) = arboard::Clipboard::new()
-                    && let Ok(text) = clip.get_text()
-                {
-                    self.paste_text_into_active(&text);
+                return self.paste_clipboard_into_active();
+            }
+            // Clipboard text came back from the runtime (the only place
+            // allowed to touch it). `None` = empty or unavailable.
+            TerminalMessage::TerminalPasteResolved(tab_idx, text) => {
+                if let Some(text) = text.filter(|t| !t.is_empty()) {
+                    self.paste_text_into_tab(tab_idx, &text);
                 }
             }
             TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, selection) => {
@@ -474,10 +494,8 @@ impl Oryxis {
             }
             TerminalMessage::TerminalCopySelection(text) => {
                 self.overlay = None;
-                if !text.is_empty()
-                    && let Ok(mut clip) = arboard::Clipboard::new()
-                {
-                    let _ = clip.set_text(text);
+                if !text.is_empty() {
+                    return crate::dispatch_global::write_clipboard_text(text);
                 }
             }
             TerminalMessage::TerminalCopyAll(pane_id) => {
@@ -487,10 +505,8 @@ impl Oryxis {
                 {
                     let text = state.all_text();
                     drop(state);
-                    if !text.is_empty()
-                        && let Ok(mut clip) = arboard::Clipboard::new()
-                    {
-                        let _ = clip.set_text(text);
+                    if !text.is_empty() {
+                        return crate::dispatch_global::write_clipboard_text(text);
                     }
                 }
             }
@@ -505,8 +521,8 @@ impl Oryxis {
             // Careful-paste confirmation: release the parked multi-line
             // text into the session, or drop it.
             TerminalMessage::ConfirmPendingPaste => {
-                if let Some(text) = self.pending_paste.take() {
-                    self.write_paste_to_active(&text);
+                if let Some((tab_idx, text)) = self.pending_paste.take() {
+                    self.write_paste_to_tab(tab_idx, &text);
                 }
             }
             TerminalMessage::CancelPendingPaste => {

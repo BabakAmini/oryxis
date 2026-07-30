@@ -253,9 +253,17 @@ pub(crate) fn row_context_menu_box<'a>(
         return context_menu_shell(items);
     }
     // Background right-click (empty area): only directory-level actions,
-    // no per-entry target exists. Same items as the pane's `⋮` menu.
+    // no per-entry target exists. Same items as the pane's `⋮` menu, plus
+    // the per-host landing folder, whose natural target IS the directory
+    // the user is looking at.
     if menu.is_background {
         for (msg, it) in dir_action_items(menu.side, source_is_remote, dir_ctx, true) {
+            items = items.push(match msg {
+                Some(m) => sftp_menu_slot(app, m, it),
+                None => it,
+            });
+        }
+        for (msg, it) in initial_path_items(app, menu.side, source_is_remote, &menu.path) {
             items = items.push(match msg {
                 Some(m) => sftp_menu_slot(app, m, it),
                 None => it,
@@ -332,13 +340,18 @@ pub(crate) fn row_context_menu_box<'a>(
                 ));
             }
         }
-        // Edit-in-place for a single remote file, plus the "Open with"
-        // family (issue #84): configured editor / OS picker / OS default,
-        // all watched in the background with a per-save confirm dialog.
+        // Open / Edit for a single remote file, plus the "Open with"
+        // family (issue #84): the OS association, the configured editor or
+        // the OS picker, all watched in the background with a per-save
+        // confirm dialog.
         if !multi && !menu.is_dir {
+            // One entry, not "Edit": a remote file may well be an image or
+            // a PDF, where the local application opens rather than edits it.
+            // Same background watch either way, so a save that never comes
+            // costs nothing.
             items = items.push(slot(
-                iced_fonts::lucide::pencil(),
-                crate::i18n::t("edit").to_string(),
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("sftp_open_edit").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
                 secondary,
             ));
@@ -366,16 +379,6 @@ pub(crate) fn row_context_menu_box<'a>(
                     secondary,
                 ));
             }
-            items = items.push(slot(
-                iced_fonts::lucide::external_link(),
-                crate::i18n::t("sftp_open_with_os").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEditWith(
-                    menu.side,
-                    menu.path.clone(),
-                    crate::state::SftpEditOpener::OsDefault,
-                )),
-                secondary,
-            ));
         }
     } else if source_is_remote && other_is_remote {
         // Relay to the other (remote) host. Single-item only for now,
@@ -397,13 +400,18 @@ pub(crate) fn row_context_menu_box<'a>(
                 accent,
             ));
         }
-        // Edit-in-place for a single remote file, plus the "Open with"
-        // family (issue #84): configured editor / OS picker / OS default,
-        // all watched in the background with a per-save confirm dialog.
+        // Open / Edit for a single remote file, plus the "Open with"
+        // family (issue #84): the OS association, the configured editor or
+        // the OS picker, all watched in the background with a per-save
+        // confirm dialog.
         if !multi && !menu.is_dir {
+            // One entry, not "Edit": a remote file may well be an image or
+            // a PDF, where the local application opens rather than edits it.
+            // Same background watch either way, so a save that never comes
+            // costs nothing.
             items = items.push(slot(
-                iced_fonts::lucide::pencil(),
-                crate::i18n::t("edit").to_string(),
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("sftp_open_edit").to_string(),
                 Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
                 secondary,
             ));
@@ -431,16 +439,6 @@ pub(crate) fn row_context_menu_box<'a>(
                     secondary,
                 ));
             }
-            items = items.push(slot(
-                iced_fonts::lucide::external_link(),
-                crate::i18n::t("sftp_open_with_os").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEditWith(
-                    menu.side,
-                    menu.path.clone(),
-                    crate::state::SftpEditOpener::OsDefault,
-                )),
-                secondary,
-            ));
         }
     }
     // Archive actions. Browse / Extract act on the clicked archive
@@ -576,6 +574,17 @@ pub(crate) fn row_context_menu_box<'a>(
             None => it,
         });
     }
+    // Landing folder: on a row menu the target is the clicked FOLDER, not
+    // the pane's directory, so a user can pin a subfolder without entering
+    // it first. File rows have no landing folder to set.
+    if menu.is_dir && !multi {
+        for (msg, it) in initial_path_items(app, menu.side, source_is_remote, &menu.path) {
+            items = items.push(match msg {
+                Some(m) => sftp_menu_slot(app, m, it),
+                None => it,
+            });
+        }
+    }
 
     context_menu_shell(items)
 }
@@ -603,6 +612,54 @@ fn sftp_menu_slot<'a>(
 /// `(None, separator)` for a divider, so a keyboard-navigable caller (the
 /// SFTP row menu) can record the messages in display order while a
 /// mouse-only caller (the `⋮` menu) just takes the elements.
+/// The per-host "SFTP landing folder" entries for a remote directory
+/// target: set it to `dir`, and clear it when the host already has one.
+/// Empty for a local pane, for a non-directory target, and for a remote
+/// pane whose host isn't a saved connection (nothing to store it on).
+pub(crate) fn initial_path_items<'a>(
+    app: &crate::app::Oryxis,
+    side: SftpPaneSide,
+    is_remote: bool,
+    dir: &str,
+) -> Vec<(Option<Message>, Element<'a, Message>)> {
+    if !is_remote {
+        return Vec::new();
+    }
+    let Some(conn) = app
+        .sftp
+        .pane(side)
+        .host_label
+        .as_ref()
+        .and_then(|label| app.connections.iter().find(|c| &c.label == label))
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<(Option<Message>, Element<'a, Message>)> = Vec::new();
+    // Already the landing folder: offer only the clear, so the two entries
+    // never read as contradictory.
+    let already = conn.sftp_initial_path.as_deref() == Some(dir);
+    if !already {
+        let set = Message::Sftp(SftpMessage::SftpSetInitialPath(side, dir.to_string()));
+        out.push((
+            Some(set.clone()),
+            menu_item(iced_fonts::lucide::folder_check(), t("sftp_set_initial_path"), set),
+        ));
+    }
+    if conn.sftp_initial_path.is_some() {
+        let clear = Message::Sftp(SftpMessage::SftpClearInitialPath(side));
+        out.push((
+            Some(clear.clone()),
+            menu_item(iced_fonts::lucide::folder_x(), t("sftp_clear_initial_path"), clear),
+        ));
+    }
+    // Leading separator only when something follows it; `None` keeps it out
+    // of the keyboard walk (a separator is not a row).
+    if !out.is_empty() {
+        out.insert(0, (None, menu_separator()));
+    }
+    out
+}
+
 pub(crate) fn dir_action_items<'a>(
     side: SftpPaneSide,
     is_remote: bool,
@@ -694,6 +751,7 @@ pub(crate) fn context_menu_shell<'a>(
 /// current target, keeps the layout-level clamp accurate so the menu
 /// never spills off the bottom or right edge of the window.
 pub(crate) fn row_context_menu_height(
+    app: &crate::app::Oryxis,
     menu: &crate::state::SftpRowMenu,
     cross_pane_ready: bool,
     source_is_remote: bool,
@@ -717,7 +775,12 @@ pub(crate) fn row_context_menu_height(
     if menu.is_background {
         let items = if source_is_remote { 5.0 } else { 6.0 };
         let separators = if source_is_remote { 1.0 } else { 2.0 };
-        return items * 30.0 + separators * 4.0 + 8.0;
+        // Landing-folder rows (+ their own separator) when the pane's host
+        // can carry one; counted from the same helper that builds them.
+        let extra = initial_path_items(app, menu.side, source_is_remote, &menu.path);
+        let extra_rows = extra.iter().filter(|(m, _)| m.is_some()).count() as f32;
+        let extra_seps = if extra.is_empty() { 0.0 } else { 1.0 };
+        return (items + extra_rows) * 30.0 + (separators + extra_seps) * 4.0 + 8.0;
     }
     let multi = selection_count_same_pane > 1;
     // Always present: Copy path + Duplicate + Rename + Properties +
@@ -757,9 +820,18 @@ pub(crate) fn row_context_menu_height(
     // Appended directory actions (New folder + New file + Refresh) plus
     // their leading separator.
     count += 3.0;
+    // Landing-folder rows on a folder target, same helper as the builder.
+    let mut extra_seps = 0.0;
+    if menu.is_dir && !multi {
+        let extra = initial_path_items(app, menu.side, source_is_remote, &menu.path);
+        count += extra.iter().filter(|(m, _)| m.is_some()).count() as f32;
+        if !extra.is_empty() {
+            extra_seps = 1.0;
+        }
+    }
     // Each item ~30px (padding 6+6 + ~12px text + 2px gap) plus 8px
     // container padding, plus one thin separator above the dir actions.
-    count * 30.0 + 4.0 + 8.0
+    count * 30.0 + (1.0 + extra_seps) * 4.0 + 8.0
 }
 
 /// Width is fixed because every item uses the same `menu_item` width.

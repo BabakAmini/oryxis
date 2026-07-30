@@ -439,7 +439,7 @@ impl Oryxis {
         // break is parked in `pending_paste` and previewed here (line
         // count + first lines) before anything reaches the session, so a
         // hidden trailing newline can't auto-run a command.
-        if let Some(ref pending) = self.pending_paste {
+        if let Some((_, ref pending)) = self.pending_paste {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,

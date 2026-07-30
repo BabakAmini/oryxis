@@ -150,6 +150,11 @@ pub enum Message {
     /// affordance on chat bubbles and code blocks (text-selection
     /// isn't supported by iced's `text` / markdown widgets in 0.14).
     CopyToClipboard(String),
+    /// Result of the `CopyToClipboard` write, reported by the runtime.
+    /// The clipboard belongs to the iced runtime (see
+    /// `dispatch_global::write_clipboard_text`), so the "Copied" toast can
+    /// only be raised once the write actually landed.
+    ClipboardWritten(bool),
     /// Dismiss the transient toast chip (`Oryxis.toast`). Fired by a
     /// `Task::perform` sleep scheduled when a toast is shown.
     /// Deadline-guarded clear: clears the toast only if `toast_deadline`

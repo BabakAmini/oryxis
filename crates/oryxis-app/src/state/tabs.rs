@@ -641,6 +641,16 @@ pub(crate) struct TerminalTab {
     /// global) because two tabs can stream at once now: a shared static would
     /// see alternating tab ids and never throttle, re-parsing every chunk.
     pub chat_last_md_parse: Option<std::time::Instant>,
+    /// Row id of this conversation in `chat_conversations`, minted the
+    /// first time a turn is saved. `None` until then, so a tab whose chat
+    /// was never used leaves nothing behind.
+    pub chat_saved_id: Option<Uuid>,
+    /// How many entries of `chat_history` are already in the vault.
+    /// Persistence is append-only, so this is where the next flush starts.
+    /// The history can also SHRINK (an empty assistant placeholder or a
+    /// pending-tool bubble is popped), which is why the flush compares
+    /// against the current length instead of trusting this blindly.
+    pub chat_persisted: usize,
     /// True for cloud SSM / ECS-Exec tabs (a `session-manager-plugin`
     /// PTY). These talk SSM over a websocket whose idle timer kills the
     /// session after ~20 min of inactivity, so they get the
@@ -861,6 +871,8 @@ impl TerminalTab {
             chat_task: None,
             chat_mode: default_chat_mode(),
             chat_last_md_parse: None,
+            chat_saved_id: None,
+            chat_persisted: 0,
             ssm_keepalive: false,
             relaunch: None,
             session_group_id: None,

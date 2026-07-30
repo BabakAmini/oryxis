@@ -10,4 +10,8 @@ portable-pty = { workspace = true }
 iced = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-arboard = "3"
+# No `arboard` here on purpose: this crate never touches the system
+# clipboard itself. Every copy / paste is queued in `host_clipboard` and
+# performed by the host through the iced runtime, so the process only ever
+# has one clipboard operation in flight. See `host_clipboard` for the
+# STATUS_HEAP_CORRUPTION crash that rule comes from.

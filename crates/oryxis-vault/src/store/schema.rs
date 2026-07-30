@@ -392,6 +392,10 @@ impl VaultStore {
         // sidebar on connect (NULL = follow the global setting).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sidebar_auto_open INTEGER;");
 
+        // Directory a fresh SFTP mount of the host lands in (NULL / empty
+        // = the login directory, the previous behaviour).
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sftp_initial_path TEXT;");
+
         // Per-host X11 forwarding (OpenSSH `ForwardX11`), off by default.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN x11_forwarding INTEGER DEFAULT 0;");
 

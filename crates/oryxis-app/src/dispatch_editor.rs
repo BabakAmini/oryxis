@@ -427,6 +427,13 @@ impl Oryxis {
         conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
         conn.sidebar_auto_open = self.editor_form.sidebar_auto_open;
+        // Blank means "land in the login directory", the default; storing
+        // an empty string instead of NULL would make the mount canonicalize
+        // "" and fall back anyway, so normalize here.
+        conn.sftp_initial_path = {
+            let p = self.editor_form.sftp_initial_path.trim();
+            (!p.is_empty()).then(|| p.to_string())
+        };
         // C5: store quirks only when they differ from the xterm default,
         // so an untouched host keeps `quirks = None` (old-payload parity).
         conn.quirks = (self.editor_form.quirks
@@ -609,6 +616,7 @@ impl Oryxis {
                 .rekey_limit_mb
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
+            sftp_initial_path: conn.sftp_initial_path.clone().unwrap_or_default(),
         }
     }
 
@@ -1094,6 +1102,13 @@ impl Oryxis {
                     n.min(86_400).to_string()
                 };
             }
+            EditorMessage::EditorSftpInitialPathChanged(v) => {
+                // Free text: the path lives on the remote host, so there is
+                // nothing to validate locally. Newlines are stripped because
+                // a paste can carry one and a remote path never contains it.
+                self.editor_form.sftp_initial_path =
+                    v.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+            }
             EditorMessage::EditorAutoTitleChanged(v) => {
                 use crate::i18n::t;
                 // Map the localized pick label back to the tri-state override.
@@ -1329,6 +1344,10 @@ impl Oryxis {
                     let id = conn.id;
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_connection(&id);
+                        // Saved AI conversations reference the host by id, so
+                        // they go with it instead of dangling against an id
+                        // that no longer resolves.
+                        let _ = vault.delete_chat_conversations_for_connection(&id);
                         self.show_host_panel = false;
                         self.panel_nav_clear();
                         self.load_data_from_vault();

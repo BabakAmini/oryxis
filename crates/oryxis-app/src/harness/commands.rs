@@ -11,7 +11,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use iced::Program;
-use iced_test::core::clipboard::Content;
 
 use super::{Pump, RunOutcome, Session, format_text_entry, parse_quoted};
 
@@ -20,7 +19,8 @@ instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target
               scroll [pixels] (dx, dy) [<target>] / type \"text\"
               type enter|escape|tab|backspace / type ctrl+k / type ctrl+shift+f
               press enter / release tab / expect \"Text\"
-harness:      screenshot [name] / texts / find \"Text\" / clipboard [\"text\"]
+harness:      screenshot [name] / texts / find \"Text\"
+              clipboard [\"text\"] / clipboard is \"text\" (assert)
               wait <ms> / settle [idle_ms] / timeout <ms> / save <path.ice>
               reset [wipe] / status / help / quit
 responses:    == ok | == fail <instr> | == timeout | == shot <path> | == error <..>";
@@ -124,31 +124,20 @@ where
             }
             Err(_) => out("error timeout wants milliseconds: timeout 30000".into()),
         },
-        "clipboard" => {
-            if rest.is_empty() {
-                match session.emulator.clipboard() {
-                    Some(Content::Text(text)) => out(format!("clipboard {text:?}")),
-                    Some(Content::Html(html)) => out(format!("clipboard html {html:?}")),
-                    Some(Content::Files(files)) => out(format!("clipboard files {files:?}")),
-                    Some(_) => out("clipboard <non-text content>".into()),
-                    None => out("clipboard empty".into()),
+        "clipboard" => match session.clipboard_command(rest) {
+            Ok(line) => {
+                // Seeds and asserts are part of a recorded flow (a paste test
+                // is meaningless without its seed); a bare report is not.
+                if !rest.is_empty() {
+                    session.record(command);
                 }
-            } else {
-                match parse_quoted(rest) {
-                    Some(text) => {
-                        // The wire protocol is line-based, so multi-line
-                        // content (PEM blocks) rides in as `\n` escapes.
-                        session
-                            .emulator
-                            .set_clipboard(Some(Content::Text(unescape_clipboard(&text))));
-                        out("ok".into());
-                    }
-                    None => out(
-                        "error clipboard wants a quoted string: clipboard \"secret\"".into(),
-                    ),
-                }
+                out(line);
             }
-        }
+            // A failed `clipboard is` must read as a test failure, not an
+            // error: `== fail` is what makes the ctl client exit non-zero.
+            Err(reason) if rest.starts_with("is") => out(format!("fail {reason}")),
+            Err(reason) => out(format!("error {reason}")),
+        },
         "save" => {
             if rest.is_empty() {
                 out("error save wants a path: save tests/e2e/flow.ice".into());
@@ -198,7 +187,7 @@ where
 /// Decode the `\n` / `\t` / `\"` / `\\` escapes of a `clipboard "..."`
 /// argument. The wire protocol is one command per line, so this is the
 /// only way multi-line content (PEM key blocks) can be seeded.
-fn unescape_clipboard(text: &str) -> String {
+pub(super) fn unescape_clipboard(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     let mut chars = text.chars();
     while let Some(c) = chars.next() {

@@ -431,6 +431,22 @@ impl SessionPlayer {
     }
 }
 
+/// A saved AI conversation open for reading.
+///
+/// Deliberately read-only, and deliberately NOT resumable: the terminal
+/// the conversation was held against is gone, its captured context is
+/// stale, and the commands it ran no longer describe the host. Re-reading
+/// is the useful half ("how did I fix that?"), the same way a recording is
+/// re-watched rather than re-entered.
+pub(crate) struct ChatViewer {
+    /// The conversation being shown, so a delete can close the reader.
+    pub conversation_id: Uuid,
+    /// Row label at save time.
+    pub label: String,
+    /// Turns, already decrypted, in the order they happened.
+    pub messages: Vec<oryxis_vault::ChatMessageEntry>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

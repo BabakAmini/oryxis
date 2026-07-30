@@ -237,6 +237,13 @@ pub struct Connection {
     /// overrides above.
     #[serde(default)]
     pub rekey_limit_mb: Option<u32>,
+    /// Directory a fresh SFTP mount of this host lands in. `None` (and the
+    /// empty string) means the login directory, the previous behaviour. A
+    /// path that no longer resolves falls back to the login directory
+    /// rather than failing the mount, so a stale value never locks the
+    /// host out of its own file browser.
+    #[serde(default)]
+    pub sftp_initial_path: Option<String>,
 }
 
 impl Connection {
@@ -294,6 +301,7 @@ impl Connection {
             sidebar_auto_open: None,
             quirks: None,
             rekey_limit_mb: None,
+            sftp_initial_path: None,
         }
     }
 }
@@ -749,6 +757,28 @@ mod tests {
         value.as_object_mut().unwrap().remove("privacy_mode");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.privacy_mode, None);
+    }
+
+    #[test]
+    fn sftp_initial_path_legacy_payload_defaults_to_none() {
+        // Old peers and old vault rows carry no such field; a missing one
+        // must read as "land in the login directory", never an error.
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("sftp_initial_path");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.sftp_initial_path, None);
+    }
+
+    #[test]
+    fn sftp_initial_path_round_trip() {
+        let mut conn = Connection::new("h", "1.2.3.4");
+        for v in [None, Some(String::new()), Some("/srv/www".to_string())] {
+            conn.sftp_initial_path = v.clone();
+            let json = serde_json::to_string(&conn).unwrap();
+            let de: Connection = serde_json::from_str(&json).unwrap();
+            assert_eq!(de.sftp_initial_path, v);
+        }
     }
 
     #[test]

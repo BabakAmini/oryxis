@@ -382,6 +382,19 @@ pub struct Oryxis {
     /// sidebar Files "expand" promotion and consumed (with home-dir
     /// fallback) by the mount pipeline's `initial_remote_listing`.
     pub(crate) sftp_open_at_path: Option<String>,
+    /// Click counter behind the deferred slow-click rename: every row
+    /// click, right-click and navigation bumps it, and a fire whose
+    /// armed generation no longer matches gives up (see
+    /// `dispatch_sftp::selection`). Lives HERE, not in `SftpState`: a
+    /// per-state counter rides the park/hoist tab swap, and two tabs
+    /// would then compare each other's numbers.
+    pub(crate) sftp_click_gen: u64,
+    /// Open reopen-or-redownload dialog: the user asked to open a remote
+    /// file that is already being edited. Not in `SftpState` either, for
+    /// the same reason plus one of its own: the collision can be raised
+    /// from the sidebar Files browser, which has no SFTP state at all,
+    /// and a parked dialog would strand unanswered.
+    pub(crate) sftp_edit_reopen: Option<crate::state::EditReopenPrompt>,
     /// Loaded command history for `command_history_host`, most recent
     /// first (the History tab derives its "frequent" shortlist from this).
     pub(crate) command_history: Vec<oryxis_vault::CommandHistoryEntry>,
@@ -409,8 +422,11 @@ pub struct Oryxis {
     /// the tab struct only, never on the host or the pin spec.
     pub(crate) tab_rename: Option<(crate::state::TabRef, String)>,
     /// Multi-line clipboard text parked by the careful-paste guard,
-    /// waiting for the user to confirm or cancel the paste.
-    pub(crate) pending_paste: Option<String>,
+    /// waiting for the user to confirm or cancel the paste, with the tab
+    /// index it is destined for. The target is captured when the paste is
+    /// requested rather than resolved on confirm: see
+    /// `dispatch_terminal::paste_text_into_tab`.
+    pub(crate) pending_paste: Option<(usize, String)>,
     /// Manual host-group editor side panel (label + icon + color). Open
     /// when `group_edit_visible`; `group_edit_id` is the group being
     /// edited. `group_edit_icon` / `group_edit_color` are empty strings
@@ -937,6 +953,12 @@ pub struct Oryxis {
 
     // Session logs (terminal recording)
     pub(crate) session_logs: Vec<oryxis_vault::SessionLogEntry>,
+    /// Saved AI conversations, newest first. Shares the History timeline
+    /// with the recordings (see `TimelineKind::Chat`).
+    pub(crate) chat_conversations: Vec<oryxis_vault::ChatConversationEntry>,
+    /// The conversation open in the reader, with its turns loaded.
+    /// `None` when the reader is closed.
+    pub(crate) chat_viewer: Option<crate::state::ChatViewer>,
     pub(crate) session_logs_page: usize,
     pub(crate) session_logs_total: usize,
     pub(crate) viewing_session_log: Option<crate::state::SessionLogViewer>,
