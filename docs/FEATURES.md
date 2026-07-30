@@ -158,10 +158,18 @@ coming next, see the [Roadmap](../README.md#roadmap).
 
 - **Dual-pane layout.** Local and remote side by side, with sortable
   columns.
-- **Open with.** Hand a remote file to a specific local application,
-  with a MobaXterm-style confirmation before the edited copy goes back
-  up, and a path-history dropdown to jump back to directories you have
-  already visited.
+- **Open / Edit, in the background.** Hands a remote file to your OS
+  default application, the editor you configured, or the OS "open with"
+  picker, then watches the local copy while you keep browsing: nothing
+  blocks, and each save you make asks whether to send the file back (yes,
+  yes to all, autosave, skip, or stop editing). Reopening a file that is
+  still being edited offers the local copy instead of silently
+  re-downloading over it. A path-history dropdown jumps back to
+  directories you have already visited.
+- **Per-host start folder.** A host can remember where its SFTP mounts
+  open, set from the host editor or from any remote folder's context
+  menu. A path that stops resolving falls back to the login directory
+  instead of failing the mount.
 - **Files in every SSH tab.** A sidebar Files tab browses over the tab's
   existing connection and follows your shell's working directory as you
   `cd` (shell-integration cwd reporting with a window-title fallback;
@@ -174,8 +182,6 @@ coming next, see the [Roadmap](../README.md#roadmap).
   remote pane; drag rows between panes to upload or download.
 - **Multi-select.** Ctrl/Cmd-click and Shift-range; batch Delete /
   Download / Duplicate / Upload.
-- **Edit-in-place.** Opens a remote file in your OS editor and prompts to
-  upload on save.
 - **Properties dialog.** Per-row chmod grid, size, mtime, owner.
 - **Server-to-server copy.** Transfer files directly between two remote
   hosts, streamed host-to-host with no local round-trip and a live
