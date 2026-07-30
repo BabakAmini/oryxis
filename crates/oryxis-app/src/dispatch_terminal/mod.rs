@@ -498,6 +498,24 @@ impl Oryxis {
                     return crate::dispatch_global::write_clipboard_text(text);
                 }
             }
+            TerminalMessage::TerminalPasteSelection(pane_id, text) => {
+                self.overlay = None;
+                if text.is_empty() {
+                    return Task::none();
+                }
+                // Paste into the pane the gesture came from, not the
+                // focused one: they agree for middle-click and the chord,
+                // but the context menu can outlive a focus change.
+                let Some(tab_idx) = self.pane_tab_index(pane_id) else {
+                    return Task::none();
+                };
+                // Deliberately does NOT touch the system clipboard: X11
+                // PRIMARY is a separate buffer, and `copy_on_select` is
+                // the setting for people who also want selections on the
+                // clipboard. Pasting through the normal path keeps the
+                // careful-paste and paste-guard gates.
+                self.paste_text_into_tab(tab_idx, &text);
+            }
             TerminalMessage::TerminalCopyAll(pane_id) => {
                 self.overlay = None;
                 if let Some(pane) = self.pane_by_id(pane_id)

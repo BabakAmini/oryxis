@@ -1322,6 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Nhân bản {n} mục",
         "copy_path" => "Sao chép đường dẫn",
         "copy_host_address" => "Sao chép địa chỉ máy chủ",
+        "hotkey_terminal_paste_selection" => "Dán vùng chọn",
         "copy_n_paths" => "Sao chép {n} đường dẫn",
         "tab_tip_files" => "Tệp",
         "files_follow_on_tip" => "Đang theo thư mục của terminal. Nhấp để dừng.",

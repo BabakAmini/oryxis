@@ -1239,6 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n} 項目を複製",
         "copy_path" => "パスをコピー",
         "copy_host_address" => "ホストアドレスをコピー",
+        "hotkey_terminal_paste_selection" => "選択範囲を貼り付け",
         "copy_n_paths" => "{n} 件のパスをコピー",
         "tab_tip_files" => "ファイル",
         "files_follow_on_tip" => "ターミナルのディレクトリに追従中。クリックで停止。",

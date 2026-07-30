@@ -98,6 +98,13 @@ pub enum TerminalMessage {
     /// Copy the captured selection text to the clipboard (context-menu
     /// "Copy").
     TerminalCopySelection(String),
+    /// Paste the X11 PRIMARY selection into a pane: middle-click, the
+    /// paste-selection action, or the context-menu row. `(pane_id, text)`;
+    /// the pane is explicit because every sender knows it (the widget
+    /// captures its own at build time, the menu carries the right-clicked
+    /// one) and the focused pane can change before this is handled. Never
+    /// touches the system clipboard.
+    TerminalPasteSelection(Uuid, String),
     /// Copy the whole buffer (scrollback + screen) of a pane to the
     /// clipboard (context-menu "Copy All"). `pane_id`.
     TerminalCopyAll(Uuid),

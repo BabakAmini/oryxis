@@ -30,6 +30,7 @@ impl<Message> TerminalView<Message> {
             on_font_size_increase: None,
             on_font_size_decrease: None,
             on_paste_request: None,
+            on_paste_selection: None,
             on_context_menu: None,
             on_terminal_input: None,
             on_mouse_capture_hint: None,
@@ -242,6 +243,16 @@ impl<Message> TerminalView<Message> {
 
     pub fn on_paste_request(mut self, msg: Message) -> Self {
         self.on_paste_request = Some(msg);
+        self
+    }
+
+    /// Wire the PRIMARY-selection paste (middle-click and the
+    /// paste-selection action). The closure receives the remembered
+    /// selection text; the app pastes it into this pane, since only the
+    /// app reaches an SSH session and owns the paste guards. A closure
+    /// (not a plain `Message`) because the text is only known here.
+    pub fn on_paste_selection(mut self, f: impl Fn(String) -> Message + 'static) -> Self {
+        self.on_paste_selection = Some(Box::new(f));
         self
     }
 

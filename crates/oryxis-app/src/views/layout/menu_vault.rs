@@ -886,6 +886,15 @@ impl Oryxis {
                 Message::Terminal(TerminalMessage::TerminalCopySelection(text.clone())),
                 OryxisColors::t().text_secondary,
             ));
+            // Same gesture as the Ctrl+Shift+X chord. Inside the
+            // has-a-selection branch: with nothing selected it would just
+            // duplicate the plain "Paste" row below it.
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::clipboard_list(),
+                crate::i18n::t("hotkey_terminal_paste_selection"),
+                Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text.clone())),
+                OryxisColors::t().text_secondary,
+            ));
         }
         items = items
             .push(self.menu_item(

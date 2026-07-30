@@ -122,6 +122,14 @@ pub fn take_privacy_mask_drawn() -> bool {
 pub struct TerminalWidgetState {
     selecting: bool,
     selection: Option<Selection>,
+    /// X11 PRIMARY selection: the text of the last completed selection,
+    /// remembered independently of whether `selection` is still
+    /// highlighted. Set by selecting (not by any setting, and not by the
+    /// clipboard), so it outlives the highlight that clear-on-keypress
+    /// drops. Read by middle-click paste and the paste-selection action.
+    /// xterm exposes the same idea to users as the `keepSelection`
+    /// resource.
+    primary_selection: Option<String>,
     /// Lines scrolled back (0 = bottom). A `Cell` so the immutable-`&self`
     /// draw can reset it to the live edge on new output (PuTTY's "reset
     /// scrollback on display activity"); every other mutation is in
@@ -344,6 +352,12 @@ fn hash_pinned(set: &std::collections::HashSet<String>) -> u64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalChordAction {
     Copy,
+    /// Paste the X11 PRIMARY selection (the remembered text of the last
+    /// completed selection) into this pane: the keyboard twin of
+    /// middle-click. Performed app-side through `on_paste_selection`,
+    /// which is the only layer that reaches an SSH session. Never touches
+    /// the system clipboard and leaves the highlight in place.
+    PasteSelection,
     SelectAll,
     ScrollPageUp,
     ScrollPageDown,
@@ -452,6 +466,13 @@ pub struct TerminalView<Message = ()> {
     /// to the local PTY, so the app dispatcher can route to the SSH
     /// session (mirroring the Ctrl+Shift+V path).
     on_paste_request: Option<Message>,
+    /// Emitted with the PRIMARY selection's text by middle-click and by
+    /// the paste-selection chord. Carries the text because PRIMARY lives
+    /// in this widget's state, while the paste has to happen app-side:
+    /// only the dispatcher reaches an SSH session, and only it owns the
+    /// careful-paste / paste-guard gates. Not wired = both gestures fall
+    /// back (middle-click to a clipboard paste, the chord to nothing).
+    on_paste_selection: Option<Box<dyn Fn(String) -> Message>>,
     /// Emitted (with window-absolute x, y and whether a selection is
     /// live) when a right-click should open the context menu
     /// (`right_click_action == Menu`). The app renders + drives the menu

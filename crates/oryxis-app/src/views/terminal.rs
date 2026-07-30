@@ -337,6 +337,10 @@ impl Oryxis {
         use oryxis_terminal::widget::TerminalChordAction;
         let get = |a| self.hotkey_bindings.get(&a).cloned().unwrap_or_default();
         let copy = get(TerminalCopy);
+        // Unbound by default, so this only matches once a user binds it.
+        // Checked after Copy on purpose: if someone binds both onto the
+        // same chord, the non-destructive one should win the tie.
+        let paste_selection = get(TerminalPasteSelection);
         let select_all = get(TerminalSelectAll);
         let page_up = get(ScrollbackPageUp);
         let page_down = get(ScrollbackPageDown);
@@ -352,6 +356,8 @@ impl Oryxis {
             let live = |b: &crate::hotkeys::HotkeyBinding| !b.is_terminal_control_sequence();
             if copy.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::Copy)
+            } else if paste_selection.match_event_where(key, mods, live).is_some() {
+                Some(TerminalChordAction::PasteSelection)
             } else if select_all.match_event_where(key, mods, live).is_some() {
                 Some(TerminalChordAction::SelectAll)
             } else if page_up.match_event_where(key, mods, live).is_some() {
@@ -397,6 +403,14 @@ impl Oryxis {
             .on_font_size_increase(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
             .on_font_size_decrease(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
             .on_paste_request(Message::Terminal(TerminalMessage::TerminalPasteFromClipboard))
+            // Captures THIS pane's id so the paste can't land in another
+            // pane if focus moves between the keystroke and the update.
+            .on_paste_selection({
+                let pane_id = pane.id;
+                move |text| {
+                    Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text))
+                }
+            })
             .on_terminal_input(|v| Message::Terminal(TerminalMessage::TerminalInput(v)))
             .on_link_opened(Message::Settings(SettingsMessage::TerminalLinkOpened));
         // The perf HUD's `net` row: link quality from the SSH session's

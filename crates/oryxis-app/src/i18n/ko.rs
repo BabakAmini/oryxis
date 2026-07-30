@@ -1322,6 +1322,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "{n}개 항목 복제",
         "copy_path" => "경로 복사",
         "copy_host_address" => "호스트 주소 복사",
+        "hotkey_terminal_paste_selection" => "선택 영역 붙여넣기",
         "copy_n_paths" => "경로 {n}개 복사",
         "tab_tip_files" => "파일",
         "files_follow_on_tip" => "터미널 디렉터리를 따라가는 중. 클릭하여 중지.",

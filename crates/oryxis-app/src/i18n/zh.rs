@@ -1239,6 +1239,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "复制 {n} 项",
         "copy_path" => "复制路径",
         "copy_host_address" => "复制主机地址",
+        "hotkey_terminal_paste_selection" => "粘贴选中内容",
         "copy_n_paths" => "复制 {n} 个路径",
         "tab_tip_files" => "文件",
         "files_follow_on_tip" => "正在跟随终端目录。点击停止。",

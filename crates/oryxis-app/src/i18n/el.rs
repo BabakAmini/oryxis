@@ -1328,6 +1328,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_n_items" => "Αντίγραφο {n} στοιχείων",
         "copy_path" => "Αντιγραφή διαδρομής",
         "copy_host_address" => "Αντιγραφή διεύθυνσης host",
+        "hotkey_terminal_paste_selection" => "Επικόλληση επιλογής",
         "copy_n_paths" => "Αντιγραφή {n} διαδρομών",
         "tab_tip_files" => "Αρχεία",
         "files_follow_on_tip" => "Ακολουθεί τον κατάλογο του τερματικού. Κλικ για διακοπή.",
