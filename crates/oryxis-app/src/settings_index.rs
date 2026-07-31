@@ -195,7 +195,6 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Mcp, "mcp_install_claude", "mcp install claude code config register"),
     // ── SFTP ───────────────────────────────────────────────────────
     e(S::Sftp, "setting_sftp_force_osc7_toggle", "sftp osc 7 follow cwd directory prompt inject"),
-    e(S::Terminal, "shell_integration", "shell integration osc 133 633 tmux command history capture prompt marks passthrough"),
     e(S::Sftp, "setting_default_editor", "sftp default editor external open program"),
     e(S::Sftp, "setting_edit_autosave_toggle", "sftp autosave auto upload edited files save"),
     e(S::Sftp, "transfer_parallelism", "sftp transfer parallelism concurrency parallel streams"),

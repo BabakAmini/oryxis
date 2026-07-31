@@ -102,7 +102,6 @@ mod remote_desktop;
 mod session_redact;
 mod sftp_helpers;
 mod sftp_methods;
-mod shell_integration;
 mod shortcuts;
 mod smart_tabs;
 mod ssh_config;

@@ -645,9 +645,6 @@ impl Oryxis {
                 setting_hint_mode: crate::util::HintMode::default(),
                 setting_sftp_concurrency: "2".into(),
                 setting_sftp_force_osc7: false,
-                setting_shell_integration:
-                    crate::shell_integration::ShellIntegrationMode::default(),
-                shell_integration_nonce: String::new(),
                 setting_sftp_connect_timeout: "15".into(),
                 setting_sftp_auth_timeout: "30".into(),
                 setting_sftp_session_timeout: "10".into(),

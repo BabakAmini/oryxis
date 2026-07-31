@@ -96,7 +96,9 @@ coming next, see the [Roadmap](../README.md#roadmap).
   storage, surfaced in a sidebar History tab: most-frequent shortlist,
   recent list, search, re-run, paste-without-execute, delete. Local-only
   by design (never synced, never exported); optional plain-text export and
-  per-host live-append log.
+  per-host live-append log. Inside tmux the screen belongs to tmux, so
+  capture needs the shell's own report: see the
+  [tmux guide](TMUX.md).
 - **Session recording.** The encrypted session logs capture timing and
   terminal resizes; any session exports as an asciicast v3 `.cast` file
   with your terminal theme embedded, or as a plain-text transcript.

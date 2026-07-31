@@ -1425,16 +1425,6 @@ pub struct Oryxis {
     /// echoes one setup line); the title fallback covers the common
     /// case without it.
     pub(crate) setting_sftp_force_osc7: bool,
-    /// How far the app may go to put shell integration on a host, so the
-    /// shell reports the command line it parsed (`OSC 633 ; E`) instead of
-    /// the app reading it off a screen tmux owns (issue #92). Off by
-    /// default: the persistent level writes to the user's dotfiles.
-    pub(crate) setting_shell_integration: crate::shell_integration::ShellIntegrationMode,
-    /// Nonce baked into the snippet this vault installs; the pane's sniffer
-    /// refuses any `E` that doesn't carry it, so output alone can't plant a
-    /// command in the history. Minted on first use and kept, because the
-    /// persistent level leaves it written in the host's rc file.
-    pub(crate) shell_integration_nonce: String,
     /// TCP connect + SSH transport handshake timeout, in seconds.
     pub(crate) setting_sftp_connect_timeout: String,
     /// Authentication phase timeout, in seconds.

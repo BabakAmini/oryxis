@@ -139,6 +139,8 @@ matching installer. Windows binaries are Authenticode-signed (see
   Ελληνικά.
 
 The complete inventory lives in the **[feature tour](docs/FEATURES.md)**.
+Using tmux? **[Logs and command history under tmux](docs/TMUX.md)**
+explains what works out of the box and what you install yourself.
 
 ## Screenshots
 

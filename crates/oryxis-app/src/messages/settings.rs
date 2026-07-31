@@ -178,7 +178,6 @@ pub enum SettingsMessage {
     /// Right-click scheme changed from the settings pick (localized
     /// "Context menu / Paste / Extend selection" label).
     TerminalRightClickChanged(String),
-    ShellIntegrationChanged(String),
     /// Flip the careful-paste guard (warn before multi-line paste).
     ToggleCarefulPaste,
     ToggleBoldIsBright,
