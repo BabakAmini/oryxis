@@ -576,6 +576,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Session logs
         "session_log" => "सेशन लॉग",
         "session_final_screen" => "अंतिम स्क्रीन",
+        "transcript_mode_rendered" => "रेंडर की गई स्क्रीन",
+        "transcript_mode_linear" => "रैखिक डंप",
         "in_progress" => "जारी",
         "clear_all" => "सब साफ़ करें",
         "clear_history_title" => "सभी लॉग साफ़ करें?",

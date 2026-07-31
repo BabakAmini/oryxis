@@ -573,6 +573,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         // Session logs
         "session_log" => "Oturum Kaydı",
         "session_final_screen" => "Son ekran",
+        "transcript_mode_rendered" => "Ekran görünümü",
+        "transcript_mode_linear" => "Doğrusal döküm",
         "in_progress" => "Devam Ediyor",
         "entries" => "kayıt",
         "of" => "/",

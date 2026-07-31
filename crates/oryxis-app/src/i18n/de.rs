@@ -504,6 +504,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "Sitzungsprotokoll",
         "session_final_screen" => "Letzter Bildschirm",
+        "transcript_mode_rendered" => "Gerenderter Bildschirm",
+        "transcript_mode_linear" => "Lineare Ausgabe",
         "entries" => "Einträge",
         "of" => "von",
         "no_activity" => "Noch keine Aktivität",

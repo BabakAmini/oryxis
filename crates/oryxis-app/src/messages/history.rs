@@ -42,6 +42,10 @@ pub enum HistoryMessage {
     /// toast), `Some(Ok(path))` / `Some(Err(cause))` otherwise.
     GifExportFinished(Option<Result<String, String>>),
     CloseSessionLogView,
+    /// Switch the open transcript between the faithful replay and the
+    /// linear dump (the header toggle). Rebuilds the viewer from the
+    /// vault in the other mode.
+    ToggleSessionViewerMode,
     /// Right-click context menu over the transcript viewer body (scheme
     /// = Menu): window-absolute x/y and the selection captured by the
     /// widget at right-click. Read-only, so it only offers copy actions.

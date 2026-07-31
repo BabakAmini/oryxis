@@ -307,6 +307,50 @@ pub(crate) fn render(data: &[u8], palette: &TerminalPalette) -> Vec<AnsiSpan> {
     spans
 }
 
+/// Serialize rendered spans back into terminal bytes: truecolor SGR per
+/// span, `\r\n` line ends, a reset at the end.
+///
+/// This is what lets the transcript viewer show a linear dump inside the
+/// real terminal widget instead of a text widget. The emulator is what
+/// gives the viewer its selection, copy-on-select, right-click schemes
+/// and Ctrl+F (issues #90/#91); [`render`] is what gives it CONTENT for a
+/// recording that lived on the alternate screen, where replaying the
+/// stream faithfully leaves nothing to read (a whole tmux session repaints
+/// one screen that has no scrollback). Only the foreground color survives,
+/// because that is all `render` tracks, and all the old text viewer drew.
+pub(crate) fn to_ansi_bytes(spans: &[AnsiSpan]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut current: Option<[u32; 4]> = None;
+    for span in spans {
+        let key = span.color.map(color_key);
+        if key != current {
+            match span.color {
+                Some(c) => {
+                    let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    out.extend_from_slice(
+                        format!("\x1b[38;2;{};{};{}m", q(c.r), q(c.g), q(c.b)).as_bytes(),
+                    );
+                }
+                None => out.extend_from_slice(b"\x1b[39m"),
+            }
+            current = key;
+        }
+        // `render` puts the newlines inside the span text; the emulator
+        // needs the carriage return too, or every line starts where the
+        // previous one ended.
+        for ch in span.text.chars() {
+            if ch == '\n' {
+                out.extend_from_slice(b"\r\n");
+            } else {
+                let mut buf = [0u8; 4];
+                out.extend_from_slice(ch.encode_utf8(&mut buf).as_bytes());
+            }
+        }
+    }
+    out.extend_from_slice(b"\x1b[0m");
+    out
+}
+
 /// Comparable key for a Color (f32 fields aren't Eq).
 fn color_key(c: Color) -> [u32; 4] {
     [c.r.to_bits(), c.g.to_bits(), c.b.to_bits(), c.a.to_bits()]
@@ -399,5 +443,28 @@ mod tests {
         let palette = TerminalPalette::default();
         let spans = render(b"\x1b[1;32mok\n", &palette);
         assert_eq!(spans[0].color.map(color_key), Some(color_key(palette.ansi[10])));
+    }
+
+    /// The linear transcript mode feeds these bytes into the real
+    /// emulator, so they have to arrive as separate lines (CR included,
+    /// not just LF) and keep their color.
+    #[test]
+    fn to_ansi_bytes_feeds_the_emulator_line_by_line() {
+        let palette = TerminalPalette::default();
+        let bytes = to_ansi_bytes(&render(b"\x1b[31mred\x1b[0m one\ntwo\n", &palette));
+        assert!(
+            bytes.windows(7).any(|w| w == b"\x1b[38;2;"),
+            "colored runs carry a truecolor SGR"
+        );
+        assert!(!bytes.windows(2).any(|w| w == b"\r\r"));
+
+        let mut term = oryxis_terminal::widget::TerminalState::new_no_pty(80, 24).unwrap();
+        term.process(&bytes);
+        let text = term.all_text();
+        assert!(text.contains("red one"), "text survives: {text:?}");
+        assert!(
+            text.lines().any(|l| l.trim() == "two"),
+            "the second line starts at column 0: {text:?}"
+        );
     }
 }

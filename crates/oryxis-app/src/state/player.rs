@@ -103,6 +103,112 @@ pub(crate) fn preprocess_events(
 /// any readable transcript length).
 const TRANSCRIPT_SCROLLBACK: usize = 100_000;
 
+/// How a recording is fed into the transcript viewer's emulator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum TranscriptMode {
+    /// Replay the stream faithfully: the emulator ends up in whatever
+    /// state the session left it, which is what a transcript should be
+    /// for an ordinary shell session.
+    #[default]
+    Rendered,
+    /// Feed the stream through the linear renderer first
+    /// (`ansi_render`), which has no viewport: absolute cursor
+    /// addressing degrades to appended lines. A full-screen app
+    /// (tmux, vim, htop) repaints one screen forever, so the faithful
+    /// replay of a session that lived inside one has nothing to scroll
+    /// through; the linear dump has every repaint, in order.
+    Linear,
+}
+
+impl TranscriptMode {
+    pub fn toggled(self) -> Self {
+        match self {
+            Self::Rendered => Self::Linear,
+            Self::Linear => Self::Rendered,
+        }
+    }
+
+    /// i18n key describing THIS mode (the button offers the other one).
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Self::Rendered => "transcript_mode_rendered",
+            Self::Linear => "transcript_mode_linear",
+        }
+    }
+}
+
+/// Share of the recording's wall time spent on the alternate screen,
+/// found by scanning the recorded bytes rather than by emulating them.
+///
+/// A session run entirely inside tmux is ~1.0 and is the case the
+/// faithful replay cannot show, so the viewer opens such a recording in
+/// [`TranscriptMode::Linear`]. Chunk boundaries can split an escape
+/// sequence, so the scan carries the tail of each chunk into the next.
+pub(crate) fn alt_screen_share(rows: &[oryxis_vault::SessionLogEvent]) -> f32 {
+    // Every private mode that swaps in an alternate screen. Scanned as
+    // BYTES, not text: a recording carries whatever the host printed, so
+    // slicing a lossy `String` by byte offsets would panic the moment a
+    // tmux status bar drew a box-drawing glyph.
+    const ENTER: [&[u8]; 3] = [b"[?1049h", b"[?1047h", b"[?47h"];
+    const LEAVE: [&[u8]; 3] = [b"[?1049l", b"[?1047l", b"[?47l"];
+    // Longest sequence above minus one: what a chunk split could hide.
+    const CARRY: usize = 6;
+
+    fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+        haystack.windows(needle.len()).position(|w| w == needle)
+    }
+
+    let mut carry: Vec<u8> = Vec::new();
+    let mut in_alt = false;
+    let mut alt_ms: i64 = 0;
+    let mut last_ms: i64 = 0;
+    let mut total_ms: i64 = 0;
+    for row in rows.iter().filter(|r| r.kind == 'o') {
+        let at_ms = row.offset_ms.unwrap_or(last_ms);
+        if in_alt {
+            alt_ms += (at_ms - last_ms).max(0);
+        }
+        last_ms = at_ms;
+        total_ms = total_ms.max(at_ms);
+        let mut buf = std::mem::take(&mut carry);
+        buf.extend_from_slice(&row.data);
+        // Walk the chunk in order so the LAST switch in it wins.
+        let mut idx = 0;
+        while idx < buf.len() {
+            let rest = &buf[idx..];
+            let hit = ENTER
+                .iter()
+                .map(|p| (*p, true))
+                .chain(LEAVE.iter().map(|p| (*p, false)))
+                .filter_map(|(p, enter)| find(rest, p).map(|at| (at, p.len(), enter)))
+                .min_by_key(|(at, _, _)| *at);
+            match hit {
+                Some((at, len, enter)) => {
+                    in_alt = enter;
+                    idx += at + len;
+                }
+                None => break,
+            }
+        }
+        // Keep only the tail, so a sequence split across the boundary is
+        // whole on the next pass. Re-seeing the last switch is harmless:
+        // it is the most recent one, so replaying it keeps the order.
+        let tail = buf.len().saturating_sub(CARRY);
+        carry = buf.split_off(tail);
+    }
+    if total_ms <= 0 {
+        // No timing (legacy rows): fall back to "did it end in alt".
+        return if in_alt { 1.0 } else { 0.0 };
+    }
+    (alt_ms as f32 / total_ms as f32).clamp(0.0, 1.0)
+}
+
+/// Above this share of the recording spent on the alternate screen, the
+/// viewer opens in [`TranscriptMode::Linear`]: the faithful replay would
+/// show the login banner and one final screen, and the reporter of #92
+/// read that as "the session was not recorded at all".
+pub(crate) const LINEAR_ALT_SHARE: f32 = 0.5;
+
 /// The static transcript viewer (issues #90/#91). The whole recording is
 /// rendered into a read-only terminal backend, so selection,
 /// copy-on-select and the right-click schemes behave exactly like the
@@ -120,6 +226,9 @@ pub(crate) struct SessionLogViewer {
     /// The PTY-less emulator holding the whole recording, shared with the
     /// terminal widget the same way live panes are.
     pub terminal: Arc<Mutex<TerminalState>>,
+    /// How this viewer was fed, so the header can offer the other mode
+    /// and the rebuild knows what it is switching from.
+    pub mode: TranscriptMode,
 }
 
 impl SessionLogViewer {
@@ -132,6 +241,7 @@ impl SessionLogViewer {
         log_id: Uuid,
         rows: &[oryxis_vault::SessionLogEvent],
         palette: TerminalPalette,
+        mode: TranscriptMode,
     ) -> oryxis_terminal::widget::TerminalResult<Self> {
         let (events, _duration, geometry) = preprocess_events(rows);
         let mut state = TerminalState::new_no_pty_with_scrollback(
@@ -140,6 +250,31 @@ impl SessionLogViewer {
             TRANSCRIPT_SCROLLBACK,
         )?;
         state.palette = palette;
+        if mode == TranscriptMode::Linear {
+            // No viewport, so no alternate screen and no repaint: the
+            // linear renderer turns absolute cursor addressing into
+            // appended lines, which is the only way a session that spent
+            // its life inside tmux has anything to scroll through. Resize
+            // rows are deliberately not applied (a mid-recording resize
+            // would reflow a dump that has no live edge to reflow toward);
+            // the recorded geometry sets the width once.
+            let raw: Vec<u8> = events
+                .iter()
+                .filter_map(|ev| match &ev.kind {
+                    PlayerEventKind::Output(bytes) => Some(bytes.as_slice()),
+                    PlayerEventKind::Resize(..) => None,
+                })
+                .collect::<Vec<_>>()
+                .concat();
+            let spans = crate::ansi_render::render(&raw, &state.palette);
+            state.process(&crate::ansi_render::to_ansi_bytes(&spans));
+            state.pending_scroll.set(Some(i32::MAX));
+            return Ok(Self {
+                log_id,
+                terminal: Arc::new(Mutex::new(state)),
+                mode,
+            });
+        }
         for ev in &events {
             match &ev.kind {
                 PlayerEventKind::Output(bytes) => state.process(bytes),
@@ -179,6 +314,7 @@ impl SessionLogViewer {
         state.pending_scroll.set(Some(i32::MAX));
         Ok(Self {
             log_id,
+            mode,
             terminal: Arc::new(Mutex::new(state)),
         })
     }
@@ -648,6 +784,7 @@ mod tests {
                 ev(Some(20), 'c', b"secret cmd"),
             ],
             TerminalPalette::default(),
+            TranscriptMode::Rendered,
         )
         .expect("headless viewer");
         let row: String = (0..5).map(|c| viewer_char_at(&viewer, 0, c)).collect();
@@ -666,6 +803,7 @@ mod tests {
             Uuid::nil(),
             &[ev(Some(0), 'r', b"80x24"), ev(Some(10), 'o', &data)],
             TerminalPalette::default(),
+            TranscriptMode::Rendered,
         )
         .expect("headless viewer");
         use oryxis_terminal::alacritty_terminal::grid::Dimensions;
@@ -708,6 +846,7 @@ mod tests {
             Uuid::nil(),
             &[ev(Some(0), 'r', b"80x24"), ev(Some(10), 'o', &data)],
             TerminalPalette::default(),
+            TranscriptMode::Rendered,
         )
         .expect("headless viewer");
         let state = viewer.terminal.lock().unwrap();
@@ -727,6 +866,114 @@ mod tests {
             .rfind("top - live frame")
             .expect("final alt frame reinjected into the transcript");
         assert!(frame > log_tail, "frame lands after the log tail");
+    }
+
+    /// The #92 shape: a session that ran ENTIRELY inside tmux. It enters
+    /// the alternate screen right after login and never leaves, so the
+    /// faithful replay has one repainted frame and no scrollback, and the
+    /// reporter read that as "the session was not recorded". The linear
+    /// mode has to carry every repaint, in order.
+    #[test]
+    fn linear_mode_recovers_a_session_spent_inside_tmux() {
+        let mut data = b"login banner\r\n\x1b[?1049h".to_vec();
+        // tmux repainting its pane: absolute addressing, no newlines,
+        // which is exactly what a viewport-less dump has to linearize.
+        for i in 0..40 {
+            data.extend_from_slice(format!("\x1b[1;1H\x1b[2Jcommand-{i} output").as_bytes());
+        }
+        let rows = [ev(Some(0), 'r', b"80x24"), ev(Some(10), 'o', &data)];
+
+        let rendered = SessionLogViewer::build(
+            Uuid::nil(),
+            &rows,
+            TerminalPalette::default(),
+            TranscriptMode::Rendered,
+        )
+        .expect("headless viewer");
+        let faithful = rendered.terminal.lock().unwrap().all_text();
+        assert!(
+            !faithful.contains("command-0 output"),
+            "the faithful replay only has the last frame, which is the bug"
+        );
+
+        let linear = SessionLogViewer::build(
+            Uuid::nil(),
+            &rows,
+            TerminalPalette::default(),
+            TranscriptMode::Linear,
+        )
+        .expect("headless viewer");
+        let state = linear.terminal.lock().unwrap();
+        assert!(!state.is_alt_screen(), "the linear dump has no alt screen");
+        let text = state.all_text();
+        for i in [0, 17, 39] {
+            assert!(
+                text.contains(&format!("command-{i} output")),
+                "repaint {i} missing from the linear transcript"
+            );
+        }
+        let first = text.find("command-0 output").unwrap();
+        let last = text.find("command-39 output").unwrap();
+        assert!(first < last, "repaints must keep capture order");
+        assert!(text.contains("login banner"), "pre-tmux output survives");
+    }
+
+    #[test]
+    fn alt_screen_share_measures_time_not_bytes() {
+        // Enters tmux at 100ms of a 1000ms recording and never leaves:
+        // 90% of the session is unreadable in the faithful replay.
+        let rows = [
+            ev(Some(0), 'o', b"banner"),
+            ev(Some(100), 'o', b"\x1b[?1049h"),
+            ev(Some(1000), 'o', b"frame"),
+        ];
+        let share = alt_screen_share(&rows);
+        assert!((share - 0.9).abs() < 0.01, "share = {share}");
+        assert!(share >= LINEAR_ALT_SHARE);
+
+        // A pager opened and closed inside a long session stays Rendered.
+        let rows = [
+            ev(Some(0), 'o', b"work"),
+            ev(Some(100), 'o', b"\x1b[?1049h"),
+            ev(Some(200), 'o', b"\x1b[?1049l"),
+            ev(Some(1000), 'o', b"more work"),
+        ];
+        let share = alt_screen_share(&rows);
+        assert!((share - 0.1).abs() < 0.01, "share = {share}");
+        assert!(share < LINEAR_ALT_SHARE);
+    }
+
+    /// Chunk boundaries fall wherever the flush landed, so the scan must
+    /// carry a split sequence across rows or a tmux session reads as 0%.
+    #[test]
+    fn alt_screen_share_survives_a_split_escape_sequence() {
+        let rows = [
+            ev(Some(0), 'o', b"x\x1b[?10"),
+            ev(Some(10), 'o', b"49h"),
+            ev(Some(1000), 'o', b"frame"),
+        ];
+        let share = alt_screen_share(&rows);
+        assert!(share > 0.98, "split sequence missed: share = {share}");
+    }
+
+    /// The scan reads recorded BYTES, and a tmux status bar is full of
+    /// box-drawing glyphs: a text-slicing scan panics on the first
+    /// multi-byte boundary it lands on.
+    #[test]
+    fn alt_screen_share_scans_non_ascii_output() {
+        let rows = [
+            ev(Some(0), 'o', "┌── tmux ──┐\x1b[?1049h│ pane │".as_bytes()),
+            ev(Some(1000), 'o', "│ 状態 │ статус │".as_bytes()),
+        ];
+        assert!(alt_screen_share(&rows) > 0.98);
+    }
+
+    /// Legacy rows carry no timing, so there is no wall clock to divide
+    /// by; the fallback is "did the recording end on the alt screen".
+    #[test]
+    fn alt_screen_share_falls_back_for_untimed_rows() {
+        assert_eq!(alt_screen_share(&[ev(None, 'o', b"\x1b[?1049hframe")]), 1.0);
+        assert_eq!(alt_screen_share(&[ev(None, 'o', b"plain output")]), 0.0);
     }
 
     #[test]

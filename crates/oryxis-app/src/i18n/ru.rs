@@ -504,6 +504,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "Журнал сеанса",
         "session_final_screen" => "Последний экран",
+        "transcript_mode_rendered" => "Экран как был",
+        "transcript_mode_linear" => "Линейный дамп",
         "entries" => "записей",
         "of" => "из",
         "no_activity" => "Пока нет активности",

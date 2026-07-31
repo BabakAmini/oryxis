@@ -508,6 +508,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "工作階段記錄",
         "session_final_screen" => "最終畫面",
+        "transcript_mode_rendered" => "還原畫面",
+        "transcript_mode_linear" => "線性傾印",
         "logs" => "歷史記錄",
         "search_logs" => "搜尋記錄...",
         "clear_all" => "全部清除",

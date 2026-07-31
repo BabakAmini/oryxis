@@ -507,6 +507,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "セッションログ",
         "session_final_screen" => "最終画面",
+        "transcript_mode_rendered" => "画面の再現",
+        "transcript_mode_linear" => "リニアダンプ",
         "logs" => "履歴",
         "vault" => "ボールト",
         "clear_all" => "すべてクリア",

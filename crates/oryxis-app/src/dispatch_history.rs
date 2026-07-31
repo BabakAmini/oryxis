@@ -79,47 +79,18 @@ impl Oryxis {
                 }
             }
             HistoryMessage::ViewSessionLog(log_id) => {
-                // Flush buffered output first so viewing a still-active
-                // session shows everything recorded up to this moment,
-                // not just what was last persisted.
-                self.flush_session_logs_final();
-                // The History slot holds one reader at a time.
-                self.chat_viewer = None;
-                let Some(vault) = &self.vault else {
+                return self.open_session_log_viewer(log_id, None);
+            }
+            HistoryMessage::ToggleSessionViewerMode => {
+                let Some(viewer) = &self.viewing_session_log else {
                     return Task::none();
                 };
-                let events = match vault.get_session_events(&log_id) {
-                    Ok(ev) => ev,
-                    Err(e) => {
-                        return self.show_toast(
-                            crate::i18n::t("history_export_failed")
-                                .replace("{error}", &e.to_string()),
-                        );
-                    }
-                };
-                // The transcript wears the same colors the live pane wore:
-                // per-host terminal theme override first, then the global
-                // theme (mirrors the player and the `.cast` export).
-                let palette = self
-                    .session_logs
-                    .iter()
-                    .find(|e| e.id == log_id)
-                    .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id))
-                    .map(|c| self.resolve_terminal_palette_for_connection(c))
-                    .unwrap_or_else(|| self.resolve_global_terminal_palette());
-                match crate::state::SessionLogViewer::build(log_id, &events, palette) {
-                    Ok(viewer) => {
-                        self.viewing_session_log = Some(viewer);
-                        // Mutually exclusive with the player surface.
-                        self.session_player = None;
-                    }
-                    Err(e) => {
-                        return self.show_toast(
-                            crate::i18n::t("history_export_failed")
-                                .replace("{error}", &e.to_string()),
-                        );
-                    }
-                }
+                let (log_id, mode) = (viewer.log_id, viewer.mode.toggled());
+                // Rebuilt from the vault rather than kept in two emulators:
+                // a recording is fed once and never mutated, so holding a
+                // second full copy for a switch the user makes rarely is
+                // memory for nothing.
+                return self.open_session_log_viewer(log_id, Some(mode));
             }
             HistoryMessage::CloseSessionLogView => {
                 self.viewing_session_log = None;
@@ -921,6 +892,72 @@ impl Oryxis {
                 },
             );
         }
+    }
+}
+
+impl Oryxis {
+    /// Open (or re-open) the transcript viewer over a recording.
+    ///
+    /// `mode` is `None` on the first open, where it is decided by how
+    /// much of the recording ran on the alternate screen: a session
+    /// spent inside tmux (or a pager) replays faithfully into a single
+    /// final frame with nothing to scroll, which is the shape a reporter
+    /// read as "the session was not recorded" (#92). Those open in
+    /// [`TranscriptMode::Linear`]; the header switches either way.
+    fn open_session_log_viewer(
+        &mut self,
+        log_id: uuid::Uuid,
+        mode: Option<crate::state::TranscriptMode>,
+    ) -> Task<Message> {
+        // Flush buffered output first so viewing a still-active session
+        // shows everything recorded up to this moment, not just what was
+        // last persisted.
+        self.flush_session_logs_final();
+        // The History slot holds one reader at a time.
+        self.chat_viewer = None;
+        let Some(vault) = &self.vault else {
+            return Task::none();
+        };
+        let events = match vault.get_session_events(&log_id) {
+            Ok(ev) => ev,
+            Err(e) => {
+                return self.show_toast(
+                    crate::i18n::t("history_export_failed")
+                        .replace("{error}", &e.to_string()),
+                );
+            }
+        };
+        // The transcript wears the same colors the live pane wore:
+        // per-host terminal theme override first, then the global theme
+        // (mirrors the player and the `.cast` export).
+        let palette = self
+            .session_logs
+            .iter()
+            .find(|e| e.id == log_id)
+            .and_then(|e| self.connections.iter().find(|c| c.id == e.connection_id))
+            .map(|c| self.resolve_terminal_palette_for_connection(c))
+            .unwrap_or_else(|| self.resolve_global_terminal_palette());
+        let mode = mode.unwrap_or_else(|| {
+            if crate::state::alt_screen_share(&events) >= crate::state::LINEAR_ALT_SHARE {
+                crate::state::TranscriptMode::Linear
+            } else {
+                crate::state::TranscriptMode::Rendered
+            }
+        });
+        match crate::state::SessionLogViewer::build(log_id, &events, palette, mode) {
+            Ok(viewer) => {
+                self.viewing_session_log = Some(viewer);
+                // Mutually exclusive with the player surface.
+                self.session_player = None;
+            }
+            Err(e) => {
+                return self.show_toast(
+                    crate::i18n::t("history_export_failed")
+                        .replace("{error}", &e.to_string()),
+                );
+            }
+        }
+        Task::none()
     }
 }
 

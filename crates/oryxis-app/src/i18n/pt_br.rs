@@ -550,6 +550,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "clear_history_confirm" => "Isso exclui permanentemente todas as gravações de sessão e eventos de conexão.",
         "session_log" => "Log de Sessão",
         "session_final_screen" => "Tela final",
+        "transcript_mode_rendered" => "Tela renderizada",
+        "transcript_mode_linear" => "Log linear",
         "entries" => "entradas",
         "of" => "de",
         "no_activity" => "Nenhuma atividade ainda",

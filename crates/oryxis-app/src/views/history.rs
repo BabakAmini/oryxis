@@ -591,6 +591,27 @@ impl Oryxis {
                 header_items.push(crate::widgets::privacy_reveal_btn(self.privacy.revealed));
                 header_items.push(Space::new().width(8).into());
             }
+            // Transcript mode switch. A recording that lived on the
+            // alternate screen (a whole tmux session, a long pager) has
+            // nothing to scroll in the faithful replay, so it opens in
+            // Linear; anything else opens Rendered. Either way the reader
+            // can flip, and the tooltip names the mode the click leads to.
+            let next_mode = viewer.mode.toggled();
+            header_items.push(crate::views::terminal::icon_tooltip(
+                viewer_header_btn(
+                    match next_mode {
+                        crate::state::TranscriptMode::Linear => iced_fonts::lucide::list(),
+                        crate::state::TranscriptMode::Rendered => iced_fonts::lucide::monitor(),
+                    }
+                    .size(11)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                    None,
+                    Message::History(HistoryMessage::ToggleSessionViewerMode),
+                ),
+                crate::i18n::t(next_mode.label_key()),
+            ));
+            header_items.push(Space::new().width(8).into());
             // Resolve the viewed recording's index for the actions menu;
             // a row deleted underneath the viewer resolves to None and
             // simply drops the affordances.

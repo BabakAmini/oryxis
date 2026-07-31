@@ -504,6 +504,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "Registro de Sesión",
         "session_final_screen" => "Pantalla final",
+        "transcript_mode_rendered" => "Pantalla renderizada",
+        "transcript_mode_linear" => "Volcado lineal",
         "logs" => "Historial",
         "vault" => "Cofre",
         "search_logs" => "Buscar registros...",

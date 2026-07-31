@@ -508,6 +508,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "Journal de Session",
         "session_final_screen" => "Écran final",
+        "transcript_mode_rendered" => "Écran rendu",
+        "transcript_mode_linear" => "Vidage linéaire",
         "logs" => "Historique",
         "search_logs" => "Rechercher dans les journaux...",
         "clear_all" => "Tout effacer",

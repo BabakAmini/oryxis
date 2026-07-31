@@ -508,6 +508,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "session_log" => "会话日志",
         "session_final_screen" => "最终画面",
+        "transcript_mode_rendered" => "渲染画面",
+        "transcript_mode_linear" => "线性转储",
         "logs" => "历史",
         "search_logs" => "搜索日志...",
         "clear_all" => "全部清除",
