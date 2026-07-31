@@ -157,6 +157,13 @@ struct EphemeralKey {
 #[derive(Default)]
 pub(crate) struct EphemeralStore {
     keys: std::sync::Mutex<Vec<EphemeralKey>>,
+    /// Bumped on every accepted ADD, never decremented. Lets the app
+    /// notice "a key just landed" by comparing two readings, without
+    /// walking the roster (which holds private material) and without a
+    /// push channel into the update loop. A re-add of the same blob
+    /// counts: KeePassXC re-pushes on every database unlock, and that
+    /// unlock IS the event a waiting connection cares about.
+    adds: std::sync::atomic::AtomicU64,
 }
 
 impl EphemeralStore {
@@ -206,7 +213,14 @@ impl EphemeralStore {
             requires_confirm,
             expires_at,
         });
+        self.adds
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         true
+    }
+
+    /// Monotonic count of accepted ADDs (see [`EphemeralStore::adds`]).
+    pub(crate) fn add_generation(&self) -> u64 {
+        self.adds.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Drop the entry for `blob`; `false` when no added key matches
@@ -287,6 +301,12 @@ impl VaultKeySource {
     /// Live count of client-added keys (settings status line).
     pub(crate) fn external_key_count(&self) -> usize {
         self.ephemeral.live_count()
+    }
+
+    /// Monotonic ADD counter, compared reading-to-reading by the
+    /// port-forward healer to spot "an external tool just pushed a key".
+    pub(crate) fn external_add_generation(&self) -> u64 {
+        self.ephemeral.add_generation()
     }
 
     /// Flip the gate and lock the dedicated handle (zeroize its key) so

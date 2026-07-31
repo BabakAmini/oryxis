@@ -521,6 +521,7 @@ impl Oryxis {
                 remote_desktop_enabled: false,
                 port_forward_starting: std::collections::HashSet::new(),
                 port_forward_retry: std::collections::HashMap::new(),
+                port_forward_agent_watch: None,
                 show_port_forward_panel: false,
                 port_forward_form: crate::state::PortForwardRuleForm::default(),
                 hovered_port_forward_card: None,

@@ -33,6 +33,12 @@ pub enum PortForwardMessage {
     /// come up (or dropped): self-heals the KeePassXC-key-not-ready and
     /// network-loss cases with a capped exponential backoff.
     PortForwardRetryTick,
+    /// The agent census the retry tick asked for (sorted
+    /// `<endpoint> <fingerprint>` lines, see `oryxis_ssh::agent_key_census`).
+    /// A reading that differs from the previous one means the keys moved,
+    /// which makes every pending rule due immediately instead of waiting
+    /// out a backoff that has already climbed to its ceiling.
+    PortForwardAgentCensus(Vec<String>),
     PortForwardCardHovered(usize),
     PortForwardCardUnhovered,
     PortForwardSearchChanged(String),

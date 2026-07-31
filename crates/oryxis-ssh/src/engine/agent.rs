@@ -224,6 +224,140 @@ pub(crate) fn agent_pipe_candidates() -> Vec<String> {
     windows_agent_pipe_candidates(&list_named_pipes(), user.as_deref(), conf.as_deref())
 }
 
+/// The agent endpoints that EXIST right now, as an environment
+/// fingerprint rather than a dial list: every live pageant-style pipe
+/// plus the fixed OpenSSH name when something is actually serving it.
+/// Sorted and case-insensitively deduped so the value changes only when
+/// an agent really came or went, never because the pipe namespace
+/// enumerated in a different order (`FindFirstFile` order is arbitrary).
+///
+/// Unlike `windows_agent_pipe_candidates`, the OpenSSH name is included
+/// ONLY when present: a candidate list may end on a name nobody serves
+/// (dialing it just fails), but a fingerprint must not claim an agent
+/// that isn't there, or the "an agent appeared" edge would never fire.
+#[cfg(any(windows, test))]
+pub(crate) fn agent_endpoint_names(names: &[String], user: Option<&str>) -> Vec<String> {
+    const OPENSSH_PIPE: &str = r"\\.\pipe\openssh-ssh-agent";
+    let mut out = pick_pageant_pipes(names, user);
+    if names
+        .iter()
+        .any(|n| n.eq_ignore_ascii_case("openssh-ssh-agent"))
+    {
+        out.push(OPENSSH_PIPE.to_string());
+    }
+    out.sort_by_key(|p| p.to_ascii_lowercase());
+    out.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    out
+}
+
+/// Live wrapper over `agent_endpoint_names`, mirroring the discovery
+/// inputs of `agent_pipe_candidates` minus the config file (a
+/// `pageant.conf` line can name a dead guid, and a fingerprint must
+/// report what is actually up).
+#[cfg(windows)]
+pub(crate) fn agent_endpoints_present() -> Vec<String> {
+    let user = std::env::var("USERNAME").ok();
+    agent_endpoint_names(&list_named_pipes(), user.as_deref())
+}
+
+/// Unix half of the same fingerprint: `SSH_AUTH_SOCK` when the socket
+/// is actually on disk. An exported-but-dead `SSH_AUTH_SOCK` (the agent
+/// died, the systemd socket unit hasn't started) reads as "no agent",
+/// so the socket appearing later registers as a change.
+#[cfg(any(unix, test))]
+pub(crate) fn unix_agent_endpoints(env_sock: Option<String>) -> Vec<String> {
+    unix_agent_sock_candidates(env_sock)
+        .into_iter()
+        .filter(|p| p.exists())
+        .map(|p| p.display().to_string())
+        .collect()
+}
+
+/// How long one endpoint gets to answer the census. Shorter than the
+/// auth sweep's `AGENT_DIAL_TIMEOUT`: the census is a background
+/// heartbeat, so a wedged endpoint must not eat the interval that
+/// drives it, and unlike auth there is nothing to salvage by waiting.
+const CENSUS_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Fold one endpoint's LIST answer into census lines.
+///
+/// A key ARRIVING in an agent that was already running (KeePassXC
+/// pushing into the always-on Windows OpenSSH service) moves nothing in
+/// the endpoint set, which is why the census goes down to fingerprints.
+/// The three states are deliberately distinct: holding keys, reachable
+/// but empty (a locked KeePassXC keeps its pipe open), and unreachable.
+pub(crate) fn census_lines(
+    endpoint: &str,
+    identities: Option<Vec<russh::keys::agent::AgentIdentity>>,
+) -> Vec<String> {
+    match identities {
+        Some(ids) if !ids.is_empty() => ids
+            .iter()
+            .map(|id| {
+                format!(
+                    "{endpoint} {}",
+                    id.public_key().fingerprint(russh::keys::HashAlg::Sha256)
+                )
+            })
+            .collect(),
+        Some(_) => vec![format!("{endpoint} <empty>")],
+        // Unreachable or timed out contributes nothing, so the endpoint
+        // answering later reads as a change.
+        None => Vec::new(),
+    }
+}
+
+/// What every reachable agent is holding right now, as sorted
+/// `<endpoint> <fingerprint>` lines. Meaningless in isolation: callers
+/// compare two readings, and a difference means the key situation moved
+/// (an agent appeared, went away, or its roster changed).
+///
+/// LIST is the only request made. It is unauthenticated in every agent
+/// implementation and never triggers a confirm prompt (only signing
+/// does), so polling it cannot nag the user.
+#[cfg(unix)]
+pub(crate) async fn agent_key_census() -> Vec<String> {
+    let mut out = Vec::new();
+    for path in unix_agent_endpoints(std::env::var("SSH_AUTH_SOCK").ok()) {
+        let ids = tokio::time::timeout(CENSUS_TIMEOUT, async {
+            let mut agent = russh::keys::agent::client::AgentClient::connect_uds(&path)
+                .await
+                .ok()?;
+            agent.request_identities().await.ok()
+        })
+        .await
+        .ok()
+        .flatten();
+        out.extend(census_lines(&path, ids));
+    }
+    out.sort();
+    out
+}
+
+#[cfg(windows)]
+pub(crate) async fn agent_key_census() -> Vec<String> {
+    let mut out = Vec::new();
+    for pipe in agent_endpoints_present() {
+        let ids = tokio::time::timeout(CENSUS_TIMEOUT, async {
+            let mut agent = russh::keys::agent::client::AgentClient::connect_named_pipe(&pipe)
+                .await
+                .ok()?;
+            agent.request_identities().await.ok()
+        })
+        .await
+        .ok()
+        .flatten();
+        out.extend(census_lines(&pipe, ids));
+    }
+    out.sort();
+    out
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) async fn agent_key_census() -> Vec<String> {
+    Vec::new()
+}
+
 /// Agent sockets for CLIENT auth on Unix: just `SSH_AUTH_SOCK` (empty
 /// or unset yields no candidate). Deliberately NOT the Oryxis agent's
 /// own socket: dialing our own in-process agent to auth our own

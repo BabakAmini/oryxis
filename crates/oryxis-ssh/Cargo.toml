@@ -40,6 +40,9 @@ rand010 = { package = "rand", version = "0.10", features = ["thread_rng"] }
 # SSH integration coverage, no real credentials, no shared state, no
 # need for a running daemon on the dev machine.
 testcontainers = "0.27"
+# Real files on disk for the agent-presence fingerprint test (it asserts
+# on existence, so a fixture path has to actually exist).
+tempfile = "3"
 # Surfaces the engine's own tracing in the live X11 test, where the log
 # is the only evidence of which forwarding branch was taken.
 tracing-subscriber = { workspace = true }

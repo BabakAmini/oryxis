@@ -41,6 +41,26 @@ use kbi::*;
 // SSH Engine
 // ---------------------------------------------------------------------------
 
+/// A reading of what the reachable ssh-agents hold right now: sorted
+/// `<endpoint> <fingerprint>` lines across every discovered agent (live
+/// pipes on Windows, `SSH_AUTH_SOCK` on unix). Meaningless in isolation,
+/// callers only ever compare it against an earlier reading: a difference
+/// means the key situation moved.
+///
+/// The point is the arrival edge. A tool that hands its keys to an agent
+/// only when its own database unlocks (KeePassXC, issue #101) leaves
+/// anything that needed those keys failing until it runs, and the
+/// endpoint set alone cannot see it: the key usually lands in an agent
+/// that was already running. Watching the rosters turns "retry in up to
+/// two minutes" into "retry on the next heartbeat".
+///
+/// Costs one dial + LIST per endpoint (each bounded, and LIST never
+/// prompts), so poll it only while something is actually waiting on a
+/// key, never on an idle app.
+pub async fn agent_key_census() -> Vec<String> {
+    agent::agent_key_census().await
+}
+
 /// The key material offered during publickey auth: the private key PEM
 /// and, optionally, an OpenSSH user certificate to present alongside it
 /// (B2). Bundling the two guarantees the certificate travels with the
@@ -546,6 +566,80 @@ mod tests {
         // Empty env var is not a candidate, and neither is an unset one.
         assert!(agent::unix_agent_sock_candidates(Some(String::new())).is_empty());
         assert!(agent::unix_agent_sock_candidates(None).is_empty());
+    }
+
+    // ── Agent presence fingerprint (issue #101) ──
+
+    #[test]
+    fn endpoint_discovery_only_reports_live_endpoints() {
+        // The candidate list always ends on the OpenSSH name; the
+        // fingerprint must not, or "an agent appeared" would already
+        // read as true with no agent anywhere.
+        assert!(agent::agent_endpoint_names(&[], Some("alice")).is_empty());
+        assert_eq!(
+            agent::agent_endpoint_names(&["openssh-ssh-agent".to_string()], Some("alice")),
+            vec![r"\\.\pipe\openssh-ssh-agent".to_string()],
+        );
+    }
+
+    #[test]
+    fn endpoint_discovery_is_enumeration_order_independent() {
+        // `FindFirstFile` order is arbitrary, so the same set of pipes
+        // listed in a different order must compare equal: otherwise
+        // every heartbeat would look like "an agent appeared".
+        let a = vec![
+            "pageant.alice.aaa".to_string(),
+            "discord-ipc-0".to_string(),
+            "openssh-ssh-agent".to_string(),
+            "pageant.alice.bbb".to_string(),
+        ];
+        let b = vec![
+            "openssh-ssh-agent".to_string(),
+            "pageant.alice.bbb".to_string(),
+            "pageant.alice.aaa".to_string(),
+            "discord-ipc-0".to_string(),
+        ];
+        assert_eq!(
+            agent::agent_endpoint_names(&a, Some("alice")),
+            agent::agent_endpoint_names(&b, Some("alice")),
+        );
+        // ...and a genuinely new agent DOES change it.
+        let mut c = a.clone();
+        c.push("pageant.alice.ccc".to_string());
+        assert_ne!(
+            agent::agent_endpoint_names(&a, Some("alice")),
+            agent::agent_endpoint_names(&c, Some("alice")),
+        );
+    }
+
+    #[test]
+    fn census_distinguishes_empty_agent_from_no_agent() {
+        // The three states must not collapse: a reachable-but-empty
+        // agent (locked KeePassXC holding its pipe open) has to differ
+        // from an unreachable one, or the keys landing in it later
+        // would not register as a change.
+        assert!(agent::census_lines("/tmp/agent.sock", None).is_empty());
+        assert_eq!(
+            agent::census_lines("/tmp/agent.sock", Some(Vec::new())),
+            vec!["/tmp/agent.sock <empty>".to_string()],
+        );
+    }
+
+    #[test]
+    fn unix_endpoints_require_the_socket_to_exist() {
+        // An exported-but-dead SSH_AUTH_SOCK reads as "no agent", so the
+        // socket showing up later registers as a change.
+        assert!(agent::unix_agent_endpoints(Some(
+            "/definitely/not/here/agent.sock".to_string()
+        ))
+        .is_empty());
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("agent.sock");
+        std::fs::write(&sock, b"").unwrap();
+        assert_eq!(
+            agent::unix_agent_endpoints(Some(sock.display().to_string())),
+            vec![sock.display().to_string()],
+        );
     }
 
     #[test]

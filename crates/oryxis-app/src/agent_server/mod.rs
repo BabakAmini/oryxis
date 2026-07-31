@@ -75,6 +75,15 @@ impl AgentRuntime {
         self.source.external_key_count()
     }
 
+    /// Monotonic count of keys pushed in by external tools. Only ever
+    /// compared against an earlier reading: a bump means a tool
+    /// (KeePassXC unlocking its database) just handed us a key, which
+    /// is the cue for anything that failed on a missing key to retry
+    /// now instead of waiting out its backoff (issue #101).
+    pub(crate) fn external_add_generation(&self) -> u64 {
+        self.source.external_add_generation()
+    }
+
     /// Open a dedicated vault handle, bind the socket and start
     /// serving; returns a receiver of per-signature prompts the app
     /// surfaces. `confirm` prompts for every signature; even with it

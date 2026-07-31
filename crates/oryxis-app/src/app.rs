@@ -940,6 +940,13 @@ pub struct Oryxis {
     /// `dispatch_port_forwards::PfRetry`.
     pub(crate) port_forward_retry:
         std::collections::HashMap<Uuid, crate::dispatch_port_forwards::PfRetry>,
+    /// Last reading of the ssh-agent conditions, taken on each retry tick
+    /// and compared against the next one: an agent appearing (or a key
+    /// pushed into our own agent server) makes every pending rule due
+    /// immediately instead of waiting out its backoff. `None` while
+    /// nothing is pending. See `dispatch_port_forwards::PfAgentWatch`.
+    pub(crate) port_forward_agent_watch:
+        Option<crate::dispatch_port_forwards::PfAgentWatch>,
     pub(crate) show_port_forward_panel: bool,
     pub(crate) port_forward_form: crate::state::PortForwardRuleForm,
     pub(crate) hovered_port_forward_card: Option<usize>,
