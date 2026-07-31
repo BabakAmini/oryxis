@@ -93,6 +93,12 @@ pub(crate) enum Modal {
     /// Esc simply closes it; it is in `ESC_ORDER` in the lightweight
     /// group next to the other dismissible info dialogs.
     CertificateViewer,
+    /// "Kill the process on this listening port" confirmation
+    /// (`monitor.kill`, issue #96). Destructive, remote and
+    /// irreversible, so it blocks input and Esc cancels; unlike its
+    /// sibling confirms, the SAFE button is the default row (see
+    /// `build_monitor_kill_dialog`).
+    MonitorKill,
 }
 
 impl Modal {
@@ -131,6 +137,7 @@ impl Modal {
         Modal::SftpPicker,
         Modal::AgentConfirm,
         Modal::CertificateViewer,
+        Modal::MonitorKill,
     ];
 
     /// Modals Esc dismisses, in topmost-first priority order (the order
@@ -158,6 +165,9 @@ impl Modal {
         // follow in the same lightweight-confirm group.
         Modal::ErrorDialog,
         Modal::ClearHistoryConfirm,
+        // Esc = don't signal anything (the safe default for a remote,
+        // irreversible action); same lightweight-confirm group.
+        Modal::MonitorKill,
         // Esc = neither reopen nor discard the local copy. Ahead of the
         // save prompt because `layer_sftp_modals` renders it on top: Esc
         // must always answer the dialog the user can actually see.
@@ -215,7 +225,8 @@ impl Modal {
             | Modal::SftpEditReopen
             | Modal::SftpPicker
             | Modal::AgentConfirm
-            | Modal::CertificateViewer => true,
+            | Modal::CertificateViewer
+            | Modal::MonitorKill => true,
         }
     }
 }
@@ -261,10 +272,11 @@ mod tests {
                 | Modal::SftpEditReopen
                 | Modal::SftpPicker
                 | Modal::AgentConfirm
-                | Modal::CertificateViewer => {}
+                | Modal::CertificateViewer
+                | Modal::MonitorKill => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 32, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 33, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

@@ -63,6 +63,11 @@ pub(crate) struct MonitorState {
     /// Hosts with a probe already in flight. A slow host is skipped on
     /// the next tick instead of queueing probes behind each other.
     pub probing: HashSet<uuid::Uuid>,
+    /// The open "kill the process on this port" confirmation (issue
+    /// #96). Lives here so every monitor sweep drops it: a dialog about
+    /// a host that just disconnected (or a vault that just locked) must
+    /// not survive to signal anything.
+    pub kill: Option<super::kill::PendingKill>,
 }
 
 impl MonitorState {
@@ -70,6 +75,9 @@ impl MonitorState {
     pub fn forget(&mut self, id: &uuid::Uuid) {
         self.series.remove(id);
         self.probing.remove(id);
+        if self.kill.as_ref().is_some_and(|k| k.conn_id == *id) {
+            self.kill = None;
+        }
     }
 }
 
@@ -135,5 +143,43 @@ mod tests {
         state.forget(&id);
         assert!(state.series.is_empty());
         assert!(state.probing.is_empty());
+    }
+
+    #[test]
+    fn forget_drops_only_its_own_hosts_kill_dialog() {
+        // A disconnect must take the confirmation with it: leaving one
+        // up would offer to signal a session that is already gone.
+        // Another host's dialog is none of its business.
+        let mut state = MonitorState::default();
+        let mine = uuid::Uuid::new_v4();
+        let other = uuid::Uuid::new_v4();
+        let pending = |id| {
+            crate::monitor::kill::PendingKill::new(
+                id,
+                "host".into(),
+                &crate::monitor::model::PortStat {
+                    port: 8080,
+                    proto: "tcp",
+                    bind: None,
+                    process: Some("node".into()),
+                    pid: Some(42),
+                },
+                crate::monitor::kill::KillSignal::Term,
+            )
+        };
+        state.kill = Some(pending(other));
+        state.forget(&mine);
+        assert!(state.kill.is_some());
+        state.kill = Some(pending(mine));
+        state.forget(&mine);
+        assert!(state.kill.is_none());
+    }
+
+    #[test]
+    fn a_full_reset_takes_the_kill_dialog_too() {
+        // `monitor_reset_all` is a `Default::default()` assignment, so
+        // this pins that the field participates in it.
+        let state = MonitorState::default();
+        assert!(state.kill.is_none());
     }
 }

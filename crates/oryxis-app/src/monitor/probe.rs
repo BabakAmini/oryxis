@@ -19,6 +19,17 @@ use std::time::Instant;
 /// contents can't forge one.
 const SEP: &str = "---ORYXIS-MON-SEP---";
 
+/// Listening sockets. `ss` is the modern tool; `netstat` covers hosts
+/// that still ship net-tools and nothing else. `-p` names only the
+/// processes the login user owns unless we are root, so unnamed ports
+/// are expected, not a failure.
+///
+/// Shared with the kill pipeline (issue #96), which re-runs exactly this
+/// to re-resolve a port's owner before signalling it: same command, same
+/// parser, no second dialect to keep in sync.
+pub(crate) const LISTENING_SOCKETS_CMD: &str =
+    "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null || netstat -an 2>/dev/null";
+
 /// The batched probe command. Every section is guarded so a missing file
 /// yields an empty section instead of an error, and the sentinels keep
 /// the split stable regardless.
@@ -42,11 +53,7 @@ pub(crate) fn linux_probe_command() -> String {
         "df -kP 2>/dev/null || df -k 2>/dev/null",
         "cat /proc/uptime 2>/dev/null || { date +%s | sed \"s/^/Now: /\"; \
              sysctl -n kern.boottime 2>/dev/null; }",
-        // Listening sockets. `ss` is the modern tool; `netstat` covers
-        // hosts that still ship net-tools and nothing else. `-p` names
-        // only the processes the login user owns unless we are root, so
-        // unnamed ports are expected, not a failure.
-        "ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null || netstat -an 2>/dev/null",
+        LISTENING_SOCKETS_CMD,
     ]
     .join(&format!("; echo \"{SEP}\"; "));
     // The exec channel hands the command to the user's LOGIN shell, and
@@ -127,10 +134,7 @@ pub(crate) fn parse_linux(
             let d = parse_df(df);
             if d.is_empty() { super::probe_bsd::parse_df_bsd(df) } else { d }
         },
-        ports: {
-            let p = parse_listening_ports(sockets);
-            if p.is_empty() { super::probe_bsd::parse_netstat_an(sockets) } else { p }
-        },
+        ports: parse_listening_ports_any(sockets),
         uptime_secs: parse_uptime(uptime)
             .or_else(|| super::probe_bsd::parse_boottime(uptime)),
     };
@@ -292,6 +296,15 @@ fn is_pseudo_fs(source: &str) -> bool {
     ) || source.starts_with("/dev/loop")
 }
 
+/// Listening sockets in whichever dialect the host answered in: the
+/// Linux `ss` / `netstat` parser first, the BSD `netstat -an` fallback
+/// when it found nothing. Shared with the kill pipeline, which re-runs
+/// [`LISTENING_SOCKETS_CMD`] on its own and needs the same shape rules.
+pub(crate) fn parse_listening_ports_any(sockets: &str) -> Vec<PortStat> {
+    let p = parse_listening_ports(sockets);
+    if p.is_empty() { super::probe_bsd::parse_netstat_an(sockets) } else { p }
+}
+
 /// Listening sockets from `ss -tulnp` or `netstat -tulnp`.
 ///
 /// Both tools are parsed by shape rather than by column index: the first
@@ -327,21 +340,30 @@ fn parse_listening_ports(sockets: &str) -> Vec<PortStat> {
             continue;
         }
         let Some((bind, port)) = fields.clone().find_map(parse_local_addr) else { continue };
-        let process = parse_process_name(line);
+        let (process, pid) = match parse_process_entry(line) {
+            Some((name, pid)) => (Some(name), pid),
+            None => (None, None),
+        };
         if let Some(existing) = out.iter_mut().find(|p| p.port == port && p.proto == proto) {
             // Same service on a second address family: keep whichever
             // row managed to name the process, and let a wildcard bind
             // win over a specific one (v4 0.0.0.0 + v6 :: is ONE
             // any-interface listener, not a bound one).
+            //
+            // Name and PID move TOGETHER (first named row wins,
+            // deterministic in payload order): a kill target assembled
+            // from two different rows could signal a process that never
+            // owned the port.
             if existing.process.is_none() {
                 existing.process = process;
+                existing.pid = pid;
             }
             if bind.is_none() {
                 existing.bind = None;
             }
             continue;
         }
-        out.push(PortStat { port, proto, bind, process });
+        out.push(PortStat { port, proto, bind, process, pid });
     }
     out.sort_by_key(|p| (p.port, p.proto));
     out
@@ -369,21 +391,39 @@ fn parse_local_addr(token: &str) -> Option<(Option<String>, u16)> {
 }
 
 /// `ss`: `users:(("sshd",pid=1,fd=3))`. `netstat`: `1234/sshd`.
-fn parse_process_name(line: &str) -> Option<String> {
-    if let Some(rest) = line.split("users:((\"").nth(1)
-        && let Some(name) = rest.split('"').next()
-        && !name.is_empty()
-    {
-        return Some(name.to_string());
+///
+/// Returns the process name and the PID **from the same entry**. `ss`
+/// lists one entry per file descriptor and prints them all on one line
+/// (`users:(("nginx",pid=1,fd=6),("nginx",pid=2,fd=6))`), so a PID
+/// harvested by scanning the whole line could belong to a different
+/// worker than the name; only the FIRST entry is read, and the name and
+/// PID always travel together. The PID stays `Option` inside the pair
+/// because a very old `ss` prints `users:(("sshd",1,3))` without the
+/// `pid=` label, which still names the process.
+fn parse_process_entry(line: &str) -> Option<(String, Option<u32>)> {
+    if let Some(rest) = line.split("users:((").nth(1) {
+        // One entry: everything up to the first `)`.
+        let entry = rest.split(')').next().unwrap_or(rest);
+        let mut quoted = entry.splitn(3, '"');
+        let _leading = quoted.next();
+        if let Some(name) = quoted.next()
+            && !name.is_empty()
+        {
+            let pid = entry.split("pid=").nth(1).and_then(|p| {
+                p.split(|c: char| !c.is_ascii_digit())
+                    .next()?
+                    .parse::<u32>()
+                    .ok()
+            });
+            return Some((name.to_string(), pid));
+        }
     }
     // netstat's PID/Program column is the last token; "-" means the
     // process wasn't visible to this user.
     let last = line.split_whitespace().next_back()?;
     let (pid, name) = last.split_once('/')?;
-    if pid.parse::<u32>().is_ok() && !name.is_empty() {
-        return Some(name.to_string());
-    }
-    None
+    let pid = pid.parse::<u32>().ok()?;
+    (!name.is_empty()).then(|| (name.to_string(), Some(pid)))
 }
 
 /// `/proc/uptime`: `12345.67 98765.43` (seconds since boot, idle time).
@@ -564,6 +604,56 @@ mod tests {
         let binds: Vec<Option<&str>> =
             sample.ports.iter().map(|p| p.bind.as_deref()).collect();
         assert_eq!(binds, vec![None, Some("127.0.0.53"), Some("127.0.0.1")]);
+        // PIDs feed the kill action (issue #96); an unnamed row has none.
+        let pids: Vec<Option<u32>> = sample.ports.iter().map(|p| p.pid).collect();
+        assert_eq!(pids, vec![Some(1), None, Some(42)]);
+    }
+
+    #[test]
+    fn a_multi_worker_row_pairs_the_name_with_its_own_pid() {
+        // `ss` prints one entry per fd on ONE line. Scanning the whole
+        // line for `pid=` would pair worker 3's number with worker 1's
+        // name; only the first entry is read, whole.
+        let ss = "tcp LISTEN 0 511 0.0.0.0:80 0.0.0.0:* \
+                  users:((\"nginx\",pid=811,fd=6),(\"nginx\",pid=810,fd=6),(\"nginx\",pid=809,fd=6))\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        assert_eq!(sample.ports.len(), 1);
+        assert_eq!(sample.ports[0].process.as_deref(), Some("nginx"));
+        assert_eq!(sample.ports[0].pid, Some(811));
+    }
+
+    #[test]
+    fn an_ss_without_the_pid_label_still_names_the_process() {
+        // Very old `ss` prints `users:(("sshd",1,3))`. The name is
+        // usable; inventing a PID out of the positional fields is not.
+        let ss = "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:((\"sshd\",1,3))\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        assert_eq!(sample.ports[0].process.as_deref(), Some("sshd"));
+        assert_eq!(sample.ports[0].pid, None);
+    }
+
+    #[test]
+    fn the_v4_v6_collapse_keeps_the_name_and_pid_together() {
+        // The v6 row is the one that names the process; the merged row
+        // must take BOTH of its fields, never a name from one row and a
+        // PID from another (that would signal the wrong process).
+        let ss = "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\n\
+                  tcp LISTEN 0 128 [::]:22 [::]:* users:((\"sshd\",pid=904,fd=4))\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        assert_eq!(sample.ports.len(), 1);
+        assert_eq!(sample.ports[0].process.as_deref(), Some("sshd"));
+        assert_eq!(sample.ports[0].pid, Some(904));
+
+        // Reversed order: the FIRST named row wins, deterministically,
+        // and the loser's PID never leaks onto the winner's name.
+        let ss = "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:* users:((\"sshd\",pid=1,fd=3))\n\
+                  tcp LISTEN 0 128 [::]:22 [::]:* users:((\"sshd\",pid=904,fd=4))\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ss]), None, t0());
+        assert_eq!(sample.ports[0].pid, Some(1));
     }
 
     #[test]
@@ -607,6 +697,9 @@ mod tests {
         let binds: Vec<Option<&str>> =
             sample.ports.iter().map(|p| p.bind.as_deref()).collect();
         assert_eq!(binds, vec![None, None, Some("127.0.0.1")]);
+        // The `-` column is "not ours to see", so neither name nor PID.
+        let pids: Vec<Option<u32>> = sample.ports.iter().map(|p| p.pid).collect();
+        assert_eq!(pids, vec![Some(1), Some(7), None]);
     }
 
     #[test]

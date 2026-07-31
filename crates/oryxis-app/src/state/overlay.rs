@@ -99,6 +99,12 @@ pub(crate) enum OverlayContent {
     /// Items depend on the row's status: check for updates, the
     /// auto-update override toggle, uninstall / remove downloads.
     PluginActions(String),
+    /// Right-click menu on a Monitor-tab listening-port row (issue
+    /// #96). Items: Forward this port locally (TCP only, since SSH has
+    /// no UDP forwarding), Kill process, Force kill. Carries the whole
+    /// socket row so the confirmation describes the socket that was
+    /// pointed at, not whatever a later sample holds.
+    MonitorPortActions(Box<crate::monitor::model::PortStat>),
 }
 
 /// Which side-panel input the shared group picker is currently

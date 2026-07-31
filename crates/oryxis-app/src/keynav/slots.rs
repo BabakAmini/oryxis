@@ -62,6 +62,11 @@ pub(crate) struct SidebarRow {
     pub(crate) action: RowAction,
     pub(crate) paste: Option<Message>,
     pub(crate) delete: Option<Message>,
+    /// Context menu the Menu key opens on this row, the keyboard half
+    /// of its right-click (the vault layer's `ContextMenu` handling,
+    /// brought to the sidebar for the Monitor tab's port rows, issue
+    /// #96). `None` = the row has no menu.
+    pub(crate) menu: Option<Message>,
     /// Whether this row belongs to the tab's LIST body (a snippet,
     /// history entry, file row, group card) rather than header chrome
     /// (path, search, sort, the strip's Close). The arrow hover-entry
@@ -80,30 +85,63 @@ impl SidebarRow {
             action: RowAction::activate(run),
             paste: Some(paste),
             delete: Some(delete),
+            menu: None,
             list: true,
         }
     }
 
     /// A plain button / toggle / card row: Enter activates.
     pub(crate) fn button(msg: Message) -> Self {
-        Self { action: RowAction::activate(msg), paste: None, delete: None, list: false }
+        Self {
+            action: RowAction::activate(msg),
+            paste: None,
+            delete: None,
+            menu: None,
+            list: false,
+        }
     }
 
     /// [`Self::button`] for rows that are LIST entries (file rows,
     /// snippet group cards): same Enter-activates contract, but the
     /// arrow hover-entry may land here.
     pub(crate) fn list_button(msg: Message) -> Self {
-        Self { action: RowAction::activate(msg), paste: None, delete: None, list: true }
+        Self {
+            action: RowAction::activate(msg),
+            paste: None,
+            delete: None,
+            menu: None,
+            list: true,
+        }
     }
 
     /// A text-input / focusable-widget row: Tab gives it real focus.
     pub(crate) fn input(id: iced::widget::Id) -> Self {
-        Self { action: RowAction::input(id), paste: None, delete: None, list: false }
+        Self {
+            action: RowAction::input(id),
+            paste: None,
+            delete: None,
+            menu: None,
+            list: false,
+        }
     }
 
     /// A stepper / cycling row: Left/Right fire prev/next.
     pub(crate) fn picker(prev: Option<Message>, next: Option<Message>) -> Self {
-        Self { action: RowAction::picker(prev, next), paste: None, delete: None, list: false }
+        Self {
+            action: RowAction::picker(prev, next),
+            paste: None,
+            delete: None,
+            menu: None,
+            list: false,
+        }
+    }
+
+    /// Attach the row's context menu, so the Menu key reaches what
+    /// right-click reaches. A row whose only extra actions live in a
+    /// popover is mouse-only without this.
+    pub(crate) fn with_menu(mut self, msg: Message) -> Self {
+        self.menu = Some(msg);
+        self
     }
 }
 
@@ -396,7 +434,7 @@ impl crate::app::Oryxis {
         // Always wrapped (transparent when unringed): see
         // select_ring_opt for why the wrapper must be shape-stable.
         let ringed = !is_input && self.keynav.sidebar_selected == Some((tab, idx));
-        crate::widgets::select_ring_opt(
+        let el = crate::widgets::select_ring_opt(
             el,
             radius,
             ringed.then(|| {
@@ -406,7 +444,17 @@ impl crate::app::Oryxis {
                     crate::theme::OryxisColors::t().accent
                 }
             }),
-        )
+        );
+        // Report the ringed row's rect so the Menu key can anchor a
+        // row's context menu at the ROW, the same handshake
+        // `keynav_ring_content` gives vault cards. Without it the
+        // popover would open at wherever the mouse happens to rest,
+        // which for a keyboard user is anywhere at all.
+        if ringed {
+            crate::widgets::bounds_reporter(el, self.keynav.ring_bounds.clone())
+        } else {
+            el
+        }
     }
 
     /// Recording wrapper over `widgets::context_menu_item`: same row,

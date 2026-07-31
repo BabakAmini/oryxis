@@ -1,8 +1,10 @@
 //! Modal dialog content builders (share, SSH-config import, blocking
-//! error, clear-history). Split out of views/layout/main_layout.rs;
-//! each returns just the dialog `Element`, wrapped by `layer_modals`.
+//! error, clear-history, kill-port). Split out of
+//! views/layout/main_layout.rs; each returns just the dialog `Element`,
+//! wrapped by `layer_modals`.
 
 use super::*;
+use crate::messages::MonitorMessage;
 use iced::widget::{column, row};
 
 impl Oryxis {
@@ -525,6 +527,188 @@ impl Oryxis {
         .style(|_| container::Style {
             background: Some(Background::Color(OryxisColors::t().bg_surface)),
             border: Border { radius: Radius::from(12.0), color: OryxisColors::t().border, width: 1.0 },
+            ..Default::default()
+        });
+        dialog.into()
+    }
+
+    /// Content for the "kill the process on this port" confirmation
+    /// (issue #96): the exact target, the signal, the irreversibility,
+    /// and whatever the host said when a run came back unhappy.
+    ///
+    /// Keyboard: unlike `build_clear_history_dialog`, whose default row
+    /// IS the destructive action, Cancel is the default here. The
+    /// action is remote, irreversible and can take down a live service,
+    /// so it follows the `AgentConfirm` precedent instead: a stray
+    /// Enter must never stop somebody's database.
+    pub(crate) fn build_monitor_kill_dialog(
+        &self,
+        pending: &crate::monitor::kill::PendingKill,
+    ) -> Element<'_, Message> {
+        use crate::monitor::kill::KillPhase;
+        let c = OryxisColors::t();
+        let running = pending.phase == KillPhase::Running;
+
+        // Tinted warning badge, same anchor the folder-delete confirm
+        // uses for a destructive choice.
+        let badge = container(iced_fonts::lucide::triangle_alert().size(22).color(c.error))
+            .width(Length::Fixed(48.0))
+            .height(Length::Fixed(48.0))
+            .center_x(Length::Fixed(48.0))
+            .center_y(Length::Fixed(48.0))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(Color { a: 0.12, ..c.error })),
+                border: Border { radius: Radius::from(24.0), ..Default::default() },
+                ..Default::default()
+            });
+
+        // Target line, monospace so port / PID line up: what is being
+        // signalled, in the host's own vocabulary.
+        let target = {
+            let mut parts = vec![format!("{}/{}", pending.port, pending.proto)];
+            if let Some(name) = &pending.process {
+                parts.push(name.clone());
+            }
+            parts.push(match pending.pid {
+                Some(pid) => format!("PID {pid}"),
+                None => crate::i18n::t("monitor_kill_pid_unknown").to_string(),
+            });
+            parts.join("  ·  ")
+        };
+
+        let mut body = column![
+            badge,
+            Space::new().height(14),
+            text(crate::i18n::t("monitor_kill_title"))
+                .size(17)
+                .font(iced::Font {
+                    weight: iced::font::Weight::Semibold,
+                    ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                })
+                .color(c.text_primary),
+            Space::new().height(8),
+            text(target)
+                .size(13)
+                .font(iced::Font::MONOSPACE)
+                .color(c.text_primary)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center),
+            Space::new().height(4),
+            text(crate::i18n::t(pending.signal.label_key()))
+                .size(12)
+                .color(c.text_muted)
+                .width(Length::Fill)
+                .align_x(iced::alignment::Horizontal::Center),
+            Space::new().height(12),
+            text(
+                crate::i18n::t("monitor_kill_warning")
+                    .replacen("{host}", &pending.host, 1),
+            )
+            .size(12)
+            .color(c.warning)
+            .width(Length::Fill)
+            .align_x(iced::alignment::Horizontal::Center),
+        ]
+        .width(Length::Fill)
+        .align_x(iced::Alignment::Center);
+
+        // No PID means an unescalated run has nothing to signal; say
+        // so before the user commits, not after it fails.
+        if pending.pid.is_none() {
+            body = body.push(Space::new().height(8)).push(
+                text(crate::i18n::t("monitor_kill_unknown_pid"))
+                    .size(11)
+                    .color(c.text_muted)
+                    .width(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Center),
+            );
+        }
+
+        if let KillPhase::Failed(outcome) = &pending.phase {
+            body = body.push(Space::new().height(12)).push(
+                container(
+                    text(outcome.message())
+                        .size(12)
+                        .color(c.error)
+                        .width(Length::Fill)
+                        .align_x(dir_align_x()),
+                )
+                .width(Length::Fill)
+                .padding(10)
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.10, ..c.error })),
+                    border: Border {
+                        radius: Radius::from(8.0),
+                        color: Color { a: 0.4, ..c.error },
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }),
+            );
+        }
+
+        // Keyboard rows, in visual order. Cancel first AND default.
+        self.modal_nav_reset();
+        let cancel = self.modal_nav_slot_default(
+            crate::keynav::RowAction::activate(Message::Monitor(MonitorMessage::CancelKillPort)),
+            6.0,
+            false,
+            styled_button(
+                crate::i18n::t("cancel"),
+                Message::Monitor(MonitorMessage::CancelKillPort),
+                c.text_muted,
+            ),
+        );
+        let mut actions = vec![cancel, Space::new().width(8).into()];
+        if running {
+            // Nothing to press while a run is on the wire: a second
+            // confirm would queue a second signal behind the first.
+            actions.push(
+                container(text(crate::i18n::t("monitor_kill_running")).size(12).color(c.text_muted))
+                    .padding(Padding { top: 8.0, right: 4.0, bottom: 8.0, left: 4.0 })
+                    .into(),
+            );
+        } else {
+            // A failure escalation can fix replaces the confirm button
+            // with the retry: re-running it unescalated would just fail
+            // the same way.
+            let (label, msg) = match &pending.phase {
+                KillPhase::Failed(outcome) if outcome.can_retry_with_sudo() => (
+                    crate::i18n::t("monitor_kill_retry_sudo"),
+                    Message::Monitor(MonitorMessage::RetryKillWithSudo),
+                ),
+                _ => (
+                    crate::i18n::t("monitor_kill_process"),
+                    Message::Monitor(MonitorMessage::ConfirmKillPort),
+                ),
+            };
+            // A failure escalation CANNOT fix leaves Cancel alone: an
+            // enabled "Kill" that is guaranteed to fail again is worse
+            // than no button.
+            let dead_end = matches!(
+                &pending.phase,
+                KillPhase::Failed(outcome) if !outcome.can_retry_with_sudo()
+            );
+            if !dead_end {
+                actions.push(self.modal_nav_slot(
+                    crate::keynav::RowAction::activate(msg.clone()),
+                    6.0,
+                    true,
+                    styled_button(label, msg, c.error),
+                ));
+            }
+        }
+
+        let dialog = container(
+            column![body, Space::new().height(20), dir_row(actions)]
+                .width(Length::Fill)
+                .align_x(iced::Alignment::Center)
+                .padding(24),
+        )
+        .width(Length::Fixed(420.0))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(c.bg_surface)),
+            border: Border { radius: Radius::from(14.0), color: c.border, width: 1.0 },
             ..Default::default()
         });
         dialog.into()

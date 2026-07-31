@@ -5,6 +5,7 @@
 //! container. Pure relocation, no behavior change.
 
 use super::*;
+use crate::messages::MonitorMessage;
 use iced::widget::column;
 
 impl Oryxis {
@@ -959,6 +960,50 @@ impl Oryxis {
             Message::History(HistoryMessage::SessionViewerCopyAll),
             OryxisColors::t().text_secondary,
         ));
+        items.into()
+    }
+
+    /// Right-click menu on a Monitor-tab listening-port row (issue #96).
+    ///
+    /// Forwarding is offered for TCP only, because SSH port forwarding
+    /// has no UDP mode; the two kill rows apply to any socket. Both
+    /// kills only PARK a confirmation, so this menu never touches the
+    /// host on its own.
+    pub(crate) fn build_menu_monitor_port(
+        &self,
+        port: &crate::monitor::model::PortStat,
+    ) -> Element<'_, Message> {
+        use crate::monitor::kill::KillSignal;
+        let c = OryxisColors::t();
+        let mut items = column![];
+        if port.proto == "tcp"
+            && let Some(conn_id) = self.monitor_pane_connection()
+        {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::arrow_right_left(),
+                crate::i18n::t("monitor_forward_port"),
+                Message::Monitor(MonitorMessage::ForwardPort(
+                    conn_id,
+                    port.port,
+                    port.bind.clone(),
+                )),
+                c.accent,
+            ));
+        }
+        let row = Box::new(port.clone());
+        items = items
+            .push(self.menu_item(
+                iced_fonts::lucide::circle_stop(),
+                crate::i18n::t("monitor_kill_process"),
+                Message::Monitor(MonitorMessage::AskKillPort(row.clone(), KillSignal::Term)),
+                c.text_secondary,
+            ))
+            .push(self.menu_item(
+                iced_fonts::lucide::zap(),
+                crate::i18n::t("monitor_force_kill"),
+                Message::Monitor(MonitorMessage::AskKillPort(row, KillSignal::Force)),
+                c.error,
+            ));
         items.into()
     }
 }

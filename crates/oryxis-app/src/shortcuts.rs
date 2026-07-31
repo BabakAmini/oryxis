@@ -184,6 +184,7 @@ impl Oryxis {
             Modal::SftpEditReopen => self.sftp_edit_reopen.is_some(),
             Modal::SftpPicker => self.sftp.picker_open,
             Modal::CertificateViewer => self.cert_viewer.is_some(),
+            Modal::MonitorKill => self.monitor.kill.is_some(),
         }
     }
 
@@ -297,6 +298,11 @@ impl Oryxis {
             Modal::SftpEditReopen => self.sftp_edit_reopen = None,
             Modal::SftpPicker => self.sftp.picker_open = false,
             Modal::CertificateViewer => self.cert_viewer = None,
+            // Esc while a kill run is in flight only drops the DIALOG;
+            // the exec channel is already on its way and its result is
+            // reported as a toast instead (`KillFinished`). Nothing is
+            // re-sent, so there is no window where Esc doubles a signal.
+            Modal::MonitorKill => self.monitor.kill = None,
         }
     }
 

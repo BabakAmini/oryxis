@@ -662,3 +662,121 @@ async fn detect_os_returns_a_value() {
     let os = os.unwrap();
     assert!(!os.is_empty(), "detect_os returned an empty string");
 }
+
+/// `exec_capture` is what the Monitor tab's kill action (issue #96)
+/// runs on, and it is the only side-channel call that needs the exit
+/// status, the stderr AND a stdin payload. All three are checked
+/// against a real sshd, since a half-open channel or a swallowed exit
+/// status only shows up over the wire.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn exec_capture_reports_status_streams_and_feeds_stdin() {
+    let (conn, password, _container) = start_sshd(false).await;
+    let engine = engine();
+    let (session, _rx) = engine
+        .connect(&conn, Some(&password), None, 80, 24)
+        .await
+        .expect("connect");
+    let timeout = Duration::from_secs(20);
+
+    // Success: stdout only, exit 0.
+    let ok = session
+        .exec_capture("echo out", None, timeout)
+        .await
+        .expect("exec_capture");
+    assert_eq!(ok.exit_code, 0);
+    assert_eq!(ok.stdout.trim(), "out");
+    assert!(ok.stderr.is_empty());
+
+    // Failure: the streams stay separate and the real status survives
+    // (the `probe` path would have thrown both away).
+    let failed = session
+        .exec_capture("sh -c 'echo boom >&2; exit 7'", None, timeout)
+        .await
+        .expect("exec_capture");
+    assert_eq!(failed.exit_code, 7);
+    assert_eq!(failed.stderr.trim(), "boom");
+    assert!(failed.stdout.is_empty());
+
+    // The `sudo -S` mechanism: bytes must reach the command's stdin and
+    // the EOF must arrive, or a reader like sudo blocks until timeout.
+    let piped = session
+        .exec_capture("cat", Some(b"secret-on-stdin\n".to_vec()), timeout)
+        .await
+        .expect("exec_capture");
+    assert_eq!(piped.exit_code, 0);
+    assert_eq!(piped.stdout.trim(), "secret-on-stdin");
+
+    // A command that never reads stdin must still finish, rather than
+    // wedging on the unread payload.
+    let ignored = session
+        .exec_capture("echo ignored", Some(b"unread\n".to_vec()), timeout)
+        .await
+        .expect("exec_capture");
+    assert_eq!(ignored.exit_code, 0);
+    assert_eq!(ignored.stdout.trim(), "ignored");
+
+    // A command that outlives the cap reports nothing rather than
+    // hanging the caller.
+    assert!(
+        session
+            .exec_capture("sleep 5", None, Duration::from_millis(300))
+            .await
+            .is_none()
+    );
+}
+
+/// The kill pipeline's first step re-reads the host's listening
+/// sockets with the very command the monitor probe uses. This pins
+/// that the command runs on a real (BusyBox) host and names a socket
+/// the login user owns, which is what makes an unescalated kill
+/// possible at all.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn the_socket_probe_names_a_process_the_login_user_owns() {
+    let (conn, password, _container) = start_sshd(false).await;
+    let engine = engine();
+    let (session, _rx) = engine
+        .connect(&conn, Some(&password), None, 80, 24)
+        .await
+        .expect("connect");
+
+    // A listener owned by the login user, so `-p` is allowed to name
+    // it. Backgrounded with its own redirects so the exec channel
+    // doesn't wait on it.
+    let spawn = session
+        .exec_capture(
+            "sh -c 'nc -l -p 45678 >/dev/null 2>&1 & echo $!'",
+            None,
+            Duration::from_secs(20),
+        )
+        .await
+        .expect("exec_capture");
+    assert_eq!(spawn.exit_code, 0, "stderr: {}", spawn.stderr);
+    let pid: u32 = spawn.stdout.trim().parse().expect("a pid on stdout");
+
+    let sockets = session
+        .exec_capture(
+            "sh -c 'ss -tulnp 2>/dev/null || netstat -tulnp 2>/dev/null'",
+            None,
+            Duration::from_secs(20),
+        )
+        .await
+        .expect("exec_capture");
+    assert!(
+        sockets.stdout.contains("45678"),
+        "the probe should see our listener; got: {}",
+        sockets.stdout
+    );
+
+    // And the signal itself, in the exact shape `kill_command` builds.
+    let killed = session
+        .exec_capture(
+            &format!("sh -c 'kill -s TERM {pid}'"),
+            None,
+            Duration::from_secs(20),
+        )
+        .await
+        .expect("exec_capture");
+    assert_eq!(killed.exit_code, 0, "stderr: {}", killed.stderr);
+}

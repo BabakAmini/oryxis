@@ -31,6 +31,8 @@ impl Oryxis {
             OverlayContent::HostTagFilter
             | OverlayContent::SnippetTagFilter
             | OverlayContent::HistoryTagFilter => 200.0,
+            // "Forward this port locally" + translations on one line.
+            OverlayContent::MonitorPortActions(_) => 220.0,
             // "Exposed to agent" / "Remove certificate" must not wrap.
             OverlayContent::KeyActions(_) => 210.0,
             // "Check for updates" / "Remove downloaded files" +
@@ -83,6 +85,10 @@ impl Oryxis {
                 if *is_dir { 7.0 } else { 8.0 }
             }
             OverlayContent::SidebarFilesBackground { .. } => 5.0,
+            // Kill + Force kill, plus Forward on a TCP row.
+            OverlayContent::MonitorPortActions(p) => {
+                if p.proto == "tcp" { 3.0 } else { 2.0 }
+            }
             OverlayContent::HostActions(_) => 8.0,
             OverlayContent::PluginActions(_) => 3.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
@@ -281,6 +287,7 @@ impl Oryxis {
             OverlayContent::SessionLogViewerContext(selection) => {
                 self.build_menu_session_viewer_context(selection)
             }
+            OverlayContent::MonitorPortActions(port) => self.build_menu_monitor_port(port),
         };
 
         // Min-height (so a single-item menu reads as a real button-

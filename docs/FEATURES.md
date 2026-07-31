@@ -150,6 +150,14 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Listening ports with click-to-forward.** The panel lists what the
   host is listening on and turns any row into a local port forward in
   one click, honoring the listener's own bind address.
+- **Kill the process on a port.** Right-click a port row for a graceful
+  stop or a forced kill, behind a confirmation naming the port, process,
+  PID and signal. The signal goes out on an exec channel, never into
+  your shell, and Oryxis re-asks the host who owns the port first, so a
+  service that restarted while the dialog was open is reported instead
+  of signalled by mistake. Sockets whose PID the login user cannot see
+  (the usual case for root-owned services) escalate through sudo, using
+  the host's stored password only if sudo actually asks for one.
 - **Threshold alerts** when a gauge crosses a line you set, a collapsible
   disk list for hosts with many mounts, and an optional status-bar
   segment that keeps the headline numbers visible with the panel closed.

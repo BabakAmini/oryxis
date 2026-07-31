@@ -30,4 +30,24 @@ pub enum MonitorMessage {
     /// bound to a specific address only answers there, so it becomes
     /// the rule's target host instead of 127.0.0.1.
     ForwardPort(Uuid, u16, Option<String>),
+    /// Right-click (or the Menu key) on a port row: open its actions
+    /// popover. Carries the whole row so the menu and the confirmation
+    /// it opens describe exactly the socket the user pointed at,
+    /// instead of re-looking it up in a sample that may have rolled
+    /// over in between.
+    ShowPortMenu(Box<crate::monitor::model::PortStat>),
+    /// "Kill process" / "Force kill" from that menu: park the
+    /// confirmation. Nothing reaches the host until it is confirmed.
+    AskKillPort(Box<crate::monitor::model::PortStat>, crate::monitor::kill::KillSignal),
+    /// Run the parked kill.
+    ConfirmKillPort,
+    /// Re-run it escalated, offered after a failure sudo could fix.
+    RetryKillWithSudo,
+    /// Dismiss the confirmation without touching the host.
+    CancelKillPort,
+    /// A kill run came back. The `u64` is the monitor request stamp
+    /// captured at dispatch: a mismatch means the pane reconnected (or
+    /// monitoring was swept) while the run was in flight, so the result
+    /// belongs to state that no longer exists.
+    KillFinished(u64, crate::monitor::kill::KillOutcome),
 }

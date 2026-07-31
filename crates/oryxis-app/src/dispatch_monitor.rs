@@ -160,7 +160,140 @@ impl Oryxis {
                     ),
                 ))
             }
+            MonitorMessage::ShowPortMenu(port) => {
+                let (x, y) = self.keynav_take_menu_anchor();
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::MonitorPortActions(port),
+                    x,
+                    y,
+                });
+                Task::none()
+            }
+            MonitorMessage::AskKillPort(port, signal) => {
+                self.overlay = None;
+                // The menu can only be open over a monitored pane, but
+                // the lookup is redone here rather than trusted: a
+                // disconnect between the right-click and the menu click
+                // must leave the dialog unopened, not pointed at a dead
+                // session.
+                let Some(conn_id) = self.monitor_pane_connection() else {
+                    return Task::none();
+                };
+                let host = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == conn_id)
+                    .map(|c| c.label.clone())
+                    .unwrap_or_default();
+                self.monitor.kill = Some(crate::monitor::kill::PendingKill::new(
+                    conn_id, host, &port, signal,
+                ));
+                Task::none()
+            }
+            MonitorMessage::ConfirmKillPort => self.monitor_run_kill(false),
+            MonitorMessage::RetryKillWithSudo => self.monitor_run_kill(true),
+            MonitorMessage::CancelKillPort => {
+                self.monitor.kill = None;
+                Task::none()
+            }
+            MonitorMessage::KillFinished(stamp, outcome) => {
+                // Same rule as `Sampled`: a reconnect or a sweep while
+                // the run was in flight invalidates everything the
+                // result would land in.
+                if stamp != self.monitor_stamp {
+                    return Task::none();
+                }
+                let settled = outcome.is_settled();
+                let message = outcome.message();
+                if !settled
+                    && let Some(pending) = self.monitor.kill.as_mut()
+                {
+                    // Park the failure ON the dialog: "no PID even with
+                    // sudo" or "sudo refused" is something the user has
+                    // to read and possibly retry, not a toast that
+                    // scrolls away.
+                    let changed =
+                        matches!(outcome, crate::monitor::kill::KillOutcome::Changed { .. });
+                    pending.phase = crate::monitor::kill::KillPhase::Failed(outcome);
+                    // "Refresh and try again" has to be actionable: the
+                    // list still shows the PID we just refused, so pull
+                    // a fresh sample now instead of making the user wait
+                    // out a tick to see the owner that replaced it.
+                    return if changed {
+                        self.monitor_probe_active_pane()
+                    } else {
+                        Task::none()
+                    };
+                }
+                // Settled, or the user dismissed the dialog while the
+                // run was on the wire: report it and get out of the way.
+                self.monitor.kill = None;
+                let toast = self.show_toast_secs(message, 6);
+                if settled {
+                    // Refresh so the killed port leaves the list. The
+                    // in-flight guard may skip this one; the next tick
+                    // covers it either way, so no bypass is needed.
+                    Task::batch([toast, self.monitor_probe_active_pane()])
+                } else {
+                    toast
+                }
+            }
         }
+    }
+
+    /// Run (or re-run, escalated) the parked kill on the focused pane's
+    /// session. `escalate` is the "Retry with sudo" path; the initial
+    /// run inherits whatever `PendingKill::new` decided.
+    fn monitor_run_kill(&mut self, escalate: bool) -> Task<Message> {
+        let Some(pending) = self.monitor.kill.as_mut() else {
+            return Task::none();
+        };
+        // A second Enter while the first run is on the wire would put a
+        // second signal behind it.
+        if pending.phase == crate::monitor::kill::KillPhase::Running {
+            return Task::none();
+        }
+        if escalate {
+            pending.sudo = true;
+        }
+        pending.phase = crate::monitor::kill::KillPhase::Running;
+        let (conn_id, port, proto, pid, signal, sudo) = (
+            pending.conn_id,
+            pending.port,
+            pending.proto,
+            pending.pid,
+            pending.signal,
+            pending.sudo,
+        );
+
+        // The dialog blocks input, so the focused pane can't have moved
+        // under it; what CAN happen is the session dying meanwhile.
+        let Some((target_id, session)) = self.monitor_target().filter(|(id, _)| *id == conn_id)
+        else {
+            if let Some(pending) = self.monitor.kill.as_mut() {
+                pending.phase = crate::monitor::kill::KillPhase::Failed(
+                    crate::monitor::kill::KillOutcome::Unreachable,
+                );
+            }
+            return Task::none();
+        };
+        debug_assert_eq!(target_id, conn_id);
+
+        // Read the stored host password only on the escalated path, and
+        // only to hand it to the runner, which feeds it on stdin. It is
+        // never logged, never shown, and never part of a command line.
+        let password = sudo
+            .then(|| {
+                self.vault
+                    .as_ref()
+                    .and_then(|v| v.get_connection_password(&conn_id).ok().flatten())
+            })
+            .flatten();
+        let stamp = self.monitor_stamp;
+        Task::perform(
+            crate::monitor::kill::run_kill(session, port, proto, pid, signal, sudo, password),
+            move |outcome| Message::Monitor(MonitorMessage::KillFinished(stamp, outcome)),
+        )
     }
 
     /// Probe the focused pane's host, when it is monitored, connected and

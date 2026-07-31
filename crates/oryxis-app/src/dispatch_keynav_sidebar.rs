@@ -20,8 +20,11 @@
 //! command), Shift+Enter pastes without the newline, Left/Right
 //! cycle picker rows (the font-size stepper, the chat mode chips)
 //! and otherwise move the ring too (the header buttons sit side by
-//! side, owner QA), Delete removes (through the row's confirm), Esc
-//! disengages. Everything else, typing included, keeps its normal
+//! side, owner QA), Delete removes (through the row's confirm), the
+//! Menu key opens the row's context menu when it has one (anchored at
+//! the ringed row, so a row whose extra actions live in a popover is
+//! never mouse-only), Esc disengages. Everything else, typing
+//! included, keeps its normal
 //! routing, so the terminal (or a focused search field) still
 //! receives text while the ring is up; the selection is tagged by
 //! sidebar tab and clamped against each frame's recording, so
@@ -415,6 +418,33 @@ impl Oryxis {
                 self.keynav.sidebar_selected = Some((tab, next));
                 self.close_files_path_edit();
                 Some(Task::batch([blur_task(), self.sidebar_nav_scroll(next)]))
+            }
+            // Shift+F10 is the same gesture for keyboards without a
+            // dedicated Menu key, exactly as the vault router pairs them.
+            Named::ContextMenu | Named::F10
+                if *named == Named::ContextMenu || modifiers.shift() =>
+            {
+                // Keyboard half of the row's right-click. Anchored at
+                // the ringed row's own rect (reported by
+                // `sidebar_nav_slot`), never at a mouse the keyboard
+                // user hasn't touched; the modality gate is armed so
+                // the menu's default row shows its ring immediately,
+                // exactly like `keynav_open_context_menu` does for
+                // vault cards.
+                let idx = ring?;
+                let row = self.keynav.sidebar_items.borrow().get(idx).cloned()?;
+                let msg = row.menu?;
+                self.keynav.modal.kbd.set(true);
+                let rect = self.keynav.ring_bounds.get();
+                if rect.width > 0.0 {
+                    let x = if crate::i18n::is_rtl_layout() {
+                        rect.x
+                    } else {
+                        rect.x + rect.width
+                    };
+                    self.keynav.menu_anchor = Some((x, rect.y + rect.height / 2.0));
+                }
+                Some(self.update(msg))
             }
             Named::Delete => {
                 let idx = ring?;

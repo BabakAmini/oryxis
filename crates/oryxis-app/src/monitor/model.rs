@@ -110,6 +110,13 @@ pub(crate) struct PortStat {
     /// would dial a closed port.
     pub bind: Option<String>,
     pub process: Option<String>,
+    /// PID behind the socket, from the SAME `ss` / `netstat` entry the
+    /// name came from. `None` for every row whose process the login user
+    /// can't see (the normal case for root-owned services) and for the
+    /// BSD fallback, which has no PID column at all. It is what "kill
+    /// the process on this port" (issue #96) signals, so it must never
+    /// be paired with a name it didn't ship with.
+    pub pid: Option<u32>,
 }
 
 /// Counters kept between ticks so rates need only ONE read per tick: the

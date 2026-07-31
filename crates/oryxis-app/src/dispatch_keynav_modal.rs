@@ -102,7 +102,11 @@ impl Oryxis {
                     | Modal::SftpEditReopen
                     // Read-only cert viewer: Close is the default action;
                     // Remove (when present) is the other recorded row.
-                    | Modal::CertificateViewer => SurfaceFamily::Confirm,
+                    | Modal::CertificateViewer
+                    // Kill-the-process confirm (issue #96): Cancel is
+                    // the default-ringed action, so a stray Enter can
+                    // never take a remote service down.
+                    | Modal::MonitorKill => SurfaceFamily::Confirm,
                     // Rename inputs (on_submit), editors, pickers with
                     // their own model: out of this layer. That includes
                     // the theme IMPORT modals: their multiline paste

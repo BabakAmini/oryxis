@@ -1,6 +1,7 @@
 //! Root layout: main_layout. Split out of views/layout/mod.rs.
 
 use super::*;
+use crate::messages::MonitorMessage;
 use iced::widget::column;
 
 /// Widget id of the tab-rename dialog's input, focused on open (see
@@ -504,6 +505,22 @@ impl Oryxis {
                     base,
                     self.build_clear_history_dialog(),
                     Some(Message::History(HistoryMessage::CancelClearHistory)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
+        // "Kill the process on this port" confirmation (issue #96):
+        // remote, irreversible and able to take down a live service, so
+        // it blocks input and nothing reaches the host until it is
+        // confirmed. Backdrop = Cancel.
+        if let Some(pending) = &self.monitor.kill {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.build_monitor_kill_dialog(pending),
+                    Some(Message::Monitor(MonitorMessage::CancelKillPort)),
                     0.0,
                 ),
                 resize_overlay,

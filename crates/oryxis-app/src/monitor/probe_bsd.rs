@@ -191,7 +191,9 @@ pub(crate) fn parse_netstat_an(text: &str) -> Vec<PortStat> {
             }
             continue;
         }
-        out.push(PortStat { port, proto, bind, process: None });
+        // No name and therefore no PID: pairing a kill target with a
+        // process this parser never identified would be a guess.
+        out.push(PortStat { port, proto, bind, process: None, pid: None });
     }
     out.sort_by_key(|p| (p.port, p.proto));
     out
@@ -311,6 +313,9 @@ mod tests {
         // `*.*`) is an in-flight query, not a forwardable port.
         assert_eq!(got, vec![(22, "tcp"), (68, "udp"), (8080, "tcp")]);
         assert!(ports.iter().all(|p| p.process.is_none()));
+        // No PID column on this path either, so the kill action has no
+        // target here and says so rather than guessing (issue #96).
+        assert!(ports.iter().all(|p| p.pid.is_none()));
         // Wildcard rows carry no bind; the interface-bound listener
         // keeps its address for the forward target.
         let binds: Vec<Option<&str>> = ports.iter().map(|p| p.bind.as_deref()).collect();

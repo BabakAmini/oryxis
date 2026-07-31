@@ -171,16 +171,25 @@ impl Oryxis {
                             p.bind.clone(),
                         ))
                     });
-                    let row = port_row(p, forward.clone());
-                    body = body.push(match forward {
-                        Some(msg) => self.sidebar_nav_slot(
-                            crate::keynav::SidebarRow::button(msg),
-                            TerminalSidebarTab::Monitor,
-                            6.0,
-                            row,
-                        ),
-                        None => row,
-                    });
+                    // Every row carries a menu (issue #96): killing the
+                    // process is proto-agnostic, so UDP rows became
+                    // actionable too and join the keyboard walk, where
+                    // before only forwardable TCP rows were recorded.
+                    let menu = Message::Monitor(MonitorMessage::ShowPortMenu(Box::new(p.clone())));
+                    let row = port_row(p, forward.clone(), menu.clone());
+                    // Enter keeps doing what a left click does (forward
+                    // a TCP port); rows with no primary action activate
+                    // their menu instead of being a dead stop.
+                    let nav = crate::keynav::SidebarRow::button(
+                        forward.unwrap_or_else(|| menu.clone()),
+                    )
+                    .with_menu(menu);
+                    body = body.push(self.sidebar_nav_slot(
+                        nav,
+                        TerminalSidebarTab::Monitor,
+                        6.0,
+                        row,
+                    ));
                 }
             }
         }
@@ -323,9 +332,13 @@ fn disks_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
 
 /// One listening socket: `port/proto`, the process name when the host
 /// let us see it, and (TCP only) a click that prefills a local forward.
+/// Right-click always opens the row's actions popover (forward, kill,
+/// force kill), so a UDP row is a real target too even though it has no
+/// primary click.
 fn port_row<'a>(
     port: &'a crate::monitor::model::PortStat,
     forward: Option<Message>,
+    menu: Message,
 ) -> Element<'a, Message> {
     let name = port.process.clone().unwrap_or_else(|| "-".to_string());
     // A specific bind is shown next to the process: it tells the user
@@ -359,29 +372,45 @@ fn port_row<'a>(
     ])
     .align_y(iced::Alignment::Center);
 
-    let Some(msg) = forward else {
-        return iced::widget::container(content)
-            .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 })
+    let padding = Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 };
+    // A UDP row has no primary click, but it still owns a menu, so it
+    // renders as a button too: without one it would be the only row in
+    // the tab with no hover feedback, which reads as disabled.
+    let body: Element<'a, Message> = match forward {
+        Some(msg) => {
+            let btn = iced::widget::button(content)
+                .on_press(msg)
+                .padding(padding)
+                .width(Length::Fill)
+                .style(port_row_style);
+            crate::views::terminal::icon_tooltip(btn.into(), t("monitor_forward_port"))
+        }
+        None => iced::widget::button(content)
+            .on_press(menu.clone())
+            .padding(padding)
             .width(Length::Fill)
-            .into();
+            .style(port_row_style)
+            .into(),
     };
-    let btn = iced::widget::button(content)
-        .on_press(msg)
-        .padding(Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 })
-        .width(Length::Fill)
-        .style(|_, status| {
-            let bg = match status {
-                iced::widget::button::Status::Hovered
-                | iced::widget::button::Status::Pressed => OryxisColors::t().bg_hover,
-                _ => iced::Color::TRANSPARENT,
-            };
-            iced::widget::button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(6.0), ..Default::default() },
-                ..Default::default()
-            }
-        });
-    crate::views::terminal::icon_tooltip(btn.into(), t("monitor_forward_port"))
+    iced::widget::MouseArea::new(body).on_right_press(menu).into()
+}
+
+/// Shared hover/press feedback for a port row.
+fn port_row_style(
+    _: &iced::Theme,
+    status: iced::widget::button::Status,
+) -> iced::widget::button::Style {
+    let bg = match status {
+        iced::widget::button::Status::Hovered | iced::widget::button::Status::Pressed => {
+            OryxisColors::t().bg_hover
+        }
+        _ => iced::Color::TRANSPARENT,
+    };
+    iced::widget::button::Style {
+        background: Some(Background::Color(bg)),
+        border: Border { radius: Radius::from(6.0), ..Default::default() },
+        ..Default::default()
+    }
 }
 
 fn placeholder(label: &str) -> Element<'_, Message> {
