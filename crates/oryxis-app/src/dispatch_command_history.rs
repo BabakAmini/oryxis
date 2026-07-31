@@ -147,6 +147,11 @@ impl Oryxis {
     /// injections the sidebar itself fires (row Paste / Run actions).
     pub(crate) fn write_ring_injection_to_tab(&mut self, tab_idx: usize, bytes: &[u8]) {
         let mut active_received = false;
+        // Scroll-on-input (issue #111): the pane that receives the bytes
+        // jumps back to the live edge, so what the user types is on screen
+        // instead of hidden below a scrolled-up viewport. Read before the
+        // mutable borrow of `self.tabs`.
+        let snap = self.setting_scrollback_reset_keypress;
         if let Some(tab) = self.tabs.get_mut(tab_idx) {
             // Hybrid tab showing its Files (SFTP) surface: the terminal
             // is hidden and the keyboard belongs to the SFTP view (its
@@ -164,7 +169,7 @@ impl Oryxis {
             active_received = targets.contains(&tab.active().id);
             for pane in tab.pane_grid.panes.values_mut() {
                 if targets.contains(&pane.id) {
-                    Self::write_bytes_to_pane(pane, bytes);
+                    Self::write_bytes_to_pane(pane, bytes, snap);
                 }
             }
         }
@@ -185,11 +190,53 @@ impl Oryxis {
     /// Telnet / Serial) when connected, otherwise the local PTY. Errors are
     /// swallowed the same way the single-pane path always has (a disconnected
     /// pane shows its own dead state).
-    fn write_bytes_to_pane(pane: &mut crate::state::Pane, bytes: &[u8]) {
+    ///
+    /// `snap_to_bottom` queues the widget's scroll-back reset (issue #111,
+    /// the `scrollback_reset_keypress` setting): the next draw consumes
+    /// `pending_scroll` and paints the live edge. Queuing it here, on the
+    /// byte funnel, is what keeps it honest: it fires for exactly the input
+    /// the PTY receives (keys, paste, snippet Run / Paste, every broadcast
+    /// target) and never for typing that belongs to another surface, such as
+    /// the sidebar's chat or search inputs.
+    fn write_bytes_to_pane(pane: &mut crate::state::Pane, bytes: &[u8], snap_to_bottom: bool) {
         if let Some(ref session) = pane.session {
             let _ = session.write(bytes);
+            if snap_to_bottom
+                && let Ok(state) = pane.terminal.lock()
+            {
+                state.pending_scroll.set(Some(0));
+            }
         } else if let Ok(mut state) = pane.terminal.lock() {
             state.write(bytes);
+            if snap_to_bottom {
+                state.pending_scroll.set(Some(0));
+            }
+        }
+    }
+
+    /// Queue the active pane of `tab_idx`'s jump back to the live edge,
+    /// honoring the `scrollback_reset_keypress` setting. For the
+    /// user-initiated writes that bypass [`Self::write_input_to_tab`] on
+    /// purpose: the sudo-password autofill (keeps a secret out of the
+    /// capture mirror) and the AI chat's command execution (needs the
+    /// write's success). The funnel itself has the snap built in, so it
+    /// never calls this.
+    ///
+    /// Unlike a keystroke, neither caller is guaranteed to be looking at
+    /// that tab (the AI's write lands whenever the model answers, the tab
+    /// may have moved on or switched to its Files surface), and yanking a
+    /// background pane's viewport out from under a reader is exactly the
+    /// bug this whole path exists to avoid. So the snap is gated on the tab
+    /// being the visible terminal.
+    pub(crate) fn snap_tab_to_live_edge(&self, tab_idx: usize) {
+        if !self.setting_scrollback_reset_keypress || self.active_tab != Some(tab_idx) {
+            return;
+        }
+        if let Some(tab) = self.tabs.get(tab_idx)
+            && !tab.files_mode
+            && let Ok(state) = tab.active().terminal.lock()
+        {
+            state.pending_scroll.set(Some(0));
         }
     }
 
@@ -468,5 +515,35 @@ mod tests {
         assert!(!body.contains("wJalrXUtnFEMI"), "secret leaked into export: {body}");
         assert!(body.contains("AWS_SECRET_ACCESS_KEY"), "key name should survive");
         assert!(body.contains("[REDACTED]"));
+    }
+
+    /// A pane with no live session still writes into its local terminal
+    /// state, which is all this test needs: the assertion is about the
+    /// queued scroll, not the transport.
+    fn test_pane() -> crate::state::Pane {
+        let term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        crate::state::Pane::new("test".into(), std::sync::Arc::new(std::sync::Mutex::new(term)))
+    }
+
+    /// Issue #111: input sent to the PTY queues the jump back to the live
+    /// edge, so a user typing into a scrolled-up viewport sees what they
+    /// type. The draw consumes `pending_scroll`; queuing 0 is the whole
+    /// contract on this side.
+    #[test]
+    fn input_queues_the_live_edge_snap() {
+        let mut pane = test_pane();
+        Oryxis::write_bytes_to_pane(&mut pane, b"ls\n", true);
+        let queued = pane.terminal.lock().unwrap().pending_scroll.get();
+        assert_eq!(queued, Some(0), "input must queue a scroll back to the live edge");
+    }
+
+    /// With the setting off (PuTTY's own default), the viewport stays where
+    /// the user parked it.
+    #[test]
+    fn input_leaves_the_scroll_alone_when_disabled() {
+        let mut pane = test_pane();
+        Oryxis::write_bytes_to_pane(&mut pane, b"ls\n", false);
+        let queued = pane.terminal.lock().unwrap().pending_scroll.get();
+        assert_eq!(queued, None, "the snap must stay opt-out-able");
     }
 }

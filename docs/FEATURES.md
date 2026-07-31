@@ -131,8 +131,10 @@ coming next, see the [Roadmap](../README.md#roadmap).
   override (off / left / right / both) for readline and emacs users.
 - **System mono font enumeration**, configurable font size (10-24px,
   `Ctrl + = / - / 0`), bold-to-bright colors, scrollback reset on keypress
-  and/or output, and an opt-in performance HUD (frame time vs budget, RTT
-  and jitter on the SSH connection).
+  (on by default: typing jumps back to the live edge, so a scrolled-up
+  viewport never hides what you type) and/or on output, and an opt-in
+  performance HUD (frame time vs budget, RTT and jitter on the SSH
+  connection).
 
 ## Host monitoring
 

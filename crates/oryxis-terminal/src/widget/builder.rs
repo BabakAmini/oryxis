@@ -14,7 +14,6 @@ impl<Message> TerminalView<Message> {
             right_click_copy: false,
             middle_click_paste: true,
             right_click_action: RightClickAction::default(),
-            reset_scroll_on_keypress: false,
             reset_scroll_on_output: false,
             bold_is_bright: true,
             keyword_highlight: true,
@@ -100,13 +99,6 @@ impl<Message> TerminalView<Message> {
     /// Set the right-click scheme (Menu / Paste / Extend).
     pub fn with_right_click_action(mut self, action: RightClickAction) -> Self {
         self.right_click_action = action;
-        self
-    }
-
-    /// PuTTY "reset scrollback on keypress": jump to the live edge when
-    /// a key is sent to the terminal.
-    pub fn with_reset_scroll_on_keypress(mut self, on: bool) -> Self {
-        self.reset_scroll_on_keypress = on;
         self
     }
 

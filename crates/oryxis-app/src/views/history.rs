@@ -536,13 +536,13 @@ impl Oryxis {
                 .with_right_click_copy(self.setting_right_click_copy)
                 .with_right_click_action(self.setting_terminal_right_click.to_widget())
                 .with_terminal_chords(self.terminal_chord_resolver())
-                // A recording has no live edge to snap back to, so a stray
-                // keypress must not jump the reader out of the scrollback,
-                // and the "reset on output" snap must not fight the
-                // open-at-top scroll (the whole recording was fed before
-                // the first draw, so its epoch bump would otherwise pull
-                // the view to the bottom).
-                .with_reset_scroll_on_keypress(false)
+                // A recording has no live edge to snap back to, and the
+                // "reset on output" snap must not fight the open-at-top
+                // scroll (the whole recording was fed before the first draw,
+                // so its epoch bump would otherwise pull the view to the
+                // bottom). The keypress half needs no opt-out here: the
+                // player never writes to a PTY, which is where the app
+                // queues that snap (issue #111).
                 .with_reset_scroll_on_output(false)
                 .with_bold_is_bright(self.setting_bold_is_bright)
                 .with_keyword_highlight(self.setting_keyword_highlight)

@@ -1183,6 +1183,11 @@ impl Oryxis {
                     // mirror them into the history capture like any other
                     // input (the direct write above preserves `write_ok`).
                     self.feed_input_capture(idx, &bytes);
+                    // Their output belongs on screen too, so leave the
+                    // scrollback the way typed input does (issue #111),
+                    // gated on the tab still being the visible one (see
+                    // `snap_tab_to_live_edge`).
+                    self.snap_tab_to_live_edge(idx);
                 }
 
                 let tab = &mut self.tabs[idx];

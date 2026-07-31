@@ -365,6 +365,9 @@ impl Oryxis {
                             state.write(data.as_bytes());
                         }
                     }
+                    // The answer belongs to a prompt at the live edge: show
+                    // it, the same as any typed input (issue #111).
+                    self.snap_tab_to_live_edge(tab_idx);
                     Some("sudo_password_sent")
                 })()
                 .unwrap_or("no_stored_password");

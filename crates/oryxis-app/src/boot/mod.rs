@@ -543,7 +543,7 @@ impl Oryxis {
                 setting_right_click_copy: false,
                 setting_middle_click_paste: true,
                 setting_terminal_right_click: crate::util::RightClickMode::default(),
-                setting_scrollback_reset_keypress: false,
+                setting_scrollback_reset_keypress: true,
                 setting_scrollback_reset_output: false,
                 setting_bold_is_bright: true,
                 setting_keyword_highlight: true,

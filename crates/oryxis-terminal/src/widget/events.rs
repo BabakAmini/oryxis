@@ -1305,16 +1305,23 @@ where
             // xterm / iTerm where typing or navigating clears the highlight
             // (otherwise a stale selection lingers as a tinted band, e.g.
             // over a full-screen TUI like mc that took over the screen after
-            // the selection was made), and, when enabled, jumps back to the
-            // live edge (PuTTY's "reset scrollback on keypress"). The
-            // keystroke is NOT captured: it must still reach the PTY through
-            // the global key subscription (an independent path), so we only
-            // drop the selection / reset the scroll and redraw. Bare modifier
-            // presses (Ctrl / Shift / Alt / Super) must NOT trigger either,
-            // otherwise the first key of a copy chord (Ctrl, then Shift+C)
-            // wipes the selection before the copy fires. The copy / select-
-            // all chords are handled by earlier arms that return first, so a
-            // copy is never treated as a terminal keystroke here.
+            // the selection was made). The keystroke is NOT captured: it must
+            // still reach the PTY through the global key subscription (an
+            // independent path), so we only drop the selection and redraw.
+            // Bare modifier presses (Ctrl / Shift / Alt / Super) must NOT
+            // trigger it, otherwise the first key of a copy chord (Ctrl, then
+            // Shift+C) wipes the selection before the copy fires. The copy /
+            // select-all chords are handled by earlier arms that return
+            // first, so a copy is never treated as a terminal keystroke here.
+            //
+            // Scroll-on-input (PuTTY's "reset scrollback on keypress")
+            // deliberately does NOT live here: a canvas program is handed
+            // every key event even while a sibling `text_input` owns the
+            // focus (`Canvas::update` calls the program unconditionally), so
+            // typing in the sidebar's chat or search box would yank the
+            // terminal to the live edge under the reader. The host queues it
+            // on its own input funnel instead, where it follows the bytes the
+            // PTY actually receives (issue #111).
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, .. })
                 if self.focused
                     && !matches!(
@@ -1329,16 +1336,11 @@ where
                         )
                     )
                     && (widget_state.selection.is_some()
-                        || widget_state.select_anchor.is_some()
-                        || (self.reset_scroll_on_keypress
-                            && widget_state.scroll_offset.get() != 0)) =>
+                        || widget_state.select_anchor.is_some()) =>
             {
                 widget_state.selection = None;
                 widget_state.select_anchor = None;
                 widget_state.selecting = false;
-                if self.reset_scroll_on_keypress {
-                    widget_state.scroll_offset.set(0);
-                }
                 return Some(CanvasAction::request_redraw());
             }
             _ => {}

@@ -409,7 +409,8 @@ impl Oryxis {
             .with_middle_click_paste(self.setting_middle_click_paste)
             .with_terminal_chords(self.terminal_chord_resolver())
             .with_right_click_action(self.setting_terminal_right_click.to_widget())
-            .with_reset_scroll_on_keypress(self.setting_scrollback_reset_keypress)
+            // The keypress half of the pair is queued on the input funnel
+            // (`write_bytes_to_pane`), not here: see issue #111.
             .with_reset_scroll_on_output(self.setting_scrollback_reset_output)
             .with_bold_is_bright(self.setting_bold_is_bright)
             .with_keyword_highlight(self.setting_keyword_highlight)

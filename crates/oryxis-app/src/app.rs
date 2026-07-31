@@ -1048,9 +1048,14 @@ pub struct Oryxis {
     /// Paste (the prior behavior). `setting_right_click_copy` applies
     /// only under Paste.
     pub(crate) setting_terminal_right_click: crate::util::RightClickMode,
-    /// Jump the terminal back to the live edge when a key is pressed
+    /// Jump the terminal back to the live edge when input reaches the PTY
     /// (PuTTY's "reset scrollback on keypress"). Persisted as
-    /// `scrollback_reset_keypress`; default off.
+    /// `scrollback_reset_keypress`; default ON, matching every modern
+    /// terminal (VTE's scroll-on-keystroke, Windows Terminal's
+    /// `snapOnInput`, iTerm2, kitty): typing into a scrolled-up viewport
+    /// must show what is being typed (issue #111). Applied in
+    /// `write_bytes_to_pane`, the input funnel, not in the widget's key
+    /// handler, so it follows the bytes the PTY actually receives.
     pub(crate) setting_scrollback_reset_keypress: bool,
     /// Jump the terminal back to the live edge on new output (PuTTY's
     /// "reset scrollback on display activity"). Persisted as

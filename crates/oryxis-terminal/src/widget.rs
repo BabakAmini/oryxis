@@ -420,9 +420,6 @@ pub struct TerminalView<Message = ()> {
     /// What a right-click does (PuTTY's three schemes). The single
     /// authority for the gesture; see [`RightClickAction`].
     right_click_action: RightClickAction,
-    /// Jump back to the live edge when the user presses a key that goes
-    /// to the terminal (PuTTY's "reset scrollback on keypress").
-    reset_scroll_on_keypress: bool,
     /// Jump back to the live edge on new terminal output (PuTTY's "reset
     /// scrollback on display activity").
     reset_scroll_on_output: bool,
