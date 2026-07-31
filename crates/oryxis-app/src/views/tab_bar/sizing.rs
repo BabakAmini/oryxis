@@ -119,6 +119,28 @@ impl InactiveTabStyle {
             _ => Self::None,
         }
     }
+
+    /// Tint for this style's separation cue, mixed from the strip
+    /// surface toward the theme's secondary text so it lands at a
+    /// readable distance from the bar on dark AND light themes.
+    /// `ThemeColors::border` (the first cut) is tuned for panel edges
+    /// over `bg_surface`; over the darker `bg_sidebar` it measured
+    /// within 10/255 of the strip and the cue read as a smudge.
+    ///
+    /// The rule is a 2 px hairline and the outline traces the whole
+    /// chip, so the outline sits lower on the same scale: matching
+    /// their tints would make the Border style shout.
+    pub(crate) fn cue_color(self) -> Color {
+        let strength = match self {
+            Self::Underline => 0.50,
+            _ => 0.30,
+        };
+        crate::theme::mix(
+            OryxisColors::t().bg_sidebar,
+            OryxisColors::t().text_secondary,
+            strength,
+        )
+    }
 }
 
 /// Process-wide inactive-tab-style gate, same shape + rationale as
@@ -253,15 +275,23 @@ pub(crate) fn active_tab_bg(accent: Color, solid_fill: bool) -> Background {
     }
     let hi = Color { a: 0.28, ..accent };
     let lo = Color { a: 0.04, ..accent };
-    // The saturated edge always hugs the window edge the strip docks
-    // against ("lit from the frame"), fading toward the content: top
-    // strip lights from above, bottom from below, and the side-docked
-    // vertical strips light from their outer edge.
+    // The wash always runs along the chip's SHORT axis (vertically),
+    // "lit from above" like every other chip in the app. A chip is
+    // ~36 px tall and up to 200 px wide, so a wash along the long axis
+    // spends most of the chip at the fade-out alpha and the fill stops
+    // reading as a fill: on the side docks the right half of the active
+    // tab measured within 6/255 of the bare strip surface. Only the
+    // bottom strip flips the stops, so the saturated edge still hugs
+    // the window frame there. The side docks deliberately do NOT light
+    // from their outer edge (their chips are list rows, the same reason
+    // `inactive_edge_line` keeps its rule horizontal), and the pinned
+    // chips the side docks park in the slim top bar get the top strip's
+    // gradient for free instead of a sideways wash on a horizontal bar.
     let (angle, start, end) = match tab_bar_pos() {
-        TabBarPos::Top => (std::f32::consts::PI, hi, lo),
         TabBarPos::Bottom => (std::f32::consts::PI, lo, hi),
-        TabBarPos::Left => (std::f32::consts::FRAC_PI_2, hi, lo),
-        TabBarPos::Right => (std::f32::consts::FRAC_PI_2, lo, hi),
+        TabBarPos::Top | TabBarPos::Left | TabBarPos::Right => {
+            (std::f32::consts::PI, hi, lo)
+        }
     };
     Background::Gradient(iced::Gradient::Linear(
         iced::gradient::Linear::new(iced::Radians(angle))
@@ -313,6 +343,35 @@ mod tests {
             false
         ));
         assert!(!cursor_in_tab_strip_band(p, Point::new(800.0, 600.0), WIN, false));
+    }
+
+    #[test]
+    fn every_dock_lights_the_active_chip_along_its_short_axis() {
+        // The wash must stay vertical in EVERY dock (issue #87): the
+        // side docks' 200 px wide chips spent most of their width at
+        // the fade-out alpha under the old sideways gradient, and the
+        // pinned chips a side dock parks in the slim top bar carried
+        // that sideways wash onto a horizontal bar. Only the stop
+        // order flips, so the bottom strip still lights from its frame.
+        let saved = tab_bar_pos();
+        for (pos, hi_first) in [
+            (TabBarPos::Top, true),
+            (TabBarPos::Bottom, false),
+            (TabBarPos::Left, true),
+            (TabBarPos::Right, true),
+        ] {
+            set_tab_bar_pos(pos);
+            let Background::Gradient(iced::Gradient::Linear(g)) =
+                active_tab_bg(Color::WHITE, false)
+            else {
+                panic!("{pos:?}: expected a gradient fill");
+            };
+            assert_eq!(g.angle, iced::Radians(std::f32::consts::PI), "{pos:?}");
+            let first = g.stops[0].expect("first stop").color.a;
+            let last = g.stops[1].expect("second stop").color.a;
+            assert_eq!(first > last, hi_first, "{pos:?}: stop order");
+        }
+        set_tab_bar_pos(saved);
     }
 
     #[test]

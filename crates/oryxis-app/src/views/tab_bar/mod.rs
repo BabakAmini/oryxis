@@ -18,6 +18,15 @@ pub(crate) use crate::state::View;
 pub(crate) use crate::theme::{OryxisColors, SYSTEM_UI_SEMIBOLD};
 
 pub(crate) const TAB_HEIGHT: f32 = 26.0;
+/// Height a tab chip actually RENDERS at: the `TAB_HEIGHT` content box
+/// plus the button's default 5 px top/bottom padding. Anything that
+/// wraps a chip (the `Stack` overlays for the progress border and the
+/// underline rule) or measures a strip row (the vertical strip's row
+/// pitch, its overflow math) must use this, not `TAB_HEIGHT`: a `Stack`
+/// sized to the content box squeezes the button back down to 26 px, so
+/// the chip silently loses its padding and every row-height estimate
+/// drifts by 10 px.
+pub(crate) const TAB_ROW_HEIGHT: f32 = TAB_HEIGHT + 10.0;
 pub(crate) const TAB_ICON_SLOT: f32 = 16.0;
 /// Diameter of the split pane-count pill ("2" on a grouped tab). A fixed
 /// square so a single digit renders as a true circle rather than an oval.
@@ -746,7 +755,7 @@ impl Oryxis {
         // like the horizontal math below, approximate is fine, the
         // scrollable clamps.
         if tab_bar_pos().is_side() {
-            let row_pitch = TAB_HEIGHT + 10.0 + TAB_SPACING;
+            let row_pitch = TAB_ROW_HEIGHT + TAB_SPACING;
             // With `pinned_tabs_top_bar` the pinned entries live with
             // the chrome, outside the scrollable, so they don't count
             // toward the offset. Compact pinned chips otherwise pack

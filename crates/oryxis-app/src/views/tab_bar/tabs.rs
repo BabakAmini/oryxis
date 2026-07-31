@@ -43,7 +43,7 @@ pub(crate) fn area_tab<'a>(
     // 5px top/bottom padding) so the frame echoes the square glyph
     // instead of stretching wide. Zero padding so the square is exact.
     let btn: Element<'a, Message> = if label.is_empty() {
-        const SQUARE: f32 = TAB_HEIGHT + 10.0;
+        const SQUARE: f32 = TAB_ROW_HEIGHT;
         button(
             container(glyph.size(16).color(fg))
                 .center_x(Length::Fixed(SQUARE))
@@ -273,8 +273,13 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
 }
 
 /// The `Underline` inactive-tab-style overlay (issue #87): a 2px
-/// neutral rule pinned to the chip's edge, sized to the button box so
-/// the Stack overlay aligns exactly and never reserves layout space.
+/// neutral rule pinned to the chip's edge, sized to the button's
+/// RENDERED box (`TAB_ROW_HEIGHT`, padding included) so the Stack
+/// overlay aligns exactly and never reserves layout space. Sizing it to
+/// `TAB_HEIGHT` instead squeezed the button back to its content box, so
+/// an underlined chip lost its 10 px of vertical padding and the rule
+/// landed right under the label instead of on the chip's edge, where
+/// the `Border` style draws its own bottom edge.
 ///
 /// Horizontal strips put the rule on the inner, content-facing edge
 /// (bottom on a top strip, top on a bottom strip). The vertical docks
@@ -299,7 +304,7 @@ fn inactive_edge_line<'a>(width: f32, color: Color) -> Element<'a, Message> {
     let frame = |el: Element<'a, Message>| -> Element<'a, Message> {
         container(el)
             .width(Length::Fixed(width))
-            .height(Length::Fixed(TAB_HEIGHT))
+            .height(Length::Fixed(TAB_ROW_HEIGHT))
             .into()
     };
     match tab_bar_pos() {
@@ -624,7 +629,11 @@ pub(crate) fn session_tab<'a>(
         let border = if pinned {
             Border { radius: Radius::from(6.0), color: effective_accent, width: 1.5 }
         } else if inactive_border {
-            Border { radius: Radius::from(6.0), color: OryxisColors::t().border, width: 1.0 }
+            Border {
+                radius: Radius::from(6.0),
+                color: crate::views::tab_bar::InactiveTabStyle::Border.cue_color(),
+                width: 1.0,
+            }
         } else {
             Border { radius: Radius::from(6.0), ..Default::default() }
         };
@@ -650,10 +659,10 @@ pub(crate) fn session_tab<'a>(
                 color,
             })
             .width(Length::Fixed(width))
-            .height(Length::Fixed(TAB_HEIGHT));
+            .height(Length::Fixed(TAB_ROW_HEIGHT));
             iced::widget::Stack::new()
                 .width(Length::Fixed(width))
-                .height(Length::Fixed(TAB_HEIGHT))
+                .height(Length::Fixed(TAB_ROW_HEIGHT))
                 .push(tab_btn)
                 .push(bar)
                 .into()
@@ -669,9 +678,9 @@ pub(crate) fn session_tab<'a>(
         if inactive_style == crate::views::tab_bar::InactiveTabStyle::Underline {
             iced::widget::Stack::new()
                 .width(Length::Fixed(width))
-                .height(Length::Fixed(TAB_HEIGHT))
+                .height(Length::Fixed(TAB_ROW_HEIGHT))
                 .push(tab_el)
-                .push(inactive_edge_line(width, OryxisColors::t().border))
+                .push(inactive_edge_line(width, inactive_style.cue_color()))
                 .into()
         } else {
             tab_el

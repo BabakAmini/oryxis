@@ -24,9 +24,9 @@ pub(crate) const SIDE_STRIP_WIDTH: f32 = 216.0;
 /// Uniform row width of every tab chip inside the strip (the strip
 /// minus its 8px side gutters).
 pub(crate) const SIDE_TAB_WIDTH: f32 = SIDE_STRIP_WIDTH - 16.0;
-/// Rendered height of one strip row: the chip's TAB_HEIGHT content box
-/// plus the button's default 5px top/bottom paddings.
-const SIDE_ROW_HEIGHT: f32 = TAB_HEIGHT + 10.0;
+/// Rendered height of one strip row: a chip renders at `TAB_ROW_HEIGHT`
+/// (content box + the button's default 5px top/bottom paddings).
+const SIDE_ROW_HEIGHT: f32 = TAB_ROW_HEIGHT;
 /// Compact window-chrome cell used by the strip header when the top
 /// bar is hidden (the standard 46px cells would eat half the strip).
 const HEADER_CHROME_W: f32 = 28.0;
