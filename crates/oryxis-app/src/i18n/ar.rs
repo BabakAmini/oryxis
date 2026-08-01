@@ -1258,6 +1258,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "download_n_items" => "تنزيل {n} عنصر",
         "relay_to_remote" => "نقل إلى {host}",
         "move_to_remote" => "نقل إلى {host}",
+        "sftp_move_same_directory" => "العنصر موجود بالفعل في ذلك المجلد",
         "sftp_relay_into_itself" => "لا يمكن نسخ مجلد داخل نفسه",
         "sftp_move_verify_failed" => "تعذر تأكيد وصول النسخة، لذلك لم يُحذف أي شيء",
         "sftp_move_size_mismatch" => "حجم النسخة لا يطابق المتوقع، لذلك لم يُحذف أي شيء",

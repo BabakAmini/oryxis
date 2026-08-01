@@ -12,8 +12,9 @@ use iced::Task;
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
     apply_overwrite_for_item, build_client_pool, do_download_item, do_local_duplicate_item,
-    do_relay_item, do_upload_item, parent_path, relay_target_is_inside_source, remote_cp,
-    remote_join, remove_moved_sources, transfer_item_label, unique_name_in_local_dir,
+    destinations_are_one_directory, do_relay_item, do_upload_item, parent_path,
+    relay_target_is_inside_source, remote_cp, remote_join, remove_moved_sources,
+    transfer_item_label, unique_name_in_local_dir,
     unique_name_in_remote_dir, walk_local_for_duplicate, walk_local_for_upload,
     walk_remote_for_download, walk_remote_for_relay, UploadOutcome, UploadStepOutcome,
 };
@@ -1207,24 +1208,63 @@ impl Oryxis {
             .upload_dest_override
             .take()
             .unwrap_or_else(|| self.sftp.pane(dest_side).remote_path.clone());
-        Task::perform(
+        // A move within one SSH session is a rename: instant, atomic, and
+        // it keeps ownership, permissions and timestamps that a copy plus
+        // delete would rebuild. Known synchronously, so the task can be
+        // shaped for it: the rename path finishes without a queue, and
+        // both panes need refreshing when it does.
+        let try_rename = move_source && src_client.shares_session_with(&dst_client);
+        let src_refresh = self.sftp.pane(from).remote_path.clone();
+        let dst_refresh = self.sftp.pane(dest_side).remote_path.clone();
+        let build = Task::perform(
             async move {
                 let basename = src_path
                     .rsplit('/')
                     .find(|s| !s.is_empty())
                     .unwrap_or(&src_path)
                     .to_string();
-                // Pick a non-colliding name on the destination so a relay
-                // never silently clobbers an existing file with the same
-                // name. This is also what keeps a same-directory relay
-                // from naming its own source (issue #115).
+                if move_source && same_host {
+                    // Moving into the folder the item already sits in is a
+                    // no-op, and the unique-name step below would quietly
+                    // turn it into a RENAME instead: the name is taken by
+                    // the source itself, so the copy lands beside it as
+                    // "x (1)" and the original is then removed. Refuse,
+                    // rather than silently renaming someone's file
+                    // (issue #115).
+                    if destinations_are_one_directory(
+                        &src_client,
+                        &parent_path(&src_path),
+                        &dst_client,
+                        &dest_dir,
+                    )
+                    .await
+                    {
+                        return Err(crate::i18n::t("sftp_move_same_directory").to_string());
+                    }
+                }
+                // Pick a non-colliding name on the destination so a
+                // transfer never silently clobbers an existing file with
+                // the same name.
                 let unique = unique_name_in_remote_dir(&dst_client, &dest_dir, &basename).await?;
                 let target = remote_join(&dest_dir, &unique);
+                if same_host && relay_target_is_inside_source(&src_path, &target) {
+                    return Err(crate::i18n::t("sftp_relay_into_itself").to_string());
+                }
+                if try_rename {
+                    // Falls through to copy plus delete on failure, which
+                    // is what a cross-filesystem move on one host needs
+                    // (`/home` and `/mnt/data` are one session but two
+                    // devices, and rename cannot span them).
+                    match src_client.rename(&src_path, &target).await {
+                        Ok(()) => return Ok(None),
+                        Err(e) => tracing::debug!(
+                            "move: rename {src_path} -> {target} failed, \
+                             falling back to copy and delete: {e}"
+                        ),
+                    }
+                }
                 let mut queue = std::collections::VecDeque::new();
                 if is_dir {
-                    if same_host && relay_target_is_inside_source(&src_path, &target) {
-                        return Err(crate::i18n::t("sftp_relay_into_itself").to_string());
-                    }
                     queue.push_back(crate::state::TransferItem {
                         src: src_path.clone(),
                         dst: target.clone(),
@@ -1254,7 +1294,7 @@ impl Oryxis {
                     Some(dest_side),
                     1,
                 );
-                Ok::<crate::state::TransferState, String>(if move_source {
+                Ok::<Option<crate::state::TransferState>, String>(Some(if move_source {
                     // The removal list is the queue itself: same paths,
                     // same walk, so it cannot describe anything that was
                     // not copied.
@@ -1263,12 +1303,25 @@ impl Oryxis {
                     state.moving(sources)
                 } else {
                     state
-                })
+                }))
             },
             move |result| match result {
-                Ok(state) => Message::Sftp(SftpMessage::SftpTransferQueueReady(owner, state)),
+                Ok(Some(state)) => Message::Sftp(SftpMessage::SftpTransferQueueReady(owner, state)),
+                // Renamed: no queue ever existed, so the source pane is
+                // refreshed here and the destination by the chain below.
+                Ok(None) => {
+                    Message::Sftp(SftpMessage::SftpNavigateRemote(from, src_refresh.clone()))
+                }
                 Err(e) => Message::Sftp(SftpMessage::SftpOpResult(from, e, true)),
             },
-        )
+        );
+        if try_rename {
+            build.chain(Task::done(Message::Sftp(SftpMessage::SftpNavigateRemote(
+                dest_side,
+                dst_refresh,
+            ))))
+        } else {
+            build
+        }
     }
 }

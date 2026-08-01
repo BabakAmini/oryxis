@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Buka di Finder",
         "relay_to_remote" => "Relai ke {host}",
         "move_to_remote" => "Pindahkan ke {host}",
+        "sftp_move_same_directory" => "Item ini sudah ada di folder tersebut",
         "sftp_relay_into_itself" => "Folder tidak dapat disalin ke dalam dirinya sendiri",
         "sftp_move_verify_failed" => "Tidak dapat memastikan salinan telah sampai, jadi tidak ada yang dihapus",
         "sftp_move_size_mismatch" => "Ukuran salinan tidak sesuai perkiraan, jadi tidak ada yang dihapus",

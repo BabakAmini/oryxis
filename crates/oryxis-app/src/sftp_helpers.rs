@@ -336,6 +336,33 @@ async fn verify_relayed_size(
     Ok(())
 }
 
+/// True when two directory paths on the SAME host resolve to one
+/// directory, so a move between them would have nothing to move.
+///
+/// Cheap first: identical strings need no round trip. Otherwise both
+/// sides are canonicalized, which is what catches `/home/me`,
+/// `/home/me/`, and a symlinked spelling of the same folder. Answers
+/// `false` when either side fails to resolve, because a guess that
+/// refuses is worse than one that lets the transfer report its own
+/// error (issue #115).
+pub(crate) async fn destinations_are_one_directory(
+    a_client: &oryxis_ssh::SftpClient,
+    a_dir: &str,
+    b_client: &oryxis_ssh::SftpClient,
+    b_dir: &str,
+) -> bool {
+    if a_dir.trim_end_matches('/') == b_dir.trim_end_matches('/') {
+        return true;
+    }
+    match (
+        a_client.canonicalize(a_dir).await,
+        b_client.canonicalize(b_dir).await,
+    ) {
+        (Ok(a), Ok(b)) => a.trim_end_matches('/') == b.trim_end_matches('/'),
+        _ => false,
+    }
+}
+
 /// True when a folder relay's destination root would land inside its own
 /// source tree, which is only ever a mistake: the copy nests the folder
 /// into itself (`/srv/data` becomes `/srv/data/data`).

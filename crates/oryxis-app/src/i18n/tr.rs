@@ -1257,6 +1257,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Finder'da aç",
         "relay_to_remote" => "{host} sunucusuna aktar",
         "move_to_remote" => "{host} sunucusuna taşı",
+        "sftp_move_same_directory" => "Bu öğe zaten o klasörde",
         "sftp_relay_into_itself" => "Bir klasör kendi içine kopyalanamaz",
         "sftp_move_verify_failed" => "Kopyanın ulaştığı doğrulanamadı, bu yüzden hiçbir şey silinmedi",
         "sftp_move_size_mismatch" => "Kopya beklenen boyutta değil, bu yüzden hiçbir şey silinmedi",

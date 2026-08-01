@@ -1263,6 +1263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "פתיחה ב-Finder",
         "relay_to_remote" => "ממסר אל {host}",
         "move_to_remote" => "העברה אל {host}",
+        "sftp_move_same_directory" => "הפריט כבר נמצא בתיקייה הזו",
         "sftp_relay_into_itself" => "לא ניתן להעתיק תיקייה לתוך עצמה",
         "sftp_move_verify_failed" => "לא ניתן היה לאשר שההעתק הגיע, ולכן דבר לא נמחק",
         "sftp_move_size_mismatch" => "גודל ההעתק אינו כצפוי, ולכן דבר לא נמחק",

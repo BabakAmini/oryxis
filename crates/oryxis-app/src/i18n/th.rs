@@ -1264,6 +1264,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "เปิดใน Finder",
         "relay_to_remote" => "ส่งผ่านไปยัง {host}",
         "move_to_remote" => "ย้ายไปยัง {host}",
+        "sftp_move_same_directory" => "รายการนี้อยู่ในโฟลเดอร์นั้นแล้ว",
         "sftp_relay_into_itself" => "ไม่สามารถคัดลอกโฟลเดอร์ไปไว้ในตัวเองได้",
         "sftp_move_verify_failed" => "ไม่สามารถยืนยันว่าสำเนาไปถึงแล้ว จึงไม่ได้ลบสิ่งใด",
         "sftp_move_size_mismatch" => "สำเนามีขนาดไม่ตรงกับที่คาดไว้ จึงไม่ได้ลบสิ่งใด",

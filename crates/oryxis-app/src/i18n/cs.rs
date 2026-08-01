@@ -1263,6 +1263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Otevřít ve Finderu",
         "relay_to_remote" => "Přeposlat na {host}",
         "move_to_remote" => "Přesunout na {host}",
+        "sftp_move_same_directory" => "Tato položka už v dané složce je",
         "sftp_relay_into_itself" => "Složku nelze zkopírovat do sebe samé",
         "sftp_move_verify_failed" => "Nepodařilo se ověřit, že kopie dorazila, proto nebylo nic odstraněno",
         "sftp_move_size_mismatch" => "Kopie nemá očekávanou velikost, proto nebylo nic odstraněno",

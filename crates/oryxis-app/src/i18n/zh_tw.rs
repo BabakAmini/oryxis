@@ -1170,6 +1170,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "download_n_items" => "下載 {n} 個項目",
         "relay_to_remote" => "中繼到 {host}",
         "move_to_remote" => "移動到 {host}",
+        "sftp_move_same_directory" => "該項目已在此資料夾中",
         "sftp_relay_into_itself" => "資料夾無法複製到自身內部",
         "sftp_move_verify_failed" => "無法確認複本已送達，因此未刪除任何項目",
         "sftp_move_size_mismatch" => "複本大小與預期不符，因此未刪除任何項目",

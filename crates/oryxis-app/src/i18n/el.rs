@@ -1263,6 +1263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "open_in_finder" => "Άνοιγμα στο Finder",
         "relay_to_remote" => "Αναμετάδοση στον {host}",
         "move_to_remote" => "Μετακίνηση σε {host}",
+        "sftp_move_same_directory" => "Το στοιχείο βρίσκεται ήδη σε αυτόν τον φάκελο",
         "sftp_relay_into_itself" => "Ένας φάκελος δεν μπορεί να αντιγραφεί μέσα στον εαυτό του",
         "sftp_move_verify_failed" => "Δεν ήταν δυνατή η επιβεβαίωση της αντιγραφής, οπότε δεν διαγράφηκε τίποτα",
         "sftp_move_size_mismatch" => "Το αντίγραφο δεν έχει το αναμενόμενο μέγεθος, οπότε δεν διαγράφηκε τίποτα",

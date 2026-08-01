@@ -1167,6 +1167,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "download_n_items" => "Descargar {n} elementos",
         "relay_to_remote" => "Transferir a {host}",
         "move_to_remote" => "Mover a {host}",
+        "sftp_move_same_directory" => "El elemento ya está en esa carpeta",
         "sftp_relay_into_itself" => "Una carpeta no se puede copiar dentro de sí misma",
         "sftp_move_verify_failed" => "No se pudo confirmar que la copia llegó, así que no se eliminó nada",
         "sftp_move_size_mismatch" => "La copia no llegó con el tamaño esperado, así que no se eliminó nada",
