@@ -14,8 +14,10 @@ use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
 
-/// Human-readable one-line summary of a rule, kind-aware.
-fn forward_summary(rule: &PortForwardRule) -> String {
+/// Human-readable one-line summary of a rule, kind-aware. Shared with the
+/// delete confirmation, which has to name the rule the way its row does or
+/// the user cannot tell whether they picked the right one.
+pub(crate) fn forward_summary(rule: &PortForwardRule) -> String {
     match rule.kind {
         ForwardKind::Local => format!(
             "{}:{} \u{2192} {}:{}",
@@ -246,7 +248,7 @@ impl Oryxis {
             let show_trash = self.hovered_port_forward_card == Some(idx) || kb_selected;
             let trash: Element<'_, Message> = if show_trash {
                 button(text("\u{1F5D1}").size(13).color(OryxisColors::t().text_muted))
-                    .on_press(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)))
+                    .on_press(Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(idx)))
                     .padding(Padding { top: 1.0, right: 6.0, bottom: 1.0, left: 6.0 })
                     .style(|_, st| {
                         let bg = match st {
@@ -521,14 +523,14 @@ impl Oryxis {
             && let Some(idx) = self.port_forward_rules.iter().position(|r| r.id == edit_id)
         {
             let del_btn = self.panel_nav_slot(
-                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx))),
+                crate::keynav::RowAction::activate(Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(idx))),
                 8.0,
                 button(
                     container(text(t("delete")).size(13).color(OryxisColors::t().error))
                         .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
                         .width(Length::Fill).center_x(Length::Fill),
                 )
-                .on_press(Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)))
+                .on_press(Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(idx)))
                 .width(Length::Fill)
                 .style(|_, _| button::Style {
                     background: Some(Background::Color(Color::TRANSPARENT)),

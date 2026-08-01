@@ -29,6 +29,11 @@
 //!   "text"` ASSERTS it (a mismatch fails the test). Every clipboard
 //!   access in the app goes through the iced runtime, so the emulated
 //!   clipboard sees the app's own copies too
+//! - `find "Text"` / `texts`: walk the widget tree and report. Never
+//!   fails, so it is not an assertion (`expect` is). Its other effect
+//!   is the one tests actually reach for: the walk REBUILDS the tree,
+//!   which is what makes a coordinate click into a just-mounted panel
+//!   or a hover-revealed button land on something
 //! - blank lines and `#` comments are skipped
 //!
 //! A failing instruction (target not found / expectation not met)
@@ -264,6 +269,34 @@ where
                     None
                 }
                 Err(reason) => Some(format!("screenshot: {reason}")),
+            },
+            // Walk the widget tree without rendering. Two uses, and the
+            // second one is why this is here at all:
+            //
+            // 1. `find "Text"` reports whether something is on screen, and
+            //    how many times, which `expect` (exact match, pass/fail)
+            //    cannot say.
+            // 2. It REBUILDS THE TREE. The emulator only does that when
+            //    something walks it, so a click by coordinate into a
+            //    surface that just mounted (a panel, a hover-revealed
+            //    action) lands on nothing until one does. `screenshot`
+            //    also has that effect and used to be the only way to get
+            //    it in a committed test, which meant paying for a PNG and
+            //    leaving a CI artifact that documents nothing.
+            //
+            // A miss is NOT a failure here: nothing is asserted, and a
+            // test that wants an assertion has `expect`.
+            "find" | "texts" => match session.texts(program) {
+                Ok(entries) => {
+                    let needle = super::parse_quoted(rest);
+                    let count = match &needle {
+                        Some(n) => entries.iter().filter(|(t, _)| t.contains(n)).count(),
+                        None => entries.len(),
+                    };
+                    println!("== ok {count} {}", if needle.is_some() { "matches" } else { "texts" });
+                    None
+                }
+                Err(reason) => Some(format!("{head}: {reason}")),
             },
             // Seed / report / assert the emulated clipboard. `clipboard is
             // "text"` is a real assertion, so copy paths (which land in the

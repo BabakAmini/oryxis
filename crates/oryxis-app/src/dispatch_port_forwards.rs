@@ -150,6 +150,29 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
+            PortForwardMessage::RequestDeletePortForwardRule(idx) => {
+                // Both affordances land here: the hover trash in the row's
+                // action cluster and the Delete row inside the edit panel
+                // (which keynav reaches with a plain Enter). A rule can
+                // carry a jump chain, a bound address and an auto-start
+                // flag, and there is no undo short of restoring a portable
+                // export, so neither one should fire on a single click.
+                if let Some(rule) = self.port_forward_rules.get(idx) {
+                    // Name it the way its card does: the user's label plus
+                    // the ports, because several rules can share a label and
+                    // the ports are what makes one distinguishable.
+                    let summary = crate::views::port_forwards::forward_summary(rule);
+                    let name = if rule.label.trim().is_empty() {
+                        summary
+                    } else {
+                        format!("{} \u{2014} {}", rule.label, summary)
+                    };
+                    self.confirm_remove(
+                        name,
+                        Message::PortForward(PortForwardMessage::DeletePortForwardRule(idx)),
+                    );
+                }
+            }
             PortForwardMessage::DeletePortForwardRule(idx) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     let id = rule.id;

@@ -20,6 +20,9 @@ pub enum PortForwardMessage {
     PfAutoStartToggled(bool),
     SavePortForwardRule,
     EditPortForwardRule(usize),
+    /// Ask first. Every affordance that removes a rule goes through
+    /// here; `DeletePortForwardRule` is only ever reached by confirming.
+    RequestDeletePortForwardRule(usize),
     DeletePortForwardRule(usize),
     /// Toggle a rule on: opens a dedicated PTY-less SSH session.
     StartPortForward(Uuid),
