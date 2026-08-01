@@ -520,6 +520,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "ปิดแท็บ",
+        "close_group_title" => "ปิดกลุ่มนี้หรือไม่",
+        "close_group_body" => "แท็บนี้มีเซสชันที่ทำงานอยู่ {n} รายการ การปิดจะจบทั้งหมด",
+        "close_group_confirm" => "ปิดกลุ่ม",
         "close_other_tabs" => "ปิดแท็บอื่น ๆ",
         "close_all_tabs" => "ปิดแท็บทั้งหมด",
         "reconnect" => "เชื่อมต่อใหม่",
@@ -1554,6 +1557,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "เส้นขอบ",
         "inactive_tab_style_underline" => "เส้นใต้",
         "inactive_tab_style_desc" => "วิธีแยกแท็บที่ไม่ได้ใช้งานออกมา เส้นขอบจะวาดกรอบรอบแต่ละแท็บ ส่วนเส้นใต้จะวาดเส้นที่ขอบด้านในของแท็บ ซึ่งเป็นไปตามแถบ (ด้านล่างเมื่อแถบอยู่บน ด้านข้างเมื่อแถบเป็นแนวตั้ง)",
+        "tab_width_mode" => "ความกว้างของแท็บ",
+        "tab_width_mode_adaptive" => "ปรับอัตโนมัติ",
+        "tab_width_mode_uniform" => "เท่ากันหมด",
+        "tab_width_mode_desc" => "ปรับอัตโนมัติจะให้พื้นที่แท็บที่เลือกมากขึ้น แถบจึงขยับเมื่อสลับแท็บ ส่วนเท่ากันหมดจะคงความกว้างของทุกแท็บให้เท่ากันและตัดชื่อที่ยาวเกิน",
         "pinned_tabs_top_bar" => "แท็บที่ปักหมุดบนแถบด้านบน",
         "pinned_tabs_top_bar_desc" => "แท็บที่ปักหมุดจะอยู่ข้างหน้าแรกบนแถบด้านบน หากซ่อนแถบไว้ แท็บเหล่านี้จะกลายเป็นกลุ่มคงที่ด้านบนของรายการ",
         "side_hide_top_bar" => "ซ่อนแถบด้านบน",

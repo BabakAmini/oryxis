@@ -501,6 +501,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Đóng tab",
+        "close_group_title" => "Đóng nhóm này?",
+        "close_group_body" => "Thẻ này chứa {n} phiên đang chạy. Đóng nó sẽ kết thúc tất cả.",
+        "close_group_confirm" => "Đóng nhóm",
         "close_other_tabs" => "Đóng các tab khác",
         "close_all_tabs" => "Đóng tất cả tab",
         "reconnect" => "Kết nối lại",
@@ -1678,6 +1681,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "Viền",
         "inactive_tab_style_underline" => "Gạch chân",
         "inactive_tab_style_desc" => "Cách phân biệt các thẻ không hoạt động. Viền vẽ khung quanh từng thẻ; Gạch chân vẽ một đường ở cạnh trong của thẻ, bám theo dãy thẻ (bên dưới khi dãy ở trên, bên cạnh khi dãy dọc).",
+        "tab_width_mode" => "Chiều rộng thẻ",
+        "tab_width_mode_adaptive" => "Thích ứng",
+        "tab_width_mode_uniform" => "Đồng nhất",
+        "tab_width_mode_desc" => "Thích ứng dành nhiều chỗ hơn cho thẻ đang chọn, nên thanh thẻ dịch chuyển khi bạn đổi thẻ. Đồng nhất giữ mọi thẻ cùng chiều rộng và cắt bớt nhãn dài.",
         "pinned_tabs_top_bar" => "Thẻ đã ghim trên thanh trên cùng",
         "pinned_tabs_top_bar_desc" => "Thẻ đã ghim neo cạnh Trang chủ trên thanh trên cùng. Nếu thanh bị ẩn, chúng thành nhóm cố định ở đầu dãy.",
         "side_hide_top_bar" => "Ẩn thanh trên cùng",

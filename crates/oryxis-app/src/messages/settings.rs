@@ -287,6 +287,8 @@ pub enum SettingsMessage {
     SettingTabBarPositionChanged(String),
     /// Inactive-tab separation style: "none" / "border" / "underline".
     SettingInactiveTabStyleChanged(String),
+    /// Tab sizing in the horizontal strip: `adaptive` or `uniform`.
+    SettingTabWidthModeChanged(String),
     SettingTogglePinnedTabsTopBar,
     SettingToggleSideHideTopBar,
     SettingToggleSideFullHeight,

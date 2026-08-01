@@ -186,6 +186,76 @@ impl Oryxis {
         bar
     }
 
+    /// One width for every tab in the horizontal strip, or `None` when
+    /// the adaptive default is in force.
+    ///
+    /// Adaptive sizing gives the ACTIVE tab its natural width and hugs
+    /// the rest to their labels, so selecting a differently-named tab
+    /// relays the whole bar and the chip under the pointer moves. That
+    /// reflow is what the request is about (#112), not the widths
+    /// themselves.
+    ///
+    /// The width is the widest label in the strip, so no tab ellipsizes
+    /// while there is room, then shrunk to fit when there is not (the
+    /// label truncates, the geometry stays put). Terminal AND SFTP tabs
+    /// are measured: they share one strip, so measuring half of it would
+    /// let an SFTP label clip at a width the terminal tabs agreed on.
+    /// Compact pinned chips keep `CHIP_W` and sit outside this, exactly
+    /// as they sit outside the adaptive allocation.
+    fn uniform_tab_width(
+        &self,
+        close_on_right: bool,
+        compact_pins: bool,
+        approx_strip_width: f32,
+    ) -> Option<f32> {
+        if self.setting_tab_width_mode != "uniform" {
+            return None;
+        }
+        let mut widest = TAB_MIN_WIDTH;
+        let mut flexible = 0.0f32;
+        let mut pinned_chips = 0.0f32;
+        for (is_sftp, idx) in self.strip_order() {
+            let content = if is_sftp {
+                let Some(tab) = self.sftp_tabs.get(idx) else {
+                    continue;
+                };
+                if compact_pins && tab.pinned {
+                    pinned_chips += 1.0;
+                    continue;
+                }
+                tab_content_width(tab.display_label(), close_on_right, false)
+            } else {
+                let Some(tab) = self.tabs.get(idx) else {
+                    continue;
+                };
+                if compact_pins && tab.pinned {
+                    pinned_chips += 1.0;
+                    continue;
+                }
+                tab_content_width(
+                    tab.display_label(self.tab_auto_title(tab)),
+                    close_on_right,
+                    tab.pane_count() > 1,
+                )
+            };
+            widest = widest.max(content);
+            flexible += 1.0;
+        }
+        if flexible == 0.0 {
+            return None;
+        }
+        let widest = widest.clamp(TAB_MIN_WIDTH, TAB_NATURAL_WIDTH);
+        // Fit check. Overflow shrinks every tab equally rather than
+        // singling any out: uniform that stops being uniform under
+        // pressure would bring back the reflow this mode exists to
+        // remove. Below the minimum the scrollable takes over, as it
+        // does for the adaptive mode.
+        let spacing = TAB_SPACING * (flexible + pinned_chips - 1.0).max(0.0);
+        let budget = approx_strip_width - pinned_chips * CHIP_W - spacing;
+        let fitted = (budget / flexible).clamp(TAB_MIN_WIDTH, widest);
+        Some(fitted)
+    }
+
     /// Shared per-frame context for the pinned tabs rendered into the
     /// slim chrome bar: horizontal widths (active natural, inactives
     /// content-hugged; the scrollable is the overflow safety net).
@@ -478,7 +548,7 @@ impl Oryxis {
             solid_fill,
             dragging_any,
             drag_uniform_w,
-            uniform_w: None,
+            uniform_w: self.uniform_tab_width(close_on_right, compact_pins, approx_strip_width),
             session_widths,
         };
         for (is_sftp, idx) in self.strip_order() {

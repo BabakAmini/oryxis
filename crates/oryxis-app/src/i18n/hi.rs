@@ -520,6 +520,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "टैब बंद करें",
+        "close_group_title" => "यह समूह बंद करें?",
+        "close_group_body" => "इस टैब में {n} सक्रिय सत्र हैं। इसे बंद करने पर सभी समाप्त हो जाएंगे।",
+        "close_group_confirm" => "समूह बंद करें",
         "close_other_tabs" => "बाकी टैब बंद करें",
         "close_all_tabs" => "सभी टैब बंद करें",
         "reconnect" => "दोबारा कनेक्ट करें",
@@ -1553,6 +1556,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "बॉर्डर",
         "inactive_tab_style_underline" => "रेखांकन",
         "inactive_tab_style_desc" => "निष्क्रिय टैब कैसे अलग दिखें। बॉर्डर हर एक के चारों ओर रेखा खींचता है; रेखांकन टैब के भीतरी किनारे पर एक रेखा खींचता है, जो पट्टी का अनुसरण करती है (ऊपरी पट्टी पर नीचे, ऊर्ध्वाधर पट्टी पर बगल में)।",
+        "tab_width_mode" => "टैब की चौड़ाई",
+        "tab_width_mode_adaptive" => "अनुकूली",
+        "tab_width_mode_uniform" => "एकसमान",
+        "tab_width_mode_desc" => "अनुकूली चुने हुए टैब को अधिक जगह देता है, इसलिए बदलने पर बार खिसकता है। एकसमान सभी टैब की चौड़ाई एक जैसी रखता है और लंबे नामों को छोटा कर देता है।",
         "pinned_tabs_top_bar" => "पिन किए टैब ऊपरी बार में",
         "pinned_tabs_top_bar_desc" => "पिन किए टैब ऊपरी बार में होम के बगल में बैठते हैं। बार छिपा हो तो वे सूची के ऊपर स्थिर समूह बन जाते हैं।",
         "side_hide_top_bar" => "ऊपरी बार छिपाएँ",

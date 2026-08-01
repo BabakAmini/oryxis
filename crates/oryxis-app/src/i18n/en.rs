@@ -520,6 +520,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Terminal shortcuts
         "close_tab" => "Close Tab",
+        "close_group_title" => "Close this group?",
+        "close_group_body" => "This tab holds {n} live sessions. Closing it ends all of them.",
+        "close_group_confirm" => "Close group",
         "close_other_tabs" => "Close Other Tabs",
         "close_all_tabs" => "Close All Tabs",
         "reconnect" => "Reconnect",
@@ -1554,6 +1557,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "inactive_tab_style_border" => "Border",
         "inactive_tab_style_underline" => "Underline",
         "inactive_tab_style_desc" => "How inactive tabs are set apart. Border outlines each one; Underline draws a rule on the tab's inner edge, which follows the strip (bottom on a top strip, the side on a vertical one).",
+        "tab_width_mode" => "Tab width",
+        "tab_width_mode_adaptive" => "Adaptive",
+        "tab_width_mode_uniform" => "Uniform",
+        "tab_width_mode_desc" => "Adaptive gives the selected tab more room, so the bar shifts as you switch. Uniform keeps every tab the same width and truncates long labels.",
         "pinned_tabs_top_bar" => "Pinned tabs in the top bar",
         "pinned_tabs_top_bar_desc" => "Pinned tabs dock next to Home in the top bar. If the top bar is hidden, they become a fixed group at the top of the strip.",
         "side_hide_top_bar" => "Hide the top bar",

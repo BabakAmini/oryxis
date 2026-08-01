@@ -8,6 +8,9 @@ use super::Message;
 pub enum TabsMessage {
     SelectTab(usize),
     CloseTab(usize),
+    /// Second step of closing a GROUPED tab: the confirmation said yes,
+    /// so tear it down without asking again (issue #112).
+    ConfirmCloseGroupedTab(usize),
     TabHovered(usize),
     TabUnhovered,
     /// Cursor entered the trailing drop zone (the `+` button area) during an

@@ -7,7 +7,7 @@
 use iced::Task;
 use oryxis_core::models::cloud::TransportKind;
 
-use crate::app::{SettingsMessage, SshMessage, CloudMessage, Message, Oryxis};
+use crate::app::{SettingsMessage, SshMessage, CloudMessage, Message, Oryxis, TabsMessage};
 use crate::state::View;
 
 impl Oryxis {
@@ -144,7 +144,42 @@ impl Oryxis {
         self.prune_quick_connects();
     }
 
+    /// Close a tab, asking first when it is a group.
+    ///
+    /// A grouped tab is several live sessions behind one chip, and the
+    /// close X is a small target sitting in the strip next to every
+    /// other chip. Losing one session to a misplaced click is annoying;
+    /// losing four at once is the report (#112). Single-pane tabs keep
+    /// closing silently, which is the overwhelmingly common case and
+    /// where a prompt would only be in the way.
+    ///
+    /// The gate lives here rather than at the call sites so every close
+    /// path is covered by construction: the strip's X, the tab context
+    /// menu, Ctrl+W, and the terminal's own close handling all land
+    /// here.
     pub(super) fn handle_close_tab(&mut self, idx: usize) -> Task<Message> {
+        let panes = self.tabs.get(idx).map(|t| t.pane_count()).unwrap_or(0);
+        if panes > 1 {
+            self.overlay = None;
+            self.error_dialog = Some(crate::state::ErrorDialog {
+                title: crate::i18n::t("close_group_title").to_string(),
+                body: crate::i18n::t("close_group_body")
+                    .replacen("{n}", &panes.to_string(), 1),
+                link: None,
+                action: Some(crate::state::ErrorDialogAction {
+                    label: crate::i18n::t("close_group_confirm").to_string(),
+                    message: Box::new(Message::Tabs(TabsMessage::ConfirmCloseGroupedTab(idx))),
+                    danger: true,
+                }),
+            });
+            return Task::none();
+        }
+        self.close_tab_now(idx)
+    }
+
+    /// The close itself, with no prompt. Reached directly for a
+    /// single-pane tab and from the grouped-tab confirmation.
+    pub(super) fn close_tab_now(&mut self, idx: usize) -> Task<Message> {
         // Also dismiss any open context menu so the menu doesn't linger
         // after the user clicks Close from it.
         self.overlay = None;

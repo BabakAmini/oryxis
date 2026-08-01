@@ -501,6 +501,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Sekmeyi Kapat",
+        "close_group_title" => "Bu grup kapatılsın mı?",
+        "close_group_body" => "Bu sekmede {n} etkin oturum var. Kapatmak hepsini sonlandırır.",
+        "close_group_confirm" => "Grubu kapat",
         "close_other_tabs" => "Diğer Sekmeleri Kapat",
         "close_all_tabs" => "Tüm Sekmeleri Kapat",
         "reconnect" => "Yeniden bağlan",
@@ -1678,6 +1681,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "Kenarlık",
         "inactive_tab_style_underline" => "Alt çizgi",
         "inactive_tab_style_desc" => "Etkin olmayan sekmelerin nasıl ayırt edileceği. Kenarlık her birini çerçeveler; Alt çizgi sekmenin iç kenarına bir çizgi çizer ve şeridi izler (üst şeritte altta, dikey şeritte yanda).",
+        "tab_width_mode" => "Sekme genişliği",
+        "tab_width_mode_adaptive" => "Uyarlanır",
+        "tab_width_mode_uniform" => "Tekdüze",
+        "tab_width_mode_desc" => "Uyarlanır seçili sekmeye daha fazla yer verir, bu yüzden geçiş yaparken çubuk kayar. Tekdüze tüm sekmeleri aynı genişlikte tutar ve uzun etiketleri kısaltır.",
         "pinned_tabs_top_bar" => "Sabitlenmiş sekmeler üst çubukta",
         "pinned_tabs_top_bar_desc" => "Sabitlenmiş sekmeler üst çubukta Ana sayfanın yanına yerleşir. Çubuk gizliyse şeridin üstünde sabit bir grup olurlar.",
         "side_hide_top_bar" => "Üst çubuğu gizle",

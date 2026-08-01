@@ -503,6 +503,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "بستن برگه",
+        "close_group_title" => "این گروه بسته شود؟",
+        "close_group_body" => "این زبانه {n} نشست فعال دارد. بستن آن همه را پایان می‌دهد.",
+        "close_group_confirm" => "بستن گروه",
         "close_other_tabs" => "بستن سایر برگه‌ها",
         "close_all_tabs" => "بستن همه برگه‌ها",
         "reconnect" => "اتصال مجدد",
@@ -1667,6 +1670,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "حاشیه",
         "inactive_tab_style_underline" => "زیرخط",
         "inactive_tab_style_desc" => "نحوه تمایز زبانه‌های غیرفعال. حاشیه دور هر کدام خط می‌کشد؛ زیرخط خطی در لبه داخلی زبانه رسم می‌کند که از نوار پیروی می‌کند (پایین در نوار بالایی، کنار در نوار عمودی).",
+        "tab_width_mode" => "پهنای زبانه‌ها",
+        "tab_width_mode_adaptive" => "تطبیقی",
+        "tab_width_mode_uniform" => "یکسان",
+        "tab_width_mode_desc" => "تطبیقی به زبانه انتخاب‌شده فضای بیشتری می‌دهد، بنابراین نوار هنگام جابه‌جایی تکان می‌خورد. یکسان پهنای همه زبانه‌ها را برابر نگه می‌دارد و برچسب‌های بلند را کوتاه می‌کند.",
         "pinned_tabs_top_bar" => "زبانه‌های سنجاق‌شده در نوار بالا",
         "pinned_tabs_top_bar_desc" => "زبانه‌های سنجاق‌شده کنار خانه در نوار بالا قرار می‌گیرند. اگر نوار پنهان باشد، به گروهی ثابت در بالای فهرست تبدیل می‌شوند.",
         "side_hide_top_bar" => "پنهان کردن نوار بالا",

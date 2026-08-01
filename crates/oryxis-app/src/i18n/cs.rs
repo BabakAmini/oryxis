@@ -520,6 +520,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Zavřít kartu",
+        "close_group_title" => "Zavřít tuto skupinu?",
+        "close_group_body" => "Tato karta obsahuje {n} aktivních relací. Zavřením je ukončíte všechny.",
+        "close_group_confirm" => "Zavřít skupinu",
         "close_other_tabs" => "Zavřít ostatní karty",
         "close_all_tabs" => "Zavřít všechny karty",
         "reconnect" => "Znovu připojit",
@@ -1553,6 +1556,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "Rámeček",
         "inactive_tab_style_underline" => "Podtržení",
         "inactive_tab_style_desc" => "Jak se odlišují neaktivní karty. Rámeček ohraničí každou z nich; Podtržení nakreslí linku na vnitřní hraně karty, která sleduje pás (dole u horního pásu, na boku u svislého).",
+        "tab_width_mode" => "Šířka karet",
+        "tab_width_mode_adaptive" => "Přizpůsobivá",
+        "tab_width_mode_uniform" => "Jednotná",
+        "tab_width_mode_desc" => "Přizpůsobivá dá vybrané kartě více místa, takže se lišta při přepínání posouvá. Jednotná drží všechny karty stejně široké a dlouhé názvy zkracuje.",
         "pinned_tabs_top_bar" => "Připnuté karty v horní liště",
         "pinned_tabs_top_bar_desc" => "Připnuté karty se ukotví vedle domovské stránky v horní liště. Je-li lišta skrytá, stanou se pevnou skupinou v horní části pásu.",
         "side_hide_top_bar" => "Skrýt horní lištu",

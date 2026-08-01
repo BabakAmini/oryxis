@@ -520,6 +520,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "סגירת כרטיסייה",
+        "close_group_title" => "לסגור את הקבוצה הזו?",
+        "close_group_body" => "הלשונית הזו מכילה {n} הפעלות פעילות. סגירתה תסיים את כולן.",
+        "close_group_confirm" => "סגירת הקבוצה",
         "close_other_tabs" => "סגירת הכרטיסיות האחרות",
         "close_all_tabs" => "סגירת כל הכרטיסיות",
         "reconnect" => "התחברות מחדש",
@@ -1553,6 +1556,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "מסגרת",
         "inactive_tab_style_underline" => "קו תחתון",
         "inactive_tab_style_desc" => "כיצד כרטיסיות לא פעילות נבדלות. מסגרת מתווה כל אחת מהן; קו תחתון מצייר קו בקצה הפנימי של הכרטיסייה, שעוקב אחר הרצועה (למטה ברצועה עליונה, בצד ברצועה אנכית).",
+        "tab_width_mode" => "רוחב הלשוניות",
+        "tab_width_mode_adaptive" => "מותאם",
+        "tab_width_mode_uniform" => "אחיד",
+        "tab_width_mode_desc" => "מותאם נותן ללשונית הנבחרת יותר מקום, ולכן הסרגל זז בכל מעבר. אחיד שומר על רוחב זהה לכל הלשוניות ומקצר תוויות ארוכות.",
         "pinned_tabs_top_bar" => "כרטיסיות נעוצות בסרגל העליון",
         "pinned_tabs_top_bar_desc" => "כרטיסיות נעוצות מתמקמות ליד הבית בסרגל העליון. אם הסרגל מוסתר, הן הופכות לקבוצה קבועה בראש הרשימה.",
         "side_hide_top_bar" => "הסתרת הסרגל העליון",

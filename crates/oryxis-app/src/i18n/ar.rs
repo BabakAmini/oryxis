@@ -507,6 +507,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "إغلاق التبويب",
+        "close_group_title" => "إغلاق هذه المجموعة؟",
+        "close_group_body" => "تحتوي علامة التبويب هذه على {n} جلسات نشطة. إغلاقها ينهيها جميعًا.",
+        "close_group_confirm" => "إغلاق المجموعة",
         "close_other_tabs" => "إغلاق التبويبات الأخرى",
         "close_all_tabs" => "إغلاق جميع التبويبات",
         "reconnect" => "إعادة الاتصال",
@@ -1508,6 +1511,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "حدود",
         "inactive_tab_style_underline" => "تسطير",
         "inactive_tab_style_desc" => "كيفية تمييز علامات التبويب غير النشطة. الحدود ترسم إطارًا حول كل واحدة؛ التسطير يرسم خطًا على الحافة الداخلية للتبويب، يتبع الشريط (أسفل في شريط علوي، الجانب في شريط عمودي).",
+        "tab_width_mode" => "عرض علامات التبويب",
+        "tab_width_mode_adaptive" => "تكيفي",
+        "tab_width_mode_uniform" => "موحد",
+        "tab_width_mode_desc" => "التكيفي يمنح علامة التبويب المحددة مساحة أكبر، لذا يتحرك الشريط عند التبديل. الموحد يبقي جميع العلامات بالعرض نفسه ويقتطع التسميات الطويلة.",
         "pinned_tabs_top_bar" => "علامات التبويب المثبّتة في الشريط العلوي",
         "pinned_tabs_top_bar_desc" => "تستقر علامات التبويب المثبّتة بجوار الرئيسية في الشريط العلوي. وإذا كان الشريط مخفيًا تصبح مجموعة ثابتة أعلى القائمة.",
         "side_hide_top_bar" => "إخفاء الشريط العلوي",

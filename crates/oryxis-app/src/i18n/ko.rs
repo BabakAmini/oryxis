@@ -501,6 +501,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "탭 닫기",
+        "close_group_title" => "이 그룹을 닫을까요?",
+        "close_group_body" => "이 탭에는 활성 세션이 {n}개 있습니다. 닫으면 모두 종료됩니다.",
+        "close_group_confirm" => "그룹 닫기",
         "close_other_tabs" => "다른 탭 닫기",
         "close_all_tabs" => "모든 탭 닫기",
         "reconnect" => "재연결",
@@ -1678,6 +1681,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "테두리",
         "inactive_tab_style_underline" => "밑줄",
         "inactive_tab_style_desc" => "비활성 탭을 구분하는 방식입니다. 테두리는 각 탭을 감싸고, 밑줄은 탭 안쪽 가장자리에 선을 그리며 탭 줄을 따릅니다(위쪽 줄에서는 아래, 세로 줄에서는 옆).",
+        "tab_width_mode" => "탭 너비",
+        "tab_width_mode_adaptive" => "가변",
+        "tab_width_mode_uniform" => "균일",
+        "tab_width_mode_desc" => "가변은 선택한 탭에 더 넓은 공간을 주므로 전환할 때 탭 바가 움직입니다. 균일은 모든 탭의 너비를 같게 유지하고 긴 이름을 줄입니다.",
         "pinned_tabs_top_bar" => "고정 탭을 상단 바에 표시",
         "pinned_tabs_top_bar_desc" => "고정 탭이 상단 바의 홈 옆에 고정됩니다. 상단 바를 숨기면 탭 목록 위의 고정 그룹이 됩니다.",
         "side_hide_top_bar" => "상단 바 숨기기",

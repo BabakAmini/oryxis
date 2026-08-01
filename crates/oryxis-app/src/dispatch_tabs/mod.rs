@@ -501,6 +501,7 @@ impl Oryxis {
             TabsMessage::IconPickerSave => return self.handle_icon_picker_save(),
             TabsMessage::IconPickerResetAuto => return self.handle_icon_picker_reset_auto(),
             TabsMessage::CloseTab(idx) => return self.handle_close_tab(idx),
+            TabsMessage::ConfirmCloseGroupedTab(idx) => return self.close_tab_now(idx),
             TabsMessage::ShowTabMenu(idx) => {
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {

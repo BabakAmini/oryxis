@@ -501,6 +501,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Tutup Tab",
+        "close_group_title" => "Tutup grup ini?",
+        "close_group_body" => "Tab ini berisi {n} sesi aktif. Menutupnya mengakhiri semuanya.",
+        "close_group_confirm" => "Tutup grup",
         "close_other_tabs" => "Tutup Tab Lain",
         "close_all_tabs" => "Tutup Semua Tab",
         "reconnect" => "Hubungkan ulang",
@@ -1678,6 +1681,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "Batas",
         "inactive_tab_style_underline" => "Garis bawah",
         "inactive_tab_style_desc" => "Cara tab nonaktif dibedakan. Batas membingkai tiap tab; Garis bawah menggambar garis di tepi dalam tab, mengikuti deret (bawah pada deret atas, sisi pada deret vertikal).",
+        "tab_width_mode" => "Lebar tab",
+        "tab_width_mode_adaptive" => "Adaptif",
+        "tab_width_mode_uniform" => "Seragam",
+        "tab_width_mode_desc" => "Adaptif memberi tab terpilih ruang lebih, sehingga bilah bergeser saat berpindah. Seragam menjaga semua tab selebar sama dan memotong label yang panjang.",
         "pinned_tabs_top_bar" => "Tab yang disematkan di bilah atas",
         "pinned_tabs_top_bar_desc" => "Tab yang disematkan menempel di samping Beranda pada bilah atas. Jika bilah disembunyikan, tab menjadi grup tetap di bagian atas deretan.",
         "side_hide_top_bar" => "Sembunyikan bilah atas",

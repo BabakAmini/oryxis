@@ -319,6 +319,25 @@ impl Oryxis {
             text(crate::i18n::t("inactive_tab_style_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.nav_pick_row(
+                crate::i18n::t("tab_width_mode"),
+                vec!["adaptive".to_string(), "uniform".to_string()],
+                self.setting_tab_width_mode.clone(),
+                |s: &String| {
+                    crate::i18n::t(match s.as_str() {
+                        "uniform" => "tab_width_mode_uniform",
+                        _ => "tab_width_mode_adaptive",
+                    })
+                    .to_string()
+                },
+                180.0,
+                |v| Message::Settings(SettingsMessage::SettingTabWidthModeChanged(v)),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("tab_width_mode_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
         if matches!(self.setting_tab_bar_position.as_str(), "left" | "right") {
             top_bar_col = top_bar_col

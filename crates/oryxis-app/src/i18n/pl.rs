@@ -502,6 +502,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Zamknij kartę",
+        "close_group_title" => "Zamknąć tę grupę?",
+        "close_group_body" => "Ta karta zawiera {n} aktywnych sesji. Zamknięcie zakończy je wszystkie.",
+        "close_group_confirm" => "Zamknij grupę",
         "close_other_tabs" => "Zamknij inne karty",
         "close_all_tabs" => "Zamknij wszystkie karty",
         "reconnect" => "Połącz ponownie",
@@ -1675,6 +1678,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "inactive_tab_style_border" => "Obramowanie",
         "inactive_tab_style_underline" => "Podkreślenie",
         "inactive_tab_style_desc" => "Jak wyróżniają się nieaktywne karty. Obramowanie otacza każdą z nich; Podkreślenie rysuje linię na wewnętrznej krawędzi karty, która podąża za paskiem (na dole przy górnym pasku, z boku przy pionowym).",
+        "tab_width_mode" => "Szerokość kart",
+        "tab_width_mode_adaptive" => "Adaptacyjna",
+        "tab_width_mode_uniform" => "Jednolita",
+        "tab_width_mode_desc" => "Adaptacyjna daje wybranej karcie więcej miejsca, więc pasek przesuwa się przy przełączaniu. Jednolita utrzymuje jednakową szerokość i skraca długie etykiety.",
         "pinned_tabs_top_bar" => "Przypięte karty na górnym pasku",
         "pinned_tabs_top_bar_desc" => "Przypięte karty dokują obok ekranu głównego na górnym pasku. Gdy pasek jest ukryty, stają się stałą grupą u góry listy.",
         "side_hide_top_bar" => "Ukryj górny pasek",

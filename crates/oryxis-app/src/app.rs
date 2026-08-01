@@ -1311,6 +1311,11 @@ pub struct Oryxis {
     /// `underline`. Mirrored into the process-wide `INACTIVE_TAB_STYLE`
     /// gate read by the tab renderer.
     pub(crate) setting_inactive_tab_style: String,
+    /// Tab sizing in the horizontal strip (issue #112): `adaptive`
+    /// (default, active tab fattens) or `uniform` (one width for all,
+    /// labels ellipsize). Uniform exists so selecting a tab stops
+    /// relaying the whole bar under the pointer.
+    pub(crate) setting_tab_width_mode: String,
     /// Side dock only: pinned tabs live with the window chrome instead
     /// of scrolling inside the strip. Top bar visible: they dock next
     /// to Home up there; top bar hidden: they become a fixed group at
