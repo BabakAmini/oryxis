@@ -400,12 +400,20 @@ impl Oryxis {
         // a dialog that IS the confirmation step.
         self.modal_nav_reset();
         use crate::keynav::RowAction;
+        // A dialog carrying a DANGEROUS action is a confirmation, not a
+        // report, so its negative button says Cancel. "Close" beside
+        // "Close group" (or "Close" beside "Remove") reads as a second
+        // way to do the thing, which is the opposite of what it does.
+        let dismiss_key = match &dialog.action {
+            Some(a) if a.danger => "cancel",
+            _ => "close",
+        };
         let mut buttons = iced::widget::row![self.modal_nav_slot(
             RowAction::activate(Message::ErrorDialogDismiss),
             6.0,
             false,
             styled_button(
-                crate::i18n::t("close"),
+                crate::i18n::t(dismiss_key),
                 Message::ErrorDialogDismiss,
                 OryxisColors::t().text_muted,
             ),
