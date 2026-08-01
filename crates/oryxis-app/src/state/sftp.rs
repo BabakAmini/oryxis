@@ -853,6 +853,17 @@ pub(crate) struct TransferState {
     /// parent and every upload into it dies with "No such file"
     /// (issue #63).
     pub dir_slot: Option<u8>,
+    /// Set on a `Relay` that is a MOVE: the source paths to remove once
+    /// the whole queue has drained, files first and directories after,
+    /// deepest first. `None` on a copy, which never removes anything.
+    ///
+    /// The list is captured by the same walk that built the queue, so it
+    /// describes exactly what was copied and cannot drift from it. It is
+    /// only ever consumed from the finalize arm, which is reached solely
+    /// when every item completed: any error clears `transfer` outright,
+    /// so a failed move leaves the source untouched by construction
+    /// (issue #115).
+    pub move_sources: Option<Vec<TransferItem>>,
 }
 
 impl TransferState {
@@ -886,7 +897,17 @@ impl TransferState {
             busy_slots: vec![false; slots as usize],
             paused: false,
             dir_slot: None,
+            move_sources: None,
         }
+    }
+
+    /// Turn a freshly built relay into a MOVE by attaching the source
+    /// paths to remove after the copy is verified. Kept as a builder
+    /// step rather than another `new` parameter so a copy can never
+    /// acquire a removal list by an argument slipping one position.
+    pub fn moving(mut self, sources: Vec<TransferItem>) -> Self {
+        self.move_sources = Some(sources);
+        self
     }
 }
 

@@ -399,6 +399,28 @@ pub(crate) fn row_context_menu_box<'a>(
                 relay_msg,
                 accent,
             ));
+            // Move: the same transfer, with the source removed once every
+            // file is verified on the other host. Deliberately a separate
+            // entry rather than a modifier on the relay, so a move is
+            // always something the user asked for by name.
+            let move_label = match &other_label {
+                Some(h) => t("move_to_remote").replacen("{host}", h, 1),
+                None => t("move_to_remote").replacen("{host}", t("the_other_host"), 1),
+            };
+            let move_msg = if menu.is_dir {
+                Message::Sftp(SftpMessage::SftpRelayMoveFolder(
+                    menu.side,
+                    menu.path.clone(),
+                ))
+            } else {
+                Message::Sftp(SftpMessage::SftpRelayMove(menu.side, menu.path.clone()))
+            };
+            items = items.push(slot(
+                iced_fonts::lucide::corner_up_right(),
+                move_label,
+                move_msg,
+                accent,
+            ));
         }
         // Open / Edit for a single remote file, plus the "Open with"
         // family (issue #84): the OS association, the configured editor or

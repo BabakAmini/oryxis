@@ -272,6 +272,7 @@ pub(crate) async fn do_relay_item(
     dst_client: oryxis_ssh::SftpClient,
     item: crate::state::TransferItem,
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    verify: bool,
 ) -> Result<(), String> {
     if item.is_dir {
         // A pre-existing directory is fine (the relay merges into it);
@@ -288,8 +289,133 @@ pub(crate) async fn do_relay_item(
         src_client
             .relay_to_progress(&item.src, &dst_client, &item.dst, item.size, progress)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        if verify {
+            verify_relayed_size(&src_client, &dst_client, &item).await?;
+        }
+        Ok(())
     }
+}
+
+/// Confirm a relayed file actually landed whole, by asking the
+/// destination host how big it now is and comparing with the source.
+///
+/// Only a MOVE pays for this round trip, and it pays because the next
+/// thing a move does is delete the original: `Ok(())` from the transfer
+/// means "no error was reported", which is not the same claim as "the
+/// bytes are on the other host". Nothing is ever removed on the weaker
+/// claim (issue #115).
+async fn verify_relayed_size(
+    src_client: &oryxis_ssh::SftpClient,
+    dst_client: &oryxis_ssh::SftpClient,
+    item: &crate::state::TransferItem,
+) -> Result<(), String> {
+    let expected = match item.size {
+        Some(s) => s,
+        // No hint from the listing: ask the source. A source that can no
+        // longer be stat'ed is itself a reason to keep it.
+        None => src_client
+            .stat(&item.src)
+            .await
+            .map_err(|e| format!("{}: {e}", crate::i18n::t("sftp_move_verify_failed")))?
+            .size,
+    };
+    let landed = dst_client
+        .stat(&item.dst)
+        .await
+        .map_err(|e| format!("{}: {e}", crate::i18n::t("sftp_move_verify_failed")))?
+        .size;
+    if landed != expected {
+        return Err(format!(
+            "{} ({}: {expected}, {}: {landed})",
+            crate::i18n::t("sftp_move_size_mismatch"),
+            item.src,
+            item.dst,
+        ));
+    }
+    Ok(())
+}
+
+/// True when a folder relay's destination root would land inside its own
+/// source tree, which is only ever a mistake: the copy nests the folder
+/// into itself (`/srv/data` becomes `/srv/data/data`).
+///
+/// Not destructive today, because the tree is walked into a queue before
+/// anything is written and the walk therefore cannot see the copy it is
+/// producing, so there is no runaway recursion. It is still nonsense,
+/// and it is the one same-file-family mistake the queue builder's
+/// unique-name step does not already prevent (issue #115).
+///
+/// Both paths must already be resolved on the SAME host. The caller
+/// checks that; this is pure string containment.
+pub(crate) fn relay_target_is_inside_source(src_root: &str, dst_root: &str) -> bool {
+    let src = src_root.trim_end_matches('/');
+    let dst = dst_root.trim_end_matches('/');
+    if src.is_empty() {
+        // Source is the filesystem root: everything is inside it.
+        return true;
+    }
+    dst == src || dst.starts_with(&format!("{src}/"))
+}
+
+/// Remove the source side of a completed MOVE.
+///
+/// Runs only from the finalize arm, which is unreachable unless every
+/// queue item copied and verified. Files go first, then directories
+/// deepest first, and directories are removed with `remove_dir`, NOT
+/// recursively: if something appeared in a source folder while the copy
+/// was running, that folder is not empty, the removal fails loudly and
+/// the new data survives. A recursive delete here would silently take it
+/// (issue #115).
+pub(crate) async fn remove_moved_sources(
+    client: oryxis_ssh::SftpClient,
+    sources: Vec<crate::state::TransferItem>,
+) -> Result<usize, String> {
+    let mut removed = 0usize;
+    for (path, is_dir) in moved_source_removal_order(&sources) {
+        let outcome = if is_dir {
+            client.remove_dir(&path).await
+        } else {
+            client.remove_file(&path).await
+        };
+        outcome.map_err(|e| {
+            format!(
+                "{} ({path}): {e}",
+                crate::i18n::t("sftp_move_cleanup_failed")
+            )
+        })?;
+        removed += 1;
+    }
+    Ok(removed)
+}
+
+/// Order the source paths of a completed move for removal: every file
+/// first, then directories deepest first.
+///
+/// The order is the whole safety property. A directory can only be
+/// removed once it is empty, so its own children have to go before it,
+/// and a deeper directory is always a child of a shallower one within
+/// one moved tree. Depth by separator count is exact here because the
+/// walk produces absolute POSIX paths under a single root.
+///
+/// Pure and separate from the I/O so the ordering can be asserted
+/// without a server (issue #115).
+fn moved_source_removal_order(sources: &[crate::state::TransferItem]) -> Vec<(String, bool)> {
+    let mut files: Vec<&crate::state::TransferItem> =
+        sources.iter().filter(|i| !i.is_dir).collect();
+    files.sort_by(|a, b| a.src.cmp(&b.src));
+    let mut dirs: Vec<&crate::state::TransferItem> = sources.iter().filter(|i| i.is_dir).collect();
+    dirs.sort_by_key(|i| {
+        (
+            std::cmp::Reverse(i.src.trim_end_matches('/').matches('/').count()),
+            i.src.clone(),
+        )
+    });
+    files
+        .into_iter()
+        .chain(dirs)
+        .map(|i| (i.src.clone(), i.is_dir))
+        .collect()
 }
 
 /// Apply a single upload-queue item with conflict awareness. Files
@@ -654,6 +780,86 @@ pub(crate) fn sort_local_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Relaying a folder into its own subtree nests it into itself. The
+    /// guard has to catch containment without catching the legitimate
+    /// same-host cases around it, which is the whole difficulty: a
+    /// sibling whose name merely starts with the source's name is NOT
+    /// inside it (issue #115).
+    #[test]
+    fn containment_guard_catches_self_nesting_only() {
+        // The reported shape: destination pane sitting in the folder
+        // being relayed.
+        assert!(relay_target_is_inside_source("/srv/data", "/srv/data/data"));
+        // Deeper still, and the same directory named twice.
+        assert!(relay_target_is_inside_source("/srv/data", "/srv/data/a/b"));
+        assert!(relay_target_is_inside_source("/srv/data", "/srv/data"));
+        // Trailing separators must not change the answer.
+        assert!(relay_target_is_inside_source("/srv/data/", "/srv/data/x"));
+        assert!(relay_target_is_inside_source("/srv/data", "/srv/data/x/"));
+        // Root as the source contains everything.
+        assert!(relay_target_is_inside_source("/", "/anywhere"));
+
+        // A SIBLING sharing a name prefix is not inside the source. This
+        // is the case a naive `starts_with` gets wrong, and getting it
+        // wrong refuses a perfectly good transfer.
+        assert!(!relay_target_is_inside_source("/srv/data", "/srv/data2"));
+        assert!(!relay_target_is_inside_source("/srv/data", "/srv/database/x"));
+        // The parent is not inside its own child.
+        assert!(!relay_target_is_inside_source("/srv/data", "/srv"));
+        // Ordinary unrelated destinations.
+        assert!(!relay_target_is_inside_source("/srv/data", "/backup/data"));
+        assert!(!relay_target_is_inside_source("/home/a/x", "/home/b/x"));
+    }
+
+    /// A move deletes its source last, and the ORDER is what makes the
+    /// deletion safe: `remove_dir` refuses a non-empty directory, so
+    /// every file has to be gone before its folder is attempted, and a
+    /// child folder before its parent. Get this backwards and a move
+    /// leaves the whole tree behind with a confusing error (issue #115).
+    #[test]
+    fn moved_sources_are_removed_children_first() {
+        let item = |src: &str, is_dir: bool| crate::state::TransferItem {
+            src: src.to_string(),
+            dst: format!("/dst{src}"),
+            is_dir,
+            size: None,
+        };
+        // The queue order a folder walk produces: parent dirs before
+        // their contents, which is exactly the reverse of what removal
+        // needs.
+        let sources = vec![
+            item("/srv/data", true),
+            item("/srv/data/a.txt", false),
+            item("/srv/data/sub", true),
+            item("/srv/data/sub/b.txt", false),
+            item("/srv/data/sub/deep", true),
+            item("/srv/data/sub/deep/c.txt", false),
+        ];
+
+        let order = moved_source_removal_order(&sources);
+        let paths: Vec<&str> = order.iter().map(|(p, _)| p.as_str()).collect();
+
+        // Every file precedes every directory.
+        let first_dir = order.iter().position(|(_, d)| *d).expect("a directory");
+        assert!(
+            order[..first_dir].iter().all(|(_, d)| !*d),
+            "a directory was scheduled before a file: {paths:?}"
+        );
+        // Directories run deepest first.
+        let dir_pos = |p: &str| paths.iter().position(|q| *q == p).unwrap();
+        assert!(
+            dir_pos("/srv/data/sub/deep") < dir_pos("/srv/data/sub"),
+            "a parent was scheduled before its child: {paths:?}"
+        );
+        assert!(
+            dir_pos("/srv/data/sub") < dir_pos("/srv/data"),
+            "a parent was scheduled before its child: {paths:?}"
+        );
+        // Nothing invented, nothing dropped: a move removes exactly what
+        // it copied.
+        assert_eq!(order.len(), sources.len(), "removal list changed size");
+    }
 
     /// The transfer queue's dir barrier (`TransferState::dir_slot`)
     /// relies on the walk enqueueing every directory before anything

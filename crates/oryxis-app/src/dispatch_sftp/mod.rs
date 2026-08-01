@@ -165,7 +165,9 @@ impl Oryxis {
             | SftpMessage::SftpTransferError(..)
             | SftpMessage::SftpCancelTransfer
             | SftpMessage::SftpRelay(..)
-            | SftpMessage::SftpRelayFolder(..)) => self
+            | SftpMessage::SftpRelayFolder(..)
+            | SftpMessage::SftpRelayMove(..)
+            | SftpMessage::SftpRelayMoveFolder(..)) => self
                 .handle_sftp_transfers(m)
                 // Transfers legitimately decline the whole group when no
                 // SFTP tab owns the continuation: quiet drop, EXCEPT the

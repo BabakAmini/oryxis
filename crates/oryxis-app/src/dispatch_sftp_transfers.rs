@@ -12,10 +12,10 @@ use iced::Task;
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
     apply_overwrite_for_item, build_client_pool, do_download_item, do_local_duplicate_item,
-    do_relay_item, do_upload_item, parent_path, remote_cp, remote_join, transfer_item_label,
-    unique_name_in_local_dir, unique_name_in_remote_dir, walk_local_for_duplicate,
-    walk_local_for_upload, walk_remote_for_download, walk_remote_for_relay, UploadOutcome,
-    UploadStepOutcome,
+    do_relay_item, do_upload_item, parent_path, relay_target_is_inside_source, remote_cp,
+    remote_join, remove_moved_sources, transfer_item_label, unique_name_in_local_dir,
+    unique_name_in_remote_dir, walk_local_for_duplicate, walk_local_for_upload,
+    walk_remote_for_download, walk_remote_for_relay, UploadOutcome, UploadStepOutcome,
 };
 use crate::state::SftpPaneSide;
 
@@ -679,11 +679,49 @@ impl Oryxis {
                         // not the canonical remote (`remote_side`).
                         let relay_dest = transfer.dest_side;
                         let root_label = transfer.root_label.clone();
+                        // A MOVE removes its sources here and nowhere
+                        // else. Reaching this arm is the proof the copy
+                        // succeeded: every item was popped, every worker
+                        // reported done, and any single failure would
+                        // have cleared `transfer` from the error arm long
+                        // before the queue could drain (issue #115).
+                        let move_sources = transfer.move_sources.take();
+                        let move_client = transfer.clients.first().cloned();
                         self.sftp.transfer = None;
                         self.push_sftp_log(
                             crate::state::SftpLogLevel::Ok,
                             format!("{} {}", crate::i18n::t("sftp_log_transfer_done"), root_label),
                         );
+                        if let (Some(sources), Some(client)) = (move_sources, move_client) {
+                            let src_side = if relay_dest == Some(SftpPaneSide::Left) {
+                                SftpPaneSide::Right
+                            } else {
+                                SftpPaneSide::Left
+                            };
+                            let dst_side = relay_dest.unwrap_or(remote_side);
+                            let src_path = self.sftp.pane(src_side).remote_path.clone();
+                            let dst_path = self.sftp.pane(dst_side).remote_path.clone();
+                            return Ok(Task::perform(
+                                remove_moved_sources(client, sources),
+                                move |r| match r {
+                                    // Both panes changed: the source lost
+                                    // the tree, the destination gained it.
+                                    Ok(_) => Message::Sftp(SftpMessage::SftpNavigateRemote(
+                                        src_side,
+                                        src_path.clone(),
+                                    )),
+                                    // The copy is safe on the other host;
+                                    // only the cleanup failed, so say that
+                                    // and leave the source alone.
+                                    Err(e) => Message::Sftp(SftpMessage::SftpOpResult(
+                                        src_side, e, true,
+                                    )),
+                                },
+                            )
+                            .chain(Task::done(Message::Sftp(
+                                SftpMessage::SftpNavigateRemote(dst_side, dst_path),
+                            ))));
+                        }
                         return Ok(match kind {
                             crate::state::TransferKind::Relay => {
                                 let dst = relay_dest.unwrap_or(remote_side);
@@ -773,8 +811,12 @@ impl Oryxis {
                                 slot,
                             ))));
                         };
+                        // A move verifies every file landed at the right
+                        // size before anything is removed later; a copy
+                        // does not pay for that round trip.
+                        let verify = transfer.move_sources.is_some();
                         return Ok(Task::perform(
-                            do_relay_item(src_client, dst_client, item, Some(bytes_done)),
+                            do_relay_item(src_client, dst_client, item, Some(bytes_done), verify),
                             move |r| match r {
                                 Ok(()) => Message::Sftp(SftpMessage::SftpTransferItemDone(owner, slot)),
                                 Err(e) => Message::Sftp(SftpMessage::SftpTransferError(owner, e, slot)),
@@ -1098,122 +1140,135 @@ impl Oryxis {
                 }
             }
             SftpMessage::SftpRelay(from, src_path) => {
-                // Server-to-server single-file transfer: source pane is
-                // `from`, destination is the other (also remote) pane.
-                self.sftp.row_menu = None;
-                let dest_side = if from == SftpPaneSide::Left {
-                    SftpPaneSide::Right
-                } else {
-                    SftpPaneSide::Left
-                };
-                let (Some(src_client), Some(dst_client)) = (
-                    self.sftp.pane(from).client.clone(),
-                    self.sftp.pane(dest_side).client.clone(),
-                ) else {
-                    self.sftp.pane_mut(from).error = Some("Both panes must be connected".into());
-                    return Ok(Task::none());
-                };
-                let dest_dir = self
-                    .sftp
-                    .upload_dest_override
-                    .take()
-                    .unwrap_or_else(|| self.sftp.pane(dest_side).remote_path.clone());
-                return Ok(Task::perform(
-                    async move {
-                        let basename = src_path
-                            .rsplit('/')
-                            .find(|s| !s.is_empty())
-                            .unwrap_or(&src_path)
-                            .to_string();
-                        // Pick a non-colliding name on the destination so
-                        // a relay never silently clobbers an existing
-                        // file with the same name.
-                        let unique =
-                            unique_name_in_remote_dir(&dst_client, &dest_dir, &basename).await?;
-                        let target = remote_join(&dest_dir, &unique);
-                        let mut queue = std::collections::VecDeque::new();
-                        queue.push_back(crate::state::TransferItem {
-                            src: src_path,
-                            dst: target,
-                            is_dir: false,
-                            size: None,
-                        });
-                        // Relay runs at concurrency 1: one source client
-                        // slot plus the single dest client.
-                        Ok::<crate::state::TransferState, String>(crate::state::TransferState::new(
-                            crate::state::TransferKind::Relay,
-                            basename,
-                            queue,
-                            vec![src_client],
-                            Some(dst_client),
-                            Some(dest_side),
-                            1,
-                        ))
-                    },
-                    move |result| match result {
-                        Ok(state) => Message::Sftp(SftpMessage::SftpTransferQueueReady(owner, state)),
-                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(from, e, true)),
-                    },
-                ));
+                return Ok(self.start_relay(owner, from, src_path, false, false));
             }
             SftpMessage::SftpRelayFolder(from, src_root) => {
-                self.sftp.row_menu = None;
-                let dest_side = if from == SftpPaneSide::Left {
-                    SftpPaneSide::Right
-                } else {
-                    SftpPaneSide::Left
-                };
-                let (Some(src_client), Some(dst_client)) = (
-                    self.sftp.pane(from).client.clone(),
-                    self.sftp.pane(dest_side).client.clone(),
-                ) else {
-                    self.sftp.pane_mut(from).error = Some("Both panes must be connected".into());
-                    return Ok(Task::none());
-                };
-                let dest_dir = self
-                    .sftp
-                    .upload_dest_override
-                    .take()
-                    .unwrap_or_else(|| self.sftp.pane(dest_side).remote_path.clone());
-                return Ok(Task::perform(
-                    async move {
-                        let basename = src_root
-                            .rsplit('/')
-                            .find(|s| !s.is_empty())
-                            .unwrap_or(&src_root)
-                            .to_string();
-                        let unique =
-                            unique_name_in_remote_dir(&dst_client, &dest_dir, &basename).await?;
-                        let target_root = remote_join(&dest_dir, &unique);
-                        let mut queue = std::collections::VecDeque::new();
-                        queue.push_back(crate::state::TransferItem {
-                            src: src_root.clone(),
-                            dst: target_root.clone(),
-                            is_dir: true,
-                            size: None,
-                        });
-                        // Walk the SOURCE remote tree, mapping each entry
-                        // onto a destination POSIX path under target_root.
-                        walk_remote_for_relay(&src_client, &src_root, &target_root, &mut queue)
-                            .await?;
-                        Ok::<crate::state::TransferState, String>(crate::state::TransferState::new(
-                            crate::state::TransferKind::Relay,
-                            unique,
-                            queue,
-                            vec![src_client],
-                            Some(dst_client),
-                            Some(dest_side),
-                            1,
-                        ))
-                    },
-                    move |result| match result {
-                        Ok(state) => Message::Sftp(SftpMessage::SftpTransferQueueReady(owner, state)),
-                        Err(e) => Message::Sftp(SftpMessage::SftpOpResult(from, e, true)),
-                    },
-                ));
+                return Ok(self.start_relay(owner, from, src_root, true, false));
+            }
+            SftpMessage::SftpRelayMove(from, src_path) => {
+                return Ok(self.start_relay(owner, from, src_path, false, true));
+            }
+            SftpMessage::SftpRelayMoveFolder(from, src_root) => {
+                return Ok(self.start_relay(owner, from, src_root, true, true));
             }
             m => return Err(m),
         }
         Ok(Task::none())
+    }
+
+    /// Build and start a server-to-server transfer: the file or tree at
+    /// `src_path` on the `from` pane's host, onto the other pane's host.
+    ///
+    /// One builder for all four entry points, because a move IS a relay
+    /// plus a removal at the end. Splitting them would give the move its
+    /// own copy of the destination-naming and tree-walking logic, which
+    /// is exactly the logic that must not drift between the two.
+    ///
+    /// `move_source` only attaches the removal list; nothing here
+    /// deletes anything. The removal runs from the finalize arm, which
+    /// is unreachable unless every item copied AND verified.
+    fn start_relay(
+        &mut self,
+        owner: uuid::Uuid,
+        from: SftpPaneSide,
+        src_path: String,
+        is_dir: bool,
+        move_source: bool,
+    ) -> Task<Message> {
+        self.sftp.row_menu = None;
+        let dest_side = if from == SftpPaneSide::Left {
+            SftpPaneSide::Right
+        } else {
+            SftpPaneSide::Left
+        };
+        let (Some(src_client), Some(dst_client)) = (
+            self.sftp.pane(from).client.clone(),
+            self.sftp.pane(dest_side).client.clone(),
+        ) else {
+            self.sftp.pane_mut(from).error = Some("Both panes must be connected".into());
+            return Task::none();
+        };
+        // Same machine? Two conservative signals: a shared SSH session is
+        // exact (every client from one session holds that session's own
+        // handle), and equal host labels mean the panes were mounted from
+        // the same vault entry. Neither can claim "same host" for two
+        // genuinely different machines, so the containment guard below
+        // can only ever fire on paths that really do share a filesystem.
+        // The converse is allowed to be wrong: missing a case leaves
+        // today's behaviour, while a false positive would refuse a
+        // legitimate transfer.
+        let same_host = src_client.shares_session_with(&dst_client) || {
+            let a = self.sftp.pane(from).host_label.as_ref();
+            let b = self.sftp.pane(dest_side).host_label.as_ref();
+            a.is_some() && a == b
+        };
+        let dest_dir = self
+            .sftp
+            .upload_dest_override
+            .take()
+            .unwrap_or_else(|| self.sftp.pane(dest_side).remote_path.clone());
+        Task::perform(
+            async move {
+                let basename = src_path
+                    .rsplit('/')
+                    .find(|s| !s.is_empty())
+                    .unwrap_or(&src_path)
+                    .to_string();
+                // Pick a non-colliding name on the destination so a relay
+                // never silently clobbers an existing file with the same
+                // name. This is also what keeps a same-directory relay
+                // from naming its own source (issue #115).
+                let unique = unique_name_in_remote_dir(&dst_client, &dest_dir, &basename).await?;
+                let target = remote_join(&dest_dir, &unique);
+                let mut queue = std::collections::VecDeque::new();
+                if is_dir {
+                    if same_host && relay_target_is_inside_source(&src_path, &target) {
+                        return Err(crate::i18n::t("sftp_relay_into_itself").to_string());
+                    }
+                    queue.push_back(crate::state::TransferItem {
+                        src: src_path.clone(),
+                        dst: target.clone(),
+                        is_dir: true,
+                        size: None,
+                    });
+                    // Walk the SOURCE remote tree, mapping each entry onto
+                    // a destination POSIX path under the target root.
+                    walk_remote_for_relay(&src_client, &src_path, &target, &mut queue).await?;
+                } else {
+                    queue.push_back(crate::state::TransferItem {
+                        src: src_path.clone(),
+                        dst: target,
+                        is_dir: false,
+                        size: None,
+                    });
+                }
+                let label = if is_dir { unique } else { basename };
+                // Relay runs at concurrency 1: one source client slot plus
+                // the single dest client.
+                let state = crate::state::TransferState::new(
+                    crate::state::TransferKind::Relay,
+                    label,
+                    queue,
+                    vec![src_client],
+                    Some(dst_client),
+                    Some(dest_side),
+                    1,
+                );
+                Ok::<crate::state::TransferState, String>(if move_source {
+                    // The removal list is the queue itself: same paths,
+                    // same walk, so it cannot describe anything that was
+                    // not copied.
+                    let sources: Vec<crate::state::TransferItem> =
+                        state.queue.iter().cloned().collect();
+                    state.moving(sources)
+                } else {
+                    state
+                })
+            },
+            move |result| match result {
+                Ok(state) => Message::Sftp(SftpMessage::SftpTransferQueueReady(owner, state)),
+                Err(e) => Message::Sftp(SftpMessage::SftpOpResult(from, e, true)),
+            },
+        )
     }
 }

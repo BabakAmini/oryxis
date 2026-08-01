@@ -62,6 +62,28 @@ fn ok_status(id: u32) -> Status {
     }
 }
 
+/// Collapse a POSIX path to one canonical spelling: empty and `.` become
+/// root, repeated separators fold, `.` segments drop and `..` pops the
+/// segment before it (never above root). What a server's `realpath`
+/// answers for a symlink-free tree.
+fn normalize_posix(path: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    for seg in path.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                out.pop();
+            }
+            s => out.push(s),
+        }
+    }
+    if out.is_empty() {
+        "/".to_string()
+    } else {
+        format!("/{}", out.join("/"))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // SFTP subsystem handler (in-memory)
 // ---------------------------------------------------------------------------
@@ -88,16 +110,13 @@ impl russh_sftp::server::Handler for SftpHandler {
     }
 
     async fn realpath(&mut self, id: u32, path: String) -> Result<Name, StatusCode> {
-        // Treat "." / "" as root; otherwise echo the path back as already
-        // absolute. Enough for the client's anchor-at-open canonicalize.
-        let canon = if path == "." || path.is_empty() {
-            "/".to_string()
-        } else {
-            path
-        };
+        // Normalise the way a real server does: collapse repeated
+        // separators and resolve `.` / `..` segments, so two different
+        // spellings of one file answer with one identity. There are no
+        // symlinks in this filesystem, so that is the whole of it.
         Ok(Name {
             id,
-            files: vec![File::dummy(canon)],
+            files: vec![File::dummy(normalize_posix(&path))],
         })
     }
 
@@ -397,6 +416,135 @@ async fn harness_relay_between_servers() {
         .cloned()
         .expect("dest file present after relay");
     assert_eq!(landed, payload, "relayed bytes mismatch");
+}
+
+#[tokio::test]
+async fn harness_relay_onto_itself_is_refused() {
+    // The destination is opened WRITE | CREATE | TRUNCATE before a byte
+    // is read, so a self-relay would empty the file and the failure
+    // cleanup would then remove it. Two SFTP clients on ONE connection
+    // (what `open_sibling` gives, and what two panes mounted on one host
+    // through a shared session are) must be refused before the open.
+    let (src, fs) = connect_in_memory().await;
+    let sibling = src.open_sibling().await.expect("open sibling");
+    assert!(
+        src.shares_session_with(&sibling),
+        "a sibling must be recognised as the same connection"
+    );
+
+    let payload: Vec<u8> = (0..64 * 1024).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/only-copy.bin".to_string(), payload.clone());
+
+    let err = src
+        .relay_to("/only-copy.bin", &sibling, "/only-copy.bin", None)
+        .await
+        .expect_err("relaying a file onto itself must be refused");
+    assert!(
+        err.to_string().contains("same file"),
+        "unexpected refusal message: {err}"
+    );
+
+    let survived = fs
+        .lock()
+        .await
+        .files
+        .get("/only-copy.bin")
+        .cloned()
+        .expect("the file must still exist after the refusal");
+    assert_eq!(survived, payload, "the refused relay damaged the file");
+}
+
+#[tokio::test]
+async fn harness_relay_onto_itself_spelled_differently_is_refused() {
+    // Same file, two spellings. The guard compares resolved identities,
+    // not strings, so `/sub/../data.bin` must be caught as `/data.bin`.
+    let (src, fs) = connect_in_memory().await;
+    let sibling = src.open_sibling().await.expect("open sibling");
+
+    let payload: Vec<u8> = (0..32 * 1024).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/data.bin".to_string(), payload.clone());
+
+    let err = src
+        .relay_to("/data.bin", &sibling, "/sub/../data.bin", None)
+        .await
+        .expect_err("a differently spelled self-relay must be refused");
+    assert!(
+        err.to_string().contains("same file"),
+        "unexpected refusal message: {err}"
+    );
+    assert_eq!(
+        fs.lock().await.files.get("/data.bin"),
+        Some(&payload),
+        "the refused relay damaged the file"
+    );
+}
+
+#[tokio::test]
+async fn harness_relay_between_paths_on_one_host_is_allowed() {
+    // The guard is on the resolved FILE, never on the host. Copying
+    // between two locations on one server is a legitimate move (the
+    // reporter's case was two users on one machine) and must still work.
+    let (src, fs) = connect_in_memory().await;
+    let sibling = src.open_sibling().await.expect("open sibling");
+
+    let payload: Vec<u8> = (0..48 * 1024).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/home/a/report.bin".to_string(), payload.clone());
+
+    src.relay_to("/home/a/report.bin", &sibling, "/home/b/report.bin", None)
+        .await
+        .expect("same-host relay to a different path must be allowed");
+
+    let guard = fs.lock().await;
+    assert_eq!(
+        guard.files.get("/home/b/report.bin"),
+        Some(&payload),
+        "the copy did not land"
+    );
+    assert_eq!(
+        guard.files.get("/home/a/report.bin"),
+        Some(&payload),
+        "a relay must not disturb its source"
+    );
+}
+
+#[tokio::test]
+async fn harness_relay_same_path_across_hosts_is_allowed() {
+    // Two independent servers, identical path on both. Nothing about the
+    // path makes these the same file, and refusing here would break the
+    // most ordinary relay there is (`/etc/app.conf` from staging to
+    // prod).
+    let (src, src_fs) = connect_in_memory().await;
+    let (dst, dst_fs) = connect_in_memory().await;
+    assert!(
+        !src.shares_session_with(&dst),
+        "two separate connections must not be seen as one"
+    );
+
+    let payload: Vec<u8> = (0..16 * 1024).map(|i| (i % 251) as u8).collect();
+    src_fs
+        .lock()
+        .await
+        .files
+        .insert("/etc/app.conf".to_string(), payload.clone());
+
+    src.relay_to("/etc/app.conf", &dst, "/etc/app.conf", None)
+        .await
+        .expect("same path on two different hosts must be allowed");
+
+    assert_eq!(
+        dst_fs.lock().await.files.get("/etc/app.conf"),
+        Some(&payload),
+        "the cross-host relay did not land"
+    );
 }
 
 #[tokio::test]

@@ -316,4 +316,10 @@ pub enum SftpMessage {
     /// Relay a remote folder tree from the `from` side's host to the
     /// other side's host.
     SftpRelayFolder(crate::state::SftpPaneSide, String),
+    /// Like [`SftpRelay`](Self::SftpRelay) but removes the source once
+    /// the copy is verified. The removal never runs unless every queue
+    /// item landed at the right size.
+    SftpRelayMove(crate::state::SftpPaneSide, String),
+    /// Folder counterpart of [`SftpRelayMove`](Self::SftpRelayMove).
+    SftpRelayMoveFolder(crate::state::SftpPaneSide, String),
 }

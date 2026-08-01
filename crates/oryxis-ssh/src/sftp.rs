@@ -166,6 +166,40 @@ impl SftpClient {
         .await
     }
 
+    /// True when both clients ride the same SSH connection, and therefore
+    /// see the same filesystem as the same user.
+    ///
+    /// Every `SftpClient` opened from one `SshSession` is handed a clone
+    /// of that session's own handle `Arc`, so pointer identity is an
+    /// exact answer rather than a heuristic. The converse does NOT hold:
+    /// two separate sessions may still reach the same machine (two vault
+    /// entries for one host, or two users on one server), so a `false`
+    /// here means "cannot prove same host", never "different host".
+    pub fn shares_session_with(&self, other: &SftpClient) -> bool {
+        Arc::ptr_eq(&self.handle, &other.handle)
+    }
+
+    /// Canonical identity of `path` for same-file comparisons, resolving
+    /// symlinks and relative segments.
+    ///
+    /// Falls back to canonicalizing the PARENT and re-joining the base
+    /// name when the path itself doesn't resolve, which is the normal
+    /// case for a transfer destination that doesn't exist yet: servers
+    /// answer `SSH_FXP_REALPATH` for a missing leaf inconsistently, but
+    /// its directory always resolves.
+    async fn path_identity(&self, path: &str) -> Option<String> {
+        if let Ok(real) = self.canonicalize(path).await {
+            return Some(real);
+        }
+        let trimmed = path.trim_end_matches('/');
+        let (parent, base) = match trimmed.rsplit_once('/') {
+            Some((p, b)) if !b.is_empty() => (if p.is_empty() { "/" } else { p }, b),
+            _ => return None,
+        };
+        let real_parent = self.canonicalize(parent).await.ok()?;
+        Some(format!("{}/{}", real_parent.trim_end_matches('/'), base))
+    }
+
     /// Read a remote file fully into memory. Fine for small files the UI
     /// touches whole (edit-in-place, config snippets). Bulk transfers go
     /// through [`download_to`](Self::download_to) instead, which streams
@@ -558,6 +592,7 @@ impl SftpClient {
         progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
     ) -> Result<(), SshError> {
         let label = format!("relay({src_remote} -> {dst_remote})");
+        self.refuse_self_relay(src_remote, dst, dst_remote).await?;
         let size = match size_hint {
             Some(s) => s,
             None => self.stat(src_remote).await?.size,
@@ -576,6 +611,59 @@ impl SftpClient {
             let _ = dst.remove_file(dst_remote).await;
         }
         result
+    }
+
+    /// Refuse a relay whose two sides are the same file.
+    ///
+    /// Both relay branches open the destination `WRITE | CREATE |
+    /// TRUNCATE` before reading a single source byte, so a self-relay
+    /// would empty the file and the failure cleanup would then remove
+    /// it. The app's queue builder happens to prevent this upstream (it
+    /// picks a destination name that is free in the destination
+    /// directory, and naming the same file requires naming a name that
+    /// is taken), but `relay_to` is public API: the MCP handlers and any
+    /// future caller get no such protection, so the invariant is
+    /// enforced here where the truncate actually happens.
+    ///
+    /// Only checked when both sides ride the same SSH connection. Two
+    /// separate sessions may still reach one machine, but proving that
+    /// needs a server identity the client doesn't retain today, and the
+    /// error asymmetry says not to guess: a missed detection leaves the
+    /// current behaviour, a false positive refuses a legitimate copy.
+    ///
+    /// Costs nothing on the normal cross-host relay (a pointer
+    /// comparison). The two `realpath` round trips are only paid when
+    /// the two sides genuinely share a connection.
+    async fn refuse_self_relay(
+        &self,
+        src_remote: &str,
+        dst: &SftpClient,
+        dst_remote: &str,
+    ) -> Result<(), SshError> {
+        if !self.shares_session_with(dst) {
+            return Ok(());
+        }
+        let same = if src_remote == dst_remote {
+            // Identical strings on one connection need no round trip.
+            true
+        } else {
+            match (
+                self.path_identity(src_remote).await,
+                dst.path_identity(dst_remote).await,
+            ) {
+                (Some(a), Some(b)) => a == b,
+                // Unresolvable on either side: fall through and let the
+                // open report the real error, rather than refusing a
+                // transfer on a guess.
+                _ => false,
+            }
+        };
+        if same {
+            return Err(SshError::Channel(format!(
+                "refusing to relay {src_remote} onto itself: source and destination are the same file"
+            )));
+        }
+        Ok(())
     }
 
     async fn relay_small(
