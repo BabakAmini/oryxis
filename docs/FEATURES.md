@@ -111,7 +111,7 @@ coming next, see the [Roadmap](../README.md#roadmap).
   optional bottom tab bar.
 - **Syntax highlighting.** IPs, URLs, and file paths auto-detected and
   colored.
-- **15 terminal palettes plus custom schemes.** Picker with inline swatch
+- **17 terminal palettes plus custom schemes.** Picker with inline swatch
   previews, global or per-host; build your own, clone a built-in as a
   starting point, or import iTerm / Windows Terminal / base16 from a
   pasted blob or a file. Terminal and UI themes both export back out, so

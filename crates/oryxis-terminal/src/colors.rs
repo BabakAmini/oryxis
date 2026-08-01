@@ -18,6 +18,8 @@ pub enum TerminalTheme {
     NordLight,
     SolarizedDark,
     SolarizedLight,
+    NightOwl,
+    NightOwlLight,
     PaperLight,
 }
 
@@ -37,6 +39,8 @@ impl TerminalTheme {
         Self::NordLight,
         Self::SolarizedDark,
         Self::SolarizedLight,
+        Self::NightOwl,
+        Self::NightOwlLight,
         Self::PaperLight,
     ];
 
@@ -56,6 +60,8 @@ impl TerminalTheme {
             Self::NordLight => "Nord Light",
             Self::SolarizedDark => "Solarized Dark",
             Self::SolarizedLight => "Solarized Light",
+            Self::NightOwl => "Night Owl",
+            Self::NightOwlLight => "Night Owl Light",
             Self::PaperLight => "Paper Light",
         }
     }
@@ -76,6 +82,8 @@ impl TerminalTheme {
             Self::NordLight => TerminalPalette::nord_light(),
             Self::SolarizedDark => TerminalPalette::solarized_dark(),
             Self::SolarizedLight => TerminalPalette::solarized_light(),
+            Self::NightOwl => TerminalPalette::night_owl(),
+            Self::NightOwlLight => TerminalPalette::night_owl_light(),
             Self::PaperLight => TerminalPalette::paper_light(),
         }
     }
@@ -486,6 +494,78 @@ impl TerminalPalette {
         }
     }
 
+    /// Night Owl, Sarah Drasner's theme (the palette Termius ships),
+    /// taken from the upstream `Night Owl-color-theme.json`.
+    ///
+    /// The dark variant declares no `terminal.background` /
+    /// `terminal.foreground`, so those come from `editor.background` /
+    /// `editor.foreground`, which is what the VS Code terminal falls back
+    /// to and what every port of this theme uses. Its light sibling DOES
+    /// declare them, so the two are read from different keys on purpose.
+    /// Cursor is `editorCursor.foreground`, matching how the rest of this
+    /// file gives each palette its own accent cursor.
+    pub fn night_owl() -> Self {
+        Self {
+            foreground: Color::from_rgb8(214, 222, 235),   // #d6deeb
+            background: Color::from_rgb8(1, 22, 39),       // #011627
+            cursor: Color::from_rgb8(128, 164, 194),       // #80a4c2
+            ansi: [
+                Color::from_rgb8(1, 22, 39),       // Black   #011627
+                Color::from_rgb8(239, 83, 80),     // Red     #EF5350
+                Color::from_rgb8(34, 218, 110),    // Green   #22da6e
+                Color::from_rgb8(197, 228, 120),   // Yellow  #c5e478
+                Color::from_rgb8(130, 170, 255),   // Blue    #82AAFF
+                Color::from_rgb8(199, 146, 234),   // Magenta #C792EA
+                Color::from_rgb8(33, 199, 168),    // Cyan    #21c7a8
+                Color::from_rgb8(255, 255, 255),   // White   #ffffff
+                Color::from_rgb8(87, 86, 86),      // Bright Black   #575656
+                Color::from_rgb8(239, 83, 80),     // Bright Red     #EF5350
+                Color::from_rgb8(34, 218, 110),    // Bright Green   #22da6e
+                Color::from_rgb8(255, 235, 149),   // Bright Yellow  #ffeb95
+                Color::from_rgb8(130, 170, 255),   // Bright Blue    #82AAFF
+                Color::from_rgb8(199, 146, 234),   // Bright Magenta #C792EA
+                Color::from_rgb8(127, 219, 202),   // Bright Cyan    #7fdbca
+                Color::from_rgb8(255, 255, 255),   // Bright White   #ffffff
+            ],
+        }
+    }
+
+    /// Night Owl Light, the daylight sibling from the same theme (the
+    /// README calls it "Light Owl"; the theme file names it "Night Owl
+    /// Light", which is what the picker shows so it sorts beside its dark
+    /// half like Nord Light and Solarized Light do).
+    ///
+    /// Upstream sets bright black to the same value as black and bright
+    /// blue to the same value as blue. Kept faithful: with
+    /// `bold_is_bright` on, bold black text stays exactly as legible as
+    /// plain black text, which is the author's intent for a light theme,
+    /// and deviating would make this palette not-Night-Owl.
+    pub fn night_owl_light() -> Self {
+        Self {
+            foreground: Color::from_rgb8(64, 63, 83),      // #403f53
+            background: Color::from_rgb8(246, 246, 246),   // #F6F6F6
+            cursor: Color::from_rgb8(144, 167, 178),       // #90A7B2
+            ansi: [
+                Color::from_rgb8(64, 63, 83),      // Black   #403f53
+                Color::from_rgb8(222, 61, 59),     // Red     #de3d3b
+                Color::from_rgb8(8, 145, 106),     // Green   #08916a
+                Color::from_rgb8(224, 175, 2),     // Yellow  #E0AF02
+                Color::from_rgb8(40, 142, 215),    // Blue    #288ed7
+                Color::from_rgb8(214, 67, 138),    // Magenta #d6438a
+                Color::from_rgb8(42, 162, 152),    // Cyan    #2AA298
+                Color::from_rgb8(147, 161, 161),   // White   #93A1A1
+                Color::from_rgb8(64, 63, 83),      // Bright Black   #403f53
+                Color::from_rgb8(222, 61, 59),     // Bright Red     #de3d3b
+                Color::from_rgb8(8, 145, 106),     // Bright Green   #08916a
+                Color::from_rgb8(218, 170, 1),     // Bright Yellow  #daaa01
+                Color::from_rgb8(40, 142, 215),    // Bright Blue    #288ed7
+                Color::from_rgb8(214, 67, 138),    // Bright Magenta #d6438a
+                Color::from_rgb8(42, 162, 152),    // Bright Cyan    #2AA298
+                Color::from_rgb8(147, 161, 161),   // Bright White   #93A1A1
+            ],
+        }
+    }
+
     /// Paper Light, neutral high-contrast light theme. Pure-ish
     /// paper background, near-black text, restrained ANSI for
     /// long-form readability (matches the app's `Paper Light` UI).
@@ -597,4 +677,116 @@ impl TerminalPalette {
 
 fn dim(color: Color) -> Color {
     Color::from_rgba(color.r * 0.66, color.g * 0.66, color.b * 0.66, color.a)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG relative luminance, and the contrast ratio built on it.
+    /// Local to the tests: the app has its own copy for UI colours
+    /// (`oryxis-app/src/theme.rs`), and this crate has no other use for
+    /// it, so a second five-line helper beats a new dependency edge.
+    fn luminance(c: Color) -> f32 {
+        let channel = |v: f32| {
+            if v <= 0.03928 {
+                v / 12.92
+            } else {
+                ((v + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
+    }
+
+    fn contrast(a: Color, b: Color) -> f32 {
+        let (x, y) = (luminance(a), luminance(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// Plain text has to be readable in every palette we ship.
+    ///
+    /// The bar is 4.0, just under WCAG AA (4.5), on purpose: canonical
+    /// Solarized Light lands at 4.13 and is shipped faithfully rather
+    /// than "corrected", so a 4.5 bar would either fail a palette we
+    /// deliberately keep authentic or push us into editing someone
+    /// else's design. What this catches is the real failure mode, a new
+    /// palette whose text is genuinely hard to read (or whose foreground
+    /// and background got typed the wrong way round).
+    #[test]
+    fn text_is_readable_in_every_builtin_palette() {
+        for theme in TerminalTheme::ALL {
+            let p = theme.palette();
+            let ratio = contrast(p.foreground, p.background);
+            assert!(
+                ratio >= 4.0,
+                "{}: foreground on background is only {ratio:.2}:1",
+                theme.name()
+            );
+        }
+    }
+
+    /// The cursor is a filled block, so it needs far less contrast than
+    /// text to be spotted, but it cannot vanish into the background.
+    /// Night Owl Light sits lowest at 2.33:1, which reads fine as a
+    /// block; the bar sits below it so upstream palettes stay faithful
+    /// and an actually invisible cursor still fails.
+    #[test]
+    fn the_cursor_is_visible_in_every_builtin_palette() {
+        for theme in TerminalTheme::ALL {
+            let p = theme.palette();
+            let ratio = contrast(p.cursor, p.background);
+            assert!(
+                ratio >= 2.0,
+                "{}: cursor on background is only {ratio:.2}:1",
+                theme.name()
+            );
+        }
+    }
+
+    /// Note deliberately NOT tested: contrast of the 16 ANSI slots
+    /// against the background. Slot 0 is meant to be near-black on a
+    /// dark theme and slot 15 near-white on a light one, so most
+    /// palettes measure ~1:1 there by design. Asserting on those would
+    /// fail every faithful port in the set.
+    ///
+    /// Names are the real coupling: settings persist the theme as a
+    /// STRING (`terminal_theme`, the per-host override, the `.cast`
+    /// exporter), and `terminal_palette_for_name` resolves it by
+    /// scanning this list, so two entries sharing a name would make the
+    /// user's saved choice ambiguous.
+    #[test]
+    fn builtin_names_are_unique_and_non_empty() {
+        let mut seen: Vec<&str> = Vec::new();
+        for theme in TerminalTheme::ALL {
+            let name = theme.name();
+            assert!(!name.trim().is_empty(), "{theme:?} has a blank name");
+            assert!(
+                !seen.contains(&name),
+                "two built-in themes are both called {name:?}"
+            );
+            seen.push(name);
+        }
+    }
+
+    /// Night Owl's dark and light halves are read from DIFFERENT keys of
+    /// the upstream theme files (the light one declares
+    /// `terminal.background` / `terminal.foreground`, the dark one only
+    /// `editor.*`), which is the kind of asymmetry someone tidies up by
+    /// mistake. Pin both against the published values.
+    #[test]
+    fn night_owl_matches_the_published_palette() {
+        let dark = TerminalPalette::night_owl();
+        assert_eq!(dark.background, Color::from_rgb8(1, 22, 39), "editor.background #011627");
+        assert_eq!(dark.foreground, Color::from_rgb8(214, 222, 235), "editor.foreground #d6deeb");
+        assert_eq!(dark.ansi[5], Color::from_rgb8(199, 146, 234), "ansiMagenta #C792EA");
+        assert_eq!(dark.ansi[14], Color::from_rgb8(127, 219, 202), "ansiBrightCyan #7fdbca");
+
+        let light = TerminalPalette::night_owl_light();
+        assert_eq!(light.background, Color::from_rgb8(246, 246, 246), "terminal.background #F6F6F6");
+        assert_eq!(light.foreground, Color::from_rgb8(64, 63, 83), "terminal.foreground #403f53");
+        // Upstream really does repeat these two in the bright slots.
+        assert_eq!(light.ansi[0], light.ansi[8], "ansiBrightBlack repeats ansiBlack upstream");
+        assert_eq!(light.ansi[4], light.ansi[12], "ansiBrightBlue repeats ansiBlue upstream");
+    }
 }
