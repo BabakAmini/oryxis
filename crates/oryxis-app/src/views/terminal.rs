@@ -75,37 +75,22 @@ impl Oryxis {
                 let broadcast = tab.broadcast;
                 let grid = iced::widget::pane_grid(&tab.pane_grid, move |pane, pane_data, _max| {
                     let is_focused = pane == focused;
-                    let participating = broadcast && !pane_data.broadcast_opt_out;
-                    // The focus border only shows when there's more than one
-                    // pane; the mouse-report gate uses real focus regardless.
-                    // A broadcasting pane's warning border overrides the focus
-                    // accent (the louder signal wins) and shows on every
-                    // participating pane, not just the focused one. Gated on
-                    // `multipane`: broadcast is inert on a lone pane (nothing
-                    // to fan out to), so the heavy border would misread as a
-                    // warning; the chip + status segment carry the armed
-                    // state there until the tab is split.
-                    let (border_color, border_width) = if participating && multipane {
-                        (OryxisColors::t().warning, 2.0)
-                    } else if multipane && is_focused {
-                        (OryxisColors::t().accent, 1.0)
-                    } else if multipane {
-                        (OryxisColors::t().border, 1.0)
-                    } else {
-                        (OryxisColors::t().border, 0.0)
-                    };
+                    // The outline (focus accent, or the warning tint while
+                    // broadcasting) is drawn INSIDE `render_pane_canvas`, as a
+                    // layer above the terminal canvas. It used to live here as
+                    // this container's border and was invisible: the canvas
+                    // fills the container and paints over it (#113). Gated on
+                    // `multipane` there, since a lone pane has nothing to be
+                    // distinguished from and broadcast is inert on it.
                     iced::widget::pane_grid::Content::new(
-                        container(self.render_pane_canvas(pane_data, is_focused, broadcast))
-                            .width(Length::Fill)
-                            .height(Length::Fill)
-                            .style(move |_| container::Style {
-                                border: Border {
-                                    color: border_color,
-                                    width: border_width,
-                                    radius: Radius::from(0.0),
-                                },
-                                ..Default::default()
-                            }),
+                        container(self.render_pane_canvas(
+                            pane_data,
+                            is_focused,
+                            broadcast,
+                            multipane,
+                        ))
+                        .width(Length::Fill)
+                        .height(Length::Fill),
                     )
                 })
                 .on_click(|v| Message::Terminal(TerminalMessage::FocusPane(v)))
@@ -398,6 +383,7 @@ impl Oryxis {
         pane: &'a crate::state::Pane,
         is_focused: bool,
         tab_broadcast: bool,
+        multipane: bool,
     ) -> Element<'a, Message> {
         let mut term_view = TerminalView::new(Arc::clone(&pane.terminal))
             .focused(is_focused)
@@ -513,10 +499,48 @@ impl Oryxis {
             .ok()
             .and_then(|s| s.hovered_link.clone())
             .map(|link| self.link_reveal_chip(&pane.label, link));
-        if overlay.is_none() && link_chip.is_none() {
+        // Pane outline (#113). It has to be drawn ON TOP of the canvas,
+        // not as the enclosing container's border: the canvas fills its
+        // parent and paints its own background across the whole rect, so
+        // a border on the container underneath is painted over and the
+        // focused pane ends up with no marking at all, which is exactly
+        // what the report says. Padding the container instead would
+        // inset the canvas, and that recomputes the terminal's rows and
+        // columns, so merely FOCUSING a pane would resize the PTY.
+        //
+        // Non-interactive (a plain container over a Space), so it cannot
+        // eat the press that moves focus to this pane.
+        let ring: Option<Element<'a, Message>> = multipane.then(|| {
+            let participating = tab_broadcast && !pane.broadcast_opt_out;
+            // Broadcast is the louder signal and wins: keystrokes going
+            // to several hosts at once matters more than which pane the
+            // caret is in.
+            let (color, width) = if participating {
+                (OryxisColors::t().warning, 2.0)
+            } else if is_focused {
+                (OryxisColors::t().accent, 2.0)
+            } else {
+                (OryxisColors::t().border, 1.0)
+            };
+            container(Space::new())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(move |_| container::Style {
+                    border: Border { color, width, radius: Radius::from(0.0) },
+                    ..Default::default()
+                })
+                .into()
+        });
+        if overlay.is_none() && link_chip.is_none() && ring.is_none() {
             return host;
         }
         let mut stack = iced::widget::Stack::new().push(host);
+        // Under the chips: a 2 px ring at the edges and a padded chip in
+        // the corner do not overlap, and keeping the chips last means a
+        // future wider ring can never cover the find bar.
+        if let Some(ring) = ring {
+            stack = stack.push(ring);
+        }
         if let Some(top) = overlay {
             stack = stack.push(
                 container(top)
