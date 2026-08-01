@@ -80,6 +80,8 @@ mod os_icon;
 // MSIX / Microsoft Store container probe. Gates the self-updater and
 // the explicit AppUserModelID, both of which are wrong inside a package.
 mod packaged;
+// Split-anchor geometry for dropping a dragged tab into a pane grid.
+mod pane_drop;
 // Cloud-provider plugin subsystem. Inert until the cloud dispatch
 // path is rewired onto it in a later PR, the `allow` keeps the
 // clippy `-D warnings` gate green while the infra (and its public

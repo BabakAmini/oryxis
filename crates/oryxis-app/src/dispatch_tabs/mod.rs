@@ -9,6 +9,7 @@
 mod hybrid;
 mod icon_picker;
 mod lifecycle;
+mod merge;
 mod ordering;
 mod window;
 

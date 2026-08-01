@@ -158,8 +158,12 @@ impl Oryxis {
 
         // Floating ghost while a PINNED tab is being dragged: the pins
         // live on this bar, so the ghost tracks the cursor's x here;
-        // the vertical strip draws the unpinned ghosts.
+        // the vertical strip draws the unpinned ghosts. Once the cursor
+        // leaves the strip the window-level layer takes over, because
+        // this Stack is clipped to the bar and the ghost has to follow
+        // the cursor's y down into the content (issue #112).
         if let Some(ref ctx) = ghost_ctx
+            && self.cursor_in_tab_strip()
             && self.dragged_tab_pinned()
             && let Some((ghost, ghost_w)) = self.strip_drag_ghost_el(
                 ctx.drag_uniform_w,
@@ -717,8 +721,12 @@ impl Oryxis {
         // top-left, so window-space cursor x maps directly to bar-local x. The
         // ghost is a plain (non-interactive) container, so the tab MouseAreas
         // underneath still receive the hover events that drive the live-slide.
-        let drag_ghost_el =
-            self.strip_drag_ghost_el(drag_uniform_w, compact_pins, &ctx.privacy_terms);
+        // Only while the cursor is still on the strip: past that the
+        // window-level layer draws it, free in both axes (issue #112).
+        let drag_ghost_el = self
+            .cursor_in_tab_strip()
+            .then(|| self.strip_drag_ghost_el(drag_uniform_w, compact_pins, &ctx.privacy_terms))
+            .flatten();
         if let Some((ghost, ghost_w)) = drag_ghost_el {
             let gx = (self.mouse_position.x - ghost_w / 2.0).max(0.0);
             let positioned: Element<'_, Message> = iced::widget::Column::new()

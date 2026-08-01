@@ -545,6 +545,69 @@ impl Oryxis {
         )
     }
 
+    /// A tab being dragged out of the strip and over the content area
+    /// (issue #112): the split anchor it is currently proposing, painted
+    /// as the space the arriving session will occupy, plus the tab's own
+    /// ghost chip now free in both axes.
+    ///
+    /// Lives at the window root for two reasons: the proposal's rectangle
+    /// is already in window coordinates, and the strip's own Stack is
+    /// clipped to the bar, which is exactly why the chip could never
+    /// follow the cursor down here. Purely decorative, no `MouseArea`
+    /// anywhere, so the release that ends the drag reaches the app.
+    pub(crate) fn layer_tab_drop<'a>(
+        &'a self,
+        base: Element<'a, Message>,
+        resize_overlay: Option<Element<'a, Message>>,
+    ) -> Element<'a, Message> {
+        let mut stack = Stack::new().push(base);
+        let accent = OryxisColors::t().accent;
+        if let Some((_, proposal)) = self.tab_drop_proposal() {
+            let rect = proposal.highlight;
+            // Inset by the border width so the outline reads as the edge
+            // OF the region rather than a line spilling into the pane
+            // next door.
+            let fill: Element<'_, Message> = container(Space::new())
+                .width(Length::Fixed((rect.width - 4.0).max(0.0)))
+                .height(Length::Fixed((rect.height - 4.0).max(0.0)))
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.18, ..accent })),
+                    border: Border {
+                        color: accent,
+                        width: 2.0,
+                        radius: Radius::from(4.0),
+                    },
+                    ..Default::default()
+                })
+                .into();
+            let positioned: Element<'_, Message> = column![
+                Space::new().height(rect.y + 2.0),
+                row![Space::new().width(rect.x + 2.0), fill],
+            ]
+            .into();
+            stack = stack.push(positioned);
+        }
+        // The chip itself. Centered on the cursor horizontally like the
+        // strip does, and lifted half a row so the pointer sits on it
+        // rather than under it.
+        if let Some((ghost, ghost_w)) = self.strip_drag_ghost_el(
+            crate::views::tab_bar::TAB_NATURAL_WIDTH,
+            false,
+            &self.privacy_terms(),
+        ) {
+            let x = (self.mouse_position.x - ghost_w / 2.0)
+                .min(self.window_size.width - ghost_w)
+                .max(0.0);
+            let y = (self.mouse_position.y - crate::views::tab_bar::TAB_HEIGHT / 2.0)
+                .min(self.window_size.height - crate::views::tab_bar::TAB_HEIGHT)
+                .max(0.0);
+            let positioned: Element<'_, Message> =
+                column![Space::new().height(y), row![Space::new().width(x), ghost]].into();
+            stack = stack.push(positioned);
+        }
+        wrap_with_resize(stack.width(Length::Fill).height(Length::Fill).into(), resize_overlay)
+    }
+
     /// Floating drag ghost for an in-flight cross-pane SFTP drag, tracking
     /// the cursor above everything else and non-interactive so it never
     /// swallows the release that ends the drag.

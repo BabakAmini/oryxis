@@ -703,6 +703,14 @@ impl Oryxis {
             return self.layer_sftp_drag_ghost(base, resize_overlay, drag);
         }
 
+        // A tab dragged off the strip and over the content area: the
+        // split anchor it proposes, plus its ghost chip (issue #112).
+        // The strip stops drawing the chip at the same boundary, so
+        // exactly one of the two is up at any moment.
+        if self.tab_drag.is_some_and(|d| d.active) && !self.cursor_in_tab_strip() {
+            return self.layer_tab_drop(base, resize_overlay);
+        }
+
         // No modal open. Wrap `base` in a single-child Stack so it sits
         // at exactly the same tree position as in the modal branches
         // above (every one of which passes `Stack::new().push(base)

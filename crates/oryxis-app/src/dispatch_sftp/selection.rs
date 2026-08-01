@@ -268,12 +268,7 @@ impl Oryxis {
                 // actual dock: a hard-coded top `y <= BAR_HEIGHT` guard
                 // silently disabled reorder on every non-top dock (issue
                 // #87, "can't move tabs on the left side").
-                let in_tab_strip = crate::views::tab_bar::cursor_in_tab_strip_band(
-                    crate::views::tab_bar::tab_bar_pos(),
-                    self.mouse_position,
-                    self.window_size,
-                    self.setting_pinned_tabs_top_bar && !self.setting_side_hide_top_bar,
-                );
+                let in_tab_strip = self.cursor_in_tab_strip();
                 if !in_tab_strip {
                     self.hovered_tab = None;
                     self.hovered_sftp_tab = None;

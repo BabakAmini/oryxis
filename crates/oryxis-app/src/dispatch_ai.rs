@@ -651,6 +651,13 @@ impl Oryxis {
                     self.sftp_columns_template = self.sftp.pane(side).columns.clone();
                     self.persist_sftp_columns();
                 }
+                // A tab released over the content area merges into the
+                // tab showing there instead of reordering (issue #112).
+                // Runs first and consumes the drag on success, so the
+                // reorder path below sees nothing left to do. Nothing is
+                // proposed unless the cursor sits on a split anchor, so
+                // an ordinary reorder release falls straight through.
+                self.merge_dragged_tab_if_proposed();
                 // Ends a tab reorder drag. The live-slide already moved
                 // the tab into place during the drag (see TabHovered); on
                 // drop we just persist the new pinned order (if the dragged
