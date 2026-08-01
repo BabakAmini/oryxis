@@ -21,6 +21,16 @@ impl Oryxis {
     /// current dock. The strip owns the gesture while the cursor is over
     /// it (that is the reorder half of the drag), so this is what keeps
     /// the two halves from both claiming a frame.
+    ///
+    /// Known asymmetry on a BOTTOM dock: that band carries 40 px of slack
+    /// past the strip (it has to clear the status bar, see
+    /// `cursor_in_tab_strip_band`), which overlaps the grid's own bottom
+    /// anchor. So on a bottom-docked strip `Target::Edge(Bottom)` is hard
+    /// to reach and may not be reachable at all. Deliberately left that
+    /// way: the strip winning is the safe direction (the worst case is a
+    /// missing anchor, never a drop somewhere the preview didn't promise),
+    /// and every other anchor, including the bottom pane's own bottom
+    /// third, still works.
     pub(crate) fn cursor_in_tab_strip(&self) -> bool {
         crate::views::tab_bar::cursor_in_tab_strip_band(
             crate::views::tab_bar::tab_bar_pos(),

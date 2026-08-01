@@ -50,7 +50,19 @@ pub(crate) fn drop_target_at(
     panes: &[(Pane, Rectangle)],
     cursor: Point,
 ) -> Option<DropProposal> {
-    let area = grid_area(panes)?;
+    // A pane that exists but hasn't drawn yet still reports the zeroed
+    // rect its cell was born with. Left in, it would drag the grid's
+    // bounding box back to the origin: inflated area, wrong band
+    // thickness, anchors that don't match any pane on screen. Reachable
+    // whenever something splits the displayed tab mid-drag (a connect
+    // landing in `make_split_pane`), so drop them before anything reads
+    // a rectangle.
+    let panes: Vec<(Pane, Rectangle)> = panes
+        .iter()
+        .copied()
+        .filter(|(_, r)| r.width > 0.0 && r.height > 0.0)
+        .collect();
+    let area = grid_area(&panes)?;
     if !contains(area, cursor) {
         return None;
     }
@@ -64,7 +76,7 @@ pub(crate) fn drop_target_at(
             highlight: half_towards(area, edge),
         });
     }
-    let (pane, bounds) = pane_at(panes, cursor)?;
+    let (pane, bounds) = pane_at(&panes, cursor)?;
     // A pane's middle ninth proposes nothing. iced calls it
     // `Region::Center` and answers it by SWAPPING the two panes, which
     // has no meaning for a pane arriving from another tab; refusing is
@@ -318,6 +330,36 @@ mod tests {
             matches!(target, Target::Pane(_, Region::Edge(_))),
             "the divider must still resolve to a neighbouring pane, got {target:?}"
         );
+    }
+
+    /// A pane that hasn't drawn yet reports the zeroed rect its cell was
+    /// born with. Counting it would stretch the grid back to the origin
+    /// and every anchor with it, so it is dropped before anything reads
+    /// a rectangle.
+    #[test]
+    fn a_pane_that_has_not_drawn_yet_is_ignored() {
+        let area = Rectangle { x: 400.0, y: 100.0, width: 600.0, height: 400.0 };
+        let mut panes = rects(&single_pane(), area, 0.0);
+        // Stand-in for a pane of the same grid that hasn't drawn yet:
+        // `Pane` has no public constructor, and only its identity
+        // matters. A split's handle is the second one minted, so it
+        // can't collide with the single drawn pane above.
+        let (mut scratch, root) = pane_grid::State::new(());
+        let (undrawn, _) = scratch.split(pane_grid::Axis::Vertical, root, ()).expect("split");
+        panes.push((undrawn, Rectangle { x: 0.0, y: 0.0, width: 0.0, height: 0.0 }));
+        let proposal =
+            drop_target_at(&panes, Point::new(950.0, 300.0)).expect("a proposal");
+        assert!(
+            matches!(proposal.target, Target::Pane(p, _) if p != undrawn),
+            "the undrawn pane must never be a target"
+        );
+        assert_eq!(
+            proposal.highlight.x, 700.0,
+            "the anchors follow the DRAWN pane, not a box stretched to the origin"
+        );
+        // And a cursor over where that phantom rect sat proposes nothing,
+        // rather than resolving to the nearest real pane far away.
+        assert!(drop_target_at(&panes, Point::new(10.0, 10.0)).is_none());
     }
 
     /// A cursor outside the area proposes nothing, so releasing over the

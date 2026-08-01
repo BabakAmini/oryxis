@@ -33,6 +33,12 @@ move (600, 300)
 # per-pane anchor, so the preview is the right HALF of that pane.
 move (1000, 400)
 settle 300
+# LOAD-BEARING, not decoration: the drop hit-tests the panes' last-drawn
+# rects (`Pane.bounds`), and the headless emulator only draws when a
+# screenshot is taken. Without a shot somewhere in the gesture every rect
+# is still the zeroed one its cell was born with, nothing is proposed,
+# and the release falls through to a plain reorder. The windowed app
+# draws every frame, so this is a harness artifact only.
 screenshot tab-drag-split-preview
 release (1000, 400)
 settle 600
