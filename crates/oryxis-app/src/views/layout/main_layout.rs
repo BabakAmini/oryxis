@@ -636,6 +636,20 @@ impl Oryxis {
             );
         }
 
+        // Global terminal-theme gallery (Settings -> Terminal). The grid
+        // it holds used to sit inline and dominate the page.
+        if self.show_terminal_theme_gallery {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.terminal_theme_gallery(),
+                    Some(Message::Settings(SettingsMessage::CloseTerminalThemeGallery)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Import-a-scheme modal (Settings -> Terminal "Import" card).
         if self.show_theme_import {
             return wrap_with_resize(

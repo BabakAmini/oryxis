@@ -238,6 +238,8 @@ impl Oryxis {
             | SettingsMessage::ToggleBoldIsBright
             | SettingsMessage::TogglePaneBorderInactive
             | SettingsMessage::PaneGapChanged(..)
+            | SettingsMessage::OpenTerminalThemeGallery
+            | SettingsMessage::CloseTerminalThemeGallery
             | SettingsMessage::ToggleTerminalAutoTitle
             | SettingsMessage::BellModeChanged(..)
             | SettingsMessage::ClipboardAccessChanged(..)

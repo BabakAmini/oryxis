@@ -119,6 +119,137 @@ impl Oryxis {
     /// Row for the ZMODEM download folder: the resolved path (default or
     /// configured) plus a Browse button, and a Reset when a custom folder
     /// is set. Always shown (transfers work regardless of other toggles).
+    /// The terminal-theme gallery: every built-in and custom palette as a
+    /// card, plus the create / import entries. Lives behind a modal
+    /// rather than inline in Settings, where 17 built-ins plus the user's
+    /// own pushed every group below it off the page.
+    ///
+    /// The cards record themselves as keyboard rows in RENDER order, same
+    /// as any settings row, so the modal is walkable the moment it opens.
+    pub(crate) fn terminal_theme_gallery(&self) -> Element<'_, Message> {
+        let mut theme_cards: Vec<Element<'_, Message>> = Vec::new();
+        // The sentinel renders as a real palette card previewing
+        // the app-theme-derived palette (every app theme has a
+        // same-named terminal palette), instead of the old
+        // input-looking box that read as a text field.
+        let app_theme_name = crate::theme::AppTheme::active().name();
+        let follow_palette = self
+            .terminal_palette_for_name(app_theme_name)
+            .unwrap_or_default();
+        let follow_label =
+            format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
+        theme_cards.push(self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(String::new()))),
+            10.0,
+            crate::widgets::terminal_theme_card(
+                follow_palette,
+                &follow_label,
+                self.terminal_theme_override.is_none(),
+                Message::Settings(SettingsMessage::TerminalThemeChanged(String::new())),
+            ),
+        ));
+        for (bidx, theme) in oryxis_terminal::TerminalTheme::ALL.iter().enumerate() {
+            let is_selected = self
+                .terminal_theme_override
+                .as_deref()
+                == Some(theme.name());
+            theme_cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
+                    theme.name().to_string(),
+                ))),
+                10.0,
+                // Hover reveals a clone icon (duplicate the preset into an
+                // editable custom theme); Enter still applies the theme.
+                self.terminal_builtin_theme_card(bidx, theme, is_selected),
+            ));
+        }
+        // User-defined themes after the built-ins, each with the
+        // hover edit / delete affordances. Enter applies the theme
+        // (the card's own click action); edit / delete stay
+        // hover-only.
+        for (idx, ct) in self.custom_terminal_themes.iter().enumerate() {
+            let is_selected =
+                self.terminal_theme_override.as_deref() == Some(ct.name.as_str());
+            let palette = self
+                .terminal_palette_for_name(&ct.name)
+                .unwrap_or_default();
+            theme_cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
+                    ct.name.clone(),
+                ))),
+                10.0,
+                self.terminal_custom_theme_card(
+                    idx,
+                    &ct.name,
+                    palette,
+                    is_selected,
+                ),
+            ));
+        }
+        // "+ New custom theme" + "Import" cards last.
+        theme_cards.push(self.settings_nav_slot_labeled(
+            t("theme_new_custom"),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeEditorNew)),
+            10.0,
+            crate::views::settings_themes::terminal_theme_add_card(),
+        ));
+        theme_cards.push(self.settings_nav_slot_labeled(
+            t("theme_import"),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeImportOpen)),
+            10.0,
+            crate::views::settings_themes::terminal_theme_import_card(),
+        ));
+        // 2-column responsive grid for theme cards. Cards still
+        // use the existing swatch-+-name layout (the "bolinhas"
+        // style); only the row arrangement changes from a single
+        // tall column to a side-by-side pair so the picker
+        // doesn't dominate the settings panel vertically.
+        // Built here (the cards need this view's locals) and handed to
+        // the gallery modal.
+        let theme_grid = crate::widgets::distribute_card_grid(
+            theme_cards,
+            2,
+            8.0,
+            8.0,
+        );
+        // Bare card, same shape as the theme-import modal:
+        // `widgets::modal_overlay` (the caller) owns the scrim, the
+        // centering and the click-trap. Scrollable because the list grows
+        // with every custom theme, which is exactly why it stopped being
+        // inline.
+        let footer: Element<'_, Message> = crate::widgets::dir_row(vec![
+            Space::new().width(Length::Fill).into(),
+            crate::widgets::form_cancel_button(Message::Settings(
+                SettingsMessage::CloseTerminalThemeGallery,
+            )),
+        ])
+        .align_y(iced::Alignment::Center)
+        .into();
+        let card = container(
+            column![
+                text(t("terminal_theme")).size(18).color(OryxisColors::t().text_primary),
+                Space::new().height(6),
+                text(t("terminal_theme_desc")).size(12).color(OryxisColors::t().text_muted),
+                Space::new().height(16),
+                scrollable(theme_grid).height(Length::Fixed(460.0)),
+                Space::new().height(12),
+                footer,
+            ],
+        )
+        .padding(24)
+        .width(Length::Fixed(720.0))
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_primary)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        });
+        card.into()
+    }
+
     fn default_download_dir_row(&self) -> Element<'_, Message> {
         let configured = self.setting_zmodem_download_dir.trim();
         let shown = if configured.is_empty() {
@@ -619,96 +750,46 @@ impl Oryxis {
         // over this global pick. Each card is a keyboard row (Enter
         // applies / opens it); built after the font picker so the
         // recording matches the render order.
-        let mut theme_cards: Vec<Element<'_, Message>> = Vec::new();
-        // The sentinel renders as a real palette card previewing
-        // the app-theme-derived palette (every app theme has a
-        // same-named terminal palette), instead of the old
-        // input-looking box that read as a text field.
         let app_theme_name = crate::theme::AppTheme::active().name();
         let follow_palette = self
             .terminal_palette_for_name(app_theme_name)
             .unwrap_or_default();
         let follow_label =
             format!("{} ({})", t("terminal_theme_follow_app"), app_theme_name);
-        theme_cards.push(self.settings_nav_slot(
-            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(String::new()))),
-            10.0,
-            crate::widgets::terminal_theme_card(
-                follow_palette,
-                &follow_label,
-                self.terminal_theme_override.is_none(),
-                Message::Settings(SettingsMessage::TerminalThemeChanged(String::new())),
-            ),
-        ));
-        for (bidx, theme) in oryxis_terminal::TerminalTheme::ALL.iter().enumerate() {
-            let is_selected = self
-                .terminal_theme_override
-                .as_deref()
-                == Some(theme.name());
-            theme_cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
-                    theme.name().to_string(),
-                ))),
-                10.0,
-                // Hover reveals a clone icon (duplicate the preset into an
-                // editable custom theme); Enter still applies the theme.
-                self.terminal_builtin_theme_card(bidx, theme, is_selected),
-            ));
-        }
-        // User-defined themes after the built-ins, each with the
-        // hover edit / delete affordances. Enter applies the theme
-        // (the card's own click action); edit / delete stay
-        // hover-only.
-        for (idx, ct) in self.custom_terminal_themes.iter().enumerate() {
-            let is_selected =
-                self.terminal_theme_override.as_deref() == Some(ct.name.as_str());
-            let palette = self
-                .terminal_palette_for_name(&ct.name)
-                .unwrap_or_default();
-            theme_cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::TerminalThemeChanged(
-                    ct.name.clone(),
-                ))),
-                10.0,
-                self.terminal_custom_theme_card(
-                    idx,
-                    &ct.name,
-                    palette,
-                    is_selected,
-                ),
-            ));
-        }
-        // "+ New custom theme" + "Import" cards last.
-        theme_cards.push(self.settings_nav_slot_labeled(
-            t("theme_new_custom"),
-            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeEditorNew)),
-            10.0,
-            crate::views::settings_themes::terminal_theme_add_card(),
-        ));
-        theme_cards.push(self.settings_nav_slot_labeled(
-            t("theme_import"),
-            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::ThemeImportOpen)),
-            10.0,
-            crate::views::settings_themes::terminal_theme_import_card(),
-        ));
-        // 2-column responsive grid for theme cards. Cards still
-        // use the existing swatch-+-name layout (the "bolinhas"
-        // style); only the row arrangement changes from a single
-        // tall column to a side-by-side pair so the picker
-        // doesn't dominate the settings panel vertically.
-        let theme_grid = crate::widgets::distribute_card_grid(
-            theme_cards,
-            2,
-            8.0,
-            8.0,
-        );
+        // The grid lives in a modal now, not inline (owner ask): with 17
+        // built-ins plus every custom theme it was the tallest thing in
+        // Settings by a wide margin, and it pushed every group below it
+        // out of reach. The row shows the palette in force as a real
+        // card, so the preview survives the move; clicking it opens the
+        // gallery, the same shape the host editor's picker already has.
+        let current_theme_name = self
+            .terminal_theme_override
+            .clone()
+            .unwrap_or_else(|| follow_label.clone());
+        let current_palette = self
+            .terminal_theme_override
+            .as_deref()
+            .and_then(|n| self.terminal_palette_for_name(n))
+            .unwrap_or(follow_palette);
         let theme_picker_section = panel_section(column![
             text(t("terminal_theme")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("terminal_theme_desc"))
                 .size(11).color(OryxisColors::t().text_muted),
             Space::new().height(10),
-            theme_grid,
+            self.settings_nav_slot_labeled(
+                t("terminal_theme"),
+                crate::keynav::RowAction::activate(Message::Settings(
+                    SettingsMessage::OpenTerminalThemeGallery,
+                )),
+                10.0,
+                crate::widgets::terminal_theme_card(
+                    current_palette,
+                    &current_theme_name,
+                    true,
+                    Message::Settings(SettingsMessage::OpenTerminalThemeGallery),
+                ),
+            ),
         ]);
 
         // Grouped under "h2" headers, same pattern as Interface:

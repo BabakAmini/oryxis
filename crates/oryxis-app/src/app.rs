@@ -1109,6 +1109,8 @@ pub struct Oryxis {
     /// Flush is the default: the seam is grabbable either way, because a
     /// pane hands a strip back to the grid on the edges it shares.
     pub(crate) setting_pane_gap: String,
+    /// Global terminal-theme gallery (Settings > Terminal) is open.
+    pub(crate) show_terminal_theme_gallery: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
     /// render paths. When on, the terminal skips the per-frame keyword /

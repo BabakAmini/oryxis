@@ -549,6 +549,7 @@ impl Oryxis {
                 setting_bold_is_bright: true,
                 setting_pane_border_inactive: true,
                 setting_pane_gap: "0".to_string(),
+                show_terminal_theme_gallery: false,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
                 setting_command_history_file: false,

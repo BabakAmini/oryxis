@@ -251,6 +251,12 @@ impl Oryxis {
                     if self.setting_pane_border_inactive { "true" } else { "false" },
                 );
             }
+            SettingsMessage::OpenTerminalThemeGallery => {
+                self.show_terminal_theme_gallery = true;
+            }
+            SettingsMessage::CloseTerminalThemeGallery => {
+                self.show_terminal_theme_gallery = false;
+            }
             SettingsMessage::PaneGapChanged(v) => {
                 self.setting_pane_gap = v.clone();
                 self.persist_setting("pane_gap", &v);
