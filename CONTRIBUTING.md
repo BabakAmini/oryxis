@@ -79,6 +79,16 @@ A few rules that are easy to miss and will come up in review:
 - **Tests with real credentials live outside the repo.** Integration tests
   that need live servers or cloud accounts must not land in the tree.
 
+## Contributing a theme
+
+Themes are the one contribution that needs no Rust and no local setup.
+Export yours from Oryxis, add three attribution lines, and drop the file
+into `themes/terminal/` or `themes/ui/` through GitHub's web editor; the
+index the gallery reads is regenerated automatically on merge.
+
+Full instructions, the field list and what gets accepted are in
+[`themes/README.md`](themes/README.md). Everything below is for code.
+
 ## Pull requests
 
 - Keep PRs focused; unrelated refactors belong in their own PR.

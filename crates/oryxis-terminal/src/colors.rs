@@ -706,6 +706,11 @@ mod tests {
 
     /// Plain text has to be readable in every palette we ship.
     ///
+    /// SECOND CONSUMER: `scripts/gen_theme_index.py` measures community
+    /// submissions against this same 4.0 (and the 2.0 below), except
+    /// that it LABELS rather than refuses. The numbers are duplicated
+    /// across a language boundary; moving one means moving the other.
+    ///
     /// The bar is 4.0, just under WCAG AA (4.5), on purpose: canonical
     /// Solarized Light lands at 4.13 and is shipped faithfully rather
     /// than "corrected", so a 4.5 bar would either fail a palette we
