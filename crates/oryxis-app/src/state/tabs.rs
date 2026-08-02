@@ -219,7 +219,11 @@ impl PaneFiles {
         self.loading = false;
         self.req_seq += 1;
         self.error = None;
-        // Host-scoped: a reconnect may land on another host's tree.
+        // Host-scoped: a reconnect may land on another host's tree, so the
+        // in-memory list goes. It is no longer a loss: the history is
+        // persisted per host and `hydrate_files_recent` refills this on the
+        // next mount (issue #114). Before that, closing the host was the
+        // end of it.
         self.path_history.clear();
         self.path_history_open = false;
     }

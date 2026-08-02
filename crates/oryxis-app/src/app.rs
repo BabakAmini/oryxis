@@ -1111,6 +1111,15 @@ pub struct Oryxis {
     pub(crate) setting_pane_gap: String,
     /// Global terminal-theme gallery (Settings > Terminal) is open.
     pub(crate) show_terminal_theme_gallery: bool,
+    /// Recently visited Files-sidebar folders, keyed by saved-host id.
+    ///
+    /// The per-pane list is deliberately wiped on disconnect, because a
+    /// reconnect can land on a different tree; keeping the history HERE,
+    /// scoped to the host it belongs to, is what makes that wipe harmless
+    /// and lets the list survive closing the tab (issue #114 / #85).
+    /// Only `PaneOrigin::Host` panes qualify: a quick-connect id is
+    /// in-memory and a local shell has no host to key on.
+    pub(crate) files_recent_folders: std::collections::HashMap<uuid::Uuid, Vec<String>>,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
     /// render paths. When on, the terminal skips the per-frame keyword /

@@ -396,6 +396,16 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("pane_gap") {
                 self.setting_pane_gap = v;
             }
+            // Files-sidebar folder history, keyed by host. A malformed or
+            // stale blob is dropped rather than failing the boot: it is a
+            // convenience list, and losing it costs nothing.
+            if let Ok(Some(v)) = vault.get_setting("files_recent_folders")
+                && let Ok(map) = serde_json::from_str::<
+                    std::collections::HashMap<uuid::Uuid, Vec<String>>,
+                >(&v)
+            {
+                self.files_recent_folders = map;
+            }
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.setting_keyword_highlight = v == "true";
             }
